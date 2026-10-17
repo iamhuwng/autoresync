@@ -72,6 +72,9 @@ describe('replacement plan service', () => {
     expect(Object.isFrozen(result.plan.sourceSetDelta)).toBe(true);
     expect(result.plan.contexts).toHaveLength(5);
     expect(new Set(result.plan.contexts.map((context) => context.contextKey)).size).toBe(5);
+    expect(result.plan.adapters.map((adapter) => adapter.contextKind)).toEqual([
+      'class', 'course', 'homework', 'public-reference', 'solo',
+    ]);
     expect(result.plan.selectedContextKeys).toEqual([]);
     expect(JSON.stringify(result.plan)).not.toContain('studentAnswer');
     expect(result.plan.capacity.available).toBe(true);

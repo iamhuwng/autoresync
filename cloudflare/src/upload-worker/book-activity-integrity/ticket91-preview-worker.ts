@@ -47,6 +47,8 @@ const practicePolicy = createDefaultBookIntegrityPolicy('practice', {
   policyRevision: 1,
 });
 
+const slotFor = (contextId: string): string => `book-integrity-slot-v1-${contextId === 'homework-policy-off' ? 'b' : contextId === 'homework-inactive' ? 'c' : 'a'}${'a'.repeat(39)}`;
+
 const authorityFor = (
   requested: BookIntegrityCaptureTarget,
   actorUid: string,
@@ -67,6 +69,8 @@ const authorityFor = (
     accountableAttemptId: requested.contextId === 'homework-inactive'
       ? 'inactive-attempt-1'
       : 'active-attempt-1',
+    captureSlotId: slotFor(requested.contextId),
+    captureAttemptNumber: 1,
     attemptNumber: 1,
     active: requested.contextId !== 'homework-inactive',
     frozenPolicy,
@@ -83,6 +87,8 @@ const signalRequest = (
     ? practicePolicy.policyId
     : accountablePolicy.policyId,
   policyRevision: 1,
+  captureSlotId: slotFor(contextId),
+  captureAttemptNumber: 1,
   clientSessionId: 'ticket91-session-a',
   sequence,
   signal: 'paste',

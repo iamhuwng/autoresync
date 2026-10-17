@@ -6,9 +6,20 @@ import {
   type BookContentTreeNodeCandidate,
   type BookSourceVersionAuthority,
   type SourceSetCandidate,
+  type TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
+const DECISION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
+const HASH = /^[a-f0-9]{64}$/iu;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+const PURPOSES = ['book-source', 'student-document'] as const;
+const SAFE_STATUSES = ['unreviewed', 'review-required', 'ready', 'rejected'] as const;
+const SAFE_REASONS = ['teacher-reviewed', 'teacher-only-content', 'invalid-document', 'superseded'] as const;
+const PROJECTION_KEYS = [
+  'bookId', 'checksum', 'physicalPageCount', 'purpose', 'sourceKey', 'sourceVersionId', 'studentSafeStatus', 'verifiedUsable',
+] as const;
+const DECISION_KEYS = ['decidedAt', 'decidedBy', 'reasonCode', 'sha256Hex', 'sourceVersionId'] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -20,10 +31,64 @@ const error = (
   message: string,
 ): BookAssemblyValidationError => ({ code, path, message });
 
+const validId = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
+
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
-  const actual = Object.keys(value).sort();
+  const actual = Reflect.ownKeys(value).filter((key): key is string => typeof key === 'string').sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+  return Reflect.ownKeys(value).length === expected.length
+    && actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
+};
+
+const validChecksum = (value: unknown): boolean => (
+  isRecord(value)
+  && exactKeys(value, ['algorithm', 'value'])
+  && value.algorithm === 'sha-256'
+  && typeof value.value === 'string'
+  && HASH.test(value.value)
+);
+
+const validDecision = (
+  value: unknown,
+  sourceVersionId: string,
+  checksum: Record<string, unknown>,
+): boolean => {
+  if (!isRecord(value) || !exactKeys(value, DECISION_KEYS)) return false;
+  return typeof value.decidedBy === 'string'
+    && DECISION_ID.test(value.decidedBy)
+    && typeof value.decidedAt === 'string'
+    && ISO.test(value.decidedAt)
+    && Number.isFinite(Date.parse(value.decidedAt))
+    && value.sourceVersionId === sourceVersionId
+    && typeof value.sha256Hex === 'string'
+    && HASH.test(value.sha256Hex)
+    && typeof checksum.value === 'string'
+    && value.sha256Hex.toLowerCase() === checksum.value.toLowerCase()
+    && SAFE_REASONS.includes(value.reasonCode as typeof SAFE_REASONS[number]);
+};
+
+/** Runtime guard for the provider-free authority contract. */
+export const isTrustedSourceVersionProjection = (
+  value: unknown,
+  sourceVersionId: string,
+): value is TrustedBookSourceVersionProjection => {
+  if (!isRecord(value)) return false;
+  const hasDecision = Object.hasOwn(value, 'studentSafeDecision');
+  const projectionKeys = hasDecision ? [...PROJECTION_KEYS, 'studentSafeDecision'] : PROJECTION_KEYS;
+  if (!exactKeys(value, projectionKeys)
+    || !validId(value.sourceKey)
+    || !validId(value.sourceVersionId)
+    || value.sourceVersionId !== sourceVersionId
+    || !validId(value.bookId)
+    || !validChecksum(value.checksum)
+    || !Number.isSafeInteger(value.physicalPageCount)
+    || (value.physicalPageCount as number) < 1
+    || !PURPOSES.includes(value.purpose as typeof PURPOSES[number])
+    || !SAFE_STATUSES.includes(value.studentSafeStatus as typeof SAFE_STATUSES[number])
+    || typeof value.verifiedUsable !== 'boolean') return false;
+  if (value.studentSafeStatus === 'unreviewed') return !hasDecision;
+  return hasDecision && validDecision(value.studentSafeDecision, sourceVersionId, value.checksum as Record<string, unknown>);
 };
 
 /**
@@ -89,6 +154,12 @@ export const validateSourceSetCandidate = (
   if (strategy === 'full_pdf' && sourceSet.sources.length !== 1) {
     errors.push(error('invalid-value', '$.sourceSet.sources', 'Full PDF Source Set must contain exactly one source.'));
   }
+  if (strategy === 'component_pdfs' && sourceSet.sources.length < 2) {
+    errors.push(error('invalid-value', '$.sourceSet.sources', 'Component PDF Source Set must contain at least two sources.'));
+  }
+  if (strategy === 'component_pdfs' && sourceSet.sources.length > 20) {
+    errors.push(error('limit-exceeded', '$.sourceSet.sources', 'Component PDF Source Set cannot contain more than twenty sources.'));
+  }
 
   const sourceKeys = new Set<string>();
   const sourceVersions = new Set<string>();
@@ -131,6 +202,9 @@ export const validateSourceSetCandidate = (
     } else {
       sourceOrders.add(sourceOrder);
     }
+    if (Number.isSafeInteger(sourceOrder) && sourceOrder !== index + 1) {
+      errors.push(error('invalid-value', `${path}.sourceOrder`, 'Source orders must be dense and match the submitted order.'));
+    }
     if (component && (typeof source.ownerNodeKey !== 'string' || !ID.test(source.ownerNodeKey))) {
       errors.push(error('invalid-owner', `${path}.ownerNodeKey`, 'Component source requires one bounded hierarchy owner.'));
     }
@@ -147,13 +221,21 @@ export const validateSourceSetCandidate = (
       if (trusted.sourceVersionId !== source.sourceVersionId) {
         errors.push(error('unknown-source-version', `${path}.sourceVersionId`, 'Trusted Source Version identity does not match.'));
       }
+      if (trusted.sourceKey !== source.sourceKey) {
+        errors.push(error('source-identity-mismatch', `${path}.sourceKey`, 'Source key does not match trusted Source Version authority.'));
+      }
       if (trusted.bookId !== input.bookId) {
         errors.push(error('source-book-mismatch', `${path}.sourceVersionId`, 'Source Version belongs to another Book.'));
       }
-      if (!trusted.verifiedUsable) {
+      const projectionValid = isTrustedSourceVersionProjection(trusted, source.sourceVersionId);
+      if (!projectionValid) {
+        errors.push(error('invalid-value', `${path}.sourceVersionId`, 'Trusted Source Version projection is malformed.'));
+      } else if (trusted.purpose !== 'book-source'
+        || trusted.studentSafeStatus === 'rejected'
+        || trusted.verifiedUsable !== true) {
         errors.push(error('unverified-source-version', `${path}.sourceVersionId`, 'Source Version is not verified usable.'));
       }
-      if (!Number.isSafeInteger(trusted.physicalPageCount) || trusted.physicalPageCount < 1) {
+      if (projectionValid && (!Number.isSafeInteger(trusted.physicalPageCount) || trusted.physicalPageCount < 1)) {
         errors.push(error('invalid-value', `${path}.sourceVersionId`, 'Trusted Source Version page count is invalid.'));
       }
     }

@@ -35,6 +35,8 @@ export interface SourceProviderRequestOptions {
   readonly signal?: AbortSignal;
   /** Positive bounded duration. Providers must reject before remote work when elapsed. */
   readonly timeoutMs?: number;
+  /** Absolute deadline for provider work, including response-body consumption. */
+  readonly deadlineAt?: number;
 }
 
 export interface SourceProviderUploadAuthorization {
@@ -50,6 +52,18 @@ export interface SourceProviderUploadAuthorization {
 export interface SourceProviderObjectMetadata {
   readonly identity: BookSourceVersionStorageIdentity;
   readonly contentType: 'application/pdf';
+}
+
+/** Immutable reservation coordinates used to resolve provider version identity. */
+export interface SourceProviderObjectReservation {
+  readonly bookId: string;
+  readonly sourceVersionId: string;
+  readonly storageLocationId: string;
+  readonly providerKind: string;
+  readonly privateBucketId: string;
+  readonly providerObjectKey: string;
+  readonly checksum: BookSourceChecksum;
+  readonly byteSize: number;
 }
 
 export interface SourceProviderAccountTotals {
@@ -73,6 +87,8 @@ export interface SourceProviderBoundedRead {
   readonly bytes: Uint8Array;
   readonly totalByteSize: number;
   readonly offset: number;
+  /** Provider-confirmed immutable content identity for this range. */
+  readonly contentIdentity?: BookSourceVersionStorageIdentity;
 }
 
 /**
@@ -92,6 +108,11 @@ export interface SourceProviderPort {
     /** Canonical reservation time used to reconstruct an exact replay URL. */
     readonly issuedAt?: string;
   }, options?: SourceProviderRequestOptions): Promise<SourceProviderUploadAuthorization>;
+
+  /** Resolve and verify the canonical object from reservation coordinates only. */
+  resolveCompletedObject(input: {
+    readonly expected: SourceProviderObjectReservation;
+  }, options?: SourceProviderRequestOptions): Promise<SourceProviderObjectMetadata>;
 
   verifyCompletedObject(input: {
     readonly expected: BookSourceVersionStorageIdentity;

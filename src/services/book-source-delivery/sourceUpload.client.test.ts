@@ -3,6 +3,7 @@ import {
   createSourceUploadClient,
   createSourceUploadSessionStatePort,
   SourceUploadClientError,
+  type AttachSourceSetCommand,
   type BeginSourceUploadCommand,
 } from './sourceUpload.client';
 
@@ -11,6 +12,7 @@ const beginCommand: BeginSourceUploadCommand = {
   operationId: '11111111-1111-4111-8111-111111111111',
   sourceKey: 'source-one',
   kind: 'initial',
+  purpose: 'book-source',
   inspection: {
     schemaVersion: 1,
     trust: 'browser-supplied-untrusted',
@@ -21,6 +23,17 @@ const beginCommand: BeginSourceUploadCommand = {
     physicalPageCount: 3,
     pdfType: 'application/pdf',
     readability: 'readable',
+  },
+};
+
+const attachCommand: AttachSourceSetCommand = {
+  bookId: 'book-1',
+  operationId: '22222222-2222-4222-8222-222222222222',
+  expectedBookRevision: 2,
+  expectedSourceSetRevision: 3,
+  sourceSet: {
+    sourceStrategy: 'full_pdf',
+    sources: [{ sourceKey: 'full', sourceVersionId: 'source-version-1', sourceOrder: 1 }],
   },
 };
 
@@ -40,6 +53,7 @@ describe('sourceUpload.client', () => {
         operationId: beginCommand.operationId,
         sourceKey: beginCommand.sourceKey,
         kind: 'initial',
+        purpose: 'book-source',
         inspection: beginCommand.inspection,
       });
       expect(String(init?.body)).not.toMatch(/%PDF|arrayBuffer|fileBytes|base64/iu);
@@ -76,16 +90,14 @@ describe('sourceUpload.client', () => {
     );
   });
 
-  it('sends only provider completion identity and validates reservation binding', async () => {
+  it('sends only the operation identity and validates the completion response', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      expect(JSON.parse(String(init?.body))).toEqual({
-        providerFileId: 'file-1',
-        providerFileVersionId: 'file-version-1',
-      });
+      expect(JSON.parse(String(init?.body))).toEqual({ operationId: '11111111-1111-4111-8111-111111111111' });
       return Response.json({
         status: 'verified_completed',
         reservationId: 'reservation-1',
         sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
       });
     });
     const client = createSourceUploadClient({
@@ -97,13 +109,243 @@ describe('sourceUpload.client', () => {
     await expect(client.complete({
       bookId: 'book-1',
       reservationId: 'reservation-1',
-      providerFileId: 'file-1',
-      providerFileVersionId: 'file-version-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
     })).resolves.toEqual({
       status: 'verified_completed',
       reservationId: 'reservation-1',
       sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
     });
+  });
+
+  it.each([
+    ['missing checksum', {}],
+    ['malformed checksum', { checksum: { algorithm: 'sha-256', value: 'not-a-hash' } }],
+    ['legacy optional completion fields', {
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      bookRevision: 1,
+    }],
+  ])('fails closed on %s completion response', async (_label, checksumResponse) => {
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: vi.fn(async () => Response.json({
+        status: 'verified_completed',
+        reservationId: 'reservation-1',
+        sourceVersionId: 'source-version-1',
+        ...checksumResponse,
+      })) as typeof fetch,
+    });
+
+    await expect(client.complete({
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+    })).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
+  });
+
+  it('sends a trusted safety decision and returns its version/hash-bound projection', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        operationId: beginCommand.operationId,
+        studentSafeStatus: 'ready',
+        reasonCode: 'teacher-reviewed',
+      });
+      return Response.json({
+        status: 'verified_completed',
+        reservationId: 'reservation-1',
+        sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+        purpose: 'book-source',
+        studentSafeStatus: 'ready',
+        studentSafeDecision: {
+          decidedBy: 'teacher-1',
+          decidedAt: '2026-08-11T00:02:00.000Z',
+          sourceVersionId: 'source-version-1',
+          sha256Hex: 'A'.repeat(64),
+          reasonCode: 'teacher-reviewed',
+        },
+      });
+    });
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(client.decideStudentSafeSource({
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      operationId: beginCommand.operationId,
+      studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    })).resolves.toMatchObject({
+      status: 'verified_completed',
+      purpose: 'book-source',
+      sourceVersionId: 'source-version-1',
+      studentSafeDecision: expect.objectContaining({ sha256Hex: 'a'.repeat(64) }),
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://control.example/v1/book-source/books/book-1/upload/reservation-1/student-safe/decide',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Idempotency-Key': beginCommand.operationId }),
+      }),
+    );
+  });
+
+  it('sends explicit full-PDF attachment with CAS revisions and accepts replay', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        operationId: attachCommand.operationId,
+        expectedBookRevision: 2,
+        expectedSourceSetRevision: 3,
+        sourceSet: attachCommand.sourceSet,
+      });
+      return Response.json({
+        status: 'replayed',
+        bookRevision: 2,
+        sourceSetRevision: 3,
+        sourceSet: attachCommand.sourceSet,
+      });
+    });
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(client.attachSourceSet(attachCommand)).resolves.toEqual({
+      status: 'replayed',
+      bookRevision: 2,
+      sourceSetRevision: 3,
+      sourceSet: attachCommand.sourceSet,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://control.example/v1/book-source/books/book-1/source-set/attach',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Idempotency-Key': attachCommand.operationId }),
+      }),
+    );
+  });
+
+  it.each([
+    ['component count 1', {
+      sourceStrategy: 'component_pdfs',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' }],
+    }],
+    ['component count 21', {
+      sourceStrategy: 'component_pdfs',
+      sources: Array.from({ length: 21 }, (_, index) => ({
+        sourceKey: `source-${index + 1}`,
+        sourceVersionId: `version-${index + 1}`,
+        sourceOrder: index + 1,
+        ownerNodeKey: 'unit-1',
+      })),
+    }],
+    ['component order gap', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 3, ownerNodeKey: 'unit-1' },
+      ],
+    }],
+    ['component duplicate source key', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'a', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+      ],
+    }],
+    ['component duplicate source version', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'b', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+      ],
+    }],
+    ['component reordered orders', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      ],
+    }],
+    ['full PDF with zero sources', { sourceStrategy: 'full_pdf', sources: [] }],
+    ['full PDF with two sources', {
+      sourceStrategy: 'full_pdf',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2 },
+      ],
+    }],
+    ['full PDF with non-one order', {
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2 }],
+    }],
+  ])('fails closed on %s attachment response', async (_label, sourceSet) => {
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: vi.fn(async () => Response.json({
+        status: 'attached',
+        bookRevision: 1,
+        sourceSetRevision: 1,
+        sourceSet,
+      })) as typeof fetch,
+    });
+
+    await expect(client.attachSourceSet({
+      ...attachCommand,
+      sourceSet: sourceSet as never,
+    })).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
+  });
+
+  it('surfaces explicit attachment conflicts for caller retry or refresh', async () => {
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: vi.fn(async () => Response.json({ code: 'stale_cas' }, { status: 409 })) as typeof fetch,
+    });
+
+    await expect(client.attachSourceSet(attachCommand)).rejects.toEqual(
+      new SourceUploadClientError('stale_cas', 409),
+    );
+  });
+
+  it.each([
+    ['stale decision version', { sourceVersionId: 'other-version' }],
+    ['student document', { purpose: 'student-document' }],
+    ['hash mismatch', { sha256Hex: 'b'.repeat(64) }],
+  ])('fails closed on %s safety decision response', async (_label, patch) => {
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: vi.fn(async () => Response.json({
+        status: 'verified_completed',
+        reservationId: 'reservation-1',
+        sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+        purpose: 'book-source',
+        studentSafeStatus: 'ready',
+        studentSafeDecision: {
+          decidedBy: 'teacher-1',
+          decidedAt: '2026-08-11T00:02:00.000Z',
+          sourceVersionId: 'source-version-1',
+          sha256Hex: 'a'.repeat(64),
+          reasonCode: 'teacher-reviewed',
+          ...patch,
+        },
+      })) as typeof fetch,
+    });
+
+    await expect(client.decideStudentSafeSource({
+       bookId: 'book-1',
+       reservationId: 'reservation-1',
+       operationId: beginCommand.operationId,
+       studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    })).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
   });
 
   it('fails closed on a malformed success or sanitized server failure', async () => {
@@ -151,6 +393,7 @@ describe('sourceUpload.client', () => {
         status: 'verified_completed',
         reservationId: 'reservation-1',
         sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
       }));
     const client = createSourceUploadClient({
       baseUrl: 'https://control.example',
@@ -161,8 +404,7 @@ describe('sourceUpload.client', () => {
     await client.complete({
       bookId: beginCommand.bookId,
       reservationId: 'reservation-1',
-      providerFileId: '4_file',
-      providerFileVersionId: '4_version',
+      operationId: beginCommand.operationId,
     });
 
     expect(getIdToken).toHaveBeenCalledTimes(2);
@@ -181,6 +423,7 @@ describe('sourceUpload.client', () => {
       status: 'verified_completed',
       reservationId: 'reservation-1',
       sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
     });
     Object.defineProperties(redirectedResponse, {
       redirected: { value: true },
@@ -194,8 +437,7 @@ describe('sourceUpload.client', () => {
     await expect(redirected.complete({
       bookId: 'book-1',
       reservationId: 'reservation-1',
-      providerFileId: '4_file',
-      providerFileVersionId: '4_version',
+      operationId: beginCommand.operationId,
     })).rejects.toMatchObject({ code: 'response_binding_mismatch' });
   });
 
@@ -213,12 +455,9 @@ describe('sourceUpload.client', () => {
       exactByteSize: 42,
       sha256Hex: 'a'.repeat(64),
       phase: 'completion_pending',
-      providerFileId: '4_file',
-      providerFileVersionId: '4_version',
     });
     await expect(port.load('book-1')).resolves.toMatchObject({
       phase: 'completion_pending',
-      providerFileVersionId: '4_version',
     });
     expect(JSON.stringify(sessionStorage.getItem('prd0062:book-source-upload:v1:book-1:main')))
       .not.toMatch(/token|signature|requiredHeaders|uploadUrl/iu);
@@ -326,8 +565,18 @@ describe('sourceUpload.client', () => {
         sourceKey: 'full',
         sourceVersionId: 'source-version-1',
         bookId: 'book-1',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
         physicalPageCount: 14,
         verifiedUsable: true,
+        purpose: 'book-source',
+        studentSafeStatus: 'ready',
+        studentSafeDecision: {
+          decidedBy: 'teacher-1',
+          decidedAt: '2026-08-11T00:02:00.000Z',
+          sourceVersionId: 'source-version-1',
+          sha256Hex: 'a'.repeat(64),
+          reasonCode: 'teacher-reviewed',
+        },
       }],
     }));
     const client = createSourceUploadClient({
@@ -340,14 +589,136 @@ describe('sourceUpload.client', () => {
       sourceKey: 'full',
       sourceVersionId: 'source-version-1',
       bookId: 'book-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
       physicalPageCount: 14,
       verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
     }]);
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://control.example/v1/book-source/books/book-1/sources',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(fetchImpl.mock.calls[0]?.[1]).not.toHaveProperty('body');
+  });
+
+  it('retains private unreviewed rows but excludes student-document, unsafe, and rejected rows', async () => {
+    const complete = {
+      sourceKey: 'full',
+      sourceVersionId: 'source-ready',
+      bookId: 'book-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      physicalPageCount: 14,
+      verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-ready',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
+    };
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl: vi.fn(async () => Response.json({
+        sources: [
+          complete,
+          { ...complete, sourceVersionId: 'student-document-1', purpose: 'student-document', studentSafeDecision: { ...complete.studentSafeDecision, sourceVersionId: 'student-document-1' } },
+          { ...complete, sourceVersionId: 'rejected-1', studentSafeStatus: 'rejected', studentSafeDecision: { ...complete.studentSafeDecision, sourceVersionId: 'rejected-1', reasonCode: 'teacher-only-content' } },
+          { ...complete, sourceVersionId: 'unsafe-1', verifiedUsable: false, studentSafeDecision: { ...complete.studentSafeDecision, sourceVersionId: 'unsafe-1' } },
+          (() => {
+            const unreviewed = { ...complete, sourceVersionId: 'unreviewed-1', studentSafeStatus: 'unreviewed' } as Record<string, unknown>;
+            delete unreviewed.studentSafeDecision;
+            return unreviewed;
+          })(),
+          { ...complete, sourceVersionId: 'review-required-1', studentSafeStatus: 'review-required', studentSafeDecision: { ...complete.studentSafeDecision, sourceVersionId: 'review-required-1' } },
+        ],
+      })) as typeof fetch,
+    });
+
+    await expect(client.listSourceVersions('book-1')).resolves.toEqual([
+      complete,
+      expect.objectContaining({ sourceVersionId: 'unreviewed-1', studentSafeStatus: 'unreviewed' }),
+      expect.objectContaining({ sourceVersionId: 'review-required-1', studentSafeStatus: 'review-required' }),
+    ]);
+  });
+
+  it.each([
+    ['missing decision', (source: Record<string, unknown>) => ({ ...source, studentSafeDecision: undefined })],
+    ['malformed decision', (source: Record<string, unknown>) => ({ ...source, studentSafeDecision: { decidedBy: 'teacher-1' } })],
+  ])('fails closed on %s', async (_label, mutate) => {
+    const source = {
+      sourceKey: 'full',
+      sourceVersionId: 'source-version-1',
+      bookId: 'book-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      physicalPageCount: 14,
+      verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
+    };
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl: vi.fn(async () => Response.json({ sources: [mutate(source)] })) as typeof fetch,
+    });
+
+    await expect(client.listSourceVersions('book-1')).rejects.toMatchObject({
+      code: 'invalid_response',
+      status: 502,
+    });
+  });
+
+  it.each([
+    ['stale sourceVersionId', { sourceVersionId: 'other-version' }],
+    ['malformed hash', { sha256Hex: 'not-a-sha256' }],
+    ['mismatched checksum', { sha256Hex: 'b'.repeat(64) }],
+  ])('fails closed on %s in the safety decision', async (_label, decisionPatch) => {
+    const source = {
+      sourceKey: 'full',
+      sourceVersionId: 'source-version-1',
+      bookId: 'book-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      physicalPageCount: 14,
+      verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+        ...decisionPatch,
+      },
+    };
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'token',
+      fetchImpl: vi.fn(async () => Response.json({ sources: [source] })) as typeof fetch,
+    });
+
+    await expect(client.listSourceVersions('book-1')).rejects.toMatchObject({
+      code: 'invalid_response',
+      status: 502,
+    });
   });
 
   it('fails closed on malformed trusted source projection data', async () => {

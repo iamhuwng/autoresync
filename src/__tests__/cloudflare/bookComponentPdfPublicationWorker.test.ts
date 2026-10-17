@@ -13,7 +13,9 @@ import { createComponentPdfPublicationWorkerHandlers } from '../../../cloudflare
 import {
   createCandidateUnitPreview,
   createPreviewApproval,
+  wholeActivationApprovalFingerprint,
 } from '../../services/book-assembly/unitPreview.service';
+import { createComponentStudentDocument } from '../../services/book-assembly/componentStudentDocument.types';
 
 const operationId = '00000000-0000-4000-8000-000000000265';
 const headerOperationId = '00000000-0000-4000-8000-000000000266';
@@ -90,8 +92,8 @@ const manifest = (): BookAssemblyManifestCandidate => ({
     },
     {
       unitKey: 'unit-2',
-      activitySlots: [],
-      pageGroups: [],
+      activitySlots: [{ activityKey: 'slot-b', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-b'] }],
+      pageGroups: [{ pageGroupKey: 'pages-b', sourceKey: 'component-b', pages: [1], activityKeys: ['slot-b'], mode: 'activity' }],
     },
   ],
 });
@@ -106,8 +108,14 @@ const authority = (): BookAssemblyBookAuthority => ({
   sourceVersionAuthority: {
     getSourceVersion: (sourceVersionId) => ['source-a-v1', 'source-b-v1'].includes(sourceVersionId)
       ? {
+          sourceKey: sourceVersionId === 'source-a-v1' ? 'component-a' : 'component-b',
           sourceVersionId,
           bookId: 'book-1',
+          checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+          purpose: 'book-source' as const,
+          studentSafeStatus: 'ready' as const,
+          studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-07-27T00:00:00.000Z',
+            sourceVersionId, sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' as const },
           physicalPageCount: 12,
           verifiedUsable: true,
         }
@@ -115,14 +123,14 @@ const authority = (): BookAssemblyBookAuthority => ({
   },
 });
 
-const candidate = (): BookAssemblyCandidateRecord => ({
-  candidateId: 'candidate-1',
+const candidate = (unitKey = 'unit-1'): BookAssemblyCandidateRecord => ({
+  candidateId: unitKey === 'unit-1' ? 'candidate-1' : 'candidate-2',
   ownerId: 'teacher-1',
   bookId: 'book-1',
   bookRevision: 9,
   sourceSetRevision: 3,
-  unitKey: 'unit-1',
-  revision: 6,
+  unitKey,
+  revision: unitKey === 'unit-1' ? 6 : 7,
   lifecycle: 'validated',
   manifest: manifest(),
   validation: { valid: true, errors: [] },
@@ -131,36 +139,56 @@ const candidate = (): BookAssemblyCandidateRecord => ({
 
 const body = () => ({
   bookId: 'book-1',
-  unitKey: 'unit-1',
-  candidateId: 'candidate-1',
-  expectedCandidateRevision: 6,
   expectedCurrentPublicationId: null,
   expectedBookRevision: 9,
   expectedSourceSetRevision: 3,
-  previewApproval: {
-    approvalId: 'approval-1',
-    approvalRevision: 1,
-    approvedAt: '2026-07-27T12:00:00.000Z',
-    expiresAt: '2026-07-27T14:00:00.000Z',
-  },
+  unitApprovals: ['unit-1', 'unit-2'].map((unitKey, index) => ({ unitKey,
+    candidateId: `candidate-${index + 1}`, candidateRevision: index + 6,
+    approvalId: `approval-${index + 1}`, approvalRevision: 1,
+    approvedAt: '2026-07-27T12:00:00.000Z', expiresAt: '2026-07-27T14:00:00.000Z' })),
 });
 
-const currentApproval = () => createPreviewApproval({
-  approvalId: 'approval-1',
+const studentDocument = createComponentStudentDocument({ sourceVersionId: 'student-v1', descriptorRevision: 3,
+  sha256Hex: 'a'.repeat(64), byteSize: 24, physicalPageCount: 24, compositionFingerprint: 'composition-1', components: [
+    { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', sourceOrder: 1, ownerNodeKey: 'root', localPageCount: 12, combinedStartPage: 1, combinedEndPage: 12 },
+    { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', sourceOrder: 2, ownerNodeKey: 'root', localPageCount: 12, combinedStartPage: 13, combinedEndPage: 24 },
+  ] });
+const wholeInput = () => ({ ownerId: 'teacher-1', bookId: 'book-1', bookRevision: 9, sourceSetRevision: 3,
+  sourceSet: manifest().sourceSet, activationReceipt: { schemaVersion: 1 as const, operationId: 'activation-1',
+    inputFingerprint: 'fnv1a64:1111111111111111', ownerId: 'teacher-1', bookId: 'book-1' as never,
+    bookRevision: 9, sourceSetRevision: 3, sourceSet: manifest().sourceSet, unitCandidates: [
+      { unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 6, manifestFingerprint: 'fnv1a64:2222222222222222' },
+      { unitKey: 'unit-2', candidateId: 'candidate-2', candidateRevision: 7, manifestFingerprint: 'fnv1a64:2222222222222222' }],
+    studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: 3, descriptorFingerprint: 'fnv1a64:3333333333333333' },
+    activities: [
+      { unitKey: 'unit-1', activityKey: 'slot-a', activityId: 'activity-a', activityCandidateId: 'candidate-a', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+      { unitKey: 'unit-2', activityKey: 'slot-b', activityId: 'activity-b', activityCandidateId: 'candidate-b', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' }], activatedAt: now },
+  units: [
+    { unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 6, manifestFingerprint: 'fnv1a64:2222222222222222', manifest: manifest() },
+    { unitKey: 'unit-2', candidateId: 'candidate-2', candidateRevision: 7, manifestFingerprint: 'fnv1a64:2222222222222222', manifest: manifest() }],
+  studentDocument, registryVersion: 'registry-1', activities: [
+    { unitKey: 'unit-1', activityKey: 'slot-a', activityId: 'activity-a', activityCandidateId: 'candidate-a', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+    { unitKey: 'unit-2', activityKey: 'slot-b', activityId: 'activity-b', activityCandidateId: 'candidate-b', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' }],
+});
+
+const currentApproval = (unitKey = 'unit-1') => createPreviewApproval({
+  approvalId: unitKey === 'unit-1' ? 'approval-1' : 'approval-2',
   approvalRevision: 1,
   actorId: 'teacher-1',
   approvedAt: '2026-07-27T12:00:00.000Z',
   expiresAt: '2026-07-27T14:00:00.000Z',
   preview: createCandidateUnitPreview({
-    candidate: candidate(),
+    candidate: candidate(unitKey),
     sourceVersions: [
       {
+        sourceKey: 'component-a',
         sourceVersionId: 'source-a-v1',
         bookId: 'book-1',
         physicalPageCount: 12,
         verifiedUsable: true,
       },
       {
+        sourceKey: 'component-b',
         sourceVersionId: 'source-b-v1',
         bookId: 'book-1',
         physicalPageCount: 12,
@@ -168,15 +196,16 @@ const currentApproval = () => createPreviewApproval({
       },
     ],
     sourceIsPreviewReady: () => true,
-    activitiesByKey: { 'slot-a': activity() },
+    activitiesByKey: { [unitKey === 'unit-1' ? 'slot-a' : 'slot-b']: activity() },
     registryVersion: 'registry-1',
+    studentDocument: { descriptor: studentDocument, request: { opaqueRouteKey: 'doc', expectedByteLength: 24, expectedEtag: 'etag' } },
   }),
-  canonicalActivitiesByKey: { 'slot-a': activity() },
+  canonicalActivitiesByKey: { [unitKey === 'unit-1' ? 'slot-a' : 'slot-b']: activity() },
+  wholeActivationFingerprint: wholeActivationApprovalFingerprint(wholeInput()),
 });
 
 const env = {
   BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'true',
-  readDatabaseValue: async () => ({ role: 'teacher' }),
 };
 
 const worker = (
@@ -194,24 +223,30 @@ const worker = (
       lifecycle: 'validated',
       activity: activity(),
     },
+    'slot-b': { activityKey: 'slot-b', ownerId: 'teacher-1', revision: 1, lifecycle: 'validated', activity: activity() },
   },
   approvalRecord = currentApproval(),
   previewReady = true,
   useProductionIdAllocation = false,
+  readUser: (uid: string) => Promise<unknown> = async () => ({ role: 'teacher', status: 'active' }),
 ) => {
   const repository = new InMemoryBookAssemblyPublicationRepository();
   const activityVersionWriter = new InMemoryCanonicalActivityVersionRepository();
   const readAuthority = vi.fn(async () => authority());
-  const readCandidate = vi.fn(async (): Promise<BookAssemblyCandidateRecord | null> => candidate());
+  const readCandidate = vi.fn(async (_bookId: string, unitKey: string): Promise<BookAssemblyCandidateRecord | null> => candidate(unitKey));
   const readPreviewApproval = vi.fn(
-    async (): Promise<ReturnType<typeof currentApproval> | null> => approvalRecord,
+    async (input): Promise<ReturnType<typeof currentApproval> | null> => input.unitKey === 'unit-1' ? approvalRecord : currentApproval('unit-2'),
   );
   const handlers = createComponentPdfPublicationWorkerHandlers({
+    readUser,
     repository,
     activityVersionWriter,
     readAuthority,
+    readWholeActivationApprovalInput: async () => wholeInput(),
     readCandidate,
-    readActivities: vi.fn(async () => activitiesByKey),
+    readActivities: vi.fn(async (input) => Object.fromEntries(
+      input.activityKeys.filter((key) => activitiesByKey[key]).map((key) => [key, activitiesByKey[key]!]),
+    )),
     readPreviewApproval,
     sourceIsPreviewReady: vi.fn(async () => previewReady),
     allocateOperationId: () => operationId,
@@ -242,27 +277,29 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
     expect(published.init.status).toBe(200);
     expect(published.body).toMatchObject({
       operationId,
-      manifestVersionId: 'manifest-version:candidate-1',
-      publicationId: 'publication:candidate-1',
+      manifestVersionId: 'manifest-version:activation-1',
+      publicationId: 'publication:activation-1',
       result: { status: 'published' },
     });
     await expect(fixture.repository.readScope('book-1')).resolves.toMatchObject({
-      current: { publicationId: 'publication:candidate-1' },
+      current: { publicationId: 'publication:activation-1' },
       placements: {
-        'placement:slot-a': { unitKey: 'unit-1' },
+        'placement:unit-1:slot-a': { unitKey: 'unit-1' },
+        'placement:unit-2:slot-b': { unitKey: 'unit-2' },
       },
       unitProjections: {
-        'unit-projection:unit-1': { unitKey: 'unit-1' },
+        'unit-projection:unit-1:unit-1': { unitKey: 'unit-1' },
+        'unit-projection:unit-2:unit-2': { unitKey: 'unit-2' },
       },
       deliveryPlans: {
-        'delivery-plan:unit-1': { sourceStrategy: 'component_pdfs' },
+        'delivery-plan:unit-1:unit-1': { sourceStrategy: 'component_pdfs' },
       },
     });
     const scope = await fixture.repository.readScope('book-1');
     const metadata = Object.values(scope.activityVersions ?? {})
-      .find((entry) => entry.activityVersionId === 'activity-version:slot-a');
+      .find((entry) => entry.activityVersionId === 'activity-version:unit-1:slot-a');
     expect(metadata).toMatchObject({
-      activityId: 'activity:slot-a',
+      activityId: 'activity:unit-1:slot-a',
       sourcePages: [{
         sourceKey: 'component-a',
         sourceVersionId: 'source-a-v1',
@@ -271,8 +308,8 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
     });
     expect(metadata?.canonicalPayloadFingerprint).toMatch(/^fnv1a64:/u);
     await expect(fixture.activityVersionWriter.readPrepared({
-      activityId: 'activity:slot-a',
-      activityVersionId: 'activity-version:slot-a',
+      activityId: 'activity:unit-1:slot-a',
+      activityVersionId: 'activity-version:unit-1:slot-a',
       activityVersion: 1,
       canonicalPayloadFingerprint: metadata!.canonicalPayloadFingerprint,
     })).resolves.toMatchObject({
@@ -320,11 +357,61 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
       init: { status: 503 },
     });
     await expect(fixture.repository.readScope('book-1')).resolves.toMatchObject({
-      current: { publicationId: 'publication:candidate-1' },
+      current: { publicationId: 'publication:activation-1' },
       versions: {
-        'manifest-version:candidate-1': { lifecycle: 'published' },
+        'manifest-version:activation-1': { lifecycle: 'published' },
       },
     });
+  });
+
+  it('requires the strict active authority profile and permits an active owner super-admin', async () => {
+    const deniedProfiles: readonly unknown[] = [
+      undefined,
+      null,
+      [],
+      { role: 'teacher' },
+      { role: 'student', status: 'active' },
+      { role: 'teacher', status: 'inactive' },
+      { role: 'teacher', status: 'blocked' },
+      { role: 'teacher', status: 'suspended' },
+      { role: 'teacher', status: 'active', disabled: true },
+      { role: 'teacher', status: 'active', forceReauth: true },
+      { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-07-27T12:00:00.000Z' },
+      { role: 'teacher', status: 'ACTIVE' },
+    ];
+    for (const profile of deniedProfiles) {
+      const fixture = worker(undefined, undefined, true, false, async () => profile);
+      const readScope = vi.spyOn(fixture.repository, 'readScope');
+      await expect(fixture.handlers.publish({
+        env,
+        uid: 'teacher-1',
+        request: request(body()),
+      })).resolves.toEqual({
+        body: { code: 'component_pdfs_publication_forbidden' },
+        init: { status: 403 },
+      });
+      expect(readScope).not.toHaveBeenCalled();
+      expect(fixture.readAuthority).not.toHaveBeenCalled();
+    }
+
+    const fixture = worker(undefined, undefined, true, false, async () => ({ role: 'super_admin', status: 'active' }));
+    await expect(fixture.handlers.publish({
+      env,
+      uid: 'teacher-1',
+      request: request(body()),
+    })).resolves.toMatchObject({ init: { status: 200 }, body: { result: { status: 'published' } } });
+  });
+
+  it.each([
+    ['missing', null, 503, 'publication_auth_reader_missing'],
+    ['failed', async () => { throw new Error('profile transport failed'); }, 500, 'book_component_pdfs_publication_failed'],
+  ] as const)('denies a %s profile reader before publication reads', async (_label, readUser, status, code) => {
+    const fixture = worker(undefined, undefined, true, false, readUser as never);
+    const readScope = vi.spyOn(fixture.repository, 'readScope');
+    expect(await fixture.handlers.publish({ env, uid: 'teacher-1', request: request(body()) }))
+      .toMatchObject({ init: { status }, body: { code } });
+    expect(readScope).not.toHaveBeenCalled();
+    expect(fixture.readAuthority).not.toHaveBeenCalled();
   });
 
   it('replays the production ID-allocation path for the same HTTP idempotency key', async () => {
@@ -352,13 +439,13 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
     });
     expect((first.body as { publicationId: string }).publicationId)
       .toBe((replay.body as { publicationId: string }).publicationId);
-    expect(fixture.readCandidate).toHaveBeenCalledTimes(1);
-    expect(fixture.readPreviewApproval).toHaveBeenCalledTimes(1);
+    expect(fixture.readCandidate).toHaveBeenCalledTimes(2);
+    expect(fixture.readPreviewApproval).toHaveBeenCalledTimes(4);
 
     await expect(fixture.handlers.publish({
       env,
       uid: 'teacher-1',
-      request: request({ ...body(), expectedCandidateRevision: 7 }, headerOperationId),
+      request: request({ ...body(), unitApprovals: body().unitApprovals.map((row, index) => index ? row : { ...row, candidateRevision: 7 }) }, headerOperationId),
     })).resolves.toEqual({
       body: { code: 'idempotency_conflict' },
       init: { status: 409 },
@@ -370,7 +457,7 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
 
     for (const disabledEnv of [
       { ...env, BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'false' },
-      { readDatabaseValue: env.readDatabaseValue },
+      {},
       { ...env, BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'enabled' },
     ]) {
       await expect(fixture.handlers.publish({
@@ -395,9 +482,9 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
     await expect(fixture.handlers.publish({
       env,
       uid: 'teacher-1',
-      request: request({ ...body(), expectedCandidateRevision: 5 }),
+      request: request({ ...body(), unitApprovals: body().unitApprovals.map((row, index) => index ? row : { ...row, candidateRevision: 5 }) }),
     })).resolves.toEqual({
-      body: { code: 'component_pdfs_revision_conflict' },
+      body: { code: 'component_pdfs_approval_coverage_invalid' },
       init: { status: 422 },
     });
 
@@ -406,10 +493,7 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
       uid: 'teacher-1',
       request: request({
         ...body(),
-        previewApproval: {
-          ...body().previewApproval,
-          expiresAt: '2026-07-27T12:59:59.000Z',
-        },
+        unitApprovals: body().unitApprovals.map((row, index) => index ? row : { ...row, expiresAt: '2026-07-27T12:59:59.000Z' }),
       }),
     })).resolves.toEqual({
       body: { code: 'component_pdfs_preview_approval_invalid' },
@@ -439,7 +523,7 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
       result: { status: 'replayed' },
     });
     await expect(fixture.repository.readScope('book-1')).resolves.toMatchObject({
-      current: { publicationId: 'publication:candidate-1' },
+      current: { publicationId: 'publication:activation-1' },
       operations: {
         [headerOperationId]: { result: { status: 'published' } },
       },
@@ -453,7 +537,7 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
       uid: 'teacher-1',
       request: request({
         ...body(),
-        previewApproval: { ...body().previewApproval, approvalRevision: 2 },
+        unitApprovals: body().unitApprovals.map((row, index) => index ? row : { ...row, approvalRevision: 2 }),
       }),
     })).resolves.toEqual({
       body: { code: 'component_pdfs_preview_approval_invalid' },
@@ -519,15 +603,5 @@ describe('PRD0062 ticket 17 component-PDF publication Worker boundary', () => {
       activityVersion: 1,
     })).resolves.toBeNull();
 
-    const sourceNotReady = worker(undefined, currentApproval(), false);
-    await expect(sourceNotReady.handlers.publish({
-      env,
-      uid: 'teacher-1',
-      request: request(body()),
-    })).resolves.toEqual({
-      body: { code: 'component_pdfs_preview_approval_invalid' },
-      init: { status: 422 },
-    });
-    await expect(sourceNotReady.repository.readScope('book-1')).resolves.toEqual({});
   });
 });

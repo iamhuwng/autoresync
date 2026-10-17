@@ -6,6 +6,7 @@ import type {
 import type {
   BookAssemblyManifestCandidate,
   BookAssemblyPreviewApprovalReference,
+  TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
 import {
@@ -25,6 +26,24 @@ import {
 
 const operationId = '00000000-0000-4000-8000-000000000165';
 const now = '2026-07-27T13:00:00.000Z';
+
+const trustedProjection = (sourceVersionId: string): TrustedBookSourceVersionProjection => ({
+  sourceKey: 'full',
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'ready',
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: '2026-01-01T00:00:00.000Z',
+    sourceVersionId,
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+  physicalPageCount: 10,
+  verifiedUsable: true,
+});
 
 const activity = (): NormalizedActivity => ({
   schemaVersion: 1,
@@ -109,12 +128,7 @@ const authority = (): BookAssemblyBookAuthority => ({
   sourceSet: manifest().sourceSet,
   sourceVersionAuthority: {
     getSourceVersion: (sourceVersionId) => sourceVersionId === 'source-v1'
-      ? {
-          sourceVersionId,
-          bookId: 'book-1',
-          physicalPageCount: 10,
-          verifiedUsable: true,
-        }
+      ? trustedProjection(sourceVersionId)
       : undefined,
   },
 });
@@ -150,12 +164,7 @@ const currentApproval = () => createPreviewApproval({
   expiresAt: '2026-07-27T14:00:00.000Z',
   preview: createCandidateUnitPreview({
     candidate: candidate(),
-    sourceVersions: [{
-      sourceVersionId: 'source-v1',
-      bookId: 'book-1',
-      physicalPageCount: 10,
-      verifiedUsable: true,
-    }],
+    sourceVersions: [trustedProjection('source-v1')],
     sourceIsPreviewReady: () => true,
     activitiesByKey: { 'slot-a': activity() },
     registryVersion: 'registry-1',
@@ -255,6 +264,31 @@ describe('full-PDF publication command boundary', () => {
       deliveryPlans: {
         'delivery-plan:unit-1': { deliveryPlanId: 'delivery-plan:unit-1' },
       },
+    });
+  });
+
+  it('returns the committed IDs when an overlapping request replays another publication', async () => {
+    const committed = {
+      manifestVersionId: 'committed-manifest',
+      publicationId: 'committed-publication',
+      publicationRevision: 7,
+    };
+    const command = createFullPdfPublicationCommand({
+      readAuthority: vi.fn(async () => authority()),
+      readCandidate: vi.fn(async () => candidate()),
+      readActivities,
+      ...approvalPorts,
+      publish: vi.fn(async () => ({ status: 'replayed' as const, pointer: committed })),
+      allocateOperationId: () => operationId,
+      allocateId: (kind, key) => `${kind}:${key}`,
+      now: () => now,
+    });
+
+    await expect(command(request())).resolves.toMatchObject({
+      manifestVersionId: committed.manifestVersionId,
+      publicationId: committed.publicationId,
+      publicationRevision: committed.publicationRevision,
+      result: { status: 'replayed', pointer: committed },
     });
   });
 

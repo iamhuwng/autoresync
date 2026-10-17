@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBookDeliveryBinding } from './bookDelivery.entitlementFactory';
 import { InMemoryBookDeliveryRepository } from './bookDelivery.entitlementRepository';
 import {
@@ -164,39 +164,57 @@ describe('Book Delivery projection resolver', () => {
     expect(JSON.stringify(projection)).not.toMatch(/answerKey|teacher|objectKey|credential|private|providerAuthority|storage/iu);
   });
 
-  it('preserves component order, owner, and source-local page identity without collisions', async () => {
+  it('fails closed for component delivery before constructing document requests or route keys', async () => {
     const repository = await activatedRepository('component_pdfs');
-    const projection = await createBookDeliveryProjectionResolver({ repository }).resolve({
+    const makeOpaqueRouteKey = vi.fn();
+
+    await expect(createBookDeliveryProjectionResolver({ repository, makeOpaqueRouteKey }).resolve({
       recipientId: 'student-1',
       contextId: 'homework-1',
       actor: { uid: 'student-1' },
-    });
+    })).rejects.toMatchObject({ code: 'book-delivery-stale-binding', status: 409 });
+    expect(makeOpaqueRouteKey).not.toHaveBeenCalled();
+  });
 
-    expect(projection.sourceSet).toMatchObject({
-      strategy: 'component_pdfs',
-      sources: [
-        { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', ownerNodeKey: 'section-1', sourceOrder: 1 },
-        { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', ownerNodeKey: 'section-1', sourceOrder: 2 },
-      ],
-    });
-    expect(projection.documentRequests.map((request) => request.opaqueRouteKey)).toEqual([
-      'binding-component_pdfs-1-component-a-source-a-v1',
-      'binding-component_pdfs-1-component-b-source-b-v1',
+  it('projects one combined student document without private component identities', async () => {
+    const repository = await activatedRepository('component_pdfs');
+    const projection = await createBookDeliveryProjectionResolver({
+      repository,
+      resolveStudentDocument: async () => ({ expectedByteLength: 1000, expectedEtag: `"${'a'.repeat(64)}"`, physicalPageCount: 3,
+        pageGroups: [{ pageGroupKey: 'group-a', combinedPhysicalPages: [2] }, { pageGroupKey: 'group-b', combinedPhysicalPages: [3] }] }),
+    }).resolve({ recipientId: 'student-1', contextId: 'homework-1', actor: { uid: 'student-1' } });
+    expect(projection.documentRequests).toEqual([{
+      opaqueRouteKey: 'binding-component_pdfs-1-student-document',
+      expectedByteLength: 1000, expectedEtag: `"${'a'.repeat(64)}"`,
+    }]);
+    expect(projection.pageGroups).toEqual([{ pageGroupKey: 'group-a', combinedPhysicalPages: [2] }, { pageGroupKey: 'group-b', combinedPhysicalPages: [3] }]);
+    expect(projection.activities.map((activity) => activity.sourceContext)).toEqual([
+      { available: true, description: 'Combined student document.', pageGroupKeys: ['group-a'], sourcePageScopes: [] },
+      { available: true, description: 'Combined student document.', pageGroupKeys: ['group-b'], sourcePageScopes: [] },
     ]);
-    expect(projection.activities.map((activity) => activity.sourceContext.sourcePageScopes)).toEqual([
-      [{ sourceKey: 'component-a', pages: [1] }],
-      [{ sourceKey: 'component-b', pages: [1] }],
-    ]);
-    expect(projection.activities.map((activity) => activity.activityVersionId)).toEqual([
-      'activity-a-v1',
-      'activity-b-v1',
-    ]);
-    expect(projection.activities.map((activity) => activity.sourceContext.pageGroupKeys)).toEqual([
-      ['group-a'],
-      ['group-b'],
-    ]);
-    expect(projection.activities[0]?.sourceContext.description).toContain('component component-a pages 1 owned by section-1');
-    expect(projection.activities[1]?.sourceContext.description).toContain('component component-b pages 1 owned by section-1');
+    expect(JSON.stringify(projection)).not.toMatch(/component-a|component-b|source-a-v1|source-b-v1|provider|objectKey|sha256Hex/iu);
+  });
+
+  it.each([{ pageGroupKeys: [] }, { pageGroupKeys: ['group-a', 'missing-group'] }])('does not qualify required combined source context with unresolved placement groups $pageGroupKeys', async ({ pageGroupKeys }) => {
+    const repository = await activatedRepository('component_pdfs');
+    const resolveCurrent = repository.resolveCurrent.bind(repository);
+    repository.resolveCurrent = async (recipientId, contextId) => {
+      const current = await resolveCurrent(recipientId, contextId);
+      if (!current) return null;
+      return { ...current, record: { ...current.record, binding: { ...current.record.binding,
+        placements: current.record.binding.placements.map((placement) => ({ ...placement, pageGroupKeys })) } } };
+    };
+    const resolution = createBookDeliveryProjectionResolver({ repository,
+      resolveStudentDocument: async () => ({ expectedByteLength: 1000, expectedEtag: `"${'a'.repeat(64)}"`, physicalPageCount: 3,
+        pageGroups: [{ pageGroupKey: 'group-a', combinedPhysicalPages: [2] }] }),
+    }).resolve({ recipientId: 'student-1', contextId: 'homework-1', actor: { uid: 'student-1' } });
+    if (pageGroupKeys.length === 0) {
+      await expect(resolution).rejects.toMatchObject({ code: 'book-delivery-stale-binding' });
+      return;
+    }
+    const projection = await resolution;
+    expect(projection.activities.every((activity) => activity.sourceContext.available === false)).toBe(true);
+    expect(projection.activities.every((activity) => activity.sourceContext.sourcePageScopes.length === 0)).toBe(true);
   });
 
   it('fails closed for cross-user, missing, stale, or unpublished current state', async () => {

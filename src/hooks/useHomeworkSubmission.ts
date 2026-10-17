@@ -327,8 +327,10 @@ export function useStudentHomeworkList(
     const [error, setError] = useState<string | null>(null);
     const isMounted = useRef(true);
     const lastSuccessfulStudentIdRef = useRef<string | null>(null);
+    const requestGenerationRef = useRef(0);
 
     const loadData = useCallback(async () => {
+        const requestGeneration = ++requestGenerationRef.current;
         if (!enabled || !studentId) {
             if (isMounted.current) {
                 setHomeworkItems([]);
@@ -349,7 +351,7 @@ export function useStudentHomeworkList(
                 studentClasses: options.studentClasses,
             });
 
-            if (!isMounted.current) return;
+            if (!isMounted.current || requestGeneration !== requestGenerationRef.current) return;
 
             const now = Date.now();
 
@@ -394,11 +396,11 @@ export function useStudentHomeworkList(
             setHomeworkItems(transformedItems);
             lastSuccessfulStudentIdRef.current = studentId;
         } catch (err) {
-            if (!isMounted.current) return;
+            if (!isMounted.current || requestGeneration !== requestGenerationRef.current) return;
             console.error('Error loading student homework list:', err);
             setError(err instanceof Error ? err.message : 'Failed to load homework');
         } finally {
-            if (isMounted.current) {
+            if (isMounted.current && requestGeneration === requestGenerationRef.current) {
                 setIsLoading(false);
             }
         }

@@ -107,20 +107,23 @@ describe('canonical Book Homework composition', () => {
       notificationRepositoryFactory: () => notifications,
       now: () => committedAt,
     });
-
+    const tasks: Promise<void>[] = [];
     const result = await handlers.homeworkAssignmentCommand({
       request: request(),
       env: workerEnv,
       uid: 'teacher-1',
       assignmentId,
+      executionContext: { waitUntil: (task) => { tasks.push(task); } },
     });
 
     expect(result.init.status).toBe(200);
     expect(sagaFactory).toHaveBeenCalledTimes(1);
+    expect(tasks).toHaveLength(1);
+    await tasks[0];
     expect(Object.keys(notifications.snapshot())).toHaveLength(1);
   });
 
-  it('fails enabled incomplete composition before saga mutation', async () => {
+  it('commits enabled incomplete notification composition without blocking saga mutation', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const execute = vi.fn(async () => ({
       status: 'committed' as const,
@@ -138,8 +141,9 @@ describe('canonical Book Homework composition', () => {
       assignmentId,
     });
 
-    expect(result.init.status).toBe(500);
-    expect(execute).not.toHaveBeenCalled();
+    expect(result.init.status).toBe(200);
+    expect(result.body).toMatchObject({ state: 'committed', assignmentId });
+    expect(execute).toHaveBeenCalledTimes(1);
     consoleError.mockRestore();
   });
 

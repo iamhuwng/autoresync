@@ -61,7 +61,7 @@ const validIso = (value: string): boolean => (
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value
 );
 
-const validTarget = (target: unknown): target is BookActivityEvaluationTarget => {
+export const isBookActivityEvaluationTarget = (target: unknown): target is BookActivityEvaluationTarget => {
   if (!exactKeys(target, [
     'attemptId', 'resultId', 'recipientId', 'bindingId', 'bindingRevision',
     'contextKind', 'contextId', 'placementId', 'activityId', 'activityVersion',
@@ -117,7 +117,7 @@ const validCommand = (command: unknown): command is BookActivityEvaluationComman
     || !['evaluate_objective', 'regrade_objective', 'teacher_evaluation', 'regrade'].includes(command.kind as string)
     || !Number.isSafeInteger(command.expectedEvaluationRevision)
     || (command.expectedEvaluationRevision as number) < 0
-    || !validTarget(command.target)) return false;
+    || !isBookActivityEvaluationTarget(command.target)) return false;
   if (command.kind === 'evaluate_objective' || command.kind === 'regrade_objective') {
     return command.evaluation === undefined;
   }

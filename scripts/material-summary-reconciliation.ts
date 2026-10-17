@@ -143,8 +143,11 @@ const runFirebase = async (args: readonly string[]): Promise<string> => {
 const readFirebaseJson = async (
   path: string,
   projectId: string,
-): Promise<unknown> =>
-  JSON.parse(await runFirebase(['database:get', `/${path}`, '--project', projectId]));
+): Promise<unknown> => {
+  const output = await runFirebase(['database:get', `/${path}`, '--project', projectId, '--json']);
+  const statusMarker = output.lastIndexOf('\n{\n  "status"');
+  return JSON.parse(statusMarker >= 0 ? output.slice(0, statusMarker) : output);
+};
 
 const updateFirebaseRoot = async (
   payload: unknown,

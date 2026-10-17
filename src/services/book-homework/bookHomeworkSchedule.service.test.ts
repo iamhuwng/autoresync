@@ -99,6 +99,25 @@ describe('Book Homework schedules', () => {
     });
   });
 
+  it('rejects nonexistent local time and requires an explicit offset for ambiguous time', () => {
+    const draft = { availableFrom: '', dueDate: '2026-03-08T02:30', scheduleRules: [] };
+    expect(() => compileBookHomeworkScheduleDraft(draft, outline, 'America/New_York'))
+      .toThrow(/does not exist/u);
+
+    expect(() => compileBookHomeworkScheduleDraft(
+      { ...draft, dueDate: '2026-11-01T01:30' }, outline, 'America/New_York',
+    )).toThrow(/ambiguous.*explicit UTC offset/u);
+    expect(compileBookHomeworkScheduleDraft(
+      { ...draft, dueDate: '2026-11-01T01:30-05:00' }, outline, 'America/New_York',
+    ).finalDueAt).toBe('2026-11-01T06:30:00.000Z');
+    expect(() => compileBookHomeworkScheduleDraft(
+      { ...draft, dueDate: '2026-03-08T02:30-05:00' }, outline, 'America/New_York',
+    )).toThrow(/does not exist/u);
+    expect(() => compileBookHomeworkScheduleDraft(
+      { ...draft, dueDate: '2026-11-01T01:30+09:00' }, outline, 'America/New_York',
+    )).toThrow(/does not apply/u);
+  });
+
   it('classifies extension and mixed-start unsafe shortening without claiming browser authority', () => {
     expect(classifyBookHomeworkDeadlineMutation({
       nodeKey: 'unit-1',

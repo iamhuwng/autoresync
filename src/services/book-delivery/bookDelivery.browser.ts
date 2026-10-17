@@ -16,7 +16,7 @@ export interface BookDeliveryBrowserEnv {
 export interface BookDocumentRouteInput {
   readonly workerOrigin?: string;
   readonly opaqueRouteKey: string;
-  readonly sourceVersionId: string;
+  readonly sourceVersionId?: string;
   readonly expectedByteLength?: number;
   readonly expectedEtag?: string;
   readonly physicalPageNumber?: number;
@@ -31,6 +31,7 @@ export interface BookHistoricalAttemptDocumentRouteInput {
 }
 
 const ROUTE_KEY = /^[A-Za-z0-9._~-]{1,160}$/u;
+const STUDENT_DOCUMENT_ROUTE = /^(?:bd_[0-9a-f]{40}|[A-Za-z0-9][A-Za-z0-9._:@-]*--[A-Za-z0-9][A-Za-z0-9._:@-]*--delivery)-[1-9]\d*-student-document$/u;
 const ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 
 const defaultEnv = (): BookDeliveryBrowserEnv =>
@@ -69,13 +70,16 @@ export const createBookDocumentRoute = (
   input: BookDocumentRouteInput,
   env: BookDeliveryBrowserEnv = defaultEnv(),
 ): BookDocumentRoute => {
-  if (!ROUTE_KEY.test(input.opaqueRouteKey)) {
+  if (!ROUTE_KEY.test(input.opaqueRouteKey)
+    || (input.sourceVersionId === undefined && (!STUDENT_DOCUMENT_ROUTE.test(input.opaqueRouteKey)
+      || input.expectedByteLength === undefined || input.expectedEtag === undefined))
+    || (STUDENT_DOCUMENT_ROUTE.test(input.opaqueRouteKey) && input.sourceVersionId !== undefined)) {
     throw new BookDocumentTransportError('invalid_route');
   }
   const origin = exactWorkerOrigin(input.workerOrigin ?? resolveBookDeliveryWorkerOrigin(env));
   return Object.freeze({
     url: `${origin}/v1/book-delivery/document/${encodeURIComponent(input.opaqueRouteKey)}`,
-    sourceVersionId: input.sourceVersionId,
+    ...(input.sourceVersionId === undefined ? {} : { sourceVersionId: input.sourceVersionId }),
     expectedByteLength: input.expectedByteLength,
     expectedEtag: input.expectedEtag,
     physicalPageNumber: input.physicalPageNumber,

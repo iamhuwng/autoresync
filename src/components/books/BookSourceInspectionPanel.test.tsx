@@ -164,7 +164,7 @@ describe('BookSourceInspectionPanel', () => {
     }
   });
 
-  it('offers a retry after failure and invalidates on unmount', async () => {
+  it('retains a completed claim when the parent unmounts after selection handoff', async () => {
     inspectSourcePdf
       .mockRejectedValueOnce(new Error('corrupt'))
       .mockResolvedValueOnce(claim);
@@ -176,9 +176,11 @@ describe('BookSourceInspectionPanel', () => {
     expect(harness.onAction).toHaveBeenCalledWith('book_source_pdf_inspection_retried', {
       exactByteSize: selected.size,
     });
+    await waitFor(() => expect(harness.onClaimChange).toHaveBeenLastCalledWith({ file: selected, claim }));
+    invalidateSourcePdfInspectionClaim.mockClear();
 
     cleanup();
-    expect(invalidateSourcePdfInspectionClaim).toHaveBeenCalledWith(selected);
+    expect(invalidateSourcePdfInspectionClaim).not.toHaveBeenCalled();
     expect(harness.onClaimChange).toHaveBeenLastCalledWith({ file: selected, claim });
   });
 });

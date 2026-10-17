@@ -44,7 +44,12 @@ const sourceSet: SourceSetCandidate = {
 };
 
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { sourceVersionId: 'source-full-v1', bookId: BOOK_ID, physicalPageCount: 20, verifiedUsable: true },
+  {
+    sourceKey: 'full', sourceVersionId: 'source-full-v1', bookId: BOOK_ID, purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: 'f4daee0a51ff06a3deb56b65b9c10cd66c6556840fd0a5165a871da3c74e8c34' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-full-v1', sha256Hex: 'f4daee0a51ff06a3deb56b65b9c10cd66c6556840fd0a5165a871da3c74e8c34', reasonCode: 'teacher-reviewed' },
+    physicalPageCount: 20, verifiedUsable: true,
+  },
 ];
 
 const sourceVersionAuthority: BookSourceVersionAuthority = {
@@ -220,7 +225,7 @@ const createPublisher = () => {
 
 export default function BookAssemblyMappingRevisionSmokePage() {
   const { user, profile } = useAuth();
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const [searchParams, setSearchParams] = useSearchParams();
   const state = searchParams.get('state') ?? 'review';
   const [lastAction, setLastAction] = useState('review-opened');

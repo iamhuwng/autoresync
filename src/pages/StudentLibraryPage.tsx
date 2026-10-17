@@ -14,6 +14,10 @@ import { S, studentTokens, mobileStyles } from '../components/layout/studentLayo
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useNavigation } from '../hooks/useNavigation';
+import { StudentPublicBooksPanel } from '../components/student/StudentPublicBooksPanel';
+import { usePublicBookCatalog } from '../hooks/usePublicBookCatalog';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 
 /* ── Inline SVG Icons (24×24, currentColor) ─────────────────────── */
 const SvgBook = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>;
@@ -59,6 +63,7 @@ function InlineLoader({ label, size = 32 }: { label?: string; size?: number }) {
 const FILTER_TABS = [
     { key: 'my_courses', label: 'My Courses' },
     { key: 'public', label: 'Public Library' },
+    { key: 'books', label: 'Books' },
     { key: 'recommended', label: 'Recommended' },
     { key: 'recent', label: 'Recent' },
 ];
@@ -107,9 +112,11 @@ function getMaterialSkillBadgeStyle(skill?: string) {
 export const StudentLibraryPage: React.FC = () => {
     const { user, profile } = useAuth();
     const { navigateTo } = useNavigation('student');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.materials);
     const { notStarted = [] } = useResolvedStudentHomeworkList(user?.uid || '');
     const isMobile = useMediaQuery('(max-width: 768px)');
-    const [activeTab, setActiveTab] = useState<LibrarySource>('my_courses');
+    const [activeTab, setActiveTab] = useState<LibrarySource | 'books'>('my_courses');
+    const publicBooks = usePublicBookCatalog(user?.uid || '', activeTab === 'books');
     const [showFilters, setShowFilters] = useState(false);
 
     const [resumeModalOpen, setResumeModalOpen] = useState(false);
@@ -138,8 +145,9 @@ export const StudentLibraryPage: React.FC = () => {
     });
 
     const handleTabChange = (value: string) => {
+        trackAction('selectLibraryTab', { tab: value });
         setActiveTab(value as LibrarySource);
-        fetchBySource(value as LibrarySource);
+        if (value !== 'books') fetchBySource(value as LibrarySource);
     };
 
     const navigateToLibraryPractice = (materialId: string, title: string, resumeFrom?: SoloSessionProgress) => {
@@ -291,7 +299,14 @@ export const StudentLibraryPage: React.FC = () => {
                 ))}
             </div>
 
-            <div style={{ padding: '18px 0 0', animation: 'dashFadeIn 200ms ease-out forwards' }}>
+            {activeTab === 'books' ? <StudentPublicBooksPanel
+                books={publicBooks.rows} loading={publicBooks.loading} error={publicBooks.error} hasMore={publicBooks.hasMore}
+                onAction={trackAction}
+                onRetry={() => { trackAction('retryPublicBooks'); void publicBooks.retry(); }}
+                onLoadMore={() => { trackAction('loadMorePublicBooks'); void publicBooks.loadMore(); }}
+            /> : null}
+
+            {activeTab !== 'books' ? <div style={{ padding: '18px 0 0', animation: 'dashFadeIn 200ms ease-out forwards' }}>
                 <div style={{ background: studentTokens.bgSurface, borderRadius: 12, padding: isMobile ? '16px' : '16px 20px', border: `1px solid ${studentTokens.borderWhisper}`, marginBottom: 24 }}>
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', ...(isMobile ? mobileStyles.stackVertical : {}) }}>
                         <div style={{ flex: isMobile ? '1 1 100%' : '1 1 300px', width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -429,7 +444,7 @@ export const StudentLibraryPage: React.FC = () => {
                         )}
                     </>
                 )}
-            </div>
+            </div> : null}
 
             {pendingMaterial && pendingProgress && (
                 <SoloResumeModal

@@ -32,21 +32,41 @@ const book = (overrides: Record<string, unknown> = {}): Record<string, unknown> 
 });
 
 const projection = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
-  'unit-1': {
+  'source-1': {
     ownerId: OWNER_ID,
     bookId: BOOK_ID,
     sourceKey: 'unit-1',
     sourceVersionId: 'source-1',
+    checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
     physicalPageCount: 12,
     verifiedUsable: true,
+    purpose: 'book-source',
+    studentSafeStatus: 'ready',
+    studentSafeDecision: {
+      decidedBy: OWNER_ID,
+      decidedAt: '2026-08-01T00:00:00.000Z',
+      sourceVersionId: 'source-1',
+      sha256Hex: 'a'.repeat(64),
+      reasonCode: 'teacher-reviewed',
+    },
   },
-  'unit-2': {
+  'source-2': {
     ownerId: OWNER_ID,
     bookId: BOOK_ID,
     sourceKey: 'unit-2',
     sourceVersionId: 'source-2',
+    checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) },
     physicalPageCount: 8,
     verifiedUsable: true,
+    purpose: 'book-source',
+    studentSafeStatus: 'ready',
+    studentSafeDecision: {
+      decidedBy: OWNER_ID,
+      decidedAt: '2026-08-01T00:00:00.000Z',
+      sourceVersionId: 'source-2',
+      sha256Hex: 'b'.repeat(64),
+      reasonCode: 'teacher-reviewed',
+    },
   },
   ...overrides,
 });
@@ -68,6 +88,23 @@ const read = (
 };
 
 describe('Book Assembly Source Authority reader', () => {
+  it('qualifies a first 0/0 draft only from the exact proposed verified components', async () => {
+    const draft = book({ status: 'draft-empty', bookRevision: 0, sourceSetRevision: 0, sourceSet: undefined });
+    const harness = read(draft);
+    const input = { ownerId: OWNER_ID, bookId: BOOK_ID, accountId: ACCOUNT_ID, proposedSourceSet: sourceSet };
+    await expect(readBookSourceAuthority(harness.port, { ownerId: OWNER_ID, bookId: BOOK_ID, accountId: ACCOUNT_ID }))
+      .resolves.toBeNull();
+    const qualified = await readBookSourceAuthority(harness.port, input);
+    expect(qualified).toMatchObject({ bookRevision: 0, sourceSetRevision: 0, sourceSet });
+    expect(qualified?.sourceVersionAuthority.getSourceVersion('source-2')?.physicalPageCount).toBe(8);
+    await expect(readBookSourceAuthority(read(draft, projection({ 'source-2': {
+      ...(projection()['source-2'] as Record<string, unknown>), verifiedUsable: false,
+    } })).port, input)).resolves.toBeNull();
+    await expect(readBookSourceAuthority(read(book({ bookRevision: 1, sourceSetRevision: 1 })).port, input))
+      .resolves.toBeNull();
+    await expect(readBookSourceAuthority(read(book({ ...draft, ownerId: 'teacher-2' })).port, input))
+      .resolves.toBeNull();
+  });
   it('reads the canonical Book first and returns provider-free projections', async () => {
     const harness = read();
     const authority = await readBookSourceAuthority(harness.port, {
@@ -85,21 +122,43 @@ describe('Book Assembly Source Authority reader', () => {
       sourceSet,
     });
     expect(authority?.sourceVersionAuthority.getSourceVersion('source-1')).toEqual({
+      sourceKey: 'unit-1',
       sourceVersionId: 'source-1',
       bookId: BOOK_ID,
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
       physicalPageCount: 12,
       verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: OWNER_ID,
+        decidedAt: '2026-08-01T00:00:00.000Z',
+        sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
     });
     expect(authority?.sourceVersionAuthority.getSourceVersion('source-2')).toEqual({
+      sourceKey: 'unit-2',
       sourceVersionId: 'source-2',
       bookId: BOOK_ID,
+      checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) },
       physicalPageCount: 8,
       verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: OWNER_ID,
+        decidedAt: '2026-08-01T00:00:00.000Z',
+        sourceVersionId: 'source-2',
+        sha256Hex: 'b'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
     });
     expect(harness.reads.mock.calls.map(([path]) => path)).toEqual([
       MATERIAL_BOOK_PATH(BOOK_ID),
-      BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-1'),
-      BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-2'),
+      BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-1'),
+      BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-2'),
     ]);
     expect(JSON.stringify(authority)).not.toContain('provider');
   });
@@ -131,16 +190,48 @@ describe('Book Assembly Source Authority reader', () => {
     expect(harness.reads).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects malformed component metadata before reading source leaves', async () => {
+    const harness = read(book({
+      sourceSet: { ...sourceSet, sources: [sourceSet.sources[0]] },
+    }));
+
+    await expect(readBookSourceAuthority(harness.port, {
+      ownerId: OWNER_ID,
+      bookId: BOOK_ID,
+      accountId: ACCOUNT_ID,
+    })).resolves.toBeNull();
+    expect(harness.reads).toHaveBeenCalledTimes(1);
+    expect(harness.reads).toHaveBeenCalledWith(MATERIAL_BOOK_PATH(BOOK_ID));
+  });
+
   it.each([
     ['missing source projection', null],
-    ['unverified source projection', projection({ 'unit-1': {
-      ...(projection()['unit-1'] as Record<string, unknown>), verifiedUsable: false,
+    ['retirement-pending projection', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), status: 'retirement_pending',
     } })],
-    ['source projection for another Book', projection({ 'unit-1': {
-      ...(projection()['unit-1'] as Record<string, unknown>), bookId: 'book-2',
+    ['unverified source projection', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), verifiedUsable: false,
     } })],
-    ['source projection with provider field', projection({ 'unit-1': {
-      ...(projection()['unit-1'] as Record<string, unknown>), providerObjectKey: 'private/book-1/source-1.pdf',
+    ['student-document source projection', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), purpose: 'student-document',
+    } })],
+    ['rejected source projection', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), studentSafeStatus: 'rejected',
+    } })],
+    ['unreviewed source projection with a decision', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), studentSafeStatus: 'unreviewed',
+    } })],
+    ['stale decision source projection', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), studentSafeDecision: {
+        ...((projection()['source-1'] as Record<string, unknown>).studentSafeDecision as Record<string, unknown>),
+        sourceVersionId: 'source-old',
+      },
+    } })],
+    ['source projection for another Book', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), bookId: 'book-2',
+    } })],
+    ['source projection with provider field', projection({ 'source-1': {
+      ...(projection()['source-1'] as Record<string, unknown>), providerObjectKey: 'private/book-1/source-1.pdf',
     } })],
   ] as const)('%s fails closed after canonical Book validation', async (_label, sourceProjection) => {
     const harness = read(book(), sourceProjection);
@@ -160,11 +251,44 @@ describe('Book Assembly Source Authority reader', () => {
       sourceProjection: projection(),
     });
     expect(authority?.sourceVersionAuthority.getSourceVersion('source-1')).toEqual({
+      sourceKey: 'unit-1',
       sourceVersionId: 'source-1',
       bookId: BOOK_ID,
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
       physicalPageCount: 12,
       verifiedUsable: true,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: OWNER_ID,
+        decidedAt: '2026-08-01T00:00:00.000Z',
+        sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64),
+        reasonCode: 'teacher-reviewed',
+      },
     });
+  });
+
+  it('keeps an unreviewed private source in Assembly authority without a decision', () => {
+    const unreviewed = projection();
+    const source = unreviewed['source-1'] as Record<string, unknown>;
+    delete source.studentSafeDecision;
+    source.studentSafeStatus = 'unreviewed';
+
+    const authority = parseBookSourceAuthority({
+      ownerId: OWNER_ID,
+      bookId: BOOK_ID,
+      book: book(),
+      sourceProjection: unreviewed,
+    });
+
+    expect(authority?.sourceVersionAuthority.getSourceVersion('source-1')).toMatchObject({
+      sourceVersionId: 'source-1',
+      purpose: 'book-source',
+      studentSafeStatus: 'unreviewed',
+      verifiedUsable: true,
+    });
+    expect(authority?.sourceVersionAuthority.getSourceVersion('source-1')).not.toHaveProperty('studentSafeDecision');
   });
 
   it('uses the existing Firebase REST client and exact paths when configured', async () => {
@@ -181,8 +305,8 @@ describe('Book Assembly Source Authority reader', () => {
         const path = decodeURIComponent(url.pathname.replace(/^\/+|\.json$/gu, ''));
         calls.push(`read:${path}:${url.searchParams.get('auth')}`);
         if (path === MATERIAL_BOOK_PATH(BOOK_ID)) return new Response(JSON.stringify(book()));
-        const sourceKey = path.split('/').at(-1)!;
-        return new Response(JSON.stringify((projection() as Record<string, unknown>)[sourceKey]));
+        const sourceVersionId = path.split('/').at(-1)!;
+        return new Response(JSON.stringify((projection() as Record<string, unknown>)[sourceVersionId]));
       },
     });
     await expect(reader.read({ ownerId: OWNER_ID, bookId: BOOK_ID })).resolves.toMatchObject({
@@ -192,10 +316,10 @@ describe('Book Assembly Source Authority reader', () => {
     expect(calls).toEqual(expect.arrayContaining([
       `token:${MATERIAL_BOOK_PATH(BOOK_ID)}`,
       `read:${MATERIAL_BOOK_PATH(BOOK_ID)}:scoped-token`,
-      `token:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-1')}`,
-      `read:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-1')}:scoped-token`,
-      `token:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-2')}`,
-      `read:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'unit-2')}:scoped-token`,
+      `token:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-1')}`,
+      `read:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-1')}:scoped-token`,
+      `token:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-2')}`,
+      `read:${BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(ACCOUNT_ID, BOOK_ID, 'source-2')}:scoped-token`,
     ]));
     expect(calls).toHaveLength(6);
     expect(calls).not.toContain(`token:${BOOK_SOURCE_ASSEMBLY_PROJECTION_PATH(ACCOUNT_ID, BOOK_ID)}`);

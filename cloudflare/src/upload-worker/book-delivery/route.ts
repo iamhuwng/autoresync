@@ -64,11 +64,17 @@ export const bookTeacherAssemblyDocumentRouteDescriptor = {
   response: 'bounded-streamed-pdf-or-head',
 } as const;
 
+export const bookTeacherAssemblyStudentDocumentRouteDescriptor = {
+  ...bookTeacherAssemblyDocumentRouteDescriptor,
+  path: '/v1/book-delivery/teacher-assembly/:bookId/:unitKey/:candidateId/:candidateRevision/student-document/:sourceSetRevision/:bookRevision',
+} as const;
+
 export const bookDocumentRouteDescriptors = [
   ...bookDeliveryRouteDescriptors,
   bookDocumentAuthorizationRouteDescriptor,
   bookHistoricalAttemptDocumentRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
+  bookTeacherAssemblyStudentDocumentRouteDescriptor,
 ] as const;
 
 /**

@@ -38,6 +38,26 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
+.book-result-technical {
+  margin-top: 1rem;
+  color: #536064;
+}
+
+.book-result-technical summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.book-result-technical summary:focus-visible {
+  outline: 3px solid #5b7f99;
+  outline-offset: 3px;
+}
+
+.book-result-detail-grid--technical {
+  margin-top: 0.75rem;
+}
+
 .book-result-eyebrow {
   margin: 0 0 0.35rem;
   color: #65724f;
@@ -50,6 +70,23 @@
 .book-result-refreshing {
   color: #536064;
   font-size: 0.875rem;
+}
+
+.book-result-back {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 1px solid #abb3b7;
+  border-radius: 0.625rem;
+  background: #fff;
+  color: #2b3437;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.book-result-back:focus-visible {
+  outline: 3px solid #5b7f99;
+  outline-offset: 2px;
 }
 
 .book-result-attempt-picker {
@@ -162,6 +199,39 @@
   display: grid;
   min-width: 0;
   gap: 0.2rem;
+}
+
+.book-result-source-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+}
+
+.book-result-technical--inline {
+  margin-top: 0;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.book-result-technical--inline span {
+  display: block;
+  max-width: 20rem;
+  margin-top: 0.35rem;
+  color: #637174;
+  font: 0.75rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.book-result-response-summary {
+  margin: 0.65rem 0 0;
+  padding: 1rem;
+  border-left: 4px solid #99ae6e;
+  border-radius: 0 0.75rem 0.75rem 0;
+  background: #f2f6eb;
+  color: #293436;
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .book-result-source-list li span {

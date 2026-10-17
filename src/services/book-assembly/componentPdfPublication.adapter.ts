@@ -89,6 +89,12 @@ export interface ComponentPdfPublicationCommandInput extends Omit<CreateComponen
   readonly allocateId: (kind: string, key: string) => string;
 }
 
+export interface ComponentPdfMultiUnitPublicationInput {
+  readonly aggregateCandidateId: string;
+  readonly previewApproval: BookAssemblyPreviewApprovalReference;
+  readonly units: readonly ComponentPdfPublicationCommandInput[];
+}
+
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -511,3 +517,55 @@ export const createComponentPdfPublicationCommandOutput = (
 export const createComponentPdfPublicationCommandPlan = (
   input: ComponentPdfPublicationCommandInput,
 ): BookAssemblyPublicationAdapterPlan => createComponentPdfPublicationCommandOutput(input).plan;
+
+export const createComponentPdfMultiUnitPublicationOutput = (
+  input: ComponentPdfMultiUnitPublicationInput,
+): ComponentPdfPublicationAdapterOutput => {
+  if (input.units.length === 0 || new Set(input.units.map((unit) => unit.unitKey)).size !== input.units.length) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
+  }
+  const outputs = input.units.map(createComponentPdfPublicationCommandOutput);
+  const first = outputs[0]!;
+  const manifests = input.units.map((unit) => unit.candidate.manifest);
+  if (manifests.some((manifest) => manifest === null || stable(manifest) !== stable(manifests[0]))) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
+  }
+  const selectedUnitKeys = new Set(input.units.map((unit) => unit.unitKey));
+  const selectedManifest = {
+    ...manifests[0]!,
+    units: manifests[0]!.units.filter((unit) => selectedUnitKeys.has(unit.unitKey)),
+  };
+  if (selectedManifest.units.length !== input.units.length) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
+  }
+  const atomicWrites = outputs.reduce<BookAssemblyPublicationAtomicWriteSet>((all, output) => ({
+    activityVersions: [...all.activityVersions, ...output.plan.atomicWrites.activityVersions],
+    activitySafeProjections: [...all.activitySafeProjections, ...output.plan.atomicWrites.activitySafeProjections],
+    placements: [...all.placements, ...output.plan.atomicWrites.placements],
+    unitProjections: [...all.unitProjections, ...output.plan.atomicWrites.unitProjections],
+    deliveryPlans: all.deliveryPlans,
+  }), { activityVersions: [], activitySafeProjections: [], placements: [], unitProjections: [], deliveryPlans: [] });
+  const delivery = first.plan.atomicWrites.deliveryPlans[0]!;
+  return {
+    canonicalActivityVersions: outputs.flatMap((output) => output.canonicalActivityVersions),
+    plan: {
+      ...first.plan,
+      candidateId: input.aggregateCandidateId,
+      candidateRevision: 1,
+      manifest: selectedManifest,
+      studentSafeProjection: {
+        ...first.plan.studentSafeProjection,
+        units: selectedManifest.units,
+      },
+      atomicWrites: {
+        ...atomicWrites,
+        deliveryPlans: [{
+          ...delivery,
+          placementIds: atomicWrites.placements.map((placement) => placement.placementId),
+          unitProjectionIds: atomicWrites.unitProjections.map((unit) => unit.unitProjectionId),
+        }],
+      },
+      previewApproval: input.previewApproval,
+    },
+  };
+};

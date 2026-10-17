@@ -1,8 +1,9 @@
 import { getAuth } from 'firebase/auth';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import type { MaterialBookMetadata } from '../../types/materialCatalog.types';
+import { activeComponentPdfActivation } from '../../services/book-assembly/componentPdfActivation.service';
 import {
   createSourceUploadBrowserWorkflow,
   type SourceUploadBrowserWorkflow,
@@ -17,14 +18,15 @@ import {
   BookAssemblyClientError,
   createBookAssemblyClient,
   type BookAssemblyMigrationClient,
+  type ComponentPdfActivationClient,
 } from '../../services/book-assembly/assemblyClient.browser';
-import { createBookAssemblyPreviewClient, type BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
+import { createBookAssemblyPreviewClient, type BookAssemblyCurrentPublication, type BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
 import type { LoadedCurrentAssemblyDraft, UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { FULL_PDF_PRIMARY_UNIT_KEY, type TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
-import BookPdfFlowWorkspace, { type BookPdfEditorSection } from './BookPdfFlowWorkspace';
+import BookPdfFlowWorkspace, { type BookCurrentPublicationStatus, type BookPdfEditorSection } from './BookPdfFlowWorkspace';
 import type { BookSourceInspectionAction } from './BookSourceInspectionPanel';
 import type { BookSourceUploadAction } from './BookSourceUploadPanel';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
@@ -32,6 +34,7 @@ import { createActivityAuthoringRepository } from '../../services/book-activity/
 import { createActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import { createActivityAuthoringTransport } from '../../services/book-activity/activityStorage.service';
 import type { BookEditorAccess } from './useBookEditorModeResolution';
+import { HomeworkCreateModal, type BookHomeworkRecoveryState } from '../homework/HomeworkCreateModal';
 import './BookMode2EditorShell.css';
 
 export interface BookMode2EditorShellProps {
@@ -41,12 +44,17 @@ export interface BookMode2EditorShellProps {
   readonly experience: 'guided-creation' | 'focused-editing';
   readonly editingSection?: BookPdfEditorSection;
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
+  readonly uploadWorkflowForSource?: (sourceKey: string) => SourceUploadBrowserWorkflow | null;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
+  readonly componentPdfActivationClient?: ComponentPdfActivationClient | null;
+  readonly componentStudentDocumentSourceVersionId?: string | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions?: readonly TrustedBookSourceVersionProjection[];
   readonly assemblySourceVersionReader?: SourceUploadSourceVersionReader | null;
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
+  readonly assemblyInitialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
+  readonly assemblyInitialPublication?: BookAssemblyCurrentPublication | null;
   readonly assemblyBookRevision?: number;
   readonly assemblySourceSetRevision?: number;
   readonly sourceSetAttachmentClient?: SourceSetAttachmentClient | null;
@@ -114,6 +122,12 @@ const configuredAssemblyMigrationClient = (): BookAssemblyMigrationClient | null
   return createBookAssemblyClient({ baseUrl, getIdToken: getCurrentFirebaseIdToken });
 };
 
+const configuredComponentPdfActivationClient = (): ComponentPdfActivationClient | null => {
+  const baseUrl = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
+  if (!baseUrl) return null;
+  return createBookAssemblyClient({ baseUrl, getIdToken: getCurrentFirebaseIdToken });
+};
+
 const configuredAssemblyPreviewClient = (): BookAssemblyPreviewClient | null => {
   const baseUrl = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim();
   if (!baseUrl) return null;
@@ -139,12 +153,17 @@ const BookMode2EditorShell = ({
   experience,
   editingSection,
   uploadWorkflow,
+  uploadWorkflowForSource,
   assemblyRepository,
   assemblyMigrationClient,
+  componentPdfActivationClient,
+  componentStudentDocumentSourceVersionId,
   activityAuthoring,
   assemblySourceVersions = [],
   assemblySourceVersionReader,
   assemblyInitialCandidate,
+  assemblyInitialSavedActivityKeysByUnit,
+  assemblyInitialPublication,
   assemblyBookRevision = book.bookRevision ?? 0,
   assemblySourceSetRevision = book.sourceSetRevision ?? 0,
   sourceSetAttachmentClient,
@@ -154,13 +173,14 @@ const BookMode2EditorShell = ({
   assemblyPreviewClient,
   onDirtyChange,
 }: BookMode2EditorShellProps) => {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const source = presentation === 'modal' ? 'book_editor_modal' : 'book_editor_route';
   const resolvedUploadWorkflow = useMemo(
     () => uploadWorkflow === undefined ? configuredUploadWorkflow() : uploadWorkflow,
     [uploadWorkflow],
   );
   const resolvedUploadWorkflowForSource = useMemo(() => {
+    if (uploadWorkflowForSource) return uploadWorkflowForSource;
     if (uploadWorkflow !== undefined) {
       return (_sourceKey: string) => uploadWorkflow;
     }
@@ -171,37 +191,61 @@ const BookMode2EditorShell = ({
       }
       return configuredBySource.get(sourceKey) ?? null;
     };
-  }, [uploadWorkflow]);
+  }, [uploadWorkflow, uploadWorkflowForSource]);
   const resolvedAssemblyRepository = useMemo(
     () => assemblyRepository === undefined ? configuredAssemblyRepository() : assemblyRepository,
     [assemblyRepository],
   );
+  const sourceSetSignature = JSON.stringify(book.sourceSet ?? null);
   const candidateOwnerKeys = useMemo(() => book.sourceSet?.sourceStrategy === 'full_pdf'
     ? [FULL_PDF_PRIMARY_UNIT_KEY]
     : [...new Set(
       (book.sourceSet?.sources ?? [])
         .map((source) => source.ownerNodeKey)
         .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
-    )], [book.sourceSet]);
+    )], [sourceSetSignature]);
+  const firstComponentDraft = book.bookMode === 'pdf' && book.bookRevision === 0
+    && book.sourceSetRevision === 0 && !book.sourceSet && !book.setupActivations;
   const [loadedAssemblyCandidate, setLoadedAssemblyCandidate] = useState<{
     readonly bookId: string;
     readonly status: 'loading' | 'loaded' | 'error';
     readonly candidate: BookAssemblyCandidateRecord | null;
     readonly savedActivityKeysByUnit: Readonly<Record<string, readonly string[]>>;
-  }>({ bookId: book.bookId, status: 'loading', candidate: null, savedActivityKeysByUnit: {} });
+  }>({
+    bookId: book.bookId,
+    status: assemblyInitialCandidate !== undefined || access === 'public-readonly'
+      || (candidateOwnerKeys.length === 0 && !firstComponentDraft) ? 'loaded' : 'loading',
+    candidate: assemblyInitialCandidate ?? null,
+    savedActivityKeysByUnit: {},
+  });
   useEffect(() => {
     if (assemblyInitialCandidate !== undefined
       || access === 'public-readonly'
-      || !resolvedAssemblyRepository?.loadCurrent
-      || candidateOwnerKeys.length === 0) {
-      setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loaded', candidate: null, savedActivityKeysByUnit: {} });
+      || (!firstComponentDraft && (!resolvedAssemblyRepository?.loadCurrent || candidateOwnerKeys.length === 0))) {
+      setLoadedAssemblyCandidate((current) => current.bookId === book.bookId && current.status === 'loaded'
+        ? current
+        : { bookId: book.bookId, status: 'loaded', candidate: null, savedActivityKeysByUnit: {} });
       return;
     }
     let active = true;
     setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loading', candidate: null, savedActivityKeysByUnit: {} });
+    if (firstComponentDraft) {
+      void (resolvedAssemblyRepository?.discoverDrafts?.(book.bookId)
+        ?? Promise.reject(new Error('draft_discovery_unavailable')))
+        .then((candidates) => {
+          if (!active) return;
+          const latest = [...candidates].sort((left, right) => right.candidate.updatedAt.localeCompare(left.candidate.updatedAt))[0] ?? null;
+          setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'loaded', candidate: latest?.candidate ?? null,
+            savedActivityKeysByUnit: latest?.savedActivityKeysByUnit ?? {} });
+        })
+        .catch(() => {
+          if (active) setLoadedAssemblyCandidate({ bookId: book.bookId, status: 'error', candidate: null, savedActivityKeysByUnit: {} });
+        });
+      return () => { active = false; };
+    }
     void Promise.all(candidateOwnerKeys.map(async (unitKey) => {
       try {
-        return await resolvedAssemblyRepository.loadCurrent!(book.bookId, unitKey);
+        return await resolvedAssemblyRepository!.loadCurrent!(book.bookId, unitKey);
       } catch (error) {
         if (error instanceof BookAssemblyClientError && error.status === 409) return null;
         throw error;
@@ -231,7 +275,7 @@ const BookMode2EditorShell = ({
     return () => {
       active = false;
     };
-  }, [access, assemblyInitialCandidate, book.bookId, candidateOwnerKeys, resolvedAssemblyRepository]);
+  }, [access, assemblyInitialCandidate, book.bookId, candidateOwnerKeys, firstComponentDraft, resolvedAssemblyRepository]);
   const resolvedSourceSetAttachmentClient = useMemo(
     () => sourceSetAttachmentClient === undefined
       ? configuredSourceSetAttachmentClient()
@@ -272,20 +316,63 @@ const BookMode2EditorShell = ({
     () => assemblyMigrationClient === undefined ? configuredAssemblyMigrationClient() : assemblyMigrationClient,
     [assemblyMigrationClient],
   );
+  const resolvedComponentPdfActivationClient = useMemo(
+    () => componentPdfActivationClient === undefined
+      ? configuredComponentPdfActivationClient()
+      : componentPdfActivationClient,
+    [componentPdfActivationClient],
+  );
   const resolvedActivityAuthoring = useMemo(
     () => activityAuthoring === undefined ? configuredActivityAuthoring(book.bookId) : activityAuthoring,
     [activityAuthoring, book.bookId],
   );
+  const recoveredComponentPdfActivation = useMemo(() => activeComponentPdfActivation(book), [book]);
   const resolvedAssemblyPreviewClient = useMemo(
     () => assemblyPreviewClient === undefined ? configuredAssemblyPreviewClient() : assemblyPreviewClient,
     [assemblyPreviewClient],
   );
+  const [loadedAssemblyPublication, setLoadedAssemblyPublication] = useState<{
+    readonly bookId: string;
+    readonly status: BookCurrentPublicationStatus;
+    readonly publication: BookAssemblyCurrentPublication | null;
+  }>({
+    bookId: book.bookId,
+    status: assemblyInitialPublication !== undefined ? 'loaded' : 'loading',
+    publication: assemblyInitialPublication ?? null,
+  });
+  const [publicationLoadAttempt, setPublicationLoadAttempt] = useState(0);
+  useEffect(() => {
+    if (assemblyInitialPublication !== undefined || access === 'public-readonly') {
+      setLoadedAssemblyPublication((current) => current.bookId === book.bookId
+        && current.status === 'loaded'
+        && current.publication === (assemblyInitialPublication ?? null)
+        ? current
+        : { bookId: book.bookId, status: 'loaded', publication: assemblyInitialPublication ?? null });
+      return;
+    }
+    if (!resolvedAssemblyPreviewClient?.readCurrentPublication) {
+      setLoadedAssemblyPublication({ bookId: book.bookId, status: 'error', publication: null });
+      return;
+    }
+    let active = true;
+    setLoadedAssemblyPublication({ bookId: book.bookId, status: 'loading', publication: null });
+    void resolvedAssemblyPreviewClient.readCurrentPublication(book.bookId)
+      .then((publication) => {
+        if (active) setLoadedAssemblyPublication({ bookId: book.bookId, status: 'loaded', publication });
+      })
+      .catch(() => {
+        if (active) setLoadedAssemblyPublication({ bookId: book.bookId, status: 'error', publication: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [access, assemblyInitialPublication, book.bookId, publicationLoadAttempt, resolvedAssemblyPreviewClient]);
   const uploadUnavailableMessage = !resolvedUploadWorkflow
     ? 'Upload authorization is unavailable because the source Worker configuration is missing.'
     : undefined;
   const candidateLoading = assemblyInitialCandidate === undefined
-    && candidateOwnerKeys.length > 0
-    && Boolean(resolvedAssemblyRepository?.loadCurrent)
+    && (candidateOwnerKeys.length > 0 || firstComponentDraft)
+    && Boolean(firstComponentDraft ? resolvedAssemblyRepository?.discoverDrafts : resolvedAssemblyRepository?.loadCurrent)
     && loadedAssemblyCandidate.bookId === book.bookId
     && loadedAssemblyCandidate.status === 'loading';
   const resolvedInitialCandidate = assemblyInitialCandidate !== undefined
@@ -300,6 +387,43 @@ const BookMode2EditorShell = ({
   const candidateLoadFailed = assemblyInitialCandidate === undefined
     && loadedAssemblyCandidate.bookId === book.bookId
     && loadedAssemblyCandidate.status === 'error';
+  const publicationLoadStatus: BookCurrentPublicationStatus = assemblyInitialPublication !== undefined
+    ? 'loaded'
+    : loadedAssemblyPublication.bookId === book.bookId
+      ? loadedAssemblyPublication.status
+      : 'loading';
+  const resolvedInitialPublication = publicationLoadStatus === 'loaded'
+    && loadedAssemblyPublication.bookId === book.bookId
+    ? loadedAssemblyPublication.publication
+    : null;
+  const retryCurrentPublication = () => {
+    setLoadedAssemblyPublication({ bookId: book.bookId, status: 'loading', publication: null });
+    setPublicationLoadAttempt((attempt) => attempt + 1);
+  };
+  const [homeworkHandoffOpen, setHomeworkHandoffOpen] = useState(false);
+  const [bookHomeworkRecovery, setBookHomeworkRecovery] = useState<BookHomeworkRecoveryState | null>(null);
+  const publishedUnits = resolvedInitialPublication?.units ?? [];
+  const [selectedPublishedUnitKey, setSelectedPublishedUnitKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (publishedUnits.length <= 1) return;
+    setSelectedPublishedUnitKey((current) => current && publishedUnits.some((unit) => unit.unitKey === current) ? current : null);
+  }, [publishedUnits]);
+  const publishedUnit = publishedUnits.length === 1
+    ? publishedUnits[0]
+    : publishedUnits.find((unit) => unit.unitKey === selectedPublishedUnitKey) ?? null;
+  const openHomeworkHandoff = useCallback(() => setHomeworkHandoffOpen(true), []);
+  const updateCurrentPublication = useCallback((publication: BookAssemblyCurrentPublication) => {
+    setLoadedAssemblyPublication({ bookId: book.bookId, status: 'loaded', publication });
+  }, [book.bookId]);
+  const updateBookHomeworkRecovery = useCallback((next: BookHomeworkRecoveryState | null) => {
+    if (next
+      && (next.bookId !== book.bookId
+        || next.command.assignmentId !== next.assignmentId
+        || next.command.intent.bookId !== book.bookId)) {
+      return;
+    }
+    setBookHomeworkRecovery(next);
+  }, [book.bookId]);
 
   useEffect(() => {
     trackAction('openBook', { bookId: book.bookId, source });
@@ -314,8 +438,21 @@ const BookMode2EditorShell = ({
     metadata?: Record<string, unknown>,
   ) => trackAction(action, { bookId: book.bookId, source, ...metadata });
 
-  return (
+  return <>
     <main className="book-mode2-editor-shell" data-book-mode="pdf" data-presentation={presentation} data-flow="pdf-book-flow">
+      {publishedUnits.length > 1 && <div>
+        <label htmlFor="book-mode2-published-unit">Published unit</label>
+        <select
+          id="book-mode2-published-unit"
+          aria-describedby="book-mode2-published-unit-help"
+          value={selectedPublishedUnitKey ?? ''}
+          onChange={(event) => setSelectedPublishedUnitKey(event.currentTarget.value || null)}
+        >
+          <option value="">Select a published unit</option>
+          {publishedUnits.map((unit) => <option key={unit.unitKey} value={unit.unitKey}>{unit.unitKey}</option>)}
+        </select>
+        <p id="book-mode2-published-unit-help">Choose the published unit to assign as homework.</p>
+      </div>}
       {candidateLoading
         ? <p aria-busy="true">Loading saved Book draft...</p>
         : candidateLoadFailed
@@ -332,11 +469,18 @@ const BookMode2EditorShell = ({
         uploadUnavailableMessage={uploadUnavailableMessage}
         assemblyRepository={resolvedAssemblyRepository}
         assemblyMigrationClient={resolvedAssemblyMigrationClient}
+        componentPdfActivationClient={resolvedComponentPdfActivationClient}
+        componentStudentDocumentSourceVersionId={componentStudentDocumentSourceVersionId}
+        componentPdfActivationRecovery={recoveredComponentPdfActivation}
         activityAuthoring={resolvedActivityAuthoring}
         assemblySourceVersions={resolvedAssemblySourceVersions}
         assemblyInitialSourceSet={book.sourceSet ?? null}
         assemblyInitialCandidate={resolvedInitialCandidate}
-        assemblyInitialSavedActivityKeysByUnit={resolvedInitialSavedActivityKeysByUnit}
+         assemblyInitialPublication={resolvedInitialPublication}
+        assemblyInitialPublicationStatus={publicationLoadStatus}
+        assemblyInitialSavedActivityKeysByUnit={assemblyInitialCandidate !== undefined
+          ? (assemblyInitialSavedActivityKeysByUnit ?? {})
+          : resolvedInitialSavedActivityKeysByUnit}
         assemblyBookRevision={assemblyBookRevision}
         assemblySourceSetRevision={assemblySourceSetRevision}
         sourceSetAttachmentClient={resolvedSourceSetAttachmentClient}
@@ -348,9 +492,20 @@ const BookMode2EditorShell = ({
         onInspectionAction={trackInspectionAction}
         onUploadAction={trackUploadAction}
         onTrackAction={(action, metadata) => trackAction(action, { source, ...metadata })}
+        onHomeworkHandoff={publishedUnit ? openHomeworkHandoff : undefined}
+        onRetryCurrentPublication={retryCurrentPublication}
+        onCurrentPublicationChange={updateCurrentPublication}
       />}
     </main>
-  );
+    {homeworkHandoffOpen && publishedUnit && <HomeworkCreateModal
+      isOpen={homeworkHandoffOpen}
+      onClose={() => setHomeworkHandoffOpen(false)}
+      onSuccess={() => setHomeworkHandoffOpen(false)}
+      bookHomeworkHandoff={{ bookId: book.bookId, unitKey: publishedUnit.unitKey, bookTitle: book.title }}
+      bookHomeworkRecovery={bookHomeworkRecovery}
+      onBookHomeworkRecoveryChange={updateBookHomeworkRecovery}
+    />}
+  </>;
 };
 
 export default BookMode2EditorShell;

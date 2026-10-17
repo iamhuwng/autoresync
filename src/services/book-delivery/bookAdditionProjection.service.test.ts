@@ -43,16 +43,16 @@ const binding = (bindingId: string, revision: number, placements: readonly BookD
 });
 
 const currentProjection = (currentBinding: BookDeliveryBinding): BookRedoCurrentProjection => ({
-  actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1',
+  actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1',
   bindingId: currentBinding.bindingId, bindingRevision: currentBinding.revision,
   activities: [{ placementId: 'placement-old', activityVersionId: 'placement-old-v1', required: true, completionStatus: 'completed', answerState: { answer: 'keep' }, attemptCount: 1, attemptEligibility: 'eligible', evaluationRevision: 2, earnedScore: 1, maximumScore: 1, correctionNote: null, feedbackRelease: 'released' }],
-  completion: { schemaVersion: 1, actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1', bindingId: currentBinding.bindingId, bindingRevision: currentBinding.revision, requiredPlacementIds: ['placement-old'], completedPlacementIds: ['placement-old'], requiredCount: 1, completedCount: 1, status: 'completed', activities: [{ placementId: 'placement-old', required: true, completionStatus: 'completed', reopenedByAction: false }] },
+  completion: { schemaVersion: 1, actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1', bindingId: currentBinding.bindingId, bindingRevision: currentBinding.revision, requiredPlacementIds: ['placement-old'], completedPlacementIds: ['placement-old'], requiredCount: 1, completedCount: 1, status: 'completed', activities: [{ placementId: 'placement-old', required: true, completionStatus: 'completed', reopenedByAction: false }] },
 });
 
 const setup = () => {
   const current = binding('current-binding', 4, [placement('placement-old', 'activity-old', 1)]);
   const added = placement('placement-new', 'activity-new', 2, 'activity-new');
-  const next = binding(bookAdditionBindingId('action-1', 'homework:hw-1', 'student-1'), 5, [current.placements[0], added], [
+  const next = binding(bookAdditionBindingId('action-1', 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', 'student-1'), 5, [current.placements[0], added], [
     ...current.outline,
     node('activity-new', 'unit', 'test', 2),
   ]);
@@ -60,7 +60,7 @@ const setup = () => {
     current,
     next,
     input: {
-      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1',
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1',
       currentBinding: current, nextBinding: next, currentProjection: currentProjection(current),
       additions: [{ placement: added, feedbackRelease: 'hidden' as const }], now,
     },
@@ -100,8 +100,8 @@ describe('Book required-addition projection', () => {
       },
     };
     const adapter = createBookAdditionProjectionAdapter(repository);
-    await expect(adapter.apply({ ...fixture.input, operationId: 'action-1:addition:homework:hw-1:hw-1:student-1:projection' })).resolves.toMatchObject({ status: 'applied', completionStatus: 'in-progress' });
-    await expect(adapter.apply({ ...fixture.input, operationId: 'action-1:addition:homework:hw-1:hw-1:student-1:projection' })).resolves.toMatchObject({ status: 'replayed' });
+    await expect(adapter.apply({ ...fixture.input, operationId: 'action-1:addition:homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd:hw-1:student-1:projection' })).resolves.toMatchObject({ status: 'applied', completionStatus: 'in-progress' });
+    await expect(adapter.apply({ ...fixture.input, operationId: 'action-1:addition:homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd:hw-1:student-1:projection' })).resolves.toMatchObject({ status: 'replayed' });
     expect(commits).toBe(1);
   });
 });

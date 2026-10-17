@@ -1,0 +1,1942 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Clean-room PRD0062 student Book PDF runtime mockup using the PRD0063 Student Study OS visual authority." />
+  <title>PRD0062 Student Book Runtime — Clean-room PRD0063 Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sso-canvas: #fff4ed;
+      --sso-paper: #fffdf8;
+      --sso-paper-muted: #f6e8dc;
+      --sso-ink: #263238;
+      --sso-muted: #627075;
+      --sso-orange: #ffad32;
+      --sso-orange-soft: #ffd787;
+      --sso-yellow: #ffd95f;
+      --sso-yellow-soft: #fff1b7;
+      --sso-teal: #40c7b6;
+      --sso-teal-soft: #bcebe4;
+      --sso-teal-status-soft: #c8eee7;
+      --sso-blue: #47aee2;
+      --sso-blue-soft: #c9ebf9;
+      --sso-pink: #ef91a4;
+      --sso-pink-soft: #f8ced6;
+      --sso-red: #e97070;
+      --sso-green: #55bf80;
+      --sso-body: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --sso-display: "Fredoka", "Inter", system-ui, sans-serif;
+      --border: 2px solid var(--sso-ink);
+      --border-micro: 1.5px solid var(--sso-ink);
+      --shadow: 4px 4px 0 var(--sso-ink);
+      --shadow-small: 2px 2px 0 var(--sso-ink);
+      --radius: 14px;
+      --radius-small: 10px;
+      --press: 120ms ease;
+      --panel: 220ms ease;
+      --pdf-zoom: 1;
+      --footer-h: 72px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--sso-ink);
+      background: var(--sso-canvas);
+      font-family: var(--sso-body);
+      overflow: hidden;
+    }
+
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .52; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid var(--sso-ink);
+      outline-offset: 3px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
+    }
+
+    .runtime {
+      height: 100dvh;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 58px minmax(0, 1fr) var(--footer-h);
+      background: var(--sso-canvas);
+    }
+
+    .runtime-toolbar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 13px;
+      border-bottom: var(--border);
+      background: var(--sso-paper);
+    }
+
+    .back-button,
+    .tool-button,
+    .icon-button,
+    .page-button,
+    .zoom-button,
+    .submit-button,
+    .secondary-button,
+    .mobile-tab,
+    .question-pill {
+      border: var(--border);
+      background: var(--sso-paper);
+      box-shadow: var(--shadow-small);
+      transition: transform var(--press), box-shadow var(--press), background 160ms ease;
+    }
+
+    .back-button:active,
+    .tool-button:active,
+    .icon-button:active,
+    .page-button:active,
+    .zoom-button:active,
+    .submit-button:active,
+    .secondary-button:active,
+    .mobile-tab:active,
+    .question-pill:active {
+      transform: translate(2px, 2px);
+      box-shadow: none;
+    }
+
+    .back-button {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      border-radius: 9px;
+      font-size: .72rem;
+      font-weight: 900;
+    }
+
+    .runtime-title {
+      min-width: 0;
+      margin-right: auto;
+      display: grid;
+      gap: 2px;
+    }
+
+    .runtime-title strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--sso-display);
+      font-size: .92rem;
+      line-height: 1;
+    }
+
+    .runtime-title span {
+      color: var(--sso-muted);
+      font-size: .61rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .toolbar-cluster {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .save-chip,
+    .context-chip {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: var(--border-micro);
+      border-radius: 999px;
+      padding: 0 9px;
+      background: var(--sso-teal-status-soft);
+      font-size: .63rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .save-chip {
+      opacity: 0;
+      transform: translateY(-2px);
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease, background 160ms ease;
+    }
+
+    .save-chip.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .save-chip[data-state="saving"] { background: var(--sso-yellow-soft); }
+    .save-chip[data-state="warning"],
+    .save-chip[data-state="retrying"],
+    .save-chip[data-state="conflict"] { background: var(--sso-pink-soft); }
+
+    #timerButton.is-active { background: var(--sso-blue-soft); }
+
+    .tool-button,
+    .icon-button {
+      min-height: 38px;
+      border-radius: 9px;
+      padding: 0 10px;
+      font-size: .65rem;
+      font-weight: 900;
+    }
+
+    .icon-button {
+      width: 40px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    .tool-button.is-active { background: var(--sso-yellow); }
+
+    .mobile-mode-tabs {
+      display: none;
+      border-bottom: var(--border);
+      background: var(--sso-paper);
+      padding: 8px;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .mobile-tab {
+      min-height: 44px;
+      border-radius: 10px;
+      font-size: .72rem;
+      font-weight: 900;
+    }
+
+    .mobile-tab[aria-selected="true"] { background: var(--sso-yellow); }
+
+    .workspace-body {
+      --split-left: 46%;
+      position: relative;
+      min-height: 0;
+      display: grid;
+      grid-template-columns:
+        minmax(320px, var(--split-left))
+        minmax(360px, 1fr);
+      overflow: hidden;
+    }
+
+    body.panel-collapsed .workspace-body,
+    body.reference-only .workspace-body {
+      grid-template-columns: minmax(0, 1fr) 0;
+    }
+
+    .column-splitter {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: var(--split-left);
+      z-index: 8;
+      width: 14px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      transform: translateX(-50%);
+      cursor: col-resize;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .column-splitter::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: rgba(38,50,56,.32);
+    }
+
+    .column-splitter:hover::before,
+    .column-splitter:focus-visible::before,
+    body.is-resizing .column-splitter::before {
+      width: 3px;
+      background: var(--sso-ink);
+    }
+
+    body.is-resizing,
+    body.is-resizing * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+
+    body.panel-collapsed .column-splitter,
+    body.reference-only .column-splitter {
+      display: none;
+    }
+
+    .book-pane {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 48px minmax(0, 1fr);
+      background: var(--sso-paper-muted);
+      border-right: var(--border);
+      transition: border-color var(--panel);
+    }
+
+    body.panel-collapsed .book-pane,
+    body.reference-only .book-pane { border-right-color: transparent; }
+
+    body.panel-collapsed .book-pane {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    .pdf-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border-bottom: var(--border);
+      background: var(--sso-paper);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .pdf-toolbar::-webkit-scrollbar { display: none; }
+
+    .page-button, .zoom-button {
+      min-width: 34px;
+      min-height: 34px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 9px;
+      padding: 0 8px;
+      font-size: .66rem;
+      font-weight: 900;
+    }
+
+    .page-input-wrap {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: var(--border);
+      border-radius: 9px;
+      background: var(--sso-paper);
+      padding: 0 7px;
+      box-shadow: var(--shadow-small);
+      font-size: .64rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .page-input {
+      width: 40px;
+      border: 0;
+      border-bottom: 1.5px solid var(--sso-ink);
+      background: transparent;
+      text-align: center;
+      font-weight: 900;
+      outline: none;
+    }
+
+    .pdf-label {
+      margin-left: auto;
+      color: var(--sso-muted);
+      font-size: .62rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pdf-stage {
+      position: relative;
+      min-height: 0;
+      overflow: auto;
+      padding: 24px;
+      background: var(--sso-paper-muted);
+      scroll-behavior: smooth;
+    }
+
+    .pdf-paper {
+      width: min(700px, 92%);
+      min-height: 880px;
+      margin: 0 auto 40px;
+      transform: scale(var(--pdf-zoom));
+      transform-origin: top center;
+      border: var(--border);
+      border-radius: 4px;
+      background: #fff;
+      box-shadow: 8px 8px 0 rgba(38,50,56,.18);
+      padding: 48px 54px 60px;
+    }
+
+    .book-running-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1.5px solid #9da6aa;
+      color: #69767b;
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .book-unit {
+      margin-top: 26px;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .book-unit h1 {
+      margin: 0;
+      font-size: 2.05rem;
+      line-height: 1.1;
+      color: #1d292e;
+    }
+
+    .book-unit > p {
+      margin: 9px 0 22px;
+      color: #536067;
+      font-size: .94rem;
+      line-height: 1.65;
+    }
+
+    .pdf-exercise {
+      margin: 22px 0;
+      padding: 18px 18px 16px;
+      border: 1.5px solid #7e898e;
+      border-radius: 8px;
+      background: #fbfbf7;
+    }
+
+    .pdf-exercise strong {
+      display: block;
+      margin-bottom: 7px;
+      font-family: var(--sso-body);
+      font-size: .79rem;
+      letter-spacing: .03em;
+    }
+
+    .pdf-exercise p, .pdf-exercise li {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: .93rem;
+      line-height: 1.65;
+    }
+
+    .pdf-exercise ol { margin: 10px 0 0; padding-left: 24px; }
+    .source-label {
+      display: inline-grid;
+      place-items: center;
+      min-width: 30px;
+      height: 26px;
+      margin-right: 6px;
+      border: 1.5px solid #263238;
+      border-radius: 5px;
+      background: #fff1b7;
+      font-family: var(--sso-body);
+      font-size: .72rem;
+      font-weight: 900;
+    }
+
+    .reference-note {
+      display: none;
+      margin-top: 24px;
+      padding: 18px;
+      border: 1.5px solid #7e898e;
+      background: #f7f7f1;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: .94rem;
+      line-height: 1.7;
+    }
+
+    body.reference-only .reference-note { display: block; }
+    body.reference-only .pdf-exercise { display: none; }
+
+    .activity-pane {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--sso-canvas);
+      padding: 18px 22px 28px;
+      transition: opacity var(--panel), transform var(--panel);
+    }
+
+    body.panel-collapsed .activity-pane,
+    body.reference-only .activity-pane {
+      opacity: 0;
+      transform: translateX(26px);
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .restore-panel {
+      position: fixed;
+      right: 12px;
+      top: 86px;
+      z-index: 12;
+      min-width: 44px;
+      min-height: 44px;
+      display: none;
+      place-items: center;
+      border: var(--border);
+      border-radius: 11px;
+      background: var(--sso-yellow);
+      box-shadow: var(--shadow);
+    }
+
+    body.panel-collapsed:not(.reference-only) .restore-panel { display: grid; }
+
+    .activity-page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+
+    .eyebrow {
+      margin: 0 0 5px;
+      color: var(--sso-muted);
+      font-size: .64rem;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .activity-page-head h1 {
+      margin: 0;
+      font-family: var(--sso-display);
+      font-size: 1.65rem;
+      line-height: 1.05;
+      font-weight: 600;
+    }
+
+    .activity-page-head p {
+      margin: 7px 0 0;
+      max-width: 680px;
+      color: var(--sso-muted);
+      font-size: .78rem;
+      line-height: 1.5;
+    }
+
+    .activity-section {
+      margin-top: 16px;
+      border: var(--border);
+      border-radius: var(--radius);
+      background: var(--sso-paper);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .activity-section.is-submitted { box-shadow: 4px 4px 0 var(--sso-teal); }
+
+    .activity-titlebar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 11px;
+      border-bottom: var(--border);
+      background: var(--sso-orange);
+    }
+
+    .activity-section:nth-of-type(even) .activity-titlebar { background: var(--sso-blue); }
+
+    .activity-titlebar strong {
+      font-family: var(--sso-display);
+      font-size: .88rem;
+    }
+
+    .activity-titlebar span {
+      margin-left: auto;
+      font-size: .61rem;
+      font-weight: 900;
+    }
+
+    .activity-copy {
+      padding: 15px 16px 4px;
+    }
+
+    .activity-copy p {
+      margin: 0;
+      color: var(--sso-muted);
+      font-size: .76rem;
+      line-height: 1.55;
+    }
+
+    .question-list {
+      display: grid;
+      gap: 12px;
+      padding: 12px 16px 16px;
+    }
+
+    .question-card {
+      border: var(--border);
+      border-radius: 12px;
+      background: var(--sso-paper);
+      box-shadow: var(--shadow-small);
+      padding: 13px;
+      scroll-margin-top: 14px;
+    }
+
+    .question-card.is-current { background: #fffaf0; }
+    .question-card.is-answered { border-left-width: 5px; border-left-color: var(--sso-teal); }
+    .question-card.is-flagged { box-shadow: 3px 3px 0 var(--sso-pink); }
+
+    .question-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+
+    .question-number {
+      min-width: 32px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: var(--border-micro);
+      border-radius: 8px;
+      background: var(--sso-yellow);
+      font-size: .68rem;
+      font-weight: 900;
+    }
+
+    .question-label {
+      min-width: 0;
+      flex: 1;
+      font-size: .73rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .flag-button {
+      min-width: 34px;
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      border: var(--border-micro);
+      border-radius: 8px;
+      background: var(--sso-paper);
+    }
+
+    .flag-button[aria-pressed="true"] { background: var(--sso-pink-soft); }
+
+    .question-prompt {
+      margin: 0 0 10px;
+      font-size: .77rem;
+      line-height: 1.55;
+    }
+
+    .answer-input {
+      width: 100%;
+      min-height: 46px;
+      border: var(--border);
+      border-radius: 10px;
+      background: #fff;
+      padding: 10px 12px;
+      font-size: .78rem;
+      line-height: 1.4;
+    }
+
+    textarea.answer-input { min-height: 90px; resize: vertical; }
+
+    .choice-grid {
+      display: grid;
+      gap: 7px;
+    }
+
+    .choice-option {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: var(--border-micro);
+      border-radius: 9px;
+      background: var(--sso-paper);
+      padding: 8px 10px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+
+    .choice-option:has(input:checked) {
+      background: var(--sso-teal-soft);
+      box-shadow: var(--shadow-small);
+    }
+
+    .activity-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 16px 16px;
+    }
+
+    .activity-meta {
+      color: var(--sso-muted);
+      font-size: .66rem;
+      font-weight: 800;
+    }
+
+    .submit-button, .secondary-button {
+      min-height: 42px;
+      border-radius: 10px;
+      padding: 0 13px;
+      font-size: .7rem;
+      font-weight: 900;
+    }
+
+    .submit-button { background: var(--sso-orange); }
+    .secondary-button { background: var(--sso-paper); }
+    .activity-section.is-submitted .submit-button { background: var(--sso-teal-soft); }
+
+    .runtime-footer {
+      position: relative;
+      z-index: 9;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 9px 13px;
+      border-top: var(--border);
+      background: var(--sso-paper);
+    }
+
+    .only-book-tools {
+      display: none;
+      min-width: 0;
+      justify-content: center;
+    }
+
+    body.panel-collapsed .runtime-footer {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.panel-collapsed .navigator-wrap,
+    body.panel-collapsed .footer-summary {
+      display: none;
+    }
+
+    body.panel-collapsed .only-book-tools {
+      display: flex;
+    }
+
+    .only-book-tools .pdf-toolbar {
+      width: auto;
+      max-width: 100%;
+      justify-content: center;
+      border-bottom: 0;
+      padding-block: 0;
+      background: transparent;
+    }
+
+    .only-book-tools .pdf-label {
+      margin-left: 4px;
+    }
+
+    .navigator-wrap {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding: 2px;
+    }
+
+    .navigator-wrap::-webkit-scrollbar { display: none; }
+
+    .navigator-label {
+      color: var(--sso-muted);
+      font-size: .62rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .question-pill {
+      min-width: 36px;
+      min-height: 36px;
+      border-radius: 999px;
+      padding: 0 9px;
+      font-size: .64rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .question-pill.is-current { background: var(--sso-yellow); }
+    .question-pill.is-answered { background: var(--sso-teal-soft); }
+    .question-pill.is-flagged { box-shadow: 2px 2px 0 var(--sso-pink); }
+    .question-pill.is-submitted { background: var(--sso-teal); }
+
+    .footer-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      font-size: .65rem;
+      font-weight: 900;
+    }
+
+    .reference-footer {
+      display: none;
+      align-items: center;
+      gap: 9px;
+      color: var(--sso-muted);
+      font-size: .72rem;
+      font-weight: 800;
+    }
+
+    body.reference-only .navigator-wrap,
+    body.reference-only .footer-summary { display: none; }
+    body.reference-only .reference-footer { display: flex; }
+    body.panel-collapsed .reference-footer { display: none; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(var(--footer-h) + 26px);
+      z-index: 80;
+      transform: translate(-50%, 16px);
+      opacity: 0;
+      pointer-events: none;
+      min-width: min(420px, calc(100vw - 28px));
+      border: var(--border);
+      border-radius: 10px;
+      background: var(--sso-paper);
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      font-size: .72rem;
+      font-weight: 800;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      place-items: center;
+      padding: 16px;
+      background: rgba(38,50,56,.28);
+    }
+
+    .modal-backdrop.is-open { display: grid; }
+
+    .modal {
+      width: min(420px, 100%);
+      border: 3px solid var(--sso-ink);
+      border-radius: 14px;
+      background: var(--sso-paper);
+      box-shadow: 7px 7px 0 var(--sso-ink);
+      overflow: hidden;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 13px;
+      border-bottom: var(--border);
+      background: var(--sso-yellow);
+    }
+
+    .modal-head h2 {
+      margin: 0;
+      font-family: var(--sso-display);
+      font-size: 1rem;
+    }
+
+    .modal-body {
+      padding: 15px;
+      font-size: .78rem;
+      line-height: 1.55;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 8px;
+      padding: 0 15px 15px;
+    }
+
+    .integrity-note {
+      margin: 10px 0 0;
+      border: var(--border-micro);
+      border-radius: 9px;
+      background: var(--sso-pink-soft);
+      padding: 9px 10px;
+      font-size: .68rem;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    @media (max-width: 980px) {
+      .runtime-title span { display: none; }
+
+      .workspace-body {
+        grid-template-columns:
+          minmax(300px, var(--split-left))
+          minmax(330px, 1fr);
+      }
+
+      .activity-pane { padding-inline: 16px; }
+      .pdf-stage { padding-inline: 14px; }
+      .pdf-paper { width: min(640px, 96%); padding-inline: 42px; }
+    }
+
+    @media (max-width: 760px) {
+      :root { --footer-h: 66px; }
+      body { --sso-muted: #5b666b; }
+      .runtime {
+        grid-template-rows: 64px 60px minmax(0, 1fr) var(--footer-h);
+      }
+
+      .runtime-toolbar {
+        padding: 8px 10px;
+        background: var(--sso-orange);
+      }
+
+      .back-button {
+        width: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0;
+        justify-content: center;
+        background: var(--sso-paper);
+      }
+
+      .back-button span { display: none; }
+
+      .runtime-title strong { font-size: .9rem; }
+      .runtime-title span { display: block; color: var(--sso-ink); opacity: .72; }
+      .toolbar-cluster { gap: 6px; }
+      .save-chip { min-height: 34px; padding-inline: 8px; }
+      .save-chip span:last-child { display: none; }
+      .toolbar-cluster .tool-button, .toolbar-cluster .icon-button { display: none; }
+
+      .mobile-mode-tabs { display: grid; }
+
+      .workspace-body,
+      body.panel-collapsed .workspace-body,
+      body.reference-only .workspace-body {
+        display: block;
+        overflow: hidden;
+      }
+
+      .column-splitter { display: none !important; }
+
+      .book-pane,
+      .activity-pane {
+        width: 100%;
+        height: 100%;
+        border-right: 0;
+      }
+
+      body.mobile-book .activity-pane,
+      body.mobile-activity .book-pane { display: none; }
+
+      body.mobile-book .book-pane,
+      body.mobile-activity .activity-pane { display: grid; }
+
+      body.mobile-activity .activity-pane {
+        display: block;
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+        overflow-y: auto;
+        padding: 14px;
+      }
+
+      body.reference-only .activity-pane { display: none !important; }
+      body.reference-only .book-pane { display: grid !important; }
+
+      .pdf-toolbar { min-height: 48px; }
+      .page-button, .zoom-button { min-width: 44px; min-height: 44px; }
+      .page-input-wrap { height: 44px; }
+      .pdf-label { display: none; }
+      .pdf-stage {
+        padding: 14px 10px 34px;
+        background:
+          radial-gradient(circle at 1px 1px, rgba(38,50,56,.075) 1px, transparent 1.2px) 0 0 / 18px 18px,
+          var(--sso-canvas);
+      }
+      .pdf-paper {
+        width: min(620px, 96%);
+        min-height: 760px;
+        padding: 34px 26px 46px;
+        transform-origin: top center;
+      }
+
+      .book-unit h1 { font-size: 1.65rem; }
+      .book-unit > p, .pdf-exercise p, .pdf-exercise li { font-size: .86rem; }
+
+      .activity-page-head {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      .activity-page-head h1 { font-size: 1.4rem; }
+      .activity-page-head .context-chip { margin-top: 10px; min-height: 32px; }
+      .activity-section { margin-top: 14px; }
+      .activity-titlebar { min-height: 44px; }
+      .question-card { padding: 12px; }
+      .flag-button { min-width: 44px; min-height: 44px; }
+      .answer-input { min-height: 48px; }
+      .choice-option { min-height: 48px; }
+      .submit-button, .secondary-button { min-height: 46px; }
+
+      .runtime-footer {
+        grid-template-columns: minmax(0,1fr);
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+      }
+
+      .only-book-tools { display: none !important; }
+
+      .footer-summary { display: none; }
+      .navigator-label { display: none; }
+      .question-pill { min-width: 44px; min-height: 44px; }
+      .reference-footer { justify-content: center; }
+
+      .modal .icon-button { width: 44px; min-width: 44px; min-height: 44px; }
+
+      .restore-panel { display: none !important; }
+      .toast { bottom: calc(var(--footer-h) + 72px); }
+    }
+
+    @media (max-width: 390px) {
+      .runtime-title span { display: none; }
+      .save-chip { padding: 0 7px; }
+      .activity-copy, .question-list, .activity-actions { padding-inline: 12px; }
+      .activity-actions { align-items: stretch; flex-direction: column; }
+      .activity-actions .submit-button { width: 100%; }
+      .pdf-paper { padding-inline: 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body class="mobile-activity">
+  <!--
+    THROWAWAY CLEAN-ROOM PROTOTYPE.
+    Functional authority: PRD0062 product requirements only.
+    Visual authority: PRD0063 Student Study OS authority pack only.
+    Existing PRD0062 runtime implementation and prior PRD0062 mockups were intentionally not consulted.
+  -->
+
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21.5z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m14 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m10 18 6-6-6-6"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4m0 1h10l-1.5 3L15 11H5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+  </svg>
+
+  <main class="runtime" aria-label="Student Book PDF activity runtime">
+    <header class="runtime-toolbar">
+      <button class="back-button" type="button" aria-label="Return to homework">
+        <svg class="icon"><use href="#i-back"/></svg><span>Homework</span>
+      </button>
+
+      <div class="runtime-title">
+        <strong>Academic English Workbook · Unit 4</strong>
+        <span>Focused work · Book Homework · due Friday 8:00 PM</span>
+      </div>
+
+      <div class="toolbar-cluster">
+        <span class="save-chip" id="saveChip" data-state="idle" role="status" aria-live="polite">
+          <svg class="icon" style="width:14px;height:14px"><use href="#i-check"/></svg>
+          <span id="saveText"></span>
+        </span>
+        <button class="tool-button" id="timerButton" type="button" aria-pressed="false" aria-label="Start personal timer">
+          <svg class="icon" style="width:15px;height:15px;vertical-align:middle"><use href="#i-clock"/></svg>
+          <span id="timerText">Timer</span>
+        </button>
+        <button class="tool-button" id="sourceToggle" type="button" aria-pressed="false" data-wide-only>
+          <svg class="icon" style="width:15px;height:15px;vertical-align:middle"><use href="#i-layout"/></svg>
+          Only book
+        </button>
+      </div>
+    </header>
+
+    <nav class="mobile-mode-tabs" aria-label="Book runtime views">
+      <button class="mobile-tab" id="mobileBookTab" type="button" role="tab" aria-selected="false">Book Page</button>
+      <button class="mobile-tab" id="mobileActivityTab" type="button" role="tab" aria-selected="true">Activity</button>
+    </nav>
+
+    <section class="workspace-body">
+      <section class="book-pane" aria-label="Book page viewer">
+        <div class="pdf-toolbar" aria-label="PDF controls">
+          <button class="page-button" id="prevPage" type="button" aria-label="Previous Book page" title="Previous page">
+            <svg class="icon"><use href="#i-left"/></svg>
+          </button>
+
+          <label class="page-input-wrap" for="pageInput">
+            Page
+            <input class="page-input" id="pageInput" inputmode="numeric" value="34" aria-describedby="pageRange" />
+            <span id="pageRange">/ 36</span>
+          </label>
+
+          <button class="page-button" id="nextPage" type="button" aria-label="Next Book page" title="Next page">
+            <svg class="icon"><use href="#i-right"/></svg>
+          </button>
+
+          <button class="zoom-button" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
+          <span id="zoomValue" style="font-size:.64rem;font-weight:900;min-width:38px;text-align:center">100%</span>
+          <button class="zoom-button" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
+          <button class="zoom-button" id="fitPage" type="button" aria-label="Fit page width" title="Fit width"><svg class="icon"><use href="#i-fit"/></svg></button>
+
+          <span class="pdf-label" id="pageStatus">Unit 4 · allowed pages 34–36</span>
+        </div>
+
+        <div class="pdf-stage" id="pdfStage" tabindex="0" aria-label="Book PDF page 34">
+          <article class="pdf-paper" id="pdfPaper">
+            <div class="book-running-head">
+              <span>Academic English Workbook</span>
+              <span id="bookPageLabel">34</span>
+            </div>
+
+            <section class="book-unit">
+              <h1 id="pdfHeading">Unit 4 · Linking ideas clearly</h1>
+              <p id="pdfIntro">Use the examples on this page as the source context. Enter all answers in the Activity workspace rather than on the PDF.</p>
+
+              <div id="pdfExercises">
+                <section class="pdf-exercise">
+                  <strong>Exercise 4.1 · Complete each sentence</strong>
+                  <p>Choose a suitable linking expression. The answer boxes are labelled to match the Activity panel.</p>
+                  <ol>
+                    <li><span class="source-label">1</span>Public transport is efficient; ______, many commuters still prefer private cars.</li>
+                    <li><span class="source-label">2</span>The policy reduced traffic. ______, pedestrian activity increased.</li>
+                    <li><span class="source-label">3</span>The proposal is ambitious, ______ it requires careful implementation.</li>
+                  </ol>
+                </section>
+
+                <section class="pdf-exercise">
+                  <strong>Exercise 4.2 · Choose the best relationship</strong>
+                  <p><span class="source-label">4</span>“The city added bus lanes. Travel times fell during peak hours.”</p>
+                  <p><span class="source-label">5</span>“Parking became more expensive. Some residents changed how they travelled.”</p>
+                </section>
+              </div>
+
+              <aside class="reference-note">
+                <strong>Reference page · no Activity mapped here</strong>
+                <p>This page contains a short explanation of contrast, result, and concession. The runtime expands the Book page because there is no answer work on this page.</p>
+                <p><strong>Contrast:</strong> however, nevertheless, whereas. <strong>Result:</strong> therefore, consequently, as a result. <strong>Concession:</strong> although, even though, despite.</p>
+              </aside>
+            </section>
+          </article>
+        </div>
+      </section>
+
+      <div
+        class="column-splitter"
+        id="columnSplitter"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize Book page and Activity panels"
+        aria-valuemin="30"
+        aria-valuemax="70"
+        aria-valuenow="46"
+        tabindex="0"
+        title="Drag to resize. Use Left and Right arrow keys for fine adjustment."
+      ></div>
+
+      <section class="activity-pane" id="activityPane" aria-label="Mapped Activities">
+        <header class="activity-page-head">
+          <div>
+            <p class="eyebrow" id="activityEyebrow">Page 34 · 2 mapped Activities</p>
+            <h1 id="activityPageTitle">Work beside the Book</h1>
+            <p id="activityPageCopy">Your answers stay here while the original Book page remains visible. Each Activity saves and submits independently.</p>
+          </div>
+          <span class="context-chip" id="contextChip"><svg class="icon" style="width:14px;height:14px"><use href="#i-book"/></svg> Source required</span>
+        </header>
+
+        <div id="activityDeck"></div>
+      </section>
+    </section>
+
+    <button class="restore-panel" id="restorePanel" type="button" aria-label="Restore Activity panel" title="Restore Activity panel">
+      <svg class="icon"><use href="#i-layout"/></svg>
+    </button>
+
+    <footer class="runtime-footer">
+      <nav class="navigator-wrap" id="questionNavigator" aria-label="Activity and question navigator"></nav>
+      <div class="footer-summary" id="footerSummary"><span id="answeredSummary">0 / 5 answered</span><span>·</span><span id="flaggedSummary">0 flagged</span></div>
+      <div class="only-book-tools" id="onlyBookTools" aria-label="Book controls"></div>
+      <div class="reference-footer" id="referenceFooter"><svg class="icon"><use href="#i-info"/></svg><span>Reference-only page. Use Previous or Next when you are ready to continue.</span></div>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal-backdrop" id="submitModal" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="submitTitle" aria-describedby="submitCopy">
+      <header class="modal-head">
+        <h2 id="submitTitle">Submit Activity</h2>
+        <button class="icon-button" id="closeSubmitModal" type="button" aria-label="Close submit confirmation">×</button>
+      </header>
+      <div class="modal-body">
+        <p id="submitCopy" style="margin:0">Submit this Activity now? Other Activities on the Book page stay open and keep saving independently.</p>
+        <p class="integrity-note" id="integrityNote">This accountable homework records focus/tab/paste events for teacher review. A recorded event warns you, but it never blocks you from finishing.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-button" id="cancelSubmit" type="button">Keep working</button>
+        <button class="submit-button" id="confirmSubmit" type="button">Submit Activity</button>
+      </div>
+    </section>
+  </div>
+
+  <template id="activityPage34">
+    <section class="activity-section" data-activity-id="4.1">
+      <header class="activity-titlebar">
+        <strong>Activity 4.1 · Linking expressions</strong>
+        <span data-activity-state>In progress</span>
+      </header>
+      <div class="activity-copy">
+        <p>Type the expression that best completes each numbered blank on the Book page. The labels below correspond directly to the PDF.</p>
+      </div>
+      <div class="question-list">
+        <article class="question-card" id="q-4-1-1" data-question-id="4.1-1">
+          <div class="question-head">
+            <span class="question-number">1</span>
+            <span class="question-label">Blank 1 on Exercise 4.1</span>
+            <button class="flag-button" type="button" aria-label="Flag question 1" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">Enter one linking expression showing contrast.</p>
+          <input class="answer-input" type="text" name="4.1-1" autocomplete="off" placeholder="Type your answer…" aria-label="Answer for question 1" />
+        </article>
+
+        <article class="question-card" id="q-4-1-2" data-question-id="4.1-2">
+          <div class="question-head">
+            <span class="question-number">2</span>
+            <span class="question-label">Blank 2 on Exercise 4.1</span>
+            <button class="flag-button" type="button" aria-label="Flag question 2" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">Enter one linking expression showing result.</p>
+          <input class="answer-input" type="text" name="4.1-2" autocomplete="off" placeholder="Type your answer…" aria-label="Answer for question 2" />
+        </article>
+
+        <article class="question-card" id="q-4-1-3" data-question-id="4.1-3">
+          <div class="question-head">
+            <span class="question-number">3</span>
+            <span class="question-label">Blank 3 on Exercise 4.1</span>
+            <button class="flag-button" type="button" aria-label="Flag question 3" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">Enter one conjunction showing contrast.</p>
+          <input class="answer-input" type="text" name="4.1-3" autocomplete="off" placeholder="Type your answer…" aria-label="Answer for question 3" />
+        </article>
+      </div>
+      <footer class="activity-actions">
+        <span class="activity-meta" data-activity-meta>0 of 3 answered · autosaved draft</span>
+        <button class="submit-button" type="button" data-submit-activity="4.1">Submit Activity 4.1</button>
+      </footer>
+    </section>
+
+    <section class="activity-section" data-activity-id="4.2">
+      <header class="activity-titlebar">
+        <strong>Activity 4.2 · Relationship check</strong>
+        <span data-activity-state>Not started</span>
+      </header>
+      <div class="activity-copy">
+        <p>Choose the relationship that best describes each labelled pair on the Book page.</p>
+      </div>
+      <div class="question-list">
+        <article class="question-card" id="q-4-2-4" data-question-id="4.2-4">
+          <div class="question-head">
+            <span class="question-number">4</span>
+            <span class="question-label">Label 4 on Exercise 4.2</span>
+            <button class="flag-button" type="button" aria-label="Flag question 4" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">What relationship links the second sentence to the first?</p>
+          <div class="choice-grid" role="radiogroup" aria-label="Answer choices for question 4">
+            <label class="choice-option"><input type="radio" name="4.2-4" value="contrast" /> Contrast</label>
+            <label class="choice-option"><input type="radio" name="4.2-4" value="result" /> Result</label>
+            <label class="choice-option"><input type="radio" name="4.2-4" value="example" /> Example</label>
+          </div>
+        </article>
+
+        <article class="question-card" id="q-4-2-5" data-question-id="4.2-5">
+          <div class="question-head">
+            <span class="question-number">5</span>
+            <span class="question-label">Label 5 on Exercise 4.2</span>
+            <button class="flag-button" type="button" aria-label="Flag question 5" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">What relationship links the second sentence to the first?</p>
+          <div class="choice-grid" role="radiogroup" aria-label="Answer choices for question 5">
+            <label class="choice-option"><input type="radio" name="4.2-5" value="cause-result" /> Cause and result</label>
+            <label class="choice-option"><input type="radio" name="4.2-5" value="addition" /> Addition</label>
+            <label class="choice-option"><input type="radio" name="4.2-5" value="contrast" /> Contrast</label>
+          </div>
+        </article>
+      </div>
+      <footer class="activity-actions">
+        <span class="activity-meta" data-activity-meta>0 of 2 answered · autosaved draft</span>
+        <button class="submit-button" type="button" data-submit-activity="4.2">Submit Activity 4.2</button>
+      </footer>
+    </section>
+  </template>
+
+  <template id="activityPage35">
+    <section class="activity-section" data-activity-id="4.3">
+      <header class="activity-titlebar" style="background:var(--sso-teal)">
+        <strong>Activity 4.3 · Improve the paragraph</strong>
+        <span data-activity-state>Not started</span>
+      </header>
+      <div class="activity-copy">
+        <p>Use the model paragraph on Book page 35. Rewrite the highlighted sentence so the relationship between the ideas is clearer.</p>
+      </div>
+      <div class="question-list">
+        <article class="question-card" id="q-4-3-6" data-question-id="4.3-6">
+          <div class="question-head">
+            <span class="question-number">6</span>
+            <span class="question-label">Sentence 6 · short response</span>
+            <button class="flag-button" type="button" aria-label="Flag question 6" aria-pressed="false"><svg class="icon"><use href="#i-flag"/></svg></button>
+          </div>
+          <p class="question-prompt">Rewrite the sentence using one clear linking expression. Keep the meaning unchanged.</p>
+          <textarea class="answer-input" name="4.3-6" placeholder="Write your revised sentence…" aria-label="Answer for question 6"></textarea>
+        </article>
+      </div>
+      <footer class="activity-actions">
+        <span class="activity-meta" data-activity-meta>0 of 1 answered · autosaved draft</span>
+        <button class="submit-button" type="button" data-submit-activity="4.3">Submit Activity 4.3</button>
+      </footer>
+    </section>
+  </template>
+
+  <script>
+    (() => {
+      const state = {
+        page: 34,
+        minPage: 34,
+        maxPage: 36,
+        zoom: 1,
+        answers: {},
+        flags: new Set(),
+        submitted: new Set(),
+        currentQuestion: null,
+        pendingSubmit: null,
+        saveTimer: null,
+        saveStatusTimer: null,
+        timerSeconds: 20 * 60,
+        timerRunning: false,
+        timerStarted: false,
+        timerInterval: null,
+        splitRatio: 0.46,
+      };
+
+      const pageMeta = {
+        34: {
+          heading: "Unit 4 · Linking ideas clearly",
+          intro: "Use the examples on this page as the source context. Enter all answers in the Activity workspace rather than on the PDF.",
+          eyebrow: "Page 34 · 2 mapped Activities",
+          title: "Work beside the Book",
+          copy: "Your answers stay here while the original Book page remains visible. Each Activity saves and submits independently.",
+          template: "activityPage34",
+          context: "Source required"
+        },
+        35: {
+          heading: "Unit 4 · Building a clear paragraph",
+          intro: "Read the short model paragraph, then revise the labelled sentence in the Activity workspace.",
+          eyebrow: "Page 35 · 1 mapped Activity",
+          title: "One focused Activity",
+          copy: "The Activity stays independent from work on the previous page, while your saved answers remain intact.",
+          template: "activityPage35",
+          context: "Source required"
+        },
+        36: {
+          heading: "Unit 4 · Reference: common linking words",
+          intro: "This page is reference-only. There is nothing to submit here.",
+          eyebrow: "Page 36 · reference only",
+          title: "Reference page",
+          copy: "No Activity is mapped to this page.",
+          template: null,
+          context: "Reference only"
+        }
+      };
+
+      const els = {
+        body: document.body,
+        workspace: document.querySelector(".workspace-body"),
+        splitter: document.getElementById("columnSplitter"),
+        pageInput: document.getElementById("pageInput"),
+        pageRange: document.getElementById("pageRange"),
+        prev: document.getElementById("prevPage"),
+        next: document.getElementById("nextPage"),
+        pdfStage: document.getElementById("pdfStage"),
+        pdfPaper: document.getElementById("pdfPaper"),
+        bookPageLabel: document.getElementById("bookPageLabel"),
+        pdfHeading: document.getElementById("pdfHeading"),
+        pdfIntro: document.getElementById("pdfIntro"),
+        pdfExercises: document.getElementById("pdfExercises"),
+        pageStatus: document.getElementById("pageStatus"),
+        activityDeck: document.getElementById("activityDeck"),
+        activityEyebrow: document.getElementById("activityEyebrow"),
+        activityTitle: document.getElementById("activityPageTitle"),
+        activityCopy: document.getElementById("activityPageCopy"),
+        contextChip: document.getElementById("contextChip"),
+        navigator: document.getElementById("questionNavigator"),
+        answeredSummary: document.getElementById("answeredSummary"),
+        flaggedSummary: document.getElementById("flaggedSummary"),
+        saveChip: document.getElementById("saveChip"),
+        saveText: document.getElementById("saveText"),
+        toast: document.getElementById("toast"),
+        zoomValue: document.getElementById("zoomValue"),
+        sourceToggle: document.getElementById("sourceToggle"),
+        restorePanel: document.getElementById("restorePanel"),
+        bookPane: document.querySelector(".book-pane"),
+        pdfToolbar: document.querySelector(".pdf-toolbar"),
+        onlyBookTools: document.getElementById("onlyBookTools"),
+        mobileBookTab: document.getElementById("mobileBookTab"),
+        mobileActivityTab: document.getElementById("mobileActivityTab"),
+        timerButton: document.getElementById("timerButton"),
+        timerText: document.getElementById("timerText"),
+        modal: document.getElementById("submitModal"),
+        submitTitle: document.getElementById("submitTitle"),
+        submitCopy: document.getElementById("submitCopy"),
+        confirmSubmit: document.getElementById("confirmSubmit"),
+        closeSubmit: document.getElementById("closeSubmitModal"),
+        cancelSubmit: document.getElementById("cancelSubmit")
+      };
+
+      function announce(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("is-visible");
+        clearTimeout(announce.timer);
+        announce.timer = setTimeout(() => els.toast.classList.remove("is-visible"), 2200);
+      }
+
+      function setSaveState(mode, label, autoHide = false) {
+        clearTimeout(state.saveStatusTimer);
+        els.saveChip.dataset.state = mode;
+        els.saveText.textContent = label;
+        els.saveChip.classList.add("is-visible");
+
+        if (autoHide) {
+          state.saveStatusTimer = setTimeout(() => {
+            els.saveChip.classList.remove("is-visible");
+            els.saveChip.dataset.state = "idle";
+            els.saveText.textContent = "";
+          }, 1400);
+        }
+      }
+
+      function queueAutosave() {
+        clearTimeout(state.saveTimer);
+        setSaveState("saving", "Saving…");
+        state.saveTimer = setTimeout(() => {
+          state.saveTimer = null;
+          setSaveState("saved", "Saved", true);
+        }, 700);
+      }
+
+      function flushAutosave() {
+        if (!state.saveTimer) return;
+        clearTimeout(state.saveTimer);
+        state.saveTimer = null;
+        setSaveState("saved", "Saved", true);
+      }
+
+      function getAnswerValue(control) {
+        if (control.type === "radio") {
+          const checked = Array.from(document.getElementsByName(control.name)).find(item => item.checked);
+          return checked ? checked.value : "";
+        }
+        return control.value.trim();
+      }
+
+      function saveVisibleAnswers() {
+        document.querySelectorAll(".answer-input, .choice-option input").forEach(control => {
+          const value = getAnswerValue(control);
+          if (value) state.answers[control.name] = value;
+          else delete state.answers[control.name];
+        });
+      }
+
+      function restoreVisibleAnswers() {
+        document.querySelectorAll(".answer-input").forEach(control => {
+          control.value = state.answers[control.name] || "";
+        });
+
+        document.querySelectorAll(".choice-option input").forEach(control => {
+          control.checked = state.answers[control.name] === control.value;
+        });
+
+        document.querySelectorAll(".question-card").forEach(card => {
+          const id = card.dataset.questionId;
+          const flag = card.querySelector(".flag-button");
+          const hasAnswer = !!state.answers[id];
+          card.classList.toggle("is-answered", hasAnswer);
+          card.classList.toggle("is-flagged", state.flags.has(id));
+          flag?.setAttribute("aria-pressed", state.flags.has(id) ? "true" : "false");
+        });
+      }
+
+      function currentQuestions() {
+        return Array.from(document.querySelectorAll(".question-card")).map(card => card.dataset.questionId);
+      }
+
+      function questionDisplay(id) {
+        const parts = id.split("-");
+        return "Q" + parts[parts.length - 1];
+      }
+
+      function updateActivityMeta() {
+        document.querySelectorAll(".activity-section").forEach(section => {
+          const id = section.dataset.activityId;
+          const questionIds = Array.from(section.querySelectorAll(".question-card")).map(card => card.dataset.questionId);
+          const answered = questionIds.filter(q => !!state.answers[q]).length;
+          const meta = section.querySelector("[data-activity-meta]");
+          const stateLabel = section.querySelector("[data-activity-state]");
+          const submit = section.querySelector("[data-submit-activity]");
+
+          const submitted = state.submitted.has(id);
+          section.querySelectorAll("input, textarea, .flag-button").forEach(control => {
+            control.disabled = submitted;
+          });
+
+          if (submitted) {
+            section.classList.add("is-submitted");
+            stateLabel.textContent = "Submitted";
+            meta.textContent = answered + " of " + questionIds.length + " answered · submitted";
+            submit.textContent = "Submitted";
+            submit.disabled = true;
+          } else {
+            section.classList.remove("is-submitted");
+            stateLabel.textContent = answered ? "In progress" : "Not started";
+            meta.textContent = answered + " of " + questionIds.length + " answered · autosaved draft";
+            submit.textContent = "Submit Activity " + id;
+            submit.disabled = false;
+          }
+        });
+      }
+
+      function renderNavigator() {
+        els.navigator.innerHTML = "";
+        const label = document.createElement("span");
+        label.className = "navigator-label";
+        label.textContent = "On this page";
+        els.navigator.append(label);
+
+        const questionIds = currentQuestions();
+        questionIds.forEach(id => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "question-pill";
+          button.textContent = questionDisplay(id);
+          button.dataset.questionId = id;
+          button.classList.toggle("is-current", state.currentQuestion === id);
+          button.classList.toggle("is-answered", !!state.answers[id]);
+          button.classList.toggle("is-flagged", state.flags.has(id));
+          const activityId = id.split("-")[0];
+          button.classList.toggle("is-submitted", state.submitted.has(activityId));
+          button.setAttribute("aria-label", "Go to " + questionDisplay(id));
+          button.addEventListener("click", () => focusQuestion(id));
+          els.navigator.append(button);
+        });
+
+        const answered = questionIds.filter(id => !!state.answers[id]).length;
+        const flagged = questionIds.filter(id => state.flags.has(id)).length;
+        els.answeredSummary.textContent = answered + " / " + questionIds.length + " answered";
+        els.flaggedSummary.textContent = flagged + " flagged";
+      }
+
+      function focusQuestion(id) {
+        state.currentQuestion = id;
+        document.querySelectorAll(".question-card").forEach(card => {
+          card.classList.toggle("is-current", card.dataset.questionId === id);
+        });
+        document.getElementById("q-" + id.replaceAll(".", "-"))?.scrollIntoView({behavior:"smooth", block:"center"});
+        renderNavigator();
+      }
+
+      function bindActivityControls() {
+        document.querySelectorAll(".answer-input").forEach(control => {
+          control.addEventListener("input", () => {
+            state.answers[control.name] = control.value.trim();
+            queueAutosave();
+            restoreVisibleAnswers();
+            updateActivityMeta();
+            renderNavigator();
+          });
+        });
+
+        document.querySelectorAll(".choice-option input").forEach(control => {
+          control.addEventListener("change", () => {
+            if (control.checked) state.answers[control.name] = control.value;
+            queueAutosave();
+            restoreVisibleAnswers();
+            updateActivityMeta();
+            renderNavigator();
+          });
+        });
+
+        document.querySelectorAll(".flag-button").forEach(button => {
+          button.addEventListener("click", () => {
+            const id = button.closest(".question-card").dataset.questionId;
+            if (state.flags.has(id)) state.flags.delete(id);
+            else state.flags.add(id);
+            restoreVisibleAnswers();
+            renderNavigator();
+          });
+        });
+
+        document.querySelectorAll("[data-submit-activity]").forEach(button => {
+          button.addEventListener("click", () => openSubmitModal(button.dataset.submitActivity));
+        });
+      }
+
+      function renderPage() {
+        flushAutosave();
+        saveVisibleAnswers();
+
+        const meta = pageMeta[state.page];
+        const referenceOnly = !meta.template;
+        els.body.classList.toggle("reference-only", referenceOnly);
+        els.pageInput.value = String(state.page);
+        els.bookPageLabel.textContent = String(state.page);
+        els.pdfHeading.textContent = meta.heading;
+        els.pdfIntro.textContent = meta.intro;
+        els.pdfStage.setAttribute("aria-label", "Book PDF page " + state.page);
+        els.activityEyebrow.textContent = meta.eyebrow;
+        els.activityTitle.textContent = meta.title;
+        els.activityCopy.textContent = meta.copy;
+        els.contextChip.lastChild.textContent = " " + meta.context;
+        els.prev.disabled = state.page <= state.minPage;
+        els.next.disabled = state.page >= state.maxPage;
+        els.pageStatus.textContent = "Unit 4 · allowed pages " + state.minPage + "–" + state.maxPage;
+
+        if (state.page === 35) {
+          els.pdfExercises.innerHTML =
+            '<section class="pdf-exercise"><strong>Model paragraph</strong><p>Many cities want to reduce congestion in busy centres. <span class="source-label">6</span>Public transport is improving, city authorities should also make walking and cycling safer. A balanced policy can reduce traffic while preserving access for people who genuinely need cars.</p></section>';
+        } else if (state.page === 34) {
+          els.pdfExercises.innerHTML =
+            '<section class="pdf-exercise"><strong>Exercise 4.1 · Complete each sentence</strong><p>Choose a suitable linking expression. The answer boxes are labelled to match the Activity panel.</p><ol><li><span class="source-label">1</span>Public transport is efficient; ______, many commuters still prefer private cars.</li><li><span class="source-label">2</span>The policy reduced traffic. ______, pedestrian activity increased.</li><li><span class="source-label">3</span>The proposal is ambitious, ______ it requires careful implementation.</li></ol></section><section class="pdf-exercise"><strong>Exercise 4.2 · Choose the best relationship</strong><p><span class="source-label">4</span>“The city added bus lanes. Travel times fell during peak hours.”</p><p><span class="source-label">5</span>“Parking became more expensive. Some residents changed how they travelled.”</p></section>';
+        }
+
+        els.activityDeck.innerHTML = "";
+        if (meta.template) {
+          const template = document.getElementById(meta.template);
+          els.activityDeck.append(template.content.cloneNode(true));
+          restoreVisibleAnswers();
+          updateActivityMeta();
+          bindActivityControls();
+          state.currentQuestion = currentQuestions()[0] || null;
+          if (state.currentQuestion) {
+            document.querySelector('[data-question-id="' + state.currentQuestion + '"]')?.classList.add("is-current");
+          }
+        } else {
+          state.currentQuestion = null;
+          if (window.innerWidth <= 760) setMobileMode("book");
+        }
+
+        renderNavigator();
+        els.pdfStage.scrollTop = 0;
+      }
+
+      function goToPage(raw) {
+        const target = Number.parseInt(raw, 10);
+        if (!Number.isFinite(target) || target < state.minPage || target > state.maxPage) {
+          els.pageInput.value = String(state.page);
+          announce("Use a Book page from " + state.minPage + " to " + state.maxPage + ".");
+          return;
+        }
+        if (target === state.page) return;
+        state.page = target;
+        renderPage();
+        announce("Book page " + state.page + " loaded.");
+      }
+
+      function setZoom(next) {
+        state.zoom = Math.min(1.35, Math.max(.8, Math.round(next * 20) / 20));
+        document.documentElement.style.setProperty("--pdf-zoom", state.zoom);
+        els.zoomValue.textContent = Math.round(state.zoom * 100) + "%";
+      }
+
+      function fitWidth() {
+        const width = els.pdfStage.clientWidth;
+        const paperWidth = Math.min(700, width * .92);
+        const available = width - 28;
+        setZoom(Math.min(1, available / paperWidth));
+        announce("Book page fitted to the reading area.");
+      }
+
+      function setMobileMode(mode) {
+        els.body.classList.toggle("mobile-book", mode === "book");
+        els.body.classList.toggle("mobile-activity", mode === "activity");
+        els.mobileBookTab.setAttribute("aria-selected", mode === "book" ? "true" : "false");
+        els.mobileActivityTab.setAttribute("aria-selected", mode === "activity" ? "true" : "false");
+      }
+
+      function getSplitBounds() {
+        const minBook = window.innerWidth <= 980 ? 300 : 320;
+        const minActivity = window.innerWidth <= 980 ? 330 : 360;
+        const usableWidth = Math.max(1, els.workspace.clientWidth);
+
+        return {
+          usableWidth,
+          minRatio: Math.min(0.5, minBook / usableWidth),
+          maxRatio: Math.max(0.5, 1 - (minActivity / usableWidth))
+        };
+      }
+
+      function applySplitRatio() {
+        if (window.innerWidth <= 760) return;
+
+        const { usableWidth, minRatio, maxRatio } = getSplitBounds();
+        const effectiveRatio = Math.max(minRatio, Math.min(state.splitRatio, maxRatio));
+        const bookWidth = usableWidth * effectiveRatio;
+
+        els.workspace.style.setProperty("--split-left", bookWidth + "px");
+        els.splitter.setAttribute("aria-valuemin", String(Math.round(minRatio * 100)));
+        els.splitter.setAttribute("aria-valuemax", String(Math.round(maxRatio * 100)));
+        els.splitter.setAttribute("aria-valuenow", String(Math.round(effectiveRatio * 100)));
+      }
+
+      function setSplitFromPointer(clientX) {
+        const rect = els.workspace.getBoundingClientRect();
+        const { usableWidth, minRatio, maxRatio } = getSplitBounds();
+        const pointerRatio = (clientX - rect.left) / usableWidth;
+
+        state.splitRatio = Math.max(minRatio, Math.min(pointerRatio, maxRatio));
+        applySplitRatio();
+      }
+
+      function nudgeSplit(direction) {
+        const { usableWidth, minRatio, maxRatio } = getSplitBounds();
+        state.splitRatio += (direction * 24) / usableWidth;
+        state.splitRatio = Math.max(minRatio, Math.min(state.splitRatio, maxRatio));
+        applySplitRatio();
+      }
+
+      function openSubmitModal(activityId) {
+        flushAutosave();
+        state.pendingSubmit = activityId;
+        els.submitTitle.textContent = "Submit Activity " + activityId + "?";
+        els.submitCopy.textContent = "Submit this Activity now? Other Activities on the Book page stay open and keep saving independently.";
+        els.modal.classList.add("is-open");
+        els.cancelSubmit.focus();
+      }
+
+      function closeSubmitModal() {
+        els.modal.classList.remove("is-open");
+        state.pendingSubmit = null;
+      }
+
+      function confirmSubmit() {
+        if (!state.pendingSubmit) return;
+        const id = state.pendingSubmit;
+        state.submitted.add(id);
+        closeSubmitModal();
+        updateActivityMeta();
+        renderNavigator();
+        announce("Activity " + id + " submitted. Other Activities are still open.");
+      }
+
+      function updateTimer() {
+        if (!state.timerStarted) {
+          els.timerText.textContent = "Timer";
+          els.timerButton.setAttribute("aria-label", "Start personal timer");
+          return;
+        }
+
+        const minutes = Math.floor(state.timerSeconds / 60).toString().padStart(2, "0");
+        const seconds = (state.timerSeconds % 60).toString().padStart(2, "0");
+        els.timerText.textContent = minutes + ":" + seconds;
+        els.timerButton.setAttribute(
+          "aria-label",
+          state.timerRunning ? "Pause personal timer at " + minutes + ":" + seconds : "Resume personal timer at " + minutes + ":" + seconds
+        );
+      }
+
+      function toggleTimer() {
+        state.timerStarted = true;
+        state.timerRunning = !state.timerRunning;
+        els.timerButton.setAttribute("aria-pressed", state.timerRunning ? "true" : "false");
+        els.timerButton.classList.toggle("is-active", state.timerRunning);
+        updateTimer();
+
+        if (state.timerRunning) {
+          els.timerInterval = setInterval(() => {
+            if (state.timerSeconds > 0) state.timerSeconds -= 1;
+            updateTimer();
+            if (state.timerSeconds <= 0) {
+              clearInterval(state.timerInterval);
+              state.timerRunning = false;
+              els.timerButton.setAttribute("aria-pressed", "false");
+              els.timerButton.classList.remove("is-active");
+              els.timerButton.setAttribute("aria-label", "Personal timer finished");
+              announce("Personal timer finished. Your work continues normally.");
+            }
+          }, 1000);
+        } else {
+          clearInterval(state.timerInterval);
+        }
+      }
+
+      els.prev.addEventListener("click", () => goToPage(state.page - 1));
+      els.next.addEventListener("click", () => goToPage(state.page + 1));
+      els.pageInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") goToPage(els.pageInput.value);
+      });
+      els.pageInput.addEventListener("blur", () => {
+        if (els.pageInput.value !== String(state.page)) goToPage(els.pageInput.value);
+      });
+
+      document.getElementById("zoomOut").addEventListener("click", () => setZoom(state.zoom - .1));
+      document.getElementById("zoomIn").addEventListener("click", () => setZoom(state.zoom + .1));
+      document.getElementById("fitPage").addEventListener("click", fitWidth);
+
+      function setOnlyBook(enabled) {
+        els.body.classList.toggle("panel-collapsed", enabled);
+        els.sourceToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+        els.sourceToggle.classList.toggle("is-active", enabled);
+
+        if (enabled) {
+          els.onlyBookTools.appendChild(els.pdfToolbar);
+        } else {
+          els.bookPane.insertBefore(els.pdfToolbar, els.pdfStage);
+        }
+      }
+
+      els.sourceToggle.addEventListener("click", () => {
+        const onlyBook = !els.body.classList.contains("panel-collapsed");
+        setOnlyBook(onlyBook);
+        announce(onlyBook ? "Only book mode on." : "Activity panel restored.");
+      });
+
+      els.restorePanel.addEventListener("click", () => {
+        setOnlyBook(false);
+        announce("Activity panel restored.");
+      });
+
+      els.mobileBookTab.addEventListener("click", () => setMobileMode("book"));
+      els.mobileActivityTab.addEventListener("click", () => {
+        if (!els.body.classList.contains("reference-only")) setMobileMode("activity");
+      });
+
+      els.splitter.addEventListener("pointerdown", event => {
+        if (window.innerWidth <= 760 || event.button !== 0) return;
+        event.preventDefault();
+        els.body.classList.add("is-resizing");
+        els.splitter.setPointerCapture(event.pointerId);
+        setSplitFromPointer(event.clientX);
+      });
+
+      els.splitter.addEventListener("pointermove", event => {
+        if (!els.splitter.hasPointerCapture(event.pointerId)) return;
+        setSplitFromPointer(event.clientX);
+      });
+
+      els.splitter.addEventListener("pointerup", event => {
+        if (els.splitter.hasPointerCapture(event.pointerId)) {
+          els.splitter.releasePointerCapture(event.pointerId);
+        }
+        els.body.classList.remove("is-resizing");
+      });
+
+      els.splitter.addEventListener("pointercancel", () => {
+        els.body.classList.remove("is-resizing");
+      });
+
+      els.splitter.addEventListener("lostpointercapture", () => {
+        els.body.classList.remove("is-resizing");
+      });
+
+      els.splitter.addEventListener("keydown", event => {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          nudgeSplit(-1);
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          nudgeSplit(1);
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          state.splitRatio = getSplitBounds().minRatio;
+          applySplitRatio();
+        } else if (event.key === "End") {
+          event.preventDefault();
+          state.splitRatio = getSplitBounds().maxRatio;
+          applySplitRatio();
+        }
+      });
+
+      els.timerButton.addEventListener("click", toggleTimer);
+      els.closeSubmit.addEventListener("click", closeSubmitModal);
+      els.cancelSubmit.addEventListener("click", closeSubmitModal);
+      els.confirmSubmit.addEventListener("click", confirmSubmit);
+      els.modal.addEventListener("click", event => {
+        if (event.target === els.modal) closeSubmitModal();
+      });
+
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && els.modal.classList.contains("is-open")) closeSubmitModal();
+      });
+
+      updateTimer();
+      renderPage();
+      applySplitRatio();
+      if (window.innerWidth <= 760) setMobileMode("activity");
+
+      window.addEventListener("resize", () => {
+        if (window.innerWidth > 760) {
+          els.body.classList.remove("mobile-book");
+          els.body.classList.remove("mobile-activity");
+          applySplitRatio();
+        } else if (!els.body.classList.contains("mobile-book") && !els.body.classList.contains("mobile-activity")) {
+          setMobileMode(els.body.classList.contains("reference-only") ? "book" : "activity");
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

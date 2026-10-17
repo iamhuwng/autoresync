@@ -58,6 +58,22 @@ const setup = () => {
       status: 'verified_completed' as const,
       reservationId: 'reservation-1',
       sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256' as const, value: checksum },
+    })),
+    decideStudentSafeSource: vi.fn(async () => ({
+      status: 'verified_completed' as const,
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256' as const, value: checksum },
+      purpose: 'book-source' as const,
+      studentSafeStatus: 'ready' as const,
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1',
+        sha256Hex: checksum,
+        reasonCode: 'teacher-reviewed' as const,
+      },
     })),
     requestCancellation: vi.fn(async () => undefined),
     status: vi.fn(async () => ({
@@ -120,6 +136,7 @@ describe('sourceUpload.browserWorkflow', () => {
           status: 'verified_completed',
           reservationId: 'reservation-1',
           sourceVersionId: 'source-version-1',
+          checksum: { algorithm: 'sha-256', value: checksum },
         });
       }
       throw new Error(`unexpected request: ${String(url)}`);
@@ -284,6 +301,7 @@ describe('sourceUpload.browserWorkflow', () => {
 
     expect(harness.control.begin).toHaveBeenCalledWith(expect.objectContaining({
       bookId: 'book-1',
+      purpose: 'book-source',
       inspection: claim,
     }));
     expect(harness.control.begin.mock.calls[0]?.[0]).not.toHaveProperty('file');
@@ -294,8 +312,7 @@ describe('sourceUpload.browserWorkflow', () => {
     expect(harness.control.complete).toHaveBeenCalledWith({
       bookId: 'book-1',
       reservationId: 'reservation-1',
-      providerFileId: '4_file',
-      providerFileVersionId: '4_version',
+      operationId: '11111111-1111-4111-8111-111111111111',
     });
     expect(harness.state.get()).toMatchObject({ phase: 'verified' });
     expect(JSON.stringify(harness.state.get())).not.toMatch(/signature|token|headers|%PDF/iu);
@@ -468,6 +485,7 @@ describe('sourceUpload.browserWorkflow', () => {
       status: 'verified_completed',
       reservationId: 'reservation-1',
       sourceVersionId: 'different-source-version',
+      checksum: { algorithm: 'sha-256', value: checksum },
     });
     await expect(harness.workflow.start({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
@@ -476,6 +494,23 @@ describe('sourceUpload.browserWorkflow', () => {
       phase: 'completion_pending',
       sourceVersionId: 'source-version-1',
     });
+  });
+
+  it('rejects completion bound to another checksum', async () => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    harness.control.complete.mockResolvedValueOnce({
+      status: 'verified_completed',
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) },
+    });
+
+    await expect(harness.workflow.start({
+      bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code: 'response_binding_mismatch' });
+    expect(harness.state.get()).toMatchObject({ phase: 'completion_pending' });
   });
 
   it('does not overwrite a newer cleanup state after delayed completion returns', async () => {
@@ -496,6 +531,7 @@ describe('sourceUpload.browserWorkflow', () => {
         status: 'verified_completed',
         reservationId: 'reservation-1',
         sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: checksum },
       };
     });
 
@@ -557,6 +593,27 @@ describe('sourceUpload.browserWorkflow', () => {
     });
     await expect(harness.workflow.start({
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
+    })).rejects.toMatchObject({ code: 'verified_source_exists' });
+  });
+
+  it('keeps verified initial state protected while starting a replacement operation', async () => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    await harness.workflow.start({ bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim });
+
+    await harness.workflow.prepareReplacement('book-1');
+    expect(harness.state.get()).toBeNull();
+
+    const replacement = await harness.workflow.start({
+      bookId: 'book-1', sourceKey: 'main', kind: 'replacement', file, claim,
+    });
+
+    expect(replacement.state).toMatchObject({ kind: 'replacement', phase: 'verified' });
+    await harness.workflow.prepareReplacement('book-1');
+    expect(harness.state.get()).toMatchObject({ kind: 'replacement', phase: 'verified' });
+    await expect(harness.workflow.start({
+      bookId: 'book-1', sourceKey: 'main', kind: 'replacement', file, claim,
     })).rejects.toMatchObject({ code: 'verified_source_exists' });
   });
 
@@ -849,6 +906,7 @@ describe('sourceUpload.browserWorkflow', () => {
         status: 'verified_completed',
         reservationId: 'reservation-1',
         sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256', value: checksum },
       };
     });
 
@@ -856,5 +914,81 @@ describe('sourceUpload.browserWorkflow', () => {
       bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim,
     })).rejects.toMatchObject({ code: 'invalid_operation' });
     expect(harness.state.get()).toMatchObject({ phase: 'completion_pending' });
+  });
+
+  it.each(['book-source', 'student-document'] as const)('decides %s ready through the persisted verified reservation', async (purpose) => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    await harness.workflow.start({ bookId: 'book-1', sourceKey: 'main', kind: 'initial', purpose, file, claim });
+    const response = await harness.control.decideStudentSafeSource();
+    harness.control.decideStudentSafeSource.mockClear();
+    harness.control.decideStudentSafeSource.mockResolvedValueOnce({ ...response, purpose });
+    expect(harness.directUpload).toHaveBeenCalledWith(expect.objectContaining({ purpose }), expect.anything());
+
+    await expect(harness.workflow.decideStudentSafeSource?.('book-1')).resolves.toMatchObject({
+      purpose,
+      sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: checksum },
+      studentSafeStatus: 'ready',
+    });
+    expect(harness.control.decideStudentSafeSource).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      operationId: '11111111-1111-4111-8111-111111111111',
+      studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    });
+  });
+
+  it.each([
+    ['stale source version', { sourceVersionId: 'other-source' }],
+    ['wrong purpose', { purpose: 'student-document' as const }],
+    ['hash mismatch', { checksum: { algorithm: 'sha-256' as const, value: 'b'.repeat(64) } }],
+  ])('rejects %s safety decision responses after the persisted reservation is reread', async (_label, patch) => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    await harness.workflow.start({ bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim });
+    harness.control.decideStudentSafeSource.mockResolvedValueOnce({
+      status: 'verified_completed',
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: checksum },
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1',
+        decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1',
+        sha256Hex: checksum,
+        reasonCode: 'teacher-reviewed',
+      },
+      ...patch,
+    });
+
+    await expect(harness.workflow.decideStudentSafeSource?.('book-1')).rejects.toMatchObject({
+      code: 'response_binding_mismatch',
+    });
+    expect(harness.state.get()).toMatchObject({ phase: 'verified', reservationId: 'reservation-1' });
+  });
+
+  it('retries a safety decision with the same persisted reservation and operation identity', async () => {
+    const harness = setup();
+    const file = new File(['%PDF-1.4'], 'book.pdf', { type: 'application/pdf' });
+    const claim = await inspect(file);
+    await harness.workflow.start({ bookId: 'book-1', sourceKey: 'main', kind: 'initial', file, claim });
+    harness.control.decideStudentSafeSource
+      .mockRejectedValueOnce(new SourceUploadClientError('unavailable', 503));
+
+    await expect(harness.workflow.decideStudentSafeSource?.('book-1')).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(harness.workflow.decideStudentSafeSource?.('book-1')).resolves.toMatchObject({ studentSafeStatus: 'ready' });
+    expect(harness.control.decideStudentSafeSource.mock.calls.map(([command]) => ({
+      reservationId: command.reservationId,
+      operationId: command.operationId,
+    }))).toEqual([
+      { reservationId: 'reservation-1', operationId: '11111111-1111-4111-8111-111111111111' },
+      { reservationId: 'reservation-1', operationId: '11111111-1111-4111-8111-111111111111' },
+    ]);
   });
 });

@@ -109,12 +109,13 @@ const assertInput = (input: BookActivityLaunchInput): void => {
     || !Number.isSafeInteger(input.bindingRevision) || input.bindingRevision < 1
     || !Array.isArray(input.activityPins) || input.activityPins.length < 1
     || input.activityPins.length > MAX_ACTIVITIES) throw new BookActivityLaunchBrowserError('invalid_request');
-  const ids = new Set<string>();
+  const ids = new Map<string, string>();
   for (const pin of input.activityPins) {
-    if (!SAFE_ID.test(pin.activityId) || !SAFE_ID.test(pin.activityVersionId) || ids.has(pin.activityId)) {
+    if (!SAFE_ID.test(pin.activityId) || !SAFE_ID.test(pin.activityVersionId)
+      || (ids.has(pin.activityId) && ids.get(pin.activityId) !== pin.activityVersionId)) {
       throw new BookActivityLaunchBrowserError('invalid_request');
     }
-    ids.add(pin.activityId);
+    ids.set(pin.activityId, pin.activityVersionId);
   }
 }
 
@@ -124,13 +125,13 @@ const assertHomeworkInput = (input: BookHomeworkActivityLaunchInput): void => {
     throw new BookActivityLaunchBrowserError('invalid_request');
   }
   const placements = new Set<string>();
-  const activities = new Set<string>();
+  const activities = new Map<string, string>();
   for (const placement of input.placements) {
     if (!SAFE_ID.test(placement.placementId) || !SAFE_ID.test(placement.activityId)
       || !SAFE_ID.test(placement.activityVersionId) || placements.has(placement.placementId)
-      || activities.has(placement.activityId)) throw new BookActivityLaunchBrowserError('invalid_request');
+      || (activities.has(placement.activityId) && activities.get(placement.activityId) !== placement.activityVersionId)) throw new BookActivityLaunchBrowserError('invalid_request');
     placements.add(placement.placementId);
-    activities.add(placement.activityId);
+    activities.set(placement.activityId, placement.activityVersionId);
   }
 };
 
@@ -199,6 +200,7 @@ export const createBookActivityLaunchBrowserClient = (
   const origin = originFor(options);
   const readActivities = async (input: BookActivityLaunchInput): Promise<readonly BookRuntimeShellActivity[]> => {
     assertInput(input);
+    input = { ...input, activityPins: [...new Map(input.activityPins.map((pin) => [pin.activityId, pin])).values()] };
     let token: string | null | undefined;
     try { token = await getIdToken(false); } catch { throw new BookActivityLaunchBrowserError('token_unavailable'); }
     if (!options.getIdToken && !getAuth().currentUser) throw new BookActivityLaunchBrowserError('missing_user');
@@ -262,7 +264,7 @@ export const createBookActivityLaunchBrowserClient = (
       bindingId: input.assignmentId,
       bindingRevision: 1,
       contextId: input.assignmentId,
-      activityPins: input.placements.map(({ activityId, activityVersionId }) => ({ activityId, activityVersionId })),
+      activityPins: [...new Map(input.placements.map(({ activityId, activityVersionId }) => [activityId, { activityId, activityVersionId }])).values()],
     });
   };
   return { readActivities, readHomeworkActivities, readBatch: readActivities };

@@ -220,6 +220,37 @@ export interface MaterialBookReusedActivityRef {
   readonly versionId: string;
 }
 
+export interface MaterialBookSetupActivation {
+  readonly schemaVersion: 1;
+  readonly operationId: string;
+  readonly inputFingerprint: string;
+  readonly ownerId: string;
+  readonly bookId: MaterialBookId;
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+  readonly unitCandidates: readonly {
+    readonly unitKey: string;
+    readonly candidateId: string;
+    readonly candidateRevision: number;
+    readonly manifestFingerprint: string;
+  }[];
+  readonly studentDocument: {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly descriptorFingerprint: string;
+  };
+  readonly activities: readonly {
+    readonly unitKey: string;
+    readonly activityKey: string;
+    readonly activityId: string;
+    readonly activityCandidateId: string;
+    readonly activityCandidateRevision: number;
+    readonly activityPayloadFingerprint: string;
+  }[];
+  readonly activatedAt: string;
+}
+
 /** Trusted publication provenance; never a browser-controlled mode mutation. */
 export interface MaterialBookSourceStrategySuccessorLineage {
   readonly kind: 'source-strategy-successor';
@@ -252,6 +283,8 @@ export interface MaterialBookMetadata {
   readonly sourceSetRevision?: number;
   /** Trusted PDF Source Set authority; source attach/replace owns its lifecycle elsewhere. */
   readonly sourceSet?: SourceSetCandidate;
+  /** Bounded A0 replay history; only the last tuple-matching receipt is visible. */
+  readonly setupActivations?: readonly MaterialBookSetupActivation[];
   /** Trusted-command provenance. Browser clients cannot create or retarget it. */
   readonly modeSuccessorLineage?: MaterialBookModeSuccessorLineage;
   /** Identity/version only; never carries predecessor placement or delivery state. */

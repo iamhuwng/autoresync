@@ -26,7 +26,11 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/teacher/reading-v2/import')).toBe('readingV2Studio');
       expect(resolveFeatureFromRoute('/teacher/reading-v2/drafts/draft-123')).toBe('readingV2Studio');
       expect(resolveFeatureFromRoute('/teacher/reading-v2/materials/material-123/revise')).toBe('readingV2Studio');
-      expect(resolveFeatureFromRoute('/teacher/materials/books/book-123')).toBe('readingV2Studio');
+    });
+
+    it('maps Book authoring routes to bookAuthoring', () => {
+      expect(resolveFeatureFromRoute('/teacher/materials/books/book-123')).toBe('bookAuthoring');
+      expect(resolveFeatureFromRoute('/__smoke/book-assembly-activity-revision')).toBe('bookAuthoring');
     });
 
     it('maps wildcard admin routes to adminPanel', () => {
@@ -47,6 +51,13 @@ describe('featureRegistry', () => {
     it('returns null for unknown routes', () => {
       expect(resolveFeatureFromRoute('/unknown/page')).toBeNull();
     });
+  });
+
+  it('registers the dedicated Book authoring tracking boundary', () => {
+    const bookAuthoring = FEATURE_REGISTRY.find((feature) => feature.id === FEATURE_IDS.bookAuthoring);
+    expect(bookAuthoring).toMatchObject({ name: 'Book Authoring' });
+    expect(bookAuthoring?.routes).toEqual(expect.arrayContaining(['/teacher/materials/books/:bookId', '/__smoke/book-assembly']));
+    expect(bookAuthoring?.actions).toEqual(expect.arrayContaining(['teacher_materials_book_pdf_workflow_step_changed', 'teacher_materials_book_assembly_saved', 'teacher_materials_book_replacement_plan_created']));
   });
 
   it('registers Reading V2 master modal workflow actions', () => {
@@ -131,6 +142,7 @@ describe('featureRegistry', () => {
         'bookActivityRegradeSubmitted',
         'bookActivityEvaluationConflict',
         'bookActivityEvaluationRetried',
+        'bookActivityResultOpened',
       ]));
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
@@ -217,6 +229,7 @@ describe('featureRegistry', () => {
           'bookRuntimeResponseChanged',
         ]),
       );
+      expect(new Set(testTaking?.actions).size).toBe(testTaking?.actions.length);
       expect(results?.actions).toEqual(
         expect.arrayContaining([
           'openReadingV2Review',
@@ -225,6 +238,7 @@ describe('featureRegistry', () => {
           'submitReadingV2Feedback',
           'createReadingV2Regrade',
           'readingV2OperationalError',
+          'bookActivityResultBack',
           'bookActivityResultRetried',
         ]),
       );

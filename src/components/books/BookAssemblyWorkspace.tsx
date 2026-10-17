@@ -18,7 +18,8 @@ import {
   type TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
-import { analyzeBookAssemblyReconciliation } from '../../services/book-assembly/reconciliation.service';
+import { analyzeBookAssemblyReconciliation, type BookAssemblyReconciliationChange } from '../../services/book-assembly/reconciliation.service';
+import { fingerprintBookAssemblyOperation } from '../../services/book-assembly/publicationTransaction.service';
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
@@ -28,7 +29,10 @@ import type {
   BookAssemblyCandidateRecord,
   BookAssemblyMutationResult,
 } from '../../services/book-assembly/unitAssembly.types';
-import type { BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
+import type {
+  BookAssemblyMigrationClient,
+  ComponentPdfActivationClient,
+} from '../../services/book-assembly/assemblyClient.browser';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import {
   isCurrentBookTeacherAssemblyDocument,
@@ -37,6 +41,8 @@ import {
 import type { AssemblyMappingViewerPageSelection } from '../../services/book-assembly/assemblyMappingViewer.browser';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import type { SourceSetAttachmentClient } from '../../services/book-source-delivery/sourceUpload.client';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
+import { activeComponentPdfActivation, fingerprintComponentPdfActivationValue } from '../../services/book-assembly/componentPdfActivation.service';
 import BookAssemblyMappingViewerHost from './assembly/BookAssemblyMappingViewerHost';
 import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliationPanel';
 import BookAssemblyStudentPreviewHost from './assembly/BookAssemblyStudentPreviewHost';
@@ -71,6 +77,13 @@ export interface BookAssemblyWorkspaceProps {
   readonly initialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
   readonly repository?: UnitAssemblyRepository;
   readonly migrationClient?: BookAssemblyMigrationClient | null;
+  readonly componentPdfActivationClient?: ComponentPdfActivationClient | null;
+  readonly componentStudentDocumentSourceVersionId?: string | null;
+  readonly componentPdfActivationRecovery?: MaterialBookSetupActivation | null;
+  readonly componentPdfPreparation?: {
+    readonly componentReservationIds: readonly string[];
+    readonly studentDocumentReservationId: string;
+  };
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly previewDocuments?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
@@ -121,6 +134,66 @@ type AssemblyEditorDraft = {
   readonly nodes: readonly DraftNode[];
   readonly units: BookAssemblyManifestCandidate['units'];
 };
+
+export const applyCurrentReconciliationChoiceToDraft = (
+  proposed: BookAssemblyManifestCandidate,
+  current: BookAssemblyManifestCandidate,
+  change: BookAssemblyReconciliationChange,
+): BookAssemblyManifestCandidate | null => {
+  const target = change.target;
+  if (!target) return null;
+  if (target.kind === 'source') {
+    if (proposed.sourceSet.sourceStrategy !== current.sourceSet.sourceStrategy) return null;
+    if (proposed.sourceSet.sourceStrategy === 'full_pdf' && current.sourceSet.sourceStrategy === 'full_pdf') {
+      const source = current.sourceSet.sources[0];
+      return source.sourceKey === target.sourceKey
+        ? { ...proposed, sourceSet: { ...proposed.sourceSet, sources: [source] } }
+        : null;
+    }
+    if (proposed.sourceSet.sourceStrategy === 'component_pdfs' && current.sourceSet.sourceStrategy === 'component_pdfs') {
+      const source = current.sourceSet.sources.find((entry) => entry.sourceKey === target.sourceKey);
+      if (!source) return null;
+      const [first, ...rest] = proposed.sourceSet.sources;
+      const restore = (entry: typeof first) => entry.sourceKey === target.sourceKey ? source : entry;
+      return { ...proposed, sourceSet: { ...proposed.sourceSet, sources: [restore(first), ...rest.map(restore)] } };
+    }
+    return null;
+  }
+  if (target.kind === 'node-move') {
+    const node = current.nodes.find((entry) => entry.nodeKey === target.nodeKey);
+    return node ? { ...proposed, nodes: proposed.nodes.map((entry) => entry.nodeKey === target.nodeKey ? node : entry) } : null;
+  }
+  if (target.kind === 'activity-move') {
+    const currentUnit = current.units.find((unit) => unit.activitySlots.some((slot) => slot.activityKey === target.activityKey));
+    const currentSlot = currentUnit?.activitySlots.find((slot) => slot.activityKey === target.activityKey);
+    if (!currentUnit || !currentSlot) return null;
+    return { ...proposed, units: proposed.units.map((unit) => ({
+      ...unit,
+      activitySlots: unit.unitKey === currentUnit.unitKey
+        ? [...unit.activitySlots.filter((slot) => slot.activityKey !== target.activityKey), currentSlot]
+        : unit.activitySlots.filter((slot) => slot.activityKey !== target.activityKey),
+    })) };
+  }
+  const currentUnit = current.units.find((unit) => unit.unitKey === target.unitKey);
+  const currentSlot = currentUnit?.activitySlots.find((slot) => slot.activityKey === target.activityKey);
+  const proposedUnit = proposed.units.find((unit) => unit.unitKey === target.unitKey);
+  if (!currentUnit || !currentSlot || !proposedUnit) return null;
+  const currentKeys = new Set(currentSlot.pageGroupKeys);
+  const proposedGroups = proposedUnit.pageGroups.map((group) => ({
+    ...group,
+    activityKeys: currentKeys.has(group.pageGroupKey)
+      ? [...new Set([...group.activityKeys.filter((key) => key !== target.activityKey), target.activityKey])]
+      : group.activityKeys.filter((key) => key !== target.activityKey),
+  })).filter((group) => group.mode === 'reference_only' || group.activityKeys.length > 0);
+  currentUnit.pageGroups.filter((group) => currentKeys.has(group.pageGroupKey)
+    && !proposedGroups.some((entry) => entry.pageGroupKey === group.pageGroupKey))
+    .forEach((group) => proposedGroups.push({ ...group, activityKeys: [...new Set([...group.activityKeys, target.activityKey])] }));
+  return { ...proposed, units: proposed.units.map((unit) => unit.unitKey === target.unitKey ? {
+    ...unit,
+    activitySlots: unit.activitySlots.map((slot) => slot.activityKey === target.activityKey ? currentSlot : slot),
+    pageGroups: proposedGroups,
+  } : unit) };
+};
 type VisibleTreeItem = {
   readonly node: DraftNode;
   readonly level: number;
@@ -138,6 +211,13 @@ const isStructuralNodeType = (value: BookContentNodeType): value is (typeof STRU
 const operationId = (): string => {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+};
+
+const componentActivationOperationId = (activationHash: string): string => {
+  const left = fingerprintBookAssemblyOperation({ domain: 'component-activation-left', activationHash }).split(':')[1]!;
+  const right = fingerprintBookAssemblyOperation({ domain: 'component-activation-right', activationHash }).split(':')[1]!;
+  const hash = left + right;
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 };
 
 const generatedId = (prefix: string): string =>
@@ -269,7 +349,7 @@ const isOwnerInUnitBranch = (
   return false;
 };
 
-const mutationErrorMessage = (result: BookAssemblyMutationResult): string => {
+const mutationErrorMessage = (result: Pick<BookAssemblyMutationResult, 'status'>): string => {
   if (result.status === 'forbidden') return 'You no longer have permission to save this Assembly draft.';
   if (result.status === 'invalid') return 'Assembly draft failed server validation.';
   if (result.status === 'not-found') return 'Assembly draft no longer exists. Reload the current draft.';
@@ -292,6 +372,10 @@ const BookAssemblyWorkspace = ({
   initialSavedActivityKeysByUnit = {},
   repository,
   migrationClient,
+  componentPdfActivationClient,
+  componentStudentDocumentSourceVersionId,
+  componentPdfActivationRecovery,
+  componentPdfPreparation,
   activityAuthoring,
   previewDocuments = [],
   previewGetIdToken,
@@ -313,7 +397,7 @@ const BookAssemblyWorkspace = ({
   suppressModeChoice = false,
   guidedUiVariant = 'default',
 }: BookAssemblyWorkspaceProps) => {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const { writeText: writeClipboardText } = useClipboard();
   const initial: AssemblyEditorDraft = initialCandidate?.manifest
     ?? (initialSourceSet
@@ -336,6 +420,7 @@ const BookAssemblyWorkspace = ({
   const [selectedPreviewSourceVersionId, setSelectedPreviewSourceVersionId] = useState<string | null>(null);
   const [dismissedRuntimePreviewIdentity, setDismissedRuntimePreviewIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'conflict' | 'error'>('idle');
+  const [activationBusy, setActivationBusy] = useState(false);
   const [unitImportText, setUnitImportText] = useState('');
   const [unitImportBusy, setUnitImportBusy] = useState(false);
   const [unitImportCancelable, setUnitImportCancelable] = useState(false);
@@ -343,6 +428,7 @@ const BookAssemblyWorkspace = ({
     initialSavedActivityKeysByUnit,
   );
   const [reconciliationBusy, setReconciliationBusy] = useState(false);
+  const [resolvedReconciliationChoices, setResolvedReconciliationChoices] = useState<ReadonlySet<string>>(() => new Set());
   const [migrationRequestedStrategy, setMigrationRequestedStrategy] = useState<BookSourceStrategy | null>(null);
   const [unitImportStatus, setUnitImportStatus] = useState<string | null>(null);
   const [unitImportConflict, setUnitImportConflict] = useState<UnitImportConflict | null>(null);
@@ -364,6 +450,8 @@ const BookAssemblyWorkspace = ({
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const unitImportAbortRef = useRef<AbortController | null>(null);
   const structureImportInputRef = useRef<HTMLInputElement | null>(null);
+  const persistenceBusyRef = useRef(false);
+  persistenceBusyRef.current = status === 'saving' || unitImportBusy || activationBusy;
 
   useEffect(() => {
     setEffectiveBookRevision((current) => Math.max(current, bookRevision));
@@ -477,8 +565,29 @@ const BookAssemblyWorkspace = ({
     nodes: normalizeNodeOrders(nodes),
     units,
   }), [bookId, nodes, normalizedSources, strategy, units]);
+  const matchingComponentPdfActivationRecovery = (() => {
+    const recovery = componentPdfActivationRecovery;
+    if (!recovery || recovery.bookId !== bookId
+      || recovery.bookRevision !== effectiveBookRevision
+      || recovery.sourceSetRevision !== effectiveSourceSetRevision
+      || recovery.studentDocument.descriptorRevision !== effectiveSourceSetRevision
+      || JSON.stringify(recovery.sourceSet) !== JSON.stringify(manifest.sourceSet)
+      || activeComponentPdfActivation({
+        ownerId: recovery.ownerId, bookId, bookRevision: effectiveBookRevision,
+        sourceSetRevision: effectiveSourceSetRevision, sourceSet: recovery.sourceSet,
+        setupActivations: [recovery],
+      }) !== recovery) return null;
+    const manifestFingerprint = fingerprintComponentPdfActivationValue(manifest as unknown as BookAssemblyManifestCandidate);
+    const manifestUnitKeys = manifest.units.map(({ unitKey }) => unitKey).sort();
+    const recoveryUnitKeys = recovery.unitCandidates.map(({ unitKey }) => unitKey).sort();
+    return JSON.stringify(recoveryUnitKeys) === JSON.stringify(manifestUnitKeys)
+      && recovery.unitCandidates.every((reference) => reference.manifestFingerprint === manifestFingerprint)
+      ? recovery
+      : null;
+  })();
   const reconciliationReport = useMemo(() => analyzeBookAssemblyReconciliation({
     manifest: manifest as unknown as BookAssemblyManifestCandidate,
+    currentManifest: candidate?.manifest ?? null,
     sourceVersionAuthority: sourceAuthority,
     expectedBookRevision: candidate?.bookRevision,
     bookRevision,
@@ -486,7 +595,8 @@ const BookAssemblyWorkspace = ({
     sourceSetRevision,
     expectedCandidateRevision: candidate?.revision,
     candidateRevision: candidate?.revision,
-  }), [bookRevision, candidate?.bookRevision, candidate?.revision, candidate?.sourceSetRevision, manifest, sourceAuthority, sourceSetRevision]);
+    resolvedChangeIds: resolvedReconciliationChoices,
+  }), [bookRevision, candidate?.bookRevision, candidate?.revision, candidate?.sourceSetRevision, manifest, resolvedReconciliationChoices, sourceAuthority, sourceSetRevision]);
   const unitPromptText = useMemo(() => {
     if (!selectedUnitKey) return '';
     try {
@@ -562,9 +672,10 @@ const BookAssemblyWorkspace = ({
   };
 
   const importMockupStructure = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || persistenceBusyRef.current) return;
     try {
       const parsed: unknown = JSON.parse(await file.text());
+      if (persistenceBusyRef.current) return;
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
       const record = parsed as Record<string, unknown>;
       const rawNodes = Array.isArray(record.nodes) ? record.nodes : [];
@@ -976,13 +1087,70 @@ const BookAssemblyWorkspace = ({
   const persistAndValidateManifest = async (
     validManifest: BookAssemblyManifestCandidate,
     unitKey: string,
-  ): Promise<BookAssemblyMutationResult> => {
+  ): Promise<Pick<BookAssemblyMutationResult, 'status' | 'candidate'> & Partial<Pick<BookAssemblyMutationResult, 'receipt'>>> => {
     let authority = {
       bookRevision: effectiveBookRevision,
       sourceSetRevision: effectiveSourceSetRevision,
     };
+    if (componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
+      throw new Error('component_pdf_activation_recovery_invalid');
+    }
     if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
-      && sourceSetAttachmentClient
+      && componentPdfActivationClient
+      && (componentPdfActivationRecovery
+        || (attachedSourceSet && authority.sourceSetRevision > 0 && componentStudentDocumentSourceVersionId))) {
+      const recovery = matchingComponentPdfActivationRecovery;
+      const activationHash = fingerprintBookAssemblyOperation({
+        bookId,
+        expectedBookRevision: authority.bookRevision,
+        expectedSourceSetRevision: authority.sourceSetRevision,
+        sourceSet: validManifest.sourceSet,
+        manifest: validManifest,
+        preparation: componentPdfPreparation ?? null,
+        studentDocumentSourceVersionId: componentStudentDocumentSourceVersionId ?? null,
+      }).split(':')[1]!;
+      const activationOperationId = recovery?.operationId ?? componentActivationOperationId(activationHash);
+      const activatedAt = recovery?.activatedAt
+        ?? new Date(Date.UTC(2020, 0, 1) + Number.parseInt(activationHash.slice(0, 10), 16)).toISOString();
+      const receipt = await componentPdfActivationClient.activateComponentPdf({
+        operationId: activationOperationId,
+        bookId,
+        expectedBookRevision: recovery ? recovery.bookRevision - 1 : authority.bookRevision,
+        expectedSourceSetRevision: recovery ? recovery.sourceSetRevision - 1 : authority.sourceSetRevision,
+        sourceSet: validManifest.sourceSet,
+        manifest: validManifest,
+        ...(recovery ? { studentDocumentSourceVersionId: recovery.studentDocument.sourceVersionId }
+          : componentStudentDocumentSourceVersionId ? { studentDocumentSourceVersionId: componentStudentDocumentSourceVersionId }
+            : { preparation: componentPdfPreparation! }),
+        activatedAt,
+      });
+      const reference = receipt.unitCandidates.find((entry) => entry.unitKey === unitKey);
+      if (!reference || !repository!.loadCurrent) throw new Error('component_pdf_activation_unit_missing');
+      const loaded = await repository!.loadCurrent(bookId, unitKey);
+      if (!loaded || loaded.candidate.candidateId !== reference.candidateId
+        || loaded.candidate.revision !== reference.candidateRevision) {
+        throw new Error('component_pdf_activation_readback_mismatch');
+      }
+      authority = { bookRevision: receipt.bookRevision, sourceSetRevision: receipt.sourceSetRevision };
+      setEffectiveBookRevision(receipt.bookRevision);
+      setEffectiveSourceSetRevision(receipt.sourceSetRevision);
+      setAttachedSourceSet(receipt.sourceSet);
+      onAuthorityRevisionsChange?.(authority);
+      return {
+        status: 'validated',
+        candidate: loaded.candidate,
+        receipt: {
+          operationId: activationOperationId,
+          fingerprint: receipt.inputFingerprint,
+          status: 'validated',
+          candidateId: loaded.candidate.candidateId,
+          candidateRevision: loaded.candidate.revision,
+          createdAt: activatedAt,
+        },
+      };
+    }
+    if (sourceSetAttachmentClient
+      && validManifest.sourceSet.sourceStrategy !== 'component_pdfs'
       && JSON.stringify(attachedSourceSet) !== JSON.stringify(validManifest.sourceSet)) {
       const attachment = await sourceSetAttachmentClient.attachSourceSet({
         bookId,
@@ -1000,6 +1168,53 @@ const BookAssemblyWorkspace = ({
       setAttachedSourceSet(attachment.sourceSet);
       onAuthorityRevisionsChange?.(authority);
     }
+    if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+      && authority.bookRevision === 0 && authority.sourceSetRevision === 0) {
+      const discovered = repository!.discoverDrafts ? await repository!.discoverDrafts(bookId) : [];
+      const existingByUnit = new Map(discovered.map(({ candidate: entry }) => [entry.unitKey, entry]));
+      const current = !repository!.discoverDrafts && repository!.loadCurrent
+        ? await repository!.loadCurrent(bookId, unitKey) : null;
+      if (current) existingByUnit.set(unitKey, current.candidate);
+      if (!repository!.discoverDrafts && !repository!.loadCurrent
+        && candidate?.bookRevision === 0 && candidate.sourceSetRevision === 0) {
+        existingByUnit.set(candidate.unitKey, candidate);
+      }
+      if (validManifest.units.length > 1 && !repository!.discoverDrafts) {
+        throw new Error('component_pdf_draft_discovery_unavailable');
+      }
+      const saveUnit = async (key: string): Promise<Pick<BookAssemblyMutationResult, 'status' | 'candidate'>> => {
+        const existing = existingByUnit.get(key);
+        if (existing?.bookId === bookId && existing.unitKey === key
+          && existing.bookRevision === authority.bookRevision && existing.sourceSetRevision === authority.sourceSetRevision
+          && existing.lifecycle === 'validated' && existing.manifest
+          && fingerprintBookAssemblyOperation(existing.manifest) === fingerprintBookAssemblyOperation(validManifest)
+          && (repository!.discoverDrafts || current?.candidate === existing)) {
+          return { status: 'validated', candidate: existing };
+        }
+        let saved = existing ? await repository!.replace({
+          operationId: operationId(), bookId, unitKey: key,
+          expectedBookRevision: 0, expectedSourceSetRevision: 0,
+          candidateId: existing.candidateId, expectedCandidateRevision: existing.revision,
+          manifest: validManifest,
+        }) : await repository!.create({
+          operationId: operationId(), bookId, unitKey: key,
+          expectedBookRevision: 0, expectedSourceSetRevision: 0, manifest: validManifest,
+        });
+        if (saved.candidate && saved.status !== 'conflict' && saved.candidate.lifecycle !== 'validated') {
+          saved = await repository!.validate({
+            operationId: operationId(), bookId, unitKey: key,
+            candidateId: saved.candidate.candidateId,
+            expectedCandidateRevision: saved.candidate.revision,
+          });
+        }
+        return saved;
+      };
+      for (const unit of validManifest.units.filter((entry) => entry.unitKey !== unitKey)) {
+        const saved = await saveUnit(unit.unitKey);
+        if (saved.status === 'conflict' || !saved.candidate || saved.candidate.lifecycle !== 'validated') return saved;
+      }
+      return saveUnit(unitKey);
+    }
     let result = await persistManifest(validManifest, unitKey, authority);
     if (validateCandidateAfterSave && result.candidate && result.candidate.lifecycle !== 'validated') {
       result = await repository!.validate({
@@ -1013,8 +1228,72 @@ const BookAssemblyWorkspace = ({
     return result;
   };
 
+  const finishComponentSetup = async () => {
+    if (!componentPdfActivationClient || !componentPdfPreparation || !repository?.loadCurrent
+      || !candidate || candidate.lifecycle !== 'validated' || !candidate.manifest
+      || candidate.manifest.sourceSet.sourceStrategy !== 'component_pdfs'
+      || currentSnapshot !== savedSnapshot || activationBusy || status === 'saving' || unitImportBusy) return;
+    setActivationBusy(true);
+    setErrorMessage(null);
+    try {
+      const draft = candidate.manifest;
+      const activationHash = fingerprintBookAssemblyOperation({
+        bookId,
+        expectedBookRevision: candidate.bookRevision,
+        expectedSourceSetRevision: candidate.sourceSetRevision,
+        sourceSet: draft.sourceSet,
+        manifest: draft,
+        preparation: componentPdfPreparation,
+        studentDocumentSourceVersionId: null,
+      }).split(':')[1]!;
+      const receipt = await componentPdfActivationClient.activateComponentPdf({
+        operationId: componentActivationOperationId(activationHash),
+        bookId,
+        expectedBookRevision: candidate.bookRevision,
+        expectedSourceSetRevision: candidate.sourceSetRevision,
+        sourceSet: draft.sourceSet,
+        manifest: draft,
+        preparation: componentPdfPreparation,
+        activatedAt: new Date(Date.UTC(2020, 0, 1) + Number.parseInt(activationHash.slice(0, 10), 16)).toISOString(),
+      });
+      const reference = receipt.unitCandidates.find((entry) => entry.unitKey === candidate.unitKey);
+      const loaded = reference && await repository.loadCurrent(bookId, candidate.unitKey);
+      if (!reference || !loaded || loaded.candidate.candidateId !== reference.candidateId
+        || loaded.candidate.revision !== reference.candidateRevision) {
+        throw new Error('component_pdf_activation_readback_mismatch');
+      }
+      setCandidate(loaded.candidate);
+      setEffectiveBookRevision(receipt.bookRevision);
+      setEffectiveSourceSetRevision(receipt.sourceSetRevision);
+      setAttachedSourceSet(receipt.sourceSet);
+      onAuthorityRevisionsChange?.({ bookRevision: receipt.bookRevision, sourceSetRevision: receipt.sourceSetRevision });
+      toast.success('Book setup is ready for preview.');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Book setup could not be completed.');
+      toast.error('Book setup could not be completed. Review saved Activities and retry.');
+    } finally {
+      setActivationBusy(false);
+    }
+  };
+
+  const componentSetupButton = strategy === 'component_pdfs' && effectiveBookRevision === 0
+    && effectiveSourceSetRevision === 0 && componentPdfPreparation && componentPdfActivationClient
+    ? <button type="button" className="pbf-button pbf-button-primary"
+        disabled={!candidate || candidate.lifecycle !== 'validated' || currentSnapshot !== savedSnapshot || activationBusy || status === 'saving' || unitImportBusy}
+        onClick={() => void finishComponentSetup()}>
+        {activationBusy ? 'Preparing Book preview…' : 'Prepare Book preview after saving Activities'}
+      </button>
+    : null;
+
   const save = async () => {
+    if (status === 'saving' || unitImportBusy || activationBusy) return;
     if (access !== 'owner' && access !== 'administrator') return;
+    if (reconciliationReport.requiresTeacherChoice) {
+      setValidationMessage('Resolve every reconciliation choice before saving this handoff.');
+      setStatus('error');
+      toast.warning('Resolve every reconciliation choice before saving.');
+      return;
+    }
     const validation = validateBookAssemblyManifestCandidate(manifest, sourceAuthority);
     if (!validation.valid) {
       setValidationMessage(errorText(validation));
@@ -1045,7 +1324,9 @@ const BookAssemblyWorkspace = ({
         toast.warning('Assembly changed elsewhere. Reload, retry, or discard local changes.');
         return;
       }
-      if (!result.candidate) {
+      if (!result.candidate || (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+        && effectiveBookRevision === 0 && effectiveSourceSetRevision === 0
+        && (result.candidate.lifecycle !== 'validated' || !['validated', 'replaced', 'replayed'].includes(result.status)))) {
         setStatus('error');
         const message = mutationErrorMessage(result);
         setErrorMessage(message);
@@ -1122,6 +1403,31 @@ const BookAssemblyWorkspace = ({
     });
   };
 
+  const recordReconciliationChoice = (change: BookAssemblyReconciliationChange) => {
+    setResolvedReconciliationChoices((current) => new Set(current).add(change.id));
+  };
+
+  const useCurrentReconciliationValue = (change: BookAssemblyReconciliationChange) => {
+    const current = candidate?.manifest;
+    if (!current) return;
+    const next = applyCurrentReconciliationChoiceToDraft(manifest as BookAssemblyManifestCandidate, current, change);
+    if (!next) return;
+    setStrategy(next.sourceSet.sourceStrategy);
+    setSources(next.sourceSet.sources);
+    setNodes(next.nodes);
+    setUnits(next.units);
+    setValidationMessage(null);
+    setErrorMessage(null);
+    recordReconciliationChoice(change);
+    toast.info('Current saved value kept.');
+  };
+
+  const useProposedReconciliationValue = (change: BookAssemblyReconciliationChange) => {
+    if (!change.target) return;
+    recordReconciliationChoice(change);
+    toast.info('Proposed value selected.');
+  };
+
   const copyUnitPrompt = (copied: boolean) => {
     if (copied) {
       setManualCopyFallback(false);
@@ -1178,6 +1484,7 @@ const BookAssemblyWorkspace = ({
   };
 
   const importUnitJson = async (expectedActivityRevisions: Readonly<Record<string, number>> = {}) => {
+    if (persistenceBusyRef.current) return;
     const unitKey = selectedUnitKey;
     if (!unitKey) {
       setValidationMessage('Select a Unit before importing Activity JSON.');
@@ -1219,7 +1526,9 @@ const BookAssemblyWorkspace = ({
         toast.warning('Assembly changed elsewhere. Reload before importing Activities.');
         return;
       }
-      if (!assemblyResult.candidate) {
+      if (!assemblyResult.candidate || (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+        && effectiveBookRevision === 0 && effectiveSourceSetRevision === 0
+        && (assemblyResult.candidate.lifecycle !== 'validated' || !['validated', 'replaced', 'replayed'].includes(assemblyResult.status)))) {
         const message = mutationErrorMessage(assemblyResult);
         setStatus('error');
         setErrorMessage(message);
@@ -1413,9 +1722,10 @@ const BookAssemblyWorkspace = ({
         <span role="status" className={`pbf-status${hasUnsavedChanges ? ' is-warn' : status === 'saved' ? ' is-good' : ''}`}>
           {status === 'saving' ? 'Saving…' : hasUnsavedChanges ? 'Unsaved changes' : status === 'saved' ? 'Saved' : 'No unsaved changes'}
         </span>
-        <button type="button" className="pbf-button pbf-button-primary" onClick={() => void save()} disabled={status === 'saving' || !repository || !hasUnsavedChanges}>
+        <button type="button" className="pbf-button pbf-button-primary" onClick={() => void save()} disabled={status === 'saving' || !repository || (!hasUnsavedChanges && !matchingComponentPdfActivationRecovery)}>
           {status === 'saving' ? 'Saving…' : 'Save changes'}
         </button>
+        {componentSetupButton}
       </footer>
     );
     const feedback = (validationMessage || errorMessage) && (
@@ -1545,7 +1855,7 @@ const BookAssemblyWorkspace = ({
 
     return (
       <section className="book-assembly-edit" aria-label="Preview readiness">
-        {reconciliationReport.issues.length > 0 && <BookAssemblyReconciliationPanel busy={reconciliationBusy} report={reconciliationReport} onApplyExactRepair={() => void applyExactReconciliationRepair()} onRecordTeacherChoice={recordTeacherChoiceNeeded} />}
+        {(reconciliationReport.issues.length > 0 || reconciliationReport.changes.length > 0) && <BookAssemblyReconciliationPanel busy={reconciliationBusy} report={reconciliationReport} onApplyExactRepair={() => void applyExactReconciliationRepair()} onRecordTeacherChoice={recordTeacherChoiceNeeded} onUseCurrent={useCurrentReconciliationValue} onUseProposed={useProposedReconciliationValue} />}
         <div className="book-assembly-edit__readiness pbf-surface">
           <div><span>PDF sources</span><strong>{normalizedSources.length}</strong></div>
           <div><span>Units</span><strong>{units.length}</strong></div>
@@ -1593,12 +1903,12 @@ const BookAssemblyWorkspace = ({
           return Boolean(ownerUnit && hasExactActivityContent(ownerUnit));
         });
       return (
-        <section className="book-assembly-mockup" aria-label="Component PDF Book outline">
+        <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-components-title">
           <div className="pbf-surface">
             <div className="pbf-row">
               <div>
                 <h3 id="book-assembly-mockup-components-title">Give each PDF a place</h3>
-                <p className="pbf-muted">Each PDF gets its own section and Unit content. Nothing is merged behind the scenes.</p>
+                <p className="pbf-muted">Choose an existing Unit for each PDF, or add a new section and Unit. Students use one combined document.</p>
               </div>
               <span className={`pbf-status${componentStructureReady ? ' is-good' : ''}`}>
                 {componentSources.filter(({ source }) => Boolean(componentUnitForSource(source))).length} of {componentSources.length} placed
@@ -1615,7 +1925,30 @@ const BookAssemblyWorkspace = ({
                     <div>
                       <strong>{`PDF ${index + 1}`}</strong>
                       <span>{version ? `${version.physicalPageCount} pages` : 'Verified PDF'}</span>
-                      <span>{placed ? 'A section and Unit are ready for this PDF.' : 'Add a section and Unit for this PDF.'}</span>
+                      <span>{placed ? 'This PDF belongs to a Unit.' : 'Choose a Unit or add structure for this PDF.'}</span>
+                      {units.length > 0 && <label>
+                        <span>Unit for PDF {index + 1}</span>
+                        <select
+                          aria-label={`Unit for PDF ${index + 1}`}
+                          disabled={status === 'saving' || unitImportBusy || activationBusy}
+                          value={ownerUnit?.unitKey ?? ''}
+                          onChange={(event) => {
+                            const unitKey = event.target.value;
+                            if (!units.some((unit) => unit.unitKey === unitKey)) return;
+                            if (sources.some((bound) => bound.sourceVersionId === source.sourceVersionId)) {
+                              updateSourceOwner(source.sourceVersionId, unitKey);
+                            } else {
+                              setSource(source.sourceVersionId, unitKey);
+                            }
+                            requestNodeFocus(unitKey);
+                            setMockupUnitToolsOpen(false);
+                            toast.info('PDF assigned to the Unit. Check its page connections and Unit content.');
+                          }}
+                        >
+                          <option value="">Choose Unit</option>
+                          {units.map((unit, unitIndex) => <option key={unit.unitKey} value={unit.unitKey}>Unit {unitIndex + 1}</option>)}
+                        </select>
+                      </label>}
                     </div>
                     {ownerUnit
                       ? <div className="pbf-actions">
@@ -1646,12 +1979,12 @@ const BookAssemblyWorkspace = ({
             <div className="pbf-row">
               <div>
                 <h3>Unit content</h3>
-                <p className="pbf-muted">Add the activities for the selected PDF section.</p>
+                <p className="pbf-muted">Add the activities for the selected Unit and connect them to the appropriate PDF pages.</p>
               </div>
               {mockupHasContent && <span className="pbf-status is-good">Added</span>}
             </div>
             {mockupHasContent
-              ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities will use this PDF section.</span></div>
+              ? <div className="pbf-callout is-good" style={{ marginTop: 12 }}><strong>Unit content is ready</strong><span>{selectedUnit?.activitySlots.length ?? 0} activities belong to this Unit.</span></div>
               : <p className="pbf-muted" style={{ marginTop: 12 }}>Add the activities for this Unit to continue.</p>}
             <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" disabled={!guidedHasUnit} onClick={() => setMockupUnitToolsOpen((open) => !open)}>{mockupHasContent ? 'Replace Unit content' : 'Add Unit content'}</button></div>
             {mockupUnitToolsOpen && <div className="pbf-mockup-advanced"><UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} /></div>}
@@ -1660,7 +1993,7 @@ const BookAssemblyWorkspace = ({
             <div className="pbf-row">
               <div>
                 <h3>Order in the Book</h3>
-                <p className="pbf-muted">Students will see these component PDFs in this order.</p>
+                <p className="pbf-muted">The combined student document uses this component order.</p>
               </div>
               <button
                 type="button"
@@ -1751,8 +2084,9 @@ const BookAssemblyWorkspace = ({
             {mockupHasPages && <div className="pbf-callout is-good" style={{ marginTop: 14 }}><strong>Pages are connected</strong><span>Every activity has a place in the {strategy === 'full_pdf' ? 'full PDF' : 'component PDF'} setup.</span></div>}
             <div className="pbf-actions" style={{ justifyContent: 'space-between', marginTop: 15 }}><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMockupPageToolsOpen(true); }}>Add a reference page</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Check these pages</button></div>
           </div>
-          {mockupPageToolsOpen && <details className="pbf-details pbf-mockup-advanced" open><summary>Change page connections</summary><div className="book-assembly-guided__mapping-form" style={{ marginTop: 12 }}><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} placeholder="1" /></label><label><span>Activity</span><input value={mappingActivityKey} onChange={(event) => setMappingActivityKey(event.target.value)} /></label><button type="button" className="pbf-button" onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Save page connection</button></div></details>}
-          {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
+           {mockupPageToolsOpen && <details className="pbf-details pbf-mockup-advanced" open><summary>Change page connections</summary><div className="book-assembly-guided__mapping-form" style={{ marginTop: 12 }}><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} placeholder="1" /></label><label><span>Activity</span><input value={mappingActivityKey} onChange={(event) => setMappingActivityKey(event.target.value)} /></label><button type="button" className="pbf-button" onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Save page connection</button></div></details>}
+           {(reconciliationReport.issues.length > 0 || reconciliationReport.changes.length > 0) && <BookAssemblyReconciliationPanel busy={reconciliationBusy} report={reconciliationReport} onApplyExactRepair={() => void applyExactReconciliationRepair()} onRecordTeacherChoice={recordTeacherChoiceNeeded} onUseCurrent={useCurrentReconciliationValue} onUseProposed={useProposedReconciliationValue} />}
+           {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
           <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('outline')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!mockupHasPages} onClick={() => setGuidedStep('review')}>Continue</button></div>
         </section>
       );
@@ -1762,7 +2096,7 @@ const BookAssemblyWorkspace = ({
       return (
         <section className="book-assembly-mockup" aria-labelledby="book-assembly-mockup-review-title">
           {reconciliationReport.issues.length > 0 && <div className="pbf-surface"><div className="pbf-callout is-warn"><strong>One small change needs your decision</strong><span>Activity 1 now points to new pages. Choose whether to keep the new pages.</span></div><div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void applyExactReconciliationRepair()}>Keep the new pages</button><button type="button" className="pbf-button" onClick={recordTeacherChoiceNeeded}>Keep the old page</button></div></div>}
-          <div className="pbf-surface"><h3 id="book-assembly-mockup-review-title">Everything needed for Unit 1</h3><ul className="pbf-checklist" style={{ marginTop: 14 }}><li>PDF files are ready</li><li>Book structure and Unit content are ready</li><li>Every activity has connected pages</li><li>Changes have been reviewed</li></ul><div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 17 }}><span className={`pbf-status${mockupReviewReady ? ' is-good' : ' is-warn'}`}>{mockupReviewReady ? 'Ready for preview' : 'Save draft first'}</span><button type="button" className="pbf-button pbf-button-primary" disabled={!repository || !mockupHasPages || status === 'saving'} onClick={() => void save()}>{status === 'saving' ? 'Saving…' : 'Save draft'}</button></div></div>
+          <div className="pbf-surface"><h3 id="book-assembly-mockup-review-title">Everything needed for Unit 1</h3><ul className="pbf-checklist" style={{ marginTop: 14 }}><li>PDF files are ready</li><li>Book structure and Unit content are ready</li><li>Every activity has connected pages</li><li>Changes have been reviewed</li></ul><div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 17 }}><span className={`pbf-status${mockupReviewReady ? ' is-good' : ' is-warn'}`}>{mockupReviewReady ? 'Ready for preview' : 'Save draft first'}</span><button type="button" className="pbf-button pbf-button-primary" disabled={!repository || !mockupHasPages || status === 'saving'} onClick={() => void save()}>{status === 'saving' ? 'Saving…' : 'Save draft'}</button>{componentSetupButton}</div></div>
           {(validationMessage || errorMessage) && <p className="book-assembly-guided__error" role="alert" style={{ marginTop: 14 }}>{validationMessage ?? errorMessage}</p>}
           <div className="book-assembly-guided__footer-actions pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 18 }}><button type="button" className="pbf-button" onClick={() => setGuidedStep('pages')}>Back</button><button type="button" className="pbf-button pbf-button-primary" disabled={!candidate || candidate.lifecycle !== 'validated'} onClick={() => setGuidedStep('review')}>Continue</button></div>
         </section>
@@ -2167,6 +2501,8 @@ const BookAssemblyWorkspace = ({
               report={reconciliationReport}
               onApplyExactRepair={() => void applyExactReconciliationRepair()}
               onRecordTeacherChoice={recordTeacherChoiceNeeded}
+              onUseCurrent={useCurrentReconciliationValue}
+              onUseProposed={useProposedReconciliationValue}
             />
             <section className="book-assembly-guided__preview" aria-labelledby="book-assembly-preview-title">
               <div className="book-assembly-guided__subheading">
@@ -2190,7 +2526,6 @@ const BookAssemblyWorkspace = ({
             {currentRuntimePreview ? (
               <BookAssemblyStudentPreviewHost
                 bookTitle={bookTitle}
-                documents={currentPreviewDocuments}
                 getIdToken={previewGetIdToken}
                 preview={currentRuntimePreview.preview}
                 onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)}
@@ -2205,10 +2540,11 @@ const BookAssemblyWorkspace = ({
               <button type="button" onClick={() => void save()} disabled={status === 'saving' || !repository}>
                 {status === 'saving' ? 'Saving…' : 'Save draft'}
               </button>
+              {componentSetupButton}
             </div>
             {status === 'conflict' && (
               <div className="book-assembly-guided__error" role="alert">
-                <p>The current draft changed elsewhere. Choose what to do before saving again.</p>
+                <p>This book changed; review again.</p>
                 <button type="button" onClick={() => void reload()}>Reload current</button>
                 <button type="button" onClick={retryLocal}>Retry my changes</button>
                 <button type="button" onClick={discardLocal}>Discard my changes</button>
@@ -2348,6 +2684,8 @@ const BookAssemblyWorkspace = ({
         report={reconciliationReport}
         onApplyExactRepair={() => void applyExactReconciliationRepair()}
         onRecordTeacherChoice={recordTeacherChoiceNeeded}
+        onUseCurrent={useCurrentReconciliationValue}
+        onUseProposed={useProposedReconciliationValue}
       />
 
       <section
@@ -2379,7 +2717,6 @@ const BookAssemblyWorkspace = ({
       {currentRuntimePreview ? (
         <BookAssemblyStudentPreviewHost
           bookTitle={bookTitle}
-          documents={currentPreviewDocuments}
           getIdToken={previewGetIdToken}
           preview={currentRuntimePreview.preview}
           onExit={() => setDismissedRuntimePreviewIdentity(currentRuntimePreview.identity)}
@@ -2437,7 +2774,7 @@ const BookAssemblyWorkspace = ({
           </dl>
           {status === 'conflict' && (
             <div role="alert">
-              <p>Current candidate changed. Choose an action.</p>
+              <p>This book changed; review again.</p>
               <button type="button" onClick={() => void reload()}>Reload current</button>
               <button type="button" onClick={retryLocal}>Retry local</button>
               <button type="button" onClick={discardLocal}>Discard local</button>

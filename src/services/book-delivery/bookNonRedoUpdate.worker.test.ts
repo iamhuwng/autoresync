@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   createBookNonRedoUpdateExecutor,
   type BookNonRedoUpdateResolver,
@@ -69,7 +70,7 @@ const display = (
   lifecycle: 'not-started' | 'in-progress' | 'submitted' | 'completed' = 'in-progress',
   index = 1,
 ): BookNonRedoUpdateOperation => ({
-  kind: 'display-only', contextKey: `${contextKind}:${contextKind}-${index}`, contextKind, lifecycle,
+  kind: 'display-only', contextKey: contextKind === 'homework' ? `homework:${createHash('sha256').update(JSON.stringify([`homework-${index}`, 'student-1'])).digest('hex')}` : `${contextKind}:${contextKind}-${index}`, contextKind, contextId: `${contextKind}-${index}`, recipientId: 'student-1', lifecycle,
   placementId: `placement-${index}`, activityId: 'activity-1',
   oldActivityVersionId: 'activity-v1', newActivityVersionId: 'activity-v2',
   choice: 'apply-without-redo', displayFingerprint: hash('c'), studentVisibleChange: true,
@@ -109,6 +110,44 @@ describe('#112 non-redo update executor', () => {
       .resolves.toMatchObject({ status: 'committed', action: { committedAt: '2026-08-10T00:01:00.000Z' } });
     expect(apply).toHaveBeenCalledTimes(16);
     expect(JSON.stringify(apply.mock.calls)).not.toMatch(/answer|checkpoint|completion|eligibility|attemptCount/iu);
+  });
+
+  it('rejects a composite operation identity that exceeds the downstream 160-character contract before effects', async () => {
+    const operation = display();
+    const oversized: BookNonRedoUpdateOperation = {
+      ...operation,
+      contextKey: `homework:${'c'.repeat(120)}`,
+      placementId: 'p'.repeat(128),
+    };
+    const apply = vi.fn(async () => ({ status: 'applied' as const }));
+    const gradingPort = grading();
+    const result = await createBookNonRedoUpdateExecutor({
+      actions: new MemoryActions(action([oversized])),
+      resolver: resolver([oversized]),
+      projections: { apply },
+      grading: gradingPort,
+      now: () => new Date('2026-08-10T00:01:00.000Z'),
+    }).execute({ ownerId: 'teacher-1', actionId: 'action-1' });
+
+    expect(result).toMatchObject({ status: 'pending', code: 'case-operation-invalid' });
+    expect(apply).not.toHaveBeenCalled();
+    expect(gradingPort.regradeObjective).not.toHaveBeenCalled();
+    expect(gradingPort.queueRubricReview).not.toHaveBeenCalled();
+  });
+
+  it('rejects a composite operation identity with characters unsupported by the append path', async () => {
+    const operation: BookNonRedoUpdateOperation = { ...display(), placementId: 'placement.with.dot' };
+    const apply = vi.fn(async () => ({ status: 'applied' as const }));
+    const result = await createBookNonRedoUpdateExecutor({
+      actions: new MemoryActions(action([operation])),
+      resolver: resolver([operation]),
+      projections: { apply },
+      grading: grading(),
+      now: () => new Date('2026-08-10T00:01:00.000Z'),
+    }).execute({ ownerId: 'teacher-1', actionId: 'action-1' });
+
+    expect(result).toMatchObject({ status: 'pending', code: 'case-operation-invalid' });
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it('reorders and retained-moves only projection identity/order/schedule, then replays the committed action', async () => {

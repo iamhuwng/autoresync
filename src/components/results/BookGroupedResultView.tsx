@@ -3,6 +3,7 @@ import type {
   BookResultAttemptDetail,
   BookResultAttemptSummary,
   BookResultGroupSummary,
+  BookResultSourceAvailability,
 } from '../../services/book-activity/results/bookResult.types';
 import type {
   BookActivityStudentResultProjection,
@@ -12,7 +13,6 @@ import {
 } from '../../services/book-delivery/attemptSourceContextProjection.service';
 import { BookAttemptSourceReview } from '../book-runtime/BookAttemptSourceReview';
 import { AttemptHistory } from './AttemptHistory';
-import { BookActivityResultFeedback } from './BookActivityResultFeedback';
 import './BookGroupedResultView.css';
 
 export interface BookGroupedResultViewProps {
@@ -30,6 +30,7 @@ export interface BookGroupedResultViewProps {
   readonly onRetryEvaluation?: () => void;
   readonly onAttemptChange: (attemptId: string) => void;
   readonly onRetryDetail?: () => void;
+  readonly onBackToHomework?: () => void;
   readonly onReviewAction?: (
     action: 'switchResultTab' | 'viewQuestion',
     metadata: Record<string, unknown>,
@@ -50,6 +51,18 @@ const titleCase = (value: string): string => (
   value.replace(/[-_]/gu, ' ').replace(/\b\w/gu, (letter) => letter.toUpperCase())
 );
 
+const sourceAvailabilityLabel = (availability: BookResultSourceAvailability): string => {
+  if (availability === 'available') return 'Metadata recorded';
+  if (availability === 'not-required') return 'Not required';
+  return `Unavailable · ${titleCase(availability)}`;
+};
+
+const sourceAvailabilityDescription = (availability: BookResultSourceAvailability): string => {
+  if (availability === 'available') return 'Historical source metadata recorded; review access is shown below';
+  if (availability === 'not-required') return 'No PDF was required for this activity';
+  return `Original PDF unavailable; result preserved (${titleCase(availability).toLowerCase()})`;
+};
+
 const safeResponseText = (value: unknown): string => {
   try {
     const encoded = JSON.stringify(value, null, 2);
@@ -57,6 +70,33 @@ const safeResponseText = (value: unknown): string => {
   } catch {
     return 'The submitted response could not be displayed.';
   }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+);
+
+const responseSummary = (value: unknown): string => {
+  const preview = (text: string): string => (
+    text.length > 160 ? `${text.slice(0, 157)}…` : text
+  );
+  if (typeof value === 'string' && value.trim() !== '') return preview(value.trim());
+  if (Array.isArray(value)) {
+    return `${value.length} ${value.length === 1 ? 'response' : 'responses'} recorded`;
+  }
+  if (!isRecord(value)) return 'Response recorded';
+
+  for (const key of ['text', 'answer', 'choice']) {
+    if (typeof value[key] === 'string' && value[key].trim() !== '') return preview(value[key].trim());
+  }
+  if (typeof value.selectedOptionId === 'string') return 'One answer selected';
+  if (Array.isArray(value.selectedOptionIds)) {
+    return `${value.selectedOptionIds.length} ${value.selectedOptionIds.length === 1 ? 'answer' : 'answers'} selected`;
+  }
+  if (Array.isArray(value.answers)) {
+    return `${value.answers.length} ${value.answers.length === 1 ? 'answer' : 'answers'} recorded`;
+  }
+  return 'Response recorded';
 };
 
 const scoreLabel = (attempt: BookResultAttemptSummary): string | undefined => {
@@ -75,7 +115,7 @@ const attemptHistoryItem = (
   submittedAt: Date.parse(attempt.submittedAt),
   attemptNumber: attempt.attemptNumber,
   contextLabel: attempt.surface === 'homework' ? 'Homework' : 'Solo',
-  statusLabel: titleCase(attempt.evaluationStatus),
+  statusLabel: includeScore ? titleCase(attempt.evaluationStatus) : undefined,
   scoreLabel: includeScore ? scoreLabel(attempt) : undefined,
 });
 
@@ -101,6 +141,7 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
   onRetryEvaluation,
   onAttemptChange,
   onRetryDetail,
+  onBackToHomework,
   onReviewAction,
 }) => {
   const selectedSummary = group.attempts.find((attempt) => attempt.attemptId === selectedAttemptId)
@@ -112,18 +153,30 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
   const currentAttempt = selectedSummary
     ? attemptHistoryItem(selectedSummary, viewerRole !== 'student')
     : undefined;
+  const hasReleasedStudentEvaluation = evaluationProjection?.score !== undefined
+    || evaluationProjection?.answerKey !== undefined
+    || evaluationProjection?.correctness !== undefined
+    || evaluationProjection?.feedback !== undefined;
 
   return (
     <section className="book-result" aria-labelledby="book-result-title">
       <header className="book-result-header">
         <div>
           <p className="book-result-eyebrow">Book Activity result</p>
-          <h1 id="book-result-title">Review Activity attempts</h1>
+          <h1 id="book-result-title">
+            {viewerRole === 'student' ? 'Activity result' : 'Review Activity attempts'}
+          </h1>
           <p className="book-result-subtitle">
-            {group.attemptCount} {group.attemptCount === 1 ? 'attempt' : 'attempts'} for Activity{' '}
-            <span className="book-result-code">{group.activityId}</span>
+            {viewerRole === 'student'
+              ? 'Your submitted activity'
+              : `${group.attemptCount} ${group.attemptCount === 1 ? 'attempt' : 'attempts'} recorded`}
           </p>
         </div>
+        {onBackToHomework && (
+          <button type="button" className="book-result-back" onClick={onBackToHomework}>
+            Back to homework
+          </button>
+        )}
         {refreshing && (
           <span className="book-result-refreshing" role="status">
             Refreshing results…
@@ -131,7 +184,7 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
         )}
       </header>
 
-      {selectedSummary && currentAttempt && (
+      {selectedSummary && currentAttempt && group.attempts.length > 1 && (
         <div className="book-result-attempt-picker">
           <AttemptHistory
             currentResult={currentAttempt}
@@ -170,64 +223,89 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
               </p>
               <h2 id="book-result-attempt-heading">Attempt {selectedSummary.attemptNumber}</h2>
             </div>
-            <span className={`book-result-status book-result-status--${selectedSummary.evaluationStatus}`}>
-              {titleCase(selectedSummary.evaluationStatus)}
-            </span>
+            {viewerRole !== 'student' && (
+              <span className={`book-result-status book-result-status--${selectedSummary.evaluationStatus}`}>
+                {titleCase(selectedSummary.evaluationStatus)}
+              </span>
+            )}
           </div>
 
           <dl className="book-result-detail-grid">
-            <DetailRow label="Submitted" value={formatDateTime(selectedSummary.submittedAt)} />
+            {viewerRole !== 'student' && (
+              <DetailRow label="Submitted" value={formatDateTime(selectedSummary.submittedAt)} />
+            )}
             <DetailRow label="Completion" value={titleCase(selectedSummary.completionStatus)} />
-            <DetailRow label="Placement" value={selectedSummary.placementId} />
-            <DetailRow label="Delivery context" value={selectedSummary.deliveryContextId} />
             <DetailRow
-              label="Activity version"
-              value={`${selectedSummary.activityVersionId} (v${selectedSummary.activityVersion})`}
-            />
-            <DetailRow
-              label="Binding revision"
-              value={`${selectedSummary.bindingId} · revision ${selectedSummary.bindingRevision}`}
-            />
-            <DetailRow
-              label="Attempts"
-              value={selectedSummary.attemptLimit === null
-                ? `${selectedSummary.attemptsUsed} used · no configured limit`
-                : `${selectedSummary.attemptsUsed} of ${selectedSummary.attemptLimit} used`}
-            />
-            <DetailRow
-              label="Evaluation"
+              label={viewerRole === 'student' ? 'Review' : 'Evaluation'}
               value={viewerRole === 'student'
-                ? 'See released evaluation below'
+                ? hasReleasedStudentEvaluation ? 'Reviewed' : 'Feedback pending'
                 : scoreLabel(selectedSummary)
                 ? `${titleCase(selectedSummary.evaluationStatus)} · ${scoreLabel(selectedSummary)}`
                 : titleCase(selectedSummary.evaluationStatus)}
             />
           </dl>
 
-          <section className="book-result-section" aria-labelledby="book-result-provenance-heading">
-            <h3 id="book-result-provenance-heading">Source provenance</h3>
-            <p className="book-result-provenance-note">
-              Historical display-only metadata. It does not provide document or PDF access.
-            </p>
-            {selectedSummary.sources.length === 0 ? (
-              <p className="book-result-muted">No source material was required for this attempt.</p>
-            ) : (
-              <ul className="book-result-source-list">
-                {selectedSummary.sources.map((source) => (
-                  <li key={`${source.sourceKey}:${source.sourceVersionId}`}>
-                    <div>
-                      <strong>{source.sourceKey}</strong>
-                      <span>{source.componentId} · {source.sourceVersionId}</span>
-                      <span>Pages {source.pages.join(', ') || 'not recorded'}</span>
-                    </div>
-                    <span className={`book-result-source-state book-result-source-state--${source.availability}`}>
-                      {titleCase(source.availability)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {viewerRole !== 'student' && (
+            <details className="book-result-technical">
+              <summary>Technical attempt details</summary>
+              <dl className="book-result-detail-grid book-result-detail-grid--technical">
+                <DetailRow label="Activity ID" value={group.activityId} />
+                <DetailRow label="Student ID" value={group.studentId} />
+                <DetailRow label="Placement" value={selectedSummary.placementId} />
+                <DetailRow label="Delivery context" value={selectedSummary.deliveryContextId} />
+                <DetailRow
+                  label="Activity version"
+                  value={`${selectedSummary.activityVersionId} (v${selectedSummary.activityVersion})`}
+                />
+                <DetailRow
+                  label="Binding revision"
+                  value={`${selectedSummary.bindingId} · revision ${selectedSummary.bindingRevision}`}
+                />
+                <DetailRow
+                  label="Attempts"
+                  value={selectedSummary.attemptLimit === null
+                    ? `${selectedSummary.attemptsUsed} used · no configured limit`
+                    : `${selectedSummary.attemptsUsed} of ${selectedSummary.attemptLimit} used`}
+                />
+              </dl>
+            </details>
+          )}
+
+          {viewerRole !== 'student' && (
+            <section className="book-result-section" aria-labelledby="book-result-provenance-heading">
+              <h3 id="book-result-provenance-heading">Book context</h3>
+              <p className="book-result-provenance-note">
+                Historical display-only metadata. The review panel below separately shows whether the original PDF is available.
+              </p>
+              {selectedSummary.sources.length === 0 ? (
+                <p className="book-result-muted">No source material was required for this attempt.</p>
+              ) : (
+                <ul className="book-result-source-list">
+                  {selectedSummary.sources.map((source) => (
+                    <li key={`${source.sourceKey}:${source.sourceVersionId}`}>
+                      <div>
+                        <strong>
+                          {source.pages.length > 0
+                            ? `Component ${source.componentId} · page${source.pages.length === 1 ? '' : 's'} ${source.pages.join(', ')}`
+                            : 'Book source'}
+                        </strong>
+                        <span>{sourceAvailabilityDescription(source.availability)}</span>
+                      </div>
+                      <div className="book-result-source-actions">
+                        <span className={`book-result-source-state book-result-source-state--${source.availability}`}>
+                          {sourceAvailabilityLabel(source.availability)}
+                        </span>
+                        <details className="book-result-technical book-result-technical--inline">
+                          <summary>Source details</summary>
+                          <span>{source.sourceKey} · {source.componentId} · {source.sourceVersionId}</span>
+                        </details>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           {detailLoading && !detail && (
             <div className="book-result-state" role="status">
@@ -244,49 +322,79 @@ export const BookGroupedResultView: React.FC<BookGroupedResultViewProps> = ({
             </div>
           )}
 
-          {detail && detail.attemptId === selectedSummary.attemptId && (
+          {detail && detail.attemptId === selectedSummary.attemptId && viewerRole === 'student' && (
+            <div className="book-result-student-feedback">
+              {evaluationProjection?.score && (
+                <section className="book-result-section" aria-label="Released score">
+                  <h3>Score</h3>
+                  <p className="book-result-feedback">{evaluationProjection.score.displayScore}</p>
+                </section>
+              )}
+              {evaluationProjection?.feedback !== undefined && (
+                <section className="book-result-section" aria-label="Released feedback">
+                  <h3>Feedback</h3>
+                  <p className="book-result-feedback">{evaluationProjection.feedback}</p>
+                </section>
+              )}
+              {evaluationLoading && (
+                <div className="book-result-state" role="status">
+                  Loading released evaluation details…
+                </div>
+              )}
+              {evaluationError && (
+                <div className="book-result-state book-result-state--error" role="alert">
+                  <p>{evaluationError}</p>
+                  {onRetryEvaluation && (
+                    <button type="button" onClick={onRetryEvaluation}>Try again</button>
+                  )}
+                </div>
+              )}
+              {!evaluationLoading && !evaluationError && evaluationProjection?.feedback === undefined && (
+                <p className="book-result-muted" role="status">
+                  Feedback is not available yet
+                </p>
+              )}
+            </div>
+          )}
+
+          {detail && detail.attemptId === selectedSummary.attemptId && viewerRole !== 'student' && (
             <BookAttemptSourceReview
               key={detail.attemptId}
               onAction={onReviewAction}
               projection={detail.attemptSourceContext
                 ?? historicalSourceUnavailableProjection('missing_context')}
             >
-              {viewerRole === 'student' ? (
-                <BookActivityResultFeedback
-                  projection={evaluationProjection}
-                  loading={evaluationLoading}
-                  error={evaluationError}
-                  onRetry={onRetryEvaluation}
-                />
-              ) : (
-                <>
-                  <section
-                    aria-label={`Interaction ${detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId}`}
-                    aria-labelledby="book-result-response-heading"
-                    className="book-result-section"
-                    data-book-interaction-id={
-                      detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId
-                    }
-                    tabIndex={-1}
-                  >
-                    <h3 id="book-result-response-heading">Submitted response</h3>
+              <>
+                <section
+                  aria-label={`Interaction ${detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId}`}
+                  aria-labelledby="book-result-response-heading"
+                  className="book-result-section"
+                  data-book-interaction-id={
+                    detail.attemptSourceContext?.metadata?.interactionFocusId ?? detail.interactionId
+                  }
+                  tabIndex={-1}
+                >
+                  <h3 id="book-result-response-heading">Submitted response</h3>
+                  <p className="book-result-response-summary">{responseSummary(detail.response)}</p>
+                  <details className="book-result-technical">
+                    <summary>Technical response data</summary>
                     <pre className="book-result-response">{safeResponseText(detail.response)}</pre>
+                  </details>
+                </section>
+
+                {detail.feedback.available && detail.feedback.text && (
+                  <section className="book-result-section" aria-labelledby="book-result-feedback-heading">
+                    <h3 id="book-result-feedback-heading">Feedback</h3>
+                    <p className="book-result-feedback">{detail.feedback.text}</p>
                   </section>
+                )}
 
-                  {detail.feedback.available && detail.feedback.text && (
-                    <section className="book-result-section" aria-labelledby="book-result-feedback-heading">
-                      <h3 id="book-result-feedback-heading">Feedback</h3>
-                      <p className="book-result-feedback">{detail.feedback.text}</p>
-                    </section>
-                  )}
-
-                  {!detail.feedback.available && detail.feedback.release !== 'not-applicable' && (
-                    <p className="book-result-muted" role="status">
-                      Feedback is {titleCase(detail.feedback.release).toLowerCase()}.
-                    </p>
-                  )}
-                </>
-              )}
+                {!detail.feedback.available && detail.feedback.release !== 'not-applicable' && (
+                  <p className="book-result-muted" role="status">
+                    Feedback is {titleCase(detail.feedback.release).toLowerCase()}.
+                  </p>
+                )}
+              </>
             </BookAttemptSourceReview>
           )}
         </article>

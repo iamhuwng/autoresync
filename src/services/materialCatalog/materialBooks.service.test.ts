@@ -5,10 +5,13 @@ import {
   type MaterialBookNode,
 } from '../../types/materialCatalog.types';
 import type { SourceSetCandidate } from '../../types/bookAssembly.types';
+import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../book-assembly/componentPdfActivation.service';
+import { createComponentStudentDocument } from '../book-assembly/componentStudentDocument.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from './testTypeConfig.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
   approvePublicBook,
+  PublicBookReadinessRefreshError,
   buildMaterialBookIndexCleanup,
   buildMaterialBookIndexWrites,
   createBookDraft,
@@ -253,6 +256,9 @@ describe('materialBooks.service', () => {
 
     expect(materialsBook.bookMode).toBe('materials');
     expect(pdfBook.bookMode).toBe('pdf');
+    expect(pdfBook).toMatchObject({ bookRevision: 0, sourceSetRevision: 0 });
+    expect(pdfBook.sourceSet).toBeUndefined();
+    expect(pdfBook.setupActivations).toBeUndefined();
     expect(repo.updates).toEqual(expect.arrayContaining([
       expect.objectContaining({
         'material_catalog/books/materials-book': expect.objectContaining({ bookMode: 'materials' }),
@@ -262,8 +268,8 @@ describe('materialBooks.service', () => {
       }),
     ]));
     expect(materialsBook).not.toHaveProperty('bookRevision');
-    expect(pdfBook).not.toHaveProperty('bookRevision');
-    expect(pdfBook).not.toHaveProperty('sourceSetRevision');
+    expect(pdfBook.bookRevision).toBe(0);
+    expect(pdfBook.sourceSetRevision).toBe(0);
     expect(pdfBook).not.toHaveProperty('sourceSet');
   });
 
@@ -286,6 +292,19 @@ describe('materialBooks.service', () => {
 
     expect(first).toMatchObject({ bookRevision: 5, sourceSetRevision: 2, sourceSet });
     expect(second).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet });
+    const submitted = await updateBookMetadata('book-1', { visibility: 'public-library-pending-review' }, repo, context);
+    expect(submitted).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet, status: second.status });
+  });
+
+  it('preserves setup activation receipts and rejects metadata replacement', async () => {
+    const setupActivations = [{ operationId: 'operation-1', marker: 'exact' }] as never;
+    const repo = createRepo([metadata({ bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet, setupActivations })]);
+    const context = { actorId: 'teacher-1', actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW };
+    const updated = await updateBookMetadata('book-1', { title: 'Preserved' }, repo, context);
+    expect(updated.setupActivations).toEqual(setupActivations);
+    await expect(updateBookMetadata('book-1', { setupActivations: [] } as never, repo, context))
+      .rejects.toThrow('PDF authority is immutable');
   });
 
   it('reads only complete eligible PDF authority and fails closed otherwise', async () => {
@@ -315,6 +334,30 @@ describe('materialBooks.service', () => {
       const candidateRepo = createRepo([incomplete]);
       await expect(readMaterialBookPdfAuthority(candidateRepo, 'book-1')).resolves.toBeNull();
     }
+  });
+
+  it.each([
+    ['one component', [{ sourceKey: 'unit-1', sourceVersionId: 'source-1', sourceOrder: 1, ownerNodeKey: 'unit-1' }]],
+    ['more than twenty components', Array.from({ length: 21 }, (_, index) => ({
+      sourceKey: `unit-${index + 1}`,
+      sourceVersionId: `source-${index + 1}`,
+      sourceOrder: index + 1,
+      ownerNodeKey: `unit-${index + 1}`,
+    }))],
+    ['sparse component order', [
+      { sourceKey: 'unit-1', sourceVersionId: 'source-1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'unit-2', sourceVersionId: 'source-2', sourceOrder: 3, ownerNodeKey: 'unit-2' },
+    ]],
+  ] as const)('rejects malformed canonical %s metadata', async (_label, sources) => {
+    const repo = createRepo([metadata({
+      bookMode: 'pdf',
+      status: 'ready',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet: { sourceStrategy: 'component_pdfs', sources } as SourceSetCandidate,
+    })]);
+
+    await expect(readMaterialBookPdfAuthority(repo, 'book-1')).resolves.toBeNull();
   });
 
   it('resolves missing legacy Book mode in read and list paths', async () => {
@@ -1024,6 +1067,16 @@ describe('materialBooks.service', () => {
   });
 
   it('approves pending public Books by writing a public-safe projection after unsafe-ref checks', async () => {
+    const document = createComponentStudentDocument({ sourceVersionId: 'combined-v1', descriptorRevision: 2, sha256Hex: 'a'.repeat(64),
+      byteSize: 1024, physicalPageCount: 2, compositionFingerprint: 'composition-1', components: [
+        { sourceKey: 'one', sourceVersionId: 'one-v1', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'two', sourceVersionId: 'two-v1', sourceOrder: 2, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ] });
+    const componentSourceSet: SourceSetCandidate = { sourceStrategy: 'component_pdfs', sources: document.components.map(({ sourceKey, sourceVersionId, sourceOrder, ownerNodeKey }) => ({ sourceKey, sourceVersionId, sourceOrder, ownerNodeKey })) };
+    const activation = createComponentPdfActivationReceipt({ operationId: 'activation-1', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 3, expectedSourceSetRevision: 1, activatedAt: NOW, sourceSet: componentSourceSet,
+      unitCandidates: [{ unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 1, manifestFingerprint: 'b'.repeat(64) }],
+      activities: [], studentDocument: { sourceVersionId: document.sourceVersionId, descriptorRevision: document.descriptorRevision, descriptorFingerprint: fingerprintComponentPdfActivationValue(document) } });
     const publicRefNode = node({
       materialRefs: [
         {
@@ -1046,6 +1099,7 @@ describe('materialBooks.service', () => {
       metadata({
         visibility: 'public-library-pending-review',
         status: 'ready',
+        bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet: componentSourceSet, setupActivations: [activation],
       }),
     ], {
       'book-1': [publicRefNode],
@@ -1069,9 +1123,12 @@ describe('materialBooks.service', () => {
     );
 
     expect(approved.visibility).toBe('public-library-published');
+    expect(approved).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, setupActivations: [activation] });
+    expect(await readMaterialBookPdfAuthority(repo, 'book-1')).toMatchObject({ bookRevision: 4, sourceSet: componentSourceSet });
     expect(repo.writes).toEqual([]);
     expect(repo.updates).toHaveLength(1);
     const projectionWrite = repo.updates[0]['material_catalog/public_book_projections/book-1'];
+    expect(repo.updates[0]['material_catalog/public_book_readiness/book-1']).toBeNull();
 
     expect(projectionWrite).toMatchObject({
       bookId: 'book-1',
@@ -1105,6 +1162,22 @@ describe('materialBooks.service', () => {
       'material_catalog/books/book-1': expect.objectContaining({ visibility: 'public-library-published' }),
       'material_catalog/book_indexes/by_visibility/public-library-published/book-1': expect.any(Object),
     });
+  });
+
+  it('reports refresh failure with the committed approval and preserves content revision', async () => {
+    const repo = createRepo([metadata({ visibility: 'public-library-pending-review', status: 'ready', bookMode: 'pdf',
+      bookRevision: 4, sourceSetRevision: 2, sourceSet })], { 'book-1': [] });
+    const refresh = vi.fn(async () => {
+      expect((await repo.readBook('book-1'))?.visibility).toBe('public-library-published');
+      throw new Error('backend unavailable');
+    });
+    const error = await approvePublicBook('book-1', { ...repo, refreshPublicReadiness: refresh },
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+      { reason: 'Approved PDF.' }).catch((value) => value);
+    expect(error).toBeInstanceOf(PublicBookReadinessRefreshError);
+    expect(error.committedBook).toMatchObject({ visibility: 'public-library-published', bookRevision: 4, sourceSetRevision: 2 });
+    expect(repo.updates).toHaveLength(1);
+    expect(refresh).toHaveBeenCalledWith('book-1');
   });
 
   it('approves ready Books when RTDB omits empty node fields', async () => {
@@ -1273,6 +1346,7 @@ describe('materialBooks.service', () => {
       metadata({
         visibility: 'public-library-published',
         status: 'ready',
+        bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet,
       }),
     ]);
 
@@ -1284,6 +1358,7 @@ describe('materialBooks.service', () => {
     );
 
     expect(rejected.visibility).toBe('public-library-rejected');
+    expect(rejected).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet, status: 'ready' });
     expect(rejected.publicReview).toMatchObject({
       status: 'rejected',
       reason: 'Contains outdated material refs.',
@@ -1300,6 +1375,7 @@ describe('materialBooks.service', () => {
     );
 
     expect(returned.visibility).toBe('private');
+    expect(returned).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet, status: 'ready' });
     expect(returned.publicReview).toMatchObject({
       status: 'returned-private',
       reason: 'Owner should revise metadata.',

@@ -2,6 +2,8 @@ import type {
   BookHomeworkActivityBinding,
   BookHomeworkExclusionReason,
   BookHomeworkManifest,
+  BookHomeworkStudentDocumentPin,
+  BookHomeworkTargetPreviewReceipt,
   BookHomeworkScheduleRule,
   BookHomeworkSelectionTarget,
   BookHomeworkSourceReadiness,
@@ -97,6 +99,12 @@ export interface CreateBookHomeworkManifestInput {
   readonly bindingRevision: number;
   readonly scheduleRules?: readonly BookHomeworkScheduleRule[];
   readonly excludedActivities?: readonly BookHomeworkExcludedActivityCandidate[];
+  readonly studentDocument?: BookHomeworkStudentDocumentPin & { readonly components?: readonly {
+    readonly sourceKey: string;
+    readonly combinedStartPage: number;
+    readonly localPageCount: number;
+  }[] };
+  readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
 }
 
 export interface AdvanceBookHomeworkActivityBindingInput {
@@ -175,6 +183,15 @@ const immutableClone = <T>(value: T): T => {
     ? structuredClone(value)
     : JSON.parse(JSON.stringify(value)) as T;
   return deepFreeze(clone);
+};
+
+const stableJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
 };
 
 function fail(
@@ -437,9 +454,27 @@ const bindingSort = (
 const toRequiredBinding = (
   delivery: BookRuntimeDeliveryProjection,
   activity: BookRuntimeDeliveryActivityProjection,
+  studentDocument?: BookHomeworkStudentDocumentPin & { readonly components?: readonly {
+    readonly sourceKey: string;
+    readonly combinedStartPage: number;
+    readonly localPageCount: number;
+  }[] },
 ): Extract<BookHomeworkActivityBinding, { state: 'required' }> => {
   if (activity.activityVersionId === undefined) fail('invalid-version-pin', `activities.${activity.placementId}.activityVersionId`, 'Book Homework requires an immutable Activity Version ID.');
   const source = sourceContextFor(delivery, activity);
+  const combinedContexts = studentDocument?.components?.length
+    ? source.contexts.map((context) => {
+      const component = studentDocument.components!.find((entry) => entry.sourceKey === context.sourceKey);
+      if (!component || context.physicalPageNumbers.some((page) => page > component.localPageCount)) {
+        fail('invalid-source-context', `activities.${activity.placementId}.sourceContext`, 'Component page cannot map to the combined student document.');
+      }
+      return {
+        sourceKey: 'student-document',
+        sourceVersionId: studentDocument.sourceVersionId,
+        physicalPageNumbers: context.physicalPageNumbers.map((page) => component.combinedStartPage + page - 1),
+      };
+    })
+    : source.contexts;
   return immutableClone({
     bindingId: activity.placementId,
     placementId: activity.placementId,
@@ -453,7 +488,7 @@ const toRequiredBinding = (
     pageGroupKeys: source.pageGroupKeys,
     sourceReadiness: source.sourceReadiness,
     state: 'required' as const,
-    sourceContext: source.contexts,
+    sourceContext: combinedContexts,
   });
 };
 
@@ -533,16 +568,24 @@ export const createBookHomeworkManifest = (
   validateTarget(input.target, delivery.book.bookId);
   const outline = normalizeOutline(delivery.outline ?? []);
   assertDelivery(delivery, outline);
+  if (delivery.sourceSet.strategy === 'component_pdfs' && delivery.documentRequests.length > 0
+    && (!input.studentDocument || !input.targetPreview)) {
+    fail('invalid-publication', 'studentDocument', 'Component PDF Homework requires trusted document and target-preview receipts.');
+  }
+  if (delivery.sourceSet.strategy === 'component_pdfs' && !input.studentDocument) {
+    fail('invalid-publication', 'studentDocument', 'Component PDF Homework requires a trusted student-document pin.');
+  }
   const outlineByKey = new Map(outline.map((node) => [node.nodeKey, node]));
   const selectedNodeKeys = targetNodeKeys(input.target, outline, delivery.activities);
   const selectedActivities = input.target.kind === 'activity'
     ? [findActivityTarget(input.target, delivery.activities)]
     : delivery.activities.filter((activity) => targetMatches(input.target, selectedNodeKeys, activity));
   if (selectedActivities.length === 0) fail('invalid-target', 'selectedTarget', 'Target resolves no eligible published Activities.');
-  const requiredBindings = selectedActivities.map((activity) => toRequiredBinding(delivery, activity));
+  const requiredBindings = selectedActivities.map((activity) => toRequiredBinding(delivery, activity, input.studentDocument));
   const excludedCandidates = input.excludedActivities ?? [];
   const excludedPlacements = new Set<string>();
   const excludedBindings = excludedCandidates.flatMap((candidate, index) => {
+    if (candidate.reason === 'unresolved-mapping' && !outlineByKey.has(candidate.nodeKey)) return [];
     validateExcludedCandidate(candidate, index, new Set(outlineByKey.keys()));
     if (!targetMatchesExcluded(input.target, selectedNodeKeys, candidate)) return [];
     if (excludedPlacements.has(candidate.placementId) || requiredBindings.some((binding) => binding.placementId === candidate.placementId)) {
@@ -552,6 +595,19 @@ export const createBookHomeworkManifest = (
     return [toExcludedBinding(candidate)];
   });
   const bindings = immutableClone([...requiredBindings, ...excludedBindings].sort(bindingSort));
+  const studentDocument = input.studentDocument;
+  const previewRows = bindings.map((binding) => binding.state === 'required'
+    ? { placementId: binding.placementId, activityId: binding.activityId, nodeKey: binding.nodeKey, state: 'included' as const }
+    : { placementId: binding.placementId, activityId: binding.activityId, nodeKey: binding.nodeKey, state: 'excluded' as const, reason: binding.exclusionReason });
+  const excludedReasonCounts = Object.fromEntries(EXCLUSION_REASONS.map((reason) => [reason,
+    previewRows.filter((row) => row.state === 'excluded' && row.reason === reason).length]).filter((entry) => Number(entry[1]) > 0));
+  const targetPreview = input.targetPreview ?? {
+    fingerprint: stableJson({ publicationId: delivery.book.publicationId, publicationRevision: delivery.book.publicationRevision, target: input.target, rows: previewRows }),
+    rows: previewRows,
+    includedCount: requiredBindings.length,
+    excludedCount: excludedBindings.length,
+    excludedReasonCounts,
+  };
   const manifest: BookHomeworkManifest = immutableClone({
     schemaVersion: BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION,
     assignmentKind: BOOK_HOMEWORK_ASSIGNMENT_KIND,
@@ -560,7 +616,7 @@ export const createBookHomeworkManifest = (
     createdByCommandId: input.createdByCommandId,
     createdAt: input.createdAt,
     bindingRevision: input.bindingRevision,
-    book: immutableClone({ ...delivery.book }),
+    book: immutableClone({ ...delivery.book, manifestVersionId: input.manifestVersionId }),
     context: immutableClone({
       contextId: delivery.context.contextId,
       recipientId: delivery.recipientId,
@@ -568,6 +624,12 @@ export const createBookHomeworkManifest = (
       entitlementBasis: 'assignment' as const,
     }),
     selectedTarget: immutableClone({ ...input.target }),
+    ...(studentDocument === undefined ? {} : { studentDocument: immutableClone({
+      sourceVersionId: studentDocument.sourceVersionId,
+      descriptorRevision: studentDocument.descriptorRevision,
+      sha256Hex: studentDocument.sha256Hex,
+    }) }),
+    targetPreview: immutableClone(targetPreview),
     outline: selectedOutline(input.target, outline, selectedNodeKeys, delivery.activities),
     scheduleRules: normalizeScheduleRules(input.scheduleRules, outline),
     bindings,
@@ -729,7 +791,7 @@ export const validateBookHomeworkManifest = (value: unknown): BookHomeworkManife
     'assignmentKind', 'bindingRevision', 'book', 'completion', 'context', 'createdAt',
     'createdByCommandId', 'manifestVersionId', 'outline', 'ownerId', 'scheduleRules', 'schemaVersion',
     'selectedTarget', 'bindings',
-  ], [], '$', errors)) return { valid: false, errors: immutableClone(errors) };
+  ], ['studentDocument', 'targetPreview'], '$', errors)) return { valid: false, errors: immutableClone(errors) };
   const manifest = value as Record<string, unknown>;
   if (manifest.schemaVersion !== BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION) push(errors, 'invalid-value', '$.schemaVersion', 'Unsupported manifest schema version.');
   if (manifest.assignmentKind !== BOOK_HOMEWORK_ASSIGNMENT_KIND) push(errors, 'invalid-value', '$.assignmentKind', 'Unsupported assignment kind.');
@@ -748,6 +810,51 @@ export const validateBookHomeworkManifest = (value: unknown): BookHomeworkManife
   exact(manifest.context, ['contextId', 'entitlementBasis', 'kind', 'recipientId'], [], '$.context', errors);
   if (isRecord(manifest.context) && (!isId(manifest.context.contextId) || !isId(manifest.context.recipientId) || manifest.context.kind !== 'homework' || manifest.context.entitlementBasis !== 'assignment')) push(errors, 'invalid-value', '$.context', 'Homework context is invalid.');
   const targetValid = validateTargetValue(manifest.selectedTarget, '$.selectedTarget', errors, bookId);
+  if (manifest.studentDocument !== undefined
+    && !exact(manifest.studentDocument, ['descriptorRevision', 'sha256Hex', 'sourceVersionId'], [], '$.studentDocument', errors)) {
+    // Nested errors are already recorded.
+  } else if (manifest.studentDocument !== undefined && isRecord(manifest.studentDocument)) {
+    const document = manifest.studentDocument;
+    if (!isId(document.sourceVersionId)
+      || !Number.isSafeInteger(document.descriptorRevision) || Number(document.descriptorRevision) < 0
+      || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex)) {
+      push(errors, 'invalid-publication', '$.studentDocument', 'Combined student document pin is invalid.');
+    }
+  }
+  if (manifest.targetPreview !== undefined && !exact(manifest.targetPreview, ['excludedCount', 'excludedReasonCounts', 'fingerprint', 'includedCount', 'rows'], [], '$.targetPreview', errors)) {
+    // Nested errors are already recorded.
+  } else if (manifest.targetPreview !== undefined && isRecord(manifest.targetPreview)) {
+    const preview = manifest.targetPreview;
+    const rows = Array.isArray(preview.rows) ? preview.rows : [];
+    const rowKeys = new Set<string>();
+    if (typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0 || preview.fingerprint.length > 8192
+      || !Array.isArray(preview.rows) || rows.length === 0) {
+      push(errors, 'invalid-value', '$.targetPreview', 'Target preview receipt is invalid.');
+    }
+    rows.forEach((row, index) => {
+      const path = `$.targetPreview.rows[${index}]`;
+      if (!exact(row, ['activityId', 'nodeKey', 'placementId', 'state'], ['reason'], path, errors)) return;
+      const value = row as Record<string, unknown>;
+      const key = `${String(value.placementId)}:${String(value.activityId)}`;
+      if (!isId(value.placementId) || !isId(value.activityId) || !isId(value.nodeKey) || rowKeys.has(key)) {
+        push(errors, 'duplicate-id', path, 'Target preview row identity is invalid or duplicated.');
+      }
+      rowKeys.add(key);
+      if (value.state === 'included') {
+        if (value.reason !== undefined) push(errors, 'invalid-value', `${path}.reason`, 'Included rows cannot carry an exclusion reason.');
+      } else if (value.state !== 'excluded' || !EXCLUSION_REASONS.includes(value.reason as BookHomeworkExclusionReason)) {
+        push(errors, 'invalid-value', path, 'Excluded rows require a supported reason.');
+      }
+    });
+    const includedCount = rows.filter((row) => isRecord(row) && row.state === 'included').length;
+    const excludedRows = rows.filter((row) => isRecord(row) && row.state === 'excluded');
+    const reasonCounts = Object.fromEntries(EXCLUSION_REASONS.map((reason) => [reason,
+      excludedRows.filter((row) => row.reason === reason).length]).filter((entry) => Number(entry[1]) > 0));
+    if (preview.includedCount !== includedCount || preview.excludedCount !== excludedRows.length
+      || stableJson(preview.excludedReasonCounts) !== stableJson(reasonCounts)) {
+      push(errors, 'invalid-value', '$.targetPreview', 'Target preview counts do not reconcile with its rows.');
+    }
+  }
   const outline = validateOutlineValue(manifest.outline, '$.outline', errors);
   const outlineKeys = new Set(outline.map((node) => node.nodeKey));
   const validatedBindings: BookHomeworkActivityBinding[] = [];
@@ -770,6 +877,25 @@ export const validateBookHomeworkManifest = (value: unknown): BookHomeworkManife
         placementIds.add(binding.placementId); bindingIds.add(binding.bindingId);
       }
     });
+  }
+  const usesCombinedDocument = validatedBindings.some((binding) => binding.state === 'required'
+    && binding.sourceContext.some((context) => context.sourceKey === 'student-document'));
+  if (usesCombinedDocument && (!isRecord(manifest.studentDocument)
+    || Number(manifest.studentDocument.descriptorRevision) < 1
+    || manifest.studentDocument.sha256Hex === '0'.repeat(64)
+    || !isRecord(manifest.targetPreview))) {
+    push(errors, 'invalid-publication', '$.studentDocument', 'Component PDF Homework requires non-synthetic trusted receipts.');
+  }
+  if (isRecord(manifest.targetPreview) && Array.isArray(manifest.targetPreview.rows)
+    && validatedBindings.length === (manifest.bindings as readonly unknown[]).length) {
+    const bindingRows = validatedBindings.map((binding) => binding.state === 'required'
+      ? { placementId: binding.placementId, activityId: binding.activityId, nodeKey: binding.nodeKey, state: 'included' }
+      : { placementId: binding.placementId, activityId: binding.activityId, nodeKey: binding.nodeKey, state: 'excluded', reason: binding.exclusionReason });
+    const receiptRows = manifest.targetPreview.rows.filter((row) => row.state === 'included'
+      || row.reason !== 'outside-selected-target');
+    if (stableJson(receiptRows) !== stableJson(bindingRows)) {
+      push(errors, 'invalid-value', '$.targetPreview.rows', 'Target preview rows do not reconcile with frozen bindings.');
+    }
   }
   if (targetValid && Array.isArray(manifest.bindings) && validatedBindings.length === manifest.bindings.length) {
     const target = manifest.selectedTarget as BookHomeworkSelectionTarget;
@@ -835,6 +961,8 @@ export const toStudentSafeBookHomeworkProjection = (
       kind: manifest.context.kind,
     },
     selectedTarget: manifest.selectedTarget,
+    ...(manifest.studentDocument === undefined ? {} : { studentDocument: manifest.studentDocument }),
+    ...(manifest.targetPreview === undefined ? {} : { targetPreview: manifest.targetPreview }),
     outline: manifest.outline,
     scheduleRules: manifest.scheduleRules,
     bindings: manifest.bindings,

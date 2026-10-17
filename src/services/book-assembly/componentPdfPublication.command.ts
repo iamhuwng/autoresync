@@ -11,12 +11,12 @@ import type {
 } from '../../types/bookAssembly.types';
 import {
   canonicalActivityPayloadFingerprint,
-  createCandidateUnitPreview,
-  previewInputFingerprint,
+  wholeActivationApprovalFingerprint,
   type BookAssemblyPreviewApprovalRecord,
+  type WholeActivationApprovalInput,
 } from './unitPreview.service';
 import {
-  createComponentPdfPublicationCommandOutput,
+  createComponentPdfMultiUnitPublicationOutput,
   ComponentPdfPublicationAdapterError,
   type ComponentPdfActivityLineage,
   type ComponentPdfValidatedActivityPayload,
@@ -25,13 +25,14 @@ import {
 export interface ComponentPdfPublicationRequest {
   readonly ownerId: string;
   readonly bookId: string;
-  readonly unitKey: string;
-  readonly candidateId: string;
-  readonly expectedCandidateRevision: number;
   readonly expectedCurrentPublicationId: string | null;
   readonly expectedBookRevision: number;
   readonly expectedSourceSetRevision: number;
-  readonly previewApproval: BookAssemblyPreviewApprovalReference;
+  readonly unitApprovals: readonly (BookAssemblyPreviewApprovalReference & {
+    readonly unitKey: string;
+    readonly candidateId: string;
+    readonly candidateRevision: number;
+  })[];
   /** Trusted transport fingerprint used by the durable operation ledger. */
   readonly operationFingerprint?: string;
 }
@@ -51,6 +52,7 @@ export interface ComponentPdfPublicationPorts {
     candidateId: string,
   ) => Promise<BookAssemblyCandidateRecord | null>;
   readonly readAuthority: (bookId: string) => Promise<BookAssemblyBookAuthority | null>;
+  readonly readWholeActivationApprovalInput: (bookId: string) => Promise<WholeActivationApprovalInput | null>;
   readonly readLineage?: (
     bookId: string,
     unitKey: string,
@@ -102,58 +104,37 @@ const assertRevision = (value: number, code: string): void => {
 const resolveCurrentPreviewApproval = async (input: {
   readonly ports: ComponentPdfPublicationPorts;
   readonly request: ComponentPdfPublicationRequest;
-  readonly candidate: BookAssemblyCandidateRecord;
-  readonly authority: BookAssemblyBookAuthority;
+  readonly unitApproval: ComponentPdfPublicationRequest['unitApprovals'][number];
+  readonly wholeActivationFingerprint: string;
   readonly activitiesByKey: Readonly<Record<string, ComponentPdfValidatedActivityPayload>>;
   readonly now: string;
 }): Promise<BookAssemblyPreviewApprovalReference> => {
   const current = await input.ports.readPreviewApproval({
     bookId: input.request.bookId,
-    unitKey: input.request.unitKey,
-    approvalId: input.request.previewApproval.approvalId,
+    unitKey: input.unitApproval.unitKey,
+    approvalId: input.unitApproval.approvalId,
   });
   if (!current
-    || current.approvalId !== input.request.previewApproval.approvalId
+    || current.approvalId !== input.unitApproval.approvalId
     || current.revoked === true
     || current.actorId !== input.request.ownerId
     || current.bookId !== input.request.bookId
     || current.bookRevision !== input.request.expectedBookRevision
-    || current.unitKey !== input.request.unitKey
-    || current.candidateId !== input.request.candidateId
-    || current.candidateRevision !== input.request.expectedCandidateRevision
+    || current.unitKey !== input.unitApproval.unitKey
+    || current.candidateId !== input.unitApproval.candidateId
+    || current.candidateRevision !== input.unitApproval.candidateRevision
     || current.sourceSetRevision !== input.request.expectedSourceSetRevision
-    || current.approvalRevision !== input.request.previewApproval.approvalRevision
-    || current.approvedAt !== input.request.previewApproval.approvedAt
-    || current.expiresAt !== input.request.previewApproval.expiresAt) {
+    || current.approvalRevision !== input.unitApproval.approvalRevision
+    || current.approvedAt !== input.unitApproval.approvedAt
+    || current.expiresAt !== input.unitApproval.expiresAt
+    || current.wholeActivationFingerprint !== input.wholeActivationFingerprint) {
     throw new ComponentPdfPublicationCommandError('component_pdfs_preview_approval_invalid', 422);
   }
-  const sourceVersions = input.candidate.manifest?.sourceSet.sources
-    .map((source) => input.authority.sourceVersionAuthority.getSourceVersion(source.sourceVersionId))
-    .filter((source): source is NonNullable<typeof source> => source !== undefined) ?? [];
-  const readySourceVersionIds = new Set(
-    (await Promise.all(sourceVersions.map(async (source) => (
-      await input.ports.sourceIsPreviewReady({
-        bookId: input.request.bookId,
-        sourceVersionId: source.sourceVersionId,
-      }) ? source.sourceVersionId : null
-    )))).filter((sourceVersionId): sourceVersionId is string => sourceVersionId !== null),
-  );
   try {
-    const preview = createCandidateUnitPreview({
-      candidate: input.candidate,
-      sourceVersions,
-      sourceIsPreviewReady: (source) => readySourceVersionIds.has(source.sourceVersionId),
-      activitiesByKey: Object.fromEntries(
-        Object.entries(input.activitiesByKey).map(([key, payload]) => [key, payload.activity]),
-      ),
-      registryVersion: current.registryVersion,
-    });
     const nowMs = Date.parse(input.now);
-    const canonicalFingerprints = current.canonicalActivityFingerprintsByKey;
+    const canonicalFingerprints = current.canonicalActivityFingerprintsByKey ?? {};
     const activityKeys = Object.keys(input.activitiesByKey);
-    if (previewInputFingerprint(preview) !== current.inputFingerprint
-      || !canonicalFingerprints
-      || Object.keys(canonicalFingerprints).length !== activityKeys.length
+    if (Object.keys(canonicalFingerprints).length !== activityKeys.length
       || activityKeys.some((activityKey) =>
         canonicalFingerprints[activityKey]
           !== canonicalActivityPayloadFingerprint(input.activitiesByKey[activityKey]!.activity))
@@ -181,78 +162,116 @@ export const createComponentPdfPublicationCommand = (
 ): Promise<ComponentPdfPublicationCommandReceipt> => {
   assertId(request.ownerId, 'invalid_owner_id');
   assertId(request.bookId, 'invalid_book_id');
-  assertId(request.unitKey, 'invalid_unit_key');
-  assertId(request.candidateId, 'invalid_candidate_id');
   if (request.expectedCurrentPublicationId !== null) {
     assertId(request.expectedCurrentPublicationId, 'invalid_expected_current_publication_id');
   }
-  assertRevision(request.expectedCandidateRevision, 'invalid_expected_candidate_revision');
   assertRevision(request.expectedBookRevision, 'invalid_expected_book_revision');
   assertRevision(request.expectedSourceSetRevision, 'invalid_expected_source_set_revision');
 
-  const [authority, candidate, lineage] = await Promise.all([
+  const [authority, whole] = await Promise.all([
     ports.readAuthority(request.bookId),
-    ports.readCandidate(request.bookId, request.unitKey, request.candidateId),
-    ports.readLineage?.(request.bookId, request.unitKey) ?? Promise.resolve({}),
+    ports.readWholeActivationApprovalInput(request.bookId),
   ]);
-  if (!authority || !candidate) {
+  if (!authority || !whole) {
     throw new ComponentPdfPublicationCommandError('component_pdfs_publication_not_found', 404);
   }
-  if (authority.ownerId !== request.ownerId || candidate.ownerId !== request.ownerId) {
+  if (authority.ownerId !== request.ownerId || whole.ownerId !== request.ownerId) {
     throw new ComponentPdfPublicationCommandError('component_pdfs_publication_forbidden', 403);
   }
-  if (candidate.revision !== request.expectedCandidateRevision
-    || candidate.bookRevision !== request.expectedBookRevision
+  if (whole.bookRevision !== request.expectedBookRevision
     || authority.bookRevision !== request.expectedBookRevision
-    || candidate.sourceSetRevision !== request.expectedSourceSetRevision
+    || whole.sourceSetRevision !== request.expectedSourceSetRevision
     || authority.sourceSetRevision !== request.expectedSourceSetRevision) {
     throw new ComponentPdfPublicationCommandError('component_pdfs_revision_conflict', 422);
   }
-  const activityKeys = candidate.manifest?.units
-    .find((unit) => unit.unitKey === request.unitKey)?.activitySlots
-    .map((slot) => slot.activityKey) ?? [];
-  const activitiesByKey = await ports.readActivities({
-    ownerId: request.ownerId,
-    bookId: request.bookId,
-    unitKey: request.unitKey,
-    activityKeys,
-  });
-  if (activityKeys.some((activityKey) => activitiesByKey[activityKey] === undefined)) {
-    throw new ComponentPdfPublicationCommandError('component_pdfs_activity_payload_missing', 422);
+  const wholeFingerprint = wholeActivationApprovalFingerprint(whole);
+  const exactUnitKeys = whole.units.map((unit) => unit.unitKey);
+  if (request.unitApprovals.length !== exactUnitKeys.length
+    || new Set(request.unitApprovals.map((approval) => approval.unitKey)).size !== request.unitApprovals.length
+    || request.unitApprovals.some((approval) => !exactUnitKeys.includes(approval.unitKey))) {
+    throw new ComponentPdfPublicationCommandError('component_pdfs_approval_coverage_invalid', 422);
   }
   const now = ports.now();
-  const previewApproval = await resolveCurrentPreviewApproval({
-    ports,
-    request,
-    candidate,
-    authority,
-    activitiesByKey,
-    now,
-  });
+  const units: Array<{
+    readonly candidate: BookAssemblyCandidateRecord;
+    readonly lineage: Readonly<Record<string, ComponentPdfActivityLineage>>;
+    readonly activitiesByKey: Readonly<Record<string, ComponentPdfValidatedActivityPayload>>;
+    readonly previewApproval: BookAssemblyPreviewApprovalReference;
+    readonly reference: WholeActivationApprovalInput['units'][number];
+  }> = [];
+  for (const approval of request.unitApprovals) {
+    const reference = whole.units.find((unit) => unit.unitKey === approval.unitKey)!;
+    if (reference.candidateId !== approval.candidateId || reference.candidateRevision !== approval.candidateRevision) {
+      throw new ComponentPdfPublicationCommandError('component_pdfs_approval_coverage_invalid', 422);
+    }
+    const [candidate, lineage] = await Promise.all([
+      ports.readCandidate(request.bookId, approval.unitKey, approval.candidateId),
+      ports.readLineage && (reference.manifest?.units.find((unit) => unit.unitKey === approval.unitKey)
+        ?.activitySlots.length ?? 0) > 0
+        ? ports.readLineage(request.bookId, approval.unitKey) : Promise.resolve({}),
+    ]);
+    if (!candidate) throw new ComponentPdfPublicationCommandError('component_pdfs_publication_not_found', 404);
+    const activityKeys = candidate.manifest?.units.find((unit) => unit.unitKey === approval.unitKey)
+      ?.activitySlots.map((slot) => slot.activityKey) ?? [];
+    const activitiesByKey = await ports.readActivities({ ownerId: request.ownerId, bookId: request.bookId,
+      unitKey: approval.unitKey, activityKeys });
+    if (activityKeys.some((key) => !activitiesByKey[key])) {
+      throw new ComponentPdfPublicationCommandError('component_pdfs_activity_payload_missing', 422);
+    }
+    const previewApproval = await resolveCurrentPreviewApproval({ ports, request, unitApproval: approval,
+      wholeActivationFingerprint: wholeFingerprint, activitiesByKey, now });
+    units.push({ candidate, lineage, activitiesByKey, previewApproval, reference });
+  }
   const operationId = ports.allocateOperationId();
   if (!UUID.test(operationId)) {
     throw new ComponentPdfPublicationCommandError('trusted_operation_id_failed', 503);
   }
   try {
-    const output = createComponentPdfPublicationCommandOutput({
+    const sharedIds = new Map<string, string>();
+    const output = createComponentPdfMultiUnitPublicationOutput({
+      aggregateCandidateId: `activation:${whole.activationReceipt.operationId}`,
+      previewApproval: {
+        ...units[0]!.previewApproval,
+        approvedInputFingerprint: wholeFingerprint,
+      },
+      units: units.map(({ candidate, lineage, activitiesByKey, previewApproval, reference }) => ({
       operationId,
       now,
       ownerId: request.ownerId,
-      unitKey: request.unitKey,
+      unitKey: reference.unitKey,
       candidate,
       authority,
-      expectedCandidateRevision: request.expectedCandidateRevision,
+      expectedCandidateRevision: reference.candidateRevision,
       expectedBookRevision: request.expectedBookRevision,
       expectedSourceSetRevision: request.expectedSourceSetRevision,
       previewApproval,
       activitiesByKey,
       existingLineageByActivityKey: lineage,
-      allocateId: ports.allocateId,
+      allocateId: (kind, key) => {
+        if (['publication', 'plan', 'manifest-version'].includes(kind)) {
+          const existing = sharedIds.get(kind);
+          if (existing) return existing;
+          const allocated = ports.allocateId(kind, whole.activationReceipt.operationId);
+          sharedIds.set(kind, allocated);
+          return allocated;
+        }
+        return ports.allocateId(kind, `${reference.unitKey}:${key}`);
+      },
+    })),
     });
     const { plan, canonicalActivityVersions } = output;
     const manifestVersionId = plan.atomicWrites.deliveryPlans[0]?.manifestVersionId;
     if (!manifestVersionId) {
       throw new ComponentPdfPublicationCommandError('trusted_publication_ids_failed', 503);
+    }
+    const finalWhole = await ports.readWholeActivationApprovalInput(request.bookId);
+    if (!finalWhole || wholeActivationApprovalFingerprint(finalWhole) !== wholeFingerprint) {
+      throw new ComponentPdfPublicationCommandError('component_pdfs_revision_conflict', 409);
+    }
+    for (const approval of request.unitApprovals) {
+      await resolveCurrentPreviewApproval({ ports, request, unitApproval: approval,
+        wholeActivationFingerprint: wholeFingerprint,
+        activitiesByKey: units.find((unit) => unit.reference.unitKey === approval.unitKey)!.activitiesByKey, now });
     }
     const result = await ports.publish({
       operationId,

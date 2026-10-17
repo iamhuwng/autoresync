@@ -87,6 +87,38 @@ Exact paths are implementation-owned by PRD0062 Packet 1 and Packet 0 findings, 
 
 Every new RTDB node, Firestore collection, R2/Worker path, route, notification, and observable action needs rules, indexes where needed, backup coverage where needed, and tests before implementation can close.
 
+### Public Books Catalog Data Owner
+
+`StudentLibraryPage` owns the dedicated Books tab through `usePublicBookCatalog`;
+`StudentPublicBooksPanel` only renders summaries and dispatches navigation/actions.
+The dataset is separate from the generic material tabs and shared right-rail data.
+Its only list read is `material_catalog/public_book_readiness`, ordered by
+`updatedAt` with a 12-row page plus one sentinel and an exact timestamp/Book-key
+cursor. Firebase snapshot iteration order is authoritative for equal timestamps.
+Cards do not read or enrich canonical Books, sources, publications, or entitlement
+details. Identity-keyed cached rows remain visible while revisits refresh; late
+responses from a previous identity are discarded. Mount, tab selection and retry
+never repair persistent readiness.
+
+Canonical publication/moderation writers maintain this derived safe index.
+Publication transitions clear readiness before pointer CAS, then refresh after
+commit or owning replay; visibility-only moderation preserves the content
+revision and clears readiness atomically. Approval explicitly refreshes through
+authenticated owner/admin authority. A committed approval with a failed refresh
+is announced as approved with availability unavailable. Launch reauthorizes live
+publication/source/document pins and creates an authenticated Public entitlement;
+the catalog row alone is never delivery authority. External privileged deletion
+can leave stale catalog rows, so it cannot establish an always-current catalog
+claim. Public practice results remain private and ungraded.
+
+Focused hook/adapter tests cover bounded reads, Firebase tie ordering, retained
+refresh and identity changes. Browser proof must additionally exercise the real
+Books tab, launch, PDF, autosave/submission and Results; substituted external
+transports qualify that evidence as local integration. These requirements do not
+claim lane acceptance or deployed state. Student host ownership and refresh rules
+follow `documentation/rules/student-data-loading.md` and shell composition follows
+`documentation/architecture/student-shell-right-rail-architecture.md`.
+
 ## Source PDF Delivery
 
 Book Activity must deliver only authorized page excerpts for the current Unit or delivery context.
@@ -106,6 +138,8 @@ Forbidden:
 - using screenshot/browser proof as substitute for security, rules, or Worker authorization tests.
 
 ## Runtime Boundary
+
+The student Book Runtime visual authority is the user-approved [D2 mockup amendment](../tasks/PRD0062/component-pdf-recovery-execution-plan-2026-09-14.md) and [cleanroom reference](../mockups/prd0062-student-book-runtime-cleanroom-prd0063.html). Its warm outlined appearance, stacked page-mapped Activity cards, physical-page navigation, splitter, question flags, native submission confirmation, and compact countdown override conflicting general student visual guidance for this Runtime surface only. Delivery, persistence, submission, integrity, and read-only teacher preview authority remain owned by their existing Book contracts.
 
 `StudentPracticePage` remains the shared asynchronous launcher pattern. Book may add one thin dispatch branch, then hand off to Book-owned delivery/runtime modules.
 
@@ -204,3 +238,7 @@ approved PRD0062b source-delivery contract. Authorization, entitlement,
 revocation, reload safety, range behavior, and negative security checks remain
 active acceptance obligations; this authority correction does not close those
 gates or promote local evidence to deployed proof.
+
+## Gate 0 Reference Boundary — 2026-09-14
+
+The [Gate 0 decision](../tasks/PRD0062b/approval-record-2026-09-14-component-combination-gate-0.md) is dormant authority only. It does not close taskboxes or claim implementation, browser, Worker, emulator, deployment, or protected-state proof. Apply it with the [reconciliation ledger](../tasks/PRD0062b/reconciliation-ledger.md), [traceability](../tasks/PRD0062b/traceability-book-activity-v1.md), and [packet-exit contract](../tasks/PRD0062b/tasks-book-activity-master-orchestration.md#packet-exit-contract).

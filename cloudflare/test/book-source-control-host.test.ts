@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBookSourceControlHost } from '../src/book-source-worker/control-host';
+import { createBookSourceControlHost, dispatchBookSourceControlRequest } from '../src/book-source-worker/control-host';
 
 const env = {
   FIREBASE_PROJECT_ID: 'project',
@@ -54,7 +54,7 @@ describe('book source control host', () => {
     const host = createBookSourceControlHost({ service, verifier });
     const response = await host.fetch(post(
       '/v1/book-source/books/book-1/upload/begin',
-      { operationId, sourceKey: 'source-1', kind: 'initial', inspection },
+       { operationId, sourceKey: 'source-1', kind: 'initial', purpose: 'book-source', inspection },
       { 'idempotency-key': operationId },
     ), env);
 
@@ -64,45 +64,57 @@ describe('book source control host', () => {
       actorId: 'teacher-1',
       bookId: 'book-1',
       idempotencyKey: operationId,
-      sourceKey: 'source-1',
-      kind: 'initial',
-      claim: inspection,
+       sourceKey: 'source-1',
+       kind: 'initial',
+       purpose: 'book-source',
+       claim: inspection,
     });
   });
 
   it('keeps completion available independently and binds route identity', async () => {
+    const operationId = '11111111-1111-4111-8111-111111111111';
     const service = {
       begin: vi.fn(),
       complete: vi.fn(async () => ({
-        status: 'verified_completed' as const,
-        reservationId: 'reservation-1',
-        sourceVersionId: 'source-version-1',
+         status: 'verified_completed' as const,
+         reservationId: 'reservation-1',
+         sourceVersionId: 'source-version-1',
+         checksum: { algorithm: 'sha-256' as const, value: inspection.sha256Hex },
       })),
     };
-    const host = createBookSourceControlHost({ service, verifier });
-    const response = await host.fetch(post(
+    const dispatched = await dispatchBookSourceControlRequest({ request: post(
       '/v1/book-source/books/book-1/upload/reservation-1/complete',
-      { providerFileId: 'file-1', providerFileVersionId: 'version-1' },
-    ), env);
+      { operationId }, { 'idempotency-key': operationId },
+    ), uid: 'teacher-1', route: { action: 'complete', bookId: 'book-1', reservationId: 'reservation-1' },
+      service, executionContext: { waitUntil: vi.fn() } as unknown as ExecutionContext });
+    const response = new Response(JSON.stringify(dispatched.body), dispatched.init);
 
     expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      status: 'verified_completed',
+      reservationId: 'reservation-1',
+      sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: inspection.sha256Hex },
+    });
     expect(service.begin).not.toHaveBeenCalled();
     expect(service.complete).toHaveBeenCalledWith({
       actorId: 'teacher-1',
       bookId: 'book-1',
       reservationId: 'reservation-1',
-      providerFileId: 'file-1',
-      providerFileVersionId: 'version-1',
-    });
+      operationId,
+    }, expect.objectContaining({ deferCleanup: expect.any(Function) }));
   });
 
   it('serves only the owner-scoped trusted source projection for resume', async () => {
     const sources = [{
       sourceKey: 'full',
-      sourceVersionId: 'source-version-1',
-      bookId: 'book-1',
-      physicalPageCount: 14,
-      verifiedUsable: true,
+       sourceVersionId: 'source-version-1',
+       bookId: 'book-1',
+       checksum: { algorithm: 'sha-256' as const, value: inspection.sha256Hex },
+       physicalPageCount: 14,
+       verifiedUsable: true,
+       purpose: 'book-source' as const,
+       studentSafeStatus: 'unreviewed' as const,
     }];
     const service = {
       begin: vi.fn(),
@@ -118,6 +130,157 @@ describe('book source control host', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ sources });
     expect(service.sources).toHaveBeenCalledWith({ actorId: 'teacher-1', bookId: 'book-1' });
+  });
+
+  it.each([
+    ['missing operation id', { studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed' }, {}, 400],
+    ['invalid operation id', { operationId: 'not-a-uuid', studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed' }, { 'idempotency-key': 'not-a-uuid' }, 400],
+    ['mismatched idempotency key', { operationId: '11111111-1111-4111-8111-111111111111', studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed' }, { 'idempotency-key': '22222222-2222-4222-8222-222222222222' }, 409],
+  ])('rejects %s safety decision request', async (_label, body, headers, status) => {
+    const service = { begin: vi.fn(), complete: vi.fn(), decideStudentSafeSource: vi.fn() };
+    const host = createBookSourceControlHost({ service, verifier });
+    const response = await host.fetch(post(
+      '/v1/book-source/books/book-1/upload/reservation-1/student-safe/decide',
+      body,
+      headers,
+    ), env);
+
+    expect(response.status).toBe(status);
+    expect(service.decideStudentSafeSource).not.toHaveBeenCalled();
+  });
+
+  it.each(['book-source', 'student-document'] as const)('passes the validated %s decision operation identity and returns the persisted decision projection', async (purpose) => {
+    const operationId = '11111111-1111-4111-8111-111111111111';
+    const service = {
+      begin: vi.fn(),
+      complete: vi.fn(),
+      decideStudentSafeSource: vi.fn(async () => ({
+        status: 'verified_completed' as const,
+        reservationId: 'reservation-1',
+        sourceVersionId: 'source-version-1',
+        checksum: { algorithm: 'sha-256' as const, value: inspection.sha256Hex },
+        purpose,
+        studentSafeStatus: 'ready' as const,
+        studentSafeDecision: {
+          decidedBy: 'teacher-1',
+          decidedAt: '2026-08-11T00:02:00.000Z',
+          sourceVersionId: 'source-version-1',
+          sha256Hex: inspection.sha256Hex,
+          reasonCode: 'teacher-reviewed' as const,
+        },
+      })),
+    };
+    const host = createBookSourceControlHost({ service, verifier });
+    const response = await host.fetch(post(
+      '/v1/book-source/books/book-1/upload/reservation-1/student-safe/decide',
+      { operationId, studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed' },
+      { 'idempotency-key': operationId },
+    ), env);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ purpose, studentSafeStatus: 'ready',
+      studentSafeDecision: { decidedBy: 'teacher-1', sourceVersionId: 'source-version-1', sha256Hex: inspection.sha256Hex } });
+    expect(service.decideStudentSafeSource).toHaveBeenCalledWith({
+      actorId: 'teacher-1',
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      operationId,
+      studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    });
+  });
+
+  it.each(['unknown-purpose', undefined])('denies malformed returned safety purpose %s', async (purpose) => {
+    const operationId = '11111111-1111-4111-8111-111111111111';
+    const service = { begin: vi.fn(), complete: vi.fn(), decideStudentSafeSource: vi.fn(async () => ({
+      status: 'verified_completed', reservationId: 'reservation-1', sourceVersionId: 'source-version-1',
+      checksum: { algorithm: 'sha-256', value: inspection.sha256Hex }, purpose, studentSafeStatus: 'ready',
+      studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z',
+        sourceVersionId: 'source-version-1', sha256Hex: inspection.sha256Hex, reasonCode: 'teacher-reviewed' },
+    })) };
+    const response = await createBookSourceControlHost({ service: service as never, verifier }).fetch(post(
+      '/v1/book-source/books/book-1/upload/reservation-1/student-safe/decide',
+      { operationId, studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed' }, { 'idempotency-key': operationId },
+    ), env);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: 'student_safe_decision_conflict' });
+  });
+
+  it.each([
+    ['component count 1', {
+      sourceStrategy: 'component_pdfs',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' }],
+    }],
+    ['component count 21', {
+      sourceStrategy: 'component_pdfs',
+      sources: Array.from({ length: 21 }, (_, index) => ({
+        sourceKey: `source-${index + 1}`,
+        sourceVersionId: `version-${index + 1}`,
+        sourceOrder: index + 1,
+        ownerNodeKey: 'section-1',
+      })),
+    }],
+    ['component order gap', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 3, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component duplicate source key', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'a', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component duplicate source version', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component reordered orders', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['full PDF with zero sources', { sourceStrategy: 'full_pdf', sources: [] }],
+    ['full PDF with two sources', {
+      sourceStrategy: 'full_pdf',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2 },
+      ],
+    }],
+    ['full PDF with non-one order', {
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2 }],
+    }],
+  ])('rejects %s Source Set without normalization', async (_label, sourceSet) => {
+    const operationId = '11111111-1111-4111-8111-111111111111';
+    const service = {
+      begin: vi.fn(),
+      complete: vi.fn(),
+      attachSourceSet: vi.fn(),
+    };
+    const host = createBookSourceControlHost({ service, verifier });
+    const response = await host.fetch(post(
+      '/v1/book-source/books/book-1/source-set/attach',
+      {
+        operationId,
+        expectedBookRevision: 0,
+        expectedSourceSetRevision: 0,
+        sourceSet,
+      },
+      { 'idempotency-key': operationId },
+    ), env);
+
+    expect(response.status).toBe(400);
+    expect(service.attachSourceSet).not.toHaveBeenCalled();
   });
 
   it('rejects unauthenticated, oversized, non-json, extra-key, and idempotency mismatches', async () => {
@@ -146,14 +309,14 @@ describe('book source control host', () => {
     const operationId = '11111111-1111-4111-8111-111111111111';
     const extra = post(
       '/v1/book-source/books/book-1/upload/begin',
-      { operationId, sourceKey: 'source-1', kind: 'initial', inspection, bytes: '%PDF' },
+       { operationId, sourceKey: 'source-1', kind: 'initial', purpose: 'book-source', inspection, bytes: '%PDF' },
       { 'idempotency-key': operationId },
     );
     expect((await host.fetch(extra, env)).status).toBe(400);
 
     const mismatch = post(
       '/v1/book-source/books/book-1/upload/begin',
-      { operationId, sourceKey: 'source-1', kind: 'initial', inspection },
+       { operationId, sourceKey: 'source-1', kind: 'initial', purpose: 'book-source', inspection },
       { 'idempotency-key': '22222222-2222-4222-8222-222222222222' },
     );
     expect((await host.fetch(mismatch, env)).status).toBe(409);
@@ -173,7 +336,7 @@ describe('book source control host', () => {
     const operationId = '11111111-1111-4111-8111-111111111111';
     const request = post(
       '/v1/book-source/books/book-1/upload/begin',
-      { operationId, sourceKey: 'source-1', kind: 'initial', inspection },
+       { operationId, sourceKey: 'source-1', kind: 'initial', purpose: 'book-source', inspection },
       { 'idempotency-key': operationId, origin: 'https://evil.example' },
     );
     const response = await host.fetch(request, env);

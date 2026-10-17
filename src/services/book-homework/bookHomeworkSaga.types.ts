@@ -48,6 +48,8 @@ export interface BookHomeworkSagaRecord {
   readonly publicationId: string;
   readonly publicationRevision: number;
   readonly contextId: string;
+  readonly studentDocument?: NonNullable<BookHomeworkManifest['studentDocument']>;
+  readonly targetPreview?: NonNullable<BookHomeworkManifest['targetPreview']>;
   readonly presentation: BookHomeworkSagaPresentation;
   readonly fingerprint: string;
   readonly requestFingerprint: string;
@@ -81,6 +83,12 @@ export interface BookHomeworkSagaCanonicalState {
     readonly fingerprint: string;
   };
   readonly deliveryPublication: BookDeliveryPublishedPublicationReference;
+  readonly studentDocumentComponents?: readonly {
+    readonly sourceKey: string;
+    readonly sourceVersionId: string;
+    readonly combinedStartPage: number;
+    readonly localPageCount: number;
+  }[];
   readonly sourceReadiness: 'ready';
   readonly exposureApproval: {
     readonly approved: boolean;
@@ -93,9 +101,14 @@ export interface BookHomeworkSagaCanonicalState {
     readonly policyId: string;
     readonly policyRevision: number;
     readonly fingerprint: string;
+    readonly intent?: 'accountable' | 'practice';
+    readonly integrityDefault?: boolean;
+    readonly integrityOverride?: boolean;
+    readonly integrityEffective?: boolean;
     readonly activityPolicies: Readonly<Record<string, {
       readonly lateSubmissionAllowed: boolean;
       readonly maxAttempts: number | null;
+      readonly feedbackRelease?: 'immediate' | 'after_completion' | 'after_deadline' | 'never' | 'manual';
     }>>;
   };
 }
@@ -157,6 +170,12 @@ export interface BookHomeworkSagaAssignmentIntent {
     readonly publicationRevision: number;
     readonly manifestVersionId: string;
   };
+  readonly expectedStudentDocument?: {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly sha256Hex: string;
+  };
+  readonly expectedPreviewFingerprint?: string;
   readonly presentation: BookHomeworkSagaPresentation;
 }
 

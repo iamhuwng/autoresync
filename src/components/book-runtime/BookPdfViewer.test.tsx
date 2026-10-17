@@ -309,6 +309,25 @@ describe('BookPdfViewer', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('reports PDF.js load failures without exposing raw error details', async () => {
+    const fakeTransport = transport();
+    vi.mocked(getDocument).mockImplementation(() => ({
+      promise: Promise.reject(Object.assign(new Error('xref offset 395 at private route'), {
+        name: 'InvalidPDFException',
+      })),
+      destroy: vi.fn(async () => undefined),
+    }));
+
+    render(<BookPdfViewer documentTitle="Invalid PDF" transport={fakeTransport} />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(
+      'The PDF document is invalid or damaged.',
+    ));
+    expect(screen.getByRole('alert')).toHaveAttribute('data-error-code', 'pdf_document_invalid');
+    expect(document.body).not.toHaveTextContent('xref offset');
+    expect(document.body).not.toHaveTextContent('private route');
+  });
+
   it('shows source-revoked copy without exposing route or token details', async () => {
     const failingTransport = {
       head: vi.fn(async () => {

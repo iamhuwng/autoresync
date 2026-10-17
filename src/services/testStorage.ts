@@ -356,6 +356,9 @@ export const saveTestToFirebase = async (
       if (question.wordLimit !== undefined && question.wordLimit > 0) {
         formatted.wordLimit = question.wordLimit;
       }
+      if (question.imageUrl) {
+        formatted.imageUrl = question.imageUrl;
+      }
       if ((question as any).sectionInstructionId) {
         formatted.sectionInstructionId = (question as any).sectionInstructionId;
       }

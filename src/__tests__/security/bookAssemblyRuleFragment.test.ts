@@ -9,6 +9,8 @@ describe('Book Assembly RTDB rule fragment', () => {
       'book_assembly/.write',
       'book_assembly/books/$bookId/.read',
       'book_assembly/books/$bookId/.write',
+      'book_assembly/books/$bookId/units/.read',
+      'book_assembly/books/$bookId/units/.write',
       'book_assembly/books/$bookId/units/$unitKey/.read',
       'book_assembly/books/$bookId/units/$unitKey/.write',
     ]);
@@ -24,6 +26,7 @@ describe('Book Assembly RTDB rule fragment', () => {
     expect(fragment.owner.serviceIdentity).toBe('book_assembly_service');
     expect(fragment.owner.leastPrivilegePaths).toEqual([
       'users/$ownerId',
+      'book_assembly/books/$bookId/units',
       'book_assembly/books/$bookId/units/$unitKey',
     ]);
     const scoped = fragment.operations.filter((operation) => (
@@ -38,5 +41,10 @@ describe('Book Assembly RTDB rule fragment', () => {
       && operation.expression.includes('book_assembly_ownerId')
       && !operation.expression.includes('candidateId')
     ))).toBe(true);
+    const discovery = fragment.operations.filter((operation) => operation.path === 'book_assembly/books/$bookId/units');
+    expect(discovery).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: '.read', expression: expect.stringContaining('book_assembly_draft_discovery_service') }),
+      expect.objectContaining({ rule: '.write', expression: 'false' }),
+    ]));
   });
 });

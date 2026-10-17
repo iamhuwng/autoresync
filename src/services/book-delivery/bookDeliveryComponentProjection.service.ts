@@ -1,4 +1,4 @@
-import type { BookRuntimeProjection } from './bookDelivery.types';
+import type { BookRuntimeDeliveryDocumentRequest, BookRuntimeProjection } from './bookDelivery.types';
 import type {
   BookDeliveryComponentDescriptor,
   BookDeliveryComponentProjection,
@@ -14,6 +14,11 @@ const validRouteKey = (value: unknown): value is string => typeof value === 'str
 const positiveInteger = (value: unknown): value is number => (
   typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 );
+const sourceRequests = (projection: BookRuntimeProjection): BookRuntimeDeliveryDocumentRequest[] => {
+  const requests: readonly BookRuntimeProjection['documentRequests'][number][] = projection.documentRequests;
+  return requests.filter((request): request is BookRuntimeDeliveryDocumentRequest =>
+    'sourceKey' in request && 'sourceVersionId' in request && 'localPageScope' in request);
+};
 
 export class BookDeliveryComponentProjectionError extends Error {
   constructor(readonly errors: readonly BookDeliveryComponentProjectionValidationError[]) {
@@ -33,9 +38,12 @@ const error = (
 const sourceRequestMap = (
   projection: BookRuntimeProjection,
   errors: BookDeliveryComponentProjectionValidationError[],
-): Map<string, BookRuntimeProjection['documentRequests'][number]> => {
-  const requests = new Map<string, BookRuntimeProjection['documentRequests'][number]>();
-  projection.documentRequests.forEach((request, index) => {
+): Map<string, BookRuntimeDeliveryDocumentRequest> => {
+  const requests = new Map<string, BookRuntimeDeliveryDocumentRequest>();
+  if (sourceRequests(projection).length !== projection.documentRequests.length) {
+    error(errors, 'documentRequests', 'Component-source viewer cannot consume a student document request.');
+  }
+  sourceRequests(projection).forEach((request, index) => {
     const path = `documentRequests[${index}]`;
     if (!validId(request.sourceKey)) error(errors, `${path}.sourceKey`, 'Source key is invalid.');
     if (!validId(request.sourceVersionId)) error(errors, `${path}.sourceVersionId`, 'Source Version is invalid.');
@@ -134,11 +142,11 @@ export const createBookDeliveryComponentProjection = (
     return Object.freeze({
       strategy: 'full_pdf' as const,
       components: Object.freeze([]),
-      fullPdfRequest: projection.documentRequests[0] ?? null,
+      fullPdfRequest: sourceRequests(projection)[0] ?? null,
     });
   }
 
-  const requests = new Map(projection.documentRequests.map((request) => [request.sourceKey, request]));
+  const requests = new Map(sourceRequests(projection).map((request) => [request.sourceKey, request]));
   const placements = sortedActivities(projection);
   const components = [...projection.sourceSet.sources]
     .sort((left, right) => left.sourceOrder! - right.sourceOrder! || left.sourceKey.localeCompare(right.sourceKey))

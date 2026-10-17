@@ -3,7 +3,6 @@ import type {
   BookResultAttemptSummary as ProjectedBookResultAttemptSummary,
   BookResultGroupSummary as ProjectedBookResultGroupSummary,
   BookResultFeedbackRelease as ProjectedFeedbackRelease,
-  BookResultProjection as ProjectedBookResult,
   BookResultScore,
   BookResultSourceAvailability,
   BookResultSourceProjection,
@@ -18,7 +17,7 @@ export { bookResultGroupKey };
  * a browser.  Keeping the two types separate makes it difficult to leak an
  * answer key, private source authority, or storage identity by accident.
  */
-export type BookResultContextKind = 'solo' | 'homework';
+export type BookResultContextKind = 'solo' | 'public' | 'homework' | 'course' | 'class';
 export type BookResultFeedbackRelease = ProjectedFeedbackRelease;
 export type BookResultSafeScore = BookResultScore;
 export type BookResultSourceState = BookResultSourceAvailability;
@@ -31,12 +30,6 @@ export type BookResultAttemptSummary = ProjectedBookResultAttemptSummary & {
   readonly bookId: string;
 };
 export type BookResultDetail = ProjectedBookResultDetail & { readonly bookId: string };
-export interface BookResultReadProjection {
-  readonly schemaVersion: ProjectedBookResult['schemaVersion'];
-  readonly bookId: string;
-  readonly summary: BookResultAttemptSummary;
-  readonly detail: BookResultDetail;
-}
 
 /** Indexed group row. It intentionally contains no attempt/detail payload. */
 export interface BookResultGroupSummary {
@@ -66,11 +59,6 @@ export interface BookResultGroupSummary {
 /** Group detail is assembled from one indexed attempt query; no detail rows are fetched. */
 export type BookResultGroupDetail = ProjectedBookResultGroupSummary;
 
-/** Input accepted by the projection persistence seam. */
-export interface BookResultProjectionInput {
-  readonly projection: BookResultReadProjection;
-}
-
 export type BookResultViewerRole = 'student' | 'teacher';
 
 export interface BookResultViewer {
@@ -80,8 +68,9 @@ export interface BookResultViewer {
 
 export interface BookHomeworkReadAuthority {
   readonly homeworkId: string;
+  readonly bookId: string;
   readonly ownerId: string;
-  readonly studentIds?: readonly string[];
+  readonly studentIds: readonly string[];
   /** Only `current` authority can authorize a teacher result read. */
   readonly status: 'current' | 'replaced' | 'archived' | 'unresolved';
 }
@@ -91,6 +80,15 @@ export interface BookResultReadScope {
   readonly studentId: string;
   readonly homeworkId?: string;
   readonly contextKind?: BookResultContextKind;
+  readonly contextId?: string;
+}
+
+export interface BookResultContextReadAuthority {
+  readonly contextKind: 'public' | 'course' | 'class';
+  readonly contextId: string;
+  readonly bookId: string;
+  readonly studentId: string;
+  readonly ownerId: string;
 }
 
 export interface BookResultQueryInput extends BookResultReadScope {
@@ -99,7 +97,7 @@ export interface BookResultQueryInput extends BookResultReadScope {
 }
 
 export interface BookResultQueryEvent {
-  readonly operation: 'groups' | 'attempts' | 'detail' | 'persist';
+  readonly operation: 'groups' | 'attempts' | 'detail';
   readonly path: string;
   readonly rows: number;
   readonly limit: number;
@@ -109,7 +107,6 @@ export interface BookResultQueryMetrics {
   readonly groups: number;
   readonly attempts: number;
   readonly details: number;
-  readonly persists: number;
   readonly events: readonly BookResultQueryEvent[];
 }
 

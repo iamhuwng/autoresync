@@ -30,6 +30,7 @@ const releaseClaims: CourseBookAuthority102ReleaseClaims = {
 
 describe('FirebaseRtdbRestClient multi-location patch', () => {
   it('uses one scoped Firebase Auth PATCH at the root', async () => {
+    const operationId = 'action-1:homework:placement-1:regrade-objective';
     const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response('{}', { status: 200 }));
     const client = new FirebaseRtdbRestClient({
       env: { FIREBASE_DB_URL: 'https://database.example.test' },
@@ -40,7 +41,7 @@ describe('FirebaseRtdbRestClient multi-location patch', () => {
     });
     await client.patchMultiLocation([
       { path: 'course_book_authority/releases/course-1/module-1/student-1', value: { revision: 1 } },
-      { path: 'course_book_authority/operations/op-1', value: { operation: 'release-transition' } },
+      { path: `course_book_authority/operations/${operationId}`, value: { operation: 'release-transition' } },
     ]);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0]!;
@@ -49,7 +50,7 @@ describe('FirebaseRtdbRestClient multi-location patch', () => {
     expect(init?.headers).not.toHaveProperty('Authorization');
     expect(JSON.parse(String(init?.body))).toEqual({
       'course_book_authority/releases/course-1/module-1/student-1': { revision: 1 },
-      'course_book_authority/operations/op-1': { operation: 'release-transition' },
+      [`course_book_authority/operations/${operationId}`]: { operation: 'release-transition' },
     });
   });
 
@@ -63,9 +64,10 @@ describe('FirebaseRtdbRestClient multi-location patch', () => {
     await expect(noScope.patchMultiLocation(updates))
       .rejects.toThrow('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
 
+    const failedFetch = vi.fn(async () => new Response('', { status: 403 }));
     const failed = new FirebaseRtdbRestClient({
       env: { FIREBASE_DB_URL: 'https://database.example.test' },
-      fetchImpl: vi.fn(async () => new Response('', { status: 403 })) as typeof fetch,
+      fetchImpl: failedFetch as typeof fetch,
       getFirebaseAuthToken: async () => 'scoped-token',
       firebaseAuthToken: true,
     });
@@ -82,6 +84,15 @@ describe('FirebaseRtdbRestClient multi-location patch', () => {
       .rejects.toThrow('firebase_rtdb_multi_location_patch_transport_failed');
     await expect(failed.patchMultiLocation([{ path: 'a', value: 1 }, { path: 'a/b', value: 2 }]))
       .rejects.toThrow('firebase_rtdb_multi_location_patch_invalid');
+    for (const path of ['', '/a', 'a/', 'a//b', 'a.b', 'a#b', 'a$b', 'a[b', 'a]b', 'a b', 'a@b', 'a'.repeat(161)]) {
+      await expect(failed.patchMultiLocation([{ path, value: 1 }, { path: 'safe/base', value: 2 }]))
+        .rejects.toThrow('firebase_rtdb_multi_location_patch_invalid');
+    }
+    await expect(failed.patchMultiLocation([{ path: 'a:b', value: 1 }, { path: 'a:b', value: 2 }]))
+      .rejects.toThrow('firebase_rtdb_multi_location_patch_invalid');
+    await expect(failed.patchMultiLocation([{ path: 'a:b/c', value: 1 }, { path: 'a:b', value: 2 }]))
+      .rejects.toThrow('firebase_rtdb_multi_location_patch_invalid');
+    expect(failedFetch).toHaveBeenCalledTimes(1);
   });
 
   it('mints exact discriminated enrollment and release claims with separate cache entries', async () => {
@@ -121,6 +132,20 @@ describe('FirebaseRtdbRestClient multi-location patch', () => {
       'actorUid', 'courseBookAuthority102', 'courseId', 'expectedReleaseRevision',
       'moduleId', 'operation', 'operationId', 'studentId',
     ]);
+    const placementClaims = {
+      operation: 'placement-transition', action: 'create', actorUid: 'teacher-001', courseId: 'course-001',
+      moduleId: 'module-001', courseMaterialId: 'material-001', operationId: '00000000-0000-4000-8000-000000000210',
+      expectedPlacementRevision: 0, nextPlacementRevision: 1, fingerprint: 'a'.repeat(64),
+    } as const;
+    await expect(tokenFor(placementClaims)).resolves.toBe('course-102-scoped-id-token');
+    const placementToken = await jwtVerify(customTokens[2]!, publicKey, {
+      issuer: 'course-102@example.test', subject: 'course-102@example.test',
+      audience: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+      algorithms: ['RS256'], currentDate: new Date(1_784_000_000_000),
+    });
+    expect(placementToken.payload.claims).toEqual({ courseBookAuthority102: true, ...placementClaims });
+    await expect(tokenFor({ ...placementClaims, nextPlacementRevision: 3 })).rejects.toThrow('invalid_course_book_authority_102_claims');
+    expect(exchange).toHaveBeenCalledTimes(3);
   });
 
   it('rejects malformed or extra claims before token exchange', async () => {

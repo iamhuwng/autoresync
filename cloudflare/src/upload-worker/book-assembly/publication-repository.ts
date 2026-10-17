@@ -18,6 +18,10 @@ import {
 import {
   createBookAssemblyPublicationAuditRecord,
 } from '../../../../src/services/book-assembly/publicationAudit.service.ts';
+import {
+  createComponentStudentDocument,
+  type ComponentStudentDocument,
+} from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
 
 export const BOOK_ASSEMBLY_PUBLICATION_ROOT = 'book_assembly_publications/books';
 
@@ -92,7 +96,24 @@ const hydrateOmittedManifestNodeParents = (value: unknown): unknown => {
     changed = true;
     return { ...node, parentNodeKey: null };
   });
-  return changed ? { ...value, manifest: { ...value.manifest, nodes } } : value;
+  const manifest = hydrateReferenceOnlyGroups(changed ? { ...value.manifest, nodes } : value.manifest);
+  const studentSafeProjection = hydrateReferenceOnlyGroups(value.studentSafeProjection);
+  return manifest !== value.manifest || studentSafeProjection !== value.studentSafeProjection
+    ? { ...value, manifest, ...(studentSafeProjection === undefined ? {} : { studentSafeProjection }) } : value;
+};
+const hydrateReferenceOnlyGroups = (value: unknown): unknown => {
+  if (!isRecord(value) || !Array.isArray(value.units)) return value;
+  let changed = false;
+  const units = value.units.map((unit) => {
+    if (!isRecord(unit) || !Array.isArray(unit.pageGroups)) return unit;
+    const pageGroups = unit.pageGroups.map((group) => {
+      if (!isRecord(group) || group.mode !== 'reference_only' || 'activityKeys' in group) return group;
+      changed = true;
+      return { ...group, activityKeys: [] };
+    });
+    return { ...unit, pageGroups };
+  });
+  return changed ? { ...value, units } : value;
 };
 const hydrateFamily = (
   value: unknown,
@@ -178,6 +199,7 @@ type PublicationFamily =
   | 'placements'
   | 'unitProjections'
   | 'deliveryPlans'
+  | 'studentDocuments'
   | 'audits';
 
 const SOURCE_SET_KEYS = new Set(['sourceStrategy', 'sources']);
@@ -316,6 +338,19 @@ const STORED_RECORD_KEYS: Record<PublicationFamily, ReadonlySet<string>> = {
     'createdByCommandId',
     'createdAt',
   ]),
+  studentDocuments: new Set([
+    'schemaVersion',
+    'logicalSourceKey',
+    'sourceVersionId',
+    'descriptorRevision',
+    'descriptorCasOwner',
+    'sha256Hex',
+    'byteSize',
+    'physicalPageCount',
+    'studentSafeStatus',
+    'compositionFingerprint',
+    'components',
+  ]),
   audits: new Set([
     'auditId',
     'operationId',
@@ -442,7 +477,9 @@ const unitStructures = (value: unknown): boolean => {
         && Array.isArray(group.pages)
         && group.pages.length > 0
         && group.pages.every((page) => safeIntegerAtLeast(page, 1))
-        && stringArray(group.activityKeys, 1)
+        && (group.mode === 'reference_only'
+          ? stringArray(group.activityKeys) && group.activityKeys.length === 0
+          : stringArray(group.activityKeys, 1))
         && ['activity', 'reference_only'].includes(String(group.mode))
         && (group.defaultPhysicalPageNumber === undefined
           || safeIntegerAtLeast(group.defaultPhysicalPageNumber, 1));
@@ -510,14 +547,16 @@ const assertStoredRecord = (
       String(value.activityVersionId ?? ''),
     )
     : value[keyField];
-  if (expectedKey !== key || value.bookId !== bookId || typeof value.ownerId !== 'string') {
+  if (expectedKey !== key || (family !== 'studentDocuments' && value.bookId !== bookId)
+    || (family !== 'studentDocuments' && typeof value.ownerId !== 'string')) {
     throw new Error('invalid_book_assembly_publication_record');
   }
-  assertPathId(value.ownerId, 'invalid_book_assembly_publication_owner_id');
-  if ((family !== 'audits' && value.schemaVersion !== 1)
-    || !nonEmptyString(value.manifestVersionId)
-    || !nonEmptyString(value.publicationId)
-    || !safeIntegerAtLeast(value.publicationRevision, 1)) {
+  if (family !== 'studentDocuments') assertPathId(value.ownerId, 'invalid_book_assembly_publication_owner_id');
+  if (family !== 'audits' && family !== 'studentDocuments'
+    && (value.schemaVersion !== 1
+      || !nonEmptyString(value.manifestVersionId)
+      || !nonEmptyString(value.publicationId)
+      || !safeIntegerAtLeast(value.publicationRevision, 1))) {
     throw new Error('invalid_book_assembly_publication_record');
   }
   if (family === 'versions') {
@@ -543,6 +582,15 @@ const assertStoredRecord = (
     }
   }
   switch (family) {
+    case 'studentDocuments': {
+      try {
+        const descriptor = createComponentStudentDocument(value);
+        if (descriptor.sourceVersionId !== key) throw new Error('invalid_source_version_id');
+      } catch {
+        throw new Error('invalid_book_assembly_publication_record');
+      }
+      break;
+    }
     case 'versions':
       if (value.lifecycle !== 'published'
         || !strategy(value.strategy)
@@ -762,6 +810,7 @@ const validateScope = <Result>(
     'placements',
     'unitProjections',
     'deliveryPlans',
+    'studentDocuments',
     'current',
     'operations',
     'audits',
@@ -778,6 +827,9 @@ const validateScope = <Result>(
     placements: parseFamily(value.placements, bookId, 'placementId', 'placements'),
     unitProjections: parseFamily(value.unitProjections, bookId, 'unitProjectionId', 'unitProjections'),
     deliveryPlans: parseFamily(value.deliveryPlans, bookId, 'deliveryPlanId', 'deliveryPlans'),
+    studentDocuments: parseFamily(
+      value.studentDocuments, bookId, 'sourceVersionId', 'studentDocuments',
+    ) as Record<string, ComponentStudentDocument> | undefined,
     current: parseCurrent(value.current),
     operations: parseOperations<Result>(value.operations, bookId),
     audits: parseFamily(value.audits, bookId, 'auditId', 'audits'),
@@ -800,6 +852,7 @@ const parseScope = <Result>(
     'placements',
     'unit_projections',
     'delivery_plans',
+    'student_documents',
     'current',
     'operations',
     'audits',
@@ -814,6 +867,7 @@ const parseScope = <Result>(
     placements: value.placements,
     unitProjections: value.unit_projections,
     deliveryPlans: value.delivery_plans,
+    studentDocuments: value.student_documents,
     current: value.current,
     operations: value.operations,
     audits: value.audits,
@@ -838,6 +892,7 @@ const serializeScope = <Result>(
     serialized.unit_projections = clone(parsed.unitProjections);
   }
   if (parsed.deliveryPlans !== undefined) serialized.delivery_plans = clone(parsed.deliveryPlans);
+  if (parsed.studentDocuments !== undefined) serialized.student_documents = clone(parsed.studentDocuments);
   if (parsed.current !== undefined) serialized.current = clone(parsed.current);
   if (parsed.operations !== undefined) serialized.operations = clone(parsed.operations);
   if (parsed.audits !== undefined) serialized.audits = clone(parsed.audits);
@@ -889,6 +944,8 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     readonly getFirebaseAuthToken?: (bookId: string, ownerId: string) => Promise<string>;
     /** Server-authenticated owner used by the production token provider. */
     readonly ownerId?: string;
+    readonly clearPublicReadiness?: (bookId: string, scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => Promise<void>;
+    readonly refreshPublicReadiness?: (bookId: string, scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>) => Promise<void>;
     maxRetries?: number;
   }) {
     const dedicatedIdentity = options.env.BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY?.trim();
@@ -1074,13 +1131,19 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       // the callback so immutable children are prepared before the pointer.
       const currentWire = serializeScope<BookAssemblyPublicationResult>(visible, bookId);
       const mutation = mutate(visible);
-      if (!mutation.write) return mutation.outcome;
+      if (!mutation.write) {
+        if (mutation.outcome && typeof mutation.outcome === 'object' && 'status' in mutation.outcome && mutation.outcome.status === 'replayed') {
+          await this.options.refreshPublicReadiness?.(bookId, visible);
+        }
+        return mutation.outcome;
+      }
       const nextScope = mutation.next ?? visible;
       const nextWire = serializeScope<BookAssemblyPublicationResult>(nextScope, bookId);
       await this.prepareImmutableDiff(bookId, currentWire, nextWire);
 
       const nextPointer = nextWire.current;
       if (stable(nextPointer) !== stable(currentWire.current)) {
+        await this.options.clearPublicReadiness?.(bookId, parseScope<BookAssemblyPublicationResult>(currentWire, bookId));
         if (!await this.rtdb.writeIfMatch(
           childPath(bookId, 'current'),
           nextPointer,
@@ -1090,6 +1153,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
         }
       }
       await this.prepareMarkerDiff(bookId, currentWire, nextWire);
+      await this.options.refreshPublicReadiness?.(bookId, nextScope);
       return mutation.outcome;
     }
     throw new Error('book_assembly_publication_pointer_cas_retries_exhausted');
@@ -1187,6 +1251,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       'placements',
       'unit_projections',
       'delivery_plans',
+      'student_documents',
     ]);
   }
 

@@ -12,6 +12,7 @@ import type {
 export const BOOK_ASSEMBLY_ROOT = 'book_assembly/books';
 const MAX_RETRIES = 5;
 export const BOOK_ASSEMBLY_MAX_CANDIDATES_PER_SCOPE = 32;
+export const BOOK_ASSEMBLY_MAX_DRAFT_UNITS = 32;
 const MAX_OPERATIONS_PER_SCOPE = 32;
 const MAX_SCOPE_BYTES = 2 * 1024 * 1024;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -20,6 +21,7 @@ const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 export interface BookAssemblyRepositoryEnv extends RepositoryEnv {
   BOOK_ASSEMBLY_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_GOOGLE_SA_KEY?: string;
+  BOOK_ASSEMBLY_MUTATIONS_ENABLED?: string;
 }
 
 export interface BookAssemblyCurrentPointer {
@@ -44,10 +46,10 @@ export interface BookAssemblyScope {
 const clone = <T>(value: T): T => structuredClone(value);
 const bytes = (value: unknown): number =>
   new TextEncoder().encode(JSON.stringify(value)).byteLength;
-const assertId = (value: unknown, label: string): asserts value is string => {
+const assertId: (value: unknown, label: string) => asserts value is string = (value, label) => {
   if (typeof value !== 'string' || !ID.test(value)) throw new Error(`invalid_book_assembly_${label}`);
 };
-const assertOperationId = (value: unknown): asserts value is string => {
+const assertOperationId: (value: unknown) => asserts value is string = (value) => {
   if (typeof value !== 'string' || !OPERATION_ID.test(value)) {
     throw new Error('invalid_book_assembly_operation_id');
   }
@@ -57,10 +59,14 @@ const scopePath = (bookId: string, unitKey: string): string => {
   assertId(unitKey, 'unit_key');
   return `${BOOK_ASSEMBLY_ROOT}/${bookId}/units/${unitKey}`;
 };
+const unitParentPath = (bookId: string): string => {
+  assertId(bookId, 'book_id');
+  return `${BOOK_ASSEMBLY_ROOT}/${bookId}/units`;
+};
 
 /**
- * RTDB drops null object properties and empty arrays. Restore only the two
- * domain fields affected by that wire encoding while hydrating a scope.
+ * RTDB drops null object properties and empty arrays. Restore domain fields
+ * whose empty values are valid while hydrating a scope.
  */
 const hydrateCandidate = (value: unknown): unknown => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
@@ -70,16 +76,40 @@ const hydrateCandidate = (value: unknown): unknown => {
   if (manifest && typeof manifest === 'object' && !Array.isArray(manifest)) {
     const manifestRecord = manifest as Record<string, unknown>;
     const nodes = manifestRecord.nodes;
-    if (Array.isArray(nodes)) {
+    const units = manifestRecord.units;
+    if (Array.isArray(nodes) || Array.isArray(units)) {
       hydrated.manifest = {
         ...manifestRecord,
-        nodes: nodes.map((node) => {
-          if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
-          const nodeRecord = node as Record<string, unknown>;
-          return Object.hasOwn(nodeRecord, 'parentNodeKey')
-            ? nodeRecord
-            : { ...nodeRecord, parentNodeKey: null };
-        }),
+        ...(Array.isArray(nodes) ? {
+          nodes: nodes.map((node) => {
+            if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
+            const nodeRecord = node as Record<string, unknown>;
+            return Object.hasOwn(nodeRecord, 'parentNodeKey')
+              ? nodeRecord
+              : { ...nodeRecord, parentNodeKey: null };
+          }),
+        } : {}),
+        ...(Array.isArray(units) ? {
+          units: units.map((unit) => {
+            if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return unit;
+            const unitRecord = unit as Record<string, unknown>;
+            const pageGroups = unitRecord.pageGroups;
+            return {
+              ...unitRecord,
+              ...(unitRecord.activitySlots === undefined ? { activitySlots: [] } : {}),
+              ...(unitRecord.pageGroups === undefined ? { pageGroups: [] } : {}),
+              ...(Array.isArray(pageGroups) ? {
+                pageGroups: pageGroups.map((group) => {
+                  if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+                  const groupRecord = group as Record<string, unknown>;
+                  return groupRecord.activityKeys === undefined
+                    ? { ...groupRecord, activityKeys: [] }
+                    : groupRecord;
+                }),
+              } : {}),
+            };
+          }),
+        } : {}),
       };
     }
   }
@@ -215,7 +245,7 @@ const parseScope = (
       || typeof pointer.updatedAt !== 'string') {
       throw new Error('invalid_book_assembly_current_pointer');
     }
-    current = clone(pointer) as BookAssemblyCurrentPointer;
+    current = clone(pointer) as unknown as BookAssemblyCurrentPointer;
   }
   if (current && !candidates[current.candidateId]) {
     throw new Error('book_assembly_current_candidate_missing');
@@ -264,6 +294,10 @@ export class FirebaseRestBookAssemblyRepository {
         fetchImpl,
       });
       return async (request: FirebaseRtdbAuthRequest = { path: '' }): Promise<string> => {
+        const parent = /^book_assembly\/books\/([^/]+)\/units$/u.exec(request.path);
+        if (parent && ID.test(parent[1])) {
+          return provider({ service: 'book_assembly_draft_discovery', bookId: parent[1], ownerId });
+        }
         const scope = authScopeFromPath(request.path, ownerId);
         if (!scope) throw new Error('book_assembly_auth_scope_required');
         return provider({ service: 'book_assembly', ...scope, ownerId });
@@ -272,7 +306,8 @@ export class FirebaseRestBookAssemblyRepository {
     const getFirebaseAuthToken = async (
       request: FirebaseRtdbAuthRequest = { path: '' },
     ): Promise<string> => {
-      if (!authScopeFromPath(request.path, ownerId)) {
+      if (!authScopeFromPath(request.path, ownerId)
+        && !/^book_assembly\/books\/[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}\/units$/u.test(request.path)) {
         throw new Error('book_assembly_auth_scope_required');
       }
       return mintFirebaseAuthToken(request);
@@ -295,6 +330,20 @@ export class FirebaseRestBookAssemblyRepository {
       unitKey,
       { hydrate: true },
     );
+  }
+
+  async listUnitKeys(bookId: string): Promise<readonly string[]> {
+    const value = await this.rtdb.readShallowKeys(unitParentPath(bookId));
+    if (value === null) return [];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('invalid_book_assembly_draft_keys');
+    }
+    const keys = Object.keys(value);
+    if (keys.length > BOOK_ASSEMBLY_MAX_DRAFT_UNITS
+      || keys.some((key) => !ID.test(key) || (value as Record<string, unknown>)[key] !== true)) {
+      throw new Error('invalid_book_assembly_draft_keys');
+    }
+    return keys.sort();
   }
 
   async readValue(path: string): Promise<unknown> {

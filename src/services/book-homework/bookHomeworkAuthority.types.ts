@@ -31,6 +31,14 @@ export interface BookHomeworkActivityPolicySnapshot {
   readonly activityVersion: number;
   readonly lateSubmissionAllowed: boolean;
   readonly maxAttempts: number | null;
+  readonly feedbackRelease?: 'immediate' | 'after_completion' | 'after_deadline' | 'never' | 'manual';
+}
+
+export interface BookHomeworkFrozenPolicySnapshot {
+  readonly intent: 'accountable' | 'practice';
+  readonly integrityDefault: boolean;
+  readonly integrityOverride: boolean;
+  readonly integrityEffective: boolean;
 }
 
 export interface BookHomeworkAuthoritySchedule {
@@ -47,6 +55,23 @@ export interface BookHomeworkStudentExtension {
   readonly grantedBy: string;
   readonly commandId: string;
   readonly updatedAt: string;
+}
+
+export interface BookHomeworkManualFeedbackRelease {
+  readonly schemaVersion: 1;
+  readonly attemptId: string;
+  readonly resultId: string;
+  readonly recipientId: string;
+  readonly contextId: string;
+  readonly bindingId: string;
+  readonly bindingRevision: number;
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly activityVersion: number;
+  readonly releasedBy: string;
+  readonly releasedAt: string;
+  readonly commandId: string;
 }
 
 export interface BookHomeworkVisibilityPointer {
@@ -84,13 +109,44 @@ export interface BookHomeworkAuthorityRecord {
   readonly schedule: BookHomeworkAuthoritySchedule;
   /** Frozen assignment policy. Older records may omit it and fail closed at trusted runtime use. */
   readonly activityPolicies?: Readonly<Record<string, BookHomeworkActivityPolicySnapshot>>;
+  readonly frozenPolicy?: BookHomeworkFrozenPolicySnapshot;
   readonly studentExtensions: Readonly<Record<string, Readonly<Record<string, BookHomeworkStudentExtension>>>>;
+  /** Bounded, exact-target manual feedback release facts. */
+  readonly manualFeedbackReleases?: Readonly<Record<string, BookHomeworkManualFeedbackRelease>>;
   readonly saga: BookHomeworkSagaRecord;
   readonly visibility: BookHomeworkVisibilityPointer;
   readonly revision: number;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly operations?: Readonly<Record<string, BookHomeworkOperationRecord>>;
+}
+
+export interface BookHomeworkManualFeedbackReleaseCommand {
+  readonly scope: BookHomeworkAuthorityScope;
+  readonly assignmentId: string;
+  readonly ownerId: string;
+  readonly recipientId: string;
+  readonly attemptId: string;
+  readonly resultId: string;
+  readonly bindingId: string;
+  readonly bindingRevision: number;
+  readonly placementId: string;
+  readonly activityId: string;
+  readonly activityVersionId: string;
+  readonly activityVersion: number;
+  /** Trusted immutable terminal snapshot policy; never sourced from the request body. */
+  readonly terminalFeedbackPolicy: 'manual';
+  readonly commandId: string;
+  readonly idempotencyKey: string;
+  readonly expectedRevision: number;
+  readonly updatedAt: string;
+}
+
+export interface BookHomeworkManualFeedbackReleaseResult {
+  readonly status: 'released' | 'replayed';
+  readonly resultId: string;
+  readonly releasedAt: string;
+  readonly revision: number;
 }
 
 export interface BookHomeworkCreateCommand {
@@ -100,6 +156,7 @@ export interface BookHomeworkCreateCommand {
   readonly manifest: BookHomeworkManifest;
   readonly schedule: BookHomeworkAuthoritySchedule;
   readonly activityPolicies: Readonly<Record<string, BookHomeworkActivityPolicySnapshot>>;
+  readonly frozenPolicy?: BookHomeworkFrozenPolicySnapshot;
   readonly sagaId: string;
   readonly commandId: string;
   readonly idempotencyKey: string;
@@ -162,4 +219,6 @@ export interface BookHomeworkStudentProjection {
   readonly bookManifest: BookHomeworkStudentSafeProjection;
   readonly schedule: BookHomeworkAuthoritySchedule;
   readonly studentExtensions: Readonly<Record<string, BookHomeworkStudentExtension>>;
+  readonly frozenPolicy?: BookHomeworkFrozenPolicySnapshot;
+  readonly activityPolicies?: Readonly<Record<string, BookHomeworkActivityPolicySnapshot>>;
 }

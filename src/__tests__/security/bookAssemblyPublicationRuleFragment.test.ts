@@ -62,6 +62,12 @@ describe('Book Assembly publication 16A rule fragment', () => {
       'book_activity/versions/$activityId/$versionId/.write',
       'book_activity/student_safe_projections/$activityId/$versionId/.read',
       'book_activity/student_safe_projections/$activityId/$versionId/.write',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/.read',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/.write',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/.validate',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/components/$componentIndex/.validate',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/$other/.validate',
+      'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId/components/$componentIndex/$other/.validate',
     ]);
     expect(new Set(fragment.owner.generatedRuleLocations).size)
       .toBe(fragment.owner.generatedRuleLocations.length);
@@ -288,5 +294,23 @@ describe('Book Assembly publication 16A rule fragment', () => {
     expect(auditWrite?.expression).toContain("newData.child('bookId').val() == $bookId");
     expect(auditWrite?.expression).toContain("newData.child('auditId').val() == $auditId");
     expect(auditWrite?.expression).toContain('!data.exists()');
+  });
+
+  it('allows only owner-bound create-once student-document descriptors', () => {
+    const path = 'book_assembly_publications/books/$bookId/student_documents/$sourceVersionId';
+    const parentRead = operation('book_assembly_publications/books/$bookId', '.read');
+    const read = operation(path, '.read');
+    const write = operation(path, '.write');
+    const validate = fragment.operations.find((candidate) => candidate.path === path && candidate.rule === '.validate');
+    for (const rule of [parentRead, read, write]) {
+      expect(rule.expression).toContain("root.child('material_catalog/books').child($bookId).child('ownerId').val() == auth.token.book_assembly_publication_ownerId");
+    }
+    expect(write.expression).toContain("newData.child('sourceVersionId').val() == $sourceVersionId");
+    expect(write.expression).toContain("newData.child('compositionFingerprint').val() == data.child('compositionFingerprint').val()");
+    expect(write.expression).toContain("newData.child('components/19').exists() == data.child('components/19').exists()");
+    expect(write.expression).toContain('newData.exists()');
+    expect(validate?.expression).toContain("newData.child('descriptorCasOwner').val() == 'assembly-publication'");
+    expect(validate?.expression).toContain("newData.child('components').hasChildren(['0', '1'])");
+    expect(validate?.expression).toContain("!newData.child('components').child('20').exists()");
   });
 });

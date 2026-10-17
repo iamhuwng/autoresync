@@ -25,7 +25,7 @@ import {
   type BookSourceControlRoute,
   type BookSourceUploadControlService,
 } from '../../book-source-worker/control-host.ts';
-import { createBackblazeB2SourceProviderFromEnv } from '../../book-source-worker/backblaze-b2-source-provider.ts';
+import { resolveBackblazeB2ProviderWiring } from '../../book-source-worker/backblaze-b2-provider-wiring.ts';
 import { createBookSourceDirectPdfPageCountAdapter } from '../../book-source-worker/direct-pdf-page-count.ts';
 import type { BookRouteHandlerInput } from '../book-route-handlers.ts';
 import {
@@ -291,7 +291,9 @@ const defaultRuntimeFactory = async (
       && bookRecord.status !== 'archived'
       && (activeOwner || activeAdmin);
   };
-  const provider = createBackblazeB2SourceProviderFromEnv(env);
+  const providerWiring = resolveBackblazeB2ProviderWiring(env);
+  if (!providerWiring.provider) throw new SourceUploadControlError('invalid_deployment');
+  const provider = providerWiring.provider;
   const commonDependencies: Omit<BookSourceUploadControlDependencies, 'releaseAuthorization'> = {
     bookManagementAuthority: {
       canManageBookSource: authorizeOwner,
@@ -325,7 +327,7 @@ const defaultRuntimeFactory = async (
         || before.ownerId !== input.actorId
         || before.bookId !== input.bookId
         || before.status !== 'verified_completed'
-        || before.purpose !== 'book-source'
+        || (before.purpose !== 'book-source' && before.purpose !== 'student-document')
         || before.studentSafeStatus === 'rejected') {
         throw new SourceUploadControlError('reservation_conflict');
       }
@@ -462,7 +464,16 @@ const handlerFor = (
   action: CanonicalSourceAction,
 ) => async (input: BookRouteHandlerInput): Promise<BookSourceControlDispatchResult> => {
   const env = input.env as BookSourceUploadWorkerEnv;
-  const runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(env);
+  let runtime: BookSourceUploadRuntime;
+  try {
+    runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(env);
+  } catch (error) {
+    console.error('book_source_runtime_unavailable', error instanceof Error ? error.message : String(error));
+    const code = error instanceof SourceUploadControlError && error.code === 'invalid_deployment'
+      ? 'invalid_deployment'
+      : 'book_source_upload_unavailable';
+    return { body: { code }, init: { status: 503 } };
+  }
   const bookId = input.params.bookId!;
   const route: BookSourceControlRoute = action === 'begin' || action === 'attach' || action === 'sources'
     ? { action, bookId }

@@ -123,7 +123,7 @@ const createFixture = () => {
 
 export default function BookAssemblyActivityRevisionSmokePage() {
   const { user, profile } = useAuth();
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const { publisher } = useMemo(createFixture, []);
   const [current, setCurrent] = useState(initialVersion);
   const [history, setHistory] = useState([initialVersion.versionId]);

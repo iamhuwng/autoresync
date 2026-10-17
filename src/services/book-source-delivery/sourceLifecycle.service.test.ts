@@ -163,6 +163,7 @@ describe('source upload reconciliation', () => {
       expectedRevision: state.revision,
       reservationId: 'reservation-1',
       verifiedAt: '2026-07-23T00:01:00.000Z',
+      physicalPageCount: 4,
       verifiedStorage,
     });
     const versionReconciliation = {
@@ -442,6 +443,7 @@ describe('source upload reconciliation', () => {
       expectedRevision: 1,
       reservationId: 'reservation-1',
       verifiedAt: '2026-07-23T00:01:00.000Z',
+      physicalPageCount: 4,
       verifiedStorage: {
         bookId: 'book-1',
         sourceVersionId: 'source-1',
@@ -668,6 +670,8 @@ const reservedState = async () => {
     byteSize: 10,
     physicalPageCount: 4,
     originalFilename: 'lesson.pdf',
+    purpose: 'book-source',
+    studentSafeStatus: 'unreviewed',
     expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
     createdAt: '2026-07-23T00:00:00.000Z',
     expiresAt: '2026-07-23T00:05:00.000Z',

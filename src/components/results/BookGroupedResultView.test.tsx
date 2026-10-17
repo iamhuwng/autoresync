@@ -123,12 +123,16 @@ describe('BookGroupedResultView', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Review Activity attempts' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Technical attempt details'));
+    fireEvent.click(screen.getByText('Source details'));
     expect(screen.getByText('activity-1@7 (v7)')).toBeInTheDocument();
     expect(screen.getByText('binding-1 · revision 4')).toBeInTheDocument();
     expect(screen.getByText('homework-1')).toBeInTheDocument();
-    expect(screen.getByText(/Historical display-only metadata/)).toBeInTheDocument();
-    expect(screen.getByText('Replaced')).toBeInTheDocument();
+    expect(screen.getByText(/Historical display-only metadata/iu)).toBeInTheDocument();
+    expect(screen.getByText('Unavailable · Replaced')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByText('B', { exact: true })).toBeVisible();
+    fireEvent.click(screen.getByText('Technical response data'));
     expect(screen.getByText(/"choice": "B"/)).toBeInTheDocument();
     expect(screen.getByText('Good reasoning.')).toBeInTheDocument();
   });
@@ -147,6 +151,35 @@ describe('BookGroupedResultView', () => {
     fireEvent.click(screen.getByRole('button', { name: /Select result attempt/ }));
     fireEvent.click(screen.getByRole('option', { name: /Attempt 1/ }));
     expect(onAttemptChange).toHaveBeenCalledWith('attempt-1');
+  });
+
+  it('does not show an attempt picker when only one attempt exists', () => {
+    render(
+      <BookGroupedResultView
+        group={{ ...group, attemptCount: 1, attempts: [latestAttempt] }}
+        selectedAttemptId="attempt-2"
+        detail={detail}
+        onAttemptChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Select result attempt/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the homework return action on the single teacher result surface', () => {
+    const onBackToHomework = vi.fn();
+    render(
+      <BookGroupedResultView
+        group={{ ...group, attemptCount: 1, attempts: [latestAttempt] }}
+        selectedAttemptId="attempt-2"
+        detail={detail}
+        onAttemptChange={vi.fn()}
+        onBackToHomework={onBackToHomework}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to homework' }));
+    expect(onBackToHomework).toHaveBeenCalledTimes(1);
   });
 
   it('does not reveal withheld feedback and announces pending detail state', () => {
@@ -205,7 +238,7 @@ describe('BookGroupedResultView', () => {
     expect(screen.queryByText(/score/iu)).not.toBeInTheDocument();
   });
 
-  it('renders the safest student state when the presentation gate is disabled', () => {
+  it('separates student completion from withheld feedback without exposing result identifiers', () => {
     render(
       <BookGroupedResultView
         group={group}
@@ -217,10 +250,11 @@ describe('BookGroupedResultView', () => {
       />,
     );
 
-    expect(screen.getByText('Evaluation details are not available.')).toHaveAttribute(
-      'role',
-      'status',
-    );
+    expect(screen.getByText('Feedback is not available yet')).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByText('activity-1')).not.toBeInTheDocument();
+    expect(screen.queryByText('student-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('book-attempt-source-review')).not.toBeInTheDocument();
     expect(screen.queryByText('Good reasoning.')).not.toBeInTheDocument();
     expect(screen.queryByText('8 / 10')).not.toBeInTheDocument();
   });

@@ -147,3 +147,15 @@ it('falls back instead of accepting a truncated Groq restructure', async () => {
     expect(probe.gemini).toHaveBeenCalledOnce();
     expect(probe.response).toBe('Gemini fallback text');
 });
+
+it('keeps a heading and its following inline type instruction in one editable section', async () => {
+    const source = 'TITLE: English Test\nGRADE: 8\nI. MULTIPLE CHOICE QUESTIONS\n\nChoose the correct answer. [TYPE: mcq-grammar]\nQuestion 1. She ___ to school every day.\nA. go\nB. goes\nC. going\nD. gone\nII. ANSWER KEY\n1. B';
+    probe.create.mockResolvedValue({ choices: [{ message: { content: source } }] });
+    const result = await parseThcsText(source);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.sections).toHaveLength(1);
+    expect(result.data.sections[0]?.name).toBe('MULTIPLE CHOICE QUESTIONS');
+    expect(result.data.sections[0]?.questions).toHaveLength(1);
+    expect(result.data.sections[0]?.questions[0]?.correctAnswer).toBe('B');
+});

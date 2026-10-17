@@ -44,6 +44,7 @@ const makeFixture = (choice: ReplacementContextChoice = 'adopt-current-replaceme
     lifecycle: 'in-progress',
     status: 'active',
     sourceScopes: [{ sourceKey: 'source-a', pageCount: 1, placementCount: 1 }],
+    selections: [{ contextKey: 'homework-1', placementId: 'placement-1', choice: choice === 'decline-retain-unavailable' ? 'invalidate-context' : 'adopt-successor' }],
     state: 'pending',
     stateRevision: 0,
     operationId: 'saga-1:context:homework-1',

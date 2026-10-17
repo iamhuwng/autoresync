@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import BookHomeworkProductionSmoke from './BookHomeworkProductionSmoke';
 import { BookRuntimeShell, PersonalTimer, type BookRuntimeViewerAdapter } from '../components/book-runtime';
+import { createBookRuntimeViewerAdapter } from '../components/book-runtime/BookRuntimeViewerAdapter';
 import { toast } from '../components/modern';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
@@ -56,11 +58,17 @@ const deliveryProjection: BookRuntimeDeliveryProjection = {
     }],
   },
   documentRequests: [{
+    opaqueRouteKey: 'fixture-route-v2',
     sourceKey: 'full-pdf',
     sourceVersionId: 'source-fixture-v2',
-    opaqueRouteKey: 'fixture-route-v2',
     localPageScope: { kind: 'all', pages: [] },
+    expectedByteLength: 1024,
   }],
+  pageGroups: [
+    { pageGroupKey: 'page-group-choice', combinedPhysicalPages: [1] },
+    { pageGroupKey: 'page-group-source', combinedPhysicalPages: [2, 3] },
+    { pageGroupKey: 'page-group-long', combinedPhysicalPages: [4, 5, 6] },
+  ],
   activities: [
     {
       placementId: 'placement-choice',
@@ -137,19 +145,11 @@ const componentDeliveryProjection: BookRuntimeDeliveryProjection = {
       },
     ],
   },
-  documentRequests: [
-    {
-      sourceKey: 'component-pdf-2',
-      sourceVersionId: 'source-component-v2',
-      opaqueRouteKey: 'component-route-v2',
-      localPageScope: { kind: 'pages', pages: [1, 2] },
-    },
-    {
-      sourceKey: 'component-pdf-1',
-      sourceVersionId: 'source-component-v1',
-      opaqueRouteKey: 'component-route-v1',
-      localPageScope: { kind: 'pages', pages: [1, 2, 3] },
-    },
+  documentRequests: [{ opaqueRouteKey: 'component-combined-route', expectedByteLength: 2048 }],
+  pageGroups: [
+    { pageGroupKey: 'page-group-choice', combinedPhysicalPages: [1] },
+    { pageGroupKey: 'page-group-source', combinedPhysicalPages: [2, 3] },
+    { pageGroupKey: 'page-group-long', combinedPhysicalPages: [4, 5] },
   ],
   activities: [
     {
@@ -255,9 +255,9 @@ const longResponseProjection = {
 };
 
 const fixtureActivities = [
-  { activityId: 'activity-choice', projection: choiceProjection, label: 'Main claim' },
-  { activityId: 'activity-source', projection: sourceProjection, label: 'Source detail' },
-  { activityId: 'activity-long', projection: longResponseProjection, label: 'Written response' },
+  { activityId: 'activity-choice', activityVersionId: 'activity-choice-v1', projection: choiceProjection, label: 'Main claim' },
+  { activityId: 'activity-source', activityVersionId: 'activity-source-v1', projection: sourceProjection, label: 'Source detail' },
+  { activityId: 'activity-long', activityVersionId: 'activity-long-v1', projection: longResponseProjection, label: 'Written response' },
 ];
 
 type FixtureRuntimeMode = 'none' | 'failure' | 'conflict';
@@ -313,30 +313,6 @@ const integritySignalLabels: Readonly<Record<(typeof BOOK_INTEGRITY_SIGNAL_TYPES
   concurrent_attempt: 'Concurrent attempt',
   inactivity: 'Bounded inactivity',
 };
-
-const componentPagesFromSearchParams = (searchParams: URLSearchParams): Readonly<Record<string, number>> => {
-  const pages: Record<string, number> = {};
-  const serialized = searchParams.get('componentPages') ?? '';
-  serialized.split(',').forEach((entry) => {
-    const separator = entry.lastIndexOf(':');
-    if (separator <= 0) return;
-    const componentId = entry.slice(0, separator);
-    const page = Number(entry.slice(separator + 1));
-    if (componentId && Number.isSafeInteger(page) && page > 0) pages[componentId] = page;
-  });
-  const activeComponentId = searchParams.get('component');
-  const activePage = Number(searchParams.get('componentPage'));
-  if (activeComponentId && Number.isSafeInteger(activePage) && activePage > 0) {
-    pages[activeComponentId] = activePage;
-  }
-  return pages;
-};
-
-const componentPagesToSearchParam = (pages: Readonly<Record<string, number>>): string => Object.entries(pages)
-  .filter(([, page]) => Number.isSafeInteger(page) && page > 0)
-  .sort(([left], [right]) => left.localeCompare(right))
-  .map(([componentId, page]) => `${componentId}:${page}`)
-  .join(',');
 
 const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
   const requestUrl = new URL(input instanceof Request ? input.url : String(input));
@@ -427,11 +403,12 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
       },
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
-  if (requestUrl.pathname.startsWith('/book-runtime/drafts/') && init?.method === 'GET') {
+  if (requestUrl.pathname.startsWith('/book-runtime/drafts/') && (!init?.method || init.method === 'GET')) {
     const parts = requestUrl.pathname.split('/').filter(Boolean).slice(2);
     const key = [parts[2], parts[3], parts[6]].join(':');
     const records = await storage.get<Record<string, Record<string, unknown>>>(FIXTURE_RUNTIME_STORE_KEY) ?? {};
-    return new Response(JSON.stringify({ draft: records[key] ?? null }), {
+    const draft = records[key] ?? Object.values(records).find((record) => record.interactionId === parts[6]) ?? null;
+    return new Response(JSON.stringify({ draft }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -442,15 +419,13 @@ const fixtureRuntimeFetch: typeof fetch = async (input, init) => {
 const viewer: BookRuntimeViewerAdapter = {
   title: 'Reference PDF',
   status: { state: 'ready', message: 'Reference PDF ready.' },
-  render: ({ activeActivityId, pageGroupKey, componentId, physicalPageNumber, request, view }) => (
+  render: ({ activeActivityId, pageGroupKey, combinedPhysicalPage, view }) => (
     <section aria-label="Reference-only PDF" data-testid="reference-only-pdf">
       <p style={{ marginTop: 0, fontWeight: 700 }}>Reference-only PDF</p>
       <p>PDF focus: {view === 'pdf-focus' ? 'focused' : 'split'}.</p>
       <p>Page Group: {pageGroupKey}</p>
       <p>Activity anchor: {activeActivityId}</p>
-      <p>Component: {componentId}</p>
-      <p>Component page: {physicalPageNumber}</p>
-      <p>Source: {request?.sourceVersionId ?? 'unavailable'}</p>
+      <p>Combined page: {combinedPhysicalPage}</p>
       <div
         aria-label="PDF page canvas"
         role="img"
@@ -463,19 +438,24 @@ const viewer: BookRuntimeViewerAdapter = {
 };
 
 export default function BookRuntimeShellSmokePage() {
+  const [searchParams] = useSearchParams();
+  return searchParams.get('fixture') === 'homework-production'
+    ? <BookHomeworkProductionSmoke /> : <BookRuntimeShellFixturePage />;
+}
+
+function BookRuntimeShellFixturePage() {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
   const [searchParams, setSearchParams] = useSearchParams();
+  const verticalSliceToken = searchParams.get('verticalSlice');
   const componentMode = searchParams.get('strategy') === 'components';
-  const activeProjection = componentMode ? componentDeliveryProjection : deliveryProjection;
-  const requestedComponentId = searchParams.get('component');
+  const [verticalSliceProjection, setVerticalSliceProjection] = useState<BookRuntimeDeliveryProjection | null>(null);
+  const activeProjection = verticalSliceProjection ?? (componentMode ? componentDeliveryProjection : deliveryProjection);
+  const activeFixtureActivities = useMemo(() => verticalSliceProjection
+    ? activeProjection.activities.map((placement, index) => ({ ...fixtureActivities[index]!, activityId: placement.activityId }))
+    : fixtureActivities, [activeProjection.activities, verticalSliceProjection]);
   const initialActivityId = searchParams.get('activity')
-    ?? (requestedComponentId
-      ? activeProjection.activities.find((activity) => activity.sourceContext.sourcePageScopes.some(
-        (scope) => scope.sourceKey === requestedComponentId,
-      ))?.activityId
-      : undefined)
-    ?? fixtureActivities[0]!.activityId;
+    ?? activeFixtureActivities[0]!.activityId;
   const [activeActivityId, setActiveActivityId] = useState(
     initialActivityId,
   );
@@ -485,18 +465,42 @@ export default function BookRuntimeShellSmokePage() {
   const requestedUnitKey = searchParams.get('unitKey');
   const requestedActivityId = searchParams.get('activity');
   const requestedPageGroupKey = searchParams.get('pageGroup');
-  const requestedActivity = fixtureActivities.find((activity) => activity.activityId === requestedActivityId);
-  const requestedPageGroupExists = activeProjection.activities.some(
-    (activity) => activity.nodeKey === requestedPageGroupKey,
+  const requestedActivity = activeFixtureActivities.find((activity) => activity.activityId === requestedActivityId);
+  const requestedPageGroupExists = activeProjection.pageGroups.some(
+    (group) => group.pageGroupKey === requestedPageGroupKey,
   );
-  const activeFixtureActivity = fixtureActivities.find(
+  const activeFixtureActivity = activeFixtureActivities.find(
     (activity) => activity.activityId === activeActivityId,
-  ) ?? fixtureActivities[0]!;
+  ) ?? activeFixtureActivities[0]!;
   const activePlacement = activeProjection.activities.find(
     (activity) => activity.activityId === activeFixtureActivity.activityId,
   ) ?? activeProjection.activities[0]!;
   const [scheduleWindow, setScheduleWindow] = useState<BookScheduleWindowDecision | null>(null);
   const [scheduleWindowFailed, setScheduleWindowFailed] = useState(false);
+  const activeViewer = useMemo(() => verticalSliceToken
+    ? createBookRuntimeViewerAdapter({
+      title: 'Authorized combined Book document',
+      env: { DEV: true, VITE_BOOK_DELIVERY_WORKER_URL: typeof window === 'undefined' ? 'http://localhost:5174' : window.location.origin },
+      getIdToken: async () => 'student-fixture-token',
+    })
+    : viewer, [verticalSliceToken]);
+  useEffect(() => {
+    if (!verticalSliceToken) return;
+    const controller = new AbortController();
+    const base = `/__vertical-slice/${encodeURIComponent(verticalSliceToken)}`;
+    void fetch(`${base}/projection`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('vertical_slice_projection_unavailable');
+        return response.json() as Promise<BookRuntimeDeliveryProjection>;
+      })
+      .then((projection) => {
+        setVerticalSliceProjection(projection);
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setVerticalSliceProjection(null);
+      });
+    return () => controller.abort();
+  }, [verticalSliceToken]);
   useEffect(() => {
     const controller = new AbortController();
     setScheduleWindow(null);
@@ -590,9 +594,8 @@ export default function BookRuntimeShellSmokePage() {
   const initialNavigation = useMemo<Partial<BookRuntimeNavigationState>>(() => ({
     activityId: searchParams.get('activity') ?? undefined,
     pageGroupKey: searchParams.get('pageGroup') ?? undefined,
-    componentId: searchParams.get('component') ?? undefined,
-    componentPageById: componentMode ? componentPagesFromSearchParams(searchParams) : undefined,
-  }), [componentMode, searchParams]);
+    combinedPhysicalPage: Number(searchParams.get('page')) || undefined,
+  }), [searchParams]);
   const onNavigationStateChange = useCallback((state: BookRuntimeNavigationState) => {
     setActiveActivityId(state.activityId);
     const next = new URLSearchParams(searchParams);
@@ -600,17 +603,12 @@ export default function BookRuntimeShellSmokePage() {
     next.set('unitKey', 'unit-fixture');
     next.set('pageGroup', state.pageGroupKey);
     next.set('activity', state.activityId);
-    if (componentMode) {
-      next.set('component', state.componentId);
-      next.set('componentPage', String(state.componentPageById[state.componentId] ?? 1));
-      next.set('componentPages', componentPagesToSearchParam(state.componentPageById));
-    } else {
-      next.delete('component');
-      next.delete('componentPage');
-      next.delete('componentPages');
-    }
+    next.set('page', String(state.combinedPhysicalPage));
+    next.delete('component');
+    next.delete('componentPage');
+    next.delete('componentPages');
     setSearchParams(next, { replace: true });
-  }, [activeProjection, componentMode, searchParams, setSearchParams]);
+  }, [activeProjection, searchParams, setSearchParams]);
   const onResponseChange = useCallback((interactionId: string, response: unknown) => {
     runtime.change(interactionId, response);
   }, [runtime]);
@@ -619,10 +617,10 @@ export default function BookRuntimeShellSmokePage() {
     if (!result.safeToLeave) throw new Error('Activity response is not safely saved.');
   }, [runtime]);
   useEffect(() => {
-    if (requestedActivityId && fixtureActivities.some((activity) => activity.activityId === requestedActivityId)) {
+    if (requestedActivityId && activeFixtureActivities.some((activity) => activity.activityId === requestedActivityId)) {
       setActiveActivityId(requestedActivityId);
     }
-  }, [requestedActivityId]);
+  }, [activeFixtureActivities, requestedActivityId]);
   useEffect(() => {
     const key = `${runtime.status}:${runtime.message}`;
     if (previousPersistenceStatus.current === key) return;
@@ -661,8 +659,11 @@ export default function BookRuntimeShellSmokePage() {
     (requestedUnitKey && requestedUnitKey !== 'unit-fixture') ||
     (requestedActivityId && !requestedActivity) ||
     (requestedPageGroupKey && !requestedPageGroupExists) ||
-    (requestedActivity && requestedPageGroupKey &&
-      activeProjection.activities.find((activity) => activity.activityId === requestedActivity.activityId)?.nodeKey !== requestedPageGroupKey)
+    (requestedActivity && requestedPageGroupKey && !(
+      activeProjection.activities.find((activity) => activity.activityId === requestedActivity.activityId)
+        ?.sourceContext.pageGroupKeys.includes(requestedPageGroupKey)
+      || activeProjection.activities.find((activity) => activity.activityId === requestedActivity.activityId)?.contextMode === 'none'
+    ))
   ) {
     return (
       <main style={{ padding: 24 }}>
@@ -674,7 +675,7 @@ export default function BookRuntimeShellSmokePage() {
 
   if (!scheduleWindow) {
     return (
-      <StudentLayout sidebar={<StudentSidebar />}>
+      <StudentLayout mobileTitle="Book Activity" sidebar={<StudentSidebar activePage="library" />}>
         <main>
           <section aria-live="polite" data-testid="book-window-state" data-window-state="loading">
             <h1>{scheduleWindowFailed ? 'Activity window unavailable' : 'Checking Activity availability'}</h1>
@@ -801,12 +802,13 @@ export default function BookRuntimeShellSmokePage() {
         </button>
       </div>
       <BookRuntimeShell
-          activities={fixtureActivities}
+          activities={activeFixtureActivities}
           deliveryProjection={activeProjection}
           initialNavigation={initialNavigation}
           integrityCapture={{
             client: integrityClient,
             frozenPoliciesByPlacementId: integrityPolicies,
+            captureSlotsByPlacementId: { 'placement-1': { captureSlotId: 'book-integrity-slot-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', captureAttemptNumber: 1 } },
             enabled: true,
             active: runtime.terminalResult === null,
             onWarning: ({ message }) => toast.warning(message),
@@ -840,7 +842,7 @@ export default function BookRuntimeShellSmokePage() {
             },
           }}
           responses={runtime.responses}
-          viewer={viewer}
+          viewer={activeViewer}
         />
     </StudentLayout>
   );

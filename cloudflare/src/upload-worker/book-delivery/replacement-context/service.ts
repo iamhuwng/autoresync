@@ -168,6 +168,11 @@ const validateAuthority = (
     || authority.allowedChoices.some((choice) => !CHOICES.has(choice))
     || !same([...decision.allowedChoices].sort(), [...authority.allowedChoices].sort())
     || !authority.allowedChoices.includes(decision.choice)) return 'context-choice-unsupported';
+  if (!Array.isArray(item.selections) || item.selections.length === 0
+    || item.selections.some((selection) => selection.contextKey !== item.contextKey)
+    || (decision.choice === 'decline-retain-unavailable') !== item.selections.some((selection) => selection.choice === 'invalidate-context')) {
+    return 'context-choice-not-allowed';
+  }
 
   const deliveryIds = new Set<string>();
   const bindingIds = new Set<string>();
@@ -559,8 +564,9 @@ export const createReplacementContextOwner = (
     } catch {
       return pending('context-mutation-unavailable');
     }
-    if (committed.status === 'missing') return pending('context-authority-missing');
-    if (committed.status === 'conflict') return pending('context-cas-conflict');
+    if (committed.status !== 'advanced' && committed.status !== 'replayed') {
+      return pending(committed.status === 'missing' ? 'context-authority-missing' : 'context-cas-conflict');
+    }
     if (!committed.receipt.allRetiredDeliveriesRevoked
       || !committed.authority.retiredDeliveries.every((delivery) => delivery.status === 'revoked')) {
       return pending('context-mutation-unavailable');

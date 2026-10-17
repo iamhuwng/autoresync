@@ -309,6 +309,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   // Display mode: 'text' for IELTS-like full-width, 'image' for two-column with question images
   const [displayMode, setDisplayMode] = useState<ListeningDisplayMode>(initialDisplayMode);
   const [questionImages, setQuestionImages] = useState<QuestionImage[]>([]);
+  const [uploadingQuestionImages, setUploadingQuestionImages] = useState(0);
   const [activeAnswerSectionNumber, setActiveAnswerSectionNumber] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
@@ -1866,6 +1867,19 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     });
   };
 
+  const uploadQuestionImage = async (section: AudioSection, file: File) => {
+    setUploadingQuestionImages(count => count + 1);
+    try {
+      const uploaded = await r2StorageService.uploadImage(file);
+      handleAddImage(section, uploaded.url);
+    } catch (error) {
+      console.error('Question image upload failed:', error);
+      toast.error('Could not upload the question image. Please try again.');
+    } finally {
+      setUploadingQuestionImages(count => count - 1);
+    }
+  };
+
   // Global paste handler for image mode
   useEffect(() => {
     if (currentStep !== 'questions-images') return;
@@ -1901,12 +1915,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         // If we have a file, and there's only one section with valid audio, use it
         const validSections = metadata.sections.filter(s => s.audioUrl);
         if (validSections.length === 1) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            handleAddImage(validSections[0], event.target?.result as string);
-          };
-          reader.readAsDataURL(file);
-          // Image paste succeeds silently because the section preview updates immediately.
+          await uploadQuestionImage(validSections[0], file);
         } else {
           // If multiple sections, we can't guess. 
           // Maybe show a modal? 
@@ -3482,7 +3491,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               <input
                                 type="file"
                                 accept="image/*,.png,.jpg,.jpeg,.gif,.webp"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
                                     trackAction('listeningQuestionImageUploadRequested', {
@@ -3492,12 +3501,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                       fileType: file.type,
                                       fileSizeBytes: file.size,
                                     });
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                      const dataUrl = event.target?.result as string;
-                                      handleAddImage(section, dataUrl);
-                                    };
-                                    reader.readAsDataURL(file);
+                                    await uploadQuestionImage(section, file);
                                   }
                                   e.target.value = '';
                                 }}
@@ -3523,12 +3527,11 @@ Write NO MORE THAN TWO WORDS for each answer.
                                       if (imageType) {
                                         foundImage = true;
                                         const blob = await item.getType(imageType);
-                                        const reader = new FileReader();
-                                        reader.onload = (event) => {
-                                          const dataUrl = event.target?.result as string;
-                                          handleAddImage(section, dataUrl);
-                                        };
-                                        reader.readAsDataURL(blob);
+                                        await uploadQuestionImage(section, new File(
+                                          [blob],
+                                          `pasted-image.${imageType.slice(6).replace('jpeg', 'jpg')}`,
+                                          { type: imageType },
+                                        ));
                                         break; // Only paste one image at a time
                                       }
                                     }
@@ -3582,6 +3585,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               >
                                 Paste
                               </button>
+                              {uploadingQuestionImages > 0 && <span role="status">Uploading image…</span>}
 
                               <button
                                 type="button"
@@ -4505,7 +4509,7 @@ Write NO MORE THAN TWO WORDS for each answer.
               pendingAction={pendingAction}
               canDiscard={canDiscard}
               showNext={currentStep !== 'review' && currentStep !== 'questions-text'}
-              actionsDisabled={Boolean(discardedDraft) || lifecyclePendingAction !== null}
+              actionsDisabled={Boolean(discardedDraft) || lifecyclePendingAction !== null || uploadingQuestionImages > 0}
               trailingContent={(
                 <ListeningLifecycleActions
                   canRestore={Boolean(discardedDraft)}

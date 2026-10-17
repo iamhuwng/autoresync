@@ -3,6 +3,7 @@ import { resolveBookDeliveryWorkerOrigin } from '../book-delivery/bookDelivery.b
 import type {
   BookRuntimeDraftRecord,
   BookRuntimeOperationReceipt,
+  BookRuntimeTerminalStatus,
 } from './activityRuntimeAttempt.types';
 import {
   requireBookScheduleWindowDecision,
@@ -54,6 +55,7 @@ export interface BookRuntimeClient {
   saveDraft(input: BookRuntimeSaveDraftInput): Promise<BookRuntimeSaveDraftResult>;
   submitActivity(input: BookRuntimeSubmitActivityInput): Promise<BookRuntimeSubmitActivityResult>;
   readDraft(input: BookRuntimeDraftAddress): Promise<BookRuntimeDraftRecord | null>;
+  readTerminal(input: BookRuntimeDraftAddress): Promise<BookRuntimeTerminalStatus>;
 }
 
 export interface BookRuntimeBrowserEnv {
@@ -340,6 +342,17 @@ const draftPath = (input: BookRuntimeDraftAddress): string => [
   input.interactionId,
 ].map((part, index) => index === 0 ? part : encodeURIComponent(part)).join('/');
 
+const terminalPath = (input: BookRuntimeDraftAddress): string => [
+  '/book-runtime/terminals',
+  input.bindingId,
+  String(input.bindingRevision),
+  input.contextId,
+  input.placementId,
+  input.activityId,
+  String(input.activityVersion),
+  input.interactionId,
+].map((part, index) => index === 0 ? part : encodeURIComponent(part)).join('/');
+
 export const createBookRuntimeClient = (
   options: BookRuntimeClientOptions = {},
 ): BookRuntimeClient => {
@@ -496,6 +509,25 @@ export const createBookRuntimeClient = (
       if (!result) throw new BookRuntimeClientError('invalid_response');
       exactKeys(result, ['draft']);
       return draftFrom(result.draft);
+    },
+
+    async readTerminal(input) {
+      assertAddress(input);
+      const body = record(await request(terminalPath(input), { method: 'GET' }));
+      if (!body) throw new BookRuntimeClientError('invalid_response');
+      exactKeys(body, ['status'], ['attemptId', 'resultStatus']);
+      if (body.status === 'absent') return { status: 'absent' };
+      if (body.status !== 'present'
+        || typeof body.attemptId !== 'string'
+        || !SAFE_ID.test(body.attemptId)
+        || (body.resultStatus !== 'pending_review' && body.resultStatus !== 'submitted')) {
+        throw new BookRuntimeClientError('invalid_response');
+      }
+      return {
+        status: 'present',
+        attemptId: body.attemptId,
+        resultStatus: body.resultStatus,
+      };
     },
   };
 };

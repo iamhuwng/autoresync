@@ -66,6 +66,7 @@ const workflow = (
   loaded: SourceUploadSafeOperationState | null = null,
 ): SourceUploadBrowserWorkflow => ({
   load: vi.fn(async () => loaded),
+  prepareReplacement: vi.fn(async () => undefined),
   start: vi.fn(async (input) => {
     input.onProgress?.({
       confirmed: true,
@@ -159,7 +160,31 @@ describe('BookSourceUploadPanel', () => {
     );
   });
 
-  it('requires fresh rights confirmation before a guided upload sends PDF bytes', async () => {
+  it('redacts reservation and Source Version identities from verified telemetry', async () => {
+    const client = workflow();
+    const onAction = vi.fn();
+    render(
+      <BookSourceUploadPanel
+        allowFreshUpload
+        bookId="book-1"
+        immutablePublished={false}
+        onAction={onAction}
+        selection={selection}
+        workflow={client}
+      />,
+    );
+
+    await waitFor(() => expect(client.load).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Upload PDF' }));
+    await screen.findByText('One verified ready Source Version is recorded for this operation.');
+
+    const verified = onAction.mock.calls.find(([action]) => action === 'book_source_upload_verified');
+    expect(verified?.[1]).toEqual({ status: 'verified' });
+    expect(verified?.[1]).not.toHaveProperty('reservationId');
+    expect(verified?.[1]).not.toHaveProperty('sourceVersionId');
+  });
+
+  it('starts a guided upload without obsolete rights confirmation UI', async () => {
     const client = workflow();
     render(
       <BookSourceUploadPanel
@@ -173,17 +198,13 @@ describe('BookSourceUploadPanel', () => {
     );
 
     await waitFor(() => expect(client.load).toHaveBeenCalled());
-    const confirmation = screen.getByRole('checkbox', {
-      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
-    });
     const uploadButton = screen.getByRole('button', { name: 'Upload PDF' });
 
-    expect(confirmation).not.toBeChecked();
-    expect(uploadButton).toBeDisabled();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getByText('Step 2 of 2: send the PDF to its private source store.')).toBeInTheDocument();
+    expect(uploadButton).toBeEnabled();
     expect(client.start).not.toHaveBeenCalled();
 
-    fireEvent.click(confirmation);
-    expect(uploadButton).toBeEnabled();
     fireEvent.click(uploadButton);
 
     await screen.findByText('One verified ready Source Version is recorded for this operation.');
@@ -192,47 +213,6 @@ describe('BookSourceUploadPanel', () => {
       claim,
       file: selection.file,
     }));
-  });
-
-  it('resets guided rights confirmation when the selected source changes', async () => {
-    const client = workflow();
-    const view = render(
-      <BookSourceUploadPanel
-        allowFreshUpload
-        bookId="book-1"
-        guided
-        immutablePublished={false}
-        selection={selection}
-        workflow={client}
-      />,
-    );
-
-    await waitFor(() => expect(client.load).toHaveBeenCalled());
-    const confirmation = screen.getByRole('checkbox', {
-      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
-    });
-    fireEvent.click(confirmation);
-    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeEnabled();
-
-    const nextSelection = {
-      file: new File(['%PDF-1.5'], 'replacement.pdf', { type: 'application/pdf' }),
-      claim: { ...claim, displayFilename: 'replacement.pdf', sha256Hex: 'b'.repeat(64) },
-    };
-    view.rerender(
-      <BookSourceUploadPanel
-        allowFreshUpload
-        bookId="book-1"
-        guided
-        immutablePublished={false}
-        selection={nextSelection}
-        workflow={client}
-      />,
-    );
-
-    expect(screen.getByRole('checkbox', {
-      name: 'I confirm that I have the rights and permission to upload this PDF for this Book.',
-    })).not.toBeChecked();
-    expect(screen.getByRole('button', { name: 'Upload PDF' })).toBeDisabled();
   });
 
   it('shows exact streamed bytes separately from B2 confirmation', async () => {

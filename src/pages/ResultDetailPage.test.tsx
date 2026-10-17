@@ -66,13 +66,20 @@ vi.mock('../components/results/BookResultAdapter', () => ({
         routeHandle,
         viewerRole,
         viewerId,
+        onBackToHomework,
     }: {
         routeHandle: string;
         viewerRole: string;
         viewerId?: string;
+        onBackToHomework?: () => void;
     }) => (
         <div data-testid="book-result-adapter">
             {`${viewerRole}:${viewerId}:${routeHandle}`}
+            {onBackToHomework && (
+                <button type="button" data-testid="book-result-back" onClick={onBackToHomework}>
+                    Back to homework
+                </button>
+            )}
         </div>
     ),
 }));
@@ -228,6 +235,7 @@ describe('ResultDetailPage', () => {
             bookId: 'book-1',
             studentId: 'user-1',
             groupKey: 'g_WyJ1c2VyLTEiLCJhY3Rpdml0eS0xIl0',
+            homeworkId: 'homework-1',
         });
 
         it('renders the Book adapter in the student shell route without the legacy redirect', () => {
@@ -244,9 +252,35 @@ describe('ResultDetailPage', () => {
             renderPage(bookHandle);
 
             expect(screen.getByTestId('result-detail-teacher-shell')).toBeInTheDocument();
-            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Result Detail:teacher');
+            expect(screen.getByTestId('teacher-header')).toHaveTextContent('Activity Result:teacher');
             expect(screen.getByTestId('book-result-adapter')).toHaveTextContent(`teacher:user-1:${bookHandle}`);
             expect(screen.queryByTestId('legacy-result-detail-view')).not.toBeInTheDocument();
+        });
+
+        it('returns a Book result to its homework detail route', () => {
+            mockProfile = { role: 'teacher' };
+            renderPage(bookHandle);
+
+            screen.getByTestId('book-result-back').click();
+
+            expect(mockNavigate).toHaveBeenCalledWith('/teacher/homework/homework-1');
+        });
+
+        it('returns a student Book result to its homework detail route', () => {
+            mockProfile = { role: 'student' };
+            renderPage(bookHandle);
+
+            screen.getByTestId('book-result-back').click();
+
+            expect(mockNavigate).toHaveBeenCalledWith('/student/homework/homework-1');
+        });
+
+        it('returns scoped Public practice to the dedicated Library', () => {
+            mockProfile = { role: 'student' };
+            renderPage(createBookResultRouteHandle({ bookId: 'book-1', studentId: 'user-1',
+                groupKey: 'g_WyJ1c2VyLTEiLCJhY3Rpdml0eS0xIl0', contextKind: 'public', contextId: 'public-1' }));
+            screen.getByTestId('book-result-back').click();
+            expect(mockNavigate).toHaveBeenCalledWith('/student/library', expect.any(Object));
         });
 
         it('does not grant super-admin access to the teacher-only Book adapter', () => {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES, BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
+import {
+  BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES,
+  BOOK_SOURCE_MAX_PDF_BYTES,
+  STUDENT_DOCUMENT_MAX_PDF_BYTES,
+} from '../../types/bookSource.types';
 import {
   assertBookSourceCapacityAvailable,
   assertBookSourcePdfByteSize,
@@ -9,9 +13,11 @@ import {
 } from './sourceCapacity.service';
 
 describe('Book Source capacity domain', () => {
-  it('accepts exactly 500 MiB and rejects one byte more', () => {
-    expect(() => assertBookSourcePdfByteSize(BOOK_SOURCE_MAX_PDF_BYTES)).not.toThrow();
-    expect(() => assertBookSourcePdfByteSize(BOOK_SOURCE_MAX_PDF_BYTES + 1)).toThrow();
+  it('enforces 50 MiB book-source and 100 MiB student-document limits', () => {
+    expect(() => assertBookSourcePdfByteSize(BOOK_SOURCE_MAX_PDF_BYTES, 'book-source')).not.toThrow();
+    expect(() => assertBookSourcePdfByteSize(BOOK_SOURCE_MAX_PDF_BYTES + 1, 'book-source')).toThrow();
+    expect(() => assertBookSourcePdfByteSize(STUDENT_DOCUMENT_MAX_PDF_BYTES, 'student-document')).not.toThrow();
+    expect(() => assertBookSourcePdfByteSize(STUDENT_DOCUMENT_MAX_PDF_BYTES + 1, 'student-document')).toThrow();
   });
 
   it('accounts for tracked, pending, replacement, and temporary bytes at 9 GB boundary', () => {
@@ -31,10 +37,10 @@ describe('Book Source capacity domain', () => {
   });
 });
 
-function operation(reservationId: string, kind: 'initial' | 'replacement', byteSize: number, status: 'reserved' | 'verified_completed' = 'reserved') {
+function operation(reservationId: string, kind: 'initial' | 'replacement', byteSize: number, status: 'reserved' | 'verified_completed' = 'reserved', purpose: 'book-source' | 'student-document' = 'book-source') {
   return {
     reservationId, bookId: 'book-1', sourceVersionId: `source-${reservationId}`, sourceKey: 'unit-1', ownerId: 'teacher-1', storageLocationId: 'location-1',
     providerKind: 'b2', privateBucketId: 'bucket-1', providerObjectKey: `private/${reservationId}.pdf`, kind, byteSize,
-    originalFilename: 'source.pdf', expectedChecksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) }, createdAt: '2026-07-23T00:00:00.000Z', expiresAt: '2026-07-23T00:05:00.000Z', status,
+    originalFilename: 'source.pdf', purpose, studentSafeStatus: 'unreviewed' as const, expectedChecksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) }, createdAt: '2026-07-23T00:00:00.000Z', expiresAt: '2026-07-23T00:05:00.000Z', status,
   };
 }

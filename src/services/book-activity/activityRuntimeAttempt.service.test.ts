@@ -3,6 +3,8 @@ import { resolveBookScheduleWindow } from '../book-delivery/bookScheduleWindow.s
 import {
   assertBookRuntimeWindowForTarget,
   createBookRuntimeScheduleAuthority,
+  activitySubmissionFromRuntimeResponses,
+  normalizeSavedActivityResponse,
   sameBookRuntimeScheduleAuthority,
 } from './activityRuntimeAttempt.service';
 
@@ -79,5 +81,22 @@ describe('Book runtime effective-window adapter', () => {
       authorityRevision: 3,
     });
     expect(sameBookRuntimeScheduleAuthority(first, changed)).toBe(false);
+  });
+
+  it('reads legacy saved submission rows without changing their stored shape', () => {
+    const legacy = [{ interactionId: 'interaction-1', answer: ['option-a'] }];
+    expect(normalizeSavedActivityResponse('interaction-1', legacy, 'choice-single-v1')).toEqual({
+      interactionId: 'interaction-1',
+      selectedOptionId: 'option-a',
+    });
+    expect(activitySubmissionFromRuntimeResponses(['interaction-1'], {
+      'interaction-1': legacy,
+    })).toEqual(legacy);
+    expect(legacy).toEqual([{ interactionId: 'interaction-1', answer: ['option-a'] }]);
+    const malformed = [{ interactionId: 'interaction-1', answer: 42 }];
+    expect(normalizeSavedActivityResponse('interaction-1', malformed, 'choice-single-v1')).toBe(malformed);
+    expect(() => activitySubmissionFromRuntimeResponses(['interaction-1'], {
+      'interaction-1': malformed,
+    })).toThrow('runtime_activity_response_invalid');
   });
 });

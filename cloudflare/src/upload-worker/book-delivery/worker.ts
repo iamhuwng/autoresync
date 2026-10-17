@@ -8,7 +8,11 @@ import {
   type BookDeliveryContextKind,
   type BookDeliverySchedulePolicyReference,
   type BookDeliveryScope,
+  type BookDeliveryBinding,
+  type BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import { projectCombinedPageContext } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import { resolveMaterialQualifiedAssemblyCandidate } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import {
   createBookDeliveryProjectionResolver,
   BookDeliveryProjectionError,
@@ -47,6 +51,14 @@ import {
   FirebaseRestBookRuntimeRepository,
   type BookRuntimeRepositoryEnv,
 } from '../book-runtime/repository.ts';
+import { isActiveBookSourceAuthorityProfile, readTrustedSourceSafety } from '../book-source/trusted-source-contract.ts';
+import { readProductionBookAssemblyAuthority, resolveActiveComponentStudentDocument, sourceUploadAccess } from '../book-assembly/production-composition.ts';
+import { opaqueBookDocumentEtag } from './document-worker.ts';
+import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+import { sourceUploadAccountPath, validateBookSourceUploadAccountState } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
+import { FirebaseRestBookAssemblyRepository } from '../book-assembly/repository.ts';
+import { resolveBookIntegrityCaptureLaunch } from '../book-activity-integrity/production-composition.ts';
+import type { BookIntegrityWorkerEnv } from '../book-activity-integrity/worker.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -77,10 +89,8 @@ const exact = (value: unknown, keys: readonly string[]): Record<string, unknown>
 };
 
 const role = (value: unknown): boolean => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const profile = value as Record<string, unknown>;
-  return (profile.role === 'teacher' || profile.role === 'super_admin')
-    && !['blocked', 'inactive', 'suspended'].includes(String(profile.status ?? ''));
+  return isActiveBookSourceAuthorityProfile(value, 'teacher')
+    || isActiveBookSourceAuthorityProfile(value, 'super_admin');
 };
 
 export class BookDeliveryWorkerError extends Error {
@@ -110,6 +120,7 @@ type TrustedPublicationLoader = (
   env: BookDeliveryWorkerEnv,
   intent: BookDeliveryIssuanceIntent,
   schedulePolicy: BookDeliverySchedulePolicyReference,
+  ownerId: string,
 ) => Promise<BookDeliveryPublishedPublicationReference>;
 
 interface TrustedIssuanceContext {
@@ -119,8 +130,9 @@ interface TrustedIssuanceContext {
 const publicationPathId = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const deliveryScopeId = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
 const operationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const contextBasis: Readonly<Record<RunnableContextKind, 'solo' | 'preview' | 'assignment' | 'enrollment' | 'membership'>> = {
+const contextBasis: Readonly<Record<RunnableContextKind, 'solo' | 'public-library' | 'preview' | 'assignment' | 'enrollment' | 'membership'>> = {
   solo: 'solo',
+  public: 'public-library',
   preview: 'preview',
   homework: 'assignment',
   course: 'enrollment',
@@ -492,6 +504,100 @@ const bindingIdFor = async (operationId: string): Promise<string> => {
   return `bd_${[...digest.slice(0, 20)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 };
 
+export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding) => {
+    const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
+    if (!authority) return null;
+    const scope = await new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId }).readScope(binding.book.bookId);
+    const qualified = resolveActiveComponentStudentDocument(authority, scope);
+    const current = scope.current;
+    if (!qualified || !current
+      || qualified.activation.bookRevision !== binding.book.bookRevision
+      || qualified.activation.sourceSetRevision !== current.sourceSetRevision
+      || current.bookRevision !== binding.book.bookRevision) return null;
+    try {
+      createTrustedBookDeliveryPublication({
+        bookId: binding.book.bookId,
+        publicationId: binding.book.publicationId,
+        publicationRevision: binding.book.publicationRevision,
+        recipientId: binding.recipient.recipientId,
+        contextKind: binding.context.kind as RunnableContextKind,
+        contextId: binding.context.contextId,
+        scope: binding.scope,
+      }, scope, binding.schedulePolicy);
+    } catch {
+      return null;
+    }
+    const pageGroups: BookRuntimePageGroupContext[] = [];
+    const groupFacts = new Map<string, {
+      sourceKey: string; pages: readonly number[]; activityKeys: readonly string[]; unitKey: string;
+    }>();
+    const assemblyRepository = new FirebaseRestBookAssemblyRepository({
+      env: env as never, ownerId: binding.issuer.ownerId,
+    });
+    for (const reference of qualified.activation.unitCandidates) {
+      const candidateScope = await assemblyRepository.readScope(binding.book.bookId, reference.unitKey);
+      const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, reference.unitKey, candidateScope.candidates);
+      const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === reference.unitKey);
+      if (!candidate || !unit) return null;
+      for (const group of unit.pageGroups) {
+        if (groupFacts.has(group.pageGroupKey)) return null;
+        groupFacts.set(group.pageGroupKey, { ...group, unitKey: unit.unitKey });
+      }
+      try { pageGroups.push(...projectCombinedPageContext(qualified.descriptor, unit.pageGroups)); } catch { return null; }
+    }
+    for (const placement of binding.placements) {
+      const activity = qualified.activation.activities.find((entry) => entry.activityId === placement.activityId);
+      const groups = placement.pageGroupKeys.map((key) => groupFacts.get(key));
+      if (!activity || groups.some((group) => !group)
+        || groups.some((group) => group!.unitKey !== activity.unitKey
+          || !group!.activityKeys.includes(activity.activityKey))) return null;
+      const candidateScope = await assemblyRepository.readScope(binding.book.bookId, activity.unitKey);
+      const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, activity.unitKey, candidateScope.candidates);
+      const slot = candidate?.manifest?.units.find((entry) => entry.unitKey === activity.unitKey)
+        ?.activitySlots.find((entry) => entry.activityKey === activity.activityKey);
+      const allowedSources = new Map(binding.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));
+      const canonicalScopes = [...new Map(groups.flatMap((group) => group!.pages.map((page) => [
+        `${group!.sourceKey}:${page}`, { sourceKey: group!.sourceKey, page },
+      ]))).values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
+      const storedScopes = placement.sourcePageScopes.flatMap((scopeEntry) => scopeEntry.pages.map((page) => ({
+        sourceKey: scopeEntry.sourceKey, page,
+      }))).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey) || a.page - b.page);
+      if (!slot || slot.contextRequirement !== placement.contextMode
+        || groups.some((group) => !allowedSources.has(group!.sourceKey))
+        || JSON.stringify(slot.pageGroupKeys) !== JSON.stringify(placement.pageGroupKeys)
+        || JSON.stringify(canonicalScopes) !== JSON.stringify(storedScopes)) return null;
+    }
+    const access = sourceUploadAccess(env as unknown as Record<string, unknown>);
+    const account = validateBookSourceUploadAccountState(await new FirebaseRtdbRestClient({
+      env, fetchImpl: globalThis.fetch, getAccessToken: access.getAccessToken,
+    }).readValue(sourceUploadAccountPath(access.accountId)));
+    const operations = Object.values(account.operations).filter((operation) => {
+      const safety = readTrustedSourceSafety(operation, {
+        sourceVersionId: operation.sourceVersionId,
+        purpose: 'student-document',
+        checksum: operation.expectedChecksum,
+      });
+      return operation.status === 'verified_completed'
+        && operation.ownerId === binding.issuer.ownerId
+        && operation.bookId === binding.book.bookId
+        && operation.sourceKey === 'student-document'
+        && operation.sourceVersionId === qualified.descriptor.sourceVersionId
+        && operation.verifiedStorage !== undefined
+        && safety?.studentSafeStatus === 'ready'
+        && safety.studentSafeDecision?.sha256Hex === qualified.descriptor.sha256Hex
+        && operation.verifiedStorage.byteSize === qualified.descriptor.byteSize
+        && operation.verifiedStorage.checksum.algorithm === 'sha-256'
+        && operation.verifiedStorage.checksum.value.toLowerCase() === qualified.descriptor.sha256Hex;
+    });
+    if (operations.length !== 1 || !operations[0]!.verifiedStorage) return null;
+    return {
+      expectedByteLength: qualified.descriptor.byteSize,
+      expectedEtag: await opaqueBookDocumentEtag(operations[0]!.verifiedStorage),
+      physicalPageCount: qualified.descriptor.physicalPageCount,
+      pageGroups: Object.freeze(pageGroups),
+    };
+};
+
 export const createBookDeliveryWorkerHandlers = (options: {
   repository?: FirebaseRestBookDeliveryRepository;
   publicationRepository?: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
@@ -505,18 +611,25 @@ export const createBookDeliveryWorkerHandlers = (options: {
   now?: () => string;
   homeworkAuthorityStore?: Pick<FirebaseRestBookHomeworkDocumentStore, 'read'>;
   activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
+  resolveStudentDocument?: (env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding) => Promise<{
+    readonly expectedByteLength: number;
+    readonly expectedEtag: string;
+    readonly physicalPageCount: number;
+    readonly pageGroups: readonly BookRuntimePageGroupContext[];
+  } | null>;
 } = {}) => {
   const now = options.now ?? (() => new Date().toISOString());
   const repositoryFor = (env: BookDeliveryWorkerEnv) => (
     options.repository ?? new FirebaseRestBookDeliveryRepository({ env })
   );
-  const publicationRepositoryFor = (env: BookDeliveryWorkerEnv) => (
-    options.publicationRepository ?? new FirebaseRestBookAssemblyPublicationRepository({ env })
+  const publicationRepositoryFor = (env: BookDeliveryWorkerEnv, ownerId: string) => (
+    options.publicationRepository ?? new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId })
   );
-  const loadPublication: TrustedPublicationLoader = options.loadPublication ?? (async (env, intent, schedulePolicy) => (
+  const resolveStudentDocument = options.resolveStudentDocument ?? resolveTrustedBookDeliveryStudentDocument;
+  const loadPublication: TrustedPublicationLoader = options.loadPublication ?? (async (env, intent, schedulePolicy, ownerId) => (
     createTrustedBookDeliveryPublication(
       intent,
-      await publicationRepositoryFor(env).readScope(intent.bookId),
+      await publicationRepositoryFor(env, ownerId).readScope(intent.bookId),
       schedulePolicy,
     )
   ));
@@ -563,7 +676,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!trustedContext) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
-        const publication = await loadPublication(input.env, intent, trustedContext.schedulePolicy);
+        const publication = await loadPublication(input.env, intent, trustedContext.schedulePolicy, input.uid);
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
@@ -610,7 +723,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
         if (!trustedContext) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
-        const publication = await loadPublication(input.env, intent, trustedContext.schedulePolicy);
+        const publication = await loadPublication(input.env, intent, trustedContext.schedulePolicy, input.uid);
         if (!(await authorize(input.env, input.uid, publication.ownerId))) {
           return { body: { status: 'forbidden' }, init: { status: 403 } };
         }
@@ -671,7 +784,10 @@ export const createBookDeliveryWorkerHandlers = (options: {
     async resolve(input: { env: BookDeliveryWorkerEnv; uid: string; recipientId: string; contextId: string }) {
       try {
         const repository = repositoryFor(input.env);
-        const result = await createBookDeliveryProjectionResolver({ repository }).resolve({
+        const result = await createBookDeliveryProjectionResolver({
+          repository,
+          resolveStudentDocument: (binding) => resolveStudentDocument(input.env, binding),
+        }).resolve({
           recipientId: input.recipientId,
           contextId: input.contextId,
           actor: { uid: input.uid },
@@ -731,9 +847,26 @@ export const createBookDeliveryWorkerHandlers = (options: {
         });
         const projection = {
           ...result,
-          activities: result.activities.map((activity) => ({
-            ...activity,
-            scheduleWindow: windows[activity.placementId],
+          activities: await Promise.all(result.activities.map(async (activity) => {
+            const integrityCapture = await resolveBookIntegrityCaptureLaunch({
+              env: input.env as unknown as BookIntegrityWorkerEnv,
+              recipientId: current.record.binding.recipient.recipientId,
+              target: {
+                bookId: current.record.binding.book.bookId,
+                bindingId: current.record.binding.bindingId,
+                bindingRevision: current.record.binding.revision,
+                contextKind: 'homework',
+                contextId: current.record.binding.context.contextId,
+                placementId: activity.placementId,
+                activityId: activity.activityId,
+                activityVersion: activity.activityVersion,
+              },
+            });
+            return {
+              ...activity,
+              scheduleWindow: windows[activity.placementId],
+              ...(integrityCapture ? { integrityCapture } : {}),
+            };
           })),
           actionFlags: {
             canAutosave: result.activities.some((activity) =>

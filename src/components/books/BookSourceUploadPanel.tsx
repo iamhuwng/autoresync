@@ -112,7 +112,6 @@ const BookSourceUploadPanel = ({
   const [activePhase, setActivePhase] = useState<ActivePhase>('idle');
   const [progress, setProgress] = useState<SourceUploadByteProgress>(emptyProgress);
   const [error, setError] = useState('');
-  const [confirmedRightsKey, setConfirmedRightsKey] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const activeRunRef = useRef(0);
   const onActionRef = useRef(onAction);
@@ -125,6 +124,7 @@ const BookSourceUploadPanel = ({
   };
 
   const restore = useCallback(async () => {
+    if (immutablePublished) await workflow.prepareReplacement(bookId);
     const state = await workflow.load(bookId);
     setSaved(state);
     publishState(state);
@@ -135,7 +135,10 @@ const BookSourceUploadPanel = ({
 
   useEffect(() => {
     let active = true;
-    void workflow.load(bookId).then((state) => {
+    void (async () => {
+      if (immutablePublished) await workflow.prepareReplacement(bookId);
+      return workflow.load(bookId);
+    })().then((state) => {
       if (!active) return;
       setSaved(state);
       onStateChangeRef.current?.(state);
@@ -146,7 +149,7 @@ const BookSourceUploadPanel = ({
       activeRunRef.current += 1;
       controllerRef.current?.abort();
     };
-  }, [bookId, workflow]);
+  }, [bookId, immutablePublished, workflow]);
 
   const finishVerified = (state: SourceUploadSafeOperationState) => {
     if (state.phase !== 'verified') {
@@ -157,8 +160,7 @@ const BookSourceUploadPanel = ({
     setActivePhase('idle');
     setError('');
     onAction?.('book_source_upload_verified', {
-      reservationId: state.reservationId,
-      sourceVersionId: state.sourceVersionId,
+      status: state.phase,
     });
     toast.success('PDF upload verified. Source Version is ready.');
   };
@@ -178,7 +180,7 @@ const BookSourceUploadPanel = ({
   };
 
   const runBytes = async (retry: boolean) => {
-    if (!selection || (guided && !rightsConfirmed)) return;
+    if (!selection) return;
     const activeRun = activeRunRef.current + 1;
     activeRunRef.current = activeRun;
     const controller = new AbortController();
@@ -293,25 +295,14 @@ const BookSourceUploadPanel = ({
   const busy = activePhase === 'uploading'
     || activePhase === 'verifying'
     || activePhase === 'reconciling';
-  const rightsConfirmationKey = selection
-    ? `${selection.file.name}:${selection.file.size}:${selection.claim.sha256Hex}`
-    : null;
-  const rightsConfirmed = !guided
-    || (rightsConfirmationKey !== null && confirmedRightsKey === rightsConfirmationKey);
-  const byteUploadNeedsRightsConfirmation = guided
-    && allowFreshUpload
-    && selection !== null
-    && (saved === null || saved.phase === 'begin_pending' || saved.phase === 'reserved');
   const canStart = allowFreshUpload
     && selection !== null
     && saved === null
-    && !busy
-    && rightsConfirmed;
+    && !busy;
   const canRetryBytes = allowFreshUpload
     && selection !== null
     && (saved?.phase === 'begin_pending' || saved?.phase === 'reserved')
-    && !busy
-    && rightsConfirmed;
+    && !busy;
   const canRetryCompletion = saved?.phase === 'completion_pending' && !busy;
   const canRequestCleanup = saved !== null
     && saved.phase !== 'begin_pending'
@@ -333,7 +324,6 @@ const BookSourceUploadPanel = ({
         </div>
         {busy && <div className="pbf-callout" role="status"><strong>{activePhase === 'verifying' ? 'Checking your upload' : 'Uploading your PDF'}</strong><span>Your file is being sent to the private source store.</span><progress aria-label="Source PDF upload progress" max={100} value={progress.percent} style={{ width: '100%', marginTop: 12 }} /></div>}
         {saved?.phase === 'verified' && <div className="pbf-callout is-good" role="status"><strong>Your PDF is ready</strong><span>It is verified and ready to use in this Book.</span></div>}
-        {byteUploadNeedsRightsConfirmation && <label className="pbf-check"><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setConfirmedRightsKey(event.currentTarget.checked ? rightsConfirmationKey : null)} /> <span>I have permission to use this PDF with my students.</span></label>}
         {error && <div className="pbf-callout is-danger" role="alert"><strong>Upload needs attention</strong><span>{error}</span></div>}
         <div className="pbf-actions" style={{ justifyContent: 'flex-end', marginTop: 16 }}>
           {saved === null && <button type="button" className="pbf-button pbf-button-primary" disabled={!canStart} onClick={() => void runBytes(false)}>Upload PDF</button>}
@@ -369,7 +359,7 @@ const BookSourceUploadPanel = ({
 
       {guided && (
         <p className="book-source-upload__guided-step" role="status">
-          Step 2 of 2: confirm your upload rights before sending PDF bytes.
+          Step 2 of 2: send the PDF to its private source store.
         </p>
       )}
 
@@ -442,19 +432,6 @@ const BookSourceUploadPanel = ({
         <p className="book-source-upload__success" role="status">
           One verified ready Source Version is recorded for this operation.
         </p>
-      )}
-
-      {byteUploadNeedsRightsConfirmation && (
-        <label className="book-source-upload__rights-confirmation">
-          <input
-            type="checkbox"
-            checked={rightsConfirmed}
-            onChange={(event) => {
-              setConfirmedRightsKey(event.currentTarget.checked ? rightsConfirmationKey : null);
-            }}
-          />
-          <span>I confirm that I have the rights and permission to upload this PDF for this Book.</span>
-        </label>
       )}
 
       {error && <p className="book-source-upload__error" role="alert">{error}</p>}

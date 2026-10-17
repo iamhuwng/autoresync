@@ -1,10 +1,12 @@
 import {
-  type ActivityContextRequirement,
   type BookAssemblyManifestCandidate,
   type BookAssemblyValidationError,
   type BookSourceVersionAuthority,
+  type BookSourceCandidate,
   type BookUnitCandidate,
+  type ComponentPdfPreparationComponentInput,
 } from '../../types/bookAssembly.types';
+import { validateEditableActivity } from '../book-activity/activitySchema.service';
 import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 
 export type BookAssemblyReconciliationSeverity = 'blocker' | 'warning';
@@ -24,13 +26,21 @@ export type BookAssemblyReconciliationCode =
   | 'presentation-context-contradiction'
   | 'manifest-validation';
 
-export interface ActivityReconciliationDeclaration {
-  readonly activityKey: string;
-  readonly family: string;
-  readonly variant: string;
-  readonly profile: string | null;
-  readonly presentationMode: 'structured' | 'source-assisted' | 'unknown';
-  readonly contextRequirement: ActivityContextRequirement;
+export type BookAssemblyChangeClass = 'added' | 'removed' | 'renamed' | 'reordered' | 'moved' | 'page-mapping-changed' | 'source-replaced' | 'unresolved';
+
+export interface BookAssemblyReconciliationChange {
+  readonly id: string;
+  readonly changeClass: BookAssemblyChangeClass;
+  readonly itemKey: string;
+  readonly current: string;
+  readonly proposed: string;
+  readonly resolution: 'automatic' | 'teacher-choice' | 'blocked';
+  readonly message: string;
+  readonly target?:
+    | { readonly kind: 'source'; readonly sourceKey: string }
+    | { readonly kind: 'node-move'; readonly nodeKey: string }
+    | { readonly kind: 'activity-move'; readonly activityKey: string }
+    | { readonly kind: 'activity-page-mapping'; readonly unitKey: string; readonly activityKey: string };
 }
 
 export interface BookAssemblyReconciliationIssue {
@@ -42,6 +52,7 @@ export interface BookAssemblyReconciliationIssue {
 }
 
 export interface BookAssemblyReconciliationReport {
+  readonly changes: readonly BookAssemblyReconciliationChange[];
   readonly issues: readonly BookAssemblyReconciliationIssue[];
   readonly releaseBlocking: boolean;
   readonly requiresTeacherChoice: boolean;
@@ -51,8 +62,16 @@ export interface BookAssemblyReconciliationReport {
 
 export interface AnalyzeBookAssemblyReconciliationInput {
   readonly manifest: BookAssemblyManifestCandidate;
+  readonly currentManifest?: BookAssemblyManifestCandidate | null;
   readonly sourceVersionAuthority: BookSourceVersionAuthority;
-  readonly activityDeclarations?: Readonly<Record<string, ActivityReconciliationDeclaration>>;
+  /** Canonical editable Activity JSON keyed by stable Activity key. */
+  readonly activities?: Readonly<Record<string, unknown>>;
+  readonly currentLabels?: Readonly<Record<string, string>>;
+  readonly proposedLabels?: Readonly<Record<string, string>>;
+  readonly currentComponents?: readonly ComponentPdfPreparationComponentInput[];
+  readonly proposedComponents?: readonly ComponentPdfPreparationComponentInput[];
+  readonly fuzzySuggestions?: readonly { currentKey: string; proposedKey: string; label: string }[];
+  readonly resolvedChangeIds?: ReadonlySet<string>;
   readonly expectedBookRevision?: number;
   readonly bookRevision?: number;
   readonly expectedSourceSetRevision?: number;
@@ -60,16 +79,6 @@ export interface AnalyzeBookAssemblyReconciliationInput {
   readonly expectedCandidateRevision?: number;
   readonly candidateRevision?: number;
 }
-
-const supportedDeclarations = new Set([
-  'choice:single-select',
-  'choice:multi-select',
-  'text-entry:short-answer',
-  'text-entry:gap-fill',
-  'matching:drag-match',
-  'ordering:drag-order',
-  'long-response:essay',
-]);
 
 const compare = (left: string | number, right: string | number): number =>
   typeof left === 'number' && typeof right === 'number'
@@ -144,7 +153,7 @@ const reconcileUnit = (
       issues.push(blocker('unknown-source-key', `${groupPath}.sourceKey`, `Unknown source key ${group.sourceKey}.`));
     }
     const source = manifest.sourceSet.sources.find((entry) => entry.sourceKey === group.sourceKey);
-    if (source && 'ownerNodeKey' in source && !unitContainsOwner(manifest, unit.unitKey, source.ownerNodeKey)) {
+    if (source && typeof source.ownerNodeKey === 'string' && !unitContainsOwner(manifest, unit.unitKey, source.ownerNodeKey)) {
       issues.push(blocker('invalid-component-owner', `${groupPath}.sourceKey`, `Component source ${group.sourceKey} is outside this Unit branch.`));
     }
     const pageCount = sourcePageCount(manifest, authority, group.sourceKey);
@@ -215,26 +224,93 @@ const reconcileUnit = (
   return { ...unit, activitySlots: repairedSlots, pageGroups: repairedGroupActivityKeys };
 };
 
-const reportDeclarations = (
+const reportActivities = (
   manifest: BookAssemblyManifestCandidate,
-  declarations: Readonly<Record<string, ActivityReconciliationDeclaration>> | undefined,
+  activities: Readonly<Record<string, unknown>> | undefined,
   issues: BookAssemblyReconciliationIssue[],
 ): void => {
-  if (!declarations) return;
+  if (!activities) return;
   manifest.units.forEach((unit, unitIndex) => unit.activitySlots.forEach((slot, slotIndex) => {
-    const declaration = declarations[slot.activityKey];
-    if (!declaration) return;
+    const activity = activities[slot.activityKey];
     const path = `$.units[${unitIndex}].activitySlots[${slotIndex}]`;
-    if (!supportedDeclarations.has(`${declaration.family}:${declaration.variant}`)) {
-      issues.push(blocker('unsupported-activity-declaration', path, `Unsupported Activity declaration ${declaration.family}:${declaration.variant}.`));
-    }
-    if (declaration.contextRequirement !== slot.contextRequirement) {
-      issues.push(blocker('presentation-context-contradiction', path, `Activity declaration context does not match slot ${slot.activityKey}.`, 'teacher-choice'));
-    }
-    if (declaration.presentationMode === 'structured' && slot.contextRequirement === 'required') {
-      issues.push(blocker('presentation-context-contradiction', path, 'A required-source Activity cannot auto-select structured presentation.', 'teacher-choice'));
-    }
+    if (activity === undefined) return;
+    const mappedBookPageRefs = unit.pageGroups
+      .filter((group) => group.activityKeys.includes(slot.activityKey))
+      .flatMap((group) => group.pages.map((page) => `${group.sourceKey}:${page}`));
+    const validation = validateEditableActivity(activity, { mappedBookPageRefs });
+    validation.errors.forEach((error) => issues.push(blocker(
+      ['invalid-presentation', 'source-context-required', 'missing-mapped-pages', 'task-profile-contradiction'].includes(error.code)
+        ? 'presentation-context-contradiction'
+        : 'unsupported-activity-declaration',
+      `${path}.activity${error.path.slice(1)}`,
+      error.message,
+    )));
   }));
+};
+
+const describeNode = (node: BookAssemblyManifestCandidate['nodes'][number]): string =>
+  `${node.nodeType} at ${node.parentNodeKey ?? 'root'}, position ${node.order}`;
+
+const classifyChanges = (input: AnalyzeBookAssemblyReconciliationInput): BookAssemblyReconciliationChange[] => {
+  const current = input.currentManifest;
+  if (!current) return [];
+  const changes: BookAssemblyReconciliationChange[] = [];
+  const currentNodes = new Map(current.nodes.map((node) => [node.nodeKey, node]));
+  const proposedNodes = new Map(input.manifest.nodes.map((node) => [node.nodeKey, node]));
+  const add = (change: Omit<BookAssemblyReconciliationChange, 'id'>) => changes.push({
+    ...change,
+    id: `${change.changeClass}:${change.itemKey}:${JSON.stringify([change.current, change.proposed])}`,
+  });
+  current.nodes.forEach((node) => {
+    const next = proposedNodes.get(node.nodeKey);
+    if (!next) return add({ changeClass: 'removed', itemKey: node.nodeKey, current: describeNode(node), proposed: 'Removed', resolution: 'automatic', message: 'Stable item removed.' });
+    const currentLabel = input.currentLabels?.[node.nodeKey];
+    const proposedLabel = input.proposedLabels?.[node.nodeKey];
+    if (currentLabel !== undefined && proposedLabel !== undefined && currentLabel !== proposedLabel) {
+      add({ changeClass: 'renamed', itemKey: node.nodeKey, current: currentLabel, proposed: proposedLabel, resolution: 'automatic', message: 'Stable key preserves identity through rename.' });
+    }
+    if (node.parentNodeKey !== next.parentNodeKey) add({ changeClass: 'moved', itemKey: node.nodeKey, current: node.parentNodeKey ?? 'root', proposed: next.parentNodeKey ?? 'root', resolution: 'teacher-choice', message: 'Cross-Unit moves require an explicit decision.', target: { kind: 'node-move', nodeKey: node.nodeKey } });
+    else if (node.order !== next.order) add({ changeClass: 'reordered', itemKey: node.nodeKey, current: String(node.order), proposed: String(next.order), resolution: 'automatic', message: 'Stable key preserves identity through reorder.' });
+  });
+  input.manifest.nodes.forEach((node) => {
+    if (!currentNodes.has(node.nodeKey)) add({ changeClass: 'added', itemKey: node.nodeKey, current: 'Not present', proposed: describeNode(node), resolution: 'automatic', message: 'New stable item.' });
+  });
+  const currentSources = new Map<string, BookSourceCandidate>();
+  current.sourceSet.sources.forEach((source) => currentSources.set(source.sourceKey, source));
+  input.manifest.sourceSet.sources.forEach((source) => {
+    const old = currentSources.get(source.sourceKey);
+    if (old && old.sourceVersionId !== source.sourceVersionId) add({ changeClass: 'source-replaced', itemKey: source.sourceKey, current: old.sourceVersionId, proposed: source.sourceVersionId, resolution: 'teacher-choice', message: 'Source replacement keeps unchanged Activity keys but requires mapping review.', target: { kind: 'source', sourceKey: source.sourceKey } });
+  });
+  const currentSlots = new Map(current.units.flatMap((unit) => unit.activitySlots.map((slot) => [slot.activityKey, { unit, slot }] as const)));
+  const proposedSlotKeys = new Set(input.manifest.units.flatMap((unit) => unit.activitySlots.map((slot) => slot.activityKey)));
+  currentSlots.forEach(({ unit }, activityKey) => {
+    if (!proposedSlotKeys.has(activityKey)) add({ changeClass: 'removed', itemKey: activityKey, current: unit.unitKey, proposed: 'Removed', resolution: 'automatic', message: 'Activity removed from the proposed tree.' });
+  });
+  input.manifest.units.forEach((unit) => unit.activitySlots.forEach((slot) => {
+    const old = currentSlots.get(slot.activityKey);
+    if (!old) {
+      add({ changeClass: 'added', itemKey: slot.activityKey, current: 'Not present', proposed: unit.unitKey, resolution: 'automatic', message: 'Activity added to the proposed tree.' });
+      return;
+    }
+    if (old.unit.unitKey !== unit.unitKey) add({ changeClass: 'moved', itemKey: slot.activityKey, current: old.unit.unitKey, proposed: unit.unitKey, resolution: 'teacher-choice', message: 'Cross-Unit Activity move requires an explicit decision.', target: { kind: 'activity-move', activityKey: slot.activityKey } });
+    else if (old.slot.order !== slot.order) add({ changeClass: 'reordered', itemKey: slot.activityKey, current: String(old.slot.order), proposed: String(slot.order), resolution: 'automatic', message: 'Stable Activity key preserves identity through reorder.' });
+    if (JSON.stringify(old.slot.pageGroupKeys) !== JSON.stringify(slot.pageGroupKeys)) add({ changeClass: 'page-mapping-changed', itemKey: slot.activityKey, current: old.slot.pageGroupKeys.join(', ') || 'None', proposed: slot.pageGroupKeys.join(', ') || 'None', resolution: 'teacher-choice', message: 'Page mapping changes require review.', target: { kind: 'activity-page-mapping', unitKey: unit.unitKey, activityKey: slot.activityKey } });
+  }));
+  const currentComponents = new Map(input.currentComponents?.map((component) => [component.sourceKey, component]) ?? []);
+  input.proposedComponents?.forEach((component) => {
+    const old = currentComponents.get(component.sourceKey);
+    if (!old) return;
+    ([['printedLabel', old.printedLabel, component.printedLabel], ['rotation', old.rotation, component.rotation], ['presentationMode', old.presentationMode, component.presentationMode]] as const)
+      .forEach(([field, before, after]) => {
+        if (before !== after) add({ changeClass: 'page-mapping-changed', itemKey: `${component.sourceKey}:${field}`, current: String(before), proposed: String(after), resolution: 'teacher-choice', message: `${field} changed and requires source-assisted preview review before handoff.` });
+      });
+  });
+  input.fuzzySuggestions?.forEach((suggestion) => add({
+    changeClass: 'unresolved', itemKey: `${suggestion.currentKey}→${suggestion.proposedKey}`,
+    current: suggestion.currentKey, proposed: suggestion.proposedKey, resolution: 'teacher-choice',
+    message: `${suggestion.label} is a suggestion only; stable identity requires an explicit decision.`,
+  }));
+  return changes.sort((left, right) => compare(left.changeClass, right.changeClass) || compare(left.itemKey, right.itemKey));
 };
 
 export const analyzeBookAssemblyReconciliation = (
@@ -256,7 +332,7 @@ export const analyzeBookAssemblyReconciliation = (
     ...draft,
     units: draft.units.map((unit, unitIndex) => reconcileUnit(draft, unit, unitIndex, input.sourceVersionAuthority, issues)),
   };
-  reportDeclarations(repairedManifest, input.activityDeclarations, issues);
+  reportActivities(repairedManifest, input.activities, issues);
   validateBookAssemblyManifestCandidate(repairedManifest, input.sourceVersionAuthority).errors
     .forEach((error) => issues.push(validationIssue(error)));
 
@@ -265,12 +341,26 @@ export const analyzeBookAssemblyReconciliation = (
     || compare(left.path, right.path)
     || compare(left.code, right.code)
     || compare(left.message, right.message));
-  const requiresTeacherChoice = orderedIssues.some((entry) => entry.repair === 'teacher-choice');
-  const releaseBlocking = orderedIssues.some((entry) => entry.severity === 'blocker');
+  const changes = classifyChanges(input).map((change) => input.resolvedChangeIds?.has(change.id)
+    ? { ...change, resolution: 'automatic' as const, message: `${change.message} Decision recorded.` }
+    : change);
+  const unresolvedChoice = changes.some((change) => change.resolution === 'teacher-choice');
+  const requiresTeacherChoice = orderedIssues.some((entry) => entry.repair === 'teacher-choice') || unresolvedChoice;
+  const releaseBlocking = orderedIssues.some((entry) => entry.severity === 'blocker') || unresolvedChoice;
   const canApplyExactRepair = !releaseBlocking
     && !requiresTeacherChoice
     && orderedIssues.some((entry) => entry.repair === 'exact');
+  orderedIssues.filter((issue) => issue.severity === 'blocker').forEach((issue, index) => changes.push({
+    id: `unresolved:${issue.code}:${issue.path}:${index}`,
+    changeClass: 'unresolved',
+    itemKey: issue.path,
+    current: 'Unresolved',
+    proposed: issue.message,
+    resolution: 'blocked',
+    message: 'Correct this required fact before handoff.',
+  }));
   return {
+    changes,
     issues: orderedIssues,
     releaseBlocking,
     requiresTeacherChoice,

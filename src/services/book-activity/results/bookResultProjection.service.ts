@@ -12,6 +12,8 @@ import type {
   BookRuntimeResultRecord,
   BookRuntimeScore,
   BookRuntimeSourceProvenance,
+  BookRuntimeFeedbackPolicy,
+  BookRuntimeTerminalLateFact,
 } from '../activityRuntimeAttempt.types';
 import {
   BOOK_RESULT_PROJECTION_SCHEMA_VERSION,
@@ -46,7 +48,7 @@ import {
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const TEXT = /^.{0,4096}$/su;
-const CONTEXT_KINDS: readonly BookResultSurface[] = ['solo', 'homework', 'course', 'unknown'];
+const CONTEXT_KINDS: readonly BookResultSurface[] = ['solo', 'public', 'homework', 'course', 'class', 'unknown'];
 const SOURCE_AVAILABILITIES: readonly BookResultSourceAvailability[] = [
   'available', 'missing', 'deleted', 'replaced', 'invalidated', 'not-required',
 ];
@@ -136,6 +138,7 @@ const commonTerminalFields = [
   'createdAt', 'createdByOperationId', 'interactionId', 'pageGroupKeys', 'placementId',
   'recipientId',
 ] as const;
+const FEEDBACK_POLICIES: readonly BookRuntimeFeedbackPolicy[] = ['immediate', 'after_completion', 'after_deadline', 'never', 'manual'];
 
 const validateSourceProvenance = (value: unknown, path: string, errors: MutableErrors): value is readonly BookRuntimeSourceProvenance[] => {
   if (!Array.isArray(value)) {
@@ -172,7 +175,7 @@ const validatePageGroups = (value: unknown, path: string, errors: MutableErrors)
 };
 
 const validateCommonTerminal = (value: unknown, path: string, errors: MutableErrors): value is Record<string, unknown> => {
-  if (!exact(value, commonTerminalFields, ['schemaVersion', 'resultId', 'completionId', 'sourceProvenance', 'feedbackRelease', 'response', 'status', 'score'], path, errors)) return false;
+  if (!exact(value, commonTerminalFields, ['feedbackPolicy', 'schemaVersion', 'resultId', 'completionId', 'sourceProvenance', 'feedbackRelease', 'response', 'status', 'score', 'terminalLate'], path, errors)) return false;
   const record = value as Record<string, unknown>;
   if (!isId(record.bindingId) || !isId(record.recipientId) || !isId(record.contextId)
     || !isId(record.placementId) || !isId(record.activityId) || !isId(record.activityVersionId)
@@ -185,6 +188,23 @@ const validateCommonTerminal = (value: unknown, path: string, errors: MutableErr
   }
   if (!isIso(record.createdAt)) push(errors, 'invalid-value', `${path}.createdAt`, 'Terminal timestamp is invalid.');
   validatePageGroups(record.pageGroupKeys, `${path}.pageGroupKeys`, errors);
+  if (record.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(record.feedbackPolicy as BookRuntimeFeedbackPolicy)) push(errors, 'invalid-value', `${path}.feedbackPolicy`, 'Feedback policy is invalid.');
+  if (record.terminalLate !== undefined) validateTerminalLate(record.terminalLate, `${path}.terminalLate`, errors);
+  return true;
+};
+
+const validateTerminalLate = (value: unknown, path: string, errors: MutableErrors): value is BookRuntimeTerminalLateFact => {
+  if (!isRecord(value) || !isRecord(value.effectiveDeadline)
+    || Object.keys(value).some((key) => !['effectiveDeadline', 'policyRevision', 'authorityRevision', 'evaluatedAt', 'late'].includes(key))
+    || Object.keys(value.effectiveDeadline).some((key) => !['source', 'at', 'nodeKey'].includes(key))
+    || !['open-access', 'assignment', 'ancestor', 'student-extension'].includes(value.effectiveDeadline.source as string)
+    || (value.effectiveDeadline.at !== null && !isIso(value.effectiveDeadline.at))
+    || (value.effectiveDeadline.nodeKey !== undefined && !isId(value.effectiveDeadline.nodeKey))
+    || !isPositiveInt(value.policyRevision) || !isPositiveInt(value.authorityRevision)
+    || !isIso(value.evaluatedAt) || typeof value.late !== 'boolean') {
+    push(errors, 'invalid-value', path, 'Terminal late fact is invalid.');
+    return false;
+  }
   return true;
 };
 
@@ -197,13 +217,13 @@ const validateTerminalRows = (input: unknown, errors: MutableErrors): input is B
   const result = value.result;
   const completion = value.completion;
   const index = value.index;
-  if (exact(attempt, [...commonTerminalFields, 'feedbackRelease', 'response', 'schemaVersion', 'sourceProvenance'], [], '$.attempt', errors)) {
+  if (exact(attempt, [...commonTerminalFields, 'feedbackRelease', 'response', 'schemaVersion', 'sourceProvenance'], ['feedbackPolicy', 'terminalLate'], '$.attempt', errors)) {
     validateCommonTerminal(attempt, '$.attempt', errors);
     if (attempt.schemaVersion !== 1) push(errors, 'invalid-value', '$.attempt.schemaVersion', 'Unsupported attempt schema version.');
     if (attempt.feedbackRelease !== 'pending') push(errors, 'invalid-value', '$.attempt.feedbackRelease', 'Unsupported attempt feedback release.');
     validateSourceProvenance(attempt.sourceProvenance, '$.attempt.sourceProvenance', errors);
   }
-  if (exact(result, [...commonTerminalFields, 'feedbackRelease', 'resultId', 'schemaVersion', 'sourceProvenance'], ['score', 'status'], '$.result', errors)) {
+  if (exact(result, [...commonTerminalFields, 'feedbackRelease', 'resultId', 'schemaVersion', 'sourceProvenance'], ['feedbackPolicy', 'score', 'status', 'terminalLate'], '$.result', errors)) {
     validateCommonTerminal(result, '$.result', errors);
     if (result.schemaVersion !== 1) push(errors, 'invalid-value', '$.result.schemaVersion', 'Unsupported result schema version.');
     if (result.feedbackRelease !== 'pending') push(errors, 'invalid-value', '$.result.feedbackRelease', 'Unsupported result feedback release.');
@@ -212,14 +232,14 @@ const validateTerminalRows = (input: unknown, errors: MutableErrors): input is B
     validateSourceProvenance(result.sourceProvenance, '$.result.sourceProvenance', errors);
     if (result.score !== undefined) validateScore(result.score, '$.result.score', errors);
   }
-  if (exact(completion, [...commonTerminalFields, 'completionId', 'resultId', 'schemaVersion', 'sourceProvenance', 'status'], [], '$.completion', errors)) {
+  if (exact(completion, [...commonTerminalFields, 'completionId', 'resultId', 'schemaVersion', 'sourceProvenance', 'status'], ['feedbackPolicy', 'terminalLate'], '$.completion', errors)) {
     validateCommonTerminal(completion, '$.completion', errors);
     if (completion.schemaVersion !== 1) push(errors, 'invalid-value', '$.completion.schemaVersion', 'Unsupported completion schema version.');
     if (!isId(completion.completionId) || !isId(completion.resultId)) push(errors, 'invalid-value', '$.completion', 'Completion identity is invalid.');
     if (completion.status !== 'completed') push(errors, 'invalid-value', '$.completion.status', 'Completion status is invalid.');
     validateSourceProvenance(completion.sourceProvenance, '$.completion.sourceProvenance', errors);
   }
-  if (exact(index, [...commonTerminalFields, 'attemptId', 'resultId', 'schemaVersion'], [], '$.index', errors)) {
+  if (exact(index, [...commonTerminalFields, 'attemptId', 'resultId', 'schemaVersion'], ['feedbackPolicy', 'terminalLate'], '$.index', errors)) {
     validateCommonTerminal(index, '$.index', errors);
     if (index.schemaVersion !== 1) push(errors, 'invalid-value', '$.index.schemaVersion', 'Unsupported index schema version.');
     if (!isId(index.resultId)) push(errors, 'invalid-value', '$.index.resultId', 'Index result ID is invalid.');
@@ -280,24 +300,40 @@ const validateIdentity = (input: BookResultProjectionInput, errors: MutableError
     || stable(completion.sourceProvenance) !== stable(attempt.sourceProvenance)) {
     push(errors, 'provenance-mismatch', '$.sourceProvenance', 'Result and completion provenance must exactly match the attempt.');
   }
+  if (result.feedbackPolicy !== attempt.feedbackPolicy
+    || completion.feedbackPolicy !== attempt.feedbackPolicy
+    || index.feedbackPolicy !== attempt.feedbackPolicy
+    || stable(result.terminalLate) !== stable(attempt.terminalLate)
+    || stable(completion.terminalLate) !== stable(attempt.terminalLate)
+    || stable(index.terminalLate) !== stable(attempt.terminalLate)) {
+    push(errors, 'identity-mismatch', '$.terminalLate', 'Terminal policy snapshots must exactly match every terminal row.');
+  }
+  const surface = input.context?.kind ?? input.surface;
+  if (surface === 'homework' && (attempt.feedbackPolicy === undefined || attempt.terminalLate === undefined)) {
+    push(errors, 'invalid-value', '$.attempt', 'Homework results require immutable terminal policy snapshots.');
+  }
+  if (surface === 'solo' && (attempt.feedbackPolicy !== undefined || attempt.terminalLate !== undefined)) {
+    push(errors, 'invalid-value', '$.attempt', 'Solo results cannot carry Homework terminal policy snapshots.');
+  }
 };
 
 const validateProjectionMetadata = (input: BookResultProjectionInput, errors: MutableErrors): void => {
   if (input.attemptPolicy !== undefined) {
-    if (!isRecord(input.attemptPolicy) || !exact(input.attemptPolicy, ['maxAttempts'], [], '$.attemptPolicy', errors)) return;
+    if (!isRecord(input.attemptPolicy) || !exact(input.attemptPolicy, ['maxAttempts'], ['feedbackPolicy'], '$.attemptPolicy', errors)) return;
     if (input.attemptPolicy.maxAttempts !== null && !isPositiveInt(input.attemptPolicy.maxAttempts)) push(errors, 'invalid-value', '$.attemptPolicy.maxAttempts', 'Attempt limit must be null or positive.');
+    if (input.attemptPolicy.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(input.attemptPolicy.feedbackPolicy as BookRuntimeFeedbackPolicy)) push(errors, 'invalid-value', '$.attemptPolicy.feedbackPolicy', 'Feedback policy is invalid.');
   }
   if (input.submittedAt !== undefined && !isIso(input.submittedAt)) push(errors, 'invalid-value', '$.submittedAt', 'Submission timestamp is invalid.');
-  if (input.surface !== undefined && !CONTEXT_KINDS.includes(input.surface as BookResultSurface)) push(errors, 'unsupported-context', '$.surface', 'Only Solo, Homework, or Course results are supported.');
+  if (input.surface !== undefined && !CONTEXT_KINDS.includes(input.surface as BookResultSurface)) push(errors, 'unsupported-context', '$.surface', 'Only Solo, Homework, Course, or Class results are supported.');
   if (input.context !== undefined) {
     if (!isRecord(input.context) || !exact(input.context, [], ['contextId', 'deliveryId', 'homeworkId', 'kind', 'ownerId'], '$.context', errors)) return;
-    if (input.context.kind !== undefined && !CONTEXT_KINDS.includes(input.context.kind as BookResultSurface)) push(errors, 'unsupported-context', '$.context.kind', 'Only Solo, Homework, or Course contexts are supported.');
+    if (input.context.kind !== undefined && !CONTEXT_KINDS.includes(input.context.kind as BookResultSurface)) push(errors, 'unsupported-context', '$.context.kind', 'Only Solo, Homework, Course, or Class contexts are supported.');
     if (input.context.contextId !== undefined && input.context.contextId !== input.attempt.contextId) push(errors, 'identity-mismatch', '$.context.contextId', 'Context ID must match the attempt.');
     for (const [field, value] of [['deliveryId', input.context.deliveryId], ['ownerId', input.context.ownerId]] as const) {
       if (value !== undefined && !isId(value)) push(errors, 'invalid-value', `$.context.${field}`, 'Context identity is invalid.');
     }
     if (input.context.homeworkId !== undefined && (!isId(input.context.homeworkId) || input.context.kind !== 'homework')) push(errors, 'invalid-value', '$.context.homeworkId', 'Homework ID requires a Homework context.');
-    if ((input.context.kind === 'solo' || input.context.kind === 'course') && input.context.homeworkId !== undefined) push(errors, 'invalid-value', '$.context.homeworkId', 'Only Homework results can carry a Homework ID.');
+    if ((input.context.kind === 'public' || input.context.kind === 'solo' || input.context.kind === 'course' || input.context.kind === 'class') && input.context.homeworkId !== undefined) push(errors, 'invalid-value', '$.context.homeworkId', 'Only Homework results can carry a Homework ID.');
   }
   validateFeedback(input.feedback, '$.feedback', errors);
   validateEvaluation(input.evaluation, '$.evaluation', errors);
@@ -442,7 +478,7 @@ export function assertValidBookResultProjectionInput(value: unknown): asserts va
 
 const contextKind = (input: BookResultProjectionInput): BookResultSurface => {
   const value = input.context?.kind ?? input.surface;
-  return value === 'solo' || value === 'homework' || value === 'course' ? value : 'unknown';
+  return value === 'public' || value === 'solo' || value === 'homework' || value === 'course' || value === 'class' ? value : 'unknown';
 };
 
 const scoreProjection = (score: BookRuntimeScore | undefined): BookResultScore | undefined => (
@@ -452,6 +488,7 @@ const scoreProjection = (score: BookRuntimeScore | undefined): BookResultScore |
 );
 
 const evaluationProjection = (input: BookResultProjectionInput): BookResultEvaluation => {
+  if (contextKind(input) === 'public') return cloneFreeze({ status: 'submitted' });
   const explicit = input.evaluation;
   const score = scoreProjection(input.result.score);
   const inferredStatus: BookResultEvaluationStatus = input.result.status === 'pending_review'
@@ -476,6 +513,7 @@ const evaluationProjection = (input: BookResultProjectionInput): BookResultEvalu
 };
 
 const feedbackProjection = (input: BookResultProjectionInput): BookResultFeedback => {
+  if (contextKind(input) === 'public') return cloneFreeze({ release: 'not-applicable', available: false });
   const supplied = input.feedback;
   const release = supplied?.release ?? 'pending';
   if (release !== 'released') return cloneFreeze({ release, available: false });
@@ -583,6 +621,8 @@ const summaryFor = (input: BookResultProjectionInput, sources: readonly BookResu
     attemptLimit: limit,
     attemptsUsed: 1,
     attemptsRemaining: limit === null ? null : Math.max(0, limit - 1),
+    ...(attempt.terminalLate === undefined ? {} : { terminalLate: cloneFreeze(attempt.terminalLate) }),
+    ...(attempt.feedbackPolicy === undefined ? {} : { feedbackPolicy: attempt.feedbackPolicy }),
   });
 };
 
@@ -729,7 +769,8 @@ const validateSummaryShape = (value: unknown, path: string, errors: MutableError
     'placementId', 'recipientId', 'resultId', 'resultStatus', 'schemaVersion', 'sourceAvailability',
     'sourceAvailable', 'sourceProvenance', 'sources', 'studentId', 'submittedAt', 'surface',
   ];
-  if (!exact(value, required, allowResponse ? ['response'] : [], path, errors)) return false;
+  if (!exact(value, required, allowResponse ? ['feedbackPolicy', 'response', 'terminalLate', 'studentFeedbackRelease'] : ['feedbackPolicy', 'terminalLate', 'studentFeedbackRelease'], path, errors)) return false;
+  if (value.studentFeedbackRelease !== undefined && !['released', 'withheld'].includes(String(value.studentFeedbackRelease))) push(errors, 'invalid-value', `${path}.studentFeedbackRelease`, 'Student feedback release is invalid.');
   if (value.schemaVersion !== BOOK_RESULT_PROJECTION_SCHEMA_VERSION || !isId(value.attemptId)
     || !isId(value.resultId) || !isId(value.completionId) || !isId(value.recipientId)
     || value.studentId !== value.recipientId || !isId(value.activityId) || !isId(value.contextId)
@@ -749,6 +790,10 @@ const validateSummaryShape = (value: unknown, path: string, errors: MutableError
   if (value.ownerId !== null && !isId(value.ownerId)) push(errors, 'invalid-value', `${path}.ownerId`, 'Owner snapshot is invalid.');
   if (value.homeworkId !== null && !isId(value.homeworkId)) push(errors, 'invalid-value', `${path}.homeworkId`, 'Homework snapshot is invalid.');
   if (value.attemptLimit !== null && !isPositiveInt(value.attemptLimit)) push(errors, 'invalid-value', `${path}.attemptLimit`, 'Attempt limit is invalid.');
+  if (value.surface === 'homework' && (value.feedbackPolicy === undefined || value.terminalLate === undefined)) push(errors, 'invalid-value', path, 'Homework result is missing immutable terminal policy snapshots.');
+  if (value.surface === 'solo' && (value.feedbackPolicy !== undefined || value.terminalLate !== undefined)) push(errors, 'invalid-value', path, 'Solo result cannot carry Homework terminal policy snapshots.');
+  if (value.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(value.feedbackPolicy as BookRuntimeFeedbackPolicy)) push(errors, 'invalid-value', `${path}.feedbackPolicy`, 'Feedback policy is invalid.');
+  if (value.terminalLate !== undefined) validateTerminalLate(value.terminalLate, `${path}.terminalLate`, errors);
   if (value.attemptsRemaining !== null && !isNonNegativeInt(value.attemptsRemaining)) push(errors, 'invalid-value', `${path}.attemptsRemaining`, 'Remaining attempt count is invalid.');
   validatePageGroups(value.pageGroupKeys, `${path}.pageGroupKeys`, errors);
   validateSourceProvenance(value.sourceProvenance, `${path}.sourceProvenance`, errors);

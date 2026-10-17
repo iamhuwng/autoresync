@@ -854,6 +854,28 @@ describeEmulator('Material Catalog Firebase rule emulator behavior', () => {
     );
   });
 
+  it('allows the owner to create an unactivated PDF Book with a 0/0 baseline', async () => {
+    const { teacher, otherTeacher } = makeMaterialCatalogRuleContexts();
+    const path = 'material_catalog/books/book-pdf-new';
+    const draft = bookMetadata({
+      bookId: 'book-pdf-new', bookMode: 'pdf', bookRevision: 0, sourceSetRevision: 0,
+    });
+    await assertSucceeds(teacher.database().ref(path).set(draft));
+    await assertFails(otherTeacher.database().ref(path).set(draft));
+    expect((await teacher.database().ref(path).once('value')).val()).toEqual(draft);
+    await assertFails(teacher.database().ref('material_catalog/books/book-pdf-mixed').set({
+      ...draft, bookId: 'book-pdf-mixed', sourceSetRevision: 1,
+    }));
+    await assertFails(teacher.database().ref('material_catalog/books/book-pdf-seeded').set({
+      ...draft, bookId: 'book-pdf-seeded', sourceSet: { sourceStrategy: 'full_pdf',
+        sources: [{ sourceKey: 'full', sourceVersionId: 'source-1', sourceOrder: 1 }] },
+    }));
+    await assertFails(teacher.database().ref('material_catalog/books/book-pdf-receipt').set({
+      ...draft, bookId: 'book-pdf-receipt', setupActivations: [{ operationId: 'activation-1' }],
+    }));
+    await assertFails(teacher.database().ref(path).update({ bookRevision: -1 }));
+  });
+
   it('gates Book nodes and denies hidden fields inside node payloads', async () => {
     const {
       admin,

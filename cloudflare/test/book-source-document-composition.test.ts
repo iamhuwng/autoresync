@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { exportPKCS8, generateKeyPair } from 'jose';
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
 import {
   createBookDeliveryProjectionResolver,
@@ -17,9 +18,12 @@ import {
   createBookRouteHandlers,
 } from '../src/upload-worker/book-route-handlers';
 import { createBookRouter } from '../src/upload-worker/book-router';
+import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest';
 import {
   deriveRevokedBookSourceVersionIds,
   isBookHomeworkDocumentScheduleOpen,
+  studentDocumentOperationMatchesDescriptor,
+  defaultRuntimeFactory,
 } from '../src/upload-worker/book-source/document';
 import { bookHomeworkRecipientAuthorityId, bookHomeworkRecipientDeliveryBindingId } from '../src/upload-worker/book-homework/identity';
 import {
@@ -160,11 +164,48 @@ const documentRuntimeEnvironment = (): Record<string, unknown> => {
     BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: 'metadata-key',
     BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID: 'read-key-id',
     BOOK_SOURCE_B2_READ_APPLICATION_KEY: 'read-key',
+    BOOK_SOURCE_B2_PROVIDER_STATE: 'enabled',
   };
 };
 
 describe('Ticket #49 canonical source document composition', () => {
-  it('serves the exact current teacher candidate through the real source provider seam', async () => {
+  it.each(['disabled', undefined] as const)('fails closed when the B2 provider state is %s', (state) => {
+    const environment = { ...documentRuntimeEnvironment(), BOOK_SOURCE_B2_PROVIDER_STATE: state };
+    expect(() => defaultRuntimeFactory(environment)).toThrow('book_source_b2_provider_unavailable');
+  });
+
+  it('keeps the explicit document OAuth publication reader when dedicated publisher credentials exist', async () => {
+    const environment = documentRuntimeEnvironment();
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    environment.BOOK_DELIVERY_GOOGLE_SA_KEY = JSON.stringify({ client_email: environment.BOOK_DELIVERY_SERVICE_IDENTITY, private_key: await exportPKCS8(privateKey) });
+    environment.BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY = 'publication@temp-a143.iam.gserviceaccount.com';
+    environment.BOOK_ASSEMBLY_PUBLICATION_GOOGLE_SA_KEY = JSON.stringify({ client_email: environment.BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY, private_key: await exportPKCS8(privateKey) });
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = String(input); calls.push(url);
+      if (url.includes('oauth2.googleapis.com')) return Response.json({ access_token: 'document-read-token', expires_in: 3600 });
+      if (url.includes('/book_assembly_publications/books/book-pdf-1.json')) return Response.json(null, { headers: { etag: '"empty"' } });
+      throw new Error('unexpected_document_reader_transport');
+    });
+    try {
+      await expect(defaultRuntimeFactory(environment).readCurrentAuthority(studentBinding())).rejects.toThrow();
+      expect(calls.some(url => url.includes('/book_assembly_publications/books/book-pdf-1.json'))).toBe(true);
+      expect(calls.some(url => url.includes('identitytoolkit.googleapis.com'))).toBe(false);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each([
+    ['active teacher', { role: 'teacher', status: 'active' }, 200],
+    ['active super_admin', { role: 'super_admin', status: 'active' }, 200],
+    ['student profile', { role: 'student', status: 'active' }, 401],
+    ['missing status', { role: 'teacher' }, 401],
+    ['unknown status', { role: 'teacher', status: 'unknown' }, 401],
+    ['pending status', { role: 'teacher', status: 'pending' }, 401],
+    ['disabled', { role: 'teacher', status: 'active', disabled: true }, 401],
+    ['force reauth', { role: 'teacher', status: 'active', forceReauth: true }, 401],
+    ['privileged authority revoked', {
+      role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-09-15T00:00:00.000Z',
+    }, 401],
+  ] as const)('serves the registered teacher PDF route only for %s', async (_label, profile, expectedStatus) => {
     const repository = new InMemoryBookDeliveryRepository();
     const readObjectMetadata = vi.fn(async ({ identity }) => ({
       identity,
@@ -185,33 +226,60 @@ describe('Ticket #49 canonical source document composition', () => {
         }],
       },
     };
+    const readTeacherBookAuthority = vi.fn(async () => ({
+      bookId: 'book-pdf-1', ownerId: 'teacher-1', bookMode: 'pdf' as const, status: 'active' as const,
+      bookRevision: 4, sourceSetRevision: 2, sourceSet: candidate.manifest.sourceSet,
+    }));
+    const readTeacherCandidate = vi.fn(async () => ({
+      current: { candidateId: 'candidate-1', candidateRevision: 3 }, candidate,
+    }));
+    const readTeacherSourceVersion = vi.fn(async () => ({
+      sourceVersionId: 'source-v1', sourceKey: 'full', bookId: 'book-pdf-1', ownerId: 'teacher-1',
+      bookRevision: 4, sourceSetRevision: 2, lifecycle: 'verified-usable' as const, storage: sourceLocation(),
+    }));
     const handlers = createBookRouteHandlers({
       sourceDocument: {
         runtimeFactory: () => ({
           repository,
           provider: { readObjectMetadata, readBounded: vi.fn() },
-          readProfile: async () => ({ role: 'teacher', status: 'active' }),
+          readProfile: vi.fn(async () => profile),
           readCurrentAuthority: async () => liveAuthority(),
-          readTeacherBookAuthority: async () => ({
-            bookId: 'book-pdf-1', ownerId: 'teacher-1', bookMode: 'pdf', status: 'active',
-            bookRevision: 4, sourceSetRevision: 2, sourceSet: candidate.manifest.sourceSet,
-          }),
-          readTeacherCandidate: async () => ({
-            current: { candidateId: 'candidate-1', candidateRevision: 3 }, candidate,
-          }),
-          readTeacherSourceVersion: async () => ({
-            sourceVersionId: 'source-v1', sourceKey: 'full', bookId: 'book-pdf-1', ownerId: 'teacher-1',
-            bookRevision: 4, sourceSetRevision: 2, lifecycle: 'verified-usable', storage: sourceLocation(),
-          }),
+          readTeacherBookAuthority,
+          readTeacherCandidate,
+          readTeacherSourceVersion,
         }),
       },
     });
 
-    const response = await handlers.serveTeacherAssemblyDocument!(teacherHandlerInput()) as Response;
+    const teacherRoute = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-teacher-assembly-document',
+    )!;
+    const router = createBookRouter({
+      manifest: [teacherRoute],
+      handlers: { serveTeacherAssemblyDocument: handlers.serveTeacherAssemblyDocument! },
+      firebaseVerifier: { verifyAuthorizationHeader: () => ({ valid: true, uid: 'teacher-1' }) },
+    });
+    const response = await router.fetch(teacherHandlerInput().request, {
+      BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED: 'enabled',
+      BOOK_ASSEMBLY_SERVICE_IDENTITY: 'assembly-runtime@temp-a143.iam.gserviceaccount.com',
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({
+        client_email: 'assembly-runtime@temp-a143.iam.gserviceaccount.com',
+        private_key: 'test-only',
+      }),
+      BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe('application/pdf');
-    expect(readObjectMetadata).toHaveBeenCalledTimes(1);
+    expect(response?.status).toBe(expectedStatus);
+    if (expectedStatus === 200) {
+      expect(response?.headers.get('content-type')).toBe('application/pdf');
+      expect(readObjectMetadata).toHaveBeenCalledTimes(1);
+    } else {
+      expect(await response?.json()).toEqual({ code: 'unauthorized' });
+      expect(readObjectMetadata).not.toHaveBeenCalled();
+      expect(readTeacherBookAuthority).not.toHaveBeenCalled();
+      expect(readTeacherCandidate).not.toHaveBeenCalled();
+      expect(readTeacherSourceVersion).not.toHaveBeenCalled();
+    }
   });
 
   it('fails closed with a stable configuration error when the disabled preview is not provisioned', async () => {
@@ -280,6 +348,33 @@ describe('Ticket #49 canonical source document composition', () => {
     expect(readObjectMetadata).toHaveBeenCalledTimes(1);
   });
 
+  it('resolves one combined document for the persisted homework binding shape', async () => {
+    const bindingId = 'assignment-2--student-1--delivery';
+    const full = studentBinding();
+    const binding = { ...full, bindingId,
+      context: { ...full.context, kind: 'homework' as const, contextId: 'assignment-2', entitlementBasis: 'assignment' as const },
+      sourceSet: { strategy: 'component_pdfs' as const, sources: [{ ...full.sourceSet.sources[0]!, ownerNodeKey: 'unit-1', sourceOrder: 1 }] },
+    } as BookDeliveryBinding;
+    const repository = new InMemoryBookDeliveryRepository();
+    await repository.createDraft({ binding, operationId: operation(15), now: '2026-07-30T00:00:00.000Z' });
+    await repository.activate({ bindingId, expectedRecordRevision: 0, operationId: operation(16), now: '2026-07-30T00:01:00.000Z' });
+    const combined = { ...sourceLocation(), sourceVersionId: 'student-v2' };
+    const readObjectMetadata = vi.fn(async ({ identity }) => ({ identity, contentType: 'application/pdf' as const }));
+    const handlers = createBookRouteHandlers({ sourceDocument: { runtimeFactory: () => ({
+      repository, provider: { readObjectMetadata, readBounded: vi.fn() },
+      readProfile: async () => ({ role: 'student', status: 'active' }),
+      readCurrentAuthority: async () => liveAuthority({
+        sourceVersionIds: ['student-v2'], sourceLocations: [combined],
+        studentDocument: { sourceVersionId: 'student-v2', descriptorRevision: 2, descriptorFingerprint: 'a'.repeat(64) },
+      }),
+    }) } });
+    const response = await handlers.serveAuthorizedDocument!(
+      handlerInput(`${bindingId}-1-student-document`),
+    ) as Response;
+    expect(response.status).toBe(200);
+    expect(readObjectMetadata).toHaveBeenCalledTimes(1);
+  });
+
   it('fails closed for a component source binding instead of exposing a student document resource', async () => {
     const bindingId = `bd_${'b'.repeat(40)}`;
     const fullBinding = studentBinding();
@@ -334,6 +429,115 @@ describe('Ticket #49 canonical source document composition', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ code: 'stale-binding' });
     expect(readObjectMetadata).not.toHaveBeenCalled();
+  });
+
+  it('serves only the combined component document through its opaque route', async () => {
+    const bindingId = `bd_${'c'.repeat(40)}`;
+    const fullBinding = studentBinding();
+    const binding = {
+      ...fullBinding,
+      bindingId,
+      sourceSet: {
+        strategy: 'component_pdfs' as const,
+        sources: [{ ...fullBinding.sourceSet.sources[0]!, sourceKey: 'component-private', ownerNodeKey: 'unit-1', sourceOrder: 1 }],
+      },
+      placements: fullBinding.placements.map((placement) => ({
+        ...placement,
+        sourcePageScopes: placement.sourcePageScopes.map((scope) => ({ ...scope, sourceKey: 'component-private' })),
+      })),
+    } as BookDeliveryBinding;
+    const repository = new InMemoryBookDeliveryRepository();
+    await repository.createDraft({ binding, operationId: operation(11), now: '2026-07-30T00:00:00.000Z' });
+    await repository.activate({ bindingId, expectedRecordRevision: 0, operationId: operation(12), now: '2026-07-30T00:01:00.000Z' });
+    const combined = { ...sourceLocation(), sourceVersionId: 'student-v1', providerObjectKey: 'private/combined.pdf', objectKey: 'private/combined.pdf' };
+    const readObjectMetadata = vi.fn(async ({ identity }) => ({ identity, contentType: 'application/pdf' as const }));
+    const readBounded = vi.fn(async ({ range }) => ({
+      bytes: new Uint8Array(range.length), totalByteSize: combined.byteSize, offset: range.offset,
+    }));
+    const currentAuthority = vi.fn(async () => liveAuthority({
+      sourceVersionIds: ['student-v1'], sourceLocations: [combined],
+      studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: 2, descriptorFingerprint: 'a'.repeat(64) },
+    }));
+    const handlers = createBookRouteHandlers({
+      sourceDocument: { runtimeFactory: () => ({
+        repository, provider: { readObjectMetadata, readBounded },
+        readProfile: async () => ({ role: 'student', status: 'active' }),
+        readCurrentAuthority: currentAuthority,
+      }) },
+    });
+    const route = `${bindingId}-1-student-document`;
+    const head = await handlers.serveAuthorizedDocument!(handlerInput(route)) as Response;
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-length')).toBe(String(combined.byteSize));
+    expect(head.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/u);
+    expect(head.headers.get('etag')).not.toBe(`"${combined.checksum.value}"`);
+    expect(route).not.toMatch(/component-private|student-v1|combined\.pdf/u);
+    expect(head.headers.get('etag')).not.toContain(combined.providerObjectKey);
+    expect(readObjectMetadata).toHaveBeenCalledWith({ identity: combined }, expect.anything());
+    expect(readBounded).not.toHaveBeenCalled();
+
+    const range = await handlers.serveAuthorizedDocument!({
+      ...handlerInput(route, 'student-1', 'GET'),
+      request: new Request(`https://worker.test/v1/book-delivery/document/${route}`, {
+        method: 'GET', headers: { origin: 'http://localhost:5174', range: 'bytes=0-7' },
+      }),
+    }) as Response;
+    expect(range.status).toBe(206);
+    expect(range.headers.get('content-range')).toBe(`bytes 0-7/${combined.byteSize}`);
+    expect((await range.arrayBuffer()).byteLength).toBe(8);
+
+    const full = await handlers.serveAuthorizedDocument!(handlerInput(route, 'student-1', 'GET')) as Response;
+    expect(full.status).toBe(200);
+    expect((await full.arrayBuffer()).byteLength).toBe(combined.byteSize);
+    const unsatisfiable = await handlers.serveAuthorizedDocument!({
+      ...handlerInput(route, 'student-1', 'GET'),
+      request: new Request(`https://worker.test/v1/book-delivery/document/${route}`, {
+        method: 'GET', headers: { origin: 'http://localhost:5174', range: `bytes=${combined.byteSize}-` },
+      }),
+    }) as Response;
+    expect(unsatisfiable.status).toBe(416);
+    expect(unsatisfiable.headers.get('content-range')).toBe(`bytes */${combined.byteSize}`);
+
+    currentAuthority.mockResolvedValueOnce(liveAuthority({ publicationStatus: 'unpublished', sourceLocations: [] }));
+    const readsBeforeDenial = readObjectMetadata.mock.calls.length;
+    const stale = await handlers.serveAuthorizedDocument!(handlerInput(route)) as Response;
+    expect(stale.status).toBe(403);
+    expect(readObjectMetadata).toHaveBeenCalledTimes(readsBeforeDenial);
+  });
+
+  it('denies descriptor/storage byte mismatch before provider access', async () => {
+    const bindingId = `bd_${'e'.repeat(40)}`;
+    const fullBinding = studentBinding();
+    const binding = { ...fullBinding, bindingId, sourceSet: {
+      strategy: 'component_pdfs' as const,
+      sources: [{ ...fullBinding.sourceSet.sources[0]!, ownerNodeKey: 'unit-1', sourceOrder: 1 }],
+    } } as BookDeliveryBinding;
+    const repository = new InMemoryBookDeliveryRepository();
+    await repository.createDraft({ binding, operationId: operation(13), now: '2026-07-30T00:00:00.000Z' });
+    await repository.activate({ bindingId, expectedRecordRevision: 0, operationId: operation(14), now: '2026-07-30T00:01:00.000Z' });
+    const storage = { ...sourceLocation(), sourceVersionId: 'student-v1' };
+    const mismatchedOperation = { verifiedStorage: storage } as never;
+    expect(studentDocumentOperationMatchesDescriptor(mismatchedOperation, {
+      byteSize: storage.byteSize + 1, sha256Hex: storage.checksum.value,
+    })).toBe(false);
+    expect(studentDocumentOperationMatchesDescriptor(mismatchedOperation, {
+      byteSize: storage.byteSize, sha256Hex: 'b'.repeat(64),
+    })).toBe(false);
+    const provider = { readObjectMetadata: vi.fn(), readBounded: vi.fn() };
+    const handlers = createBookRouteHandlers({ sourceDocument: { runtimeFactory: () => ({
+      repository, provider,
+      readProfile: async () => ({ role: 'student', status: 'active' }),
+      readCurrentAuthority: async () => ({
+        publicationStatus: 'unpublished' as const, scheduleOpen: false,
+        sourceVersionIds: [], revokedSourceVersionIds: [], sourceLocations: [],
+      }),
+    }) } });
+    const response = await handlers.serveAuthorizedDocument!(
+      handlerInput(`${bindingId}-1-student-document`),
+    ) as Response;
+    expect(response.status).toBe(403);
+    expect(provider.readObjectMetadata).not.toHaveBeenCalled();
+    expect(provider.readBounded).not.toHaveBeenCalled();
   });
 
   it('resolves a canonical projection route by indexed binding and invokes #51/#52', async () => {
@@ -488,13 +692,14 @@ describe('Ticket #49 canonical source document composition', () => {
     );
   });
 
-  it('derives revoked source versions from cleanup and release operations', () => {
+  it('derives revoked source versions from cleanup, retirement-pending, and release operations', () => {
     const revoked = deriveRevokedBookSourceVersionIds({
       cleanup: { sourceVersionId: 'source-v1', status: 'cleanup_pending' },
       released: { sourceVersionId: 'source-v2', status: 'released' },
       active: { sourceVersionId: 'source-v3', status: 'verified_completed' },
+      pending: { sourceVersionId: 'source-v4', status: 'retirement_pending' },
     } as never, ['source-v1', 'source-v2', 'source-v3', 'source-v4']);
-    expect(revoked).toEqual(['source-v1', 'source-v2']);
+    expect(revoked).toEqual(['source-v1', 'source-v2', 'source-v4']);
   });
 
   it('requires assignment start but never narrows an authorized PDF by nested schedules', () => {

@@ -6,7 +6,6 @@ import {
 import { PublicBookReferenceForkRolloutGate } from '../../../../src/services/materialCatalog/publicBookReferenceFork.rolloutGate.ts';
 import type {
   PublicBookCanonicalForkWriter,
-  PublicBookDocumentIssuer,
   PublicBookReferenceForkService,
   PublicBookReferenceForkStore,
   PublicBookSourceContextChoice,
@@ -188,7 +187,6 @@ export interface PublicBookReferenceForkWorkerOptions {
   readonly mutationsEnabled?: boolean;
   readonly now?: () => string;
   readonly createId?: (kind: string) => string;
-  readonly documentIssuer?: PublicBookDocumentIssuer;
   readonly canonicalForkEnabled?: boolean;
   readonly canonicalForkMutationsEnabled?: boolean;
   readonly canonicalForkWriter?: PublicBookCanonicalForkWriter;
@@ -265,7 +263,6 @@ export const createPublicBookReferenceForkWorkerHandlers = (
         createId: options.createId,
         mutationsEnabled: options.mutationsEnabled === true && rollout.enabled,
         rollbackEnabled: rollout.rollback,
-        documentIssuer: options.documentIssuer,
         canonicalForkEnabled: canonicalEnabled,
         canonicalForkMutationsEnabled: options.canonicalForkMutationsEnabled
           ?? flag(env.PUBLIC_BOOK_CANONICAL_FORK_MUTATIONS_ENABLED),
@@ -359,8 +356,7 @@ export const createPublicBookReferenceForkWorkerHandlers = (
             entitlementId: body.entitlementId === undefined ? undefined : safeId(body.entitlementId, 'entitlementId'),
           }));
         }
-        case 'resolve':
-        case 'prepare-runtime': {
+        case 'resolve': {
           if (!keysWithOptional(body, ['action', 'selection'], ['entitlementId', 'context'])) {
             throw new PublicBookReferenceForkError('request-invalid', 'Resolve request is invalid.', 400);
           }
@@ -371,9 +367,7 @@ export const createPublicBookReferenceForkWorkerHandlers = (
             entitlementId: body.entitlementId === undefined ? undefined : safeId(body.entitlementId, 'entitlementId'),
             context: contextFromBody(body.context),
           };
-          return responseFor(body.action === 'resolve'
-            ? await service.resolve(input)
-            : await service.prepareRuntime(input));
+          return responseFor(await service.resolve(input));
         }
         case 'reference': {
           if (role !== 'teacher' && role !== 'super_admin') {

@@ -13,6 +13,7 @@ import type {
 import {
   BookHomeworkAuthorityError,
   fingerprint,
+  operationFingerprint,
 } from '../src/upload-worker/book-homework/authority';
 import {
   BookHomeworkAuthorityRepository,
@@ -143,6 +144,32 @@ describe('Book Homework Firestore authority', () => {
       commandId: 'command-other', idempotencyKey: 'operation-create', expectedRevision: 2,
       updatedAt: '2026-07-28T00:02:00.000Z',
     }), 'idempotency-conflict');
+  });
+
+  it('stores a bounded digest for large canonical create commands and replays the exact command', async () => {
+    const command = createCommand();
+    const largeCommand: BookHomeworkCreateCommand = {
+      ...command,
+      manifest: {
+        ...command.manifest,
+        targetPreview: {
+          fingerprint: 'x'.repeat(5000),
+          rows: [{ placementId: 'placement-1', activityId: 'activity-1', nodeKey: 'unit-1', state: 'included' }],
+          includedCount: 1,
+          excludedCount: 0,
+          excludedReasonCounts: {},
+        },
+      },
+    };
+    const store = new InMemoryBookHomeworkDocumentStore();
+    const repository = createRepository(['not-started'], store);
+
+    await expect(repository.create(largeCommand)).resolves.toMatchObject({ status: 'created', revision: 1 });
+    const stored = await store.read(command.scope);
+    const operations = (stored?.value as { operations?: Record<string, { fingerprint: string }> } | undefined)?.operations;
+    expect(operations?.[command.idempotencyKey]?.fingerprint).toMatch(/^sha256:[a-f0-9]{64}$/u);
+    await expect(repository.create(largeCommand)).resolves.toMatchObject({ status: 'replayed', revision: 1 });
+    await expect(operationFingerprint({ b: 2, a: 1 })).resolves.toBe(await operationFingerprint({ a: 1, b: 2 }));
   });
 
   it('uses one exact authority scope for missing read, create, reread, commit, update, and committed reread', async () => {
@@ -483,5 +510,59 @@ describe('Book Homework Firestore authority', () => {
 
   it('creates stable command fingerprints for replay checks', () => {
     expect(fingerprint({ b: 2, a: { d: 4, c: 3 } })).toBe(fingerprint({ a: { c: 3, d: 4 }, b: 2 }));
+  });
+  it('releases only exact manual-policy targets and replays without a no-op authority write', async () => {
+    const store = new InMemoryBookHomeworkDocumentStore();
+    const repository = createRepository(['not-started'], store);
+    const command = createCommand();
+    const created = await repository.create({
+      ...command,
+      activityPolicies: {
+        'placement-1': { ...command.activityPolicies['placement-1']!, feedbackRelease: 'manual' },
+      },
+    });
+    await repository.setVisibility({
+      scope: command.scope,
+      assignmentId: command.assignmentId,
+      ownerId: command.ownerId,
+      state: 'committed',
+      commandId: 'command-commit-manual',
+      idempotencyKey: 'operation-commit-manual',
+      expectedRevision: created.revision,
+      updatedAt: createdAt,
+    });
+    const release = {
+      scope: command.scope,
+      assignmentId: command.assignmentId,
+      ownerId: command.ownerId,
+      recipientId: 'student-1',
+      attemptId: 'attempt-1',
+      resultId: 'attempt-1:result',
+      bindingId: 'delivery-1',
+      bindingRevision: 1,
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersionId: 'activity-version-1',
+      activityVersion: 1,
+      terminalFeedbackPolicy: 'manual',
+      commandId: 'command-release-1',
+      idempotencyKey: 'operation-release-1',
+      expectedRevision: 2,
+      updatedAt: '2026-09-22T00:00:00.000Z',
+    } as const;
+    await expect(repository.releaseManualFeedback(release)).resolves.toMatchObject({
+      status: 'released', resultId: release.resultId, releasedAt: release.updatedAt, revision: 3,
+    });
+    const storedBeforeReplay = await store.read(command.scope);
+    await expect(repository.releaseManualFeedback({
+      ...release,
+      commandId: 'command-release-retry',
+      idempotencyKey: 'operation-release-retry',
+      expectedRevision: 3,
+      updatedAt: '2026-09-22T00:01:00.000Z',
+    })).resolves.toMatchObject({
+      status: 'replayed', resultId: release.resultId, releasedAt: release.updatedAt, revision: 3,
+    });
+    await expect(store.read(command.scope)).resolves.toEqual(storedBeforeReplay);
   });
 });

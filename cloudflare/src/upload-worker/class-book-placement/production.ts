@@ -5,6 +5,7 @@ import { createBookDeliveryProjectionResolver } from '../../../../src/services/b
 import type {
   BookDeliveryBinding,
   BookRuntimeDeliveryProjection,
+  BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import {
   classBookBindingContextId,
@@ -16,7 +17,10 @@ import {
 import {
   FirebaseRestBookAssemblyPublicationRepository,
 } from '../book-assembly/publication-repository.ts';
-import { createTrustedBookDeliveryPublication } from '../book-delivery/worker.ts';
+import {
+  createTrustedBookDeliveryPublication,
+  resolveTrustedBookDeliveryStudentDocument,
+} from '../book-delivery/worker.ts';
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 import { FirebaseClassBookPlacementRepository } from './repository.ts';
@@ -108,6 +112,12 @@ export interface ClassBookDeliveryPorts {
   readonly deliveryRepository: BookDeliveryRepository;
   readonly loadPublication: (placement: ClassBookPlacement) => Promise<ReturnType<typeof createTrustedBookDeliveryPublication>>;
   readonly now: () => string;
+  readonly resolveStudentDocument?: (binding: BookDeliveryBinding) => Promise<{
+    readonly expectedByteLength: number;
+    readonly expectedEtag: string;
+    readonly physicalPageCount: number;
+    readonly pageGroups: readonly BookRuntimePageGroupContext[];
+  } | null>;
 }
 
 const assertCopy = (copy: ClassBookCopyIdentity | null, placement: ClassBookPlacement): ClassBookCopyIdentity => {
@@ -124,11 +134,11 @@ const assertCopy = (copy: ClassBookCopyIdentity | null, placement: ClassBookPlac
   return copy;
 };
 
-const assertClassAuthority = (value: unknown, placement: ClassBookPlacement): void => {
+const assertClassAuthority = (value: unknown, placement: ClassBookPlacement, allowArchived = false): void => {
   const classRecord = record(value);
   if (!classRecord
     || classRecord.createdBy !== placement.ownerId
-    || classRecord.status !== 'active') {
+    || (classRecord.status !== 'active' && !(allowArchived && classRecord.status === 'archived'))) {
     throw new ClassBookDeliveryProductionError('class_book_class_unavailable');
   }
 };
@@ -206,6 +216,7 @@ const createPorts = (env: WorkerEnv): ClassBookDeliveryPorts => {
     placements,
     deliveryRepository: new FirebaseRestBookDeliveryRepository({ env }),
     now: () => new Date().toISOString(),
+    resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(env, binding),
     async loadPublication(placement) {
       const scope = await assemblies.readScope(placement.pins.bookId);
       if (scope.current?.manifestVersionId !== placement.pins.manifestVersionId) {
@@ -241,7 +252,7 @@ const revalidate = async (ports: ClassBookDeliveryPorts, input: {
   readonly classPlacementId: string;
   readonly classCourseMaterialId: string;
   readonly studentId: string;
-}): Promise<{ readonly placement: ClassBookPlacement; readonly publication: ReturnType<typeof createTrustedBookDeliveryPublication> }> => {
+}, allowArchivedClass = false): Promise<{ readonly placement: ClassBookPlacement; readonly publication: ReturnType<typeof createTrustedBookDeliveryPublication> }> => {
   assertIdentity(input);
   const contextId = classBookContextId(input.classId, input.copyId, input.classCourseMaterialId);
   const placement = assertFrozenPlacement(await ports.placements.readCurrent(contextId), input);
@@ -253,7 +264,7 @@ const revalidate = async (ports: ClassBookDeliveryPorts, input: {
     ports.loadPublication(placement),
   ]);
   assertCopy(copy, placement);
-  assertClassAuthority(classRecord, placement);
+  assertClassAuthority(classRecord, placement, allowArchivedClass);
   assertMembership(membership, input.studentId);
   assertLock(lock, placement);
   assertPublicationMatchesPlacement(placement, publication);
@@ -282,10 +293,11 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
     readonly bindingId: string;
   }): Promise<BookRuntimeDeliveryProjection> => {
     if (!ID.test(input.bindingId)) throw new ClassBookDeliveryProductionError('class_book_delivery_identity_invalid', 400);
-    const authority = await revalidate(ports, input);
+    const authority = await revalidate(ports, input, true);
     const projection = await createBookDeliveryProjectionResolver({
       repository: ports.deliveryRepository,
       allowedAdapterContexts: ['class'],
+      resolveStudentDocument: ports.resolveStudentDocument,
     }).resolve({
       recipientId: input.studentId,
       contextId: deliveryContextId(input),
@@ -323,6 +335,10 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
         context: {
           kind: 'class', contextId, recipientId: input.studentId,
           ownerId: authority.placement.ownerId, entitlementBasis: 'membership',
+          classLocator: {
+            classId: input.classId, copyId: input.copyId,
+            classPlacementId: input.classPlacementId, courseMaterialId: input.classCourseMaterialId,
+          },
         },
         publication: authority.publication,
         createdAt,
@@ -350,6 +366,7 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
       return createBookDeliveryProjectionResolver({
         repository: ports.deliveryRepository,
         allowedAdapterContexts: ['class'],
+        resolveStudentDocument: ports.resolveStudentDocument,
       }).resolve({ recipientId: input.studentId, contextId, actor: { uid: input.studentId } });
     },
     resolve,

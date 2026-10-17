@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import {
   inspectSourcePdf,
   type SourcePdfInspectionClaim,
@@ -58,6 +59,24 @@ const createPdf = (name = 'book.pdf') =>
   new File([bytes], name, { type: 'application/octet-stream' });
 
 describe('sourceUpload.browser', () => {
+  it('accepts a bound student document above 50 MiB while rejecting original-purpose and cloned claims', async () => {
+    const buffer = new Uint8Array(BOOK_SOURCE_MAX_PDF_BYTES + 1);
+    buffer.set(bytes);
+    const file = new File([buffer], 'student.pdf');
+    const claim = await inspectSourcePdf(file, { purpose: 'student-document', __testDependencies: {
+      readArrayBuffer: async () => buffer.buffer,
+      digestSha256: async () => new Uint8Array(32).fill(0xaa).buffer,
+      loadPdfDocument: () => ({ promise: Promise.resolve({ numPages: 2 }) }),
+    } });
+    const upload = authority({ requiredHeaders: { ...authority().requiredHeaders, 'x-amz-meta-book-source-byte-size': String(file.size) } });
+    const fetchImpl = vi.fn(async () => providerResponse());
+    const input = { file, claim, authority: upload, allowedB2Origins };
+    await expect(uploadSourcePdfDirect(input, { fetchImpl })).rejects.toMatchObject({ code: 'stale_file' });
+    await expect(uploadSourcePdfDirect({ ...input, purpose: 'student-document', claim: { ...claim } }, { fetchImpl })).rejects.toMatchObject({ code: 'stale_file' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await expect(uploadSourcePdfDirect({ ...input, purpose: 'student-document' }, { fetchImpl })).resolves.toMatchObject({ providerFileVersionId: '4_version' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
   it('sends the exact File body to the exact B2 URL with redirect refusal', async () => {
     const file = createPdf();
     const claim = await inspect(file);

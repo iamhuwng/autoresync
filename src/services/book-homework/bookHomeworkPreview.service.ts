@@ -2,6 +2,8 @@ import type {
   FeedbackTiming,
   BookHomeworkActivityBinding,
   BookHomeworkManifest,
+  BookHomeworkStudentDocumentPin,
+  BookHomeworkTargetPreviewReceipt,
 } from '../../types/homework.types';
 import type { BookRuntimeDeliveryProjection } from '../book-delivery/bookDelivery.types';
 import {
@@ -42,6 +44,12 @@ export interface BookHomeworkPolicyDraft {
 export interface BookHomeworkPreviewSource {
   readonly delivery: BookRuntimeDeliveryProjection;
   readonly identity: BookHomeworkManifestIdentity;
+  readonly studentDocument?: BookHomeworkStudentDocumentPin & { readonly components?: readonly {
+    readonly sourceKey: string;
+    readonly combinedStartPage: number;
+    readonly localPageCount: number;
+  }[] };
+  readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
   readonly initialSchedule?: BookHomeworkScheduleDraft;
   readonly bookTitle?: string;
   readonly initialTarget?: BookHomeworkManifest['selectedTarget'];
@@ -163,6 +171,10 @@ export const buildBookHomeworkPreview = (input: {
     || input.manifest.book.publicationRevision !== delivery.book.publicationRevision) {
     throw new Error('Book Homework preview is not pinned to the current Delivery publication.');
   }
+  if (delivery.sourceSet.strategy === 'component_pdfs'
+    && (!input.manifest.studentDocument || !input.manifest.targetPreview)) {
+    throw new Error('Book Homework preview is missing the trusted combined document receipt.');
+  }
 
   const warnings: BookHomeworkPreviewWarning[] = [];
   const sourceSummary: BookHomeworkSourceSummary = {
@@ -205,12 +217,13 @@ export const buildBookHomeworkPreview = (input: {
     });
   }
 
-  const excluded = input.manifest.bindings.filter((binding) => binding.state === 'excluded');
-  if (excluded.length > 0) {
+  const blockingExcluded = input.manifest.targetPreview?.rows.filter((row) => row.state === 'excluded'
+    && row.reason !== 'outside-selected-target') ?? [];
+  if (blockingExcluded.length > 0) {
     warnings.push({
       code: 'unsupported-content',
       severity: 'blocker',
-      message: `${excluded.length} selected Activity${excluded.length === 1 ? '' : 'ies'} cannot be delivered safely and will not be assignable.`,
+      message: `${blockingExcluded.length} selected Activity${blockingExcluded.length === 1 ? '' : 'ies'} cannot be delivered safely and will not be assignable.`,
     });
   }
 

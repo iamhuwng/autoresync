@@ -20,11 +20,14 @@ import { TeacherHeader } from '../components/navigation';
 import { BookResultAdapter } from '../components/results/BookResultAdapter';
 import { LegacyResultDetailView } from '../components/results/LegacyResultDetailView';
 import { parseBookResultRouteHandle } from '../services/bookResult.browser';
+import { buildRoute } from '../constants/routes';
+import { useNavigation } from '../hooks/useNavigation';
 
 export const ResultDetailPage: React.FC = () => {
     const { resultId } = useParams<{ resultId: string }>();
     const navigate = useNavigate();
     const { user, profile, loading: authLoading, logout } = useAuth();
+    const { navigateTo } = useNavigation(profile?.role === 'student' ? 'student' : profile?.role === 'teacher' ? 'teacher' : 'admin');
     const bookResultAddress = parseBookResultRouteHandle(resultId);
 
     const handleLogout = React.useCallback(async () => {
@@ -89,6 +92,12 @@ export const ResultDetailPage: React.FC = () => {
                 routeHandle={resultId}
                 viewerRole="student"
                 viewerId={user?.uid}
+                onBackToHomework={() => {
+                    if (bookResultAddress.contextKind === 'public') navigateTo('STUDENT_LIBRARY');
+                    else navigate(bookResultAddress.homeworkId
+                        ? buildRoute('STUDENT_HOMEWORK_DETAIL', { homeworkId: bookResultAddress.homeworkId })
+                        : buildRoute('STUDENT_HOMEWORK'));
+                }}
             />
         );
     }
@@ -103,7 +112,7 @@ export const ResultDetailPage: React.FC = () => {
             style={teacherShellStyle}
         >
             <TeacherHeader
-                pageTitle="Result Detail"
+                pageTitle={bookResultAddress ? 'Activity Result' : 'Result Detail'}
                 userId={user?.uid}
                 userRole={profile?.role === 'super_admin' ? 'super_admin' : 'teacher'}
                 userDisplayName={profile?.displayName || user?.displayName || user?.email}
@@ -118,6 +127,9 @@ export const ResultDetailPage: React.FC = () => {
                             routeHandle={resultId}
                             viewerRole="teacher"
                             viewerId={user?.uid}
+                            onBackToHomework={() => navigate(bookResultAddress.homeworkId
+                                ? buildRoute('TEACHER_HOMEWORK_DETAIL', { homeworkId: bookResultAddress.homeworkId })
+                                : buildRoute('TEACHER_HOMEWORK'))}
                         />
                     ) : bookResultAddress ? (
                         <div role="alert" style={bookAccessDeniedStyle}>
@@ -157,20 +169,21 @@ const primaryNavButtonStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.5rem',
+    minHeight: 44,
+    minWidth: 44,
     padding: '0.75rem 1.5rem',
     fontSize: '0.9375rem',
     fontWeight: 600,
     color: '#ffffff',
-    background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+    background: '#4d44e3',
     border: 'none',
     borderRadius: '0.75rem',
     cursor: 'pointer',
-    boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)',
 };
 
 const teacherShellStyle: React.CSSProperties = {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 50%, #f0fdfa 100%)',
+    background: '#f8f9fa',
 };
 
 const teacherShellContentStyle: React.CSSProperties = {

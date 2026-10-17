@@ -1,4 +1,5 @@
 import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import type { BookAssemblyPlacementRecord } from '../../../../src/types/bookAssembly.types.ts';
 import type { BookAssemblyPublicationScope as AssemblyScope } from '../../../../src/services/book-assembly/publicationRepository.ts';
 import {
   assertPublishedBookDeliveryPublication,
@@ -12,6 +13,7 @@ import type {
 import {
   createBookHomeworkManifest,
   assertValidBookHomeworkManifest,
+  type BookHomeworkExcludedActivityCandidate,
 } from '../../../../src/services/book-homework/bookHomeworkManifest.service.ts';
 import { validateBookHomeworkSchedule } from '../../../../src/services/book-homework/bookHomeworkSchedule.service.ts';
 import type {
@@ -26,12 +28,17 @@ import type {
   BookHomeworkSagaStudentExtensionIntent,
 } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
 import type { BookHomeworkManifest, BookHomeworkSelectionTarget } from '../../../../src/types/homework.types.ts';
+import type { BookHomeworkAssignmentPreviewSource } from '../../../../src/services/book-homework/bookHomeworkAssignmentIntent.ts';
+import { validateBookDeliveryComponentProjection } from '../../../../src/services/book-delivery/bookDeliveryComponentProjection.service.ts';
 import { createTrustedBookDeliveryPublication } from '../book-delivery/worker.ts';
+import type { ComponentStudentDocument } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import type { BookHomeworkTargetPreviewReceipt } from '../../../../src/types/homework.types.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const MAX_RECIPIENTS = 30;
 const MAX_NODE_OVERRIDES = 256;
 const MAX_STUDENT_EXTENSIONS = MAX_RECIPIENTS * MAX_NODE_OVERRIDES;
+const PRESENTATION_TEXT_MAX_LENGTH = 512;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 const VALID_FEEDBACK_RELEASES = new Set([
   'immediate', 'after_completion', 'after_deadline', 'never', 'manual',
@@ -88,6 +95,119 @@ export interface BookHomeworkCanonicalResolverOptions {
   /** Stable output is intentionally injectable so a deployment can use its existing fingerprint primitive. */
   readonly fingerprint?: (value: unknown) => string;
 }
+
+export interface BookHomeworkPreviewResolverInput {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly target?: BookHomeworkSelectionTarget;
+  readonly unitKey?: string;
+  readonly classId: string;
+  readonly selectedRecipientIds: readonly string[];
+  readonly contextId: string;
+  readonly createdAt: string;
+  readonly title?: string;
+}
+
+export const resolveCombinedDocument = (
+  scope: AssemblyScope<BookAssemblyPublicationResult>,
+  manifestVersionId: string,
+): ComponentStudentDocument => {
+  const version = scope.versions?.[manifestVersionId];
+  if (!version || version.strategy !== 'component_pdfs') fail('not-ready', 'Combined student document is unavailable.');
+  const sources = version.manifest.sourceSet.sources;
+  const matches = Object.values(scope.studentDocuments ?? {}).filter((document) => (
+    document.studentSafeStatus === 'ready'
+    && document.components.length === sources.length
+    && document.components.every((component, index) => {
+      const source = sources[index];
+      return source?.sourceKey === component.sourceKey
+        && source.sourceVersionId === component.sourceVersionId
+        && component.sourceOrder === index + 1;
+    })
+  ));
+  if (matches.length !== 1) fail('not-ready', 'Published components do not resolve exactly one combined student document.');
+  return clone(matches[0]!);
+};
+
+const targetPreviewFacts = (
+  scope: AssemblyScope<BookAssemblyPublicationResult>,
+  publication: BookDeliveryPublishedPublicationReference,
+  target: BookHomeworkSelectionTarget,
+  document?: Pick<ComponentStudentDocument, 'sourceVersionId' | 'descriptorRevision' | 'sha256Hex'>,
+  fingerprint: (value: unknown) => string,
+): { readonly receipt: BookHomeworkTargetPreviewReceipt; readonly excludedActivities: readonly BookHomeworkExcludedActivityCandidate[] } => {
+  const included = new Set(publication.placements.map((placement) => placement.placementId));
+  const version = scope.versions?.[publication.manifestVersionId];
+  const nodes = version?.manifest.nodes ?? [];
+  const nodeKeys = new Set(nodes.map((node) => node.nodeKey));
+  const selectedNodeKeys = new Set(publication.outline.map((node) => node.nodeKey));
+  const sourceVersions = new Map(publication.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));
+  const authoritativePlacements = Object.values(scope.placements ?? {}).filter((placement) => (
+    placement.bookId === publication.bookId && placement.manifestVersionId === publication.manifestVersionId
+  ));
+  const placements = (version
+    ? authoritativePlacements
+    : publication.placements as unknown as readonly BookAssemblyPlacementRecord[]).slice().sort((left, right) => left.nodeKey.localeCompare(right.nodeKey)
+    || left.order - right.order || left.placementId.localeCompare(right.placementId));
+  const supports = (placement: (typeof placements)[number]): boolean => Object.values(scope.activitySafeProjections ?? {})
+    .some((projection) => projection.activityId === placement.activityId
+      && projection.activityVersionId === placement.activityVersionId
+      && projection.placementIds.includes(placement.placementId));
+  const selected = (placement: (typeof placements)[number]): boolean => target.kind === 'activity'
+    ? placement.activityId === target.activityId && (target.placementId === undefined || placement.placementId === target.placementId)
+    : target.kind === 'book' || selectedNodeKeys.has(placement.nodeKey);
+  const reasonFor = (placement: (typeof placements)[number], index: number): BookHomeworkExcludedActivityCandidate['reason'] | undefined => {
+    if (!selected(placement)) return 'outside-selected-target';
+    if (placements.slice(0, index).some((candidate) => candidate.placementId === placement.placementId)) return 'duplicate-placement';
+    if (included.has(placement.placementId) && !version) return undefined;
+    if (placement.publicationId !== publication.publicationId
+      || placement.publicationRevision !== publication.publicationRevision) return 'not-published';
+    if (!nodeKeys.has(placement.nodeKey)
+      || !version?.manifest.units.some((unit) => unit.unitKey === placement.unitKey
+        && unit.activitySlots.some((slot) => slot.activityKey === placement.activityKey))) return 'unresolved-mapping';
+    if (placement.sourcePages.length === 0 || placement.sourcePages.some((page) => (
+      sourceVersions.get(page.sourceKey) !== page.sourceVersionId
+    ))) return 'missing-source';
+    if (!supports(placement)) return 'unsupported-activity';
+    if (!included.has(placement.placementId)) return 'not-published';
+    return undefined;
+  };
+  const candidates = placements.map((placement, index) => ({ placement, reason: reasonFor(placement, index) }));
+  const rows = candidates.map(({ placement, reason }) => reason === undefined
+    ? { placementId: placement.placementId, activityId: placement.activityId, nodeKey: placement.nodeKey, state: 'included' as const }
+    : { placementId: placement.placementId, activityId: placement.activityId, nodeKey: placement.nodeKey, state: 'excluded' as const, reason });
+  if (rows.filter((row) => row.state === 'included').length === 0) fail('invalid-target', 'Target resolves no eligible published Activities.');
+  const receiptInput = {
+    publicationId: publication.publicationId,
+    publicationRevision: publication.publicationRevision,
+    manifestVersionId: publication.manifestVersionId,
+    ...(document === undefined ? {} : { studentDocument: {
+      sourceVersionId: document.sourceVersionId,
+      descriptorRevision: document.descriptorRevision,
+      sha256Hex: document.sha256Hex,
+    } }),
+    target,
+    rows,
+  };
+  const excludedRows = rows.filter((row) => row.state === 'excluded');
+  const excludedReasonCounts = Object.fromEntries([...new Set(excludedRows.map((row) => row.reason))]
+    .map((reason) => [reason, excludedRows.filter((row) => row.reason === reason).length]));
+  return { receipt: {
+    fingerprint: fingerprint(receiptInput),
+    rows,
+    includedCount: rows.filter((row) => row.state === 'included').length,
+    excludedCount: excludedRows.length,
+    excludedReasonCounts,
+  }, excludedActivities: candidates.flatMap(({ placement, reason }) => reason === undefined || reason === 'outside-selected-target'
+    ? []
+    : [{
+        placementId: placement.placementId,
+        activityId: placement.activityId,
+        nodeKey: placement.nodeKey,
+        order: placement.order,
+        reason,
+      }]) };
+};
 
 export type BookHomeworkCanonicalResolverCode =
   | 'invalid-command'
@@ -221,6 +341,24 @@ const readClass = async (
   typeof reader === 'function' ? reader(classId) : reader.readClass(classId)
 );
 
+const authorizeClassRecipients = async (
+  options: BookHomeworkCanonicalResolverOptions,
+  ownerId: string,
+  classId: string,
+  selected: readonly string[],
+): Promise<void> => {
+  const snapshot = await readClass(options.classReader, classId);
+  if (!snapshot) fail('class-not-found', 'Class is unavailable.');
+  const classSnapshot = snapshot as NonNullable<typeof snapshot>;
+  const owner = classSnapshot.ownerId ?? classSnapshot.createdByUserId ?? classSnapshot.createdBy ?? classSnapshot.teacherId;
+  if (classSnapshot.classId !== undefined && classSnapshot.classId !== classId) fail('class-forbidden', 'Class identity does not match the command.');
+  if (owner !== ownerId) fail('class-forbidden', 'Command owner does not own the class.');
+  if (classSnapshot.status !== 'active') fail('class-inactive', 'Only an active class can receive Book Homework.');
+  const members = normalizeMemberEntries(classSnapshot.members ?? classSnapshot.students);
+  const activeMembers = new Set(members.filter(([, member]) => isActiveMember(member)).map(([memberId]) => memberId));
+  if (selected.some((recipientId) => !activeMembers.has(recipientId))) fail('unauthorized-recipient', 'Every recipient must be an active member of the class.');
+};
+
 const targetWithoutClass = (
   target: BookHomeworkSagaAssignmentTargetIntent,
 ): BookHomeworkSelectionTarget => {
@@ -257,6 +395,21 @@ const expectedPublication = (command: BookHomeworkSagaCommand): void => {
   }
   if (command.intent.expectedPublication.manifestVersionId !== command.manifestVersionId) {
     fail('stale-publication', 'Command manifest version and expected publication manifest differ.');
+  }
+  if (command.intent.expectedStudentDocument !== undefined) {
+    exactKeys(command.intent.expectedStudentDocument, ['descriptorRevision', 'sha256Hex', 'sourceVersionId'], 'intent.expectedStudentDocument');
+    id(command.intent.expectedStudentDocument.sourceVersionId, 'intent.expectedStudentDocument.sourceVersionId');
+    if (!Number.isSafeInteger(command.intent.expectedStudentDocument.descriptorRevision)
+      || command.intent.expectedStudentDocument.descriptorRevision < 0
+      || !/^[a-f0-9]{64}$/u.test(command.intent.expectedStudentDocument.sha256Hex)) {
+      fail('invalid-command', 'intent.expectedStudentDocument is invalid.');
+    }
+  }
+  if (command.intent.expectedPreviewFingerprint !== undefined
+    && (typeof command.intent.expectedPreviewFingerprint !== 'string'
+      || command.intent.expectedPreviewFingerprint.length === 0
+      || command.intent.expectedPreviewFingerprint.length > 8192)) {
+    fail('invalid-command', 'intent.expectedPreviewFingerprint is invalid.');
   }
 };
 
@@ -388,6 +541,14 @@ const createProjection = (
   };
 };
 
+const assertProjectionReady = (
+  delivery: BookRuntimeDeliveryProjection,
+  code: 'not-ready' | 'stale-publication',
+): void => {
+  const validation = validateBookDeliveryComponentProjection(delivery);
+  if (!validation.valid) fail(code, validation.errors[0]?.message ?? 'Trusted Delivery projection is invalid.');
+};
+
 const normalizeNodeOverrides = (
   overrides: readonly BookHomeworkSagaNodeOverrideIntent[],
 ): readonly BookHomeworkSagaNodeOverrideIntent[] => {
@@ -479,6 +640,7 @@ const normalizePolicy = (
     return [entry.placementId, {
       lateSubmissionAllowed: entry.lateSubmissionAllowed,
       maxAttempts: entry.maxAttempts,
+      feedbackRelease: entry.feedbackRelease,
     }];
   }));
   const policy = {
@@ -492,6 +654,10 @@ const normalizePolicy = (
       integrityOverride: intent.integrityOverride,
       activityPolicies: normalized,
     }),
+    intent: intent.intent,
+    integrityDefault: intent.intent === 'accountable',
+    integrityOverride: intent.integrityOverride,
+    integrityEffective: intent.integrityOverride ? intent.integrityCapture : intent.intent === 'accountable',
     activityPolicies,
   } as const;
   return {
@@ -580,16 +746,7 @@ const resolveCanonical = async (
   const target = targetWithoutClass(command.intent.target);
   if (target.bookId !== command.intent.bookId) fail('invalid-target', 'Target Book does not match intent Book.');
   const classId = command.intent.target.classId;
-  const snapshot = await readClass(options.classReader, classId);
-  if (!snapshot) fail('class-not-found', 'Class is unavailable.');
-  const classSnapshot = snapshot as NonNullable<typeof snapshot>;
-  const owner = classSnapshot.ownerId ?? classSnapshot.createdByUserId ?? classSnapshot.createdBy ?? classSnapshot.teacherId;
-  if (classSnapshot.classId !== undefined && classSnapshot.classId !== classId) fail('class-forbidden', 'Class identity does not match the command.');
-  if (owner !== command.ownerId) fail('class-forbidden', 'Command owner does not own the class.');
-  if (classSnapshot.status !== 'active') fail('class-inactive', 'Only an active class can receive Book Homework.');
-  const members = normalizeMemberEntries(classSnapshot.members ?? classSnapshot.students);
-  const activeMembers = new Set(members.filter(([, member]) => isActiveMember(member)).map(([memberId]) => memberId));
-  if (selected.some((recipientId) => !activeMembers.has(recipientId))) fail('unauthorized-recipient', 'Every recipient must be an active member of the class.');
+  await authorizeClassRecipients(options, command.ownerId, classId, selected);
 
   const publication = await loadPublication(options, command, target, selected[0]!);
   try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
@@ -604,12 +761,42 @@ const resolveCanonical = async (
     || publication.bookMode !== 'pdf') {
     fail('stale-publication', 'Trusted Delivery publication does not match the command.');
   }
-  if (publication.sourceSet.strategy !== 'full_pdf' || publication.sourceSet.sources.length !== 1) {
-    fail('not-ready', 'Book Homework requires one complete student-safe PDF source.');
+  if ((publication.sourceSet.strategy === 'full_pdf' && publication.sourceSet.sources.length !== 1)
+    || (publication.sourceSet.strategy === 'component_pdfs' && publication.sourceSet.sources.length === 0)) {
+    fail('not-ready', 'Book Homework requires a ready student-safe PDF source set.');
   }
   publicationTargetMatches(target, publication);
 
+  const scope = options.readPublicationScope
+    ? await options.readPublicationScope(command.intent.bookId)
+    : undefined;
+  if (publication.sourceSet.strategy === 'component_pdfs' && !scope) {
+    fail('not-ready', 'Book Homework requires one complete student-safe PDF.');
+  }
+  const descriptor = publication.sourceSet.strategy === 'component_pdfs'
+    ? resolveCombinedDocument(scope!, command.manifestVersionId)
+    : undefined;
+  const previewScope = scope ?? { placements: Object.fromEntries(publication.placements.map((placement) => [placement.placementId, placement])) };
+  const previewFacts = targetPreviewFacts(previewScope, publication, target, descriptor, options.fingerprint ?? stable);
+  const previewReceipt = previewFacts.receipt;
+  if (publication.sourceSet.strategy === 'component_pdfs'
+    && (command.intent.expectedStudentDocument === undefined || command.intent.expectedPreviewFingerprint === undefined)) {
+    fail('stale-input', 'Component PDF confirmation receipts are required.');
+  }
+  if (descriptor !== undefined && command.intent.expectedStudentDocument !== undefined && stable(command.intent.expectedStudentDocument) !== stable({
+    sourceVersionId: descriptor.sourceVersionId,
+    descriptorRevision: descriptor.descriptorRevision,
+    sha256Hex: descriptor.sha256Hex,
+  }) || command.intent.expectedPreviewFingerprint !== undefined
+    && command.intent.expectedPreviewFingerprint !== previewReceipt.fingerprint) {
+    fail('stale-input', 'Published document or exact target preview changed after confirmation.');
+  }
+  if (previewFacts.excludedActivities.length > 0) {
+    fail('invalid-target', 'Selected target contains blocked Activity exclusions.');
+  }
+
   const delivery = createProjection(publication, command.assignmentId, selected[0]!);
+  assertProjectionReady(delivery, 'not-ready');
   const nodeOverrides = normalizeNodeOverrides(command.intent.schedule.nodeOverrides);
   const scheduleRules = nodeOverrides.map((override) => ({
     nodeKey: override.nodeKey,
@@ -635,6 +822,9 @@ const resolveCanonical = async (
       createdAt: iso(command.createdAt, 'createdAt'),
       bindingRevision: options.manifestBindingRevision ?? 1,
       scheduleRules,
+      ...(descriptor === undefined ? {} : { studentDocument: descriptor }),
+      targetPreview: previewReceipt,
+      excludedActivities: previewFacts.excludedActivities,
     });
     validateBookHomeworkSchedule({
       availableFrom: schedule.availableFrom,
@@ -691,6 +881,14 @@ const resolveCanonical = async (
       fingerprint: publicationFp,
     },
     deliveryPublication: clone(publication),
+    ...(descriptor === undefined || descriptor.components.length === 0 ? {} : {
+      studentDocumentComponents: descriptor.components.map((component) => ({
+        sourceKey: component.sourceKey,
+        sourceVersionId: component.sourceVersionId,
+        combinedStartPage: component.combinedStartPage,
+        localPageCount: component.localPageCount,
+      })),
+    }),
     sourceReadiness: 'ready',
     exposureApproval: exposure,
     capabilities: { canAssignBookHomework: true },
@@ -701,11 +899,130 @@ const resolveCanonical = async (
   return canonical;
 };
 
+export const resolveBookHomeworkPreviewSource = async (
+  options: BookHomeworkCanonicalResolverOptions,
+  input: BookHomeworkPreviewResolverInput,
+): Promise<BookHomeworkAssignmentPreviewSource> => {
+  const ownerId = id(input.ownerId, 'ownerId');
+  const bookId = id(input.bookId, 'bookId');
+  const classId = id(input.classId, 'classId');
+  const contextId = id(input.contextId, 'contextId');
+  const createdAt = iso(input.createdAt, 'createdAt');
+  const selectedRecipientIds = sortedUnique(input.selectedRecipientIds, 'selectedRecipientIds', MAX_RECIPIENTS);
+  const title = input.title === undefined ? undefined : (() => {
+    if (typeof input.title !== 'string' || !input.title.trim()
+      || input.title.trim().length > PRESENTATION_TEXT_MAX_LENGTH) {
+      fail('invalid-command', 'title is invalid.');
+    }
+    return input.title.trim();
+  })();
+  await authorizeClassRecipients(options, ownerId, classId, selectedRecipientIds);
+  const readScope = options.readPublicationScope;
+  if (!readScope) fail('invalid-publication', 'No trusted publication scope reader is configured.');
+  const scope = await readScope(bookId);
+  const current = scope.current;
+  if (!current) fail('stale-publication', 'Published Assembly pointer is unavailable.');
+  const expected = {
+    publicationId: current.publicationId,
+    publicationRevision: current.publicationRevision,
+    manifestVersionId: current.manifestVersionId,
+  } as const;
+  const target = input.target ?? { kind: 'unit' as const, bookId, nodeKey: id(input.unitKey, 'unitKey') };
+  if (!isRecord(target) || target.bookId !== bookId) fail('invalid-target', 'Preview target is invalid.');
+  const selection = targetSelectionForScope(target, scope, expected);
+  const publication = createTrustedBookDeliveryPublication(
+    {
+      bookId,
+      publicationId: expected.publicationId,
+      publicationRevision: expected.publicationRevision,
+      recipientId: selectedRecipientIds[0]!,
+      contextKind: 'homework',
+      contextId,
+      scope: selection,
+    },
+    scope,
+    {
+      policyId: `book-homework-preview:${contextId}`,
+      policyRevision: 1,
+      basis: 'immutable-reference',
+    },
+  );
+  if (publication.ownerId !== ownerId
+    || publication.bookId !== bookId
+    || publication.publicationStatus !== 'published'
+    || (publication.sourceSet.strategy === 'full_pdf' && publication.sourceSet.sources.length !== 1)
+    || (publication.sourceSet.strategy === 'component_pdfs' && publication.sourceSet.sources.length === 0)) {
+    fail('stale-publication', 'Trusted Delivery publication does not match the preview request.');
+  }
+  if (publication.sourceSet.strategy === 'component_pdfs') {
+    const studentDocument = resolveCombinedDocument(scope, expected.manifestVersionId);
+    const previewFacts = targetPreviewFacts(scope, publication, target, studentDocument, options.fingerprint ?? stable);
+    const delivery = createProjection(publication, contextId, selectedRecipientIds[0]!);
+    const version = scope.versions?.[expected.manifestVersionId];
+    if (!version) fail('invalid-publication', 'Published Assembly version is unavailable.');
+    return {
+      delivery,
+      identity: {
+        manifestVersionId: publication.manifestVersionId,
+        ownerId: publication.ownerId,
+        createdByCommandId: version.createdByCommandId,
+        createdAt,
+        bindingRevision: delivery.bindingRevision,
+      },
+      studentDocument: {
+        sourceVersionId: studentDocument.sourceVersionId,
+        descriptorRevision: studentDocument.descriptorRevision,
+        sha256Hex: studentDocument.sha256Hex,
+        components: studentDocument.components.map((component) => ({
+          sourceKey: component.sourceKey,
+          combinedStartPage: component.combinedStartPage,
+          localPageCount: component.localPageCount,
+        })),
+      },
+      targetPreview: previewFacts.receipt,
+      excludedActivities: previewFacts.excludedActivities,
+      ...(title === undefined ? {} : { bookTitle: title }),
+      initialTarget: target,
+      classId,
+      selectedRecipientIds,
+      ...(title === undefined ? {} : { presentation: { title } }),
+    };
+  }
+  const version = scope.versions?.[expected.manifestVersionId];
+  if (!version) fail('invalid-publication', 'Published Assembly version is unavailable.');
+  const delivery = createProjection(publication, contextId, selectedRecipientIds[0]!);
+  assertProjectionReady(delivery, 'stale-publication');
+  const previewFacts = targetPreviewFacts(scope, publication, target, undefined, options.fingerprint ?? stable);
+  return {
+    delivery,
+    identity: {
+      manifestVersionId: publication.manifestVersionId,
+      ownerId: publication.ownerId,
+      createdByCommandId: version.createdByCommandId,
+      createdAt,
+      bindingRevision: delivery.bindingRevision,
+    },
+    targetPreview: previewFacts.receipt,
+    excludedActivities: previewFacts.excludedActivities,
+    ...(title === undefined ? {} : { bookTitle: title }),
+    initialTarget: target,
+    classId,
+    selectedRecipientIds,
+    ...(title === undefined ? {} : { presentation: { title } }),
+  };
+};
+
 export class BookHomeworkCanonicalResolver {
   constructor(private readonly options: BookHomeworkCanonicalResolverOptions) {}
 
   resolve(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaCanonicalState> {
     return resolveCanonical(this.options, command);
+  }
+
+  resolvePreviewSource(
+    input: BookHomeworkPreviewResolverInput,
+  ): Promise<BookHomeworkAssignmentPreviewSource> {
+    return resolveBookHomeworkPreviewSource(this.options, input);
   }
 }
 

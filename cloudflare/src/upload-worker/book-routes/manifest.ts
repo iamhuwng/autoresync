@@ -17,12 +17,16 @@ import {
   bookDocumentAuthorizationRouteDescriptor,
   bookHistoricalAttemptDocumentRouteDescriptor,
   bookTeacherAssemblyDocumentRouteDescriptor,
+  bookTeacherAssemblyStudentDocumentRouteDescriptor,
 } from '../book-delivery/route.ts';
 import { bookSourceRouteDescriptors } from '../book-source/route.ts';
 import { courseBookPlacementRouteDescriptors } from '../course-book-placement/route.ts';
 import { classBookPlacementRouteDescriptors } from '../class-book-placement/route.ts';
+import { publicBookRouteDescriptors } from '../book-public/route.ts';
 import { bookRuntimeLaunchRouteDescriptors } from '../book-runtime-launch/route.ts';
 import { bookIntegrityReportRouteDescriptor } from '../book-activity-integrity/route.ts';
+import { bookResultReadRouteDescriptors } from '../book-results/route.ts';
+import { bookActivityEvaluationRouteDescriptors } from '../book-activity-grading/route.ts';
 import type {
   BookRouteDomain,
   BookRouteManifest,
@@ -187,7 +191,12 @@ const assemblyMigrationRoutes = bookAssemblyMigrationRouteDescriptors.map((route
   contributorTicket: '#70',
 }));
 
-const assemblyPublicationRoutes = bookAssemblyPublicationRouteDescriptors.map((route) => contributor({
+const assemblyPublicationRouteDescriptorsWithRead = [
+  ...bookAssemblyPublicationRouteDescriptors,
+  { method: 'GET', path: '/book-assembly/books/:bookId/current-publication', handler: 'currentPublication' },
+] as const;
+
+const assemblyPublicationRoutes = assemblyPublicationRouteDescriptorsWithRead.map((route) => contributor({
   id: `book.assembly.${route.handler}`,
   method: route.method,
   path: route.path,
@@ -195,11 +204,13 @@ const assemblyPublicationRoutes = bookAssemblyPublicationRouteDescriptors.map((r
   domain: 'assembly',
   handler: `bookAssembly.${route.handler}`,
   firebaseAuth: 'firebase-id-token-teacher',
-  rateClass: 'book-control',
-  gateEnv: route.handler === 'fullPdfPublish'
-    ? 'BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED'
-    : 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
-  requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
+  rateClass: route.handler === 'currentPublication' ? 'book-read' : 'book-control',
+  gateEnv: route.handler === 'currentPublication'
+    ? 'BOOK_ASSEMBLY_ROUTES_ENABLED'
+    : route.handler === 'fullPdfPublish'
+      ? 'BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED'
+      : 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
+  requestBodyBytes: route.handler === 'currentPublication' ? 0 : MAX_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
@@ -295,17 +306,18 @@ const classBookPlacementRoutes = classBookPlacementRouteDescriptors.map((route) 
   id: `book.class-placement.${route.handler}`,
   method: route.method,
   path: route.path,
-  owner: '#104',
+  owner: ['copy', 'place', 'sync', 'lock'].includes(route.handler) ? '#103' : '#104',
   domain: 'delivery',
   handler: `classBookPlacement.${route.handler}`,
-  firebaseAuth: 'firebase-id-token-student',
+  firebaseAuth: ['copy', 'place', 'sync', 'lock'].includes(route.handler)
+    ? 'firebase-id-token-teacher' : 'firebase-id-token-student',
   rateClass: route.handler === 'current' ? 'book-read' : 'book-control',
   gateEnv: 'BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED',
   requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
   responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   identityEnv: 'BOOK_DELIVERY_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_DELIVERY_GOOGLE_SA_KEY',
-  contributorTicket: '#104',
+  contributorTicket: ['copy', 'place', 'sync', 'lock'].includes(route.handler) ? '#103' : '#104',
 }));
 
 const bookRuntimeLaunchRoutes = bookRuntimeLaunchRouteDescriptors.map((route) => contributor({
@@ -373,6 +385,40 @@ const teacherAssemblyDocumentRoute = contributor({
   credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
   contributorTicket: '#58',
 });
+
+const teacherAssemblyStudentDocumentRoute = contributor({
+  id: 'book.document-delivery.serve-teacher-assembly-student-document',
+  method: bookTeacherAssemblyStudentDocumentRouteDescriptor.method,
+  path: bookTeacherAssemblyStudentDocumentRouteDescriptor.path,
+  owner: '#58',
+  domain: 'document-delivery',
+  handler: bookTeacherAssemblyStudentDocumentRouteDescriptor.handler,
+  firebaseAuth: 'firebase-id-token-before-lookup',
+  rateClass: 'book-document',
+  gateEnv: 'BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED',
+  requestBodyBytes: bookTeacherAssemblyStudentDocumentRouteDescriptor.requestBodyBytes,
+  responseLimitBytes: bookTeacherAssemblyStudentDocumentRouteDescriptor.responseLimitBytes,
+  identityEnv: 'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  contributorTicket: '#58',
+});
+
+const bookHomeworkRoutes = [contributor({
+  id: 'book.homework.preview-source',
+  method: 'POST',
+  path: '/book-homework/preview-source',
+  owner: '#86',
+  domain: 'homework',
+  handler: 'bookHomework.homeworkPreviewSource',
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: 'book-read',
+  gateEnv: 'BOOK_HOMEWORK_READ_ROUTES_ENABLED',
+  requestBodyBytes: MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+  contributorTicket: '#86',
+})];
 
 const futureRoutes: BookRouteManifest = [
   future({
@@ -449,19 +495,6 @@ const futureRoutes: BookRouteManifest = [
     responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
     identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
     credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
-  }),
-  future({
-    id: 'book.evaluation-history.read',
-    methods: ['GET'],
-    pathTemplate: '/book-evaluation/history/:bookId/:studentId',
-    owner: '#89',
-    domain: 'evaluation-history',
-    handler: 'futureSeam.evaluationHistoryRead',
-    firebaseAuth: 'firebase-id-token',
-    rateClass: 'book-future',
-    gateEnv: 'BOOK_EVALUATION_HISTORY_ROUTES_ENABLED',
-    requestBodyBytes: 0,
-    responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
   }),
   future({
     id: 'book.integrity.signal',
@@ -548,6 +581,7 @@ const futureRoutes: BookRouteManifest = [
 ];
 
 export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
+  ...publicBookRouteDescriptors,
   ...deliveryRoutes,
   ...activityAuthoringRoutes,
   ...assemblyRoutes,
@@ -561,9 +595,13 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...classBookPlacementRoutes,
   ...bookRuntimeLaunchRoutes,
   ...runtimeRoutes,
+  ...bookResultReadRouteDescriptors,
+  ...bookActivityEvaluationRouteDescriptors,
   documentRoute,
   historicalAttemptDocumentRoute,
   teacherAssemblyDocumentRoute,
+  teacherAssemblyStudentDocumentRoute,
+  ...bookHomeworkRoutes,
   ...futureRoutes,
 ]);
 

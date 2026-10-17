@@ -6,7 +6,7 @@ const ORIGIN = 'http://localhost:5173';
 const ARTIFACT_DIR = path.resolve('artifacts/prd0062-ticket-71/browser');
 
 const loginTeacher = async (page: Page) => {
-  await page.goto(`${ORIGIN}/`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+  await page.goto(`${ORIGIN}/login`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await expect(async () => {
     if (/\/lobby/u.test(page.url())) return;
     await expect(page.getByRole('button', { name: /dev quick login/iu })).toBeVisible({ timeout: 2_000 });
@@ -55,7 +55,16 @@ const chooseFirstRealOption = async (select: ReturnType<Page['locator']>) => {
 const fillSuccessor = async (page: Page, target: 'component_pdfs' | 'full_pdf') => {
   await chooseFirstRealOption(page.getByRole('combobox', { name: 'Successor Source Version 1' }));
   if (target === 'component_pdfs') {
+    await page.getByRole('combobox', { name: 'Successor Source Version 1' }).selectOption('source-component-v1');
+    await page.getByRole('textbox', { name: 'Successor source key 1' }).fill('component-a');
     await chooseFirstRealOption(page.getByRole('combobox', { name: 'Successor owner node 1' }));
+    await page.getByRole('button', { name: 'Add component Source' }).click();
+    await page.getByRole('combobox', { name: 'Successor Source Version 2' }).selectOption('source-component-b-v1');
+    await page.getByRole('textbox', { name: 'Successor source key 2' }).fill('component-b');
+    await chooseFirstRealOption(page.getByRole('combobox', { name: 'Successor owner node 2' }));
+  }
+  if (target === 'full_pdf') {
+    await page.getByRole('textbox', { name: 'Successor source key 1' }).fill('full');
   }
   await chooseFirstRealOption(page.getByRole('combobox', { name: 'Successor mapping source for pages-1' }));
   await page.getByRole('textbox', { name: 'Successor local page pages-1 1' }).fill('1');
@@ -91,6 +100,7 @@ for (const [fixture, target, name] of [
     await fillSuccessor(page, target);
     await page.getByRole('button', { name: 'Publish successor' }).click();
     await expect(page.getByTestId('ticket71-current-state')).toContainText('successor');
+    await expect(page).toHaveURL(/state=published/u);
     await expect(page.getByTestId('ticket71-predecessor-state')).toContainText(predecessor ?? 'publication-before');
     await expect(page.getByTestId('ticket71-successor-strategy')).toContainText(target);
     await page.reload({ waitUntil: 'domcontentloaded' });

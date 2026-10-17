@@ -212,21 +212,6 @@ export interface PublicBookCatalogView {
   readonly newerVersionAvailable: boolean;
 }
 
-export interface PublicBookRuntimePreparation {
-  readonly bookId: string;
-  readonly title: string;
-  readonly sourceVersionId: string;
-  readonly activityIds: readonly string[];
-  readonly selectionPath: readonly string[];
-  readonly sourceContext: PublicBookSourceContextChoice;
-  readonly document?: {
-    readonly resourcePath: string;
-    readonly expiresAt: string;
-    readonly byteSize: number;
-    readonly contentType: 'application/pdf';
-  };
-}
-
 export interface PublicBookStudentProjection {
   readonly projectionKind: 'public-book-student-safe';
   readonly bookId: string;
@@ -235,7 +220,6 @@ export interface PublicBookStudentProjection {
   readonly selectionKind: PublicBookSelectionKind;
   readonly selectionPath: readonly string[];
   readonly newerVersionAvailable: boolean;
-  readonly runtime?: PublicBookRuntimePreparation;
 }
 
 export interface PublicBookReferenceForkStore {
@@ -254,21 +238,6 @@ export interface PublicBookReferenceForkStore {
   }): Promise<void>;
 }
 
-export interface PublicBookDocumentIssuer {
-  issue(input: {
-    readonly studentId: string;
-    readonly bookId: string;
-    readonly sourceVersionId: string;
-    readonly entitlementId: string;
-    readonly contextId: string;
-  }): Promise<{
-    readonly resourcePath: string;
-    readonly expiresAt: string;
-    readonly byteSize: number;
-    readonly contentType: 'application/pdf';
-  }>;
-}
-
 export type PublicBookReferenceForkIdFactory = (kind: string) => string;
 
 export interface PublicBookReferenceForkServiceOptions {
@@ -280,7 +249,6 @@ export interface PublicBookReferenceForkServiceOptions {
   readonly canonicalForkEnabled?: boolean;
   readonly canonicalForkMutationsEnabled?: boolean;
   readonly canonicalForkWriter?: PublicBookCanonicalForkWriter;
-  readonly documentIssuer?: PublicBookDocumentIssuer;
 }
 
 export interface PublicBookReferenceForkResolveInput {
@@ -327,7 +295,6 @@ export interface PublicBookReferenceForkService {
     readonly entitlementId?: string;
   }): Promise<PublicBookCatalogView>;
   resolve(input: PublicBookReferenceForkResolveInput): Promise<PublicBookStudentProjection>;
-  prepareRuntime(input: PublicBookReferenceForkResolveInput): Promise<PublicBookRuntimePreparation>;
   reference(input: PublicBookReferenceForkMutationInput): Promise<PublicBookReferenceRecord>;
   migrateLegacyReference(input: PublicBookLegacyReferenceMigrationInput): Promise<{
     readonly reference: PublicBookReferenceRecord;

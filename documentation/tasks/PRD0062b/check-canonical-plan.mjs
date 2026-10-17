@@ -68,6 +68,31 @@ const recoveredBody = (fileBuffer) => {
   return bodyStart < 0 ? null : fileBuffer.subarray(bodyStart + 2);
 };
 
+const archiveSnapshot = '763954be41cbe21a54061fb70fba005ced7173cf';
+const masterFile = 'tasks-book-activity-master-orchestration.md';
+const recoveredFiles = ['README.md', masterFile, ...componentFiles];
+const archiveBlob = (file) => execFileSync('git', ['show', `${archiveSnapshot}:documentation/tasks/PRD0062b/recovered/${file}`]);
+let baselineAvailable = true;
+try {
+  execFileSync('git', ['cat-file', '-e', `${baseline}^{commit}`], { stdio: 'ignore' });
+} catch {
+  baselineAvailable = false;
+}
+
+for (const file of recoveredFiles) {
+  if (!readFileSync(resolve(docRoot, 'recovered', file)).equals(archiveBlob(file))) {
+    errors.push(`recovered/${file}: current bytes are not byte-equal to archive snapshot ${archiveSnapshot}`);
+  }
+}
+
+if (baselineAvailable) {
+  for (const file of [masterFile, ...componentFiles]) {
+    if (!gitBlob(baseline, file).equals(recoveredBody(archiveBlob(file)))) {
+      errors.push(`${file}: archive snapshot body disagrees with historical baseline ${baseline}`);
+    }
+  }
+}
+
 const sameRows = (expected, actual, label) => {
   let actualIndex = 0;
   for (let expectedIndex = 0; expectedIndex < expected.length; expectedIndex += 1) {
@@ -125,14 +150,10 @@ const checkPacketContract = (text, label) => {
 };
 
 for (const file of componentFiles) {
-  const expectedText = gitBlob(baseline, file).toString('utf8');
+  const expectedText = recoveredBody(archiveBlob(file)).toString('utf8');
   const expectedRows = lineRows(expectedText);
   const activeText = localText(file);
   const activeRows = lineRows(activeText);
-  const recoveredBuffer = readFileSync(resolve(docRoot, 'recovered', file));
-  if (!recoveredBody(recoveredBuffer)?.equals(gitBlob(baseline, file))) {
-    errors.push(`recovered/${file}: body is not byte-equal to ${baseline}`);
-  }
   sameRows(expectedRows, activeRows, file);
   checkParentNesting(activeRows, file);
   checkPacketContract(activeText, file);
@@ -174,13 +195,14 @@ for (const [file, expectedStatus] of Object.entries(expectedStatuses)) {
 }
 
 for (const [file, revision, source] of [
-  ['tasks-book-activity-master-orchestration.md', baseline, 'documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md'],
+  [masterFile, archiveSnapshot, 'documentation/tasks/PRD0062b/recovered/tasks-book-activity-master-orchestration.md'],
   ['prd-book-based-interactive-activity-runtime-and-assembly-approved-amendment-2026-07-09.md', amendment, 'documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly-approved-amendment-2026-07-09.md'],
 ]) {
   const localPath = file.startsWith('prd-book-based') ? resolve(docRoot, file) : resolve(docRoot, 'recovered', file);
   const local = readFileSync(localPath);
   const expected = execFileSync('git', ['show', `${revision}:${source}`]);
-  if (!recoveredBody(local)?.equals(expected)) errors.push(`recovered/${file}: body is not byte-equal to ${revision}`);
+  const expectedBody = file === masterFile ? recoveredBody(expected) : expected;
+  if (!recoveredBody(local)?.equals(expectedBody)) errors.push(`${file}: body is not byte-equal to ${revision}`);
 }
 
 const orchestrationFiles = [
@@ -315,5 +337,7 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   const label = dormant ? 'PRD0062b dormant archive' : 'PRD0062b canonical plan';
-  console.log(`${label}: ${componentFiles.length} governed components, ${totalRows} task rows (747 baseline + C04-A-TIMER), ${seenWordingOverrides.size} approved wording overrides, ${seenCheckboxOverrides.size} checkbox overrides, recovery/amendment authority ${baseline}/${amendment}.`);
+  console.log(`${label}: ${componentFiles.length} governed components, ${totalRows} task rows (747 baseline + C04-A-TIMER), ${seenWordingOverrides.size} approved wording overrides, ${seenCheckboxOverrides.size} checkbox overrides, recovery/amendment authority ${archiveSnapshot}/${amendment}.`);
 }
+
+if (!baselineAvailable) console.log(`HISTORICAL_ORIGIN_UNVERIFIED: ${baseline} is unavailable; ${archiveSnapshot} verifies recovery integrity only and does not prove the historical origin.`);

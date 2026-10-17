@@ -1,13 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import type { BookContentTreeNodeCandidate, BookSourceVersionAuthority, SourceSetCandidate } from '../../types/bookAssembly.types';
+import type {
+  BookContentTreeNodeCandidate,
+  BookSourceVersionAuthority,
+  SourceSetCandidate,
+  TrustedBookSourceVersionProjection,
+} from '../../types/bookAssembly.types';
 import { sourceMayBeUsedByNode, validateSourceSetCandidate } from './sourceSet.service';
 
-const authority = (overrides: Record<string, { bookId: string; physicalPageCount: number; verifiedUsable: boolean }> = {}): BookSourceVersionAuthority => ({
+const authority = (overrides: Record<string, Record<string, unknown>> = {}): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => {
-    const value = overrides[sourceVersionId] ?? {
-      bookId: 'book-1', physicalPageCount: 10, verifiedUsable: true,
-    };
-    return { sourceVersionId, ...value };
+    const sourceKey = sourceVersionId === 'full-v1' || sourceVersionId === 'source-v1'
+      ? 'full'
+      : sourceVersionId.replace(/-v1$/u, '');
+    const value = overrides[sourceVersionId] ?? {};
+    const status = value.studentSafeStatus ?? 'ready';
+    return {
+      sourceKey,
+      sourceVersionId,
+      bookId: 'book-1',
+      checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      purpose: 'book-source',
+      studentSafeStatus: status,
+      ...(status === 'unreviewed' ? {} : {
+        studentSafeDecision: {
+          decidedBy: 'teacher-1',
+          decidedAt: '2026-01-01T00:00:00.000Z',
+          sourceVersionId,
+          sha256Hex: 'a'.repeat(64),
+          reasonCode: 'teacher-reviewed',
+        },
+      }),
+      physicalPageCount: 10,
+      verifiedUsable: true,
+      ...value,
+    } as unknown as TrustedBookSourceVersionProjection;
   },
 });
 
@@ -49,6 +75,112 @@ describe('validateSourceSetCandidate', () => {
     expect(validateSourceSetCandidate({ sourceStrategy: 'component_pdfs', sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 }] }, {
       bookId: 'book-1', sourceVersionAuthority: authority(),
     }).errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'invalid-owner' })]));
+  });
+
+  it('rejects a candidate source key that differs from the trusted version projection', () => {
+    const result = validateSourceSetCandidate({
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'alias', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+    }, { bookId: 'book-1', sourceVersionAuthority: authority() });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-identity-mismatch', path: '$.sourceSet.sources[0].sourceKey' }),
+    ]));
+  });
+
+  it('allows an unreviewed private book-source projection', () => {
+    const result = validateSourceSetCandidate({
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+    }, {
+      bookId: 'book-1',
+      sourceVersionAuthority: authority({ 'source-v1': { studentSafeStatus: 'unreviewed' } }),
+    });
+
+    expect(result.valid).toBe(true);
+  });
+
+  it.each([
+    ['student-document', 'unverified-source-version', { purpose: 'student-document' }],
+    ['rejected', 'unverified-source-version', { studentSafeStatus: 'rejected' }],
+    ['unusable', 'unverified-source-version', { verifiedUsable: false }],
+    ['malformed checksum', 'invalid-value', { checksum: { algorithm: 'sha-256', value: 'not-a-hash' } }],
+    ['malformed safety decision', 'invalid-value', { studentSafeDecision: { sourceVersionId: 'other-version' } }],
+  ] as const)('rejects %s trusted source projections', (_label, code, override) => {
+    const result = validateSourceSetCandidate({
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+    }, {
+      bookId: 'book-1',
+      sourceVersionAuthority: authority({ 'source-v1': override }),
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code }),
+    ]));
+  });
+
+  it.each([
+    ['component count 1', {
+      sourceStrategy: 'component_pdfs',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' }],
+    }],
+    ['component count 21', {
+      sourceStrategy: 'component_pdfs',
+      sources: Array.from({ length: 21 }, (_, index) => ({
+        sourceKey: `source-${index + 1}`,
+        sourceVersionId: `version-${index + 1}`,
+        sourceOrder: index + 1,
+        ownerNodeKey: 'section-1',
+      })),
+    }],
+    ['component order gap', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 3, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component duplicate source key', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'a', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component duplicate source version', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['component reordered orders', {
+      sourceStrategy: 'component_pdfs',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'section-1' },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+      ],
+    }],
+    ['full PDF with zero sources', { sourceStrategy: 'full_pdf', sources: [] }],
+    ['full PDF with two sources', {
+      sourceStrategy: 'full_pdf',
+      sources: [
+        { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 },
+        { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2 },
+      ],
+    }],
+    ['full PDF with non-one order', {
+      sourceStrategy: 'full_pdf',
+      sources: [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2 }],
+    }],
+  ])('rejects %s', (_label, sourceSet) => {
+    expect(validateSourceSetCandidate(sourceSet, {
+      bookId: 'book-1',
+      sourceVersionAuthority: authority(),
+    }).valid).toBe(false);
   });
 });
 

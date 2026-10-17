@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOOK_PDF_ACCOUNT_CAPACITY_BYTES,
   MAX_SOURCE_PDF_BYTES,
+  MAX_STUDENT_DOCUMENT_PDF_BYTES,
   getAccountedCapacityBytes,
   getLedgerProviderTotals,
   reserveSourceCapacity,
@@ -19,9 +20,9 @@ import {
 const location = { storageLocationId: 'book_b2_primary', privateBucketId: 'book-private' };
 const now = new Date('2026-07-23T00:01:00.000Z');
 
-const reservation = (suffix: string, expectedByteSize = 1): ReservedSourceVersionIdentity => ({
+const reservation = (suffix: string, expectedByteSize = 1, purpose: 'book-source' | 'student-document' = 'book-source'): ReservedSourceVersionIdentity => ({
   sourceVersionId: `source_${suffix}`, sourceKey: `source-key-${suffix}`, ownerId: 'teacher_1', bookId: 'book_1',
-  ...location, providerObjectKey: `book-source/${suffix}.pdf`, expectedByteSize,
+  ...location, providerObjectKey: `book-source/${suffix}.pdf`, purpose, expectedByteSize,
   checksumSlot: 'unfilled', providerIdentitySlot: 'unfilled', expiresAt: '2026-07-23T00:05:00.000Z',
   revision: 0, lifecycleState: 'reserved',
 });
@@ -45,20 +46,32 @@ class MemoryLedgerStore {
 }
 
 describe('trusted Book Source capacity ledger', () => {
-  it('accepts exact 500 MiB source and 9 GB capacity boundary with one CAS', async () => {
+  it('accepts exact 50 MiB book source and 100 MiB student document limits', async () => {
     const exactSource = reservation('exact-source', MAX_SOURCE_PDF_BYTES);
     const store = new MemoryLedgerStore(state([], BOOK_PDF_ACCOUNT_CAPACITY_BYTES - MAX_SOURCE_PDF_BYTES));
     const next = await reserveSourceCapacity({ store, expectedLedgerRevision: 7, now, reservation: exactSource, category: 'pending' });
     expect(getAccountedCapacityBytes(next)).toBe(BOOK_PDF_ACCOUNT_CAPACITY_BYTES);
     expect(store.casCalls).toBe(1);
+
+    const exactStudentDocument = reservation('exact-student-document', MAX_STUDENT_DOCUMENT_PDF_BYTES, 'student-document');
+    await expect(reserveSourceCapacity({
+      store: new MemoryLedgerStore(state([], BOOK_PDF_ACCOUNT_CAPACITY_BYTES - MAX_STUDENT_DOCUMENT_PDF_BYTES)),
+      expectedLedgerRevision: 7, now, reservation: exactStudentDocument, category: 'pending',
+    })).resolves.toBeDefined();
   });
 
-  it('rejects over-500 MiB and over-9 GB before CAS', async () => {
+  it('rejects over-purpose limit and over-9 GB before CAS', async () => {
     const sourceTooLarge = new MemoryLedgerStore(state());
     await expect(reserveSourceCapacity({
       store: sourceTooLarge, expectedLedgerRevision: 7, now, reservation: reservation('too-large', MAX_SOURCE_PDF_BYTES + 1), category: 'pending',
     })).rejects.toMatchObject({ code: 'invalid_reservation' });
     expect(sourceTooLarge.casCalls).toBe(0);
+    const studentDocumentTooLarge = new MemoryLedgerStore(state());
+    await expect(reserveSourceCapacity({
+      store: studentDocumentTooLarge, expectedLedgerRevision: 7, now,
+      reservation: reservation('student-document-too-large', MAX_STUDENT_DOCUMENT_PDF_BYTES + 1, 'student-document'), category: 'pending',
+    })).rejects.toMatchObject({ code: 'invalid_reservation' });
+    expect(studentDocumentTooLarge.casCalls).toBe(0);
     const noRoom = new MemoryLedgerStore(state([], BOOK_PDF_ACCOUNT_CAPACITY_BYTES));
     await expect(reserveSourceCapacity({
       store: noRoom, expectedLedgerRevision: 7, now, reservation: reservation('no-room'), category: 'replacement',

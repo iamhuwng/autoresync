@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import generatedRules from '../../database.rules.json';
-import rollbackRules from '../../firebase.prd0062-118-rules.rollback.json';
 import fragment49A from '../src/upload-worker/book-rules/fragments/49A.json';
 import fragment49B from '../src/upload-worker/book-rules/fragments/49B.json';
+import fragment49C from '../src/upload-worker/book-rules/fragments/49C.json';
+import fragment49D from '../src/upload-worker/book-rules/fragments/49D.json';
 import {
   composeGeneratedBookRules,
   FINAL_BOOK_RULE_FRAGMENT_IDS,
@@ -45,6 +46,16 @@ const operation = (path: string, rule: string): string => {
 const recoveryOperation = (path: string, rule: string): string => {
   const found = fragment49B.operations.find((entry) => entry.path === path && entry.rule === rule);
   if (!found) throw new Error(`Missing 49B operation ${path}/${rule}.`);
+  return found.expression;
+};
+
+const fragmentOperation = (
+  fragment: { readonly operations: readonly { readonly path: string; readonly rule: string; readonly expression: string }[] },
+  path: string,
+  rule: string,
+): string => {
+  const found = fragment.operations.find((entry) => entry.path === path && entry.rule === rule);
+  if (!found) throw new Error(`Missing recovery operation ${path}/${rule}.`);
   return found.expression;
 };
 
@@ -95,7 +106,7 @@ describe('#121 49A Book recovery ledger rules', () => {
 
   it('composes 49A and emits the exact checked-in database rules', () => {
     const candidate = composeGeneratedBookRules(sources(), {
-      baseRules: rollbackRules.rules,
+      baseRules: generatedRules.rules,
       requiredFragmentIds: FINAL_BOOK_RULE_FRAGMENT_IDS,
       requireExistingRules: true,
     });
@@ -181,7 +192,7 @@ describe('#122 49B durable Delivery hold rules', () => {
       expect(expression).toContain('auth.token.bkr.c == $contextId');
       expect(expression).toContain('newData.exists()');
       expect(expression).toContain('newData.val() == data.val()');
-      for (const field of ['pdfBytes', 'pdfBody', 'providerObject', 'providerAuthority', 'objectKey', 'privateObjectKey', 'url', 'viewerLink', 'entitlement', 'credentials']) {
+      for (const field of ['pdfBytes', 'pdfBody', 'providerObject', 'providerAuthority', 'objectKey', 'privateObjectKey', 'url', 'viewerLink', 'entitlement', 'credentials', 'token', 'secret', 'signed']) {
         expect(expression).toContain(`!newData.child('${field}').exists()`);
       }
     }
@@ -193,7 +204,7 @@ describe('#122 49B durable Delivery hold rules', () => {
 
   it('composes 49B into the exact checked-in generated rules', () => {
     const candidate = composeGeneratedBookRules(sources(), {
-      baseRules: rollbackRules.rules,
+      baseRules: generatedRules.rules,
       requiredFragmentIds: FINAL_BOOK_RULE_FRAGMENT_IDS,
       requireExistingRules: true,
     });
@@ -209,5 +220,95 @@ describe('#122 49B durable Delivery hold rules', () => {
         '.validate',
       ));
     expect(JSON.stringify(canonicalize(candidate.rules))).toBe(JSON.stringify(canonicalize(generatedRules.rules)));
+  });
+});
+
+describe('#123/#124 recovery child boundaries', () => {
+  it('denies ancestor-shaped parents while composing only exact sibling recovery children', () => {
+    const candidate = composeGeneratedBookRules(sources(), {
+      baseRules: generatedRules.rules,
+      requiredFragmentIds: FINAL_BOOK_RULE_FRAGMENT_IDS,
+      requireExistingRules: true,
+    });
+
+    expect(String(readRule(
+      candidate.rules,
+      'book_delivery/scopes/$recipientId/$contextId/.write',
+    ))).toContain("!newData.child('recovery').exists()");
+    for (const parentPath of [
+      'book_runtime/scopes/$recipientId/$contextId/recovery',
+      'book_update_action_recovery/49d',
+    ]) {
+      expect(readRule(candidate.rules, `${parentPath}/.read`)).toBe('false');
+      expect(readRule(candidate.rules, `${parentPath}/.write`)).toBe('false');
+    }
+
+    for (const [location, fragmentId] of [
+      ['book_delivery/scopes/$recipientId/$contextId/recovery/hold/.write', '49B'],
+      ['book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey/.write', '49B'],
+      ['book_runtime/scopes/$recipientId/$contextId/recovery/hold/.write', '49C'],
+      ['book_runtime/scopes/$recipientId/$contextId/recovery/projections/$projectionKey/.write', '49C'],
+      ['book_update_action_recovery/49d/holds/$scopeKey/.write', '49D'],
+      ['book_update_action_recovery/49d/projections/$projectionKey/.write', '49D'],
+      ['book_update_action_recovery/49d/notifications/$recipientId/$projectionKey/.write', '49D'],
+    ] as const) {
+      expect(candidate.byLocation[location]).toMatchObject({ fragmentId });
+    }
+    expect(candidate.byLocation['book_delivery/scopes/$recipientId/$contextId/recovery/.write']).toBeUndefined();
+  });
+
+  it('binds recovery writes to exact scopes and denies byte/provider fields', () => {
+    const cases = [
+      {
+        fragment: fragment49C,
+        path: 'book_runtime/scopes/$recipientId/$contextId/recovery/hold',
+        claims: ['$recipientId', '$contextId'],
+        fields: ['response', 'answers', 'answerKey', 'prompt', 'teacherNotes', 'pdfBytes', 'providerAuthority', 'privateObjectKey', 'viewerLink', 'url', 'token', 'secret'],
+      },
+      {
+        fragment: fragment49C,
+        path: 'book_runtime/scopes/$recipientId/$contextId/recovery/projections/$projectionKey',
+        claims: ['$recipientId', '$contextId', '$projectionKey'],
+        fields: ['response', 'answers', 'answerKey', 'prompt', 'teacherNotes', 'pdfBytes', 'providerAuthority', 'privateObjectKey', 'viewerLink', 'url', 'token', 'secret'],
+      },
+      {
+        fragment: fragment49D,
+        path: 'book_update_action_recovery/49d/holds/$scopeKey',
+        claims: ['$scopeKey'],
+        fields: ['answer', 'pdfBytes', 'providerObject', 'credentials', 'providerAuthority', 'privateObjectKey', 'url', 'link', 'message', 'title', 'answers'],
+      },
+      {
+        fragment: fragment49D,
+        path: 'book_update_action_recovery/49d/projections/$projectionKey',
+        claims: ['$projectionKey'],
+        fields: ['answer', 'pdfBytes', 'providerObject', 'credentials', 'providerAuthority', 'privateObjectKey', 'url', 'link', 'message', 'title', 'answers', 'response'],
+      },
+    ] as const;
+
+    for (const { fragment, path, claims, fields } of cases) {
+      const expression = fragmentOperation(fragment, path, '.write');
+      expect(expression).toContain("auth.token.bkr.si == 'book_recovery_service'");
+      expect(expression).toContain('auth.token.bkr.o == newData.child(\'recoveryOperationId\').val()');
+      for (const claim of claims) expect(expression).toContain(claim);
+      for (const field of fields) expect(expression).toContain(`!newData.child('${field}').exists()`);
+    }
+
+    const notificationWrite = fragmentOperation(
+      fragment49D,
+      'book_update_action_recovery/49d/notifications/$recipientId/$projectionKey',
+      '.write',
+    );
+    expect(notificationWrite).toContain("auth.token.bkr.r == $recipientId");
+    for (const field of ['message', 'title', 'link']) {
+      expect(notificationWrite).toContain(`!newData.child('${field}').exists()`);
+    }
+
+    for (const [fragment, path] of [
+      [fragment49C, 'book_runtime/scopes/$recipientId/$contextId/recovery/projections/$projectionKey'],
+      [fragment49D, 'book_update_action_recovery/49d/projections/$projectionKey'],
+      [fragment49D, 'book_update_action_recovery/49d/notifications/$recipientId/$projectionKey'],
+    ] as const) {
+      expect(fragmentOperation(fragment, path, '.validate')).toContain("newData.child('metadata').hasChildren()");
+    }
   });
 });

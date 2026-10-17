@@ -82,14 +82,6 @@ const setup = () => {
     mutationsEnabled: true,
     now: () => timestamp,
     createId: (() => { let n = 0; return (kind: string) => kind + '-' + (++n); })(),
-    documentIssuer: {
-      issue: async () => ({
-        resourcePath: '/v1/book-delivery/documents/opaque-1',
-        expiresAt: '2026-08-05T00:05:00.000Z',
-        byteSize: 10,
-        contentType: 'application/pdf' as const,
-      }),
-    },
   });
   return { store, service };
 };
@@ -201,7 +193,7 @@ describe('public Book reference/fork Worker boundary', () => {
     expect(store.snapshot().currentReferences).toEqual({});
   });
 
-  it('returns only the student-safe projection and opaque runtime document', async () => {
+  it('returns only the student-safe projection and rejects the removed runtime action', async () => {
     const { service } = setup();
     const handlers = createPublicBookReferenceForkWorkerHandlers({ service, enabled: true });
     const resolved = await call(handlers, {
@@ -218,12 +210,8 @@ describe('public Book reference/fork Worker boundary', () => {
       selection,
       entitlementId: 'entitlement-1',
     }, 'student-1', 'student');
-    expect(runtime.init.status).toBe(200);
-    expect(runtime.body).toMatchObject({
-      sourceVersionId: 'source-pdf-1',
-      document: { resourcePath: '/v1/book-delivery/documents/opaque-1' },
-    });
-    expect(JSON.stringify(runtime.body)).not.toMatch(/objectKey|provider|privateAsset|bucketBinding/i);
+    expect(runtime.init.status).toBe(400);
+    expect(runtime.body).toEqual({ code: 'request-invalid' });
   });
 
   it('rejects fork before service construction or any store access', async () => {

@@ -85,7 +85,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && !data.exists()"
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && !data.exists() && newData.child('selectionFingerprint').isString() && newData.child('selectionFingerprint').val().matches(/^[a-f0-9]{64}$/) && newData.child('reason').isString() && newData.child('reason').val().length <= 500"
     },
     {
       "path": "book_replacement_plans/tokens/$ownerId/$planId/$reviewId",
@@ -99,7 +99,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && newData.child('tokenHash').isString()"
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('planId').val() == $planId && newData.child('reviewId').val() == $reviewId && newData.child('tokenHash').isString() && newData.child('selectionFingerprint').isString() && newData.child('selectionFingerprint').val().matches(/^[a-f0-9]{64}$/) && newData.child('selectionFingerprint').val() === newData.parent().parent().parent().parent().child('reviews').child($ownerId).child($planId).child($reviewId).child('selectionFingerprint').val() && (!data.exists() || newData.child('selectionFingerprint').val() === data.child('selectionFingerprint').val())"
     },
     {
       "path": "book_replacement_plans/operations/$ownerId/$bookId/$operationId",

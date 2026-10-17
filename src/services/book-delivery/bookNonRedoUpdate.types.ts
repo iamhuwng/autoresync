@@ -7,6 +7,8 @@ export type BookNonRedoLifecycle = 'not-started' | 'in-progress' | 'submitted' |
 interface BookNonRedoUpdateOperationBase {
   readonly contextKey: string;
   readonly contextKind: BookNonRedoContextKind;
+  readonly contextId: string;
+  readonly recipientId: string;
   readonly lifecycle: BookNonRedoLifecycle;
   readonly placementId: string;
   readonly activityId: string;

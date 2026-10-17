@@ -21,6 +21,7 @@ import type {
   BookRedoUpdateResult,
 } from '../../../../src/services/book-delivery/bookRedoUpdate.types.ts';
 import type { BookUpdateActionRecord } from '../../../../src/services/book-delivery/bookUpdateAction.types.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import {
   BOOK_REDO_PHASES,
   bookRedoPhaseFingerprint,
@@ -135,7 +136,7 @@ const selectedPlacementIds = (plan: BookRedoStudentPlan): readonly string[] => (
   [...new Set(plan.activities.map((activity) => activity.placementId))].sort()
 );
 
-const validatePlan = (action: BookUpdateActionRecord, plan: BookRedoStudentPlan): boolean => {
+const validatePlan = async (action: BookUpdateActionRecord, plan: BookRedoStudentPlan): Promise<boolean> => {
   if (plan.schemaVersion !== 1
     || !validId(plan.actionId)
     || !validId(plan.ownerId)
@@ -146,6 +147,7 @@ const validatePlan = (action: BookUpdateActionRecord, plan: BookRedoStudentPlan)
     || !validId(plan.contextKey)
     || !validId(plan.contextId)
     || !validId(plan.studentId)
+    || plan.contextKey !== await bookImpactContextKey({ ...plan, recipientId: plan.studentId })
     || typeof plan.reason !== 'string'
     || plan.reason.trim() !== plan.reason
     || plan.reason.length === 0
@@ -519,7 +521,7 @@ export const createBookRedoUpdateExecutor = (options: BookRedoUpdateExecutorOpti
     if (resolved.students.length === 0
       || new Set(planKeys).size !== planKeys.length
       || new Set(selectedKeys).size !== selectedKeys.length
-      || resolved.students.some((plan) => !validatePlan(action, plan))
+      || (await Promise.all(resolved.students.map((plan) => validatePlan(action, plan)))).some((valid) => !valid)
       || action.selections.some((selection) => !resolved.students.some((plan) => (
         plan.contextKey === selection.contextKey
         && plan.activities.some((activity) => activity.placementId === selection.placementId)

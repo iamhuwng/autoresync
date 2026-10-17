@@ -26,7 +26,8 @@ export interface AttemptHistoryProps {
   onAttemptChange: (resultId: string) => void;
 }
 
-function formatDate(ts: number): string {
+function formatDate(ts: number | undefined): string {
+  if (!ts) return 'Date unavailable';
   return new Date(ts).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -169,7 +170,7 @@ export const AttemptHistory: React.FC<AttemptHistoryProps> = ({
               attempt.contextLabel,
               attempt.statusLabel,
               scoreLabel,
-              formatDate(attempt.submittedAt || attempt.createdAt || 0),
+              formatDate(attempt.submittedAt || attempt.createdAt),
             ].filter(Boolean);
 
             return (

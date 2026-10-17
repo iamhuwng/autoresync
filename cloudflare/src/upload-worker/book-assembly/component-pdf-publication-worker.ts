@@ -27,7 +27,9 @@ import type {
 } from '../../../../src/types/bookAssembly.types.ts';
 import type {
   BookAssemblyPreviewApprovalRecord,
+  WholeActivationApprovalInput,
 } from '../../../../src/services/book-assembly/unitPreview.service.ts';
+import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 
 const MAX_BODY_BYTES = 256_000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
@@ -42,7 +44,6 @@ export class ComponentPdfPublicationWorkerError extends Error {
 
 export interface ComponentPdfPublicationWorkerEnv {
   readonly BOOK_COMPONENT_PDF_PUBLICATION_ENABLED?: string;
-  readonly readDatabaseValue?: (path: string) => Promise<unknown>;
 }
 
 const plain = (value: unknown): Record<string, unknown> | null => (
@@ -52,11 +53,8 @@ const plain = (value: unknown): Record<string, unknown> | null => (
 );
 
 const roleAllowed = (value: unknown): boolean => {
-  const profile = plain(value);
-  return !!profile
-    && (profile.role === 'teacher' || profile.role === 'super_admin')
-    && !['blocked', 'inactive', 'suspended'].includes(String(profile.status ?? ''))
-    && profile.forceReauth !== true;
+  return isActiveBookSourceAuthorityProfile(value, 'teacher')
+    || isActiveBookSourceAuthorityProfile(value, 'super_admin');
 };
 
 const readBody = async (request: Request): Promise<Record<string, unknown>> => {
@@ -145,6 +143,24 @@ const approval = (value: unknown): BookAssemblyPreviewApprovalReference => {
   };
 };
 
+const unitApprovals = (value: unknown) => {
+  if (!Array.isArray(value) || value.length < 1) {
+    throw new ComponentPdfPublicationWorkerError('invalid_unit_approvals');
+  }
+  return value.map((value) => {
+    const record = plain(value);
+    if (!record || Object.keys(record).some((key) => ![
+      'unitKey', 'candidateId', 'candidateRevision', 'approvalId', 'approvalRevision', 'approvedAt', 'expiresAt',
+    ].includes(key))) throw new ComponentPdfPublicationWorkerError('invalid_unit_approvals');
+    return {
+      unitKey: id(record.unitKey, 'invalid_unit_approvals'),
+      candidateId: id(record.candidateId, 'invalid_unit_approvals'),
+      candidateRevision: revision(record.candidateRevision, 'invalid_unit_approvals'),
+      ...approval(record),
+    };
+  });
+};
+
 const nullableId = (value: unknown, code: string): string | null => {
   if (value === null) return null;
   return id(value, code);
@@ -162,6 +178,7 @@ const commandStatus = (status: number): number =>
   status === 404 || status === 403 || status === 409 || status === 503 ? status : 422;
 
 export const createComponentPdfPublicationWorkerHandlers = (options: {
+  readonly readUser: (uid: string) => Promise<unknown>;
   readonly repository: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>;
   readonly readCandidate: (
     bookId: string,
@@ -169,6 +186,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
     candidateId: string,
   ) => Promise<BookAssemblyCandidateRecord | null>;
   readonly readAuthority: (bookId: string) => Promise<BookAssemblyBookAuthority | null>;
+  readonly readWholeActivationApprovalInput: (bookId: string) => Promise<WholeActivationApprovalInput | null>;
   readonly readLineage?: (
     bookId: string,
     unitKey: string,
@@ -203,9 +221,9 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
   const now = options.now ?? (() => new Date().toISOString());
   const allocateOperationId = options.allocateOperationId ?? (() => crypto.randomUUID());
   const allocateId = options.allocateId ?? ((kind, key) => `${kind}-${key}-${crypto.randomUUID()}`);
-  const authenticate = async (env: ComponentPdfPublicationWorkerEnv, uid: string): Promise<void> => {
-    if (!env.readDatabaseValue) throw new ComponentPdfPublicationWorkerError('publication_auth_reader_missing', 503);
-    if (!roleAllowed(await env.readDatabaseValue(`users/${uid}`))) {
+  const authenticate = async (uid: string): Promise<void> => {
+    if (typeof options.readUser !== 'function') throw new ComponentPdfPublicationWorkerError('publication_auth_reader_missing', 503);
+    if (!roleAllowed(await options.readUser(uid))) {
       throw new ComponentPdfPublicationWorkerError('component_pdfs_publication_forbidden', 403);
     }
   };
@@ -219,24 +237,19 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
       readonly uid: string;
     }): Promise<{ body: unknown; init: ResponseInit }> {
       try {
-        await authenticate(input.env, input.uid);
+        await authenticate(input.uid);
         if (!enabled(input.env)) {
           return { body: { code: 'book_component_pdfs_publication_disabled' }, init: { status: 503 } };
         }
         const body = exact(await readBody(input.request), [
           'bookId',
-          'unitKey',
-          'candidateId',
-          'expectedCandidateRevision',
           'expectedCurrentPublicationId',
           'expectedBookRevision',
           'expectedSourceSetRevision',
-          'previewApproval',
+          'unitApprovals',
         ]);
         const requestOperationId = operationId(input.request, allocateOperationId);
         const bookId = id(body.bookId, 'invalid_book_id');
-        const unitKey = id(body.unitKey, 'invalid_unit_key');
-        const candidateId = id(body.candidateId, 'invalid_candidate_id');
         const fingerprint = await requestFingerprint(input.uid, body);
         const stored = (await options.repository.readScope(bookId)).operations?.[requestOperationId];
         if (stored) {
@@ -262,6 +275,7 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
         }
         const command = createComponentPdfPublicationCommand({
           readAuthority: options.readAuthority,
+          readWholeActivationApprovalInput: options.readWholeActivationApprovalInput,
           readCandidate: options.readCandidate,
           readLineage: options.readLineage,
           readActivities: options.readActivities,
@@ -275,16 +289,13 @@ export const createComponentPdfPublicationWorkerHandlers = (options: {
         const receipt = await command({
           ownerId: input.uid,
           bookId,
-          unitKey,
-          candidateId,
-          expectedCandidateRevision: revision(body.expectedCandidateRevision, 'invalid_expected_candidate_revision'),
           expectedCurrentPublicationId: nullableId(
             body.expectedCurrentPublicationId,
             'invalid_expected_current_publication_id',
           ),
           expectedBookRevision: revision(body.expectedBookRevision, 'invalid_expected_book_revision'),
           expectedSourceSetRevision: revision(body.expectedSourceSetRevision, 'invalid_expected_source_set_revision'),
-          previewApproval: approval(body.previewApproval),
+          unitApprovals: unitApprovals(body.unitApprovals),
           operationFingerprint: fingerprint,
         });
         return {

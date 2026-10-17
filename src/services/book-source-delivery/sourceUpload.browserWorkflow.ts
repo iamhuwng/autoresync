@@ -15,12 +15,14 @@ import {
   type BeginSourceUploadResult,
   type CompleteSourceUploadCommand,
   type CompleteSourceUploadResult,
+  type DecideStudentSafeSourceResult,
   type SourceUploadBeginPendingState,
   type SourceUploadBoundOperationState,
   type SourceUploadLifecycleStatus,
   type SourceUploadSafeOperationState,
   type SourceUploadStatePort,
 } from './sourceUpload.client';
+import type { BookSourcePurpose } from '../../types/bookSource.types';
 
 export type SourceUploadWorkflowErrorCode =
   | 'invalid_operation'
@@ -38,6 +40,13 @@ export class SourceUploadWorkflowError extends Error {
 export interface SourceUploadControlPort {
   begin(command: BeginSourceUploadCommand): Promise<BeginSourceUploadResult>;
   complete(command: CompleteSourceUploadCommand): Promise<CompleteSourceUploadResult>;
+  decideStudentSafeSource(command: {
+    readonly bookId: string;
+    readonly reservationId: string;
+    readonly operationId: string;
+    readonly studentSafeStatus: 'ready';
+    readonly reasonCode: 'teacher-reviewed';
+  }): Promise<DecideStudentSafeSourceResult>;
   requestCancellation(command: {
     readonly bookId: string;
     readonly reservationId: string;
@@ -70,6 +79,7 @@ export interface StartSourceUploadInput extends SourceUploadSelection {
   readonly bookId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly purpose?: BookSourcePurpose;
   readonly onProgress?: (progress: SourceUploadByteProgress) => void;
   readonly signal?: AbortSignal;
 }
@@ -81,9 +91,11 @@ export interface SourceUploadWorkflowResult {
 
 export interface SourceUploadBrowserWorkflow {
   load(bookId: string): Promise<SourceUploadSafeOperationState | null>;
+  prepareReplacement(bookId: string): Promise<void>;
   start(input: StartSourceUploadInput): Promise<SourceUploadWorkflowResult>;
   retryBytes(input: StartSourceUploadInput): Promise<SourceUploadWorkflowResult>;
   retryCompletion(bookId: string): Promise<SourceUploadWorkflowResult>;
+  decideStudentSafeSource?(bookId: string): Promise<DecideStudentSafeSourceResult>;
   requestCancellation(bookId: string): Promise<boolean>;
   retryCleanup(bookId: string): Promise<'cleanup_pending' | 'released' | 'verified_completed'>;
 }
@@ -123,6 +135,7 @@ const stateFromBegin = (
   sourceVersionId: begin.sourceVersionId,
   sourceKey: input.sourceKey,
   kind: input.kind,
+  ...(input.purpose === undefined ? {} : { purpose: input.purpose }),
   displayFilename: input.claim.displayFilename,
   exactByteSize: input.claim.exactByteSize,
   sha256Hex: input.claim.sha256Hex,
@@ -138,6 +151,7 @@ const stateBeforeBegin = (
   operationId,
   sourceKey: input.sourceKey,
   kind: input.kind,
+  ...(input.purpose === undefined ? {} : { purpose: input.purpose }),
   displayFilename: input.claim.displayFilename,
   exactByteSize: input.claim.exactByteSize,
   sha256Hex: input.claim.sha256Hex,
@@ -146,12 +160,9 @@ const stateBeforeBegin = (
 
 const pendingState = (
   state: SourceUploadBoundOperationState,
-  identity: SourceUploadProviderIdentity,
 ): SourceUploadBoundOperationState => Object.freeze({
   ...state,
   phase: 'completion_pending',
-  providerFileId: identity.providerFileId,
-  providerFileVersionId: identity.providerFileVersionId,
 });
 
 const verifiedState = (
@@ -161,12 +172,6 @@ const verifiedState = (
   ...state,
   sourceVersionId: completion.sourceVersionId,
   phase: 'verified',
-  ...(completion.bookRevision !== undefined && completion.sourceSetRevision !== undefined
-    ? {
-        bookRevision: completion.bookRevision,
-        sourceSetRevision: completion.sourceSetRevision,
-      }
-    : {}),
 });
 
 const PRE_RESERVATION_FAILURE_CODES = new Set([
@@ -200,11 +205,7 @@ const samePersistedState = (
   && left.reservationId === right.reservationId
   && left.sourceVersionId === right.sourceVersionId
   && left.providerFileId === right.providerFileId
-  && left.providerFileVersionId === right.providerFileVersionId
-  && (left.phase === 'verified' ? left.bookRevision : undefined)
-    === (right.phase === 'verified' ? right.bookRevision : undefined)
-  && (left.phase === 'verified' ? left.sourceSetRevision : undefined)
-    === (right.phase === 'verified' ? right.sourceSetRevision : undefined);
+  && left.providerFileVersionId === right.providerFileVersionId;
 
 const matchesRemoteBinding = (
   local: SourceUploadBoundOperationState,
@@ -276,11 +277,7 @@ export const createSourceUploadBrowserWorkflow = (
   const complete = async (
     state: SourceUploadBoundOperationState,
   ): Promise<SourceUploadWorkflowResult> => {
-    if (
-      state.phase !== 'completion_pending'
-      || !state.providerFileId
-      || !state.providerFileVersionId
-    ) {
+    if (state.phase !== 'completion_pending') {
       throw new SourceUploadWorkflowError('invalid_operation');
     }
     const current = await options.state.load(state.bookId);
@@ -290,8 +287,6 @@ export const createSourceUploadBrowserWorkflow = (
       || current.operationId !== state.operationId
       || current.reservationId !== state.reservationId
       || current.sourceVersionId !== state.sourceVersionId
-      || current.providerFileId !== state.providerFileId
-      || current.providerFileVersionId !== state.providerFileVersionId
       || canceledOperations.has(state.operationId)
     ) {
       throw new SourceUploadWorkflowError('invalid_operation');
@@ -299,10 +294,13 @@ export const createSourceUploadBrowserWorkflow = (
     const completion = await options.control.complete({
       bookId: state.bookId,
       reservationId: state.reservationId,
-      providerFileId: state.providerFileId,
-      providerFileVersionId: state.providerFileVersionId,
+      operationId: state.operationId,
     });
     if (completion.sourceVersionId !== state.sourceVersionId) {
+      throw new SourceUploadClientError('response_binding_mismatch', 502);
+    }
+    if (completion.checksum.algorithm !== 'sha-256'
+      || completion.checksum.value.toLowerCase() !== state.sha256Hex.toLowerCase()) {
       throw new SourceUploadClientError('response_binding_mismatch', 502);
     }
     const currentAfterCompletion = await options.state.load(state.bookId);
@@ -312,8 +310,6 @@ export const createSourceUploadBrowserWorkflow = (
       || currentAfterCompletion.operationId !== state.operationId
       || currentAfterCompletion.reservationId !== state.reservationId
       || currentAfterCompletion.sourceVersionId !== state.sourceVersionId
-      || currentAfterCompletion.providerFileId !== state.providerFileId
-      || currentAfterCompletion.providerFileVersionId !== state.providerFileVersionId
       || canceledOperations.has(state.operationId)
     ) {
       throw new SourceUploadWorkflowError('invalid_operation');
@@ -323,15 +319,46 @@ export const createSourceUploadBrowserWorkflow = (
     return { state: next, completion };
   };
 
+  const decideStudentSafeSource = async (bookId: string): Promise<DecideStudentSafeSourceResult> => {
+    const before = await options.state.load(bookId);
+    if (!before || before.phase !== 'verified') {
+      throw new SourceUploadWorkflowError('invalid_operation');
+    }
+    const result = await options.control.decideStudentSafeSource({
+      bookId,
+      reservationId: before.reservationId,
+      operationId: before.operationId,
+      studentSafeStatus: 'ready',
+      reasonCode: 'teacher-reviewed',
+    });
+    const after = await options.state.load(bookId);
+    const decision = result.studentSafeDecision;
+    if (!after
+      || !samePersistedState(after, before)
+      || result.status !== 'verified_completed'
+      || result.reservationId !== before.reservationId
+      || result.purpose !== (before.purpose ?? 'book-source')
+      || result.sourceVersionId !== before.sourceVersionId
+      || result.checksum.algorithm !== 'sha-256'
+      || result.checksum.value.toLowerCase() !== before.sha256Hex.toLowerCase()
+      || result.studentSafeStatus !== 'ready'
+      || decision.sourceVersionId !== before.sourceVersionId
+      || decision.sha256Hex.toLowerCase() !== before.sha256Hex.toLowerCase()
+      || decision.reasonCode !== 'teacher-reviewed') {
+      throw new SourceUploadClientError('response_binding_mismatch', 502);
+    }
+    return result;
+  };
+
   const uploadAndComplete = async (
     input: StartSourceUploadInput,
     state: SourceUploadBoundOperationState,
     authority: BeginSourceUploadResult['upload'],
     attemptGeneration: number,
   ): Promise<SourceUploadWorkflowResult> => {
-    let identity: SourceUploadProviderIdentity;
     try {
-      identity = await upload({
+      await upload({
+        purpose: state.purpose ?? 'book-source',
         file: input.file,
         claim: input.claim,
         authority,
@@ -357,7 +384,7 @@ export const createSourceUploadBrowserWorkflow = (
       throw error;
     }
     if (isCanceled(state, attemptGeneration, input.signal)) abort();
-    const pending = pendingState(state, identity);
+    const pending = pendingState(state);
     const savedPending = await saveIfCurrent(state, pending);
     if (!samePersistedState(savedPending, pending)) {
       throw new SourceUploadWorkflowError('invalid_operation');
@@ -397,12 +424,8 @@ export const createSourceUploadBrowserWorkflow = (
           return saveIfCurrent(local, verified);
         }
         if (remote.retryKind === 'completion') {
-          if (local.providerFileId && local.providerFileVersionId) {
-            const pending = Object.freeze({ ...local, phase: 'completion_pending' as const });
-            return saveIfCurrent(local, pending);
-          }
-          const canceled = Object.freeze({ ...local, phase: 'cancel_requested' as const });
-          return saveIfCurrent(local, canceled);
+          const pending = Object.freeze({ ...local, phase: 'completion_pending' as const });
+          return saveIfCurrent(local, pending);
         }
         if (remote.status === 'reserved' && remote.retryKind === 'bytes') {
           const reserved = reservedState(local);
@@ -415,11 +438,22 @@ export const createSourceUploadBrowserWorkflow = (
       return local;
     },
 
+    async prepareReplacement(bookId) {
+      const existing = await options.state.load(bookId);
+      if (existing?.phase === 'verified' && existing.kind === 'initial') {
+        await clearIfCurrent(existing);
+      }
+    },
+
     async start(input) {
       if (!exactSelection(input)) throw new SourceUploadWorkflowError('stale_file');
-      const existing = await options.state.load(input.bookId);
+      let existing = await options.state.load(input.bookId);
       if (existing?.phase === 'verified') {
-        throw new SourceUploadWorkflowError('verified_source_exists');
+        if (existing.kind !== 'initial' || input.kind !== 'replacement') {
+          throw new SourceUploadWorkflowError('verified_source_exists');
+        }
+        await clearIfCurrent(existing);
+        existing = await options.state.load(input.bookId);
       }
       if (existing) throw new SourceUploadWorkflowError('operation_exists');
 
@@ -432,6 +466,7 @@ export const createSourceUploadBrowserWorkflow = (
           operationId,
           sourceKey: input.sourceKey,
           kind: input.kind,
+          purpose: input.purpose ?? 'book-source',
           inspection: input.claim,
         });
       } catch (error) {
@@ -476,6 +511,7 @@ export const createSourceUploadBrowserWorkflow = (
         || (existing.phase !== 'begin_pending' && existing.phase !== 'reserved')
         || existing.sourceKey !== input.sourceKey
         || existing.kind !== input.kind
+        || (existing.purpose ?? 'book-source') !== (input.purpose ?? existing.purpose ?? 'book-source')
       ) {
         throw new SourceUploadWorkflowError('invalid_operation');
       }
@@ -483,21 +519,14 @@ export const createSourceUploadBrowserWorkflow = (
         throw new SourceUploadWorkflowError('stale_file');
       }
       const attemptGeneration = nextAttemptGeneration(existing.operationId);
-      let begin: BeginSourceUploadResult;
-      try {
-        begin = await options.control.begin({
-          bookId: existing.bookId,
-          operationId: existing.operationId,
-          sourceKey: existing.sourceKey,
-          kind: existing.kind,
-          inspection: input.claim,
-        });
-      } catch (error) {
-        // A retry can follow an earlier request that reserved server state before
-        // its response failed. Keep the original idempotency key until the
-        // server returns its exact reservation binding or cleanup state.
-        throw error;
-      }
+      const begin = await options.control.begin({
+        bookId: existing.bookId,
+        operationId: existing.operationId,
+        sourceKey: existing.sourceKey,
+        kind: existing.kind,
+        purpose: existing.purpose ?? input.purpose ?? 'book-source',
+        inspection: input.claim,
+      });
       if (existing.phase === 'reserved' && (
         begin.reservationId !== existing.reservationId
         || begin.sourceVersionId !== existing.sourceVersionId
@@ -537,6 +566,8 @@ export const createSourceUploadBrowserWorkflow = (
       }
       return complete(existing);
     },
+
+    decideStudentSafeSource,
 
     async requestCancellation(bookId) {
       const existing = await options.state.load(bookId);

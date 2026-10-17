@@ -23,15 +23,15 @@ describe('Ticket #89 Book Activity evaluation rule fragment', () => {
     }
   });
 
-  it('requires exact service identity and path claims at the only writable scope', () => {
-    const write = operations.find((entry) => entry.path === scope && entry.rule === '.write');
+  it('denies scope writes and requires exact service claims on the consecutive current pointer', () => {
+    expect(operations.find((entry) => entry.path === scope && entry.rule === '.write')?.expression).toBe('false');
+    const write = operations.find((entry) => entry.path === `${scope}/current` && entry.rule === '.write');
     expect(write?.expression).toContain('auth.token.book_activity_evaluation_service == true');
     for (const claim of ['recipientId', 'contextId', 'placementId', 'activityId', 'attemptId']) {
       expect(write?.expression).toContain(`book_activity_evaluation_${claim}`);
     }
-    expect(write?.expression).toContain("!newData.child('visibility').exists()");
-    expect(write?.expression).toContain("!newData.child('releasePolicy').exists()");
-    expect(write?.expression).toContain("!newData.child('response').exists()");
+    expect(write?.expression).toContain("newData.child('revision').val() == data.child('revision').val() + 1");
+    expect(operations.find((entry) => entry.path === `${scope}/current/$other` && entry.rule === '.validate')?.expression).toBe('false');
   });
 
   it('makes history, correction, aggregate-score, and operation rows append-only', () => {
@@ -41,13 +41,17 @@ describe('Ticket #89 Book Activity evaluation rule fragment', () => {
       'aggregateScores/$revisionKey',
       'operations/$operationId',
     ]) {
-      const validate = operations.find((entry) =>
-        entry.path === `${scope}/${child}` && entry.rule === '.validate');
-      expect(validate?.expression).toContain('!data.exists()');
-      expect(validate?.expression).toContain('newData.exists()');
+      const write = operations.find((entry) =>
+        entry.path === `${scope}/${child}` && entry.rule === '.write');
+      expect(write?.expression).toContain('!data.exists()');
+      expect(write?.expression).toContain('newData.exists()');
+      const validate = operations.find((entry) => entry.path === `${scope}/${child}` && entry.rule === '.validate');
+      for (const field of ['visibility', 'releasePolicy', 'response', 'answerKey', 'credentials', 'privateObjectKey']) {
+        expect(validate?.expression).toContain(`!newData.child('${field}').exists()`);
+      }
     }
     const current = operations.find((entry) =>
-      entry.path === `${scope}/current` && entry.rule === '.validate');
+      entry.path === `${scope}/current` && entry.rule === '.write');
     expect(current?.expression).toContain("newData.child('revision').val() == data.child('revision').val() + 1");
   });
 

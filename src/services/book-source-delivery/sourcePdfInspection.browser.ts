@@ -1,4 +1,4 @@
-import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES, type BookSourcePurpose } from '../../types/bookSource.types';
 import {
   normalizeBookSourceDisplayFilename,
 } from './sourceDisplayFilename.service';
@@ -46,12 +46,13 @@ interface SourcePdfInspectionDependencies {
 }
 
 export interface InspectSourcePdfOptions {
+  readonly purpose?: BookSourcePurpose;
   readonly signal?: AbortSignal;
   /** Deterministic seams for focused tests; production uses browser APIs directly. */
   readonly __testDependencies?: SourcePdfInspectionDependencies;
 }
 
-const claims = new WeakMap<File, SourcePdfInspectionClaim>();
+const claims = new WeakMap<File, SourcePdfInspectionClaim | symbol>();
 const PDF_HEADER = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
 
 const abortError = (): SourcePdfInspectionError =>
@@ -115,6 +116,8 @@ export const inspectSourcePdf = async (
   file: File,
   options: InspectSourcePdfOptions = {},
 ): Promise<SourcePdfInspectionClaim> => {
+  const previous = claims.get(file);
+  const priorClaim = typeof previous === 'symbol' ? undefined : previous;
   claims.delete(file);
   const testDependencies = options.__testDependencies;
   if (!file || typeof file.arrayBuffer !== 'function'
@@ -122,7 +125,8 @@ export const inspectSourcePdf = async (
     || typeof file.name !== 'string' || !Number.isSafeInteger(file.size)) {
     throw new SourcePdfInspectionError('invalid_file');
   }
-  if (file.size < 1 || file.size > BOOK_SOURCE_MAX_PDF_BYTES) {
+  const maxBytes = options.purpose === 'student-document' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES;
+  if (file.size < 1 || file.size > maxBytes) {
     throw new SourcePdfInspectionError('file_too_large');
   }
 
@@ -136,6 +140,8 @@ export const inspectSourcePdf = async (
   const signal = options.signal;
   const dependencies = options.__testDependencies ?? defaultDependencies();
   throwIfAborted(signal);
+  const inspection = Symbol();
+  claims.set(file, inspection);
   let task: PdfLoadingTask | undefined;
   try {
     const rawBytes = await awaitWithAbort(dependencies.readArrayBuffer(file), signal);
@@ -167,6 +173,7 @@ export const inspectSourcePdf = async (
       throw new SourcePdfInspectionError('empty_pdf');
     }
     throwIfAborted(signal);
+    if (claims.get(file) !== inspection) throw abortError();
     const claim = Object.freeze({
       schemaVersion: 1 as const,
       trust: 'browser-supplied-untrusted' as const,
@@ -178,10 +185,13 @@ export const inspectSourcePdf = async (
       pdfType: 'application/pdf' as const,
       readability: 'readable' as const,
     });
-    claims.set(file, claim);
-    return claim;
+    const verifiedClaim = priorClaim && Object.keys(claim).every((key) => (
+      priorClaim[key as keyof SourcePdfInspectionClaim] === claim[key as keyof SourcePdfInspectionClaim]
+    )) ? priorClaim : claim;
+    claims.set(file, verifiedClaim);
+    return verifiedClaim;
   } catch (error) {
-    claims.delete(file);
+    if (claims.get(file) === inspection) claims.delete(file);
     if (error instanceof SourcePdfInspectionError) throw error;
     throw new SourcePdfInspectionError('unreadable', { cause: error });
   } finally {

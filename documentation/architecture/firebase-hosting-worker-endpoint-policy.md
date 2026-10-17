@@ -9,13 +9,14 @@ Owner: Frontend Platform
 Firebase Hosting serves the React app only. Cloudflare Workers own trusted upload and Listening media backend calls.
 
 ```text
-Frontend host: https://kahut1.web.app
+Frontend hosts: https://kahut1.web.app and https://hocthem.net
 Firebase project: temp-a1437
 Firebase Hosting target: kahut1
 Upload/listening Worker: https://r2-upload-signer.iamhuwng.workers.dev
 ```
 
 The browser app must use the deployed Worker URL for local dev and hosted builds. Do not use `http://localhost:8787` as an app/runtime fallback.
+Worker CORS policies must allow each hosted app origin exactly, including `https://hocthem.net`; adding a Hosting domain alone does not update Worker CORS.
 
 ## Why
 

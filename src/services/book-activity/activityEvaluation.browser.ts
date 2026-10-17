@@ -165,7 +165,9 @@ const validLocator = (locator: BookActivityEvaluationLocator): boolean => {
 };
 
 export const isBookActivityEvaluationPresentationEnabled = (
-  env: BookActivityEvaluationBrowserEnv = import.meta.env,
+  env: BookActivityEvaluationBrowserEnv = {
+    VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: import.meta.env.VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION,
+  },
 ): boolean => env[PRESENTATION_ENV]?.trim().toLowerCase() === 'enabled';
 
 const exactOrigin = (value: string): string => {
@@ -403,13 +405,14 @@ const teacherPresentation = (
   if (!validTarget(envelope.target) || !locatorMatchesTarget(locator, envelope.target)) {
     throw new BookActivityEvaluationBrowserError('invalid_response', 502);
   }
+  const target = envelope.target;
   const submission = record(envelope.submission);
   if (!submission || !exactKeys(submission, ['response'])) {
     throw new BookActivityEvaluationBrowserError('invalid_response', 502);
   }
   if (!Array.isArray(envelope.history)
     || envelope.history.length > 100
-    || envelope.history.some((revision) => !validRevision(revision, envelope.target))) {
+    || envelope.history.some((revision) => !validRevision(revision, target))) {
     throw new BookActivityEvaluationBrowserError('invalid_response', 502);
   }
   const history = [...envelope.history] as BookActivityEvaluationRevision[];

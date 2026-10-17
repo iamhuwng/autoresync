@@ -7,6 +7,9 @@ import {
   prepareClassBookDelivery,
   resolveCurrentClassBookDelivery,
 } from './production.ts';
+import { createProductionClassBookCommand } from './command-production.ts';
+import type { ClassBookCommandKind } from './command-types.ts';
+import type { RepositoryEnv } from '../listening-authoring/rtdb.ts';
 
 export interface ClassBookPlacementWorkerService {
   readonly createCopy: (input: Record<string, unknown>) => unknown | Promise<unknown>;
@@ -122,7 +125,21 @@ export const createClassBookPlacementWorkerHandlers = (
   const maxBodyBytes = options.maxBodyBytes ?? MAX_BODY_BYTES;
   const prepare = options.prepare ?? prepareClassBookDelivery;
   const resolveCurrent = options.resolveCurrent ?? resolveCurrentClassBookDelivery;
+  const command = (kind: ClassBookCommandKind) => async (input: {
+    readonly request: Request; readonly env: Record<string, unknown>; readonly uid: string;
+  }): Promise<ClassBookPlacementWorkerResponse> => {
+    try {
+      productionGate(input.env);
+      const body = await parseBody(input.request, maxBodyBytes);
+      const data = await createProductionClassBookCommand(input.env as RepositoryEnv & Record<string, unknown>)(kind, input.uid, body);
+      return { body: { data }, init: { status: 200, headers: { 'Cache-Control': 'no-store' } } };
+    } catch (error) {
+      const code = errorCode(error);
+      return { body: { code }, init: { status: statusFor(code), headers: { 'Cache-Control': 'no-store' } } };
+    }
+  };
   return {
+    copy: command('copy'), place: command('place'), sync: command('sync'), lock: command('lock'),
     prepare: (input: {
       readonly request: Request;
       readonly env: Record<string, unknown>;

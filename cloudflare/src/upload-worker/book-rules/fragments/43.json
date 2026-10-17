@@ -8,7 +8,14 @@
       "material_catalog/public_book_projections/.read",
       "material_catalog/public_book_projections/$bookId/.read",
       "material_catalog/public_book_projections/$bookId/.write",
-      "material_catalog/public_book_projections/$bookId/.validate"
+      "material_catalog/public_book_projections/$bookId/.validate",
+      "material_catalog/public_book_readiness/.read",
+      "material_catalog/public_book_readiness/.write",
+      "material_catalog/public_book_readiness/.indexOn",
+      "material_catalog/public_book_readiness/$bookId/.read",
+      "material_catalog/public_book_readiness/$bookId/.write",
+      "material_catalog/public_book_readiness/$bookId/.validate",
+      "material_catalog/public_book_readiness/$bookId/$other/.validate"
     ],
     "leastPrivilegePaths": [
       "material_catalog/material_summary_indexes/v1/by_visibility/public",
@@ -29,7 +36,7 @@
       "rule": ".read",
       "merge": "replace-exact-authorization",
       "requiresExistingRule": false,
-      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin')"
+      "expression": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (auth.token.book_public_reader_service == true && root.child('users').child(auth.token.book_public_reader_studentId).child('role').val() == 'student' && root.child('users').child(auth.token.book_public_reader_studentId).child('status').val() == 'active' && root.child('users').child(auth.token.book_public_reader_studentId).child('disabled').val() != true && root.child('users').child(auth.token.book_public_reader_studentId).child('forceReauth').val() != true && auth.token.book_public_reader_bookId == $bookId && data.child('bookId').val() == $bookId && data.child('visibility').val() == 'public-library-published' && data.child('status').val() == 'ready'))"
     },
     {
       "path": "material_catalog/public_book_projections/$bookId",
@@ -44,6 +51,55 @@
       "merge": "conjoin-existing-validation-preserving-delete",
       "requiresExistingRule": true,
       "expression": "!newData.exists() || (newData.child('bookId').val() === $bookId && newData.child('visibility').val() === 'public-library-published' && newData.child('status').val() === 'ready' && !newData.child('provider').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('credentials').exists() && !newData.child('answerKey').exists() && !newData.child('teacherNotes').exists() && !newData.child('candidates').exists() && !newData.child('homework').exists() && !newData.child('updates').exists() && !newData.child('sourceVersionId').exists())"
+    },
+    {
+      "path": "material_catalog/public_book_readiness",
+      "rule": ".read",
+      "expression": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'student' && root.child('users').child(auth.uid).child('status').val() == 'active' && root.child('users').child(auth.uid).child('disabled').val() != true && root.child('users').child(auth.uid).child('forceReauth').val() != true && query.orderByChild == 'updatedAt' && query.limitToLast != null && query.limitToLast >= 1 && query.limitToLast <= 51",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness",
+      "rule": ".write",
+      "expression": "false",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness",
+      "rule": ".indexOn",
+      "expression": "updatedAt",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness/$bookId",
+      "rule": ".read",
+      "expression": "auth != null && (auth.token.book_public_readiness_service == true && auth.token.book_public_readiness_bookId == $bookId && auth.token.book_public_readiness_ownerId == root.child('material_catalog/books').child($bookId).child('ownerId').val() && auth.token.book_public_readiness_publicationId == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationId').val() && auth.token.book_public_readiness_publicationRevision == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationRevision').val() || auth.uid == root.child('material_catalog/books').child($bookId).child('ownerId').val() || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness/$bookId",
+      "rule": ".write",
+      "expression": "auth != null && ((!newData.exists() && auth.token.book_public_readiness_service != true && (auth.uid == root.child('material_catalog/books').child($bookId).child('ownerId').val() || root.child('users').child(auth.uid).child('role').val() == 'super_admin')) || (!newData.exists() && auth.token.book_public_readiness_service == true && auth.token.book_public_readiness_bookId == $bookId && auth.token.book_public_readiness_ownerId == root.child('material_catalog/books').child($bookId).child('ownerId').val() && auth.token.book_public_readiness_publicationId == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationId').val() && auth.token.book_public_readiness_publicationRevision == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationRevision').val() && (!data.exists() || (data.child('publicationId').val() == auth.token.book_public_readiness_publicationId && data.child('publicationRevision').val() == auth.token.book_public_readiness_publicationRevision))) || (newData.exists() && auth.token.book_public_readiness_service == true && auth.token.book_public_readiness_bookId == $bookId && auth.token.book_public_readiness_ownerId == root.child('material_catalog/books').child($bookId).child('ownerId').val() && auth.token.book_public_readiness_publicationId == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationId').val() && auth.token.book_public_readiness_publicationRevision == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationRevision').val() && newData.child('publicationId').val() == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationId').val() && newData.child('publicationRevision').val() == root.child('book_assembly_publications/books').child($bookId).child('current').child('publicationRevision').val() && newData.child('manifestVersionId').val() == root.child('book_assembly_publications/books').child($bookId).child('current').child('manifestVersionId').val() && newData.child('bookRevision').val() == root.child('book_assembly_publications/books').child($bookId).child('current').child('bookRevision').val() && newData.child('bookRevision').val() == root.child('material_catalog/books').child($bookId).child('bookRevision').val() && root.child('material_catalog/books').child($bookId).child('visibility').val() == 'public-library-published' && root.child('material_catalog/books').child($bookId).child('status').val() == 'ready' && newData.child('title').val() == root.child('material_catalog/books').child($bookId).child('title').val() && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('verifiedUsable').val() == true && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('studentSafeStatus').val() == 'ready' && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('ownerId').val() == auth.token.book_public_readiness_ownerId && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('checksum/value').val() == newData.child('sha256Hex').val() && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('physicalPageCount').val() == newData.child('physicalPageCount').val() && ((newData.child('sourceStrategy').val() == 'full_pdf' && root.child('book_assembly_publications/books').child($bookId).child('versions').child(newData.child('manifestVersionId').val()).child('strategy').val() == 'full_pdf' && root.child('book_assembly_publications/books').child($bookId).child('versions').child(newData.child('manifestVersionId').val()).child('manifest/sourceSet/sources/0/sourceVersionId').val() == newData.child('sourceVersionId').val() && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('purpose').val() == 'book-source' && !newData.child('descriptorRevision').exists() && !newData.child('byteSize').exists()) || (newData.child('sourceStrategy').val() == 'component_pdfs' && (root.child('material_catalog/books').child($bookId).child('setupActivations').child(auth.token.book_public_readiness_setupActivationIndex).child('sourceSetRevision').val() == root.child('material_catalog/books').child($bookId).child('sourceSetRevision').val() && root.child('material_catalog/books').child($bookId).child('setupActivations').child(auth.token.book_public_readiness_setupActivationIndex).child('studentDocument/sourceVersionId').val() == newData.child('sourceVersionId').val() && root.child('material_catalog/books').child($bookId).child('setupActivations').child(auth.token.book_public_readiness_setupActivationIndex).child('studentDocument/descriptorRevision').val() == newData.child('descriptorRevision').val()) && root.child('book_assembly_publications/books').child($bookId).child('versions').child(newData.child('manifestVersionId').val()).child('strategy').val() == 'component_pdfs' && root.child('book_source_upload_accounts').child(auth.token.book_public_readiness_accountId).child('assemblyBooks').child($bookId).child(newData.child('sourceVersionId').val()).child('purpose').val() == 'student-document' && root.child('book_assembly_publications/books').child($bookId).child('student_documents').child(newData.child('sourceVersionId').val()).child('studentSafeStatus').val() == 'ready' && root.child('book_assembly_publications/books').child($bookId).child('student_documents').child(newData.child('sourceVersionId').val()).child('sha256Hex').val() == newData.child('sha256Hex').val() && root.child('book_assembly_publications/books').child($bookId).child('student_documents').child(newData.child('sourceVersionId').val()).child('descriptorRevision').val() == newData.child('descriptorRevision').val() && root.child('book_assembly_publications/books').child($bookId).child('student_documents').child(newData.child('sourceVersionId').val()).child('byteSize').val() == newData.child('byteSize').val() && root.child('book_assembly_publications/books').child($bookId).child('student_documents').child(newData.child('sourceVersionId').val()).child('physicalPageCount').val() == newData.child('physicalPageCount').val()))))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness/$bookId",
+      "rule": ".validate",
+      "expression": "newData.hasChildren(['schemaVersion','bookId','title','updatedAt','bookRevision','publicationId','publicationRevision','manifestVersionId','sourceStrategy','sourceVersionId','sha256Hex','physicalPageCount']) && newData.child('schemaVersion').val() == 1 && newData.child('bookId').val() == $bookId && newData.child('updatedAt').isString() && newData.child('updatedAt').val().matches(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/) && newData.child('physicalPageCount').isNumber() && newData.child('physicalPageCount').val() >= 1 && newData.child('sha256Hex').isString() && newData.child('sha256Hex').val().matches(/^[a-f0-9]{64}$/)",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "material_catalog/public_book_readiness/$bookId/$other",
+      "rule": ".validate",
+      "expression": "$other == 'schemaVersion' || $other == 'bookId' || $other == 'title' || $other == 'updatedAt' || $other == 'bookRevision' || $other == 'publicationId' || $other == 'publicationRevision' || $other == 'manifestVersionId' || $other == 'sourceStrategy' || $other == 'sourceVersionId' || $other == 'sha256Hex' || $other == 'physicalPageCount' || $other == 'descriptorRevision' || $other == 'byteSize'",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
     }
   ]
 }

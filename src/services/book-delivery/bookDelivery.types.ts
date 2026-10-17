@@ -1,9 +1,12 @@
+import type { ClassBookRuntimeLocator } from './classBookPlacement.types';
+
 export const BOOK_DELIVERY_SCHEMA_VERSION = 3 as const;
 export const BOOK_DELIVERY_BINDING_STATUSES = ['draft', 'active', 'revoked'] as const;
 export type BookDeliveryBindingStatus = (typeof BOOK_DELIVERY_BINDING_STATUSES)[number];
 
 export const BOOK_DELIVERY_CONTEXT_KINDS = [
   'solo',
+  'public',
   'preview',
   'homework',
   'course',
@@ -25,7 +28,7 @@ export interface BookDeliveryRecipient {
 
 export interface BookDeliveryIssuer {
   readonly ownerId: string;
-  readonly authorityBoundary: 'book-owner';
+  readonly authorityBoundary: 'book-owner' | 'public-library';
 }
 
 export interface BookDeliveryBookReference {
@@ -53,10 +56,11 @@ export interface BookDeliveryContextBase {
 
 export type BookDeliveryContext =
   | (BookDeliveryContextBase & { readonly kind: 'solo'; readonly entitlementBasis: 'solo' })
+  | (BookDeliveryContextBase & { readonly kind: 'public'; readonly entitlementBasis: 'public-library' })
   | (BookDeliveryContextBase & { readonly kind: 'preview'; readonly entitlementBasis: 'preview' })
   | (BookDeliveryContextBase & { readonly kind: 'homework'; readonly entitlementBasis: 'assignment' })
   | (BookDeliveryContextBase & { readonly kind: 'course'; readonly entitlementBasis: 'enrollment' })
-  | (BookDeliveryContextBase & { readonly kind: 'class'; readonly entitlementBasis: 'membership' })
+  | (BookDeliveryContextBase & { readonly kind: 'class'; readonly entitlementBasis: 'membership'; readonly classLocator: ClassBookRuntimeLocator })
   | (BookDeliveryContextBase & { readonly kind: 'future_live'; readonly entitlementBasis: 'reserved' });
 
 export interface BookDeliverySchedulePolicyReference {
@@ -137,6 +141,19 @@ export interface BookRuntimeDeliveryDocumentRequest {
   readonly sourceVersionId: string;
   readonly opaqueRouteKey: string;
   readonly localPageScope: BookDeliverySourcePageScope;
+  readonly expectedByteLength?: number;
+  readonly expectedEtag?: string;
+}
+
+export interface BookRuntimeStudentDocumentRequest {
+  readonly opaqueRouteKey: string;
+  readonly expectedByteLength: number;
+  readonly expectedEtag?: string;
+}
+
+export interface BookRuntimePageGroupContext {
+  readonly pageGroupKey: string;
+  readonly combinedPhysicalPages: readonly number[];
 }
 
 export interface BookRuntimeActivityPlacementProjection {
@@ -160,6 +177,13 @@ export interface BookRuntimeDeliveryActivityProjection extends BookRuntimeActivi
   readonly activityVersion: number;
   /** Optional until older Delivery bindings are upgraded; Book Homework rejects missing pins. */
   readonly activityVersionId: string;
+  /** Trusted preterminal H capture slot and frozen policy for this placement. */
+  readonly integrityCapture?: {
+    readonly captureSlotId: string;
+    readonly captureAttemptNumber: number;
+    readonly enabled: boolean;
+    readonly frozenPolicy: import('../book-activity/bookIntegrityCapture.types').BookIntegrityFrozenPolicy;
+  };
 }
 
 /** Unpublished, owner-scoped runtime input. It is never a Delivery entitlement. */
@@ -178,7 +202,8 @@ export interface BookRuntimeCandidatePreviewProjection {
   };
   readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
-  readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
+  readonly documentRequests: readonly (BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest)[];
+  readonly pageGroups: readonly BookRuntimePageGroupContext[];
   readonly activities: readonly BookRuntimeActivityPlacementProjection[];
   readonly actionFlags: {
     readonly canAutosave: false;
@@ -199,7 +224,8 @@ export interface BookRuntimeDeliveryProjection {
   /** Present when the Delivery resolver exposes the selected Book structure. */
   readonly outline: readonly BookDeliveryStructuralNodeProjection[];
   readonly sourceSet: BookDeliverySourceSet;
-  readonly documentRequests: readonly BookRuntimeDeliveryDocumentRequest[];
+  readonly documentRequests: readonly (BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest)[];
+  readonly pageGroups: readonly BookRuntimePageGroupContext[];
   readonly activities: readonly BookRuntimeDeliveryActivityProjection[];
   readonly actionFlags: {
     readonly canAutosave: boolean;

@@ -49,29 +49,13 @@ const FINAL_PRODUCER_OPERATION_ALIASES: Readonly<Record<string, FinalProducerOpe
       ['$recipientId', '$userId'],
     ] as const),
   }),
-  '38B5:3': Object.freeze({
-    path: 'notifications/$userId',
-    expressionVariableReplacements: Object.freeze([
-      ['$recipientId', '$userId'],
-    ] as const),
-  }),
-  '38B5:4': Object.freeze({
-    path: 'notifications/$userId/$notificationId',
-    expressionVariableReplacements: Object.freeze([
-      ['$recipientId', '$userId'],
-    ] as const),
-  }),
-  '38B5:5': Object.freeze({
-    path: 'notifications/$userId/$notificationId/read',
-    expressionVariableReplacements: Object.freeze([
-      ['$recipientId', '$userId'],
-    ] as const),
-  }),
 });
 
 // Fragment 44:19 is a deny operation at a location intentionally absent from
 // the accepted base rules. Do not synthesize a new ancestor authority there.
-const FINAL_PRODUCER_OPERATION_EXCLUSIONS = Object.freeze(['44:19'] as const);
+// Current inbox authorization is externally owned; the obsolete Book deny
+// replacements must not overwrite its three canonical write boundaries.
+const FINAL_PRODUCER_OPERATION_EXCLUSIONS = Object.freeze(['44:19', '38B5:3', '38B5:4', '38B5:5'] as const);
 
 // These five fragment-44 validators must preserve the base JSON boolean false
 // exactly. The producer operation is retained for provenance, but it may not
@@ -81,7 +65,7 @@ const FINAL_PRODUCER_OPERATION_PRESERVE_EXISTING_FALSE = Object.freeze([
 ] as const);
 
 type ConflictResolution = Readonly<{
-  readonly kind: 'exact-duplicate' | 'authorization-alternative';
+  readonly kind: 'exact-duplicate' | 'authorization-alternative' | 'validation-conjunction';
   readonly location: string;
   readonly operations: readonly OperationRef[];
 }>;
@@ -136,6 +120,23 @@ const ownerLocationGaps: Readonly<Record<string, readonly string[]>> = Object.fr
 export const FINAL_BOOK_RULE_CONFLICT_RESOLUTIONS: readonly ConflictResolution[] = Object.freeze([
   {
     kind: 'authorization-alternative',
+    location: 'material_catalog/books/$bookId/.write',
+    operations: [
+      { fragmentId: '20A', operationIndex: 1 },
+      { fragmentId: '44', operationIndex: 22 },
+      { fragmentId: '118A', operationIndex: 0 },
+    ],
+  },
+  {
+    kind: 'validation-conjunction',
+    location: '/.validate',
+    operations: [
+      { fragmentId: '42A', operationIndex: 0 },
+      { fragmentId: '42B', operationIndex: 8 },
+    ],
+  },
+  {
+    kind: 'authorization-alternative',
     location: 'book_activity/versions/$activityId/$versionId/.write',
     operations: [
       { fragmentId: '16A', operationIndex: 29 },
@@ -164,6 +165,14 @@ export const FINAL_BOOK_RULE_CONFLICT_RESOLUTIONS: readonly ConflictResolution[]
     operations: [
       { fragmentId: '20A', operationIndex: 1 },
       { fragmentId: '44', operationIndex: 22 },
+    ],
+  },
+  {
+    kind: 'validation-conjunction',
+    location: 'material_catalog/books/$bookId/.validate',
+    operations: [
+      { fragmentId: '20A', operationIndex: 2 },
+      { fragmentId: '44', operationIndex: 32 },
     ],
   },
 ] as const);
@@ -325,7 +334,26 @@ const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, 
         fragmentId: '15B', operationIndex: 7,
       });
     }
-    return expression.replace(unsupported, '');
+    const withoutUnsupported = expression.replace(unsupported, '');
+    const requiredMap = " && newData.child('canonicalActivityFingerprintsByKey').exists()";
+    if (!withoutUnsupported.includes(requiredMap)) {
+      fail('malformed-fragment', 'The explicit 15B approval fingerprint-map remediation precondition failed.', {
+        fragmentId: '15B', operationIndex: 7,
+      });
+    }
+    return withoutUnsupported.replace(requiredMap, '');
+  },
+  '118D:0': (expression: string): string => {
+    const requiredMap = "'canonicalActivityFingerprintsByKey', ";
+    if (!expression.includes(requiredMap)
+      || !expression.includes("newData.child('canonicalActivityFingerprintsByKey').exists()")) {
+      fail('malformed-fragment', 'The explicit 118D approval fingerprint-map remediation precondition failed.', {
+        fragmentId: '118D', operationIndex: 0,
+      });
+    }
+    return expression
+      .replace(requiredMap, '')
+      .replace(" && newData.child('canonicalActivityFingerprintsByKey').exists()", '');
   },
   '15B:9': (expression: string): string => {
     const unsupported = ' && newData.numChildren() == 5';
@@ -335,22 +363,6 @@ const FINAL_PRODUCER_OPERATION_EXPRESSION_REMEDIATIONS: Readonly<Record<string, 
       });
     }
     return expression.replace(unsupported, '');
-  },
-  '49D:9': (expression: string): string => {
-    const openCount = parenthesesCount(expression, '(');
-    const closeCount = parenthesesCount(expression, ')');
-    const repaired = expression.endsWith(')') ? expression.slice(0, -1) : '';
-    if (openCount !== 28 || closeCount !== 29 || repaired.length === 0 || !hasBalancedParentheses(repaired)) {
-      fail('malformed-fragment', 'The explicit 49D:9 parenthesis remediation precondition failed.', {
-        fragmentId: '49D',
-        operationIndex: 9,
-        openCount,
-        closeCount,
-        endsWithClosingParenthesis: expression.endsWith(')'),
-        repairedExpressionBalanced: repaired.length > 0 && hasBalancedParentheses(repaired),
-      });
-    }
-    return repaired;
   },
   '37A:7': (expression: string): string => {
     const expected = [
@@ -747,6 +759,24 @@ const composeOperations = (
       operations.push({ ...first, contributors: Object.freeze(refs) });
       continue;
     }
+    if (resolution.kind === 'validation-conjunction') {
+      if (!sortedGroup.every((operation) => operation.merge.startsWith('conjoin-existing-validation')
+        || operation.merge === 'root-post-write-coupling')) {
+        throw new GeneratedBookRuleValidationError(
+          'incompatible-merge-semantics',
+          `Validation conjunction resolution for ${location} does not match producer semantics.`,
+          { location, operations: refs },
+        );
+      }
+      operations.push({
+        ...sortedGroup[0],
+        merge: location === '/.validate' ? 'root-post-write-coupling' : 'conjoin-existing-validation-resolution',
+        requiresExistingRule: sortedGroup.every((operation) => operation.requiresExistingRule),
+        expression: sortedGroup.map((operation) => `(${operation.expression})`).join(' && '),
+        contributors: Object.freeze(refs),
+      });
+      continue;
+    }
     const requiresExistingRule = sortedGroup.every((operation) => operation.requiresExistingRule);
     operations.push({
       ...sortedGroup[0],
@@ -879,9 +909,11 @@ const mergeExistingRule = (
     });
   }
   if (operation.merge.startsWith('conjoin-existing-authorization')) {
+    if (existing === expression || String(existing).endsWith(`) || (${expression})`)) return existing;
     return `(${String(existing)}) || (${expression})`;
   }
   if (operation.merge.startsWith('conjoin-existing-validation')) {
+    if (existing === expression || String(existing).endsWith(`) && (${expression})`)) return existing;
     return `(${String(existing)}) && (${expression})`;
   }
   return expression;

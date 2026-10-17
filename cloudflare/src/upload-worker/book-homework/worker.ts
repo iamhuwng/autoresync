@@ -20,6 +20,7 @@ import type { NotificationCommandRepository } from '../notifications/repository.
 import {
   runBookMutationWithPostCommitNotification,
 } from '../notifications/post-commit.ts';
+import { reportBookNotificationFailure } from '../notifications/book-reporting.ts';
 import type {
   BookHomeworkTrustedSaga,
   BookHomeworkTrustedSagaFactory,
@@ -30,7 +31,13 @@ import {
 } from './runtime.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
-import { BookHomeworkCanonicalResolverError } from './canonical-resolver.ts';
+import {
+  BookHomeworkCanonicalResolverError,
+  type BookHomeworkCanonicalResolver,
+  type BookHomeworkAssignmentPreviewSource,
+  type BookHomeworkPreviewResolverInput,
+} from './canonical-resolver.ts';
+import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 import type { BookHomeworkContextResolverPort } from './context-resolver.ts';
 
 const MAX_BODY_BYTES = 256 * 1024;
@@ -64,6 +71,15 @@ export interface BookHomeworkWorkerHandlersOptions {
   readonly contextResolverFactory?: (
     env: BookHomeworkWorkerEnv,
   ) => BookHomeworkContextResolverPort | Promise<BookHomeworkContextResolverPort>;
+  /** Read-only canonical source resolver. It is created per authenticated owner. */
+  readonly resolvePreviewSource?: (
+    input: BookHomeworkPreviewResolverInput,
+  ) => Promise<BookHomeworkAssignmentPreviewSource>;
+  readonly previewSourceResolverFactory?: (
+    env: BookHomeworkWorkerEnv,
+    ownerId: string,
+  ) => Pick<BookHomeworkCanonicalResolver, 'resolvePreviewSource'>
+    | Promise<Pick<BookHomeworkCanonicalResolver, 'resolvePreviewSource'>>;
   readonly notificationRepositoryFactory?: (
     env: BookHomeworkNotificationEnvironment,
   ) => NotificationCommandRepository;
@@ -216,7 +232,7 @@ const presentationText = (value: unknown, label: string, required: boolean): str
 };
 
 export const parseBookHomeworkAssignmentIntent = (value: unknown): BookHomeworkSagaAssignmentIntent => {
-  const input = exact(value, ['bookId', 'target', 'schedule', 'policy', 'expectedPublication', 'presentation']);
+  const input = exactOptional(value, ['bookId', 'target', 'schedule', 'policy', 'expectedPublication', 'presentation'], ['expectedStudentDocument', 'expectedPreviewFingerprint']);
   const bookId = safeId(input.bookId, 'book_id');
   const targetValue = exactOptional(input.target, ['kind', 'bookId', 'classId'], ['nodeKey', 'activityId', 'placementId']);
   const targetBookId = safeId(targetValue.bookId, 'target_book_id');
@@ -315,8 +331,17 @@ export const parseBookHomeworkAssignmentIntent = (value: unknown): BookHomeworkS
     };
   });
   const expected = exact(input.expectedPublication, ['publicationId', 'publicationRevision', 'manifestVersionId']);
+  const expectedDocument = input.expectedStudentDocument === undefined
+    ? undefined
+    : exact(input.expectedStudentDocument, ['sourceVersionId', 'descriptorRevision', 'sha256Hex']);
   if (!Number.isSafeInteger(expected.publicationRevision) || Number(expected.publicationRevision) < 1) {
     throw new BookHomeworkWorkerError('invalid_publication_revision');
+  }
+  if (expectedDocument !== undefined && (!Number.isSafeInteger(expectedDocument.descriptorRevision) || Number(expectedDocument.descriptorRevision) < 0
+    || typeof expectedDocument.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(expectedDocument.sha256Hex))
+    || input.expectedPreviewFingerprint !== undefined && (typeof input.expectedPreviewFingerprint !== 'string'
+      || input.expectedPreviewFingerprint.length === 0 || input.expectedPreviewFingerprint.length > 8192)) {
+    throw new BookHomeworkWorkerError('invalid_preview_receipt');
   }
   const presentationValue = exactOptional(input.presentation, ['title'], ['description']);
   const title = presentationText(presentationValue.title, 'presentation_title', true) as string;
@@ -341,6 +366,12 @@ export const parseBookHomeworkAssignmentIntent = (value: unknown): BookHomeworkS
       publicationRevision: Number(expected.publicationRevision),
       manifestVersionId: safeId(expected.manifestVersionId, 'publication_manifest_version_id'),
     },
+    ...(expectedDocument === undefined ? {} : { expectedStudentDocument: {
+      sourceVersionId: safeId(expectedDocument.sourceVersionId, 'student_document_source_version_id'),
+      descriptorRevision: Number(expectedDocument.descriptorRevision),
+      sha256Hex: expectedDocument.sha256Hex,
+    } }),
+    ...(input.expectedPreviewFingerprint === undefined ? {} : { expectedPreviewFingerprint: input.expectedPreviewFingerprint }),
     presentation: {
       title,
       ...(description === undefined ? {} : { description }),
@@ -389,9 +420,8 @@ const parseCommand = (
 };
 
 const teacherRole = (value: unknown): boolean => {
-  if (!isRecord(value) || value.forceReauth === true) return false;
-  if (['blocked', 'inactive', 'suspended'].includes(String(value.status ?? ''))) return false;
-  return value.role === 'teacher' || value.role === 'super_admin';
+  return isActiveBookSourceAuthorityProfile(value, 'teacher')
+    || isActiveBookSourceAuthorityProfile(value, 'super_admin');
 };
 
 export const createBookHomeworkOwnerReader = (
@@ -495,11 +525,84 @@ export const createBookHomeworkWorkerHandlers = (
       }
     });
   const now = options.now ?? (() => new Date().toISOString());
+  const homeworkPreviewSource = async (input: {
+    readonly request: Request;
+    readonly env: BookHomeworkWorkerEnv;
+    readonly uid: string;
+  }): Promise<{ body: BookHomeworkAssignmentPreviewSource | Record<string, unknown>; init: ResponseInit }> => {
+    try {
+      await assertTeacher(input.env, input.uid);
+      const requestBody = exactOptional(
+        await readBody(input.request),
+        ['bookId', 'classId', 'selectedRecipientIds'],
+        ['target', 'unitKey', 'title'],
+      );
+      const bookId = safeId(requestBody.bookId, 'book_id');
+      const targetValue = requestBody.target === undefined
+        ? { kind: 'unit', bookId, nodeKey: safeId(requestBody.unitKey, 'unit_key') }
+        : exactOptional(requestBody.target, ['kind', 'bookId'], ['nodeKey', 'activityId', 'placementId']);
+      if (targetValue.bookId !== bookId) throw new BookHomeworkWorkerError('book_target_mismatch', 409);
+      const target = targetValue.kind === 'book'
+        ? { kind: 'book' as const, bookId }
+        : targetValue.kind === 'activity'
+          ? {
+              kind: 'activity' as const,
+              bookId,
+              activityId: safeId(targetValue.activityId, 'target_activity_id'),
+              ...(targetValue.placementId === undefined ? {} : { placementId: safeId(targetValue.placementId, 'target_placement_id') }),
+            }
+          : ['section', 'chapter', 'unit', 'test'].includes(String(targetValue.kind))
+            ? { kind: targetValue.kind as 'section' | 'chapter' | 'unit' | 'test', bookId, nodeKey: safeId(targetValue.nodeKey, 'target_node_key') }
+            : (() => { throw new BookHomeworkWorkerError('invalid_assignment_target'); })();
+      const classId = safeId(requestBody.classId, 'class_id');
+      const selectedRecipientIds = recipients(requestBody.selectedRecipientIds);
+      const title = presentationText(requestBody.title, 'title', false);
+      const contextId = globalThis.crypto?.randomUUID?.();
+      if (!contextId) throw new BookHomeworkWorkerError('preview_context_unavailable', 503);
+      const injectedResolver = options.resolvePreviewSource;
+      const resolverInstance = injectedResolver
+        ? undefined
+        : await options.previewSourceResolverFactory?.(input.env, input.uid);
+      if (!injectedResolver && !resolverInstance) {
+        throw new BookHomeworkWorkerError('preview_source_unavailable', 503);
+      }
+      const resolverInput = {
+        ownerId: input.uid,
+        bookId,
+        ...(requestBody.target === undefined ? { unitKey: (target as { nodeKey: string }).nodeKey } : { target }),
+        classId,
+        selectedRecipientIds,
+        contextId,
+        createdAt: canonicalIso(now(), 'created_at'),
+        ...(title === undefined ? {} : { title }),
+      };
+      const source = injectedResolver
+        ? await injectedResolver(resolverInput)
+        : await resolverInstance!.resolvePreviewSource(resolverInput);
+      return { body: source, init: { status: 200, headers: { 'Cache-Control': 'no-store' } } };
+    } catch (error) {
+      if (error instanceof BookHomeworkWorkerError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
+      if (error instanceof BookHomeworkRuntimeUnavailableError) {
+        return { body: { code: error.code }, init: { status: error.status } };
+      }
+      if (error instanceof BookHomeworkCanonicalResolverError) {
+        return { body: { code: `book_homework_${error.code}` }, init: { status: error.status } };
+      }
+      console.error('book_homework_preview_source_failed', {
+        name: error instanceof Error ? error.name : 'unknown',
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+      return { body: { code: 'book_homework_preview_source_failed' }, init: { status: 500 } };
+    }
+  };
   const homeworkAssignmentCommand = async (input: {
     readonly request: Request;
     readonly env: BookHomeworkWorkerEnv;
     readonly uid: string;
     readonly assignmentId: string;
+    readonly executionContext?: Pick<ExecutionContext, 'waitUntil'>;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
       await assertTeacher(input.env, input.uid);
@@ -511,15 +614,23 @@ export const createBookHomeworkWorkerHandlers = (
       const saga = await resolveSaga(input.env);
       const notificationEmitter = saga?.readCommittedAssignment
         ? createBookHomeworkNotificationEmitter({
+          ownerId: input.uid,
           source: {
-            readCommittedAssignment: (assignmentId) =>
-              saga.readCommittedAssignment!(assignmentId),
+            readCommittedAssignment: (assignmentId, ownerId) =>
+              saga.readCommittedAssignment!(assignmentId, ownerId),
           },
           repositoryFactory: options.notificationRepositoryFactory,
         })
         : undefined;
+      const executionContext = input.executionContext;
       return await runBookMutationWithPostCommitNotification({
         env: input.env,
+        waitUntil: executionContext ? (task) => executionContext.waitUntil(task) : undefined,
+        reportFailure: (report) => reportBookNotificationFailure({
+          env: input.env, actorId: input.uid,
+          token: input.request.headers.get('authorization')?.replace(/^Bearer\s+/iu, '') ?? '',
+          report,
+        }),
         emitter: notificationEmitter,
         resolveActionIdentity: ({ result }) =>
           resolveBookHomeworkNotificationIdentity(result),
@@ -538,6 +649,9 @@ export const createBookHomeworkWorkerHandlers = (
               operationId: result.record.operationId,
               stage: result.projectionDiagnostic.stage,
               errorClass: result.projectionDiagnostic.errorClass,
+              ...(result.projectionDiagnostic.provider
+                ? { provider: result.projectionDiagnostic.provider }
+                : {}),
             });
           }
           return {
@@ -610,7 +724,7 @@ export const createBookHomeworkWorkerHandlers = (
         body: {
           assignmentId,
           authority: projection.authority,
-          delivery: projection.delivery,
+          ...(input.teacherRead ? { delivery: projection.delivery } : {}),
           ...(completion ? { completion } : {}),
         },
         init: { status: 200 },
@@ -716,12 +830,21 @@ export const createBookHomeworkWorkerHandlers = (
       if (contexts.some((context) => context === null)) {
         return { body: { code: 'book_homework_launch_denied' }, init: { status: 403 } };
       }
+      const activities = new Map<string, NonNullable<typeof contexts[number]>>();
+      for (const context of contexts) {
+        const prior = activities.get(context!.activityId);
+        if (prior && (prior.activityVersionId !== context!.activityVersionId
+          || prior.activityVersion !== context!.activityVersion)) {
+          return { body: { code: 'book_homework_launch_denied' }, init: { status: 403 } };
+        }
+        activities.set(context!.activityId, context!);
+      }
       return {
         body: {
-          activities: contexts.map((context) => ({
-            activityId: context!.activityId,
-            activityVersionId: context!.activityVersionId,
-            projection: context!.trustedBookProjection,
+          activities: [...activities.values()].map((context) => ({
+            activityId: context.activityId,
+            activityVersionId: context.activityVersionId,
+            projection: context.trustedBookProjection,
           })),
         },
         init: { status: 200, headers: { 'Cache-Control': 'no-store' } },
@@ -738,6 +861,7 @@ export const createBookHomeworkWorkerHandlers = (
   };
 
   return {
+    homeworkPreviewSource,
     homeworkAssignmentCommand,
     homeworkStudentProjection,
     homeworkTeacherStudentProjection,

@@ -48,7 +48,7 @@ const storageIdentity = (sourceVersionId = 'source-legacy-1'): BookSourceVersion
   providerObjectKey: `private/book-legacy-1/${sourceVersionId}.pdf`,
   providerFileId: 'file-legacy-1',
   providerFileVersionId: 'version-legacy-1',
-  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  checksum: { algorithm: 'sha-256', value: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0' },
   byteSize: 10,
 });
 
@@ -78,7 +78,17 @@ const uploadAccount = (): BookSourceUploadAccountState => {
         privateBucketId: identity.privateBucketId,
         providerObjectKey: identity.providerObjectKey,
         kind: 'initial',
+        purpose: 'book-source',
+        studentSafeStatus: 'ready',
+        studentSafeDecision: {
+          decidedBy: 'teacher-legacy-1',
+          decidedAt: '2026-08-11T00:02:00.000Z',
+          sourceVersionId: identity.sourceVersionId,
+          sha256Hex: identity.checksum.value,
+          reasonCode: 'teacher-reviewed',
+        },
         byteSize: identity.byteSize,
+        physicalPageCount: 4,
         originalFilename: 'legacy.pdf',
         expectedChecksum: identity.checksum,
         createdAt: '2026-08-11T00:00:00.000Z',
@@ -86,6 +96,28 @@ const uploadAccount = (): BookSourceUploadAccountState => {
         status: 'verified_completed',
         verifiedStorage: identity,
         completedAt: '2026-08-11T00:01:00.000Z',
+      },
+    },
+    assemblyBooks: {
+      'book-legacy-1': {
+        'source-legacy-1': {
+          ownerId: 'teacher-legacy-1',
+          bookId: 'book-legacy-1',
+          sourceKey: 'full',
+          sourceVersionId: 'source-legacy-1',
+          checksum: identity.checksum,
+          purpose: 'book-source',
+          studentSafeStatus: 'ready',
+          studentSafeDecision: {
+            decidedBy: 'teacher-legacy-1',
+            decidedAt: '2026-08-11T00:02:00.000Z',
+            sourceVersionId: 'source-legacy-1',
+            sha256Hex: identity.checksum.value,
+            reasonCode: 'teacher-reviewed',
+          },
+          physicalPageCount: 4,
+          verifiedUsable: true,
+        },
       },
     },
   };
@@ -171,7 +203,7 @@ describe('PRD0062 AC-LR-001 legacy, metadata-only, and deterministic recovery', 
       expectedOwnerId: 'teacher-legacy-1',
       availability: { 'source-legacy-1': { available: true, identity: storageIdentity() } },
     });
-    expect(available.missingSourceVersionIds).toEqual([]);
+    expect(available.missingSourceVersionIds, JSON.stringify(available.diagnostics)).toEqual([]);
     expect(available.authorities.get('source-legacy-1')?.storage).toEqual(storageIdentity());
     const unavailable = validateBookSourceRecoveryAuthority({
       uploadAccounts: { 'account-legacy-1': uploadAccount() },

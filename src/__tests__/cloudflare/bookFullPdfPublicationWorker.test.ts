@@ -98,6 +98,7 @@ const authority = (): BookAssemblyBookAuthority => ({
   sourceVersionAuthority: {
     getSourceVersion: (sourceVersionId) => sourceVersionId === 'source-v1'
       ? {
+          sourceKey: 'full',
           sourceVersionId,
           bookId: 'book-1',
           physicalPageCount: 12,
@@ -146,6 +147,7 @@ const currentApproval = () => createPreviewApproval({
   preview: createCandidateUnitPreview({
     candidate: candidate(),
     sourceVersions: [{
+      sourceKey: 'full',
       sourceVersionId: 'source-v1',
       bookId: 'book-1',
       physicalPageCount: 12,
@@ -160,7 +162,7 @@ const currentApproval = () => createPreviewApproval({
 
 const env = {
   BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true',
-  readDatabaseValue: async () => ({ role: 'teacher' }),
+  readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
 };
 
 const worker = (
@@ -180,13 +182,14 @@ const worker = (
     },
   },
   approvalRecord = currentApproval(),
+  userProfile: unknown = { role: 'teacher', status: 'active' },
 ) => {
   const repository = new InMemoryBookAssemblyPublicationRepository();
   const activityVersionWriter = new InMemoryCanonicalActivityVersionRepository();
   const readAuthority = vi.fn(async () => authority());
   const readCandidate = vi.fn(async () => candidate());
   const handlers = createFullPdfPublicationWorkerHandlers({
-    readUser: (uid) => env.readDatabaseValue(`users/${uid}`),
+    readUser: async () => userProfile,
     repository,
     activityVersionWriter,
     readAuthority,
@@ -258,6 +261,40 @@ describe('PRD0062 ticket 16 full-PDF publication Worker boundary', () => {
       body: { code: 'invalid_request' },
       init: { status: 400 },
     });
+  });
+
+  it('requires the strict active authority profile and permits an active owner super-admin', async () => {
+    const deniedProfiles: readonly unknown[] = [
+      null,
+      [],
+      { role: 'teacher' },
+      { role: 'student', status: 'active' },
+      { role: 'teacher', status: 'inactive' },
+      { role: 'teacher', status: 'blocked' },
+      { role: 'teacher', status: 'suspended' },
+      { role: 'teacher', status: 'active', disabled: true },
+      { role: 'teacher', status: 'active', forceReauth: true },
+      { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-07-27T12:00:00.000Z' },
+      { role: 'teacher', status: 'ACTIVE' },
+    ];
+    for (const profile of deniedProfiles) {
+      const fixture = worker(undefined, currentApproval(), profile);
+      await expect(fixture.handlers.publish({
+        env,
+        uid: 'teacher-1',
+        request: request(body()),
+      })).resolves.toEqual({
+        body: { code: 'full_pdf_publication_forbidden' },
+        init: { status: 403 },
+      });
+    }
+
+    const superAdmin = worker(undefined, currentApproval(), { role: 'super_admin', status: 'active' });
+    await expect(superAdmin.handlers.publish({
+      env,
+      uid: 'teacher-1',
+      request: request(body()),
+    })).resolves.toMatchObject({ init: { status: 200 }, body: { result: { status: 'published' } } });
   });
 
   it('fails closed on disabled gate, unauthorized actor, stale revision, and expired approval', async () => {

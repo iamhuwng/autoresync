@@ -317,8 +317,8 @@ describe('Homework Firestore rule contract', () => {
     expect(firestoreRules).toContain('allow list: if false');
     expect(firestoreRules).toContain('allow delete: if false');
     expect(firestoreRules).toContain('book_homework_authority_authorityId');
-    expect(firestoreRules).toContain('request.resource.data.revision == resource.data.revision + 1');
-    expect(firestoreRules).toContain('request.resource.data.bookManifest.context == resource.data.bookManifest.context');
+    expect(firestoreRules).toContain('next.revision == previous.revision + 1');
+    expect(firestoreRules).toContain('next.bookManifest.context == previous.bookManifest.context');
   });
 });
 
@@ -622,6 +622,35 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertFails(authorityRef.delete());
     await assertFails(authorityRef.update({ ownerId: 'teacher-2' }));
     await assertFails(authorityRef.update({ revision: 6 }));
+  });
+
+  it('permits trusted manual release facts, preserves them on updates, and denies browser mutation', async () => {
+    const assignmentId = 'manual-assignment';
+    const authorityId = `${assignmentId}--student-1--authority`;
+    const authority = validBookHomeworkAuthority(authorityId);
+    authority.bookManifest.context.contextId = assignmentId;
+    authority.saga.sagaId = assignmentId;
+    const frozenPolicy = { intent: 'accountable', integrityDefault: true, integrityOverride: false, integrityEffective: true };
+    const service = makeBookHomeworkAuthorityServiceContext(authorityId, assignmentId);
+    const ref = service.firestore().doc(`book_homework_authorities/${authorityId}`);
+    await assertSucceeds(ref.set({ ...authority, frozenPolicy }));
+    const release = {
+      schemaVersion: 1, attemptId: 'attempt-1', resultId: 'attempt-1:result', recipientId: 'student-1',
+      contextId: assignmentId, bindingId: 'binding-1', bindingRevision: 1, placementId: 'placement-1',
+      activityId: 'activity-1', activityVersionId: 'activity-1@1', activityVersion: 1,
+      releasedBy: 'teacher-1', releasedAt: '2026-09-22T00:00:00.000Z', commandId: 'release-1',
+    };
+    const manualFeedbackReleases = { 'attempt-1:result': release };
+    for (const context of Object.values(makeHomeworkRuleContexts())) {
+      await assertFails(context.firestore().doc(`book_homework_authorities/${authorityId}`)
+        .update({ revision: 2, manualFeedbackReleases }));
+    }
+    await assertSucceeds(ref.update({ revision: 2, manualFeedbackReleases }));
+    await assertFails(ref.update({ revision: 3, manualFeedbackReleases: {} }));
+    await assertFails(ref.update({ revision: 3, manualFeedbackReleases: { 'attempt-1:result': { ...release, releasedBy: 'teacher-2' } } }));
+    await assertFails(ref.update({ revision: 3, frozenPolicy: { ...frozenPolicy, integrityEffective: false } }));
+    await assertSucceeds(ref.update({ revision: 3, updatedAt: '2026-09-22T00:01:00.000Z' }));
+    expect((await ref.get()).data()?.manualFeedbackReleases).toEqual(manualFeedbackReleases);
   });
 
   it('limits compatibility projection reads to owner or exact student membership', async () => {

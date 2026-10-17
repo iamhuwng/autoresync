@@ -17,15 +17,11 @@ const productionSourceModules = import.meta.glob(
 const retiredLegacyBookPdfModules = [
   'cloudflare/src/book-source-worker/worker.js',
   'cloudflare/src/book-source-worker/bounded-pdf-page-count.ts',
-  'cloudflare/src/book-source-worker/direct-pdf-page-count.ts',
   'cloudflare/src/book-source-worker/durable-pdf-processor.ts',
   'cloudflare/src/book-source-worker/ingress.ts',
-  'cloudflare/src/book-source-worker/processor-count.ts',
-  'cloudflare/src/book-source-worker/processor-deadline.ts',
   'cloudflare/src/book-source-worker/processor-job.ts',
   'cloudflare/src/book-source-worker/processor-page.ts',
   'cloudflare/src/book-source-worker/processor-quota.ts',
-  'cloudflare/src/book-source-worker/processor-range.ts',
   'cloudflare/src/book-source-worker/r2-page-rendition-store.ts',
   'cloudflare/src/book-source-worker/source-page-host.ts',
   'cloudflare/src/book-source-worker/source-ingress-writer.ts',
@@ -65,7 +61,7 @@ const embeddedConfigs = new Map<string, string>([
   [mediaR2Configs[2], mediaRemoteDevConfigText],
 ]);
 
-const legacyBookPdfReference = /(?:bounded-pdf-page-count|direct-pdf-page-count|durable-pdf-processor|(?:source-)?ingress(?:-writer)?|production-(?:gateway|worker)|processor-(?:count|deadline|job|page|quota|range)|r2-page-rendition-store|source-page-host|source(?:Page)?Rendition(?:\.service)?|sourceUpload\.splitClient|BOOK_SOURCE_R2|BookSourceProcessor(?:Job|Quota))/iu;
+const legacyBookPdfReference = /(?:bounded-pdf-page-count|durable-pdf-processor|(?:source-)?ingress(?:-writer)?|production-(?:gateway|worker)|processor-(?:job|page|quota)|r2-page-rendition-store|source-page-host|source(?:Page)?Rendition(?:\.service)?|sourceUpload\.splitClient|BOOK_SOURCE_R2|BookSourceProcessor(?:Job|Quota))/iu;
 const forbiddenPdfProcessingFallback = /(?:browser\s*run|workers?\s+paid|cloudflare\s+containers|cloud\s+run|server(?:-|\s*)side\s+page(?:-|\s*)count|(?:pdf|document)[-_\s]*(?:render(?:er|ing)?|rendition|split(?:ting)?))/iu;
 
 function readRepoFile(path: string): string {
@@ -127,6 +123,7 @@ describe('Ticket 03C Book Source R2 PDF quarantine', () => {
 
     expect(config).toMatch(/"main"\s*:\s*"worker\.js"/u);
     expect(config).toContain('BOOK_SOURCE_B2_PRIVATE_BUCKET_ID');
+    expect(config).toMatch(/"BOOK_SOURCE_B2_PROVIDER_STATE"\s*:\s*"enabled"/u);
     expect(config).not.toMatch(legacyBookPdfReference);
     expect(config).not.toMatch(forbiddenPdfProcessingFallback);
     expect(config).not.toMatch(/r2_buckets|durable_objects|migrations|R2_BUCKET|BOOK_SOURCE_R2/iu);

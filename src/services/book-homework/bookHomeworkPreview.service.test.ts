@@ -101,6 +101,7 @@ const makeManifest = (target: Parameters<typeof createBookHomeworkManifest>[0]['
   createdByCommandId: 'command-1',
   createdAt: '2026-07-28T00:00:00.000Z',
   bindingRevision: 1,
+  studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
 });
 
 describe('Book Homework preview policy', () => {
@@ -168,6 +169,15 @@ describe('Book Homework preview policy', () => {
       createdByCommandId: 'command-1',
       createdAt: '2026-07-28T00:00:00.000Z',
       bindingRevision: 1,
+      studentDocument: {
+        sourceVersionId: 'student-document-v1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64),
+        components: [{ sourceKey: 'component-1', combinedStartPage: 1, localPageCount: 2 }],
+      },
+      targetPreview: {
+        fingerprint: 'component-preview',
+        rows: [{ placementId: 'placement-1', activityId: 'activity-1', nodeKey: 'unit-1', state: 'included' }],
+        includedCount: 1, excludedCount: 0, excludedReasonCounts: {},
+      },
     });
 
     const preview = buildBookHomeworkPreview({

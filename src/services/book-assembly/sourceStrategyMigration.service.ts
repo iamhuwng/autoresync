@@ -134,7 +134,7 @@ export const planSourceStrategyMigration = (input: SourceStrategyMigrationInput)
     else remaps.set(remap.pageGroupKey, remap);
   });
 
-  const targetSources = new Map(sourceSet.sources.map((entry) => [entry.sourceKey, entry]));
+  const targetSources = new Map(sourceSet.sources.map((entry): readonly [string, typeof entry] => [entry.sourceKey, entry]));
   const sourcePages = (sourceKey: string): number | null => {
     const source = targetSources.get(sourceKey);
     return source ? input.sourceVersionAuthority.getSourceVersion(source.sourceVersionId)?.physicalPageCount ?? null : null;

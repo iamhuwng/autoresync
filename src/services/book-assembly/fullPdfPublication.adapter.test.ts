@@ -7,6 +7,7 @@ import type {
   BookAssemblyManifestCandidate,
   BookAssemblyPreviewApprovalReference,
   BookSourceVersionAuthority,
+  TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
 import { createCanonicalBookAssemblyPublicationService } from './canonicalPublication.service';
@@ -51,14 +52,30 @@ const activity = (): NormalizedActivity => ({
   scoring: { mode: 'auto-where-possible' },
 });
 
+const trustedProjection = (
+  sourceVersionId: string,
+  verifiedUsable: boolean,
+): TrustedBookSourceVersionProjection => ({
+  sourceKey: 'full',
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'ready',
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: '2026-01-01T00:00:00.000Z',
+    sourceVersionId,
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+  physicalPageCount: 20,
+  verifiedUsable,
+});
+
 const sourceVersionAuthority = (usable = true): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => sourceVersionId === 'source-v1'
-    ? {
-        sourceVersionId,
-        bookId: 'book-1',
-        physicalPageCount: 20,
-        verifiedUsable: usable,
-      }
+    ? trustedProjection(sourceVersionId, usable)
     : undefined,
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BookHomeworkSelectionTarget } from '../../types/homework.types';
 import {
   buildBookHomeworkPreview,
@@ -31,6 +31,7 @@ interface BookHomeworkPreviewPanelProps {
   readonly onCancel: () => void;
   readonly onForkBeforeAssign?: () => void;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
+  readonly loadTargetPreview?: (target: BookHomeworkSelectionTarget) => Promise<BookHomeworkPreviewSource>;
 }
 
 type TargetOption = {
@@ -71,37 +72,44 @@ const BookHomeworkPreviewPanel = ({
   onCancel,
   onForkBeforeAssign,
   onAction,
+  loadTargetPreview,
 }: BookHomeworkPreviewPanelProps) => {
-  const title = source.bookTitle?.trim() || 'PDF Book';
-  const initialTarget = source.initialTarget ?? { kind: 'book', bookId: source.delivery.book.bookId };
+  const [resolvedSource, setResolvedSource] = useState(source);
+  const refreshSequence = useRef(0);
+  useEffect(() => {
+    refreshSequence.current += 1;
+    setResolvedSource(source);
+  }, [source]);
+  const title = resolvedSource.bookTitle?.trim() || 'PDF Book';
+  const initialTarget = resolvedSource.initialTarget ?? { kind: 'book', bookId: resolvedSource.delivery.book.bookId };
   const targetOptions = useMemo<readonly TargetOption[]>(() => [
     {
       value: 'book',
       label: targetLabel({ kind: 'book', bookId: source.delivery.book.bookId }, title),
-      target: { kind: 'book', bookId: source.delivery.book.bookId },
+      target: { kind: 'book', bookId: resolvedSource.delivery.book.bookId },
     },
-    ...source.delivery.outline
+    ...resolvedSource.delivery.outline
       .filter((node) => ['section', 'chapter', 'unit', 'test'].includes(node.nodeType))
       .map((node) => ({
         value: `${node.nodeType}:${node.nodeKey}`,
         label: `${node.nodeType[0].toUpperCase()}${node.nodeType.slice(1)} — ${node.titleSnapshot || node.nodeKey}`,
         target: {
           kind: node.nodeType as 'section' | 'chapter' | 'unit' | 'test',
-          bookId: source.delivery.book.bookId,
+          bookId: resolvedSource.delivery.book.bookId,
           nodeKey: node.nodeKey,
         },
       })),
-    ...source.delivery.activities.map((activity) => ({
+    ...resolvedSource.delivery.activities.map((activity) => ({
       value: `activity:${activity.placementId}`,
       label: `Activity — ${activity.titleSnapshot || activity.activityId}`,
       target: {
         kind: 'activity' as const,
-        bookId: source.delivery.book.bookId,
+        bookId: resolvedSource.delivery.book.bookId,
         activityId: activity.activityId,
         placementId: activity.placementId,
       },
     })),
-  ], [source.delivery.activities, source.delivery.book.bookId, source.delivery.outline, title]);
+  ], [resolvedSource.delivery.activities, resolvedSource.delivery.book.bookId, resolvedSource.delivery.outline, title]);
   const targetMap = useMemo(
     () => new Map(targetOptions.map((option) => [option.value, option.target])),
     [targetOptions],
@@ -119,6 +127,8 @@ const BookHomeworkPreviewPanel = ({
       ? matchingActivityOptions[0]!.value
       : '';
   const [selectedTargetValue, setSelectedTargetValue] = useState(initialTargetValue);
+  const [targetRefreshing, setTargetRefreshing] = useState(false);
+  const [targetRefreshError, setTargetRefreshError] = useState<string | null>(null);
   const selectedTarget = targetMap.get(selectedTargetValue);
   const [policy, setPolicy] = useState<BookHomeworkPolicyDraft | null>(null);
   const [scheduleIntents, setScheduleIntents] = useState<readonly BookHomeworkDeadlineMutationIntent[]>([]);
@@ -140,20 +150,26 @@ const BookHomeworkPreviewPanel = ({
         error: 'The exact Book scope is unavailable. Select a valid scope before continuing.',
       };
     }
+    if (loadTargetPreview
+      && targetKey(resolvedSource.initialTarget ?? { kind: 'book', bookId: resolvedSource.delivery.book.bookId }) !== selectedTargetValue) {
+      return { manifest: null, error: targetRefreshError ?? 'Refresh this target preview before confirming.' };
+    }
     try {
       return {
         manifest: createBookHomeworkManifest({
-          resolution: { delivery: source.delivery },
+          resolution: { delivery: resolvedSource.delivery },
           target: selectedTarget,
-          ...source.identity,
-          excludedActivities: source.excludedActivities,
+          ...resolvedSource.identity,
+          excludedActivities: resolvedSource.excludedActivities,
+          studentDocument: resolvedSource.studentDocument,
+          targetPreview: resolvedSource.targetPreview,
         }),
         error: null,
       };
     } catch (error) {
       return { manifest: null, error: errorMessage(error) };
     }
-  }, [selectedTarget, source.delivery, source.excludedActivities, source.identity]);
+  }, [selectedTarget, selectedTargetValue, resolvedSource, targetRefreshError]);
   const manifest = manifestResult.manifest;
 
   useEffect(() => {
@@ -173,13 +189,13 @@ const BookHomeworkPreviewPanel = ({
     if (!manifest || !policy) return { preview: null, error: null };
     try {
       return {
-        preview: buildBookHomeworkPreview({ source, manifest, policy }),
+        preview: buildBookHomeworkPreview({ source: resolvedSource, manifest, policy }),
         error: null,
       };
     } catch (error) {
       return { preview: null, error: errorMessage(error) };
     }
-  }, [manifest, policy, source]);
+  }, [manifest, policy, resolvedSource]);
   const preview = previewResult.preview;
   const manifestError = manifestResult.error ?? previewResult.error;
   const compiledSchedule = useMemo(() => {
@@ -245,6 +261,25 @@ const BookHomeworkPreviewPanel = ({
     onCancel();
   };
 
+  const handleTargetChange = (value: string): void => {
+    setSelectedTargetValue(value);
+    setTargetRefreshError(null);
+    onAction?.('bookHomeworkTargetSelected', { target: value });
+    const target = targetMap.get(value);
+    if (!target || !loadTargetPreview) return;
+    const sequence = ++refreshSequence.current;
+    setTargetRefreshing(true);
+    void loadTargetPreview(target).then((next) => {
+      if (sequence !== refreshSequence.current) return;
+      setResolvedSource(next);
+    }).catch((error) => {
+      if (sequence !== refreshSequence.current) return;
+      setTargetRefreshError(errorMessage(error));
+    }).finally(() => {
+      if (sequence === refreshSequence.current) setTargetRefreshing(false);
+    });
+  };
+
   const updateSchedule = (next: BookHomeworkScheduleDraft): void => {
     setSchedule(next);
   };
@@ -278,10 +313,7 @@ const BookHomeworkPreviewPanel = ({
         <select
           id="book-homework-target"
           value={selectedTargetValue}
-          onChange={(event) => {
-            setSelectedTargetValue(event.target.value);
-            onAction?.('bookHomeworkTargetSelected', { target: event.target.value });
-          }}
+          onChange={(event) => handleTargetChange(event.target.value)}
         >
           {!selectedTarget && <option value="" disabled>Select an exact Book scope</option>}
           {targetOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -302,6 +334,7 @@ const BookHomeworkPreviewPanel = ({
             <div><dt>Book revision</dt><dd>{preview.manifest.book.bookRevision}</dd></div>
             <div><dt>Publication revision</dt><dd>{preview.manifest.book.publicationRevision}</dd></div>
             <div><dt>Activities</dt><dd>{preview.manifest.completion.requiredBindingCount}</dd></div>
+            <div><dt>Excluded</dt><dd>{preview.manifest.targetPreview?.excludedCount ?? 0}</dd></div>
           </dl>
 
           <div className="book-homework-preview__columns">
@@ -329,6 +362,17 @@ const BookHomeworkPreviewPanel = ({
               </ul>
             </section>
           </div>
+
+          {(preview.manifest.targetPreview?.excludedCount ?? 0) > 0 && (
+            <section aria-labelledby="book-homework-exclusions-title">
+              <h4 id="book-homework-exclusions-title">Excluded from this target</h4>
+              <ul>
+                {preview.manifest.targetPreview!.rows.filter((row) => row.state === 'excluded').map((row) => (
+                  <li key={row.placementId}>{row.activityId}: {row.reason}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section aria-labelledby="book-homework-activity-title">
             <h4 id="book-homework-activity-title">Ordered Activity policy</h4>
@@ -462,7 +506,7 @@ const BookHomeworkPreviewPanel = ({
         <button
           type="button"
           className="is-primary"
-          disabled={!preview?.canConfirm || !compiledSchedule}
+          disabled={targetRefreshing || !preview?.canConfirm || !compiledSchedule}
           onClick={handleConfirm}
         >
           Confirm preview for assignment handoff

@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config as loadDotenv } from 'dotenv';
+
+loadDotenv({ path: '.env.local' });
 
 const viteServer = (port) => (
   `node node_modules/vite/bin/vite.js --host localhost --port ${port} --strictPort`

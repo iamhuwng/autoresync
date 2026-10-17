@@ -6,7 +6,9 @@ import type {
 import {
   classifyBookHomeworkDeadlineMutation,
   compileBookHomeworkScheduleDraft,
+  resolveBookHomeworkLocalTime,
   resolveEffectiveBookHomeworkWindow,
+  toBookHomeworkScheduleIso,
   type BookHomeworkDeadlineMutationIntent,
   type BookHomeworkScheduleDraft,
   type BookHomeworkScheduleRuleDraft,
@@ -21,6 +23,7 @@ export interface BookScheduleEditorProps {
   readonly affectedStudentStatesByNode?: Readonly<Record<string, readonly ('not-started' | 'in-progress' | 'submitted')[]>>;
   readonly conflictMessage?: string;
   readonly onIntent?: (intent: BookHomeworkDeadlineMutationIntent) => void;
+  readonly timeZone?: string;
 }
 
 const updateRule = (
@@ -45,29 +48,64 @@ const BookScheduleEditor = ({
   affectedStudentStatesByNode = {},
   conflictMessage,
   onIntent,
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 }: BookScheduleEditorProps) => {
   const compiled = useMemo(() => {
     if (!value.dueDate) return { schedule: null, error: null };
     try {
-      return { schedule: compileBookHomeworkScheduleDraft(value, outline), error: null };
+      return { schedule: compileBookHomeworkScheduleDraft(value, outline, timeZone), error: null };
     } catch (error) {
       return {
         schedule: null,
         error: error instanceof Error ? error.message : 'Book schedule is invalid.',
       };
     }
-  }, [outline, value]);
+  }, [outline, timeZone, value]);
+
+  const localValue = (timestamp: string): string => timestamp.slice(0, 16);
+  const offset = (timestamp: string): string | undefined => /(?:Z|[+-]\d{2}:\d{2})$/u.exec(timestamp)?.[0];
+  const updateLocal = (current: string, nextWall: string): string => {
+    const currentOffset = offset(current);
+    if (!currentOffset || !nextWall) return nextWall;
+    const resolution = resolveBookHomeworkLocalTime(nextWall, timeZone);
+    const normalizedOffset = currentOffset === 'Z' ? '+00:00' : currentOffset;
+    return resolution.offsets.includes(normalizedOffset) ? `${nextWall}${currentOffset}` : nextWall;
+  };
+  const disambiguation = (timestamp: string, apply: (next: string) => void) => {
+    if (!timestamp) return null;
+    const chosenOffset = offset(timestamp);
+    if (chosenOffset) return <small>{timeZone} (UTC{chosenOffset === 'Z' ? '+00:00' : chosenOffset})</small>;
+    const resolution = resolveBookHomeworkLocalTime(timestamp, timeZone);
+    if (resolution.offsets.length !== 2) return resolution.offsets.length === 1
+      ? <small>{timeZone} (UTC{resolution.offsets[0]})</small>
+      : <small role="alert">This local time does not exist in {timeZone}.</small>;
+    return (
+      <small role="group" aria-label={`Choose UTC offset for ${timestamp}`}>
+        {timeZone}: choose {resolution.offsets.map((offset) => (
+          <button key={offset} type="button" onClick={() => apply(`${timestamp}${offset}`)}>UTC{offset}</button>
+        ))}
+      </small>
+    );
+  };
 
   const changeDeadline = (nodeKey: string, nextDueAt: string): void => {
     const previousDueAt = value.scheduleRules.find((rule) => rule.nodeKey === nodeKey)?.dueAt || undefined;
     const scheduleRules = updateRule(value.scheduleRules, nodeKey, { dueAt: nextDueAt });
     onChange({ ...value, scheduleRules });
-    onIntent?.(classifyBookHomeworkDeadlineMutation({
-      nodeKey,
-      previousDueAt,
-      nextDueAt: nextDueAt || undefined,
-      affectedStudentStates: affectedStudentStatesByNode[nodeKey],
-    }));
+    try {
+      onIntent?.(classifyBookHomeworkDeadlineMutation({
+        nodeKey,
+        previousDueAt: previousDueAt
+          ? toBookHomeworkScheduleIso(previousDueAt, 'Previous deadline', timeZone)
+          : undefined,
+        nextDueAt: nextDueAt
+          ? toBookHomeworkScheduleIso(nextDueAt, 'Next deadline', timeZone)
+          : undefined,
+        affectedStudentStates: affectedStudentStatesByNode[nodeKey],
+      }));
+    } catch {
+      // Invalid or ambiguous wall time has no mutation intent until the teacher resolves it.
+    }
   };
 
   const clearRule = (nodeKey: string): void => {
@@ -98,9 +136,10 @@ const BookScheduleEditor = ({
           <input
             aria-label="Available From"
             type="datetime-local"
-            value={value.availableFrom}
-            onChange={(event) => onChange({ ...value, availableFrom: event.target.value })}
+            value={localValue(value.availableFrom)}
+            onChange={(event) => onChange({ ...value, availableFrom: updateLocal(value.availableFrom, event.target.value) })}
           />
+          {disambiguation(value.availableFrom, (availableFrom) => onChange({ ...value, availableFrom }))}
           <small>Leave empty for open access.</small>
         </label>
         <label>
@@ -108,10 +147,11 @@ const BookScheduleEditor = ({
           <input
             aria-label="Due Date"
             type="datetime-local"
-            value={value.dueDate}
-            onChange={(event) => onChange({ ...value, dueDate: event.target.value })}
+            value={localValue(value.dueDate)}
+            onChange={(event) => onChange({ ...value, dueDate: updateLocal(value.dueDate, event.target.value) })}
             required
           />
+          {disambiguation(value.dueDate, (dueDate) => onChange({ ...value, dueDate }))}
           <small>All nested deadlines must be equal to or earlier than this date.</small>
         </label>
       </div>
@@ -142,23 +182,31 @@ const BookScheduleEditor = ({
                   <input
                     aria-label={`Release override for ${node.titleSnapshot || node.nodeKey}`}
                     type="datetime-local"
-                    value={rule?.availableFrom ?? ''}
+                    value={localValue(rule?.availableFrom ?? '')}
                     onChange={(event) => onChange({
                       ...value,
                       scheduleRules: updateRule(value.scheduleRules, node.nodeKey, {
-                        availableFrom: event.target.value,
+                        availableFrom: updateLocal(rule?.availableFrom ?? '', event.target.value),
                       }),
                     })}
                   />
+                  {disambiguation(rule?.availableFrom ?? '', (availableFrom) => onChange({
+                    ...value,
+                    scheduleRules: updateRule(value.scheduleRules, node.nodeKey, { availableFrom }),
+                  }))}
                 </label>
                 <label>
                   <span>Deadline override</span>
                   <input
                     aria-label={`Deadline override for ${node.titleSnapshot || node.nodeKey}`}
                     type="datetime-local"
-                    value={rule?.dueAt ?? ''}
-                    onChange={(event) => changeDeadline(node.nodeKey, event.target.value)}
+                    value={localValue(rule?.dueAt ?? '')}
+                    onChange={(event) => changeDeadline(
+                      node.nodeKey,
+                      updateLocal(rule?.dueAt ?? '', event.target.value),
+                    )}
                   />
+                  {disambiguation(rule?.dueAt ?? '', (dueAt) => changeDeadline(node.nodeKey, dueAt))}
                 </label>
                 <button type="button" onClick={() => clearRule(node.nodeKey)} disabled={!rule}>
                   Remove overrides

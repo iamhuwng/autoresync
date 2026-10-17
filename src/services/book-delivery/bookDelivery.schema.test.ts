@@ -4,6 +4,7 @@ import {
   BookDeliveryPublicationError,
   createBookDeliveryPublicationReference,
 } from './bookDelivery.publication';
+import type { BookDeliveryBinding } from './bookDelivery.types';
 import {
   isRunnableBookDeliveryBinding,
   validateBookDeliveryBinding,
@@ -90,13 +91,38 @@ describe('Book Delivery binding schema', () => {
       ['course', 'enrollment'],
       ['class', 'membership'],
     ] as const) {
+      const classLocator = kind === 'class' ? {
+        classId: 'class-1', copyId: 'copy-1', classPlacementId: 'placement-1', courseMaterialId: 'material-1',
+      } : null;
       const value = binding({
-        context: { kind, contextId: `${kind}-1`, recipientId: 'student-1', ownerId: 'teacher-1', entitlementBasis: basis },
+        context: {
+          kind, contextId: kind === 'class' ? 'class-class-1-copy-copy-1-material-material-1-placement-placement-1' : `${kind}-1`,
+          recipientId: 'student-1', ownerId: 'teacher-1', entitlementBasis: basis,
+          ...(classLocator ? { classLocator } : {}),
+        },
       });
       expect(validateBookDeliveryBinding(value).valid).toBe(true);
       expect(isRunnableBookDeliveryBinding(value)).toBe(true);
     }
     expect(validateBookDeliveryBinding(binding({ publication: publication('component_pdfs') })).valid).toBe(true);
+  });
+
+  it('requires a Class locator whose complete tuple recomputes the binding context', () => {
+    const value = binding({
+      context: {
+        kind: 'class', contextId: 'class-class-1-copy-copy-1-material-material-1-placement-placement-1',
+        recipientId: 'student-1', ownerId: 'teacher-1', entitlementBasis: 'membership',
+        classLocator: { classId: 'class-1', copyId: 'copy-1', classPlacementId: 'placement-1', courseMaterialId: 'material-1' },
+      },
+    });
+    const classContext = value.context as Extract<BookDeliveryBinding['context'], { kind: 'class' }>;
+    expect(validateBookDeliveryBinding(value).valid).toBe(true);
+    expect(validateBookDeliveryBinding({
+      ...value, context: { ...classContext, classLocator: { ...classContext.classLocator, classPlacementId: 'other' } },
+    }).valid).toBe(false);
+    expect(validateBookDeliveryBinding({
+      ...value, context: { ...classContext, classLocator: { ...classContext.classLocator, untrusted: true } },
+    }).valid).toBe(false);
   });
 
   it('requires recipient-specific scope and rejects public metadata grants', () => {

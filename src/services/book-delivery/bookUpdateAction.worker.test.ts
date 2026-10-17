@@ -18,6 +18,9 @@ import fragment from '../../../cloudflare/src/upload-worker/book-rules/fragments
 import snapshotFragment from '../../../cloudflare/src/upload-worker/book-rules/fragments/39C.json';
 import { composeGeneratedBookRules } from '../../../cloudflare/src/upload-worker/book-rules/generated-fragment-composer';
 import { createBookUpdateActionCommandHandler } from '../../../cloudflare/src/upload-worker/book-updates/update-action-command';
+import { createProductionBookUpdateHandlers } from '../../../cloudflare/src/upload-worker/book-updates/production-composition';
+import { FirebaseRestBookImpactSnapshotRepository } from '../../../cloudflare/src/upload-worker/book-updates/impact-snapshot-repository';
+import { FirebaseRestBookUpdateActionRepository } from '../../../cloudflare/src/upload-worker/book-updates/update-action-repository';
 
 const now = '2026-08-10T00:05:00.000Z';
 const hash = (character: string) => character.repeat(64);
@@ -117,6 +120,48 @@ const command = (overrides: Partial<BookUpdateActionCommand> = {}): BookUpdateAc
 });
 
 describe('#109 update action acceptance', () => {
+  it('allows retention without a reason while scope changes still require one', async () => {
+    const current = snapshot();
+    const context = current.contexts[0]!;
+    const reviewed = { ...current, contexts: [{ ...context, activityChoices: [{
+      ...context.activityChoices[0]!, allowedChoices: ['retain-current', 'include-required'] as const,
+    }] }] };
+    const actions = new MemoryActions();
+    const service = createBookUpdateActionService({
+      snapshots: snapshots({ status: 'ready', snapshot: reviewed }), actions,
+      now: () => new Date(now), newId: () => 'action-1',
+    });
+    const retained = command({ reason: ' ', selections: [{
+      contextKey: context.contextKey, placementId: 'placement-1', choice: 'retain-current',
+    }] });
+    await expect(service.accept(retained)).resolves.toMatchObject({ status: 'accepted', action: { reason: '' } });
+    await expect(service.accept(retained)).resolves.toMatchObject({ status: 'replayed' });
+    await expect(service.accept(command({ reason: ' ' })))
+      .resolves.toEqual({ status: 'blocked', code: 'invalid-request' });
+  });
+
+  it('resolves registered default handlers through the existing durable repositories with reviewed-choice replay', async () => {
+    const actions = new MemoryActions();
+    const reads = vi.spyOn(FirebaseRestBookImpactSnapshotRepository.prototype, 'readCurrent').mockResolvedValue({ status: 'ready', snapshot: snapshot() });
+    const find = vi.spyOn(FirebaseRestBookUpdateActionRepository.prototype, 'findByIdempotency').mockImplementation((ownerId, key) => actions.findByIdempotency(ownerId, key));
+    const accept = vi.spyOn(FirebaseRestBookUpdateActionRepository.prototype, 'accept').mockImplementation((action) => actions.accept(action));
+    try {
+      const identity = 'book-updates@example.test';
+      const env = { BOOK_IMPACT_SNAPSHOT_SERVICE_IDENTITY: identity, BOOK_UPDATE_ACTION_SERVICE_IDENTITY: identity, GOOGLE_SA_KEY: JSON.stringify({ client_email: identity }) };
+      const handlers = createProductionBookUpdateHandlers();
+      const input = { env, uid: 'teacher-1', params: { bookId: 'book-1' }, descriptor: {} as never };
+      const read = await handlers['futureSeam.impactSnapshotRead']!({ ...input, request: new Request('https://worker.test/book-impact/snapshots/book-1') }) as Response;
+      expect(read.status).toBe(200);
+      const body = command({ actorId: 'crafted-owner', bookId: 'crafted-book', selections: [{ contextKey: 'homework:homework-1', placementId: 'placement-1', choice: 'exclude-added' }] });
+      const execute = () => handlers['futureSeam.updateCommand']!({ ...input, request: new Request('https://worker.test/book-updates/books/book-1/commands', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) }) as Promise<Response>;
+      expect((await execute()).status).toBe(201);
+      expect((await execute()).status).toBe(200);
+      expect(actions.action).toMatchObject({ ownerId: 'teacher-1', actorId: 'teacher-1', bookId: 'book-1', state: 'accepted' });
+      expect(accept).toHaveBeenCalledOnce();
+      expect(reads).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'teacher-1', bookId: 'book-1' }));
+    } finally { reads.mockRestore(); find.mockRestore(); accept.mockRestore(); }
+  });
+
   it('accepts one explicit current-snapshot command with bounded immutable audit facts', async () => {
     const actions = new MemoryActions();
     const service = createBookUpdateActionService({

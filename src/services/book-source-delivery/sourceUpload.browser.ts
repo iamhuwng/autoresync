@@ -1,4 +1,4 @@
-import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES, type BookSourcePurpose } from '../../types/bookSource.types';
 import {
   isSourcePdfInspectionClaimForFile,
   type SourcePdfInspectionClaim,
@@ -37,6 +37,7 @@ export interface SourceUploadProviderIdentity {
 }
 
 export interface UploadSourcePdfDirectInput {
+  readonly purpose?: BookSourcePurpose;
   readonly file: File;
   readonly claim: SourcePdfInspectionClaim;
   readonly authority: BeginSourceUploadResult['upload'];
@@ -91,7 +92,7 @@ const validateInput = (
     !isSourcePdfInspectionClaimForFile(input.claim, input.file)
     || input.file.size !== input.claim.exactByteSize
     || input.file.size < 1
-    || input.file.size > BOOK_SOURCE_MAX_PDF_BYTES
+    || input.file.size > (input.purpose === 'student-document' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES)
   ) {
     throw new SourceUploadBrowserError('stale_file');
   }

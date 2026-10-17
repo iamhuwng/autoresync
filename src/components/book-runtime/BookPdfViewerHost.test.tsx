@@ -19,6 +19,7 @@ describe('BookPdfViewerHost', () => {
   it('builds the transport from the route and tears it down on unmount', async () => {
     const destroy = vi.fn();
     const getIdToken = vi.fn(async () => 'viewer-token');
+    const onRouteExpired = vi.fn();
     const transportFactory = vi.fn(() => ({
       head: vi.fn(),
       get: vi.fn(),
@@ -38,6 +39,7 @@ describe('BookPdfViewerHost', () => {
         getIdToken={getIdToken}
         trustedWorkerOrigins={['https://worker.example']}
         transportFactory={transportFactory as never}
+        onRouteExpired={onRouteExpired}
       />,
     );
 
@@ -48,6 +50,7 @@ describe('BookPdfViewerHost', () => {
       }),
       getIdToken: expect.any(Function),
       trustedWorkerOrigins: ['https://worker.example'],
+      onRouteExpired,
     }));
     const factoryOptions = transportFactory.mock.calls[0]?.[0] as {
       readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;

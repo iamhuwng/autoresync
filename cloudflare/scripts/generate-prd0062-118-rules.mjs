@@ -9,8 +9,9 @@ import {
 const cloudflareRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(cloudflareRoot, '..');
 const fragmentRoot = join(cloudflareRoot, 'src/upload-worker/book-rules/fragments');
-const rollbackPath = join(repositoryRoot, 'firebase.prd0062-118-rules.rollback.json');
-const outputPath = join(repositoryRoot, 'database.rules.json');
+const canonicalPath = join(repositoryRoot, 'database.rules.json');
+const outputPath = resolve(repositoryRoot, process.argv[2] ?? 'output/prd0062-118-rules-candidate.json');
+if (outputPath === canonicalPath) throw new Error('Review the candidate before applying it to canonical rules.');
 
 const parseJson = async (path) => JSON.parse(await readFile(path, 'utf8'));
 const fragmentFiles = (await readdir(fragmentRoot))
@@ -20,9 +21,9 @@ const fragments = await Promise.all(fragmentFiles.map(async (name) => ({
   sourcePath: join(fragmentRoot, name),
   fragment: await parseJson(join(fragmentRoot, name)),
 })));
-const rollback = await parseJson(rollbackPath);
+const canonical = await parseJson(canonicalPath);
 const candidate = composeGeneratedBookRules(fragments, {
-  baseRules: rollback.rules,
+  baseRules: canonical.rules,
   requiredFragmentIds: FINAL_BOOK_RULE_FRAGMENT_IDS,
 });
 

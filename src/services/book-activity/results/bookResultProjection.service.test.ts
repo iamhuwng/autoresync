@@ -21,7 +21,7 @@ const terminal = (options: {
   activityId?: string;
   contextId?: string;
   placementId?: string;
-  surface?: 'solo' | 'homework' | 'course';
+  surface?: 'solo' | 'public' | 'homework' | 'course';
   createdAt?: string;
   sourceVersionId?: string;
   status?: 'pending_review' | 'submitted';
@@ -42,6 +42,16 @@ const terminal = (options: {
     pageGroupKeys: ['page-group-1'],
     createdByOperationId: `operation-${attemptId}`,
     createdAt: options.createdAt ?? `2026-07-31T00:0${options.attemptNumber}:00.000Z`,
+    ...(options.surface === 'homework' ? {
+      feedbackPolicy: 'after_completion' as const,
+      terminalLate: {
+        effectiveDeadline: { source: 'assignment' as const, nodeKey: 'unit-1', at: '2026-08-01T00:00:00.000Z' },
+        policyRevision: 1,
+        authorityRevision: 1,
+        evaluatedAt: '2026-07-31T00:00:00.000Z',
+        late: false,
+      },
+    } : {}),
   } as const;
   const sourceProvenance = [{
     sourceKey: 'component-1',
@@ -103,6 +113,13 @@ const terminal = (options: {
 };
 
 describe('Book result projection', () => {
+  it('keeps Public practice ungraded and without teacher-release feedback', () => {
+    const projection = projectBookResultAttempt(terminal({ attemptId: 'public-attempt', attemptNumber: 1, surface: 'public', contextId: 'public-context', status: 'submitted' }));
+    expect(projection.summary.surface).toBe('public');
+    expect(projection.summary.evaluation).toEqual({ status: 'submitted' });
+    expect(projection.summary.feedback).toEqual({ release: 'not-applicable', available: false });
+    expect(projection.summary.homeworkId).toBeNull();
+  });
   it('projects exact #76 identity, context, provenance, evaluation, and safe source metadata', () => {
     const projection = projectBookResultAttempt(terminal({ attemptId: 'attempt-1', attemptNumber: 1 }));
     expect(projection.summary).toMatchObject({
@@ -211,6 +228,19 @@ describe('Book result projection', () => {
       sourceAvailability: [{ sourceKey: 'other-component', availability: 'available' as const }],
     };
     expect(validateBookResultProjectionInput(sourceMismatch).valid).toBe(false);
+    const homework = terminal({ attemptId: 'attempt-homework', attemptNumber: 1, surface: 'homework' });
+    const policyMismatch = { ...homework, result: { ...homework.result, feedbackPolicy: 'manual' as const } };
+    expect(validateBookResultProjectionInput(policyMismatch).valid).toBe(false);
+    const lateMismatch = { ...homework, completion: { ...homework.completion, terminalLate: { ...homework.attempt.terminalLate!, late: true } } };
+    expect(validateBookResultProjectionInput(lateMismatch).valid).toBe(false);
+    const missingSnapshot = {
+      ...homework,
+      attempt: { ...homework.attempt, terminalLate: undefined, feedbackPolicy: undefined },
+      result: { ...homework.result, terminalLate: undefined, feedbackPolicy: undefined },
+      completion: { ...homework.completion, terminalLate: undefined, feedbackPolicy: undefined },
+      index: { ...homework.index, terminalLate: undefined, feedbackPolicy: undefined },
+    };
+    expect(validateBookResultProjectionInput(missingSnapshot).valid).toBe(false);
   });
 
   it('groups only by student plus Activity and keeps context-scoped limits/completion', () => {
@@ -226,6 +256,10 @@ describe('Book result projection', () => {
       ['solo-context', 2, 1],
     ]);
     expect(groups[0].contexts.every((context) => context.completionStatus === 'completed')).toBe(true);
+    expect(groups[0].attempts[0]).toMatchObject({
+      feedbackPolicy: 'after_completion',
+      terminalLate: { late: false, policyRevision: 1, authorityRevision: 1 },
+    });
   });
 
   it('uses deterministic ordering for equal attempt numbers across contexts', () => {

@@ -512,6 +512,7 @@ async function resolveTarget(
         }
 
         const allowedStudentIds = new Set<string>();
+        const canonicalStudentIds = new Map<string, string>();
 
         if (role === 'super_admin') {
             studentIds.forEach((studentId) => allowedStudentIds.add(studentId));
@@ -534,6 +535,7 @@ async function resolveTarget(
                     allowedStudentIds.add(studentKey);
                     if (isRecord(entry) && typeof entry.uid === 'string') {
                         allowedStudentIds.add(entry.uid);
+                        canonicalStudentIds.set(studentKey, entry.uid);
                     }
                 });
             });
@@ -560,14 +562,16 @@ async function resolveTarget(
             return assignmentError('TARGET_NOT_ALLOWED', 'Teacher cannot assign to one or more students.', 403);
         }
 
+        const canonicalIds = studentIds.map((studentId) => canonicalStudentIds.get(studentId) ?? studentId);
+
         return {
             target: {
                 type: 'students',
-                studentIds,
+                studentIds: [...new Set(canonicalIds)],
                 studentNames: Array.isArray(target.studentNames) ? target.studentNames : undefined,
             },
-            totalAssigned: new Set(studentIds).size,
-            authorizedStudentIds: [...new Set(studentIds)],
+            totalAssigned: new Set(canonicalIds).size,
+            authorizedStudentIds: [...new Set(canonicalIds)],
         };
     }
 

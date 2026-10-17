@@ -10,9 +10,9 @@ import type { BookTeacherAssemblyDocumentProjection } from '../book-delivery/boo
 import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { sourceVersionId: 'source-full', bookId: 'book-1', physicalPageCount: 40, verifiedUsable: true },
-  { sourceVersionId: 'source-part', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
-  { sourceVersionId: 'source-stale', bookId: 'book-1', physicalPageCount: 10, verifiedUsable: false },
+  { sourceKey: 'full', sourceVersionId: 'source-full', bookId: 'book-1', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-full', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 40, verifiedUsable: true },
+  { sourceKey: 'component-a', sourceVersionId: 'source-part', bookId: 'book-1', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-part', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 2, verifiedUsable: true },
+  { sourceKey: 'stale', sourceVersionId: 'source-stale', bookId: 'book-1', purpose: 'book-source', studentSafeStatus: 'review-required', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-stale', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 10, verifiedUsable: false },
 ];
 
 const document = (

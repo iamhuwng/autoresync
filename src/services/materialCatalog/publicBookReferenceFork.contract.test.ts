@@ -23,14 +23,11 @@ describe('public Book reference/fork producer and rule contract', () => {
       readonly path: string;
       readonly expression: string;
     }[];
-    expect(operations.some((operation) => operation.path === 'material_catalog/public_references')).toBe(true);
-    expect(operations.some((operation) => operation.path === 'book_activity/fork_history/$activityId')).toBe(true);
+    expect(operations.some((operation) => operation.path === 'book_activity/canonical_fork_operations/$actorId/$operationId')).toBe(true);
+    expect(operations.some((operation) => operation.path === 'material_catalog/books/$bookId')).toBe(true);
     expect(operations.every((operation) => !operation.path.includes('database.rules.json'))).toBe(true);
-    const validationExpression = operations
-      .map((operation) => operation.expression)
-      .find((expression) => expression.includes('privateObjectKey'));
-    expect(validationExpression).toContain("!newData.child('privateObjectKey').exists()");
-    expect(validationExpression).toContain("!newData.child('answerKey').exists()");
-    expect(validationExpression).toContain("!newData.child('teacherNotes').exists()");
+    const receiptKeys = operations.find((operation) => operation.path === 'book_activity/canonical_fork_operations/$actorId/$operationId/$other')?.expression;
+    expect(receiptKeys).toContain("$other == 'safeProjectionFingerprint'");
+    expect(receiptKeys).not.toMatch(/privateObjectKey|answerKey|teacherNotes/);
   });
 });

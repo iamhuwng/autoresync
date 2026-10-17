@@ -17,24 +17,21 @@ import {
   type RepositoryEnv,
 } from '../listening-authoring/rtdb.ts';
 import { BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH } from '../book-assembly/book-source-authority-reader.ts';
+import { readTrustedBookSourceProjection } from './trusted-source-contract.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const ACCOUNT_ID = /^[A-Za-z0-9_:@-]{1,256}$/u;
 const MAX_RETRIES = 5;
+const INVALID_CHECKSUM = Object.freeze({ algorithm: 'sha-256' as const, value: '0'.repeat(64) });
 
 const clone = <T>(value: T): T => structuredClone(value);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
 );
-
-/** Deterministic equality for immutable operation records and source sets. */
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (isRecord(value)) {
-    return `{${Object.keys(value).sort().map((key) =>
-      `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-  }
+  if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
   return JSON.stringify(value) ?? 'undefined';
 };
 
@@ -54,6 +51,8 @@ export interface FirebaseMaterialBookSourceAttachmentRepositoryOptions {
   readonly fetchImpl?: typeof fetch;
   /** Trusted server credential; never supplied by the browser completion body. */
   readonly getAccessToken: () => Promise<string>;
+  readonly firebaseAuthToken?: boolean;
+  readonly getFirebaseAuthToken?: (request?: { readonly path?: string; readonly query?: unknown }) => Promise<string>;
   readonly maxRetries?: number;
 }
 
@@ -67,43 +66,36 @@ type SourceProjection = MaterialBookSourceVersionProjection;
 
 const bookPath = (bookId: string): string => `material_catalog/books/${assertId(bookId, 'invalid_material_book_id')}`;
 
-/**
- * A pre-source-set PDF Book predates the two revision fields. Only this exact,
- * empty shape may enter the initial attachment CAS as revision zero; partial
- * revision state and populated source sets remain fail-closed.
- */
-const isLegacyEmptyPdfBook = (book: MaterialBookSourceAttachmentBook): boolean => (
-  book.bookMode === 'pdf'
-  && book.sourceSet == null
-  && !Object.hasOwn(book, 'bookRevision')
-  && !Object.hasOwn(book, 'sourceSetRevision')
-);
-
-const canonicalAttachmentBook = (
-  book: MaterialBookSourceAttachmentBook | null,
-): MaterialBookSourceAttachmentBook | null => {
-  if (!book || !isLegacyEmptyPdfBook(book)) return book;
-  return {
-    ...clone(book),
-    bookRevision: 0,
-    sourceSetRevision: 0,
-  };
-};
-
 const sourceProjection = (
   accountId: string,
   bookId: string,
-  sourceKey: string,
+  sourceVersionId: string,
 ): string => BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(
   assertAccountId(accountId),
   assertId(bookId, 'invalid_material_book_id'),
-  assertId(sourceKey, 'invalid_material_book_source_key'),
+  assertId(sourceVersionId, 'invalid_material_book_source_version_id'),
 );
 
 const sourceSetSources = (sourceSet: SourceSetCandidate): readonly {
   readonly sourceKey: string;
   readonly sourceVersionId: string;
 }[] => sourceSet.sources;
+
+const unverifiedProjection = (
+  sourceKey: string,
+  bookId: string,
+  sourceVersionId: string,
+  physicalPageCount: unknown,
+): SourceProjection => ({
+  sourceKey,
+  sourceVersionId,
+  bookId,
+  checksum: INVALID_CHECKSUM,
+  purpose: 'book-source',
+  studentSafeStatus: 'unreviewed',
+  physicalPageCount: Number.isSafeInteger(physicalPageCount) ? physicalPageCount as number : 0,
+  verifiedUsable: false,
+});
 
 /**
  * Reads the source leaves selected by the transaction input. The raw row is
@@ -119,28 +111,23 @@ const readSourceVersionProjections = async (
   ownerId: string | undefined,
 ): Promise<Readonly<Record<string, SourceProjection>>> => {
   const entries = await Promise.all(sourceSetSources(sourceSet).map(async (source) => {
-    const raw = await rtdb.readValue(sourceProjection(accountId, bookId, source.sourceKey));
-    if (!isRecord(raw)
-      || raw.ownerId !== ownerId
-      || raw.bookId !== bookId
-      || raw.sourceKey !== source.sourceKey
-      || raw.sourceVersionId !== source.sourceVersionId) {
-      return [source.sourceVersionId, raw as SourceProjection] as const;
+    const raw = await rtdb.readValue(sourceProjection(accountId, bookId, source.sourceVersionId));
+    const projection = readTrustedBookSourceProjection(raw, {
+      ownerId,
+      bookId,
+      sourceKey: source.sourceKey,
+      sourceVersionId: source.sourceVersionId,
+      purpose: 'book-source',
+    });
+    if (!projection) {
+      return [source.sourceVersionId, unverifiedProjection(
+        source.sourceKey,
+        bookId,
+        source.sourceVersionId,
+        isRecord(raw) ? raw.physicalPageCount : undefined,
+      )] as const;
     }
-    // The domain port intentionally accepts only provider-free fields. Keep
-    // malformed values in the scope so the pure service rejects them rather
-    // than allowing a persistence adapter to coerce untrusted data.
-    if (!Number.isSafeInteger(raw.physicalPageCount)
-      || (raw.physicalPageCount as number) <= 0
-      || typeof raw.verifiedUsable !== 'boolean') {
-      return [source.sourceVersionId, raw as unknown as SourceProjection] as const;
-    }
-    return [source.sourceVersionId, {
-      sourceVersionId: raw.sourceVersionId,
-      bookId: raw.bookId,
-      physicalPageCount: raw.physicalPageCount as number,
-      verifiedUsable: raw.verifiedUsable,
-    }] as const;
+    return [source.sourceVersionId, projection] as const;
   }));
   return Object.fromEntries(entries);
 };
@@ -178,6 +165,8 @@ export const createFirebaseMaterialBookSourceAttachmentRepository = (
     env: options.env,
     fetchImpl,
     getAccessToken: options.getAccessToken,
+    firebaseAuthToken: options.firebaseAuthToken,
+    getFirebaseAuthToken: options.getFirebaseAuthToken,
   });
 
   const readBook = async (bookId: string): Promise<MaterialBookSourceAttachmentBook | null> => {
@@ -193,12 +182,32 @@ export const createFirebaseMaterialBookSourceAttachmentRepository = (
       for (let attempt = 0; attempt < maxRetries; attempt += 1) {
         const path = bookPath(input.bookId);
         const current = await rtdb.readWithEtag<MaterialBookSourceAttachmentBook | null>(path);
-        const attachmentBook = canonicalAttachmentBook(current.data);
+        const retained = current.data?.setupActivations?.find(
+          (receipt) => receipt.operationId === input.operationId,
+        );
+        if (retained) {
+          const replay = input.mutate({
+            book: current.data,
+            sourceVersionProjections: {},
+            operations: { [input.operationId]: {
+              operationId: retained.operationId,
+              ownerId: retained.ownerId,
+              bookId: retained.bookId,
+              fingerprint: retained.inputFingerprint,
+              status: 'replaced',
+              bookRevision: retained.bookRevision,
+              sourceSetRevision: retained.sourceSetRevision,
+              sourceSet: clone(retained.sourceSet),
+            } },
+          });
+          if (!replay.write) return replay.outcome;
+          throw new Error('material_book_source_attachment_replay_attempted_write');
+        }
         const scope = await scopeFor(
           rtdb,
           accountId,
           input as MaterialBookSourceAttachmentTransaction<unknown>,
-          attachmentBook,
+          current.data,
         );
         let effectiveScope = scope;
         if (current.data?.sourceSet
@@ -206,19 +215,11 @@ export const createFirebaseMaterialBookSourceAttachmentRepository = (
           && current.data.status === 'ready'
           && current.data.bookRevision === input.expectedBookRevision
           && current.data.sourceSetRevision === input.expectedSourceSetRevision
-          && Object.values(scope.sourceVersionProjections).every((projection) => (
-            isRecord(projection)
-            && projection.verifiedUsable === true
-            && projection.bookId === input.bookId
-          ))) {
+          && Object.values(scope.sourceVersionProjections).every((projection) => projection.verifiedUsable === true)) {
           const receipt: MaterialBookSourceAttachmentOperationReceipt = {
-            operationId: input.operationId,
-            ownerId: current.data.ownerId,
-            bookId: input.bookId,
-            fingerprint: input.operationFingerprint,
-            status: 'replaced',
-            bookRevision: input.expectedBookRevision,
-            sourceSetRevision: input.expectedSourceSetRevision,
+            operationId: input.operationId, ownerId: current.data.ownerId, bookId: input.bookId,
+            fingerprint: input.operationFingerprint, status: 'replaced',
+            bookRevision: input.expectedBookRevision, sourceSetRevision: input.expectedSourceSetRevision,
             sourceSet: clone(input.sourceSet),
           };
           effectiveScope = { ...scope, operations: { [input.operationId]: receipt } };
@@ -236,14 +237,6 @@ export const createFirebaseMaterialBookSourceAttachmentRepository = (
     },
   };
 };
-
-export interface AttachVerifiedFullPdfSourceInput {
-  readonly ownerId: string;
-  readonly bookId: string;
-  readonly operationId: string;
-  readonly sourceKey: string;
-  readonly sourceVersionId: string;
-}
 
 export interface AttachVerifiedSourceSetInput {
   readonly ownerId: string;
@@ -273,12 +266,15 @@ export const attachVerifiedSourceSet = async (
   return result;
 };
 
-/**
- * Production-normal composition for a verified full-PDF Source Version. The
- * expected revisions are loaded from the current canonical Book, while the
- * domain service performs the owner/mode/status/source/CAS checks again in
- * the repository transaction.
- */
+export interface AttachVerifiedFullPdfSourceInput {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly operationId: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+}
+
+/** Explicit full-PDF attachment helper; completion never calls it. */
 export const attachVerifiedFullPdfSource = async (
   attachmentService: ReturnType<typeof createMaterialBookSourceAttachmentService>,
   repository: FirebaseMaterialBookSourceAttachmentRepository,
@@ -288,28 +284,27 @@ export const attachVerifiedFullPdfSource = async (
   if (!book || book.bookId !== input.bookId || book.ownerId !== input.ownerId) {
     throw new Error('material_book_source_attachment_authority_denied');
   }
-  const expectedBookRevision = isLegacyEmptyPdfBook(book) ? 0 : book.bookRevision;
-  const expectedSourceSetRevision = isLegacyEmptyPdfBook(book) ? 0 : book.sourceSetRevision;
+  const expectedBookRevision = book.bookRevision;
+  const expectedSourceSetRevision = book.sourceSetRevision;
   if (!Number.isSafeInteger(expectedBookRevision)
     || expectedBookRevision < 0
     || !Number.isSafeInteger(expectedSourceSetRevision)
     || expectedSourceSetRevision < 0) {
     throw new Error('material_book_source_attachment_revision_unavailable');
   }
-  const sourceSet: SourceSetCandidate = {
-    sourceStrategy: 'full_pdf',
-    sources: [{
-      sourceKey: assertId(input.sourceKey, 'invalid_material_book_source_key'),
-      sourceVersionId: assertId(input.sourceVersionId, 'invalid_material_book_source_version_id'),
-      sourceOrder: 1,
-    }],
-  };
   return attachVerifiedSourceSet(attachmentService, {
     ownerId: input.ownerId,
     bookId: input.bookId,
     operationId: input.operationId,
     expectedBookRevision,
     expectedSourceSetRevision,
-    sourceSet,
+    sourceSet: {
+      sourceStrategy: 'full_pdf',
+      sources: [{
+        sourceKey: assertId(input.sourceKey, 'invalid_material_book_source_key'),
+        sourceVersionId: assertId(input.sourceVersionId, 'invalid_material_book_source_version_id'),
+        sourceOrder: 1,
+      }],
+    },
   });
 };

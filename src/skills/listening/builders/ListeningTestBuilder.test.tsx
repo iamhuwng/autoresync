@@ -67,6 +67,7 @@ const mocks = vi.hoisted(() => ({
     restoreDraft: vi.fn(),
     archivePublishedVersion: vi.fn(),
   uploadAudioReplacement: vi.fn(),
+  uploadImage: vi.fn(),
   uploadListeningAuthoringAudio: vi.fn(),
   probeListeningAuthoringAudio: vi.fn(),
   trackAction: vi.fn(),
@@ -155,6 +156,7 @@ vi.mock('../../../features/assessment/listening/authoring/listeningAuthoringWork
   vi.mock('../../../services/r2Storage', () => ({
     default: {
       uploadAudioReplacement: mocks.uploadAudioReplacement,
+      uploadImage: mocks.uploadImage,
       uploadListeningAuthoringAudio: mocks.uploadListeningAuthoringAudio,
       probeListeningAuthoringAudio: mocks.probeListeningAuthoringAudio,
     },
@@ -221,6 +223,7 @@ describe('ListeningTestBuilder', () => {
       contentType: 'audio/mpeg',
       sizeBytes: 5,
     });
+    mocks.uploadImage.mockResolvedValue({ url: 'https://pub.example/images/question.png' });
     mocks.probeListeningAuthoringAudio.mockResolvedValue({
       status: 'ready',
       assetId: 'asset-1',
@@ -344,6 +347,39 @@ describe('ListeningTestBuilder', () => {
     expect(screen.getByRole('button', { name: 'Add image' })).toBeInTheDocument();
     expect(screen.queryByText('Upload images and set question ranges for each section.')).not.toBeInTheDocument();
     expect(screen.queryByText(/Each image covers a range of questions/i)).not.toBeInTheDocument();
+  });
+
+  it('saves question images only after the R2 upload returns a durable URL', async () => {
+    setBrowserRouteState({ initialDisplayMode: 'image', initialStep: 'questions-images' });
+    let finishUpload: ((result: { url: string }) => void) | undefined;
+    mocks.uploadImage.mockImplementationOnce(() => new Promise(resolve => { finishUpload = resolve; }));
+    const { container } = render(<ListeningTestBuilder />);
+    const file = new File(['image'], 'question.png', { type: 'image/png' });
+
+    fireEvent.change(container.querySelector('#section-1-upload') as HTMLInputElement, {
+      target: { files: [file] },
+    });
+
+    expect(mocks.uploadImage).toHaveBeenCalledWith(file);
+    expect(screen.getByRole('status')).toHaveTextContent('Uploading image');
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+    expect(screen.queryByRole('img', { name: 'Section 1 - Image 1' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      finishUpload?.({ url: 'https://pub.example/images/question.png' });
+    });
+
+    expect(screen.getByRole('img', { name: 'Section 1 - Image 1' })).toHaveAttribute(
+      'src', 'https://pub.example/images/question.png',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => {
+      expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+        document: expect.objectContaining({
+          questionImages: [expect.objectContaining({ imageUrl: 'https://pub.example/images/question.png' })],
+        }),
+      }));
+    });
   });
 
   it('renders display mode options as keyboard-reachable buttons with pressed state', async () => {

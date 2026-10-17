@@ -562,7 +562,7 @@ describe('BookEditorWorkspace', () => {
       expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     });
 
-    await user.click(screen.getByRole('button', { name: 'Save Metadata' }));
+    await user.click(screen.getByRole('button', { name: 'Save metadata' }));
 
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalledWith('book-123');

@@ -62,12 +62,13 @@ describe('BookAttemptSourceReview', () => {
       </BookAttemptSourceReview>,
     );
 
-    expect(screen.getByRole('button', { name: /Component component-a.*page 7/u })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /activity-1.*interaction-1/u })).toBeInTheDocument();
-    expect(screen.getByText('source-version-4')).toBeInTheDocument();
-    expect(screen.getByText('page-group-1')).toBeInTheDocument();
-    expect(screen.getByText('placement-1')).toBeInTheDocument();
-    expect(screen.getByText('source-assisted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Book page.*page 7/u })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Activity response' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Technical source details'));
+    expect(screen.getByText('source-version-4')).toBeVisible();
+    expect(screen.getByText('page-group-1')).toBeVisible();
+    expect(screen.getByText('placement-1')).toBeVisible();
+    expect(screen.getByText('source-assisted')).toBeVisible();
     expect(screen.getByTestId('mock-historical-pdf'))
       .toHaveTextContent(
         '/v1/book-delivery/historical-document/book-1/student-1/result-1/opaque-attempt-1'
@@ -93,16 +94,16 @@ describe('BookAttemptSourceReview', () => {
       </BookAttemptSourceReview>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Component component-a.*page 7/u }));
+    fireEvent.click(screen.getByRole('button', { name: /Book page.*page 7/u }));
     expect(screen.getByTestId('book-attempt-source-review')).toHaveAttribute('data-mobile-tab', 'page');
-    expect(screen.getByRole('heading', { name: 'Historical source context' }).closest('section'))
+    expect(screen.getByRole('heading', { name: 'Original book page' }).closest('section'))
       .toHaveFocus();
     expect(onAction).toHaveBeenCalledWith('switchResultTab', {
       tab: 'page',
       attemptId: 'attempt-1',
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /activity-1.*interaction-1/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Activity response' }));
     expect(screen.getByTestId('book-attempt-source-review')).toHaveAttribute('data-mobile-tab', 'activity');
     expect(screen.getByLabelText('Interaction interaction-1')).toHaveFocus();
     expect(onAction).toHaveBeenCalledWith('viewQuestion', {
@@ -111,7 +112,7 @@ describe('BookAttemptSourceReview', () => {
     });
   });
 
-  it.each(['deleted', 'replaced'] as const)(
+  it.each(['missing', 'deleted', 'replaced', 'invalidated', 'revoked'] as const)(
     'keeps %s attempts metadata-only and does not mount a substitute PDF',
     (reason) => {
       const unavailable: BookAttemptSourceContextProjection = {
@@ -127,19 +128,21 @@ describe('BookAttemptSourceReview', () => {
         </BookAttemptSourceReview>,
       );
 
-      expect(screen.getByText('Historical PDF unavailable')).toBeInTheDocument();
+      expect(screen.getByText(`Historical PDF unavailable · ${reason[0]!.toUpperCase()}${reason.slice(1)}`)).toBeInTheDocument();
       expect(screen.queryByTestId('mock-historical-pdf')).not.toBeInTheDocument();
       expect(screen.getByText('Answers and permitted feedback remain')).toBeInTheDocument();
-      expect(screen.getByText('source-version-4')).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Technical source details'));
+      expect(screen.getByText('source-version-4')).toBeVisible();
     },
   );
 
-  it('fails closed when immutable source context is missing', () => {
+  it.each(['missing_context', 'malformed_context', 'authorization_unavailable'] as const)(
+    'fails closed when immutable source context is %s', (reason) => {
     render(
       <BookAttemptSourceReview projection={{
         schemaVersion: 1,
         state: 'historical_source_unavailable',
-        reason: 'missing_context',
+        reason,
         metadata: null,
         documentResource: null,
       }}>
@@ -150,5 +153,6 @@ describe('BookAttemptSourceReview', () => {
     expect(screen.getByText('Historical source context unavailable')).toBeInTheDocument();
     expect(screen.queryByTestId('mock-historical-pdf')).not.toBeInTheDocument();
     expect(screen.getByText('Result remains readable')).toBeInTheDocument();
-  });
+    },
+  );
 });

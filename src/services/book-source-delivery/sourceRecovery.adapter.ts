@@ -1,8 +1,10 @@
 import type {
+  BookSourceAssemblyProjection,
   BookSourceUploadAccountState,
   BookSourceUploadOperation,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
+import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import {
   createBookSourceVersionStorageIdentity,
 } from './sourceVersion.service';
@@ -36,7 +38,7 @@ export interface BookSourceRecoveryAvailabilityEvidence {
   readonly identity?: BookSourceVersionStorageIdentity;
 }
 
-export interface BookSourceRecoveryAuthority {
+export interface BookSourceRecoveryAuthority extends TrustedBookSourceVersionProjection {
   readonly accountId: string;
   readonly reservationId: string;
   readonly bookId: string;
@@ -56,6 +58,8 @@ export interface BookSourceRecoveryDiagnostic {
     | 'source-version-approved-removed'
     | 'source-owner-mismatch'
     | 'source-identity-mismatch'
+    | 'source-projection-missing'
+    | 'source-not-usable'
     | 'availability-proof-missing'
     | 'availability-proof-false';
   readonly sourceVersionId?: string;
@@ -145,6 +149,8 @@ export const validateBookSourceRecoveryAuthority = (input: {
   readonly availability?: Readonly<Record<string, boolean | BookSourceRecoveryAvailabilityEvidence>>;
   /** Capture validation may defer external proof; restore validation may not. */
   readonly requireAvailabilityProof?: boolean;
+  /** Assembly/publication consumers must opt into the ready Book-source gate. */
+  readonly requireUsableBookSource?: boolean;
 }): BookSourceRecoveryValidationResult => {
   const diagnostics: BookSourceRecoveryDiagnostic[] = [];
   const authorities = new Map<string, BookSourceRecoveryAuthority>();
@@ -188,6 +194,25 @@ export const validateBookSourceRecoveryAuthority = (input: {
           sourceVersionId: operation.sourceVersionId,
           path: `book_source_upload_accounts/${accountId}/operations/${operation.reservationId}`,
           message: 'Verified Source Version metadata does not match its canonical upload operation.',
+        });
+        continue;
+      }
+      const projection = state.assemblyBooks?.[operation.bookId]?.[operation.sourceVersionId];
+      if (!projection) {
+        addDiagnostic(diagnostics, {
+          code: 'source-projection-missing',
+          sourceVersionId: operation.sourceVersionId,
+          path: `book_source_upload_accounts/${accountId}/assemblyBooks/${operation.bookId}/${operation.sourceVersionId}`,
+          message: 'Provider-free Assembly authority is required; recovery must not derive it from the upload operation.',
+        });
+        continue;
+      }
+      if (!sameTrustedProjection(projection, operation, storage)) {
+        addDiagnostic(diagnostics, {
+          code: 'source-identity-mismatch',
+          sourceVersionId: operation.sourceVersionId,
+          path: `book_source_upload_accounts/${accountId}/assemblyBooks/${operation.bookId}/${operation.sourceVersionId}`,
+          message: 'Provider-free Assembly authority is stale or hash/version mismatched.',
         });
         continue;
       }
@@ -258,12 +283,29 @@ export const validateBookSourceRecoveryAuthority = (input: {
           message: 'An approved replacement deletion owns this Source Version; recovery must not revive it.',
         });
       }
+      if (input.requireUsableBookSource === true && !isUsableBookSource(projection, storage)) {
+        available = false;
+        addDiagnostic(diagnostics, {
+          code: 'source-not-usable',
+          sourceVersionId: operation.sourceVersionId,
+          path: `sourceVersionIds/${operation.sourceVersionId}`,
+          message: 'The Source Version is not a ready, decided Book source for this consumer.',
+        });
+      }
       authorities.set(operation.sourceVersionId, Object.freeze({
+        sourceVersionId: projection.sourceVersionId,
+        bookId: projection.bookId,
+        checksum: projection.checksum,
+        purpose: projection.purpose,
+        studentSafeStatus: projection.studentSafeStatus,
+        ...(projection.studentSafeDecision === undefined ? {} : {
+          studentSafeDecision: projection.studentSafeDecision,
+        }),
+        physicalPageCount: projection.physicalPageCount,
+        verifiedUsable: projection.verifiedUsable,
         accountId,
         reservationId: operation.reservationId,
-        bookId: operation.bookId,
-        sourceVersionId: operation.sourceVersionId,
-        sourceKey: operation.sourceKey,
+        sourceKey: projection.sourceKey,
         ownerId: operation.ownerId,
         operationKind: operation.kind,
         storage,
@@ -290,6 +332,8 @@ export const validateBookSourceRecoveryAuthority = (input: {
         || entry.code === 'availability-proof-false'
         || entry.code === 'source-version-approved-removed'
         || entry.code === 'source-identity-mismatch'
+        || entry.code === 'source-projection-missing'
+        || entry.code === 'source-not-usable'
       ))) {
         addDiagnostic(diagnostics, {
           code: 'source-version-unavailable',
@@ -307,6 +351,47 @@ export const validateBookSourceRecoveryAuthority = (input: {
     diagnostics: Object.freeze(diagnostics),
   });
 };
+
+const sameTrustedProjection = (
+  projection: BookSourceAssemblyProjection,
+  operation: BookSourceUploadOperation,
+  storage: BookSourceVersionStorageIdentity,
+): boolean => (
+  projection.ownerId === operation.ownerId
+  && projection.bookId === operation.bookId
+  && projection.sourceKey === operation.sourceKey
+  && projection.sourceVersionId === operation.sourceVersionId
+  && projection.checksum.algorithm === operation.expectedChecksum.algorithm
+  && projection.checksum.value === operation.expectedChecksum.value
+  && projection.verifiedUsable === true
+  && projection.physicalPageCount === operation.physicalPageCount
+  && projection.purpose === operation.purpose
+  && projection.studentSafeStatus === operation.studentSafeStatus
+  && (projection.studentSafeDecision === undefined
+    ? operation.studentSafeDecision === undefined
+    : operation.studentSafeDecision !== undefined
+      && projection.studentSafeDecision.decidedBy === operation.studentSafeDecision.decidedBy
+      && projection.studentSafeDecision.decidedAt === operation.studentSafeDecision.decidedAt
+      && projection.studentSafeDecision.sourceVersionId === operation.sourceVersionId
+      && projection.studentSafeDecision.sha256Hex === projection.checksum.value
+      && projection.checksum.algorithm === storage.checksum.algorithm
+      && projection.checksum.value === storage.checksum.value
+      && projection.studentSafeDecision.sha256Hex === operation.studentSafeDecision.sha256Hex
+      && projection.studentSafeDecision.reasonCode === operation.studentSafeDecision.reasonCode)
+);
+
+const isUsableBookSource = (
+  projection: BookSourceAssemblyProjection,
+  storage: BookSourceVersionStorageIdentity,
+): boolean => (
+  projection.purpose === 'book-source'
+  && projection.studentSafeStatus === 'ready'
+  && projection.studentSafeDecision !== undefined
+  && projection.studentSafeDecision.sourceVersionId === projection.sourceVersionId
+  && projection.studentSafeDecision.sha256Hex === projection.checksum.value
+  && projection.checksum.algorithm === storage.checksum.algorithm
+  && projection.checksum.value === storage.checksum.value
+);
 
 /** Explicit gate used by normal Source producers when a recovery context exists. */
 export const isBookSourceRecoveryContext = (

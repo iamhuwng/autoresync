@@ -22,6 +22,7 @@ import {
   type ReplacementPlanRecord,
   type ReplacementSnapshotAuthority,
 } from './replacementPlan.types';
+import { sha256Hex } from '../../utils/sha256';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
@@ -60,9 +61,33 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
-const sha256Hex = async (value: string): Promise<string> => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+export const replacementReviewSelectionFingerprint = async (
+  review: Pick<import('./replacementPlan.types').ReplacementPlanReviewRecord, 'selections' | 'reason'>,
+): Promise<string> => sha256Hex(stable({
+  selections: [...review.selections].sort((left, right) => `${left.contextKey}:${left.placementId}`.localeCompare(`${right.contextKey}:${right.placementId}`)),
+  reason: review.reason,
+}));
+
+const compareText = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
+
+export const canonicalReplacementAdapterFacts = async (
+  adapters: readonly ReplacementAdapterVersion[],
+): Promise<{
+  readonly adapters: readonly ReplacementAdapterVersion[];
+  readonly fingerprint: string;
+}> => {
+  const ordered = adapters.map((adapter) => ({
+    contextKind: adapter.contextKind,
+    adapterId: adapter.adapterId,
+    adapterVersion: adapter.adapterVersion,
+    contractVersion: adapter.contractVersion,
+  })).sort((left, right) => (
+    compareText(left.contextKind, right.contextKind)
+    || compareText(left.adapterId, right.adapterId)
+    || left.adapterVersion - right.adapterVersion
+    || left.contractVersion - right.contractVersion
+  ));
+  return { adapters: ordered, fingerprint: await sha256Hex(stable(ordered)) };
 };
 
 const safeRevision = (value: unknown): value is number =>
@@ -110,12 +135,13 @@ const contextProjection = (context: BookImpactSnapshotContext): ReplacementPlanC
   };
 };
 
-const validateSnapshot = (
+const validateSnapshot = async (
   input: ReplacementPlanBuildInput,
   snapshotAuthority: ReplacementSnapshotAuthority,
-): string[] => {
+): Promise<string[]> => {
   const errors: string[] = [];
   const snapshot = snapshotAuthority.snapshot;
+  const adapterFacts = await canonicalReplacementAdapterFacts(snapshot.adapters);
   if (!ID.test(input.ownerId) || !ID.test(input.bookId)
     || snapshot.ownerId !== input.ownerId
     || snapshot.actorId !== input.ownerId
@@ -132,11 +158,11 @@ const validateSnapshot = (
     || !same(input.currentRevisions, snapshotAuthority.currentRevisions)) {
     errors.push('stale-current-revisions');
   }
-  const adapters = snapshot.adapters;
+  const adapters = adapterFacts.adapters;
   const adapterKinds = new Set<string>();
   if (adapters.length !== BOOK_IMPACT_SNAPSHOT_CONTEXT_KINDS.length) errors.push('adapter-coverage-incomplete');
   adapters.forEach((adapter) => {
-    if (!BOOK_IMPACT_SNAPSHOT_CONTEXT_KINDS.includes(adapter.contextKind)
+    if (!BOOK_IMPACT_SNAPSHOT_CONTEXT_KINDS.some((kind) => kind === adapter.contextKind)
       || adapterKinds.has(adapter.contextKind)
       || !ID.test(adapter.adapterId)
       || !safeRevision(adapter.adapterVersion)
@@ -192,7 +218,7 @@ export const createReplacementPlan = async (
     && input.sourceSetDelta.old.sourceSet.sources.length > REPLACEMENT_PLAN_MAX_SOURCE_SCOPES) {
     return { status: 'blocked', code: 'invalid-request', errors: ['source-set-limit-exceeded'] };
   }
-  const snapshotErrors = validateSnapshot(input, input.impactSnapshot);
+  const snapshotErrors = await validateSnapshot(input, input.impactSnapshot);
   if (snapshotErrors.includes('snapshot-expired')) {
     return { status: 'blocked', code: 'expired-snapshot', errors: snapshotErrors };
   }
@@ -217,12 +243,7 @@ export const createReplacementPlan = async (
     Date.parse(snapshot.expiresAt),
     Date.parse(input.now) + ttlMs,
   )).toISOString();
-  const adapters: ReplacementAdapterVersion[] = snapshot.adapters.map((adapter) => ({
-    contextKind: adapter.contextKind,
-    adapterId: adapter.adapterId,
-    adapterVersion: adapter.adapterVersion,
-    contractVersion: adapter.contractVersion,
-  })).sort((left, right) => left.contextKind.localeCompare(right.contextKind));
+  const adapters = (await canonicalReplacementAdapterFacts(snapshot.adapters)).adapters;
   const unsigned = {
     schemaVersion: REPLACEMENT_PLAN_SCHEMA_VERSION,
     planId: input.planId ?? crypto.randomUUID(),

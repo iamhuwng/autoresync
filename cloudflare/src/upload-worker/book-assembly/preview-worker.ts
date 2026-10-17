@@ -4,13 +4,20 @@ import {
   UnitPreviewError,
   createCandidateUnitPreview,
   createPreviewApproval,
+  previewInputFingerprint,
+  wholeActivationApprovalFingerprint,
   type BookAssemblyPreviewApprovalRecord,
+  type WholeActivationApprovalInput,
+  type WholeActivationApprovalQualification,
 } from '../../../../src/services/book-assembly/unitPreview.service.ts';
 import type {
   BookAssemblyPreviewApprovalRead,
   BookAssemblyPreviewApprovalRevocationRecord,
   PreviewApprovalRevokeStatus,
 } from '../../../../src/services/book-assembly/previewApproval.repository.ts';
+import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
+import type { ComponentStudentDocument } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import type { BookRuntimeStudentDocumentRequest } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 
@@ -37,6 +44,13 @@ export interface CandidatePreviewWorkerPort {
     readonly bookId: string;
     readonly sourceVersionId: string;
   }): Promise<boolean>;
+  readStudentDocument?(input: {
+    readonly bookId: string;
+    readonly unitKey: string;
+    readonly candidateId: string;
+    readonly candidateRevision: number;
+  }): Promise<{ readonly descriptor: ComponentStudentDocument; readonly request: BookRuntimeStudentDocumentRequest } | null>;
+  readWholeActivationApprovalInput?(bookId: string): Promise<WholeActivationApprovalInput | null>;
   recordApproval(record: BookAssemblyPreviewApprovalRecord): Promise<void>;
   readApproval?(input: {
     readonly bookId: string;
@@ -71,10 +85,7 @@ const revision = (value: unknown): number => {
   return value as number;
 };
 const roleAllowed = (value: unknown): boolean => {
-  const user = plain(value);
-  return !!user && (user.role === 'teacher' || user.role === 'super_admin')
-    && !['blocked', 'inactive', 'suspended'].includes(String(user.status ?? ''))
-    && user.forceReauth !== true;
+  return isActiveBookSourceAuthorityProfile(value, 'teacher');
 };
 const json = (body: unknown, status = 200): { body: unknown; init: ResponseInit } => ({
   body,
@@ -86,6 +97,8 @@ interface PreviewRequest {
   readonly unitKey: string;
   readonly candidateId: string;
   readonly expectedCandidateRevision: number;
+  readonly expectedUnitInputFingerprint?: string;
+  readonly expectedWholeActivationFingerprint?: string;
 }
 
 interface RevokeRequest extends PreviewRequest {
@@ -96,6 +109,7 @@ const command = (input: unknown): PreviewRequest => {
   const body = plain(input);
   if (!body || Object.keys(body).some((key) => ![
     'bookId', 'unitKey', 'candidateId', 'expectedCandidateRevision',
+    'expectedUnitInputFingerprint', 'expectedWholeActivationFingerprint',
   ].includes(key))) {
     throw new CandidatePreviewWorkerError('invalid_request');
   }
@@ -104,6 +118,12 @@ const command = (input: unknown): PreviewRequest => {
     unitKey: id(body.unitKey, 'invalid_unit_key'),
     candidateId: id(body.candidateId, 'invalid_candidate_id'),
     expectedCandidateRevision: revision(body.expectedCandidateRevision),
+    ...(body.expectedUnitInputFingerprint === undefined ? {} : {
+      expectedUnitInputFingerprint: id(body.expectedUnitInputFingerprint, 'invalid_preview_input_fingerprint'),
+    }),
+    ...(body.expectedWholeActivationFingerprint === undefined ? {} : {
+      expectedWholeActivationFingerprint: id(body.expectedWholeActivationFingerprint, 'invalid_whole_activation_fingerprint'),
+    }),
   };
 };
 
@@ -184,16 +204,41 @@ export const createCandidatePreviewWorkerHandlers = (options: {
         sourceVersionId: source.sourceVersionId,
       }) ? source.sourceVersionId : null
     ))).then((ids) => ids.filter((id): id is string => id !== null)));
+    const studentDocument = candidate.manifest?.sourceSet.sourceStrategy === 'component_pdfs'
+      ? await options.port.readStudentDocument?.({
+        bookId: request.bookId, unitKey: request.unitKey,
+        candidateId: request.candidateId, candidateRevision: request.expectedCandidateRevision,
+      }) ?? null
+      : undefined;
     try {
-      return {
-        preview: createCandidateUnitPreview({
+      const preview = createCandidateUnitPreview({
           candidate,
           sourceVersions,
           sourceIsPreviewReady: (source) => readySourceVersionIds.has(source.sourceVersionId),
           activitiesByKey: activities,
           registryVersion,
-        }),
+          studentDocument: studentDocument ?? undefined,
+        });
+      let qualification: WholeActivationApprovalQualification | undefined;
+      if (candidate.manifest?.sourceSet.sourceStrategy === 'component_pdfs') {
+        const whole = await options.port.readWholeActivationApprovalInput?.(request.bookId);
+        if (!whole) throw new CandidatePreviewWorkerError('whole_activation_unavailable', 409);
+        const reference = whole.units.find((unit) => unit.unitKey === request.unitKey);
+        if (!reference || reference.candidateId !== request.candidateId
+          || reference.candidateRevision !== request.expectedCandidateRevision) {
+          throw new CandidatePreviewWorkerError('whole_activation_stale', 409);
+        }
+        qualification = {
+          wholeActivationFingerprint: wholeActivationApprovalFingerprint(whole),
+          units: whole.units.map(({ unitKey, candidateId, candidateRevision }) => ({
+            unitKey, candidateId, candidateRevision,
+          })),
+        };
+      }
+      return {
+        preview,
         activities,
+        qualification,
       };
     } catch (error) {
       if (error instanceof UnitPreviewError) {
@@ -206,7 +251,8 @@ export const createCandidatePreviewWorkerHandlers = (options: {
   return {
     async preview(input: { readonly uid: string; readonly body: unknown }) {
       try {
-        return json({ preview: (await prepare(input.uid, input.body)).preview });
+        const prepared = await prepare(input.uid, input.body);
+        return json({ preview: prepared.preview, ...(prepared.qualification ? { qualification: prepared.qualification } : {}) });
       } catch (error) {
         if (error instanceof CandidatePreviewWorkerError) return json({ code: error.code }, error.status);
         return json({ code: 'candidate_preview_failed' }, 500);
@@ -215,12 +261,18 @@ export const createCandidatePreviewWorkerHandlers = (options: {
     async approve(input: { readonly uid: string; readonly body: unknown }) {
       try {
         const prepared = await prepare(input.uid, input.body);
+        const request = command(input.body);
+        if (prepared.qualification && (
+          request.expectedUnitInputFingerprint !== previewInputFingerprint(prepared.preview)
+          || request.expectedWholeActivationFingerprint !== prepared.qualification.wholeActivationFingerprint
+        )) throw new CandidatePreviewWorkerError('preview_changed_before_approval', 409);
         const approvedAt = now();
         const approval = createPreviewApproval({
           approvalId: createApprovalId(), approvalRevision: 1, actorId: input.uid, approvedAt,
           expiresAt: new Date(Date.parse(approvedAt) + approvalLifetimeMs).toISOString(),
           preview: prepared.preview,
           canonicalActivitiesByKey: prepared.activities,
+          wholeActivationFingerprint: prepared.qualification?.wholeActivationFingerprint,
         });
         await options.port.recordApproval(approval);
         const { canonicalActivityFingerprintsByKey: _serverOnly, ...clientApproval } = approval;

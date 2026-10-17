@@ -12,30 +12,34 @@ const wranglerConfig = () => JSON5.parse(wranglerSource) as { vars: Record<strin
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(42);
+    expect(contributorRoutes).toHaveLength(71);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === 'PRD0062-L')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(5);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#55')).toHaveLength(9);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#63')).toHaveLength(3);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#59')).toHaveLength(3);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#86')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#70')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#67')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#71')).toHaveLength(1);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(2);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#49')).toHaveLength(4);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#74')).toHaveLength(3);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#49')).toHaveLength(7);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#51/#52')).toHaveLength(1);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#80')).toHaveLength(1);
-    expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(1);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#58')).toHaveLength(2);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#77')).toHaveLength(10);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#102')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#104')).toHaveLength(3);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(42);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === '#103')).toHaveLength(4);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(71);
   });
 
   it('registers all future boundaries as disabled seams', () => {
     const future = canonicalBookRouteManifest.filter((route) => route.source === 'future-seam');
-    expect(future).toHaveLength(12);
+    expect(future).toHaveLength(11);
     expect(new Set(future.map((route) => route.domain))).toEqual(new Set([
-      'homework', 'evaluation-history', 'integrity', 'notifications',
+      'homework', 'integrity', 'notifications',
       'impact-snapshot', 'updates', 'replacement-cleanup',
     ]));
     expect(future.every((route) => route.gateDefault === 'disabled')).toBe(true);
@@ -99,6 +103,38 @@ describe('canonical Book route contract catalog', () => {
         handler: 'bookAssembly.componentPdfPublish',
         gateEnv: 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED',
         contributorTicket: '#59',
+      }),
+    ]));
+  });
+
+  it('registers the read-only current publication and homework preview source descriptors', () => {
+    expect(canonicalBookRouteManifest).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'book.assembly.currentPublication',
+        methods: ['GET'],
+        pathTemplate: '/book-assembly/books/:bookId/current-publication',
+        owner: '#59',
+        domain: 'assembly',
+        handler: 'bookAssembly.currentPublication',
+        firebaseAuth: 'firebase-id-token-teacher',
+        rateClass: 'book-read',
+        gateEnv: 'BOOK_ASSEMBLY_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        requestBodyBytes: 0,
+        contributorTicket: '#59',
+      }),
+      expect.objectContaining({
+        id: 'book.homework.preview-source',
+        methods: ['POST'],
+        pathTemplate: '/book-homework/preview-source',
+        owner: '#86',
+        domain: 'homework',
+        handler: 'bookHomework.homeworkPreviewSource',
+        firebaseAuth: 'firebase-id-token-teacher',
+        rateClass: 'book-read',
+        gateEnv: 'BOOK_HOMEWORK_READ_ROUTES_ENABLED',
+        gateDefault: 'disabled',
+        contributorTicket: '#86',
       }),
     ]));
   });
@@ -295,8 +331,6 @@ describe('canonical Book route contract catalog', () => {
         domain: 'source-upload',
         handler: 'bookSource.begin',
         firebaseAuth: 'firebase-id-token-teacher',
-        gateEnv: undefined,
-        gateDefault: undefined,
         identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
         credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
         contributorTicket: '#49',
@@ -310,6 +344,9 @@ describe('canonical Book route contract catalog', () => {
     );
     const teacherDocument = canonicalBookRouteManifest.find(
       (route) => route.id === 'book.document-delivery.serve-teacher-assembly-document',
+    );
+    const teacherStudentDocument = canonicalBookRouteManifest.find(
+      (route) => route.id === 'book.document-delivery.serve-teacher-assembly-student-document',
     );
     const historicalDocument = canonicalBookRouteManifest.find(
       (route) => route.id === 'book.document-delivery.serve-historical-attempt-document',
@@ -332,6 +369,11 @@ describe('canonical Book route contract catalog', () => {
       credentialEnv: 'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
       responseLimitBytes: 500 * 1024 * 1024,
     }));
+    expect(teacherStudentDocument).toEqual(expect.objectContaining({
+      methods: ['GET', 'HEAD'],
+      pathTemplate: '/v1/book-delivery/teacher-assembly/:bookId/:unitKey/:candidateId/:candidateRevision/student-document/:sourceSetRevision/:bookRevision',
+      handler: teacherDocument?.handler,
+    }));
     expect(historicalDocument).toEqual(expect.objectContaining({
       methods: ['GET', 'HEAD'],
       pathTemplate: '/v1/book-delivery/historical-document/:bookId/:studentId/:resultId/:opaqueRouteKey',
@@ -349,7 +391,7 @@ describe('canonical Book route contract catalog', () => {
       .map((route) => route.gateEnv)
       .filter((gate): gate is string => typeof gate === 'string');
     for (const gate of new Set(gates)) {
-      expect(vars[gate]).toBe('disabled');
+      expect(vars[gate], gate).toBe('disabled');
     }
   });
 

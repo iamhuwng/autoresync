@@ -2,6 +2,7 @@ import { createBookSourceVersionStorageIdentity } from '../../../../../src/servi
 import type {
   BookSourceUploadOperation,
   BookSourceVersionStorageIdentity,
+  PublicationRetirementGuard,
 } from '../../../../../src/types/bookSource.types.ts';
 import type {
   ReplacementSagaContextItem,
@@ -29,6 +30,12 @@ class RetiredByteBlocked extends Error {
   }
 }
 
+class RetiredByteRetryable extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
 const clone = <T>(value: T): T => structuredClone(value);
 const stable = (value: unknown): string => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -45,8 +52,15 @@ const validId = (value: unknown): value is string => typeof value === 'string' &
 const validHash = (value: unknown): value is string => typeof value === 'string' && HASH.test(value);
 const validRevision = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const validTime = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value));
+const validReason = (value: unknown): boolean => (
+  value === 'teacher-reviewed'
+  || value === 'teacher-only-content'
+  || value === 'invalid-document'
+  || value === 'superseded'
+);
 
 const blocked = (code: string): never => { throw new RetiredByteBlocked(code); };
+const retryable = (code: string): never => { throw new RetiredByteRetryable(code); };
 
 const nowIso = (dependencies: RetiredByteDeletionDependencies): string | null => {
   try {
@@ -61,6 +75,67 @@ const sameIdentity = (
   left: BookSourceVersionStorageIdentity | null,
   right: BookSourceVersionStorageIdentity | null,
 ): boolean => left !== null && right !== null && stable(left) === stable(right);
+
+const samePublicationGuard = (
+  left: PublicationRetirementGuard | undefined,
+  right: PublicationRetirementGuard | null,
+): boolean => left !== undefined && right !== null && stable(left) === stable(right);
+
+const assertPublicationGuard = (
+  value: unknown,
+  expected: { readonly bookId: string; readonly sourceVersionId: string; readonly deletionId: string },
+): PublicationRetirementGuard => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    retryable('retirement-publication-guard-missing');
+  }
+  const guard = value as Record<string, unknown>;
+  if (guard.bookId !== expected.bookId
+    || guard.sourceVersionId !== expected.sourceVersionId
+    || guard.deletionId !== expected.deletionId
+    || !validId(guard.publicationId)
+    || !validRevision(guard.publicationRevision)
+    || !validId(guard.manifestVersionId)
+    || !validRevision(guard.sourceSetRevision)
+    || !validHash(guard.inputFingerprint)
+    || !Array.isArray(guard.sourceVersionIds)
+    || guard.sourceVersionIds.some((id) => !validId(id))
+    || guard.sourceVersionIds.includes(expected.sourceVersionId)) {
+     retryable('retirement-publication-guard-invalid');
+  }
+  return guard as unknown as PublicationRetirementGuard;
+};
+
+const validatePublicationGuard = async (
+  dependencies: RetiredByteDeletionDependencies,
+  record: RetiredByteDeletionRecord,
+): Promise<PublicationRetirementGuard> => {
+  const recordGuard = assertPublicationGuard(record.publicationGuard, {
+    bookId: record.bookId,
+    sourceVersionId: record.sourceVersionId,
+    deletionId: record.deletionId,
+  });
+  if (!dependencies.publicationGuard) retryable('publication-guard-authority-unavailable');
+  const current = await dependencies.publicationGuard.readCurrentGuard({ bookId: record.bookId });
+  if (current === null) retryable('retirement-publication-guard-missing');
+  const currentGuard = assertPublicationGuard(current, {
+    bookId: record.bookId,
+    sourceVersionId: record.sourceVersionId,
+    deletionId: record.deletionId,
+  });
+  if (!samePublicationGuard(recordGuard, currentGuard)) {
+    blocked('publication-guard-stale');
+  }
+  return recordGuard;
+};
+
+const sameSourceVersionIds = (
+  left: readonly string[],
+  right: readonly string[],
+): boolean => {
+  if (left.length !== right.length) return false;
+  const sortedRight = [...right].sort();
+  return [...left].sort().every((sourceVersionId, index) => sourceVersionId === sortedRight[index]);
+};
 
 const assertIdentity = (
   value: unknown,
@@ -83,6 +158,73 @@ const assertIdentity = (
   }
   return identity;
 };
+
+const assertSourceAuthority = (
+  value: unknown,
+  expected: { readonly bookId: string; readonly sourceVersionId: string; readonly sourceKey?: string; readonly ownerId?: string },
+  ): { readonly storage: BookSourceVersionStorageIdentity; readonly sourceKey: string; readonly ownerId: string; readonly status: 'retirement_pending'; readonly purpose: 'book-source'; readonly studentSafeStatus: 'ready'; readonly studentSafeDecision: NonNullable<RetiredByteDeletionRecord['studentSafeDecision']>; readonly retirementGuard: PublicationRetirementGuard; readonly retiredDeletionId: string } => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) blocked('source-authority-unavailable');
+  const authority = value as Record<string, unknown>;
+  if (authority.status !== 'retirement_pending'
+    || authority.purpose !== 'book-source'
+    || authority.studentSafeStatus !== 'ready'
+    || authority.studentSafeDecision === undefined
+    || typeof authority.retiredDeletionId !== 'string') {
+    blocked('source-safety-rejected');
+  }
+  if (!validId(authority.sourceKey) || !validId(authority.ownerId)
+    || (expected.sourceKey !== undefined && authority.sourceKey !== expected.sourceKey)
+    || (expected.ownerId !== undefined && authority.ownerId !== expected.ownerId)) {
+    retryable('retirement-pending-identity-mismatch');
+  }
+  const identity = assertIdentity(authority.storage, expected);
+  const decision = authority.studentSafeDecision as Record<string, unknown>;
+  const decidedBy = decision.decidedBy;
+  const decidedAt = decision.decidedAt;
+  const decisionSourceVersionId = decision.sourceVersionId;
+  const decisionHash = decision.sha256Hex;
+  const reasonCode = decision.reasonCode;
+  if (!validId(decidedBy)
+    || !validTime(decidedAt)
+    || decisionSourceVersionId !== identity.sourceVersionId
+    || typeof decisionHash !== 'string'
+    || !validHash(decisionHash)
+    || decisionHash.toLowerCase() !== identity.checksum.value.toLowerCase()
+    || !validReason(reasonCode)) {
+    blocked('source-safety-mismatch');
+  }
+  const retirementGuard = assertPublicationGuard(authority.retirementGuard, {
+    bookId: expected.bookId,
+    sourceVersionId: expected.sourceVersionId,
+    deletionId: authority.retiredDeletionId,
+  });
+  const trustedDecision = {
+    decidedBy: decidedBy as string,
+    decidedAt: decidedAt as string,
+    sourceVersionId: decisionSourceVersionId as string,
+    sha256Hex: decisionHash as string,
+    reasonCode: reasonCode as RetiredByteDeletionRecord['studentSafeDecision']['reasonCode'],
+  };
+  return {
+    storage: identity,
+    sourceKey: authority.sourceKey,
+    ownerId: authority.ownerId,
+    status: 'retirement_pending',
+    purpose: 'book-source',
+    studentSafeStatus: 'ready',
+    studentSafeDecision: { ...trustedDecision, sha256Hex: trustedDecision.sha256Hex.toLowerCase() },
+    retirementGuard,
+    retiredDeletionId: authority.retiredDeletionId,
+  };
+};
+
+const sameSafety = (
+  left: Pick<RetiredByteDeletionRecord, 'sourceChecksum' | 'purpose' | 'studentSafeStatus' | 'studentSafeDecision'>,
+  right: ReturnType<typeof assertSourceAuthority>,
+): boolean => left.purpose === right.purpose
+  && left.studentSafeStatus === right.studentSafeStatus
+  && left.sourceChecksum.value === right.storage.checksum.value
+  && stable(left.studentSafeDecision) === stable(right.studentSafeDecision);
 
 const assertDeleteIdentity = (
   value: RetiredByteDeleteIdentity,
@@ -107,13 +249,16 @@ const sourceOperation = (
     reservationId: record.deletionId,
     bookId: record.bookId,
     sourceVersionId: record.sourceVersionId,
-    sourceKey: 'retired-byte',
+    sourceKey: record.sourceKey,
     ownerId: record.ownerId,
     storageLocationId: identity.storageLocationId,
     providerKind: identity.providerKind,
     privateBucketId: identity.privateBucketId,
     providerObjectKey: identity.providerObjectKey,
     kind: 'replacement',
+    purpose: record.purpose,
+    studentSafeStatus: record.studentSafeStatus,
+    studentSafeDecision: record.studentSafeDecision,
     byteSize: identity.byteSize,
     originalFilename: 'retired-source.pdf',
     expectedChecksum: identity.checksum,
@@ -153,7 +298,7 @@ const readContextProofs = async (
         || !validId(delivery.bindingId)
         || !validRevision(delivery.bindingRevision)
         || delivery.status !== 'revoked'
-        || !delivery.sourceVersionIds.includes(record.sourceVersionId)
+        || !sameSourceVersionIds(delivery.sourceVersionIds, record.sourceVersionIds)
       ))
       || proof.currentSourceVersionIds.includes(record.sourceVersionId)
       || proof.remainingActiveSourceVersionIds.includes(record.sourceVersionId)) {
@@ -243,6 +388,8 @@ export const createRetiredByteDeletionOwner = (
     readonly operationId: string;
     readonly sourceVersionIds: readonly string[];
     readonly precondition: 'all-contexts-retired-deliveries-revoked';
+    readonly deletionId?: string;
+    readonly publicationGuard?: PublicationRetirementGuard;
   }): Promise<{ readonly status: 'queued' | 'replayed' | 'pending' }> => {
     if (dependencies.recoveryContext
       && isRecoveryEffectSuppressed('update-replacement-revocation', dependencies.recoveryContext).suppressed) {
@@ -265,21 +412,58 @@ export const createRetiredByteDeletionOwner = (
     }
     const at = nowIso(dependencies);
     if (!at) return { status: 'pending' };
-    const deletionId = dependencies.newId?.() ?? input.operationId.replace(/[^A-Za-z0-9._:@-]/gu, '-');
+    const deletionId = input.deletionId
+      ?? input.operationId.replace(/[^A-Za-z0-9._:@-]/gu, '-');
     if (!validId(deletionId)) return { status: 'pending' };
+    if (input.publicationGuard !== undefined
+      && (input.publicationGuard.deletionId !== deletionId
+        || input.publicationGuard.bookId !== input.saga.bookId
+        || input.publicationGuard.sourceVersionId !== input.sourceVersionIds[0]
+        || input.publicationGuard.sourceVersionIds.includes(input.sourceVersionIds[0]!))) {
+      return { status: 'pending' };
+    }
     const sourceVersionId = input.sourceVersionIds[0]!;
     const contextPins = Object.values(input.saga.contexts).map((item) => ({
       contextKey: item.contextKey,
       operationId: item.operationId,
       sourceVersionIds: [...input.saga.sourceVersionIds],
     }));
+    let sourceAuthority: ReturnType<typeof assertSourceAuthority>;
+    try {
+      sourceAuthority = assertSourceAuthority(
+        await dependencies.sourceVersions.readVersion({ bookId: input.saga.bookId, sourceVersionId }),
+        { bookId: input.saga.bookId, sourceVersionId },
+      );
+    } catch {
+      return { status: 'pending' };
+    }
+    const publicationGuard = input.publicationGuard ?? sourceAuthority.retirementGuard;
+    if (!samePublicationGuard(publicationGuard, sourceAuthority.retirementGuard)) return { status: 'pending' };
+    if (sourceAuthority.ownerId !== input.saga.ownerId
+      || sourceAuthority.retiredDeletionId !== undefined && sourceAuthority.retiredDeletionId !== deletionId) {
+      return { status: 'pending' };
+    }
+    if (publicationGuard !== undefined
+      && (publicationGuard.deletionId !== deletionId
+        || publicationGuard.bookId !== input.saga.bookId
+        || publicationGuard.sourceVersionId !== input.sourceVersionIds[0]
+        || publicationGuard.sourceVersionIds.includes(input.sourceVersionIds[0]!))) {
+      return { status: 'pending' };
+    }
     const requestFingerprint = await sha256Hex(stable({
       sagaId: input.saga.sagaId,
       ownerId: input.saga.ownerId,
       bookId: input.saga.bookId,
       operationId: input.operationId,
       sourceVersionIds: input.sourceVersionIds,
+      sourceKey: sourceAuthority.sourceKey,
       contextPins,
+      sourceStorage: sourceAuthority.storage,
+      sourceChecksum: sourceAuthority.storage.checksum,
+      purpose: sourceAuthority.purpose,
+      studentSafeStatus: sourceAuthority.studentSafeStatus,
+      studentSafeDecision: sourceAuthority.studentSafeDecision,
+      ...(publicationGuard === undefined ? {} : { publicationGuard }),
     }));
     const record: RetiredByteDeletionRecord = {
       schemaVersion: RETIRED_BYTE_DELETION_SCHEMA_VERSION,
@@ -292,6 +476,12 @@ export const createRetiredByteDeletionOwner = (
       bookId: input.saga.bookId,
       sourceVersionId,
       sourceVersionIds: [sourceVersionId],
+      sourceKey: sourceAuthority.sourceKey,
+      sourceChecksum: sourceAuthority.storage.checksum,
+      purpose: sourceAuthority.purpose,
+      studentSafeStatus: sourceAuthority.studentSafeStatus,
+      studentSafeDecision: sourceAuthority.studentSafeDecision,
+      ...(publicationGuard === undefined ? {} : { publicationGuard }),
       contextPins,
       deleteIdentity: {
         kind: 'retired-byte-exact-version',
@@ -300,7 +490,7 @@ export const createRetiredByteDeletionOwner = (
         deletionId,
         operationId: input.operationId,
       },
-      identity: null,
+      identity: sourceAuthority.storage,
       preDelete: null,
       providerProof: null,
       irreversibleEffect: { status: 'not-started', startedAt: null },
@@ -341,10 +531,23 @@ export const createRetiredByteDeletionOwner = (
       if (!at) return pending(record, 'clock-unavailable');
 
       if (record.state === 'queued') {
-        const identity = assertIdentity(
+        const sourceAuthority = assertSourceAuthority(
           await dependencies.sourceVersions.readVersion({ bookId: record.bookId, sourceVersionId: record.sourceVersionId }),
-          record,
+          {
+            bookId: record.bookId,
+            sourceVersionId: record.sourceVersionId,
+            sourceKey: record.sourceKey,
+            ownerId: record.ownerId,
+          },
         );
+        const identity = sourceAuthority.storage;
+        if (!sameSafety(record, sourceAuthority)) blocked('source-safety-mismatch');
+        if (!sameIdentity(record.identity, identity)) blocked('stale-source-provenance');
+        if (sourceAuthority.status === 'retirement_pending'
+          && (!samePublicationGuard(record.publicationGuard, sourceAuthority.retirementGuard ?? null)
+            || sourceAuthority.retiredDeletionId !== record.deletionId)) {
+          retryable('retirement-pending-identity-mismatch');
+        }
         const proofs = await readContextProofs(dependencies, record);
         const providerValue = providerIdentity(
           record,
@@ -370,10 +573,23 @@ export const createRetiredByteDeletionOwner = (
         const pinnedIdentity = record.identity;
         const preDelete = record.preDelete;
         if (!pinnedIdentity || !preDelete) throw new RetiredByteBlocked('pre-delete-record-missing');
-        const sourceIdentity = assertIdentity(
+        await validatePublicationGuard(dependencies, record);
+        const sourceAuthority = assertSourceAuthority(
           await dependencies.sourceVersions.readVersion({ bookId: record.bookId, sourceVersionId: record.sourceVersionId }),
-          record,
+          {
+            bookId: record.bookId,
+            sourceVersionId: record.sourceVersionId,
+            sourceKey: record.sourceKey,
+            ownerId: record.ownerId,
+          },
         );
+        const sourceIdentity = sourceAuthority.storage;
+        if (!sameSafety(record, sourceAuthority)) blocked('source-safety-mismatch');
+        if (sourceAuthority.status === 'retirement_pending'
+          && (!samePublicationGuard(record.publicationGuard, sourceAuthority.retirementGuard ?? null)
+            || sourceAuthority.retiredDeletionId !== record.deletionId)) {
+          retryable('retirement-pending-identity-mismatch');
+        }
         if (!sameIdentity(sourceIdentity, pinnedIdentity)) blocked('stale-source-provenance');
         const proofs = await readContextProofs(dependencies, record);
         const currentProvider = providerIdentity(
@@ -401,6 +617,22 @@ export const createRetiredByteDeletionOwner = (
         const pinnedIdentity = record.identity;
         const preDelete = record.preDelete;
         if (!pinnedIdentity || !preDelete) throw new RetiredByteBlocked('pre-delete-record-missing');
+        await validatePublicationGuard(dependencies, record);
+        const sourceAuthority = assertSourceAuthority(
+          await dependencies.sourceVersions.readVersion({ bookId: record.bookId, sourceVersionId: record.sourceVersionId }),
+          {
+            bookId: record.bookId,
+            sourceVersionId: record.sourceVersionId,
+            sourceKey: record.sourceKey,
+            ownerId: record.ownerId,
+          },
+        );
+        if (!sameSafety(record, sourceAuthority)) blocked('source-safety-mismatch');
+        if (!samePublicationGuard(record.publicationGuard, sourceAuthority.retirementGuard)
+          || sourceAuthority.retiredDeletionId !== record.deletionId) {
+          retryable('retirement-pending-identity-mismatch');
+        }
+        if (!sameIdentity(sourceAuthority.storage, pinnedIdentity)) blocked('stale-source-provenance');
         const proofs = await readContextProofs(dependencies, record);
         if (preDelete.contextReadbackFingerprint !== await contextFingerprint(proofs)) blocked('stale-context-provenance');
         const currentProvider = providerIdentity(
@@ -415,6 +647,7 @@ export const createRetiredByteDeletionOwner = (
           record = absence;
         } else {
           if (!sameIdentity(currentProvider, pinnedIdentity)) blocked('provider-version-drift');
+          await validatePublicationGuard(dependencies, record);
           let deleteOutcome: RetiredByteDeletionOutcome = 'deleted';
           try {
             await dependencies.provider.deleteExactVersion({ identity: pinnedIdentity });
@@ -440,10 +673,21 @@ export const createRetiredByteDeletionOwner = (
         if (!record.identity || !record.providerProof) return pending(record, 'absence-proof-missing');
         let capacityOutcome: 'settled' | 'replayed';
         try {
+          const publicationGuard = await validatePublicationGuard(dependencies, record);
           capacityOutcome = await dependencies.capacity.settle({
             deletionId: record.deletionId,
             identity: record.identity,
             outcome: record.providerProof.outcome,
+            publicationGuard,
+            sourceRetirement: {
+              ownerId: record.ownerId,
+              bookId: record.bookId,
+              sourceVersionId: record.sourceVersionId,
+              sourceKey: record.sourceKey,
+              deletionId: record.deletionId,
+              proof: record.providerProof.outcome,
+              publicationGuard,
+            },
           });
         } catch {
           return pending(record, 'capacity-settlement-pending');
@@ -459,6 +703,7 @@ export const createRetiredByteDeletionOwner = (
       if (error instanceof RetiredByteBlocked) return { status: 'blocked', code: error.code };
       const record = await dependencies.repository.read(input);
       if (!record) return { status: 'blocked', code: 'retired-byte-deletion-missing' };
+      if (error instanceof RetiredByteRetryable) return pending(record, error.code);
       return pending(record, 'authority-or-provider-unavailable');
     }
   };

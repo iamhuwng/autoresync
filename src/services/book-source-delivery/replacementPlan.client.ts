@@ -8,6 +8,7 @@ import type {
   ReplacementPlanRecord,
   ReplacementPlanReviewRecord,
 } from './replacementPlan.types';
+import { replacementReviewSelectionFingerprint } from './replacementPlan.service';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 const OPERATION = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
@@ -70,6 +71,9 @@ const validReview = (value: unknown): value is ReplacementPlanReviewRecord => {
     && typeof review.planFingerprint === 'string' && HASH.test(review.planFingerprint)
     && typeof review.deltaFingerprint === 'string' && HASH.test(review.deltaFingerprint)
     && typeof review.snapshotFingerprint === 'string' && HASH.test(review.snapshotFingerprint)
+    && Array.isArray(review.selections)
+    && typeof review.reason === 'string'
+    && typeof review.selectionFingerprint === 'string' && HASH.test(review.selectionFingerprint)
     && typeof review.reviewedAt === 'string'
     && typeof review.expiresAt === 'string'
     && review.state === 'reviewed';
@@ -87,6 +91,7 @@ const validHandoff = (value: unknown): value is ReplacementConfirmationHandoff =
     && typeof handoff.planFingerprint === 'string' && HASH.test(handoff.planFingerprint)
     && typeof handoff.deltaFingerprint === 'string' && HASH.test(handoff.deltaFingerprint)
     && typeof handoff.snapshotFingerprint === 'string' && HASH.test(handoff.snapshotFingerprint)
+    && typeof handoff.selectionFingerprint === 'string' && HASH.test(handoff.selectionFingerprint)
     && typeof handoff.expiresAt === 'string';
 };
 
@@ -157,13 +162,10 @@ const create = (options: ReplacementPlanClientOptions): ReplacementPlanClient =>
       operationId(input.idempotencyKey);
       const body = await request(input.bookId, '/plan', 'POST', {
         sourceSetDelta: input.sourceSetDelta,
-        currentRevisions: input.currentRevisions,
-        targetSourceSetRevision: input.targetSourceSetRevision,
-        capacity: input.capacity,
-        now: input.now,
+        expectedCurrentRevisions: input.expectedCurrentRevisions,
         ...(input.ttlMs === undefined ? {} : { ttlMs: input.ttlMs }),
-        snapshotFingerprint: input.snapshotFingerprint,
-        snapshotRevisionVector: input.snapshotRevisionVector,
+        expectedSnapshotFingerprint: input.expectedSnapshotFingerprint,
+        expectedSnapshotRevisionVector: input.expectedSnapshotRevisionVector,
       }, input.idempotencyKey);
       if ((body.status !== 'created' && body.status !== 'replayed') || !validPlan(body.plan) || body.plan.bookId !== input.bookId) {
         throw new ReplacementPlanClientError('malformed-response', 502);
@@ -181,6 +183,7 @@ const create = (options: ReplacementPlanClientOptions): ReplacementPlanClient =>
       const body = await request(input.bookId, '/review', 'POST', {
         planId: input.planId,
         planFingerprint: input.planFingerprint,
+        selections: input.selections ?? [], reason: input.reason?.trim() ?? '',
       }, input.idempotencyKey);
       if ((body.status !== 'reviewed' && body.status !== 'replayed')
         || !validPlan(body.plan) || !validReview(body.review) || !validHandoff(body.handoff)
@@ -188,10 +191,13 @@ const create = (options: ReplacementPlanClientOptions): ReplacementPlanClient =>
         || body.review.planId !== body.plan.planId || body.review.ownerId !== body.plan.ownerId || body.review.bookId !== body.plan.bookId
         || body.review.planFingerprint !== body.plan.planFingerprint || body.review.deltaFingerprint !== body.plan.deltaFingerprint
         || body.review.snapshotFingerprint !== body.plan.impactSnapshotFingerprint
+        || body.review.selectionFingerprint !== await replacementReviewSelectionFingerprint({ selections: input.selections ?? [], reason: input.reason?.trim() ?? '' })
+        || body.review.selectionFingerprint !== await replacementReviewSelectionFingerprint(body.review)
         || body.handoff.ownerId !== body.plan.ownerId || body.handoff.bookId !== body.plan.bookId
         || body.handoff.planId !== body.plan.planId || body.handoff.reviewId !== body.review.reviewId
         || body.handoff.planFingerprint !== body.plan.planFingerprint || body.handoff.deltaFingerprint !== body.plan.deltaFingerprint
-        || body.handoff.snapshotFingerprint !== body.plan.impactSnapshotFingerprint) {
+        || body.handoff.snapshotFingerprint !== body.plan.impactSnapshotFingerprint
+        || body.handoff.selectionFingerprint !== body.review.selectionFingerprint) {
         throw new ReplacementPlanClientError('malformed-response', 502);
       }
       return { plan: body.plan, review: body.review, handoff: body.handoff };

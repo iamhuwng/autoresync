@@ -68,3 +68,10 @@ tmp/*
 
 # knowns search index (rebuilt on demand)
 .knowns/search-index/
+
+# Generated local evidence and credential exports
+output/
+work/
+trace-read/
+*.pyc
+sub2api-account-*.cliproxyapi.json

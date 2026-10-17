@@ -22,8 +22,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 
 class PreviewFirebaseRtdb {
   private root: Record<string, unknown> = {};
-  private revision = 0;
-  readonly metrics = { reads: 0, conditionalWrites: 0, historyQueries: 0 };
+  readonly metrics = { reads: 0, atomicAppends: 0, historyQueries: 0 };
 
   private parts(url: URL): string[] {
     return url.pathname.replace(/^\//u, '').replace(/\.json$/u, '')
@@ -52,10 +51,15 @@ class PreviewFirebaseRtdb {
 
   fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
-    if (url.searchParams.get('auth') !== 'ticket89-preview-token') {
+    let claims: Record<string, unknown>;
+    try { claims = JSON.parse(url.searchParams.get('auth') ?? 'null'); } catch { claims = {}; }
+    const updates = init?.method === 'PATCH' ? JSON.parse(String(init.body)) as Record<string, unknown> : null;
+    const parts = updates ? Object.keys(updates)[0].split('/') : this.parts(url);
+    if (!claims || claims.service !== 'book_activity_evaluation'
+      || parts.slice(0, 2).join('/') !== 'book_activity_evaluations/scopes'
+      || parts.slice(2, 7).join('/') !== [claims.recipientId, claims.contextId, claims.placementId, claims.activityId, claims.attemptId].join('/')) {
       return new Response(JSON.stringify({ error: 'preview_identity_missing' }), { status: 401 });
     }
-    const parts = this.parts(url);
     if (init?.method === 'GET') {
       this.metrics.reads += 1;
       let value = this.read(parts);
@@ -77,19 +81,15 @@ class PreviewFirebaseRtdb {
       }
       return new Response(JSON.stringify(value), {
         status: 200,
-        headers: init.headers && 'X-Firebase-ETag' in (init.headers as Record<string, string>)
-          ? { etag: `"${this.revision}"` }
-          : {},
       });
     }
-    if (init?.method === 'PUT') {
-      const headers = new Headers(init.headers);
-      if (headers.get('if-match') !== `"${this.revision}"`) {
-        return new Response(null, { status: 412 });
+    if (updates) {
+      for (const [path, value] of Object.entries(updates)) {
+        const updateParts = path.split('/');
+        if (updateParts.slice(2, 7).join('/') !== parts.slice(2, 7).join('/')) return new Response(null, { status: 401 });
+        this.write(updateParts, value);
       }
-      this.metrics.conditionalWrites += 1;
-      this.write(parts, JSON.parse(String(init.body)));
-      this.revision += 1;
+      this.metrics.atomicAppends += 1;
       return new Response('null', { status: 200 });
     }
     return new Response(null, { status: 405 });
@@ -185,7 +185,8 @@ const proof = async (): Promise<Record<string, unknown>> => {
       BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY: 'ticket89-preview-service',
     },
     fetchImpl: firebase.fetch,
-    getAccessToken: async () => 'ticket89-preview-token',
+    // Disclosed transport preview only; authenticated proof uses the default token provider.
+    getFirebaseIdToken: async (claims) => JSON.stringify(claims),
   });
   const canonicalAttempt = attempt();
   const submissionFactsBefore = structuredClone(canonicalAttempt);
@@ -272,7 +273,7 @@ const proof = async (): Promise<Record<string, unknown>> => {
     proofKind: 'prd0062-ticket89-production-equivalent',
     pass,
     productionRepository: {
-      kind: 'firebase-rest-cas',
+      kind: 'firebase-rest-atomic-append',
       protectedRoot: 'book_activity_evaluations',
       ...firebase.metrics,
     },

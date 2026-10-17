@@ -33,11 +33,13 @@ export interface UnitAssemblyRepository {
     conflict: Record<string, unknown> | null;
   }>;
   loadCurrent?(bookId: string, unitKey: string): Promise<LoadedCurrentAssemblyDraft | null>;
+  discoverDrafts?(bookId: string): Promise<readonly LoadedCurrentAssemblyDraft[]>;
 }
 
 export const createUnitAssemblyRepository = (
   commands: AssemblyCandidateCommandPort & {
     readonly loadCurrent?: (bookId: string, unitKey: string) => Promise<LoadedCurrentAssemblyDraft | null>;
+    readonly discoverDrafts?: (bookId: string) => Promise<readonly LoadedCurrentAssemblyDraft[]>;
   },
 ): UnitAssemblyRepository => Object.freeze({
   create: (input) => commands.create(input),
@@ -47,5 +49,8 @@ export const createUnitAssemblyRepository = (
   load: (bookId, unitKey, candidateId) => commands.load(bookId, unitKey, candidateId),
   loadCurrent: commands.loadCurrent
     ? (bookId, unitKey) => commands.loadCurrent!(bookId, unitKey)
+    : undefined,
+  discoverDrafts: commands.discoverDrafts
+    ? (bookId) => commands.discoverDrafts!(bookId)
     : undefined,
 });

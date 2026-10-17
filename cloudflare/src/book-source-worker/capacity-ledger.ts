@@ -1,7 +1,13 @@
-import { BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS } from '../../../src/types/bookSource.types.ts';
+import {
+  BOOK_SOURCE_MAX_PDF_BYTES,
+  BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS,
+  STUDENT_DOCUMENT_MAX_PDF_BYTES,
+  type BookSourcePurpose,
+} from '../../../src/types/bookSource.types.ts';
 
 /** Trusted-only capacity contract. No browser code receives this state. */
-export const MAX_SOURCE_PDF_BYTES = 500 * 1024 * 1024;
+export const MAX_SOURCE_PDF_BYTES = BOOK_SOURCE_MAX_PDF_BYTES;
+export const MAX_STUDENT_DOCUMENT_PDF_BYTES = STUDENT_DOCUMENT_MAX_PDF_BYTES;
 export const BOOK_PDF_ACCOUNT_CAPACITY_BYTES = 9_000_000_000;
 export const MAX_PROVIDER_RECONCILIATION_AGE_MS =
   BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS;
@@ -41,6 +47,7 @@ export interface ReservedSourceVersionIdentity {
   readonly storageLocationId: string;
   readonly privateBucketId: string;
   readonly providerObjectKey: string;
+  readonly purpose: BookSourcePurpose;
   readonly expectedByteSize: number;
   readonly checksumSlot: 'unfilled';
   readonly providerIdentitySlot: 'unfilled';
@@ -111,6 +118,7 @@ const RESERVATION_KEYS = [
   'storageLocationId',
   'privateBucketId',
   'providerObjectKey',
+  'purpose',
   'expectedByteSize',
   'checksumSlot',
   'providerIdentitySlot',
@@ -191,10 +199,13 @@ const validateReservation = (reservation: ReservedSourceVersionIdentity): void =
     !safeIdentifier(reservation.storageLocationId) ||
     !safeIdentifier(reservation.privateBucketId) ||
     !safeObjectKey(reservation.providerObjectKey)
+    || (reservation.purpose !== 'book-source' && reservation.purpose !== 'student-document')
     || reservation.checksumSlot !== 'unfilled' || reservation.providerIdentitySlot !== 'unfilled'
     || reservation.lifecycleState !== 'reserved' || !safeInteger(reservation.revision)
     || !safeInteger(reservation.expectedByteSize) || reservation.expectedByteSize < 1
-    || reservation.expectedByteSize > MAX_SOURCE_PDF_BYTES
+    || reservation.expectedByteSize > (reservation.purpose === 'book-source'
+      ? MAX_SOURCE_PDF_BYTES
+      : MAX_STUDENT_DOCUMENT_PDF_BYTES)
     || !canonicalIsoDate(reservation.expiresAt)) fail('invalid_reservation');
 };
 

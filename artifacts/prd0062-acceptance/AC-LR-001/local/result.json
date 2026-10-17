@@ -13,5 +13,5 @@
     "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE"
   ],
   "readingV2": "read-only evidence classification only; no Reading V2 source or test changes",
-  "activation": "not claimed; this local recovery fixture neither authorizes nor proves production activation"
+  "activation": "not claimed; this local fixture neither authorizes nor proves production activation"
 }

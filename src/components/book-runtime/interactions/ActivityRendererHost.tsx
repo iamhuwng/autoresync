@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject, type ReactNode } from 'react';
 import type { ActivityRendererRegistry } from '../../../services/book-activity/runtime/activityRendererRegistry';
 import type {
   ActivityRendererDiagnostic,
   ActivityRendererContext,
   ActivityResponseValidationState,
 } from '../../../services/book-activity/runtime/activityRenderer.types';
+import { normalizeSavedActivityResponse } from '../../../services/book-activity/activityRuntimeAttempt.service';
 
 export interface ActivityRendererHostProps {
   registry: ActivityRendererRegistry;
@@ -13,6 +14,7 @@ export interface ActivityRendererHostProps {
   responses: Readonly<Record<string, unknown>>;
   validationByInteractionId: Readonly<Record<string, ActivityResponseValidationState>>;
   onResponseChange: (interactionId: string, response: unknown) => void;
+  questionTools?: (interactionId: string, index: number) => ReactNode;
 }
 
 interface UnsupportedActivityStateProps {
@@ -110,6 +112,7 @@ export const ActivityRendererHost = ({
   responses,
   validationByInteractionId,
   onResponseChange,
+  questionTools,
 }: ActivityRendererHostProps) => {
   const unsupportedRef = useRef<HTMLElement | null>(null);
   const [changeFailure, setChangeFailure] = useState<ScopedChangeDiagnostic | null>(null);
@@ -121,7 +124,14 @@ export const ActivityRendererHost = ({
         ? responses[interaction.interactionId]
         : codec.createEmpty();
       const decoded = codec.decode(
-        normalizeCandidate(rawResponse, resolution.projection.answerRule.normalization),
+        normalizeCandidate(
+          normalizeSavedActivityResponse(
+            interaction.interactionId,
+            rawResponse,
+            resolution.registration.responseCodec,
+          ),
+          resolution.projection.answerRule.normalization,
+        ),
       );
       if (!decoded.valid) {
         return { interaction, diagnostic: codecDiagnostic(decoded.diagnostics[0], `$.responses.${interaction.interactionId}`) };
@@ -181,9 +191,12 @@ export const ActivityRendererHost = ({
           <p key={`${index}-${instruction.text}`}>{instruction.text}</p>
         ))}
       </section>
+      {resolution.projection.stimulus?.text && <section aria-label="Activity stimulus">{resolution.projection.stimulus.text}</section>}
       <section aria-label="Activity interactions">
         {changeDiagnostic ? <p role="alert">{changeDiagnostic.message}</p> : null}
-        {rendererInputs.map(({ interaction, response }) => (
+        {rendererInputs.map(({ interaction, response }, index) => (
+          <div key={interaction.interactionId} className={questionTools ? 'book-runtime-shell__question' : undefined} data-book-interaction={interaction.interactionId} tabIndex={questionTools ? -1 : undefined}>
+          {questionTools?.(interaction.interactionId, index)}
           <Renderer
             answerRule={resolution.projection.answerRule}
             interaction={interaction}
@@ -268,6 +281,7 @@ export const ActivityRendererHost = ({
             stimulus={resolution.projection.stimulus}
             validation={validationByInteractionId[interaction.interactionId] ?? { status: 'valid' }}
           />
+          </div>
         ))}
       </section>
     </>

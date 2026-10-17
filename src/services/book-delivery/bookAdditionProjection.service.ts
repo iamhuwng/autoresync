@@ -230,7 +230,7 @@ const validateInput = (input: BookAdditionProjectionInput): string | null => {
     || Object.prototype.hasOwnProperty.call(raw, 'applicabilityPolicy')) return 'applicability-policy-unsupported';
   if (![input.actionId, input.ownerId, input.bookId, input.contextKey, input.contextId, input.studentId]
     .every(validId)) return 'projection-input-invalid';
-  if (input.contextKey !== `homework:${input.contextId}`) return 'context-selection-mismatch';
+  if (!/^homework:[a-f0-9]{64}$/u.test(input.contextKey)) return 'context-selection-mismatch';
   if (!validIso(input.now) || !Number.isSafeInteger(input.currentBinding.revision)
     || input.currentBinding.revision < 1
     || input.currentBinding.schemaVersion !== 3

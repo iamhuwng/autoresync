@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getAuth } from 'firebase/auth';
 import {
   BookRuntimeShell,
   type BookRuntimeAction,
   type BookRuntimeShellActivity,
   type BookRuntimeViewerAdapter,
+  type BookRuntimeActivitySummary,
 } from './BookRuntimeShell';
+import { BookRuntimeActivityCard } from './BookRuntimeActivityCard';
+import { PersonalTimer } from './PersonalTimer';
 import {
   createBookRuntimeViewerAdapter,
 } from './BookRuntimeViewerAdapter';
@@ -16,7 +20,11 @@ import {
   type BookActivityLaunchInput,
 } from '../../services/book-activity/activityLaunch.browser';
 import type { BookRuntimeDeliveryProjection } from '../../services/book-delivery/bookDelivery.types';
+import { resolveBookDeliveryWorkerOrigin } from '../../services/book-delivery/bookDelivery.browser';
+import { createBookIntegrityCaptureClient } from '../../services/book-activity/bookIntegrityCapture.service';
+import type { BookIntegrityCaptureClient } from '../../services/book-activity/bookIntegrityCapture.types';
 import { useNavigation } from '../../hooks/useNavigation';
+import { toast } from '../modern';
 
 export interface BookPlacementRuntimeHostProps {
   readonly projection: BookRuntimeDeliveryProjection;
@@ -27,6 +35,7 @@ export interface BookPlacementRuntimeHostProps {
   readonly launchError?: string | null;
   readonly onAction?: (action: BookRuntimeAction, metadata?: Record<string, unknown>) => void;
   readonly onReturn?: () => void;
+  readonly onProjectionExpired?: (reason: 'not-found' | 'stale-binding') => void | Promise<void>;
 }
 
 const pageStyle = {
@@ -76,7 +85,7 @@ const StateView = ({
   readonly onReturn: () => void;
   readonly error?: boolean;
 }) => (
-  <main style={pageStyle} data-testid="book-placement-runtime-host">
+  <main className="student-view-root" style={pageStyle} data-testid="book-placement-runtime-host">
     <section style={panelStyle} role={error ? 'alert' : 'status'} aria-live="polite">
       <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>{title}</h1>
       <p>{message}</p>
@@ -85,6 +94,50 @@ const StateView = ({
   </main>
 );
 
+const BookPersistentRuntimeReady = ({ activities, projection, registry, viewer, onAction, integrityClient, onFlushRegistration, onReturn }: {
+  readonly activities: readonly BookRuntimeShellActivity[];
+  readonly projection: BookRuntimeDeliveryProjection;
+  readonly registry: ActivityRendererRegistry;
+  readonly viewer: BookRuntimeViewerAdapter;
+  readonly onAction?: BookPlacementRuntimeHostProps['onAction'];
+  readonly integrityClient: BookIntegrityCaptureClient;
+  readonly onFlushRegistration: (flush: (() => Promise<void>) | null) => void;
+  readonly onReturn: () => void;
+}) => {
+  const flushers = useRef(new Map<string, () => Promise<void>>());
+  const [summaries, setSummaries] = useState<Record<string, BookRuntimeActivitySummary>>({});
+  const registerActivityFlush = useCallback((id: string, flush: (() => Promise<void>) | null) => {
+    if (flush) flushers.current.set(id, flush);
+    else flushers.current.delete(id);
+  }, []);
+  const flushAll = useCallback(async () => { await Promise.all([...flushers.current.values()].map((flush) => flush())); }, []);
+  useEffect(() => { onFlushRegistration(flushAll); return () => onFlushRegistration(null); }, [flushAll, onFlushRegistration]);
+  const onSummary = useCallback((id: string, summary: BookRuntimeActivitySummary) => {
+    setSummaries((current) => current[id] === summary ? current : { ...current, [id]: summary });
+  }, []);
+  const integrityCapture = useMemo(() => {
+    if (projection.context.kind !== 'homework') return undefined;
+    const placements = projection.activities.flatMap((activity) => activity.integrityCapture ? [[activity.placementId, activity.integrityCapture] as const] : []);
+    if (!placements.length) return undefined;
+    return { client: integrityClient,
+      frozenPoliciesByPlacementId: Object.fromEntries(placements.map(([id, capture]) => [id, capture.frozenPolicy])),
+      captureSlotsByPlacementId: Object.fromEntries(placements.map(([id, capture]) => [id, { captureSlotId: capture.captureSlotId, captureAttemptNumber: capture.captureAttemptNumber }])),
+      enabledByPlacementId: Object.fromEntries(placements.map(([id, capture]) => [id, capture.enabled])),
+      activeByPlacementId: Object.fromEntries(projection.activities.map((item) => [item.placementId, summaries[JSON.stringify([item.placementId, item.activityId, item.activityVersionId])]?.captureActive ?? false])),
+      enabled: true, active: true, onWarning: (warning: { readonly message: string }) => toast.warning(warning.message) };
+  }, [integrityClient, projection, summaries]);
+  return <BookRuntimeShell activities={activities} deliveryProjection={projection} registry={registry} viewer={viewer}
+    responses={{}} onResponseChange={() => {}} onAction={onAction} onReturn={onReturn}
+    onFlushBeforeNavigate={flushAll} onNavigationError={() => toast.error('Navigation stopped. Save or recover the affected Activity before leaving.')}
+    activitySummaries={summaries} integrityCapture={integrityCapture}
+    personalTimer={<PersonalTimer timerKey={`${projection.recipientId}:${projection.context.contextId}:${projection.book.bookId}`} countdownMs={20 * 60_000} compact />}
+    renderActivity={(activity, questionTools) => {
+      const placement = activity.placement;
+      if (!('activityVersion' in placement) || !('activityVersionId' in placement)) return <p role="alert">Activity version is unavailable.</p>;
+      return <BookRuntimeActivityCard key={`${projection.recipientId}:${projection.context.contextId}:${activity.runtimeKey}`} activity={{ ...activity, placement }} projection={projection} registry={registry}
+        onAction={onAction} registerFlush={registerActivityFlush} onSummary={onSummary} questionTools={questionTools} />;
+    }} />;
+};
 export const BookPlacementRuntimeHost = ({
   projection,
   activityClient,
@@ -93,17 +146,33 @@ export const BookPlacementRuntimeHost = ({
   launchError = null,
   onAction,
   onReturn,
+  onProjectionExpired,
 }: BookPlacementRuntimeHostProps) => {
   const { navigateTo } = useNavigation('student');
   const [activities, setActivities] = useState<readonly BookRuntimeShellActivity[]>([]);
   const [loading, setLoading] = useState(!launchError);
   const [error, setError] = useState<string | null>(launchError);
-  const [responses, setResponses] = useState<Readonly<Record<string, unknown>>>({});
+  const flushBeforeProjectionRefresh = useRef<(() => Promise<void>) | null>(null);
+  const activityPinsKey = projection.activities
+    .map(({ placementId, activityId, activityVersionId }) => `${placementId}:${activityId}:${activityVersionId}`)
+    .join('|');
+  const loadedActivityPinsKey = useRef<string | null>(null);
+  const registerFlush = useCallback((flush: (() => Promise<void>) | null) => {
+    flushBeforeProjectionRefresh.current = flush;
+  }, []);
 
   const client = useMemo(
     () => activityClient ?? createBookActivityLaunchBrowserClient(),
     [activityClient?.readActivities],
   );
+  const integrityClient = useMemo(() => createBookIntegrityCaptureClient({
+    baseUrl: resolveBookDeliveryWorkerOrigin(),
+    getIdToken: async () => {
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('book_integrity_authentication_required');
+      return user.getIdToken();
+    },
+  }), []);
   const launchInput = useMemo<BookActivityLaunchInput>(() => ({
     bindingId: projection.bindingId,
     bindingRevision: projection.bindingRevision,
@@ -115,11 +184,25 @@ export const BookPlacementRuntimeHost = ({
     recipientId: projection.recipientId,
   }), [projection]);
   const runtimeViewer = useMemo(
-    () => viewer ?? createBookRuntimeViewerAdapter({ title: projection.book.bookId }),
-    [projection.book.bookId, viewer],
+    () => viewer ?? createBookRuntimeViewerAdapter({
+      title: projection.book.bookId,
+      onRouteExpired: (reason) => {
+        void (async () => {
+          try {
+            await flushBeforeProjectionRefresh.current?.();
+            await onProjectionExpired?.(reason);
+          } catch {
+            toast.error('Save your Activity response before refreshing this Book.');
+          }
+        })();
+      },
+    }),
+    [onProjectionExpired, projection.book.bookId, viewer],
   );
 
-  const returnToEntry = () => {
+  const returnToEntry = async () => {
+    try { await flushBeforeProjectionRefresh.current?.(); }
+    catch { toast.error('Save or recover the affected Activity before leaving.'); return; }
     onAction?.('bookRuntimeReturn', {
       surface: projection.context.kind,
       contextId: projection.context.contextId,
@@ -148,8 +231,11 @@ export const BookPlacementRuntimeHost = ({
     let mounted = true;
     setLoading(true);
     setError(null);
+    if (activities.length > 0 && loadedActivityPinsKey.current === activityPinsKey) {
+      setLoading(false);
+      return;
+    }
     setActivities([]);
-    setResponses({});
 
     const load = projection.context.kind === 'homework'
       ? client.readHomeworkActivities?.({
@@ -165,18 +251,19 @@ export const BookPlacementRuntimeHost = ({
       .then((loaded) => {
         if (!mounted) return;
         setActivities(loaded);
+        loadedActivityPinsKey.current = activityPinsKey;
         setLoading(false);
       })
-      .catch((reason: unknown) => {
+      .catch(() => {
         if (!mounted) return;
-        setError(reason instanceof Error ? reason.message : 'Book Activities could not be loaded.');
+        setError('Book Activities could not be loaded. Please retry or return.');
         setLoading(false);
       });
 
     return () => {
       mounted = false;
     };
-  }, [client, launchError, launchInput, projection]);
+  }, [activities.length, activityPinsKey, client, launchError, launchInput, projection]);
 
   if (loading) {
     return <StateView title="Loading Book" message="Loading the published Activities for this Book." onReturn={returnToEntry} />;
@@ -187,21 +274,17 @@ export const BookPlacementRuntimeHost = ({
   }
 
   return (
-    <main data-testid="book-placement-runtime-host" style={{ minHeight: '100vh' }}>
-      <div style={{ padding: '12px 24px' }}>
-        <ReturnButton onClick={returnToEntry} />
-      </div>
-      <BookRuntimeShell
-        activities={activities}
-        deliveryProjection={projection}
-        onAction={onAction}
-        onResponseChange={(interactionId, response) => {
-          setResponses((previous) => ({ ...previous, [interactionId]: response }));
-        }}
-        registry={registry}
-        responses={responses}
-        viewer={runtimeViewer}
-      />
+    <main className="student-view-root book-runtime-host" data-testid="book-placement-runtime-host">
+        <BookPersistentRuntimeReady key={`${projection.recipientId}:${projection.context.contextId}:${activityPinsKey}`}
+          activities={activities}
+          onAction={onAction}
+          onFlushRegistration={registerFlush}
+          projection={projection}
+          integrityClient={integrityClient}
+          registry={registry}
+          viewer={runtimeViewer}
+          onReturn={() => void returnToEntry()}
+        />
     </main>
   );
 };

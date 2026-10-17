@@ -100,9 +100,9 @@ export const fingerprintMappingRevisionInput = (input: {
   readonly targetManifest: BookAssemblyManifestCandidate;
 }): string => fingerprint(input);
 
-const assertId = (value: unknown, path: string): asserts value is string => {
+function assertId(value: unknown, path: string): asserts value is string {
   if (typeof value !== 'string' || !ID.test(value)) throw new MappingRevisionError('successor-id-missing', path);
-};
+}
 
 const assertUniqueIds = (values: readonly string[], path: string): void => {
   values.forEach((value, index) => assertId(value, `${path}[${index}]`));

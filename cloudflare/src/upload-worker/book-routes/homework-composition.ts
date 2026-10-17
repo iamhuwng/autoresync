@@ -4,6 +4,7 @@ import {
 } from '../book-homework/worker.ts';
 import {
   createBookHomeworkProductionContextResolver,
+  createBookHomeworkProductionCanonicalResolver,
   createBookHomeworkProductionRuntime,
   type BookHomeworkTrustedRuntimeEnv,
 } from '../book-homework/runtime.ts';
@@ -24,6 +25,12 @@ export const createCanonicalBookHomeworkHandlers = (
   ...(options.contextResolver || options.contextResolverFactory ? {} : {
     contextResolverFactory: (env) => createBookHomeworkProductionContextResolver(
       env as BookHomeworkTrustedRuntimeEnv,
+    ),
+  }),
+  ...(options.resolvePreviewSource || options.previewSourceResolverFactory ? {} : {
+    previewSourceResolverFactory: (env, ownerId) => createBookHomeworkProductionCanonicalResolver(
+      env as BookHomeworkTrustedRuntimeEnv,
+      ownerId,
     ),
   }),
 });

@@ -130,8 +130,8 @@ export function createUploadWorker({
     routeHandlers: bookRouteHandlers ?? createProductionBookAssemblyRouteOptions(),
   });
   return {
-    async fetch(request, env) {
-      const bookResponse = await canonicalBookRouter.fetch(request, env);
+    async fetch(request, env, ctx) {
+      const bookResponse = await canonicalBookRouter.fetch(request, env, ctx);
       if (bookResponse) return bookResponse;
 
       if (request.method === 'OPTIONS') {

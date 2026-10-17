@@ -68,6 +68,25 @@ describe('bookDelivery.browser', () => {
     }
   });
 
+  it('streams the combined student document without a Source Version in route metadata', async () => {
+    const opaqueRouteKey = `bd_${'d'.repeat(40)}-1-student-document`;
+    const input = { workerOrigin: 'https://worker.example', opaqueRouteKey, expectedByteLength: 4, expectedEtag: etag };
+    expect(createBookDocumentRoute(input)).not.toHaveProperty('sourceVersionId');
+    expect(createBookDocumentRoute({
+      ...input, opaqueRouteKey: 'assignment-2--student-1--delivery-1-student-document',
+    })).not.toHaveProperty('sourceVersionId');
+    expect(() => createBookDocumentRoute({ ...input, sourceVersionId: 'student-v1' }))
+      .toThrow(BookDocumentTransportError);
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => okResponse(String(url)));
+    const transport = createBookDeliveryDocumentTransport({
+      route: input, getIdToken: async () => 'token', fetchImpl: fetchImpl as typeof fetch,
+    });
+    const result = await transport.get({ kind: 'closed', start: 0, end: 3 });
+    expect(result.status).toBe(206);
+    expect(result).not.toHaveProperty('sourceVersionId');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('creates an attempt-bound historical document route without query authority', () => {
     expect(createBookHistoricalAttemptDocumentRoute({
       bookId: 'book-1',

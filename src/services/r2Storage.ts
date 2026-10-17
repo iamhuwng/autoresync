@@ -181,7 +181,17 @@ class R2StorageService {
     }
 
     async uploadImage(file: File, folderName = 'images'): Promise<UploadResult> {
-        return this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        const uploaded = await this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        const moved = await this.moveToPermanent(uploaded.key);
+        if (!moved.success) throw new Error('Image move failed');
+        return {
+            ...uploaded,
+            url: moved.newUrl,
+            streamUrl: moved.newUrl,
+            directUrl: moved.newUrl,
+            key: moved.newKey,
+            isTemp: false,
+        };
     }
 
     async uploadImageReplacement(
@@ -189,7 +199,7 @@ class R2StorageService {
         _currentUrl?: string | null,
         folderName = 'images',
     ): Promise<UploadResult> {
-        return this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        return this.uploadImage(file, folderName);
     }
 
     async uploadFilePermanent(

@@ -3,6 +3,10 @@ import { createBookRuntimeWorkerHandlers } from '../src/upload-worker/book-runti
 import { InMemoryBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 import { createBookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.service.ts';
 import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
+import { projectCommittedBookResult } from '../src/upload-worker/book-results/production-projection.ts';
+import { createBookResultReadWorkerHandlers } from '../src/upload-worker/book-results/worker.ts';
+import type { BookResultProjection } from '../../src/services/book-activity/results/bookResult.types.ts';
+import type { BookHomeworkManualFeedbackRelease } from '../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 
 const operationId = '00000000-0000-4000-8000-000000000076';
 
@@ -175,6 +179,70 @@ const submit = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('Ticket 28C terminal submit Worker bridge', () => {
+  it.each(['immediate', 'after_completion', 'after_deadline', 'never', 'manual'] as const)(
+    'projects a persisted objective terminal score under %s feedback policy', async (feedbackPolicy) => {
+      const repository = new InMemoryBookRuntimeRepository();
+      await repository.applyCommand({
+        command: { ...submit({ commandKind: 'autosave', operationId: '00000000-0000-4000-8000-000000000077', clientRevision: 0 }) } as never,
+        context: { actorUid: 'student-1', operationKind: 'autosave', binding: homeworkBinding(),
+          placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1,
+          interactionId: 'interaction-1', now: '2026-07-30T00:00:00.000Z' },
+        attemptId: 'attempt-autosave',
+      });
+      const runtime = createBookRuntimeWorkerHandlers({
+        repository, resolveBinding: async () => homeworkBinding(),
+        resolveActivity: async () => normalizedActivity(),
+        resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy }),
+        schedulePolicy: homeworkSchedulePolicy, now: () => '2026-07-30T00:00:01.000Z',
+        allocateAttemptId: () => 'attempt-submit', requireCanonicalDraftForSubmit: true,
+      });
+      expect((await runtime.command({ request: request(submit()), env: {}, uid: 'student-1' })).body.status).toBe('accepted');
+      const terminal = (await repository.listTerminalTuples({ recipientId: 'student-1', contextId: 'context-1',
+        placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1, limit: 1 }))[0]!;
+      expect(terminal.result.score).toMatchObject({ status: 'scored', earnedScore: 1, maximumScore: 1 });
+      expect(terminal.attempt.feedbackPolicy).toBe(feedbackPolicy);
+      let stored: BookResultProjection | null = null;
+      await projectCommittedBookResult({ binding: homeworkBinding(), terminal,
+        writer: { write: async ({ bookId, projection }) => {
+          stored = { ...projection, summary: { ...projection.summary, bookId }, detail: { ...projection.detail, bookId } } as BookResultProjection;
+        } } });
+      expect(stored!.detail.evaluation.score).toMatchObject({ earnedScore: 1, maximumScore: 1 });
+      expect(stored!.detail).toMatchObject({ bookId: 'book-1', studentId: 'student-1', homeworkId: 'context-1', surface: 'homework' });
+      let readAt = '2026-07-30T00:00:02.000Z';
+      let manualRelease: BookHomeworkManualFeedbackRelease | null = null;
+      const results = createBookResultReadWorkerHandlers({
+        repository: { listGroupSummaries: async () => [], listAttemptSummaries: async () => [stored!.summary],
+          readResultDetail: async () => stored!.detail },
+        resolveViewerRole: ({ uid }) => uid === 'teacher-1' ? 'teacher' : 'student',
+        resolveHomeworkAuthorities: () => ({ 'context-1': { homeworkId: 'context-1', bookId: 'book-1',
+          ownerId: 'teacher-1', status: 'current', studentIds: ['student-1'] } }),
+        resolveManualFeedbackRelease: () => manualRelease,
+        now: () => readAt,
+      });
+      const detail = async (uid: string) => results.resultDetail({ request: new Request('https://worker.test/book-results'),
+        env: {}, uid, bookId: 'book-1', studentId: 'student-1', homeworkId: 'context-1',
+        contextKind: 'homework', resultId: terminal.result.resultId });
+      const teacher = await detail('teacher-1');
+      expect(teacher.init.status, JSON.stringify(teacher)).toBe(200);
+      expect(teacher.body.detail.evaluation.score).toMatchObject({ earnedScore: 1, maximumScore: 1 });
+      const before = await detail('student-1');
+      expect(before.body.detail.studentFeedbackRelease).toBe(feedbackPolicy === 'immediate' || feedbackPolicy === 'after_completion' ? 'released' : 'withheld');
+      if (feedbackPolicy === 'after_deadline') {
+        readAt = '2026-07-31T00:00:00.001Z';
+        expect((await detail('student-1')).body.detail.studentFeedbackRelease).toBe('released');
+      }
+      if (feedbackPolicy === 'manual') {
+        manualRelease = { schemaVersion: 1, attemptId: terminal.attempt.attemptId, resultId: terminal.result.resultId,
+          recipientId: 'student-1', contextId: 'context-1', bindingId: 'binding-1', bindingRevision: 1,
+          placementId: 'placement-1', activityId: 'activity-1', activityVersionId: 'activity-version-1',
+          activityVersion: 1, releasedBy: 'teacher-1', releasedAt: readAt, commandId: 'release-1' };
+        expect((await detail('student-1')).body.detail.studentFeedbackRelease).toBe('released');
+      }
+      if (feedbackPolicy === 'never') expect((await detail('student-1')).body.detail.evaluation.score).toBeUndefined();
+      expect((await repository.listTerminalTuples({ recipientId: 'student-1', contextId: 'context-1',
+        placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1, limit: 1 }))[0]).toEqual(terminal);
+    },
+  );
   it('accepts one complete Activity draft boundary and rejects a non-anchor submit', async () => {
     const repository = new InMemoryBookRuntimeRepository();
     const baseContext = {
@@ -206,7 +274,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => binding(),
       resolveActivity: async () => normalizedMultiInteractionActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       now: () => '2026-07-30T00:00:01.000Z',
       allocateAttemptId: () => 'attempt-multi',
       requireCanonicalDraftForSubmit: true,
@@ -266,7 +334,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => binding(),
       resolveActivity: async () => normalizedActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       now: () => '2026-07-30T00:00:01.000Z',
       allocateAttemptId: () => 'attempt-submit',
       requireCanonicalDraftForSubmit: true,
@@ -355,7 +423,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => homeworkBinding(),
       resolveActivity: async () => normalizedActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       schedulePolicy: homeworkSchedulePolicy,
       projectHomeworkCompletion,
       linkIntegrityReport,
@@ -377,6 +445,11 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
 
     expect(accepted.body.status, JSON.stringify(accepted)).toBe('accepted');
     expect(replayed.body.status).toBe('replayed');
+    expect(repository.snapshot().results?.['attempt-submit:result']).toMatchObject({
+      status: 'submitted',
+      score: { status: 'scored', earnedScore: 1, maximumScore: 1, displayScore: '1.00 / 1.00' },
+      feedbackPolicy: 'after_completion',
+    });
     expect(projectHomeworkCompletion).toHaveBeenCalledTimes(2);
     expect(linkIntegrityReport).toHaveBeenCalledTimes(2);
     expect(linkIntegrityReport).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -425,7 +498,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => homeworkBinding(),
       resolveActivity: async () => normalizedActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       schedulePolicy: homeworkSchedulePolicy,
       linkIntegrityReport,
       now: () => '2026-07-30T00:00:01.000Z',
@@ -460,7 +533,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository: new InMemoryBookRuntimeRepository(),
       resolveBinding: async () => binding(),
       resolveActivity: async () => normalizedActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: null }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: null, feedbackPolicy: 'after_completion' as const }),
       projectHomeworkCompletion,
       now: () => '2026-07-30T00:00:01.000Z',
       allocateAttemptId: () => 'attempt-solo',
@@ -505,7 +578,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
       repository,
       resolveBinding: async () => homeworkBinding(),
       resolveActivity: async () => normalizedActivity(),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       schedulePolicy: homeworkSchedulePolicy,
       projectHomeworkCompletion,
       now: () => '2026-07-30T00:00:01.000Z',
@@ -586,7 +659,7 @@ describe('Ticket 28C terminal submit Worker bridge', () => {
         ...normalizedActivity(),
         interactions: [],
       }),
-      resolveAttemptPolicy: async () => ({ maxAttempts: 2 }),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' as const }),
       requireCanonicalDraftForSubmit: true,
     });
 

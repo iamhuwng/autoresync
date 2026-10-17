@@ -5,14 +5,15 @@ import {
   type FirebaseVerifier,
 } from '../book-router.ts';
 import {
-  FirebaseBookResultReadRepository,
+  InMemoryBookResultReadRepository,
   type BookResultReadRepository,
 } from './repository.ts';
 import { bookResultReadRouteDescriptors } from './route.ts';
 import {
   bookResultGroupKey,
   type BookResultAttemptSummary,
-  type BookResultReadProjection,
+  type BookResultDetail,
+  type BookResultGroupSummary,
 } from './types.ts';
 import { createBookResultReadWorkerHandlers } from './worker.ts';
 // @ts-ignore Existing Worker verifier is JavaScript without declarations.
@@ -23,7 +24,6 @@ import {
 } from '../book-source/document.ts';
 import { canonicalBookRouteManifest } from '../book-routes/manifest.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
-import type { BookResultDetail } from './types.ts';
 import type {
   BookAttemptSourceContextProjection,
 } from '../../../../src/services/book-delivery/attemptSourceContextProjection.types.ts';
@@ -36,6 +36,13 @@ const TEACHER_UID = 'glMHCrzMnyS6AqFcb9I0nlOqQ6X2';
 const BOOK_ID = 'book-browser-proof';
 const ACTIVITY_ID = 'activity-browser-proof';
 const HOMEWORK_ID = 'homework-browser-proof';
+
+type PreviewProjection = {
+  readonly schemaVersion: 1;
+  readonly bookId: string;
+  readonly summary: BookResultAttemptSummary;
+  readonly detail: BookResultDetail;
+};
 
 export interface Ticket77PreviewEnv extends BookRouterEnv {
   readonly TICKET77_STUDENT_UID: string;
@@ -64,7 +71,7 @@ const attempt = (input: {
   readonly evaluation: BookResultAttemptSummary['evaluation'];
   readonly feedback: BookResultAttemptSummary['feedback'];
   readonly response: unknown;
-}): BookResultReadProjection => {
+}): PreviewProjection => {
   const summary: BookResultAttemptSummary = {
     schemaVersion: 1,
     attemptId: input.attemptId,
@@ -205,64 +212,66 @@ const HOMEWORK = attempt({
   response: { choice: 'Homework response visible to its current teacher' },
 });
 
-const previewRows = new Map<string, unknown>();
-
-const writePreviewValue = async (path: string, value: unknown): Promise<void> => {
-  previewRows.set(path, structuredClone(value));
+const previewGroup = (
+  attempts: readonly BookResultAttemptSummary[],
+): BookResultGroupSummary => {
+  const sorted = [...attempts].sort((left, right) => (
+    left.attemptNumber - right.attemptNumber || left.submittedAt.localeCompare(right.submittedAt)
+  ));
+  const latest = sorted[sorted.length - 1]!;
+  const contextMap = new Map<string, BookResultGroupSummary['contexts'][number]>();
+  sorted.forEach((entry) => {
+    const key = `${entry.deliveryContextId}|${entry.deliveryId}`;
+    const current = contextMap.get(key);
+    contextMap.set(key, current
+      ? { ...current, attemptCount: current.attemptCount + 1 }
+      : {
+        contextId: entry.deliveryContextId,
+        deliveryId: entry.deliveryId,
+        surface: entry.surface,
+        attemptCount: 1,
+      });
+  });
+  return {
+    schemaVersion: 1,
+    groupKey: bookResultGroupKey(latest.studentId, latest.activityId),
+    studentId: latest.studentId,
+    recipientId: latest.recipientId,
+    activityId: latest.activityId,
+    homeworkId: latest.homeworkId ?? undefined,
+    bookId: BOOK_ID,
+    attemptCount: sorted.length,
+    latestAttemptId: latest.attemptId,
+    latestResultId: latest.resultId,
+    latestAttemptNumber: latest.attemptNumber,
+    latestSubmittedAt: latest.submittedAt,
+    latestCreatedAt: latest.createdAt,
+    latestEvaluationStatus: latest.evaluationStatus,
+    latestFeedbackRelease: latest.feedback.release,
+    contexts: [...contextMap.values()],
+  };
 };
 
-const readPreviewValue = async (path: string): Promise<unknown> => {
-  const direct = previewRows.get(path);
-  if (direct !== undefined) return structuredClone(direct);
-  const prefix = `${path}/`;
-  const descendants = [...previewRows.entries()]
-    .filter(([candidate]) => candidate.startsWith(prefix));
-  if (descendants.length === 0) return null;
-  const root: Record<string, unknown> = {};
-  for (const [candidate, value] of descendants) {
-    const parts = candidate.slice(prefix.length).split('/');
-    let cursor = root;
-    parts.forEach((part, index) => {
-      if (index === parts.length - 1) {
-        cursor[part] = structuredClone(value);
-      } else {
-        const existing = cursor[part];
-        if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
-          cursor[part] = {};
-        }
-        cursor = cursor[part] as Record<string, unknown>;
-      }
-    });
-  }
-  return root;
-};
-
-const firebaseRepository = new FirebaseBookResultReadRepository({
-  env: {
-    FIREBASE_DB_URL: 'https://ticket77-preview.invalid',
-    readDatabaseValue: readPreviewValue,
-    writeDatabaseValue: writePreviewValue,
+const studentRepository = new InMemoryBookResultReadRepository({
+  groups: { aggregate: previewGroup([SOLO.summary, HOMEWORK.summary]) },
+  attempts: {
+    [SOLO.summary.resultId]: SOLO.summary,
+    [HOMEWORK.summary.resultId]: HOMEWORK.summary,
   },
-  getAccessToken: async () => 'ticket77-preview-local-adapter',
+  details: {
+    [SOLO.detail.resultId]: SOLO.detail,
+    [HOMEWORK.detail.resultId]: HOMEWORK.detail,
+  },
 });
-const seeded = (async () => {
-  await firebaseRepository.persistProjection({ projection: SOLO });
-  await firebaseRepository.persistProjection({ projection: HOMEWORK });
-})();
-
+const homeworkRepository = new InMemoryBookResultReadRepository({
+  groups: { homework: previewGroup([HOMEWORK.summary]) },
+  attempts: { [HOMEWORK.summary.resultId]: HOMEWORK.summary },
+  details: { [HOMEWORK.detail.resultId]: HOMEWORK.detail },
+});
 const repository: BookResultReadRepository = {
-  async listGroupSummaries(input) {
-    await seeded;
-    return firebaseRepository.listGroupSummaries(input);
-  },
-  async listAttemptSummaries(input) {
-    await seeded;
-    return firebaseRepository.listAttemptSummaries(input);
-  },
-  async readResultDetail(input) {
-    await seeded;
-    return firebaseRepository.readResultDetail(input);
-  },
+  listGroupSummaries: (input) => (input.homeworkId ? homeworkRepository : studentRepository).listGroupSummaries(input),
+  listAttemptSummaries: (input) => (input.homeworkId ? homeworkRepository : studentRepository).listAttemptSummaries(input),
+  readResultDetail: (input) => (input.homeworkId ? homeworkRepository : studentRepository).readResultDetail(input),
 };
 
 const historicalSource: BookDocumentAuthorizedSource = {
@@ -332,11 +341,15 @@ const proofProjection = (
 };
 
 const HISTORICAL_BINDING_ID = `bd_${'8'.repeat(40)}`;
+const SOLO_HISTORICAL_BINDING_ID = `bd_${'7'.repeat(40)}`;
 const historicalPdfBytes = new TextEncoder().encode(
   '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n',
 );
 const historicalRouteKey = (suffix: 'historical' | 'current'): string => (
   `${HISTORICAL_BINDING_ID}-4-component-${suffix}-source-version-${suffix}`
+);
+const soloHistoricalRouteKey = (suffix: 'historical' | 'current'): string => (
+  `${SOLO_HISTORICAL_BINDING_ID}-4-component-${suffix}-source-version-${suffix}`
 );
 const historicalBinding: BookDeliveryBinding = {
   schemaVersion: 3,
@@ -393,6 +406,19 @@ const historicalBinding: BookDeliveryBinding = {
   },
   createdAt: '2026-07-31T00:00:00.000Z',
 };
+const soloHistoricalBinding: BookDeliveryBinding = {
+  ...historicalBinding,
+  bindingId: SOLO_HISTORICAL_BINDING_ID,
+  recipient: { recipientId: STUDENT_UID, recipientKind: 'student' },
+  issuer: { ownerId: STUDENT_UID, authorityBoundary: 'book-owner' },
+  context: {
+    kind: 'solo',
+    contextId: 'solo-browser-proof',
+    recipientId: STUDENT_UID,
+    ownerId: STUDENT_UID,
+    entitlementBasis: 'solo',
+  },
+};
 
 const actualProofDetail = (
   resultId: string,
@@ -402,13 +428,16 @@ const actualProofDetail = (
 ): BookResultDetail => {
   const projection = proofProjection(surface, state, current);
   const suffix = current ? 'current' : 'historical';
+  const binding = surface === 'solo' ? soloHistoricalBinding : historicalBinding;
   const attemptSourceContext = projection.state === 'available'
     ? {
       ...projection,
       metadata: { ...projection.metadata, resultId },
       documentResource: {
         ...projection.documentResource,
-        opaqueRouteKey: historicalRouteKey(suffix),
+        opaqueRouteKey: surface === 'solo'
+          ? soloHistoricalRouteKey(suffix)
+          : historicalRouteKey(suffix),
       },
     }
     : {
@@ -421,10 +450,12 @@ const actualProofDetail = (
     studentId: STUDENT_UID,
     resultId,
     attemptId: attemptSourceContext.metadata.attemptId,
-    bindingId: HISTORICAL_BINDING_ID,
+    bindingId: binding.bindingId,
     bindingRevision: 4,
     surface,
     contextId: attemptSourceContext.metadata.contextId,
+    deliveryContextId: attemptSourceContext.metadata.contextId,
+    homeworkId: surface === 'homework' ? HOMEWORK_ID : null,
     ownerId: attemptSourceContext.metadata.ownerId,
     attemptSourceContext,
   } as BookResultDetail;
@@ -458,6 +489,14 @@ const actualHistoricalRuntime = (env: Ticket77PreviewEnv): BookSourceDocumentRun
         createdAt: historicalBinding.createdAt,
         updatedAt: historicalBinding.createdAt,
       }
+      : bindingId === SOLO_HISTORICAL_BINDING_ID
+        ? {
+          binding: soloHistoricalBinding,
+          recordRevision: 1,
+          status: 'active',
+          createdAt: soloHistoricalBinding.createdAt,
+          updatedAt: soloHistoricalBinding.createdAt,
+        }
       : null,
     resolveCurrent: async () => {
       throw new Error('ticket80_preview_must_not_resolve_current');
@@ -526,6 +565,7 @@ const routeHandlers = (env: Ticket77PreviewEnv): BookRouteHandlerMap => {
           && viewerUid === env.TICKET77_TEACHER_UID
           ? {
             homeworkId,
+            bookId: BOOK_ID,
             ownerId: env.TICKET77_TEACHER_UID,
             studentIds: [env.TICKET77_STUDENT_UID],
             status: 'current' as const,
@@ -608,6 +648,7 @@ export const ticket77PreviewFixture = Object.freeze({
   homeworkResultId: HOMEWORK.summary.resultId,
   historicalRouteKey: historicalRouteKey('historical'),
   currentRouteKey: historicalRouteKey('current'),
+  soloHistoricalRouteKey: soloHistoricalRouteKey('historical'),
 });
 
 export default createTicket77PreviewWorker();

@@ -487,6 +487,95 @@ describe('Book Homework assignment saga', () => {
     await expect(repository.read('assignment-1')).resolves.toBeNull();
   });
 
+  it('reconciles combined component pages against their exact published source pages', async () => {
+    const base = canonical();
+    const state: BookHomeworkSagaCanonicalState = {
+      ...base,
+      manifest: {
+        ...base.manifest,
+        studentDocument: {
+          sourceVersionId: 'student-document-1',
+          descriptorRevision: 1,
+          sha256Hex: 'a'.repeat(64),
+        },
+        targetPreview: {
+          fingerprint: 'component-preview',
+          rows: [{ placementId: 'placement-1', activityId: 'activity-1', nodeKey: 'unit-1', state: 'included' }],
+          includedCount: 1,
+          excludedCount: 0,
+          excludedReasonCounts: {},
+        },
+        bindings: base.manifest.bindings.map((binding) => ({
+          ...binding,
+          sourceContext: [{
+            sourceKey: 'student-document',
+            sourceVersionId: 'student-document-1',
+            physicalPageNumbers: [1, 5],
+          }],
+        })),
+      },
+      deliveryPublication: {
+        ...base.deliveryPublication,
+        sourceSet: {
+          strategy: 'component_pdfs',
+          sources: [
+            { sourceKey: 'part-a', sourceVersionId: 'source-a', sourceOrder: 1,
+              ownerNodeKey: 'unit-1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } },
+            { sourceKey: 'part-b', sourceVersionId: 'source-b', sourceOrder: 2,
+              ownerNodeKey: 'unit-1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } },
+          ],
+        },
+        placements: base.deliveryPublication.placements.map((placement) => ({
+          ...placement,
+          sourcePageScopes: [
+            { sourceKey: 'part-a', pages: [1] },
+            { sourceKey: 'part-b', pages: [1] },
+          ],
+        })),
+      },
+      studentDocumentComponents: [
+        { sourceKey: 'part-a', sourceVersionId: 'source-a', combinedStartPage: 1, localPageCount: 4 },
+        { sourceKey: 'part-b', sourceVersionId: 'source-b', combinedStartPage: 5, localPageCount: 4 },
+      ],
+    };
+    const { saga } = makeSaga(state);
+    const result = await saga.execute(command());
+    expect(result.record.lastError).toBeUndefined();
+    expect(result.status).toBe('committed');
+
+    const outOfRange = {
+      ...state,
+      manifest: {
+        ...state.manifest,
+        bindings: state.manifest.bindings.map((binding) => ({
+          ...binding,
+          sourceContext: binding.sourceContext.map((source) => ({
+            ...source,
+            physicalPageNumbers: [1, 9],
+          })),
+        })),
+      },
+    };
+    const wrongMappedPage = {
+      ...state,
+      deliveryPublication: {
+        ...state.deliveryPublication,
+        placements: state.deliveryPublication.placements.map((placement) => ({
+          ...placement,
+          sourcePageScopes: [
+            { sourceKey: 'part-a', pages: [2] },
+            { sourceKey: 'part-b', pages: [1] },
+          ],
+        })),
+      },
+    };
+    for (const drifted of [outOfRange, wrongMappedPage]) {
+      const { saga: driftSaga, repository } = makeSaga(drifted);
+      await expect(driftSaga.execute(command())).rejects.toMatchObject({ code: 'stale-publication' });
+      await expect(repository.read('assignment-1')).resolves.toBeNull();
+    }
+  });
+
   it('keeps all readers hidden during a crash and resumes missing fan-out work', async () => {
     let crashing = true;
     const { saga, authority, repository } = makeSaga(undefined, {

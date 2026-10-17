@@ -9,6 +9,7 @@ import {
   type BookDeliveryValidationError,
   type BookDeliveryValidationResult,
 } from './bookDelivery.types';
+import { classBookBindingContextId } from './classBookPlacement.types';
 
 const MAX_BYTES = 1_048_576;
 const MAX_ID_LENGTH = 128;
@@ -105,7 +106,11 @@ const validateIdArray = (
 };
 
 const validateContext = (value: unknown, errors: BookDeliveryValidationError[]): void => {
-  if (!exact(value, ['contextId', 'entitlementBasis', 'kind', 'ownerId', 'recipientId'], 'context', errors)) return;
+  const contextKind = record(value) ? value.kind : undefined;
+  const contextKeys = contextKind === 'class'
+    ? ['classLocator', 'contextId', 'entitlementBasis', 'kind', 'ownerId', 'recipientId']
+    : ['contextId', 'entitlementBasis', 'kind', 'ownerId', 'recipientId'];
+  if (!exact(value, contextKeys, 'context', errors)) return;
   const context = value as Record<string, any>;
   if (!id(context.contextId) || !id(context.ownerId) || !id(context.recipientId)) {
     error(errors, 'invalid-value', 'context', 'Context IDs must be safe identifiers.');
@@ -115,11 +120,28 @@ const validateContext = (value: unknown, errors: BookDeliveryValidationError[]):
     return;
   }
   const basisByKind: Record<string, string> = {
-    solo: 'solo', preview: 'preview', homework: 'assignment', course: 'enrollment',
+    solo: 'solo', public: 'public-library', preview: 'preview', homework: 'assignment', course: 'enrollment',
     class: 'membership', future_live: 'reserved',
   };
   if (context.entitlementBasis !== basisByKind[context.kind as string]) {
     error(errors, 'invalid-value', 'context.entitlementBasis', 'Context basis does not match its discriminant.');
+  }
+  if (context.kind === 'class') {
+    const locator = context.classLocator;
+    if (!record(locator) || !exact(locator,
+      ['classId', 'classPlacementId', 'copyId', 'courseMaterialId'], 'context.classLocator', errors)) return;
+    if (![locator.classId, locator.copyId, locator.classPlacementId, locator.courseMaterialId].every(id)) {
+      error(errors, 'invalid-value', 'context.classLocator', 'Class locator fields must be safe identifiers.');
+      return;
+    }
+    try {
+      if (context.contextId !== classBookBindingContextId(
+        locator.classId as string, locator.copyId as string,
+        locator.courseMaterialId as string, locator.classPlacementId as string,
+      )) error(errors, 'invalid-value', 'context.classLocator', 'Class locator does not match the binding context.');
+    } catch {
+      error(errors, 'invalid-value', 'context.classLocator', 'Class locator does not form a valid binding context.');
+    }
   }
 };
 
@@ -321,7 +343,7 @@ const validateBookDeliveryBindingUnsafe = (value: unknown): BookDeliveryValidati
     error(errors, 'invalid-value', 'binding.recipient', 'Recipient is invalid.');
   }
   if (!exact(binding.issuer, ['authorityBoundary', 'ownerId'], 'binding.issuer', errors)
-    || binding.issuer.authorityBoundary !== 'book-owner' || !id(binding.issuer.ownerId)) {
+    || binding.issuer.authorityBoundary !== (binding.context?.kind === 'public' ? 'public-library' : 'book-owner') || !id(binding.issuer.ownerId)) {
     error(errors, 'invalid-value', 'binding.issuer', 'Issuer boundary is invalid.');
   }
   if (!exact(binding.book, ['bookId', 'bookMode', 'bookRevision', 'manifestVersionId', 'publicationId', 'publicationRevision', 'publicationStatus'], 'binding.book', errors)

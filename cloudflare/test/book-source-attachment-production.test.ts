@@ -14,7 +14,7 @@ const bookId = 'book-1';
 const sourceKey = 'full';
 const sourceVersionId = 'source-v1';
 const bookPath = `material_catalog/books/${bookId}`;
-const sourcePath = `book_source_upload_accounts/${accountId}/assemblyBooks/${bookId}/${sourceKey}`;
+const sourcePath = `book_source_upload_accounts/${accountId}/assemblyBooks/${bookId}/${sourceVersionId}`;
 
 const book = (overrides: Partial<MaterialBookSourceAttachmentBook> = {}): MaterialBookSourceAttachmentBook => ({
   bookId,
@@ -27,13 +27,29 @@ const book = (overrides: Partial<MaterialBookSourceAttachmentBook> = {}): Materi
   ...overrides,
 });
 
-const sourceProjection = (verifiedUsable = true) => ({
+const sourceProjection = (
+  verifiedUsable = true,
+  purpose: 'book-source' | 'student-document' = 'book-source',
+  studentSafeStatus: 'unreviewed' | 'ready' | 'rejected' = 'ready',
+) => ({
   ownerId,
   bookId,
   sourceKey,
   sourceVersionId,
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
   physicalPageCount: 12,
   verifiedUsable,
+  purpose,
+  studentSafeStatus,
+  ...(studentSafeStatus === 'unreviewed' ? {} : {
+    studentSafeDecision: {
+      decidedBy: ownerId,
+      decidedAt: '2026-08-01T00:00:00.000Z',
+      sourceVersionId,
+      sha256Hex: 'a'.repeat(64),
+      reasonCode: 'teacher-reviewed',
+    },
+  }),
 });
 
 const pathParts = (path: string): string[] => path.split('/').filter(Boolean);
@@ -57,10 +73,12 @@ const writeTree = (tree: Record<string, unknown>, path: string, value: unknown):
 const fixture = (
   verified = true,
   initialBook: Partial<MaterialBookSourceAttachmentBook> = book(),
+  purpose: 'book-source' | 'student-document' = 'book-source',
+  studentSafeStatus: 'unreviewed' | 'ready' | 'rejected' = 'ready',
 ) => {
   const tree: Record<string, unknown> = {};
   writeTree(tree, bookPath, initialBook);
-  writeTree(tree, sourcePath, sourceProjection(verified));
+  writeTree(tree, sourcePath, sourceProjection(verified, purpose, studentSafeStatus));
   const revisions = new Map<string, number>();
   let failBookPut = false;
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -133,6 +151,72 @@ describe('production-normal verified source attachment', () => {
     expect(JSON.stringify(readTree(state.tree, bookPath))).not.toMatch(/provider|privateObjectKey|bucket|credential/iu);
   });
 
+  it('attaches an unreviewed private source without treating it as student-ready', async () => {
+    const state = fixture(true, book(), 'book-source', 'unreviewed');
+    const { repository, service } = createFixtureServices(state);
+
+    await expect(attachVerifiedFullPdfSource(service, repository, {
+      ownerId,
+      bookId,
+      operationId: 'unreviewed-1',
+      sourceKey,
+      sourceVersionId,
+    })).resolves.toMatchObject({ status: 'attached' });
+  });
+
+  it('rejects unknown provider fields before raw projection normalization', async () => {
+    const state = fixture();
+    writeTree(state.tree, sourcePath, {
+      ...sourceProjection(),
+      providerObjectKey: 'private/book-1/source-v1.pdf',
+    });
+    const { repository, service } = createFixtureServices(state);
+
+    await expect(attachVerifiedFullPdfSource(service, repository, {
+      ownerId, bookId, operationId: 'provider-field-1', sourceKey, sourceVersionId,
+    })).rejects.toThrow('material_book_source_attachment_unverified_source');
+    expect(readTree(state.tree, bookPath)).toEqual(book());
+  });
+
+  it('rejects a raw projection with a missing checksum before normalization', async () => {
+    const state = fixture();
+    const raw = sourceProjection() as Record<string, unknown>;
+    delete raw.checksum;
+    writeTree(state.tree, sourcePath, raw);
+    const { repository, service } = createFixtureServices(state);
+
+    await expect(attachVerifiedFullPdfSource(service, repository, {
+      ownerId, bookId, operationId: 'missing-checksum-1', sourceKey, sourceVersionId,
+    })).rejects.toThrow('material_book_source_attachment_unverified_source');
+    expect(readTree(state.tree, bookPath)).toEqual(book());
+  });
+
+  it('keeps attachment explicit even when a logical source key is full', async () => {
+    const state = fixture();
+    const { repository, service } = createFixtureServices(state);
+
+    await expect(attachVerifiedFullPdfSource(service, repository, {
+      ownerId, bookId, operationId: 'explicit-full-1', sourceKey, sourceVersionId,
+    })).resolves.toMatchObject({ status: 'attached' });
+    expect(readTree(state.tree, bookPath)).toEqual(expect.objectContaining({ status: 'ready' }));
+  });
+
+  it.each([
+    ['student-document', 'student-document' as const, 'ready' as const],
+    ['rejected', 'book-source' as const, 'rejected' as const],
+  ])('denies %s source attachment', async (_label, purpose, studentSafeStatus) => {
+    const state = fixture(true, book(), purpose, studentSafeStatus);
+    const { repository, service } = createFixtureServices(state);
+
+    await expect(attachVerifiedFullPdfSource(service, repository, {
+      ownerId,
+      bookId,
+      operationId: `denied-${_label}`,
+      sourceKey,
+      sourceVersionId,
+    })).rejects.toThrow('material_book_source_attachment_unverified_source');
+  });
+
   it('replays a ready attachment without incrementing either revision', async () => {
     const state = fixture();
     const { repository, service } = createFixtureServices(state);
@@ -174,7 +258,7 @@ describe('production-normal verified source attachment', () => {
     }));
   });
 
-  it('upgrades an exact legacy empty PDF Book through the attachment CAS', async () => {
+  it('rejects an exact legacy empty PDF Book without a revision baseline', async () => {
     const legacy = { ...book() } as Record<string, unknown>;
     delete legacy.bookRevision;
     delete legacy.sourceSetRevision;
@@ -182,21 +266,10 @@ describe('production-normal verified source attachment', () => {
     const state = fixture(true, legacy);
     const { repository, service } = createFixtureServices(state);
 
-    const result = await attachVerifiedFullPdfSource(service, repository, {
+    await expect(attachVerifiedFullPdfSource(service, repository, {
       ownerId, bookId, operationId: 'legacy-reservation-1', sourceKey, sourceVersionId,
-    });
-
-    expect(result).toMatchObject({ status: 'attached', bookRevision: 1, sourceSetRevision: 1 });
-    expect(readTree(state.tree, bookPath)).toEqual(expect.objectContaining({
-      bookRevision: 1,
-      sourceSetRevision: 1,
-      sourceSet: { sourceStrategy: 'full_pdf', sources: [{ sourceKey, sourceVersionId, sourceOrder: 1 }] },
-    }));
-
-    const replay = await attachVerifiedFullPdfSource(service, repository, {
-      ownerId, bookId, operationId: 'legacy-reservation-1', sourceKey, sourceVersionId,
-    });
-    expect(replay).toMatchObject({ status: 'replayed', bookRevision: 1, sourceSetRevision: 1 });
+    })).rejects.toThrow('material_book_source_attachment_revision_unavailable');
+    expect(readTree(state.tree, bookPath)).toEqual(legacy);
   });
 
   const invalidLegacyBooks: readonly [string, Partial<MaterialBookSourceAttachmentBook>][] = [

@@ -239,7 +239,7 @@ export const isBookAttemptSourceContextProjection = (
   if (candidate.schemaVersion !== 1 || candidate.documentResource === undefined) return false;
   if (candidate.state === 'historical_source_unavailable') {
     return candidate.documentResource === null
-      && (candidate.metadata === null || validMetadata(candidate.metadata))
+      && (candidate.metadata === null || candidate.metadata !== undefined && validMetadata(candidate.metadata))
       && [
         'missing', 'deleted', 'replaced', 'invalidated', 'revoked',
         'missing_context', 'malformed_context', 'authorization_unavailable',

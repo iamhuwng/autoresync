@@ -28,6 +28,7 @@ const approval = (overrides: Partial<BookAssemblyPreviewApprovalRecord> = {}): B
   canonicalActivityFingerprintsByKey: {
     'activity-1': 'fnv1a64:fedcba9876543210',
   },
+  wholeActivationFingerprint: 'fnv1a64:aaaaaaaaaaaaaaaa',
   approvedAt: '2026-07-27T00:00:00.000Z',
   expiresAt: '2026-07-27T01:00:00.000Z',
   ...overrides,
@@ -91,6 +92,15 @@ const repository = (fetchImpl: typeof fetch, getIdToken = vi.fn(async () => 'fir
 });
 
 describe('durable book assembly preview approval repository', () => {
+  it('hydrates an RTDB-omitted empty fingerprint map and replays the reference-only approval', async () => {
+    const empty = approval({ canonicalActivityFingerprintsByKey: {} });
+    const { canonicalActivityFingerprintsByKey: _empty, ...wire } = empty;
+    const fixture = harness({ [approvalPath]: wire });
+    const repo = repository(fixture.fetchImpl);
+    await expect(repo.read(BOOK, UNIT, APPROVAL_ID)).resolves.toEqual({ approval: empty, revocation: null });
+    await expect(repo.create(empty)).resolves.toBe('replayed');
+  });
+
   it('writes exact approval/revocation children with injected Firebase ID-token auth and reads both', async () => {
     const fixture = harness();
     const getIdToken = vi.fn(async () => 'firebase-id-token');

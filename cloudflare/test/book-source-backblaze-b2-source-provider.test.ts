@@ -160,7 +160,9 @@ describe('Backblaze B2 private Source provider adapter', () => {
       return new Response(new Uint8Array([2, 3]), { status: 206, headers: { 'content-range': 'bytes 2-3/6' } });
     }));
     await expect(provider.verifyCompletedObject({ expected: identity })).resolves.toMatchObject({ identity });
-    await expect(provider.readBounded({ identity, range: { offset: 2, length: 2 } })).resolves.toEqual({ bytes: new Uint8Array([2, 3]), totalByteSize: 6, offset: 2 });
+    await expect(provider.readBounded({ identity, range: { offset: 2, length: 2 } })).resolves.toEqual({
+      bytes: new Uint8Array([2, 3]), totalByteSize: 6, offset: 2, contentIdentity: identity,
+    });
     expect(calls[1]?.headers.get('range')).toBe('bytes=2-3');
     expect(new URL(calls[0]!.url).searchParams.get('fileId')).toBe(identity.providerFileVersionId);
     expect(calls[0]?.headers.get('authorization')).toBe('temporary-metadata-key-id');
@@ -188,6 +190,41 @@ describe('Backblaze B2 private Source provider adapter', () => {
       .rejects.toMatchObject({ code: 'metadata_mismatch' });
   });
 
+  it('resolves one completed upload from reservation coordinates before verifying metadata', async () => {
+    const calls: Array<{ url: string; body: string | undefined }> = [];
+    const provider = createProvider(withValidatedAuthority(async (input, init) => {
+      const url = String(input);
+      const body = typeof init?.body === 'string' ? init.body : undefined;
+      calls.push({ url, body });
+      if (url.includes('b2_list_file_versions')) {
+        return Response.json({ files: [{
+          action: 'upload', fileId: '4_resolved', fileName: identity.providerObjectKey, contentLength: identity.byteSize,
+        }] });
+      }
+      return fileInfoResponse({ fileId: '4_resolved' });
+    }));
+    const expected = {
+      bookId: identity.bookId, sourceVersionId: identity.sourceVersionId, storageLocationId: identity.storageLocationId,
+      providerKind: identity.providerKind, privateBucketId: identity.privateBucketId, providerObjectKey: identity.providerObjectKey,
+      checksum: identity.checksum, byteSize: identity.byteSize,
+    };
+
+    await expect(provider.resolveCompletedObject({ expected })).resolves.toEqual({
+      identity: { ...expected, providerFileId: '4_resolved', providerFileVersionId: '4_resolved' },
+      contentType: 'application/pdf',
+    });
+    expect(JSON.parse(calls[0]!.body ?? '{}')).toEqual({
+      bucketId: identity.privateBucketId, prefix: identity.providerObjectKey, maxFileCount: 32,
+    });
+    expect(calls.some(({ url }) => url.includes('b2_get_file_info'))).toBe(true);
+
+    const oversizedResolverResponse = createProvider(withValidatedAuthority(() => Response.json({
+      files: [], padding: 'x'.repeat(65 * 1024),
+    })));
+    await expect(oversizedResolverResponse.resolveCompletedObject({ expected }))
+      .rejects.toMatchObject({ code: 'metadata_mismatch' });
+  });
+
   it('rejects distinct provider identifiers that exact B2 metadata cannot prove', async () => {
     const distinct = {
       ...identity,
@@ -200,6 +237,32 @@ describe('Backblaze B2 private Source provider adapter', () => {
 
     await expect(provider.verifyCompletedObject({ expected: distinct }))
       .rejects.toMatchObject({ code: 'provider_drift' });
+  });
+
+  it('cancels a bounded response body when the request signal aborts after headers', async () => {
+    let canceled = false;
+    let headersReady!: () => void;
+    const responseHeadersReady = new Promise<void>((resolve) => { headersReady = resolve; });
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        canceled = true;
+      },
+    });
+    const provider = createProvider(withValidatedAuthority((input) => {
+      if (String(input).includes('b2_authorize_account')) return authorityResponse('metadata-key-id');
+      headersReady();
+      return new Response(body, { status: 206, headers: { 'content-range': 'bytes 0-1/6' } });
+    }));
+    const controller = new AbortController();
+    const pending = provider.readBounded(
+      { identity, range: { offset: 0, length: 2 } },
+      { signal: controller.signal, timeoutMs: 1_000 },
+    );
+    await responseHeadersReady;
+    await Promise.resolve();
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: 'aborted' });
+    expect(canceled).toBe(true);
   });
 
   it('reads one bounded B2 total page and leaves accumulation to caller', async () => {
@@ -323,7 +386,7 @@ describe('Backblaze B2 private Source provider adapter', () => {
       .rejects.toMatchObject({ code: 'conflict', retryable: true });
   });
 
-  it('parses distinct named Worker bindings and rejects missing, master-shaped, or shared authority', () => {
+  it('parses separate upload, metadata, and bounded-read Worker bindings', () => {
     const env = {
       BOOK_SOURCE_B2_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com',
       BOOK_SOURCE_B2_REGION: 'us-west-004',
@@ -340,6 +403,11 @@ describe('Backblaze B2 private Source provider adapter', () => {
     };
     expect(hasBackblazeB2SourceProviderConfiguration(env)).toBe(true);
     expect(createBackblazeB2SourceProviderFromEnv(env)).toBeInstanceOf(BackblazeB2SourceProvider);
+    expect(hasBackblazeB2SourceProviderConfiguration({
+      ...env,
+      BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: undefined,
+      BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: undefined,
+    })).toBe(false);
     expect(hasBackblazeB2SourceProviderConfiguration({ ...env, BOOK_SOURCE_B2_READ_APPLICATION_KEY: '' })).toBe(false);
     expect(hasBackblazeB2SourceProviderConfiguration({ ...env, BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID: 'master-key-id' })).toBe(false);
     expect(hasBackblazeB2SourceProviderConfiguration({ ...env, BOOK_SOURCE_B2_REGION: 'us-east-005' })).toBe(false);
@@ -355,6 +423,11 @@ describe('Backblaze B2 private Source provider adapter', () => {
     expect(hasBackblazeB2SourceProviderConfiguration({
       ...env,
       BOOK_SOURCE_B2_READ_APPLICATION_KEY: env.BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY,
+    })).toBe(false);
+    expect(hasBackblazeB2SourceProviderConfiguration({
+      ...env,
+      BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: env.BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID,
+      BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: env.BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY,
     })).toBe(false);
   });
 
@@ -393,10 +466,14 @@ describe('Backblaze B2 private Source provider adapter', () => {
       .authorizeUpload(upload)).rejects.toMatchObject({ code: 'unauthorized' });
     await expect(providerFor({ buckets: bucket, capabilities: ['writeFiles'], namePrefix: 'book-source/originals/' })
       .authorizeUpload(upload)).rejects.toMatchObject({ code: 'unauthorized' });
-    await expect(providerFor({ buckets: bucket, capabilities: ['writeFiles'], namePrefix: 'book-source/' }, 'https://s3.us-east-005.backblazeb2.com')
+    const validWriteCapabilities = [
+      'deleteFiles', 'listBuckets', 'writeBucketEncryption', 'writeBucketLifecycleRules',
+      'writeBucketLogging', 'writeBucketNotifications', 'writeBucketReplications', 'writeFiles',
+    ];
+    await expect(providerFor({ buckets: bucket, capabilities: validWriteCapabilities, namePrefix: 'book-source/' }, 'https://s3.us-east-005.backblazeb2.com')
       .authorizeUpload(upload)).rejects.toMatchObject({ code: 'provider_drift' });
     await expect(providerFor(
-      { buckets: bucket, capabilities: ['writeFiles'], namePrefix: 'book-source/' },
+      { buckets: bucket, capabilities: validWriteCapabilities, namePrefix: 'book-source/' },
       'https://s3.us-west-004.backblazeb2.com',
       'https://provider-drift.example.com',
     ).authorizeUpload(upload)).rejects.toMatchObject({ code: 'provider_drift' });

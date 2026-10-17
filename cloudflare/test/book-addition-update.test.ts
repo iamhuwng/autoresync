@@ -51,22 +51,22 @@ const oldOutline = [
 ];
 
 const currentProjection = (current: BookDeliveryBinding): BookRedoCurrentProjection => ({
-  actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1', bindingId: current.bindingId, bindingRevision: current.revision,
+  actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1', bindingId: current.bindingId, bindingRevision: current.revision,
   activities: [{ placementId: 'placement-old', activityVersionId: 'placement-old-version', required: true, completionStatus: 'completed', answerState: { answer: 'preserve' }, attemptCount: 1, attemptEligibility: 'eligible', evaluationRevision: 1, earnedScore: 1, maximumScore: 1, correctionNote: null, feedbackRelease: 'released' }],
-  completion: { schemaVersion: 1, actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1', bindingId: current.bindingId, bindingRevision: current.revision, requiredPlacementIds: ['placement-old'], completedPlacementIds: ['placement-old'], requiredCount: 1, completedCount: 1, status: 'completed', activities: [{ placementId: 'placement-old', required: true, completionStatus: 'completed', reopenedByAction: false }] },
+  completion: { schemaVersion: 1, actionId: 'old-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1', bindingId: current.bindingId, bindingRevision: current.revision, requiredPlacementIds: ['placement-old'], completedPlacementIds: ['placement-old'], requiredCount: 1, completedCount: 1, status: 'completed', activities: [{ placementId: 'placement-old', required: true, completionStatus: 'completed', reopenedByAction: false }] },
 });
 
 const action = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 'include-required'): BookUpdateActionRecord => ({
   schemaVersion: 1,
   actionId: 'action-1', actorId: 'owner-1', ownerId: 'owner-1', bookId: 'book-1', snapshotId: 'snapshot-1', snapshotFingerprint: 'a'.repeat(64), idempotencyKey: 'addition-key-0001', requestFingerprint: 'b'.repeat(64), reason: 'Require the newly published Activity.',
-  selections: [{ contextKey: 'homework:hw-1', placementId: 'placement-new', choice }],
+  selections: [{ contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', placementId: 'placement-new', choice }],
   state: 'accepted', stateRevision: 0, acceptedAt: now, committedAt: null, updatedAt: now, terminalFailureCode: null,
-  audit: { actorId: 'owner-1', acceptedAt: now, reason: 'Require the newly published Activity.', bookId: 'book-1', oldActivityVersionId: 'old-version', newActivityVersionId: 'new-version', selectedContextKeys: ['homework:hw-1'], classifications: ['added'], affectedCount: 1, checkpointCount: 0, regradeCount: 0, notificationCount: 0, terminalStatus: null, terminalAt: null },
+  audit: { actorId: 'owner-1', acceptedAt: now, reason: 'Require the newly published Activity.', bookId: 'book-1', oldActivityVersionId: 'old-version', newActivityVersionId: 'new-version', selectedContextKeys: ['homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd'], classifications: ['added'], affectedCount: 1, checkpointCount: 0, regradeCount: 0, notificationCount: 0, terminalStatus: null, terminalAt: null },
   recovery: { restoreBehavior: 'resume-or-compensate', replaySideEffects: 'none', recoveryLedgerRoot: 'book_update_action_recovery' },
 });
 
 const deadline = (): BookAdditionDeadlineResolution => ({
-  assignmentId: 'hw-1', contextKey: 'homework:hw-1', recipientId: 'student-1', studentId: 'student-1', bindingId: 'current-binding', bindingRevision: 4, placementId: 'placement-new', nodeKey: 'activity-new', scheduleRevision: 7, effectiveDeadlineAt: '2026-08-10T00:00:00.000Z', effectiveDeadlineSource: 'assignment', replacementDeadlineAt: null, requiresReplacementDeadline: false,
+  assignmentId: 'hw-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', recipientId: 'student-1', studentId: 'student-1', bindingId: 'current-binding', bindingRevision: 4, placementId: 'placement-new', nodeKey: 'activity-new', scheduleRevision: 7, effectiveDeadlineAt: '2026-08-10T00:00:00.000Z', effectiveDeadlineSource: 'assignment', replacementDeadlineAt: null, requiresReplacementDeadline: false,
   window: {
     evaluatedAt: now,
     operation: 'launch',
@@ -78,8 +78,8 @@ const deadline = (): BookAdditionDeadlineResolution => ({
 const setup = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 'include-required') => {
   const current = binding('current-binding', 4, [placement('placement-old', 'activity-old', 1)], oldOutline);
   const added = placement('placement-new', 'activity-new', 2);
-  const next = binding(bookAdditionBindingId('action-1', 'homework:hw-1', 'student-1'), 5, [current.placements[0], added], [...oldOutline, { nodeKey: 'activity-new', parentNodeKey: 'unit', nodeType: 'test' as const, order: 2 }]);
-  const projectionInput = { actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: currentProjection(current), additions: [{ placement: added, feedbackRelease: 'hidden' as const }], now };
+  const next = binding(bookAdditionBindingId('action-1', 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', 'student-1'), 5, [current.placements[0], added], [...oldOutline, { nodeKey: 'activity-new', parentNodeKey: 'unit', nodeType: 'test' as const, order: 2 }]);
+  const projectionInput = { actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: currentProjection(current), additions: [{ placement: added, feedbackRelease: 'hidden' as const }], now };
   let state: { binding: BookDeliveryBinding; projection: BookRedoCurrentProjection } = { binding: current, projection: projectionInput.currentProjection };
   let commits = 0;
   let reads = 0;
@@ -107,7 +107,7 @@ const setup = (choice: BookUpdateActionRecord['selections'][number]['choice'] = 
       return baseFinalizer.finalize(input);
     },
   };
-  const plan: BookAdditionStudentPlan = { schemaVersion: 1, actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:hw-1', contextKind: 'homework', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: projectionInput.currentProjection, additions: [{ ...projectionInput.additions[0], deadline: deadline() }], reason: actionRecord.reason, createdAt: now };
+  const plan: BookAdditionStudentPlan = { schemaVersion: 1, actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:d3f063b6059382e47761b3c832a8a7533f60a6f469c182514348aea0c14d89cd', contextKind: 'homework', contextId: 'hw-1', studentId: 'student-1', currentBinding: current, nextBinding: next, currentProjection: projectionInput.currentProjection, additions: [{ ...projectionInput.additions[0], deadline: deadline() }], reason: actionRecord.reason, createdAt: now };
   const executor = createBookAdditionUpdateExecutor({ actions, resolver: { async resolve() { return { status: 'ready', students: [plan] }; } }, receipts: new InMemoryBookAdditionPhaseReceiptRepository(), projection, audit: { async record() { return { status: 'recorded' as const }; } }, finalizer });
   return { executor, get commits() { return commits; }, get reads() { return reads; }, get finalizerCalls() { return finalizerCalls; }, get action() { return actionRecord; } };
 };

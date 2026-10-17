@@ -2,6 +2,7 @@ import {
   createCourseBookAuthority102TokenProvider,
   FirebaseRtdbRestClient,
   type CourseBookAuthority102TokenProvider,
+  type CourseBookAuthority102PlacementClaims,
   type RepositoryEnv,
 } from '../listening-authoring/rtdb.ts';
 import type { CourseBookPlacement } from '../../../../src/services/book-delivery/courseBookPlacement.service.ts';
@@ -17,8 +18,25 @@ const stable = (value: unknown): string => {
   return JSON.stringify(value) ?? 'undefined';
 };
 const equal = (left: unknown, right: unknown): boolean => stable(left) === stable(right);
+const fingerprintFor = async (value: unknown): Promise<string> => [...new Uint8Array(await crypto.subtle.digest(
+  'SHA-256', new TextEncoder().encode(stable(value)),
+))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{2,159}$/u;
 const OPERATION = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+interface CoursePlacementReceipt {
+  readonly operation: 'placement-transition';
+  readonly action: 'create' | 'revoke';
+  readonly actorUid: string;
+  readonly courseId: string;
+  readonly moduleId: string;
+  readonly courseMaterialId: string;
+  readonly operationId: string;
+  readonly expectedPlacementRevision: number;
+  readonly revision: number;
+  readonly fingerprint: string;
+  readonly outcome: CourseBookPlacement;
+}
 
 export interface CourseModuleRelease {
   readonly courseId: string;
@@ -141,15 +159,20 @@ export class FirebaseCourseBookPlacementRepository {
       ? clone(placement as CourseBookPlacement) : null;
   }
 
-  async create(placement: CourseBookPlacement): Promise<'created' | 'replayed' | 'conflict'> {
+  async create(placement: CourseBookPlacement, operationId: string): Promise<'created' | 'replayed' | 'conflict'> {
     if (![placement.courseMaterialId, placement.courseId, placement.moduleId, placement.ownerId]
-      .every((value) => ID.test(value))) {
+      .every((value) => ID.test(value)) || !OPERATION.test(operationId)
+      || placement.placementRevision !== 1 || placement.status !== 'active') {
       throw new Error('invalid_course_placement');
     }
     const path = `course_materials/${placement.courseMaterialId}`;
+    const fingerprint = await fingerprintFor({ action: 'create', operationId, placement });
+    const receipt = await this.rtdb.readValue(`course_book_authority/operations/${operationId}`) as CoursePlacementReceipt | null;
+    if (receipt) return receipt.operation === 'placement-transition' && receipt.action === 'create'
+      && receipt.actorUid === placement.ownerId && receipt.fingerprint === fingerprint ? 'replayed' : 'conflict';
     const current = await this.rtdb.readWithEtag<Record<string, unknown> | null>(path);
     const existing = current.data?.bookDeliveryPlacement;
-    if (existing) return equal(existing, placement) ? 'replayed' : 'conflict';
+    if (existing) return 'conflict';
     const linkedAt = this.now();
     const next = {
       ...(current.data ?? {}),
@@ -163,7 +186,12 @@ export class FirebaseCourseBookPlacementRepository {
       materialKind: 'book-delivery',
       bookDeliveryPlacement: clone(placement),
     };
-    return await this.rtdb.writeIfMatch(path, next, current.etag) ? 'created' : 'conflict';
+    await this.commitPlacement(next, {
+      operation: 'placement-transition', action: 'create', actorUid: placement.ownerId,
+      courseId: placement.courseId, moduleId: placement.moduleId, courseMaterialId: placement.courseMaterialId,
+      operationId, expectedPlacementRevision: 0, revision: 1, fingerprint, outcome: clone(placement),
+    });
+    return 'created';
   }
 
   async revoke(input: {
@@ -174,18 +202,49 @@ export class FirebaseCourseBookPlacementRepository {
     if (![input.courseMaterialId, input.actorUid].every((value) => ID.test(value))
       || !OPERATION.test(input.operationId)) throw new Error('invalid_course_placement_revoke');
     const path = `course_materials/${input.courseMaterialId}`;
+    const fingerprint = await fingerprintFor({ action: 'revoke', ...input });
+    const receipt = await this.rtdb.readValue(`course_book_authority/operations/${input.operationId}`) as CoursePlacementReceipt | null;
+    if (receipt) return receipt.operation === 'placement-transition' && receipt.action === 'revoke'
+      && receipt.actorUid === input.actorUid && receipt.courseMaterialId === input.courseMaterialId
+      && receipt.fingerprint === fingerprint ? 'replayed' : 'conflict';
     const current = await this.rtdb.readWithEtag<Record<string, unknown> | null>(path);
     const raw = current.data?.bookDeliveryPlacement;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'conflict';
     const placement = raw as CourseBookPlacement;
     if (placement.ownerId !== input.actorUid) return 'conflict';
-    if (placement.status === 'revoked') return 'replayed';
+    if (placement.status === 'revoked') return 'conflict';
     if (placement.status !== 'active' || !Number.isSafeInteger(placement.placementRevision)) return 'conflict';
     const nextPlacement: CourseBookPlacement = {
       ...clone(placement), status: 'revoked', placementRevision: placement.placementRevision + 1,
     };
     const next = { ...current.data, bookDeliveryPlacement: nextPlacement };
-    return await this.rtdb.writeIfMatch(path, next, current.etag) ? 'revoked' : 'conflict';
+    await this.commitPlacement(next, {
+      operation: 'placement-transition', action: 'revoke', actorUid: input.actorUid,
+      courseId: placement.courseId, moduleId: placement.moduleId, courseMaterialId: placement.courseMaterialId,
+      operationId: input.operationId, expectedPlacementRevision: placement.placementRevision,
+      revision: nextPlacement.placementRevision, fingerprint, outcome: clone(nextPlacement),
+    });
+    return 'revoked';
+  }
+
+  private async commitPlacement(shell: Record<string, unknown>, receipt: CoursePlacementReceipt): Promise<void> {
+    const claims: CourseBookAuthority102PlacementClaims = {
+      operation: receipt.operation, action: receipt.action, actorUid: receipt.actorUid,
+      courseId: receipt.courseId, moduleId: receipt.moduleId, courseMaterialId: receipt.courseMaterialId,
+      operationId: receipt.operationId, expectedPlacementRevision: receipt.expectedPlacementRevision,
+      nextPlacementRevision: receipt.revision, fingerprint: receipt.fingerprint,
+    };
+    const scoped = new FirebaseRtdbRestClient({
+      env: this.env, fetchImpl: this.fetchImpl, firebaseAuthToken: true,
+      getFirebaseAuthToken: () => this.tokenProvider(claims),
+    });
+    await scoped.patchMultiLocation([
+      ...(receipt.action === 'create'
+        ? ['id', 'courseId', 'moduleId', 'materialId', 'order', 'linkedAt', 'isCopy', 'materialKind', 'bookDeliveryPlacement']
+          .map((key) => ({ path: `course_materials/${receipt.courseMaterialId}/${key}`, value: shell[key] }))
+        : [{ path: `course_materials/${receipt.courseMaterialId}/bookDeliveryPlacement`, value: receipt.outcome }]),
+      { path: `course_book_authority/operations/${receipt.operationId}`, value: receipt },
+    ]);
   }
 
   async readRelease(courseId: string, moduleId: string, studentId: string): Promise<CourseModuleRelease | null> {

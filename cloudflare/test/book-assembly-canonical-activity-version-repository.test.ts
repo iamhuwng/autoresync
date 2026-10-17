@@ -452,6 +452,26 @@ describe('canonical Activity Version Firebase repositories', () => {
       activity: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
       projection: { taskProfile: 'present', stimulus: 'present', assetRefs: ['present'] },
     });
+    expect(hydrateCanonicalActivityVersionFromRtdb({
+      schemaVersion: 1,
+      activity: { interactions: [
+        { family: 'text-entry', itemIdentities: { family: 'text-entry' } },
+        { family: 'long-response', itemIdentities: { family: 'long-response', itemIds: ['present'] } },
+      ] },
+      projection: { interactions: [
+        { family: 'text-entry', itemIdentities: { family: 'text-entry' } },
+      ] },
+    })).toEqual({
+      schemaVersion: 1,
+      evidenceRefs: [],
+      activity: { taskProfile: null, stimulus: null, assetRefs: [], interactions: [
+        { family: 'text-entry', itemIdentities: { family: 'text-entry', itemIds: [] } },
+        { family: 'long-response', itemIdentities: { family: 'long-response', itemIds: ['present'] } },
+      ] },
+      projection: { taskProfile: null, stimulus: null, assetRefs: [], interactions: [
+        { family: 'text-entry', itemIdentities: { family: 'text-entry', itemIds: [] } },
+      ] },
+    });
   });
 
   it('uses the exact canonical path and creates, replays, or conflicts without overwriting', async () => {

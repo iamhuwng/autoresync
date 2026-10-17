@@ -29,6 +29,7 @@ export interface BookHomeworkNotificationEnvironment
 export interface BookHomeworkCommittedNotificationSource {
   readCommittedAssignment(
     assignmentId: string,
+    ownerId: string,
   ): Promise<BookHomeworkSagaRecord | null>;
 }
 
@@ -36,14 +37,16 @@ export const resolveCommittedBookHomeworkNotificationAction = async (
   source: Pick<BookHomeworkSagaRepository, 'read'>
     | BookHomeworkCommittedNotificationSource,
   identity: BookNotificationActionIdentity,
+  ownerId: string,
 ): Promise<BookCommittedNotificationAction | null> => {
   if (identity.authority.kind !== 'book-homework-assignment') return null;
   const record = 'readCommittedAssignment' in source
-    ? await source.readCommittedAssignment(identity.authority.recordId)
-    : await source.read(identity.authority.recordId);
+    ? await source.readCommittedAssignment(identity.authority.recordId, ownerId)
+    : await source.read(identity.authority.recordId, ownerId);
   if (!record) return null;
   assertValidBookHomeworkSagaRecord(record);
-  if (record.state !== 'committed'
+  if (record.ownerId !== ownerId
+    || record.state !== 'committed'
     || record.visibility !== 'committed'
     || record.committedRecipientCount !== record.recipientCount
     || record.recipients.some((recipient) => recipient.state !== 'committed')
@@ -93,7 +96,8 @@ export const resolveBookHomeworkNotificationIdentity = (
   if (!result.body || typeof result.body !== 'object'
     || Array.isArray(result.body)) return null;
   const body = result.body as Record<string, unknown>;
-  if (body.state !== 'committed'
+  if (body.status !== 'committed'
+    || body.state !== 'committed'
     || typeof body.assignmentId !== 'string'
     || typeof body.operationId !== 'string') return null;
   return {
@@ -107,6 +111,7 @@ export const resolveBookHomeworkNotificationIdentity = (
 
 export const createBookHomeworkNotificationEmitter = (options: {
   readonly source: BookHomeworkCommittedNotificationSource;
+  readonly ownerId: string;
   readonly repositoryFactory?: (
     env: BookHomeworkNotificationEnvironment,
   ) => NotificationCommandRepository;
@@ -134,6 +139,7 @@ export const createBookHomeworkNotificationEmitter = (options: {
         resolveCommittedBookHomeworkNotificationAction(
           options.source,
           actionIdentity,
+          options.ownerId,
         ),
       resolveDestination: ({ action }) => buildRoute(
         'STUDENT_HOMEWORK_DETAIL',

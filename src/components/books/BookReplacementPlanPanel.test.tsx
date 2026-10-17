@@ -21,7 +21,13 @@ const plan = {
   impactSnapshotExpiresAt: '2099-08-11T01:00:00.000Z', adapters: [], contexts: [{ contextKey: 'solo-1', contextKind: 'solo', classification: 'display-only', effects: [], reasons: [], lifecycle: 'not-started', status: 'active', sourceScopes: [{ sourceKey: 'full', pageCount: 1, placementCount: 1 }], activityCount: 1, placementCount: 1, checkpointCount: 0, notificationCount: 0 }],
   selectedContextKeys: [], capacity: { current: { trackedAccountBytes: 1, pendingUploadBytes: 0, replacementUploadBytes: 0, temporaryBytes: 0 }, additionalBytes: 1, projected: 2, limit: 9_000_000_000, available: true }, reviewState: 'unreviewed', createdAt: '2026-08-11T00:00:00.000Z', expiresAt: '2099-08-11T01:00:00.000Z', planFingerprint: 'c'.repeat(64),
 } as unknown as ReplacementPlanRecord;
-const request = { bookId: 'book-1', currentRevisions: { bookRevision: 1, publicationRevision: 1, sourceSetRevision: 1, sourceVersionRevisions: { full: 1 } }, targetSourceSetRevision: 2, sourceSetDelta: {} as never, capacity: { current: { trackedAccountBytes: 1, pendingUploadBytes: 0, replacementUploadBytes: 0, temporaryBytes: 0 }, additionalBytes: 1 }, now: '2026-08-11T00:00:00.000Z' } as ReplacementPlanClientCreateRequest;
+const request = {
+  bookId: 'book-1',
+  sourceSetDelta: {} as never,
+  expectedCurrentRevisions: { bookRevision: 1, publicationRevision: 1, sourceSetRevision: 1, sourceVersionRevisions: { full: 1 } },
+  expectedSnapshotFingerprint: 'b'.repeat(64),
+  expectedSnapshotRevisionVector: { values: { book: 1 } },
+} as ReplacementPlanClientCreateRequest;
 
 const client: ReplacementPlanClient = {
   create: vi.fn(async () => plan),

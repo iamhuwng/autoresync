@@ -12,6 +12,10 @@ import type {
   BookRuntimeScore,
   BookRuntimeSourceProvenance,
 } from '../activityRuntimeAttempt.types';
+import type {
+  BookRuntimeFeedbackPolicy,
+  BookRuntimeTerminalLateFact,
+} from '../activityRuntimeAttempt.types';
 
 /** The schema is deliberately independent from legacy academic result rows. */
 export const BOOK_RESULT_PROJECTION_SCHEMA_VERSION = 1 as const;
@@ -34,7 +38,7 @@ export type BookResultSourceAvailability =
   | 'invalidated'
   | 'not-required';
 
-export type BookResultSurface = 'solo' | 'homework' | 'course' | 'unknown';
+export type BookResultSurface = 'solo' | 'public' | 'homework' | 'course' | 'class' | 'unknown';
 
 export type BookResultEvaluationStatus = 'pending_review' | 'submitted' | 'graded';
 
@@ -120,7 +124,7 @@ export interface BookResultContextPolicy extends BookResultAttemptPolicy {
 
 /** Optional facts supplied by the trusted context/feedback reader. */
 export interface BookResultProjectionContext {
-  readonly kind?: Exclude<BookDeliveryContextKind, 'preview' | 'class' | 'future_live'>;
+  readonly kind?: Exclude<BookDeliveryContextKind, 'preview' | 'future_live'>;
   readonly contextId?: string;
   /** Exact delivery/binding context identity; never inferred from a bare book ID. */
   readonly deliveryId?: string;
@@ -143,7 +147,7 @@ export interface BookResultTerminalRecords {
 export interface BookResultProjectionInput extends BookResultTerminalRecords {
   readonly context?: BookResultProjectionContext;
   /** Alias accepted for callers that already use the Delivery surface name. */
-  readonly surface?: Exclude<BookDeliveryContextKind, 'preview' | 'class' | 'future_live'>;
+  readonly surface?: Exclude<BookDeliveryContextKind, 'preview' | 'future_live'>;
   /** Submission time is distinct from the terminal-row creation time when supplied by the writer. */
   readonly submittedAt?: string;
   readonly attemptPolicy?: BookResultAttemptPolicy;
@@ -201,6 +205,10 @@ export interface BookResultAttemptSummary extends BookResultAttemptIdentity {
   readonly attemptLimit: number | null;
   readonly attemptsUsed: number;
   readonly attemptsRemaining: number | null;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+  /** Current trusted student visibility; independent of the teacher's own access. */
+  readonly studentFeedbackRelease?: 'released' | 'withheld';
 }
 
 export interface BookResultCompletionSnapshot {

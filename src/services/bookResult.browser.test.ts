@@ -70,6 +70,11 @@ const summary = {
   },
   evaluation: { status: 'pending_review' },
   feedback: { release: 'withheld', available: false },
+  feedbackPolicy: 'manual',
+  terminalLate: {
+    effectiveDeadline: { source: 'assignment', at: '2026-08-01T00:00:00.000Z' },
+    policyRevision: 1, authorityRevision: 1, evaluatedAt: '2026-07-31T00:00:00.000Z', late: false,
+  },
   attemptLimit: 2,
   attemptsUsed: 1,
   attemptsRemaining: 1,
@@ -102,6 +107,48 @@ const detail = {
 } satisfies BookResultAttemptDetail;
 
 describe('bookResult.browser', () => {
+  it('retains exact Public context pins through handles and rejects partial or mixed scopes', async () => {
+    const scoped = { ...address, contextKind: 'public' as const, contextId: 'public-1' };
+    expect(parseBookResultRouteHandle(createBookResultRouteHandle(scoped))).toEqual(scoped);
+    expect(() => createBookResultRouteHandle({ ...address, contextKind: 'public' })).toThrow();
+    expect(() => createBookResultRouteHandle({ ...scoped, homeworkId: 'homework-1' })).toThrow();
+    const maximum = { bookId: 'b'.repeat(160), studentId: 's'.repeat(160), groupKey: 'g_' + 'x'.repeat(638), contextKind: 'public' as const, contextId: 'c'.repeat(160) };
+    expect(parseBookResultRouteHandle(createBookResultRouteHandle(maximum))).toEqual(maximum);
+    expect(parseBookResultRouteHandle('br_' + 'x'.repeat(1601))).toBeNull();
+    const publicAttempt = { ...summary, surface: 'public', contextId: 'public-1', deliveryContextId: 'public-1', homeworkId: null,
+      completion: { ...summary.completion, contextId: 'public-1' }, evaluationStatus: 'submitted', evaluation: { status: 'submitted' },
+      feedback: { release: 'not-applicable', available: false } };
+    const publicGroup = { ...group, attempts: [publicAttempt], contexts: group.contexts.map(row => ({ ...row, surface: 'public', contextId: 'public-1' })) };
+    const fetchImpl = vi.fn(async () => Response.json({ group: publicGroup }));
+    const client = createBookResultBrowserClient({ baseUrl: 'https://results.test', getIdToken: async () => 'token', fetchImpl });
+    await expect(client.readGroup(scoped)).resolves.toMatchObject({ attempts: [{ surface: 'public', deliveryContextId: 'public-1' }] });
+    expect(fetchImpl.mock.calls[0]?.[0]).toContain('/contexts/public/public-1/groups/');
+    publicAttempt.deliveryContextId = 'wrong-context';
+    await expect(client.readGroup(scoped)).rejects.toMatchObject({ code: 'invalid_response' });
+    publicAttempt.deliveryContextId = 'public-1';
+    publicGroup.contexts[0].contextId = 'wrong-context';
+    await expect(client.readGroup(scoped)).rejects.toMatchObject({ code: 'invalid_response' });
+  });
+  it('releases only the selected Homework result through an authenticated POST', async () => {
+    const receipt = { status: 'released', resultId: 'result-1', releasedAt: '2026-09-22T00:00:00.000Z' };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(receipt), { status: 200 }));
+    const client = createBookResultBrowserClient({
+      baseUrl: 'https://book-results.example.test', fetchImpl, getIdToken: async () => 'id-token',
+    });
+    await expect(client.releaseFeedback({ ...address, homeworkId: 'homework-1' }, 'result-1')).resolves.toEqual(receipt);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      'https://book-results.example.test/v1/book-evaluation/results/book-1/student-1/homework/homework-1/details/result-1/release-feedback',
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST', body: '{}', cache: 'no-store', credentials: 'omit',
+      headers: expect.objectContaining({ authorization: 'Bearer id-token', 'content-type': 'application/json' }),
+    });
+    await expect(client.releaseFeedback(address, 'result-1')).rejects.toMatchObject({ code: 'invalid_route' });
+    receipt.resultId = 'other-result';
+    await expect(client.releaseFeedback({ ...address, homeworkId: 'homework-1' }, 'result-1'))
+      .rejects.toMatchObject({ code: 'invalid_response' });
+  });
+
   it('round-trips an opaque route handle without delimiter inference', () => {
     const handle = createBookResultRouteHandle(address);
     expect(handle).toMatch(/^br_[A-Za-z0-9_-]+$/u);

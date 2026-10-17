@@ -4,6 +4,9 @@ import type {
 } from './unitAssembly.types';
 import type {
   BookAssemblyManifestCandidate,
+  BookAssemblyActivityVersionRecord,
+  BookAssemblyActivitySafeProjectionRecord,
+  BookAssemblyPlacementRecord,
   BookAssemblyPreviewApprovalReference,
   BookAssemblyPublicationAdapterPlan,
   BookAssemblyPublicationAtomicWriteSet,
@@ -219,9 +222,9 @@ const createPublicationRecords = (
   }
   const placementIds: string[] = [];
   const allPages = new Map<string, SourceQualifiedPageIdentity>();
-  const activityVersions = [];
-  const activitySafeProjections = [];
-  const placements = [];
+  const activityVersions: BookAssemblyActivityVersionRecord[] = [];
+  const activitySafeProjections: BookAssemblyActivitySafeProjectionRecord[] = [];
+  const placements: BookAssemblyPlacementRecord[] = [];
   const canonicalActivityVersions: CanonicalPublishedActivityVersionRecord[] = [];
   for (const slot of unit.activitySlots) {
     const ids = input.ids.activitiesByKey[slot.activityKey];

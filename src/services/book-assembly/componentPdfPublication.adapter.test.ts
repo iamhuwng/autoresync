@@ -7,8 +7,10 @@ import type {
   BookAssemblyManifestCandidate,
   BookAssemblyPreviewApprovalReference,
   BookSourceVersionAuthority,
+  TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
+import { normalizeActivity } from '../book-activity/activityCanonical.service';
 import { createCanonicalBookAssemblyPublicationService } from './canonicalPublication.service';
 import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
@@ -16,6 +18,7 @@ import {
   createComponentPdfPublicationAdapter,
   createComponentPdfPublicationAdapterPlan,
   createComponentPdfPublicationCommandPlan,
+  createComponentPdfMultiUnitPublicationOutput,
   ComponentPdfPublicationAdapterError,
   type ComponentPdfPublicationIds,
 } from './componentPdfPublication.adapter';
@@ -51,6 +54,52 @@ const activity = (interactionId: string): NormalizedActivity => ({
   scoring: { mode: 'auto-where-possible' },
 });
 
+const longResponseActivity = (): NormalizedActivity => normalizeActivity({
+  schemaVersion: 1,
+  title: 'Explain the source evidence',
+  taskProfile: null,
+  presentationMode: 'source-assisted',
+  contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+  instructions: [{ text: 'Explain using the pinned component page.' }],
+  stimulus: null,
+  assetRefs: [],
+  interaction: { family: 'long-response', variant: 'essay' },
+  answerRule: { defaultPoints: 2, normalization: 'exact' },
+  interactions: [{
+    prompt: 'Explain the evidence.',
+    rubric: { criteria: ['Evidence'] },
+    sourceAssisted: {
+      questionLabel: 'Question 1',
+      sourceExerciseLabel: 'Exercise 1',
+      accessiblePrompt: 'Explain the evidence in the source.',
+      responseShape: 'long-response',
+    },
+  }],
+  scoring: { mode: 'review-required' },
+} as const, undefined, undefined, { mappedBookPageRefs: ['source:component-a:page:1'] });
+
+const trustedProjection = (
+  sourceVersionId: string,
+  physicalPageCount: number,
+  verifiedUsable: boolean,
+): TrustedBookSourceVersionProjection => ({
+  sourceKey: sourceVersionId === 'source-a-v1' ? 'component-a' : 'component-b',
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'ready',
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: '2026-01-01T00:00:00.000Z',
+    sourceVersionId,
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+  physicalPageCount,
+  verifiedUsable,
+});
+
 const sourceVersionAuthority = (usable = true): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => {
     const pages: Record<string, number> = {
@@ -58,12 +107,7 @@ const sourceVersionAuthority = (usable = true): BookSourceVersionAuthority => ({
       'source-b-v1': 14,
     };
     return sourceVersionId in pages
-      ? {
-          sourceVersionId,
-          bookId: 'book-1',
-          physicalPageCount: pages[sourceVersionId] ?? 1,
-          verifiedUsable: usable,
-        }
+      ? trustedProjection(sourceVersionId, pages[sourceVersionId] ?? 1, usable)
       : undefined;
   },
 });
@@ -231,6 +275,35 @@ const adapterInput = (
 };
 
 describe('component-PDF publication adapter', () => {
+  it('publishes the normalized source-assisted long-response answer key', () => {
+    const input = adapterInput({ activitiesByKey: {
+      'slot-a': {
+        activityKey: 'slot-a', ownerId: 'teacher-1', revision: 1, lifecycle: 'draft', activity: longResponseActivity(),
+      },
+      'slot-b': {
+        activityKey: 'slot-b', ownerId: 'teacher-1', revision: 1, lifecycle: 'draft', activity: activity('component-choice-b'),
+      },
+    } });
+
+    const output = createComponentPdfPublicationAdapter(input);
+    const published = output.canonicalActivityVersions.find((entry) => entry.activity.interaction.family === 'long-response');
+    expect(published?.activity.interactions[0]).not.toHaveProperty('rubric');
+    expect(published?.activity.interactions[0]?.answerKey).toEqual({ family: 'long-response', rubric: { criteria: ['Evidence'] } });
+  });
+
+  it('publishes a valid one-Unit activation without requiring a second Unit', () => {
+    const { ids: _ids, ...unit } = adapterInput();
+    const output = createComponentPdfMultiUnitPublicationOutput({
+      aggregateCandidateId: 'activation-candidate-1',
+      previewApproval: approval(),
+      units: [{ ...unit, allocateId: (kind, key) => `${kind}:${key}` }],
+    });
+
+    expect(output.plan.candidateId).toBe('activation-candidate-1');
+    expect(output.plan.studentSafeProjection.units).toEqual([manifest().units[0]]);
+    expect(output.plan.atomicWrites.unitProjections).toHaveLength(1);
+  });
+
   it('supplies #64 with component-owned records and source-local page identity for the selected Unit only', async () => {
     const output = createComponentPdfPublicationAdapter(adapterInput());
     const { plan } = output;
@@ -490,7 +563,7 @@ describe('component-PDF publication adapter', () => {
     })).toThrow('component_pdfs_activity_payload_invalid');
   });
 
-  it('canonicalizes component arrays and aggregate pages by authoritative sourceOrder', () => {
+  it('rejects component arrays whose submitted order is not dense', () => {
     const base = manifest();
     const unsorted: BookAssemblyManifestCandidate = {
       ...base,
@@ -499,17 +572,10 @@ describe('component-PDF publication adapter', () => {
         sources: [...base.sourceSet.sources].reverse(),
       },
     };
-    const plan = createComponentPdfPublicationAdapterPlan(adapterInput({
+    expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
       candidate: candidate(unsorted),
       authority: authority(unsorted),
-    }));
-
-    expect(plan.sourceSet.sources.map((source) => source.sourceKey))
-      .toEqual(['component-a', 'component-b']);
-    expect(plan.atomicWrites.deliveryPlans[0]?.sourceSet.sources.map((source) => source.sourceKey))
-      .toEqual(['component-a', 'component-b']);
-    expect(plan.atomicWrites.unitProjections[0]?.sourcePages.map((page) => page.sourceKey))
-      .toEqual(['component-a', 'component-b']);
+    }))).toThrow('component_pdfs_manifest_invalid');
   });
 
   it('rejects missing, mis-keyed, and cross-component Activity payloads', () => {

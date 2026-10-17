@@ -9,13 +9,15 @@ import {
   type BookResultAttemptSummary,
   type BookResultDetail,
   type BookResultGroupSummary,
-  type BookResultProjectionInput,
   type BookResultQueryEvent,
   type BookResultQueryInput,
   type BookResultQueryMetrics,
   type BookResultQueryObserver,
-  type BookResultReadProjection,
 } from './types.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@_-]{0,255}$/u;
 const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
@@ -37,7 +39,6 @@ export interface BookResultReadRepository {
   listGroupSummaries(input: BookResultQueryInput): Promise<readonly BookResultGroupSummary[]>;
   listAttemptSummaries(input: BookResultQueryInput): Promise<readonly BookResultAttemptSummary[]>;
   readResultDetail(input: BookResultQueryInput & { readonly resultId: string }): Promise<BookResultDetail | null>;
-  persistProjection?(input: BookResultProjectionInput): Promise<void>;
   listGroups?(input: BookResultQueryInput): Promise<readonly BookResultGroupSummary[]>;
   listAttempts?(input: BookResultQueryInput): Promise<readonly BookResultAttemptSummary[]>;
   readDetail?(input: BookResultQueryInput & { readonly resultId: string }): Promise<BookResultDetail | null>;
@@ -65,12 +66,14 @@ const safeId = (value: string, label: string): string => {
   return value;
 };
 
-const pathId = (value: string, label: string): string => encodeURIComponent(safeId(value, label));
+// Keep validated path segments raw; FirebaseRtdbRestClient performs the one
+// required URL encoding at the transport boundary.
+const pathId = (value: string, label: string): string => safeId(value, label);
 const groupKey = (value: string): string => {
   if (!GROUP_KEY.test(value)) throw new BookResultRepositoryError('book_result_group_key_invalid');
   return value;
 };
-const groupPathId = (value: string): string => encodeURIComponent(groupKey(value));
+const groupPathId = (value: string): string => groupKey(value);
 
 export const bookResultStudentGroupsPath = (input: {
   readonly studentId: string;
@@ -97,6 +100,9 @@ const bookResultHomeworkAttemptsPath = (input: {
 export const bookResultGroupsPath = (input: BookResultQueryInput): string => {
   safeId(input.studentId, 'student_id');
   safeId(input.bookId, 'book_id');
+  if (input.contextKind === 'public' || input.contextKind === 'course' || input.contextKind === 'class') {
+    return `${bookResultContextRoot(input)}/group_summaries`;
+  }
   return input.homeworkId
     ? bookResultHomeworkGroupsPath({
       homeworkId: input.homeworkId,
@@ -109,7 +115,9 @@ export const bookResultGroupsPath = (input: BookResultQueryInput): string => {
 export const bookResultAttemptsPath = (input: BookResultQueryInput): string => {
   if (!input.groupKey) throw new BookResultRepositoryError('book_result_group_key_required');
   groupKey(input.groupKey);
-  const root = input.homeworkId
+  const root = input.contextKind === 'public' || input.contextKind === 'course' || input.contextKind === 'class'
+    ? `${bookResultContextRoot(input)}/group_attempts`
+    : input.homeworkId
     ? bookResultHomeworkAttemptsPath({
       homeworkId: input.homeworkId,
       studentId: input.studentId,
@@ -122,24 +130,26 @@ export const bookResultAttemptsPath = (input: BookResultQueryInput): string => {
   return `${root}/${groupPathId(input.groupKey)}`;
 };
 
-export const bookResultGroupSummaryPath = (input: BookResultQueryInput): string => {
-  if (!input.groupKey) throw new BookResultRepositoryError('book_result_group_key_required');
-  groupKey(input.groupKey);
-  return `${bookResultGroupsPath(input)}/${groupPathId(input.groupKey)}`;
+const bookResultContextRoot = (input: BookResultQueryInput): string => {
+  if (!input.contextId || input.homeworkId || !['public', 'course', 'class'].includes(input.contextKind ?? '')) {
+    throw new BookResultRepositoryError('book_result_context_invalid');
+  }
+  return `book_result_read_models/contexts/${input.contextKind}/${pathId(input.contextId, 'context_id')}/students/${pathId(input.studentId, 'student_id')}/books/${pathId(input.bookId, 'book_id')}`;
 };
+
+const matchesContext = (row: { readonly surface?: unknown; readonly contextId?: unknown }, input: BookResultQueryInput): boolean => (
+  input.contextKind !== 'public' && input.contextKind !== 'course' && input.contextKind !== 'class'
+    || row.surface === input.contextKind && row.contextId === input.contextId
+);
+
+const groupMatchesContext = (row: BookResultGroupSummary, input: BookResultQueryInput): boolean => (
+  input.contextKind !== 'public' && input.contextKind !== 'course' && input.contextKind !== 'class'
+    || row.contexts.length > 0 && row.contexts.every((entry) => matchesContext({ surface: entry.surface, contextId: entry.contextId }, input))
+);
 
 export const bookResultDetailPath = (resultId: string): string => (
   `book_result_read_models/details/${pathId(resultId, 'result_id')}`
 );
-
-const stable = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stable(record[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-};
 
 const stripUnsafe = (value: unknown, depth = 0): unknown => {
   if (depth > 8) return null;
@@ -154,9 +164,27 @@ const stripUnsafe = (value: unknown, depth = 0): unknown => {
 };
 
 const visibleSummary = (summary: BookResultAttemptSummary): BookResultAttemptSummary => ({
-  ...clone(summary),
-  sourceProvenance: clone(summary.sourceProvenance),
-  sources: clone(summary.sources),
+  ...(() => {
+    const value = clone(summary) as unknown as Record<string, unknown>;
+    if (value.ownerId === undefined) value.ownerId = null;
+    if (value.homeworkId === undefined) value.homeworkId = null;
+    if (value.attemptLimit === undefined) value.attemptLimit = null;
+    if (value.attemptsRemaining === undefined) value.attemptsRemaining = null;
+    if (!Array.isArray(value.pageGroupKeys)) value.pageGroupKeys = [];
+    if (!Array.isArray(value.sourceProvenance)) value.sourceProvenance = [];
+    if (!Array.isArray(value.sources)) value.sources = [];
+    if (isRecord(value.attemptSourceContext)
+      && value.attemptSourceContext.state === 'historical_source_unavailable') {
+      value.attemptSourceContext = {
+        ...value.attemptSourceContext,
+        metadata: value.attemptSourceContext.metadata ?? null,
+        documentResource: value.attemptSourceContext.documentResource ?? null,
+      };
+    }
+    return value as unknown as BookResultAttemptSummary;
+  })(),
+  sourceProvenance: clone(summary.sourceProvenance ?? []),
+  sources: clone(summary.sources ?? []),
 });
 
 const visibleDetail = (detail: BookResultDetail): BookResultDetail => ({
@@ -164,35 +192,16 @@ const visibleDetail = (detail: BookResultDetail): BookResultDetail => ({
   response: stripUnsafe(detail.response),
 });
 
-const assertProjection = (projection: BookResultReadProjection): void => {
-  if (projection.schemaVersion !== 1
-    || typeof projection.bookId !== 'string'
-    || !isRecord(projection.summary) || !isRecord(projection.detail)
-    || projection.summary.schemaVersion !== 1
-    || projection.detail.schemaVersion !== 1
-    || projection.summary.resultId !== projection.detail.resultId
-    || projection.summary.attemptId !== projection.detail.attemptId
-    || projection.summary.studentId !== projection.detail.studentId
-    || projection.summary.activityId !== projection.detail.activityId
-    || projection.summary.completionId !== projection.detail.completionId) {
-    throw new BookResultRepositoryError('book_result_projection_invalid');
-  }
-  safeId(projection.bookId, 'book_id');
-  safeId(projection.summary.studentId, 'student_id');
-  safeId(projection.summary.activityId, 'activity_id');
-  if (!['solo', 'homework'].includes(projection.summary.surface)) {
-    throw new BookResultRepositoryError('book_result_context_invalid');
-  }
-}
-
 const queryScope = (input: BookResultQueryInput): void => {
   safeId(input.studentId, 'student_id');
   safeId(input.bookId, 'book_id');
   if (input.homeworkId) safeId(input.homeworkId, 'homework_id');
   if (input.groupKey) groupKey(input.groupKey);
-  if (input.contextKind && !['solo', 'homework'].includes(input.contextKind)) {
+  if (input.contextKind && !['solo', 'public', 'homework', 'course', 'class'].includes(input.contextKind)) {
     throw new BookResultRepositoryError('book_result_context_invalid');
   }
+  if (input.contextKind === 'public' || input.contextKind === 'course' || input.contextKind === 'class') bookResultContextRoot(input);
+  else if (input.contextId !== undefined) throw new BookResultRepositoryError('book_result_context_invalid');
 };
 
 const limitFor = (input: BookResultQueryInput, kind: 'groups' | 'attempts'): number => {
@@ -204,54 +213,6 @@ const limitFor = (input: BookResultQueryInput, kind: 'groups' | 'attempts'): num
   return limit;
 };
 
-const makeGroup = (
-  groupKey: string,
-  attempts: readonly BookResultAttemptSummary[],
-  bookId: string,
-): BookResultGroupSummary => {
-  if (attempts.length === 0) throw new BookResultRepositoryError('book_result_group_empty');
-  const sorted = [...attempts].sort((left, right) => (
-    left.attemptNumber - right.attemptNumber || left.submittedAt.localeCompare(right.submittedAt)
-  ));
-  const latest = sorted[sorted.length - 1]!;
-  const contextMap = new Map<string, {
-    contextId: string;
-    deliveryId: string;
-    surface: typeof latest.surface;
-    attemptCount: number;
-  }>();
-  for (const attempt of sorted) {
-    const key = `${attempt.deliveryContextId}|${attempt.deliveryId}`;
-    const current = contextMap.get(key);
-    contextMap.set(key, current
-      ? { ...current, attemptCount: current.attemptCount + 1 }
-      : {
-        contextId: attempt.deliveryContextId,
-        deliveryId: attempt.deliveryId,
-        surface: attempt.surface,
-        attemptCount: 1,
-      });
-  }
-  return {
-    schemaVersion: 1,
-    groupKey,
-    studentId: latest.studentId,
-    recipientId: latest.recipientId,
-    activityId: latest.activityId,
-    homeworkId: latest.homeworkId ?? undefined,
-    bookId,
-    attemptCount: sorted.length,
-    latestAttemptId: latest.attemptId,
-    latestResultId: latest.resultId,
-    latestAttemptNumber: latest.attemptNumber,
-    latestSubmittedAt: latest.submittedAt,
-    latestCreatedAt: latest.createdAt,
-    latestEvaluationStatus: latest.evaluationStatus,
-    latestFeedbackRelease: latest.feedback.release,
-    contexts: [...contextMap.values()],
-  };
-};
-
 const groupIdentity = (summary: BookResultAttemptSummary): string => (
   bookResultGroupKey(summary.studentId, summary.activityId)
 );
@@ -260,12 +221,11 @@ interface QueryCounterState {
   groups: number;
   attempts: number;
   details: number;
-  persists: number;
   events: BookResultQueryEvent[];
 }
 
 class QueryCounter {
-  private readonly state: QueryCounterState = { groups: 0, attempts: 0, details: 0, persists: 0, events: [] };
+  private readonly state: QueryCounterState = { groups: 0, attempts: 0, details: 0, events: [] };
 
   constructor(private readonly observer?: BookResultQueryObserver) {}
 
@@ -273,7 +233,6 @@ class QueryCounter {
     if (event.operation === 'groups') this.state.groups += 1;
     if (event.operation === 'attempts') this.state.attempts += 1;
     if (event.operation === 'detail') this.state.details += 1;
-    if (event.operation === 'persist') this.state.persists += 1;
     this.state.events.push(clone(event));
     this.observer?.(clone(event));
   }
@@ -312,7 +271,8 @@ export class InMemoryBookResultReadRepository implements BookResultReadRepositor
       .filter((group) => group.studentId === input.studentId
         && group.bookId === input.bookId
         && (input.homeworkId === undefined || group.homeworkId === input.homeworkId)
-        && (input.groupKey === undefined || group.groupKey === input.groupKey))
+        && (input.groupKey === undefined || group.groupKey === input.groupKey)
+        && groupMatchesContext(group, input))
       .sort((left, right) => right.latestSubmittedAt.localeCompare(left.latestSubmittedAt))
       .slice(0, limit)
       .map(clone);
@@ -329,6 +289,7 @@ export class InMemoryBookResultReadRepository implements BookResultReadRepositor
       .filter((attempt) => attempt.studentId === input.studentId
         && attempt.bookId === input.bookId
         && (input.homeworkId === undefined || attempt.homeworkId === input.homeworkId)
+        && matchesContext(attempt, input)
         && groupIdentity(attempt) === input.groupKey)
       .sort((left, right) => left.attemptNumber - right.attemptNumber
         || left.submittedAt.localeCompare(right.submittedAt))
@@ -347,39 +308,12 @@ export class InMemoryBookResultReadRepository implements BookResultReadRepositor
       && candidate.studentId === input.studentId
       && candidate.bookId === input.bookId
       && (input.homeworkId === undefined || candidate.homeworkId === input.homeworkId)
+      && matchesContext(candidate, input)
       && (input.groupKey === undefined || groupIdentity(candidate) === input.groupKey)
       ? visibleDetail(candidate)
       : null;
     this.counter.record({ operation: 'detail', path, rows: detail ? 1 : 0, limit: 1 });
     return detail;
-  }
-
-  async persistProjection(input: BookResultProjectionInput): Promise<void> {
-    assertProjection(input.projection);
-    const summary = visibleSummary({ ...input.projection.summary, bookId: input.projection.bookId });
-    const detail = visibleDetail({ ...input.projection.detail, bookId: input.projection.bookId });
-    const existing = this.attempts[summary.resultId];
-    if (existing && stable(existing) !== stable(summary)) {
-      throw new BookResultRepositoryError('book_result_projection_conflict');
-    }
-    const existingDetail = this.details[summary.resultId];
-    if (existingDetail && stable(existingDetail) !== stable(detail)) {
-      throw new BookResultRepositoryError('book_result_detail_conflict');
-    }
-    this.attempts[summary.resultId] = clone(summary);
-    this.details[summary.resultId] = clone(detail);
-    const groupKey = groupIdentity(summary);
-    const grouped = Object.values(this.attempts).filter((attempt) =>
-      attempt.bookId === input.projection.bookId
-      && groupIdentity(attempt) === groupKey);
-    this.groups[`${input.projection.bookId}:${groupKey}`] =
-      makeGroup(groupKey, grouped, input.projection.bookId);
-    this.counter.record({
-      operation: 'persist',
-      path: `book_result_read_models/projections/${pathId(summary.resultId, 'result_id')}`,
-      rows: 1,
-      limit: 1,
-    });
   }
 
   listGroups(input: BookResultQueryInput): Promise<readonly BookResultGroupSummary[]> { return this.listGroupSummaries(input); }
@@ -390,10 +324,9 @@ export class InMemoryBookResultReadRepository implements BookResultReadRepositor
 export interface FirebaseBookResultReadRepositoryOptions extends BookResultRepositoryOptions {
   readonly env: RepositoryEnv & {
     readonly BOOK_RESULT_READ_GOOGLE_SA_KEY?: string;
-    readonly writeDatabaseValue?: (path: string, value: unknown) => Promise<void>;
+    readonly BOOK_RESULT_READ_SERVICE_IDENTITY?: string;
   };
   readonly fetchImpl?: typeof fetch;
-  readonly getAccessToken?: () => Promise<string>;
 }
 
 const mapRows = <T>(value: unknown): readonly T[] => {
@@ -402,22 +335,61 @@ const mapRows = <T>(value: unknown): readonly T[] => {
   return Object.values(value) as T[];
 };
 
+const RESULT_ID = '[A-Za-z0-9][A-Za-z0-9._:@_-]{0,255}';
+const RESULT_GROUP_KEY = 'g_[A-Za-z0-9_-]{4,638}';
+const RESULT_SCOPE_ID = '[A-Za-z0-9][A-Za-z0-9._:@_-]{0,255}';
+const resultReadClaimForPath = (path: string): BookFirebaseClaimTuple => {
+  const contextMatch = /^book_result_read_models\/contexts\/(public|course|class)\/([^/]+)\/students\/([^/]+)\/books\/([^/]+)\/(?:group_summaries|group_attempts)(?:\/([^/]+))?$/u.exec(path);
+  if (contextMatch) return {
+    service: 'book_result_read', contextKind: contextMatch[1] as 'public' | 'course' | 'class', contextId: contextMatch[2]!,
+    studentId: contextMatch[3]!, bookId: contextMatch[4]!,
+    ...(contextMatch[5] ? { groupKey: contextMatch[5] } : {}),
+  };
+  let match = new RegExp(`^book_result_read_models/details/(${RESULT_ID})$`, 'u').exec(path);
+  if (match) return { service: 'book_result_read', resultId: match[1]! };
+  match = new RegExp(`^book_result_read_models/students/(${RESULT_SCOPE_ID})/books/(${RESULT_SCOPE_ID})/group_summaries$`, 'u').exec(path);
+  if (match) return { service: 'book_result_read', studentId: match[1]!, bookId: match[2]! };
+  match = new RegExp(`^book_result_read_models/students/(${RESULT_SCOPE_ID})/books/(${RESULT_SCOPE_ID})/group_attempts/(${RESULT_GROUP_KEY})$`, 'u').exec(path);
+  if (match) return { service: 'book_result_read', studentId: match[1]!, bookId: match[2]!, groupKey: match[3]! };
+  match = new RegExp(`^book_result_read_models/homework/(${RESULT_SCOPE_ID})/students/(${RESULT_SCOPE_ID})/books/(${RESULT_SCOPE_ID})/group_summaries$`, 'u').exec(path);
+  if (match) return {
+    service: 'book_result_read', homeworkId: match[1]!, studentId: match[2]!, bookId: match[3]!,
+  };
+  match = new RegExp(`^book_result_read_models/homework/(${RESULT_SCOPE_ID})/students/(${RESULT_SCOPE_ID})/books/(${RESULT_SCOPE_ID})/group_attempts/(${RESULT_GROUP_KEY})$`, 'u').exec(path);
+  if (match) return {
+    service: 'book_result_read', homeworkId: match[1]!, studentId: match[2]!, bookId: match[3]!, groupKey: match[4]!,
+  };
+  throw new BookResultRepositoryError('book_result_read_path_invalid');
+};
+
 export class FirebaseBookResultReadRepository implements BookResultReadRepository {
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly claimTokenProvider?: ReturnType<typeof createFirebaseClaimTokenProvider>;
   private readonly counter: QueryCounter;
-  private readonly env: FirebaseBookResultReadRepositoryOptions['env'];
 
-  constructor(options: FirebaseBookResultReadRepositoryOptions) {
-    this.env = options.env;
-    const scopedEnv = {
-      ...options.env,
-      GOOGLE_SA_KEY: options.env.BOOK_RESULT_READ_GOOGLE_SA_KEY,
-    };
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: scopedEnv,
-      fetchImpl: options.fetchImpl ?? fetch,
-      ...(options.getAccessToken ? { getAccessToken: options.getAccessToken } : {}),
-    });
+  constructor(private readonly options: FirebaseBookResultReadRepositoryOptions) {
+    const fetchImpl = options.fetchImpl ?? fetch;
+    if (options.env.readDatabaseValue) {
+      this.rtdb = new FirebaseRtdbRestClient({ env: options.env, fetchImpl });
+    } else {
+      const serviceIdentity = options.env.BOOK_RESULT_READ_SERVICE_IDENTITY?.trim() ?? '';
+      const claimTokenProvider = createFirebaseClaimTokenProvider({
+        serviceAccountJson: options.env.BOOK_RESULT_READ_GOOGLE_SA_KEY?.trim() ?? '',
+        serviceIdentity,
+        firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+        firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+        fetchImpl,
+      });
+      this.claimTokenProvider = claimTokenProvider;
+      this.rtdb = new FirebaseRtdbRestClient({
+        env: options.env,
+        fetchImpl,
+        firebaseAuthToken: true,
+        getFirebaseAuthToken: ({ path } = { path: '' }) => (
+          claimTokenProvider(resultReadClaimForPath(path))
+        ),
+      });
+    }
     this.counter = new QueryCounter(options.queryObserver);
   }
 
@@ -436,7 +408,8 @@ export class FirebaseBookResultReadRepository implements BookResultReadRepositor
         && row.studentId === input.studentId
         && row.bookId === input.bookId
         && (input.homeworkId === undefined || row.homeworkId === input.homeworkId)
-        && (input.groupKey === undefined || row.groupKey === input.groupKey))
+        && (input.groupKey === undefined || row.groupKey === input.groupKey)
+        && groupMatchesContext(row, input))
       .sort((left, right) => right.latestSubmittedAt.localeCompare(left.latestSubmittedAt))
       .slice(0, limit)
       .map(clone);
@@ -462,7 +435,8 @@ export class FirebaseBookResultReadRepository implements BookResultReadRepositor
         && row.studentId === input.studentId
         && row.bookId === input.bookId
         && groupIdentity(row) === input.groupKey
-        && (input.homeworkId === undefined || row.homeworkId === input.homeworkId))
+        && (input.homeworkId === undefined || row.homeworkId === input.homeworkId)
+        && matchesContext(row, input))
       .sort((left, right) => left.attemptNumber - right.attemptNumber
         || left.submittedAt.localeCompare(right.submittedAt))
       .slice(0, limit)
@@ -475,83 +449,26 @@ export class FirebaseBookResultReadRepository implements BookResultReadRepositor
     queryScope(input);
     const resultId = safeId(input.resultId, 'result_id');
     const path = bookResultDetailPath(resultId);
-    const raw = await this.rtdb.readValue(path);
+    const scoped = input.contextKind === 'public' || input.contextKind === 'course' || input.contextKind === 'class';
+    const reader = scoped && this.claimTokenProvider ? new FirebaseRtdbRestClient({
+      env: this.options.env, fetchImpl: this.options.fetchImpl ?? fetch, firebaseAuthToken: true,
+      getFirebaseAuthToken: () => this.claimTokenProvider!({ service: 'book_result_read',
+        contextKind: input.contextKind as 'public' | 'course' | 'class', contextId: input.contextId!,
+        studentId: input.studentId, bookId: input.bookId, resultId }),
+    }) : this.rtdb;
+    const raw = await reader.readValue(path);
     const detail = isRecord(raw)
       && raw.schemaVersion === 1
       && raw.resultId === resultId
       && raw.studentId === input.studentId
       && raw.bookId === input.bookId
       && (input.homeworkId === undefined || raw.homeworkId === input.homeworkId)
+      && matchesContext(raw, input)
       && (input.groupKey === undefined || groupIdentity(raw as unknown as BookResultDetail) === input.groupKey)
       ? visibleDetail(raw as unknown as BookResultDetail)
       : null;
     this.counter.record({ operation: 'detail', path, rows: detail ? 1 : 0, limit: 1 });
     return detail;
-  }
-
-  async persistProjection(input: BookResultProjectionInput): Promise<void> {
-    if (typeof this.env.writeDatabaseValue !== 'function') {
-      throw new BookResultRepositoryError('book_result_projection_writer_unavailable');
-    }
-    assertProjection(input.projection);
-    const summary = visibleSummary({ ...input.projection.summary, bookId: input.projection.bookId });
-    const detail = visibleDetail({ ...input.projection.detail, bookId: input.projection.bookId });
-    const detailPath = bookResultDetailPath(summary.resultId);
-    const existingDetail = await this.rtdb.readValue(detailPath);
-    if (existingDetail !== null && stable(existingDetail) !== stable(detail)) {
-      throw new BookResultRepositoryError('book_result_detail_conflict');
-    }
-    if (existingDetail === null) await this.env.writeDatabaseValue(detailPath, detail);
-
-    const groupKey = groupIdentity(summary);
-    const scopes: BookResultQueryInput[] = [{
-      bookId: input.projection.bookId,
-      studentId: summary.studentId,
-      groupKey,
-    }];
-    if (summary.homeworkId) {
-      scopes.push({
-        bookId: input.projection.bookId,
-        studentId: summary.studentId,
-        homeworkId: summary.homeworkId,
-        groupKey,
-      });
-    }
-
-    for (const scope of scopes) {
-      const attemptsPath = bookResultAttemptsPath(scope);
-      const attemptPath = `${attemptsPath}/${pathId(summary.resultId, 'result_id')}`;
-      const groupPath = bookResultGroupSummaryPath(scope);
-      const existingAttempt = await this.rtdb.readValue(attemptPath);
-      if (existingAttempt !== null && stable(existingAttempt) !== stable(summary)) {
-        throw new BookResultRepositoryError('book_result_projection_conflict');
-      }
-      if (existingAttempt === null) {
-        await this.env.writeDatabaseValue(attemptPath, summary);
-      }
-
-      const indexedAttempts = mapRows<BookResultAttemptSummary>(
-        await this.rtdb.readValue(attemptsPath, {
-          orderBy: '$key',
-          limitToFirst: BOOK_RESULT_MAX_ATTEMPT_LIMIT + 1,
-        }),
-      ).filter((row): row is BookResultAttemptSummary => isRecord(row)
-        && row.schemaVersion === 1
-        && row.studentId === summary.studentId
-        && row.bookId === input.projection.bookId
-        && groupIdentity(row) === groupKey
-        && (scope.homeworkId === undefined || row.homeworkId === scope.homeworkId));
-      if (indexedAttempts.length === 0
-        || indexedAttempts.length > BOOK_RESULT_MAX_ATTEMPT_LIMIT) {
-        throw new BookResultRepositoryError('book_result_attempts_query_unbounded');
-      }
-      const nextGroup = makeGroup(groupKey, indexedAttempts, input.projection.bookId);
-      const existingGroup = await this.rtdb.readValue(groupPath);
-      if (existingGroup === null || stable(existingGroup) !== stable(nextGroup)) {
-        await this.env.writeDatabaseValue(groupPath, nextGroup);
-      }
-    }
-    this.counter.record({ operation: 'persist', path: `book_result_read_models/projections/${pathId(summary.resultId, 'result_id')}`, rows: 1, limit: 1 });
   }
 
   listGroups(input: BookResultQueryInput): Promise<readonly BookResultGroupSummary[]> { return this.listGroupSummaries(input); }

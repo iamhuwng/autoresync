@@ -220,6 +220,9 @@ export const createBookHomeworkAssignmentIntent = (
   if (source.identity.manifestVersionId !== draft.manifest.manifestVersionId) {
     throw invalid('selected manifest version is stale.');
   }
+  if (!draft.manifest.studentDocument || !draft.manifest.targetPreview) {
+    throw invalid('trusted combined document preview is unavailable.');
+  }
 
   const selectedRecipientIds = normalizeRecipients(source, input.selectedRecipientIds);
   const { schedule } = compileScheduleIntent(draft);
@@ -255,6 +258,8 @@ export const createBookHomeworkAssignmentIntent = (
       })),
     },
     expectedPublication,
+    expectedStudentDocument: { ...draft.manifest.studentDocument },
+    expectedPreviewFingerprint: draft.manifest.targetPreview.fingerprint,
     presentation,
   };
 

@@ -105,7 +105,49 @@ const env = (enabled: boolean) => ({
   })),
 });
 
+const runCommand = async (
+  handlers: ReturnType<typeof createBookHomeworkWorkerHandlers>,
+  input: Parameters<ReturnType<typeof createBookHomeworkWorkerHandlers>['homeworkAssignmentCommand']>[0],
+) => {
+  const tasks: Promise<void>[] = [];
+  const result = await handlers.homeworkAssignmentCommand({ ...input,
+    executionContext: { waitUntil: (task) => { tasks.push(task); } },
+  });
+  await Promise.all(tasks);
+  return result;
+};
+
 describe('Book Homework committed notification integration', () => {
+  it('persists failed best-effort delivery through the authenticated actor admin-report path', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = fetchImpl;
+    const diagnostic = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const requestValue = request();
+      requestValue.headers.set('authorization', 'Bearer teacher-actor-token');
+      const handlers = createBookHomeworkWorkerHandlers({
+        saga: { execute: async () => ({ status: 'committed', record: record() }),
+          readCommittedAssignment: async () => record() },
+        notificationRepositoryFactory: () => ({ create: async () => { throw new Error('private-provider-error'); } }),
+      });
+      const result = await runCommand(handlers, { request: requestValue, uid: 'teacher-1', assignmentId,
+        env: { ...env(true), FIREBASE_DB_URL: 'https://example.firebaseio.com' } });
+      expect(result.init.status).toBe(200);
+      expect(result.body).toMatchObject({ state: 'committed', operationId });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchImpl.mock.calls[0];
+      expect(String(url)).toContain('/reports/errors/');
+      expect(String(url)).toContain('?auth=teacher-actor-token');
+      expect(init.method).toBe('PUT');
+      expect(JSON.parse(init.body)).toMatchObject({ userId: 'teacher-1', severity: 'warning',
+        contextData: { eventId: operationId, recipientCount: 2, delivered: 0, failed: 0, unknown: 1, unattempted: 1 } });
+      expect(init.body).not.toContain('private-provider-error');
+    } finally {
+      globalThis.fetch = previousFetch;
+      diagnostic.mockRestore();
+    }
+  });
   it('maps only the durable committed root and its frozen recipients', async () => {
     const repository = new InMemoryBookHomeworkSagaRepository();
     await repository.create(record());
@@ -113,6 +155,7 @@ describe('Book Homework committed notification integration', () => {
     await expect(resolveCommittedBookHomeworkNotificationAction(
       repository,
       identity,
+      'teacher-1',
     )).resolves.toEqual(expect.objectContaining({
       actionId: operationId,
       authority: identity.authority,
@@ -137,7 +180,7 @@ describe('Book Homework committed notification integration', () => {
     await expect(resolveCommittedBookHomeworkNotificationAction(repository, {
       ...identity,
       actionId: '00000000-0000-4000-8000-000000000101',
-    })).resolves.toBeNull();
+    }, 'teacher-1')).resolves.toBeNull();
   });
 
   it('rejects prepared or missing roots without deriving a later roster', async () => {
@@ -147,11 +190,23 @@ describe('Book Homework committed notification integration', () => {
     await expect(resolveCommittedBookHomeworkNotificationAction(
       repository,
       identity,
+      'teacher-1',
     )).resolves.toBeNull();
     await expect(resolveCommittedBookHomeworkNotificationAction(repository, {
       ...identity,
       authority: { ...identity.authority, recordId: 'missing-assignment' },
-    })).resolves.toBeNull();
+    }, 'teacher-1')).resolves.toBeNull();
+  });
+
+  it('rejects a committed record returned for a different authenticated owner', async () => {
+    const source = {
+      readCommittedAssignment: async () => record(),
+    };
+    await expect(resolveCommittedBookHomeworkNotificationAction(
+      source,
+      identity,
+      'teacher-2',
+    )).resolves.toBeNull();
   });
 
   it('emits after the trusted saga returns its committed record', async () => {
@@ -162,14 +217,14 @@ describe('Book Homework committed notification integration', () => {
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
-        readCommittedAssignment: (rootAssignmentId) =>
-          sagaRepository.read(rootAssignmentId),
+        readCommittedAssignment: (rootAssignmentId, ownerId) =>
+          sagaRepository.read(rootAssignmentId, ownerId),
       },
       notificationRepositoryFactory: () => notifications,
       now: () => committedAt,
     });
 
-    const result = await handlers.homeworkAssignmentCommand({
+    const result = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
@@ -199,7 +254,7 @@ describe('Book Homework committed notification integration', () => {
       notificationRepositoryFactory,
       now: () => committedAt,
     });
-    const preparedResult = await enabledHandlers.homeworkAssignmentCommand({
+    const preparedResult = await runCommand(enabledHandlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
@@ -221,7 +276,7 @@ describe('Book Homework committed notification integration', () => {
       notificationRepositoryFactory,
       now: () => committedAt,
     });
-    const disabledResult = await disabledHandlers.homeworkAssignmentCommand({
+    const disabledResult = await runCommand(disabledHandlers, {
       request: request(),
       env: env(false),
       uid: 'teacher-1',
@@ -231,6 +286,40 @@ describe('Book Homework committed notification integration', () => {
     expect(disabledExecute).toHaveBeenCalledTimes(1);
     expect(source).not.toHaveBeenCalled();
     expect(notificationRepositoryFactory).not.toHaveBeenCalled();
+  });
+
+  it('waits for projection success, then emits the same committed operation exactly once', async () => {
+    const sagaRepository = new InMemoryBookHomeworkSagaRepository();
+    await sagaRepository.create(record());
+    const notifications = new InMemoryNotificationCommandRepository();
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ status: 'committed_projection_pending' as const, record: record() })
+      .mockResolvedValue({ status: 'committed' as const, record: record() });
+    const handlers = createBookHomeworkWorkerHandlers({
+      saga: {
+        execute,
+        readCommittedAssignment: (rootAssignmentId, ownerId) => sagaRepository.read(rootAssignmentId, ownerId),
+      },
+      notificationRepositoryFactory: () => notifications,
+      now: () => committedAt,
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect((await runCommand(handlers, {
+      request: request(), env: env(true), uid: 'teacher-1', assignmentId,
+    })).init.status).toBe(202);
+    expect(notifications.snapshot()).toEqual({});
+
+    expect((await runCommand(handlers, {
+      request: request(), env: env(true), uid: 'teacher-1', assignmentId,
+    })).init.status).toBe(200);
+    expect(Object.keys(notifications.snapshot())).toHaveLength(2);
+
+    await runCommand(handlers, {
+      request: request(), env: env(true), uid: 'teacher-1', assignmentId,
+    });
+    expect(Object.keys(notifications.snapshot())).toHaveLength(2);
+    consoleError.mockRestore();
   });
 
   it('re-enters emission after a committed action crashes before its first write', async () => {
@@ -245,8 +334,8 @@ describe('Book Homework committed notification integration', () => {
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
-        readCommittedAssignment: (rootAssignmentId) =>
-          sagaRepository.read(rootAssignmentId),
+        readCommittedAssignment: (rootAssignmentId, ownerId) =>
+          sagaRepository.read(rootAssignmentId, ownerId),
       },
       notificationRepositoryFactory: () => {
         if (repositoryUnavailable) {
@@ -259,19 +348,16 @@ describe('Book Homework committed notification integration', () => {
     });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const first = await handlers.homeworkAssignmentCommand({
+    const first = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
       assignmentId,
     });
-    expect(first).toEqual({
-      body: { code: 'book_homework_command_failed' },
-      init: { status: 500 },
-    });
+    expect(first).toMatchObject({ body: { state: 'committed' }, init: { status: 200 } });
     expect(notifications.snapshot()).toEqual({});
 
-    const replay = await handlers.homeworkAssignmentCommand({
+    const replay = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
@@ -308,25 +394,25 @@ describe('Book Homework committed notification integration', () => {
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
-        readCommittedAssignment: (rootAssignmentId) =>
-          sagaRepository.read(rootAssignmentId),
+        readCommittedAssignment: (rootAssignmentId, ownerId) =>
+          sagaRepository.read(rootAssignmentId, ownerId),
       },
       notificationRepositoryFactory: () => notificationRepository,
       now: () => committedAt,
     });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const first = await handlers.homeworkAssignmentCommand({
+    const first = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
       assignmentId,
     });
-    expect(first.init.status).toBe(500);
+    expect(first.init.status).toBe(200);
     expect(Object.keys(durable.snapshot())).toHaveLength(1);
 
     surroundingRecipients.push('student-3');
-    const replay = await handlers.homeworkAssignmentCommand({
+    const replay = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',
@@ -339,7 +425,7 @@ describe('Book Homework committed notification integration', () => {
       .sort()).toEqual(['student-1', 'student-2']);
     expect(JSON.stringify(durable.snapshot())).not.toContain('student-3');
 
-    const duplicate = await handlers.homeworkAssignmentCommand({
+    const duplicate = await runCommand(handlers, {
       request: request(),
       env: env(true),
       uid: 'teacher-1',

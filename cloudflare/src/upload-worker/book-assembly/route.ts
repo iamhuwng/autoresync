@@ -3,12 +3,15 @@
  * Candidate commands are intentionally separate from publication and delivery.
  */
 export const bookAssemblyRouteDescriptors = [
+  { method: 'GET', path: '/book-assembly/books/:bookId/drafts', handler: 'discoverDrafts' },
   { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates', handler: 'create' },
   { method: 'PUT', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'replace' },
+  { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/rebase', handler: 'rebase' },
   { method: 'POST', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId/validate', handler: 'validate' },
   { method: 'DELETE', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'discard' },
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/candidates/:candidateId', handler: 'load' },
   { method: 'GET', path: '/book-assembly/books/:bookId/units/:unitKey/current', handler: 'loadCurrent' },
+  { method: 'POST', path: '/book-assembly/books/:bookId/component-pdf-activation', handler: 'activateComponentPdf' },
 ] as const;
 
 /** Ticket 63 candidate preview and approval. The capability stays disabled by default. */

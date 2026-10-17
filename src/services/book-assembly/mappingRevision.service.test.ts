@@ -13,6 +13,7 @@ import type {
   BookAssemblyManifestCandidate,
   BookSourceVersionAuthority,
   SourceSetCandidate,
+  TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 
 const NOW = '2026-07-28T00:00:00.000Z';
@@ -20,13 +21,25 @@ const fullSources: SourceSetCandidate = {
   sourceStrategy: 'full_pdf',
   sources: [{ sourceKey: 'full', sourceVersionId: 'full-v1', sourceOrder: 1 }],
 };
-const authority: BookSourceVersionAuthority = {
-  getSourceVersion: (sourceVersionId) => ({
+const authorityProjection = (sourceVersionId: string): TrustedBookSourceVersionProjection => ({
+  sourceKey: 'full',
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'ready',
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: '2026-01-01T00:00:00.000Z',
     sourceVersionId,
-    bookId: 'book-1',
-    physicalPageCount: 10,
-    verifiedUsable: true,
-  }),
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+  physicalPageCount: 10,
+  verifiedUsable: true,
+});
+const authority: BookSourceVersionAuthority = {
+  getSourceVersion: (sourceVersionId) => authorityProjection(sourceVersionId),
 };
 const manifest = (): BookAssemblyManifestCandidate => ({
   bookId: 'book-1',

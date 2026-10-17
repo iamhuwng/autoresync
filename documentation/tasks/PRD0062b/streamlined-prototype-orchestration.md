@@ -11,6 +11,8 @@ Approved conflict winner: `043a6d9b1f96a76f200ea753ca353e0376be65a7`.
 
 Amendment packet contracts and sequential readiness override weaker 9e risk-scaled/parallel wording. Risk-scaled proof remains allowed inside a packet; mandatory contract sections remain present.
 
+The [2026-09-14 Gate 0 decision](approval-record-2026-09-14-component-combination-gate-0.md) is dormant authority only. It does not close taskboxes or claim implementation, browser, Worker, emulator, deployment, or protected-state proof; reconcile it with the [reconciliation ledger](reconciliation-ledger.md), [traceability record](traceability-book-activity-v1.md), and the master [packet-exit contract](tasks-book-activity-master-orchestration.md#packet-exit-contract).
+
 ## Execution state machine
 
 ```text

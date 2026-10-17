@@ -35,6 +35,8 @@ export interface UseBookIntegrityCaptureOptions {
   readonly client: BookIntegrityCaptureClient;
   readonly target: BookIntegrityCaptureTarget;
   readonly frozenPolicy: BookIntegrityFrozenPolicy;
+  readonly captureSlotId: string;
+  readonly captureAttemptNumber: number;
   readonly enabled: boolean;
   readonly active: boolean;
   readonly onWarning?: (warning: BookIntegrityWarning) => void;
@@ -97,10 +99,12 @@ export const useBookIntegrityCapture = (
   options: UseBookIntegrityCaptureOptions,
 ): BookIntegrityCaptureController => {
   const storage = options.storage ?? sessionStore;
-  const scopeKey = useMemo(() => captureScopeKey(options.target), [options.target]);
+  const scopeKey = useMemo(
+    () => `${captureScopeKey(options.target)}:${options.captureSlotId}:${options.captureAttemptNumber}`,
+    [options.captureAttemptNumber, options.captureSlotId, options.target],
+  );
   const captureEnabled = options.enabled
     && options.active
-    && options.frozenPolicy.intent === 'accountable'
     && options.frozenPolicy.enabled;
   const optionsRef = useRef(options);
   const activeRef = useRef(options.active);
@@ -149,6 +153,8 @@ export const useBookIntegrityCapture = (
       readonly capture?: {
         readonly target: BookIntegrityCaptureTarget;
         readonly frozenPolicy: BookIntegrityFrozenPolicy;
+        readonly captureSlotId: string;
+        readonly captureAttemptNumber: number;
       };
     } = {},
   ): Promise<BookIntegrityCaptureResult | null> => {
@@ -168,6 +174,8 @@ export const useBookIntegrityCapture = (
       target: { ...capture.target },
       policyId: capture.frozenPolicy.policyId,
       policyRevision: capture.frozenPolicy.policyRevision,
+      captureSlotId: capture.captureSlotId,
+      captureAttemptNumber: capture.captureAttemptNumber,
       clientSessionId: identity.clientSessionId,
       sequence: identity.sequence,
       signal,
@@ -225,6 +233,8 @@ export const useBookIntegrityCapture = (
     const capture = {
       target: options.target,
       frozenPolicy: options.frozenPolicy,
+      captureSlotId: options.captureSlotId,
+      captureAttemptNumber: options.captureAttemptNumber,
     };
     let disposed = false;
     const emit = (signal: BookIntegritySignalType): void => {
@@ -270,7 +280,9 @@ export const useBookIntegrityCapture = (
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       activityEvents.forEach((name) => document.removeEventListener(name, activity));
-      if (activeRef.current && enabledRef.current) {
+      if (activeRef.current && enabledRef.current
+        && captureScopeKey(optionsRef.current.target) === captureScopeKey(capture.target)
+        && optionsRef.current.captureSlotId === capture.captureSlotId) {
         void send('route_reload_close', { keepalive: true, capture });
       }
       disposed = true;
@@ -284,7 +296,7 @@ export const useBookIntegrityCapture = (
       const current = optionsRef.current;
       const marker: ExitMarker = {
         schemaVersion: BOOK_INTEGRITY_SCHEMA_VERSION,
-        scopeKey: captureScopeKey(current.target),
+        scopeKey: `${captureScopeKey(current.target)}:${current.captureSlotId}:${current.captureAttemptNumber}`,
         clientSessionId: sessionIdRef.current,
         sequence: sequenceRef.current += 1,
         policyId: current.frozenPolicy.policyId,

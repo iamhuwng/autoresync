@@ -64,12 +64,25 @@ const verifyCustomToken = async (
   expect(decodeProtectedHeader(token)).toMatchObject({ alg: 'RS256', typ: 'JWT' });
   expect(verified.payload.uid).toBe(
     expected.service === 'book_runtime' ? expected.recipientId
+      : expected.service === 'class_book_authority' ? expected.actorUid
       : expected.service === 'book_homework_authority' ? expected.ownerId
       : expected.service === 'book_homework' ? (expected.ownerId ?? expected.assignmentId)
         : expected.service === 'book_delivery' ? (expected.recipientId ?? identity)
+          : expected.service === 'book_activity_evaluation' ? identity
           : expected.ownerId,
   );
-  expect(verified.payload.claims).toEqual(expected.service === 'book_activity_authoring'
+  expect(verified.payload.claims).toEqual(expected.service === 'class_book_authority'
+    ? Object.fromEntries([['classBookAuthority103', true], ...Object.entries(expected).filter(([key]) => key !== 'service')])
+    : expected.service === 'book_activity_evaluation'
+    ? {
+      book_activity_evaluation_service: true,
+      book_activity_evaluation_recipientId: expected.recipientId,
+      book_activity_evaluation_contextId: expected.contextId,
+      book_activity_evaluation_placementId: expected.placementId,
+      book_activity_evaluation_activityId: expected.activityId,
+      book_activity_evaluation_attemptId: expected.attemptId,
+    }
+    : expected.service === 'book_activity_authoring'
     ? {
       book_activity_authoring_service: true,
       book_activity_authoring_ownerId: expected.ownerId,
@@ -168,6 +181,69 @@ const verifyCustomToken = async (
 };
 
 describe('Book production Firebase claim tokens', () => {
+  it('mints command-specific Class103 claims and rejects foreign dimensions', async () => {
+    const tokens: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      tokens.push(JSON.parse(String(init?.body)).token);
+      return Response.json({ idToken: 'class-id-token', expiresIn: '3600' });
+    });
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity, firebaseProjectId: 'temp-a1437', firebaseWebApiKey: 'web-key',
+      fetchImpl, now: () => 1_700_000_000_000,
+    });
+    const claim = {
+      service: 'class_book_authority', classBookOperation: 'copy', actorUid: 'teacher-1',
+      classId: 'class-1', operationId: 'operation-1', copyId: 'copy-1',
+      inputFingerprint: 'a'.repeat(64), payloadFingerprint: 'b'.repeat(64),
+      expectedRevision: 0, nextRevision: 1,
+    } as const;
+    await expect(provider(claim)).resolves.toBe('class-id-token');
+    const payload = decodeJwt(tokens[0]);
+    expect(payload.uid).toBe('teacher-1');
+    const { service: _service, ...dimensions } = claim;
+    expect(payload.claims).toEqual({ classBookAuthority103: true, ...dimensions });
+    for (const mutation of [
+      { contextId: 'foreign-context' }, { copyId: 'parent/child' },
+      { nextRevision: 2 }, { inputFingerprint: 'invalid' },
+    ]) {
+      await expect(provider({ ...claim, ...mutation } as BookFirebaseClaimTuple))
+        .rejects.toThrow('invalid_book_firebase_claims');
+    }
+    expect(tokens).toHaveLength(1);
+  });
+  it('signs exact evaluator claims, isolates every target dimension, and rejects malformed tuples before exchange', async () => {
+    const tokens: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      tokens.push(JSON.parse(String(init?.body)).token);
+      return Response.json({ idToken: `id-${tokens.length}`, expiresIn: '3600' });
+    });
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity, firebaseProjectId: 'temp-a1437', firebaseWebApiKey: 'web-key',
+      fetchImpl, now: () => 1_700_000_000_000,
+    });
+    const evaluation = {
+      service: 'book_activity_evaluation', recipientId: 'student-1', contextId: 'homework-1',
+      placementId: 'placement-1', activityId: 'activity-1', attemptId: 'attempt-1',
+    } as const;
+    await expect(provider(evaluation)).resolves.toBe('id-1');
+    const fields = ['recipientId', 'contextId', 'placementId', 'activityId', 'attemptId'] as const;
+    for (const [index, field] of fields.entries()) {
+      const changed = { ...evaluation, [field]: `${evaluation[field]}-other` };
+      await expect(provider(changed)).resolves.toBe(`id-${index + 2}`);
+      await verifyCustomToken(tokens[index + 1], changed);
+      for (const value of ['', 'parent/child', undefined, null, 1]) {
+        await expect(provider({ ...evaluation, [field]: value } as unknown as BookFirebaseClaimTuple))
+          .rejects.toThrow('invalid_book_firebase_claims');
+      }
+    }
+    await verifyCustomToken(tokens[0], evaluation);
+    await expect(provider(evaluation)).resolves.toBe('id-1');
+    await expect(provider({ ...evaluation, ownerId: 'teacher-1' } as unknown as BookFirebaseClaimTuple))
+      .rejects.toThrow('invalid_book_firebase_claims');
+    expect(tokens).toHaveLength(6);
+  });
   it('exchanges exact bounded claims for authoring, homework, delivery, assembly, runtime, and canonical reader tuples', async () => {
     const customTokens: string[] = [];
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
@@ -298,6 +374,26 @@ describe('Book production Firebase claim tokens', () => {
     await verifyCustomToken(customTokens[10], publicationApproval);
     await verifyCustomToken(customTokens[11], runtime);
     await verifyCustomToken(customTokens[12], runtimeReader);
+  });
+
+  it('binds readiness writes to one owner, Book and exact publication generation', async () => {
+    const tokens: string[] = [];
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity, firebaseProjectId: 'temp-a1437', firebaseWebApiKey: 'test-key',
+      fetchImpl: async (_input, init) => {
+        tokens.push(JSON.parse(String(init?.body)).token);
+        return Response.json({ idToken: `readiness-${tokens.length}`, expiresIn: '3600' });
+      },
+    });
+    const claim = { service: 'book_public_readiness', ownerId: 'teacher-1', bookId: 'book-1', publicationId: 'publication-1', publicationRevision: 1, accountId: 'account-1' } as const;
+    await provider(claim);
+    await provider({ ...claim, publicationRevision: 2 });
+    expect(tokens).toHaveLength(2);
+    expect(decodeJwt(tokens[0]).claims).toEqual({ book_public_readiness_service: true,
+      book_public_readiness_ownerId: 'teacher-1', book_public_readiness_bookId: 'book-1',
+      book_public_readiness_publicationId: 'publication-1', book_public_readiness_publicationRevision: 1, book_public_readiness_accountId: 'account-1' });
+    await expect(provider({ ...claim, publicationRevision: 0 })).rejects.toThrow('invalid_book_firebase_claims');
   });
 
   it('isolates Assembly and exact Binding tokens by the full scope and rejects extra claim keys', async () => {
@@ -483,5 +579,22 @@ describe('Book production Firebase claim tokens', () => {
       firebaseProjectId: 'temp-a1437',
       firebaseWebApiKey: 'web-key',
     })).toThrowError('book_firebase_service_identity_mismatch');
+  });
+
+  it('retains only an allowlisted Identity Toolkit error code', async () => {
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'web-key',
+      fetchImpl: async () => new Response(JSON.stringify({
+        error: { message: 'INVALID_CUSTOM_TOKEN', details: 'secret-provider-body' },
+      }), { status: 400 }),
+    });
+
+    const failure = await provider({ service: 'book_activity_authoring', ownerId: 'teacher-1' })
+      .catch((error: unknown) => error as Error);
+    expect(failure.message).toBe('book_firebase_token_exchange_failed:400:INVALID_CUSTOM_TOKEN');
+    expect(failure.message).not.toContain('secret-provider-body');
   });
 });

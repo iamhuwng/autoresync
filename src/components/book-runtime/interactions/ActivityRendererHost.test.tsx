@@ -7,6 +7,8 @@ import {
   registerActivityRenderer,
   type ActivityRendererProps,
 } from '../../../services/book-activity/runtime/activityRenderer.types';
+import { choiceSingleResponseCodec } from '../../../services/book-activity/runtime/codecs/choiceResponseCodec';
+import { SingleChoiceRenderer } from './choice';
 import { ActivityRendererHost } from './ActivityRendererHost';
 
 const projection = {
@@ -61,6 +63,12 @@ const AccessibleRenderer = ({ interaction, mode, sourceContext, response, onChan
 const registry = () => createActivityRendererRegistry([registerActivityRenderer({
   family: 'choice', variant: 'v1', presentationMode: 'source-assisted', responseCodec: 'short-text-v1',
   rendererId: 'accessible-choice-v1', codecId: 'short-text-v1', renderer: AccessibleRenderer, codec,
+})]);
+
+const choiceRegistry = () => createActivityRendererRegistry([registerActivityRenderer({
+  family: 'choice', variant: 'v1', presentationMode: 'source-assisted', responseCodec: 'choice-single-v1',
+  rendererId: 'choice-v1', codecId: 'choice-single-v1', renderer: SingleChoiceRenderer,
+  codec: choiceSingleResponseCodec,
 })]);
 
 describe('ActivityRendererHost accessibility and codec boundary', () => {
@@ -144,6 +152,20 @@ describe('ActivityRendererHost accessibility and codec boundary', () => {
       />,
     );
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Expected text.'));
+  });
+
+  it('renders a legacy saved submission row through the canonical choice codec', () => {
+    render(
+      <ActivityRendererHost
+        context={{ surface: 'student-runtime', mode: 'editable', sourceContext: { available: true, description: 'PDF page 1.' } }}
+        onResponseChange={vi.fn()}
+        projection={projection}
+        registry={choiceRegistry()}
+        responses={{ 'interaction-1': [{ interactionId: 'interaction-1', answer: ['a'] }] }}
+        validationByInteractionId={{}}
+      />,
+    );
+    expect(screen.getByRole('radio', { name: 'A' })).toBeChecked();
   });
 
   it('passes read-only source correspondence and never invokes callback in review mode', async () => {

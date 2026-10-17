@@ -11,7 +11,7 @@ import { resolveBookDeliveryWorkerOrigin } from './book-delivery/bookDelivery.br
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
-const ROUTE_HANDLE = /^br_[A-Za-z0-9_-]{8,1400}$/u;
+const ROUTE_HANDLE = /^br_[A-Za-z0-9_-]{8,1600}$/u;
 const MAX_GROUP_RESPONSE_BYTES = 256 * 1024;
 const MAX_DETAIL_RESPONSE_BYTES = 128 * 1024;
 
@@ -21,7 +21,15 @@ export interface BookResultRouteAddress {
   readonly groupKey: string;
   /** Optional trusted-locator scope; the Worker re-resolves current Homework ownership. */
   readonly homeworkId?: string;
+  readonly contextKind?: 'public' | 'course' | 'class';
+  readonly contextId?: string;
 }
+const validContext = (address: BookResultRouteAddress): boolean => address.contextKind === undefined && address.contextId === undefined
+  || address.homeworkId === undefined && ['public', 'course', 'class'].includes(address.contextKind ?? '')
+    && typeof address.contextId === 'string' && SAFE_ID.test(address.contextId);
+const resultScope = (address: BookResultRouteAddress): string => address.contextKind
+  ? `/contexts/${address.contextKind}/${encodeURIComponent(address.contextId!)}`
+  : address.homeworkId === undefined ? '' : `/homework/${encodeURIComponent(address.homeworkId)}`;
 
 export interface BookResultBrowserEnv {
   readonly VITE_BOOK_RESULT_WORKER_URL?: string;
@@ -31,6 +39,11 @@ export interface BookResultBrowserEnv {
 }
 
 export interface BookResultBrowserClient {
+  releaseFeedback(address: BookResultRouteAddress, resultId: string): Promise<{
+    readonly status: 'released' | 'replayed';
+    readonly resultId: string;
+    readonly releasedAt: string;
+  }>;
   readGroup(address: BookResultRouteAddress): Promise<BookResultGroupSummary>;
   readDetail(
     address: BookResultRouteAddress,
@@ -102,14 +115,14 @@ export const createBookResultRouteHandle = (address: BookResultRouteAddress): st
   if (!SAFE_ID.test(address.bookId)
     || !SAFE_ID.test(address.studentId)
     || !GROUP_KEY.test(address.groupKey)
-    || (address.homeworkId !== undefined && !SAFE_ID.test(address.homeworkId))) {
+    || (address.homeworkId !== undefined && !SAFE_ID.test(address.homeworkId)) || !validContext(address)) {
     throw new BookResultBrowserError('invalid_route');
   }
   return `br_${encodeBase64Url([
     address.bookId,
     address.studentId,
     address.groupKey,
-    ...(address.homeworkId === undefined ? [] : [address.homeworkId]),
+    ...(address.contextKind ? [address.contextKind, address.contextId!] : address.homeworkId === undefined ? [] : [address.homeworkId]),
   ])}`;
 };
 
@@ -120,15 +133,18 @@ export const parseBookResultRouteHandle = (
   try {
     const decoded = decodeBase64Url(value.slice(3));
     if (!Array.isArray(decoded)
-      || (decoded.length !== 3 && decoded.length !== 4)
+      || (decoded.length !== 3 && decoded.length !== 4 && decoded.length !== 5)
       || !decoded.every((item) => typeof item === 'string')) {
       return null;
     }
-    const [bookId, studentId, groupKey, homeworkId] = decoded as [string, string, string, string?];
+    const [bookId, studentId, groupKey, fourth, fifth] = decoded as [string, string, string, string?, string?];
+    const scoped = decoded.length === 5;
+    const homeworkId = scoped ? undefined : fourth;
     if (!SAFE_ID.test(bookId)
       || !SAFE_ID.test(studentId)
       || !GROUP_KEY.test(groupKey)
-      || (homeworkId !== undefined && !SAFE_ID.test(homeworkId))) {
+      || (homeworkId !== undefined && !SAFE_ID.test(homeworkId))
+      || scoped && (!['public', 'course', 'class'].includes(fourth!) || !SAFE_ID.test(fifth!))) {
       return null;
     }
     return Object.freeze({
@@ -136,6 +152,7 @@ export const parseBookResultRouteHandle = (
       studentId,
       groupKey,
       ...(homeworkId === undefined ? {} : { homeworkId }),
+      ...(scoped ? { contextKind: fourth as 'public' | 'course' | 'class', contextId: fifth! } : {}),
     });
   } catch {
     return null;
@@ -230,11 +247,13 @@ const hasSafeGroupShape = (
     return false;
   }
   const attemptIds = new Set<string>();
+  if (address.contextKind && group.contexts.some(row => !asRecord(row) || row.surface !== address.contextKind || row.contextId !== address.contextId)) return false;
   for (const candidate of group.attempts) {
     const attempt = asRecord(candidate);
     if (!attempt
       || attempt.studentId !== address.studentId
       || attempt.recipientId !== address.studentId
+      || address.contextKind && (attempt.surface !== address.contextKind || attempt.contextId !== address.contextId || attempt.deliveryContextId !== address.contextId)
       || attempt.activityId !== group.activityId
       || typeof attempt.attemptId !== 'string'
       || typeof attempt.resultId !== 'string'
@@ -267,6 +286,7 @@ const hasSafeDetailShape = (
     && detail.studentId === address.studentId
     && detail.recipientId === address.studentId
     && detail.resultId === resultId
+    && (!address.contextKind || detail.surface === address.contextKind && detail.contextId === address.contextId && detail.deliveryContextId === address.contextId)
     && typeof detail.activityId === 'string'
     && SAFE_ID.test(detail.activityId)
     && typeof detail.attemptId === 'string'
@@ -295,6 +315,7 @@ export const createBookResultBrowserClient = (
   const read = async (
     path: string,
     maxBytes: number,
+    method: 'GET' | 'POST' = 'GET',
   ): Promise<unknown> => {
     let token: string | null | undefined;
     try {
@@ -310,11 +331,13 @@ export const createBookResultBrowserClient = (
     let response: Response;
     try {
       response = await fetchImpl(`${origin}${path}`, {
-        method: 'GET',
+        method,
         headers: {
           accept: 'application/json',
           authorization: `Bearer ${token}`,
+          ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
         },
+        ...(method === 'POST' ? { body: '{}' } : {}),
         cache: 'no-store',
         credentials: 'omit',
         referrerPolicy: 'no-referrer',
@@ -328,16 +351,33 @@ export const createBookResultBrowserClient = (
   };
 
   return Object.freeze({
+    async releaseFeedback(address: BookResultRouteAddress, resultId: string): ReturnType<BookResultBrowserClient['releaseFeedback']> {
+      if (!SAFE_ID.test(address.bookId) || !SAFE_ID.test(address.studentId)
+        || !address.homeworkId || !SAFE_ID.test(address.homeworkId)
+      || !SAFE_ID.test(resultId) || !validContext(address)) throw new BookResultBrowserError('invalid_route');
+      const body = asRecord(await read(
+        `/v1/book-evaluation/results/${encodeURIComponent(address.bookId)}`
+          + `/${encodeURIComponent(address.studentId)}/homework/${encodeURIComponent(address.homeworkId)}`
+          + `/details/${encodeURIComponent(resultId)}/release-feedback`,
+        4096,
+        'POST',
+      ));
+      if (!body || !exactKeys(body, ['status', 'resultId', 'releasedAt'])
+        || (body.status !== 'released' && body.status !== 'replayed')
+        || body.resultId !== resultId || typeof body.releasedAt !== 'string'
+        || !Number.isFinite(Date.parse(body.releasedAt))) {
+        throw new BookResultBrowserError('invalid_response', 502);
+      }
+      return { status: body.status, resultId, releasedAt: body.releasedAt };
+    },
     async readGroup(address) {
       if (!SAFE_ID.test(address.bookId)
         || !SAFE_ID.test(address.studentId)
         || !GROUP_KEY.test(address.groupKey)
-        || (address.homeworkId !== undefined && !SAFE_ID.test(address.homeworkId))) {
+        || (address.homeworkId !== undefined && !SAFE_ID.test(address.homeworkId)) || !validContext(address)) {
         throw new BookResultBrowserError('invalid_route');
       }
-      const scope = address.homeworkId === undefined
-        ? ''
-        : `/homework/${encodeURIComponent(address.homeworkId)}`;
+      const scope = resultScope(address);
       const body = await read(
         `/v1/book-evaluation/results/${encodeURIComponent(address.bookId)}`
           + `/${encodeURIComponent(address.studentId)}${scope}`
@@ -357,12 +397,10 @@ export const createBookResultBrowserClient = (
         || !SAFE_ID.test(address.studentId)
         || !GROUP_KEY.test(address.groupKey)
         || (address.homeworkId !== undefined && !SAFE_ID.test(address.homeworkId))
-        || !SAFE_ID.test(resultId)) {
+        || !SAFE_ID.test(resultId) || !validContext(address)) {
         throw new BookResultBrowserError('invalid_route');
       }
-      const scope = address.homeworkId === undefined
-        ? ''
-        : `/homework/${encodeURIComponent(address.homeworkId)}`;
+      const scope = resultScope(address);
       const body = await read(
         `/v1/book-evaluation/results/${encodeURIComponent(address.bookId)}`
           + `/${encodeURIComponent(address.studentId)}${scope}`

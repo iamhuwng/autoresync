@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   authorizeRuntimeDraftRead,
   authorizeRuntimeCommand,
+  revalidateRuntimeScheduleAuthorization,
   soloOnlyBookRuntimeSchedulePolicy,
 } from '../src/upload-worker/book-runtime/authorization.ts';
 import {
@@ -405,6 +406,36 @@ describe('Ticket 28A runtime authorization and schedule policy', () => {
       undefined,
       resolveTarget,
     )).rejects.toMatchObject({ code: 'runtime_schedule_policy_missing' });
+  });
+
+  it('dispatches Course and Class and revalidates their current authority before commit', async () => {
+    for (const kind of ['course', 'class'] as const) {
+      const context = {
+        ...binding().context,
+        kind,
+        entitlementBasis: kind === 'course' ? 'enrollment' : 'membership',
+        ...(kind === 'class' ? {
+          classLocator: {
+            classId: 'class-1', copyId: 'copy-1', courseMaterialId: 'material-1', classPlacementId: 'placement-1',
+          },
+        } : {}),
+      } as BookDeliveryBinding['context'];
+      const placed = binding({ context });
+      const policy = {
+        authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+        revalidate: vi.fn(() => ({ outcome: 'allowed' as const })),
+      };
+      const trusted = await authorizeRuntimeCommand(
+        { uid: 'student-1' }, command(), placed, policy, undefined, resolveTarget,
+      );
+      await expect(revalidateRuntimeScheduleAuthorization(trusted, policy)).resolves.toBe(trusted);
+      expect(policy.authorize).toHaveBeenCalledOnce();
+      expect(policy.revalidate).toHaveBeenCalledWith(expect.objectContaining({
+        binding: placed,
+        actorUid: 'student-1',
+        target: expect.objectContaining({ placementId: 'placement-1' }),
+      }));
+    }
   });
 
   it('resolves the exact Interaction before schedule policy evaluation', async () => {

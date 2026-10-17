@@ -11,6 +11,8 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from '../../modern/ToastNotification';
+import r2StorageService from '../../../services/r2Storage';
 import type { ReadingV2DerivedNumber } from '../../../services/reading-v2/readingV2Numbering.service';
 import {
   readingV2Ids,
@@ -3903,6 +3905,9 @@ function DiagramLabelingTaskEditor({
   const [imageSourceMode, setImageSourceMode] = useState<'url' | 'upload'>(() =>
     stimulus?.content.imageUrl?.startsWith('data:') ? 'upload' : 'url',
   );
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const documentRef = useRef(document);
+  documentRef.current = document;
 
   if (!stimulus) {
     return (
@@ -3973,24 +3978,27 @@ function DiagramLabelingTaskEditor({
     ));
   };
 
-  const handleDiagramFile = (file: File | undefined) => {
-    if (!file) {
+  const handleDiagramFile = async (file: File | undefined) => {
+    if (!file || uploadingImage) {
       return;
     }
-
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
-        commitStimulus({
-          ...stimulus,
-          content: {
-            ...stimulus.content,
-            imageUrl: reader.result,
-          },
-        });
+    setUploadingImage(true);
+    try {
+      const { url } = await r2StorageService.uploadImage(file);
+      const currentDocument = documentRef.current;
+      const currentStimulus = getDiagramStimulus(currentDocument, taskGroup);
+      if (currentStimulus) {
+        onDocumentChange(replaceStimulus(currentDocument, {
+          ...currentStimulus,
+          content: { ...currentStimulus.content, imageUrl: url },
+        }));
+        toast.success('Diagram image uploaded. Save the draft when ready.');
       }
-    });
-    reader.readAsDataURL(file);
+    } catch {
+      toast.error('Could not upload the diagram image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const imagePresent = Boolean(stimulus.content.imageUrl?.trim());
@@ -4059,9 +4067,14 @@ function DiagramLabelingTaskEditor({
               aria-label="Diagram image file"
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => handleDiagramFile(event.currentTarget.files?.[0])}
+              disabled={uploadingImage}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                void handleDiagramFile(file);
+              }}
             />
-            <span>PNG, JPG, or WebP stored with this draft.</span>
+            <span>{uploadingImage ? 'Uploading image…' : 'PNG, JPG, or WebP stored with this draft.'}</span>
           </label>
         )}
       </section>
@@ -4903,6 +4916,9 @@ export function ReadingV2BuildWorkspace({
   const [focusedIssueQuestion, setFocusedIssueQuestion] = useState<number | null>(null);
   const [titleEditing, setTitleEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(metadata.title);
+  const [uploadingImageBlockId, setUploadingImageBlockId] = useState<string | null>(null);
+  const documentRef = useRef(document);
+  documentRef.current = document;
   const selectedPassage = passageSlots.find((passage) => passage.passageNumber === selectedPassageNumber)
     ?? passageSlots[0];
   const numberByInteractionId = useMemo(
@@ -5244,16 +5260,17 @@ export function ReadingV2BuildWorkspace({
     updater: (stimulus: MediaStimulus) => MediaStimulus,
     outcome: string,
   ) => {
-    const currentStimulus = document.stimuli[stimulusId];
+    const currentDocument = documentRef.current;
+    const currentStimulus = currentDocument.stimuli[stimulusId];
     if (!isMediaStimulus(currentStimulus)) {
       return;
     }
 
     const nextStimulus = updater(currentStimulus);
     onDocumentChange({
-      ...document,
+      ...currentDocument,
       stimuli: {
-        ...document.stimuli,
+        ...currentDocument.stimuli,
         [nextStimulus.stimulusId]: nextStimulus,
       },
     });
@@ -5287,28 +5304,29 @@ export function ReadingV2BuildWorkspace({
     });
   };
 
-  const handlePassageImageFile = (stimulusId: string, file: File | undefined) => {
-    if (!file) {
+  const handlePassageImageFile = async (stimulusId: string, file: File | undefined) => {
+    if (!file || uploadingImageBlockId) {
       return;
     }
-
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      if (typeof reader.result === 'string') {
+    setUploadingImageBlockId(stimulusId);
+    try {
+      const { url } = await r2StorageService.uploadImage(file);
+      if (isMediaStimulus(documentRef.current.stimuli[stimulusId])) {
         updatePassageImageBlock(
           stimulusId,
           (stimulus) => ({
             ...stimulus,
-            content: {
-              ...stimulus.content,
-              mediaUrl: reader.result as string,
-            },
+            content: { ...stimulus.content, mediaUrl: url },
           }),
           'image-block-uploaded',
         );
+        toast.success('Image block uploaded. Save the draft when ready.');
       }
-    });
-    reader.readAsDataURL(file);
+    } catch {
+      toast.error('Could not upload the image block. Please try again.');
+    } finally {
+      setUploadingImageBlockId(null);
+    }
   };
 
   const passageSelector = (
@@ -5566,10 +5584,16 @@ export function ReadingV2BuildWorkspace({
                         aria-label={`Image block ${imageIndex + 1} file`}
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
-                        onChange={(event) => handlePassageImageFile(imageBlock.stimulusId, event.currentTarget.files?.[0])}
+                        disabled={uploadingImageBlockId !== null}
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          event.currentTarget.value = '';
+                          void handlePassageImageFile(imageBlock.stimulusId, file);
+                        }}
                       />
                     </label>
                   </div>
+                  {uploadingImageBlockId === imageBlock.stimulusId ? <span role="status">Uploading image…</span> : null}
                   <label>
                     Alt text
                     <input

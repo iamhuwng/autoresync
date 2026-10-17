@@ -213,4 +213,31 @@ describe('Homework student loading hooks', () => {
         expect(getStudentHomeworkListMock).toHaveBeenNthCalledWith(1, 'student-1', { studentClasses });
         expect(getStudentHomeworkListMock).toHaveBeenNthCalledWith(2, 'student-1', { studentClasses });
     });
+
+    it('keeps the newest membership-aware response when an older load resolves later', async () => {
+        let resolveInitial: ((items: ReturnType<typeof makeListItem>[]) => void) | undefined;
+        let resolveWithClasses: ((items: ReturnType<typeof makeListItem>[]) => void) | undefined;
+        getStudentHomeworkListMock
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveInitial = resolve; }))
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveWithClasses = resolve; }));
+
+        const { result, rerender } = renderHook(
+            ({ studentClasses }) => useStudentHomeworkList('student-1', { studentClasses }),
+            { initialProps: { studentClasses: [] as { id: string }[] } },
+        );
+
+        await waitFor(() => expect(getStudentHomeworkListMock).toHaveBeenCalledTimes(1));
+        rerender({ studentClasses: [{ id: 'class-1' }] });
+        await waitFor(() => expect(getStudentHomeworkListMock).toHaveBeenCalledTimes(2));
+
+        await act(async () => {
+            resolveWithClasses?.([makeListItem()]);
+        });
+        await waitFor(() => expect(result.current.homeworkItems).toHaveLength(1));
+
+        await act(async () => {
+            resolveInitial?.([]);
+        });
+        expect(result.current.homeworkItems).toHaveLength(1);
+    });
 });

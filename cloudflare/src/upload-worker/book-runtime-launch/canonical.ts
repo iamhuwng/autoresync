@@ -1,4 +1,5 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import { authorizePublicBookBinding } from '../book-public/production.ts';
 import type {
   BookAssemblyActivityVersionRecord,
   BookAssemblyImmutableManifestVersion,
@@ -109,14 +110,15 @@ const activeBindingFor = async (
 };
 
 const pinsFor = (binding: BookDeliveryBinding): BookRuntimeLaunchContext['activityPins'] | null => {
-  const seen = new Set<string>();
-  const pins = binding.placements.map((placement) => {
-    if (!placement.activityId || !placement.activityVersionId || seen.has(placement.activityId)) return null;
-    seen.add(placement.activityId);
-    return { activityId: placement.activityId, activityVersionId: placement.activityVersionId };
-  });
-  return pins.some((pin) => pin === null) || pins.length === 0
-    ? null : pins as BookRuntimeLaunchContext['activityPins'];
+  const versions = new Map<string, BookDeliveryBinding['placements'][number]>();
+  for (const placement of binding.placements) {
+    if (!placement.activityId || !placement.activityVersionId) return null;
+    const prior = versions.get(placement.activityId);
+    if (prior && (prior.activityVersionId !== placement.activityVersionId
+      || prior.activityVersion !== placement.activityVersion)) return null;
+    versions.set(placement.activityId, placement);
+  }
+  return versions.size === 0 ? null : [...versions.values()].map(({ activityId, activityVersionId }) => ({ activityId, activityVersionId }));
 };
 
 const sole = <T>(values: readonly T[]): T | null => values.length === 1 ? values[0]! : null;
@@ -218,6 +220,7 @@ const productionContextResolver = (
   const dependencies = createDependencies(input.env as BookRuntimeLaunchCanonicalEnv);
   const binding = await activeBindingFor(dependencies, input.uid, input.request);
   if (!binding) return null;
+  if (binding.context.kind === 'public' && !await authorizePublicBookBinding(input.env as BookRuntimeLaunchCanonicalEnv, binding)) return null;
   const activityPins = pinsFor(binding);
   if (!activityPins) return null;
   let scope: Promise<PublicationScope> | undefined;

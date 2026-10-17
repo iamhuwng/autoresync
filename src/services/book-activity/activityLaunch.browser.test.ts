@@ -23,6 +23,33 @@ const response = (activities: unknown[], status = 200) => new Response(JSON.stri
 });
 
 describe('Book Activity launch browser client', () => {
+  it('keeps repeated Homework placements while hydrating each immutable Activity once', async () => {
+    const fetchImpl = vi.fn(async () => response([
+      { activityId: 'activity-1', activityVersionId: 'activity-1-v2', projection: projection('One') },
+      { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection('Two') },
+    ]));
+    const client = createBookActivityLaunchBrowserClient({ baseUrl: 'https://runtime.example', getIdToken: async () => 'token', fetchImpl });
+    const placements = [
+      { ...input.activityPins[0], placementId: 'placement-1' },
+      { ...input.activityPins[0], placementId: 'placement-repeat' },
+      { ...input.activityPins[1], placementId: 'placement-other' },
+    ];
+    await expect(client.readHomeworkActivities({ assignmentId: 'homework-1', placements })).resolves.toHaveLength(2);
+    expect(JSON.parse(String((fetchImpl.mock.calls[0]?.[1] as RequestInit).body)).placementIds).toEqual(placements.map((p) => p.placementId));
+    await expect(client.readHomeworkActivities({ assignmentId: 'homework-1', placements: [placements[0], { ...placements[1], activityVersionId: 'conflict' }] })).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('deduplicates identical immutable pins and rejects conflicting versions before fetch', async () => {
+    const fetchImpl = vi.fn(async () => response([
+      { activityId: 'activity-1', activityVersionId: 'activity-1-v2', projection: projection('One') },
+      { activityId: 'activity-2', activityVersionId: 'activity-2-v1', projection: projection('Two') },
+    ]));
+    const client = createBookActivityLaunchBrowserClient({ baseUrl: 'https://runtime.example', getIdToken: async () => 'token', fetchImpl });
+    await expect(client.readActivities({ ...input, activityPins: [...input.activityPins, input.activityPins[0]] })).resolves.toHaveLength(2);
+    expect(JSON.parse(String((fetchImpl.mock.calls[0]?.[1] as RequestInit).body)).activityPins).toEqual(input.activityPins);
+    await expect(client.readActivities({ ...input, activityPins: [...input.activityPins, { ...input.activityPins[0], activityVersionId: 'conflict' }] })).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
   it('authenticates one bounded exact batch and returns shell activities', async () => {
     const fetchImpl = vi.fn(async () => response([
       { activityId: 'activity-1', activityVersionId: 'activity-1-v2', projection: projection('One') },

@@ -39,6 +39,8 @@ export interface CanonicalBookRouteDescriptor {
   readonly id: string;
   readonly methods: readonly BookRouteMethod[];
   readonly pathTemplate: string;
+  /** Explicit query contract; omitted descriptors reject every query. */
+  readonly allowedQueryKeys?: readonly string[];
   readonly owner: string;
   readonly domain: BookRouteDomain;
   readonly handler: string;

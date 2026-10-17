@@ -59,7 +59,7 @@ export interface BookRuntimeSchedulePolicy {
   ): BookRuntimeScheduleDecision | Promise<BookRuntimeScheduleDecision>;
   revalidate?(
     input: BookRuntimeSchedulePolicyInput & {
-      readonly previousAuthority: BookRuntimeScheduleAuthority;
+      readonly previousAuthority?: BookRuntimeScheduleAuthority;
     },
   ): BookRuntimeScheduleDecision | Promise<BookRuntimeScheduleDecision>;
 }
@@ -261,9 +261,6 @@ const authorizeDraftReadBinding = async (
   if (!hasUsableSourceState(binding)) deny('runtime_source_state_invalid', 409);
   if (binding.context.kind === 'preview') deny('runtime_preview_read_only', 403);
   if (binding.context.kind === 'future_live') deny('runtime_future_live_denied', 409);
-  if (binding.context.kind === 'course' || binding.context.kind === 'class') {
-    deny('runtime_context_unimplemented', 409);
-  }
   const placement = binding.placements.find((candidate) => (
     candidate.placementId === input.placementId
     && candidate.activityId === input.activityId
@@ -363,9 +360,6 @@ export const authorizeRuntimeCommand = async (
   if (!hasUsableSourceState(binding)) deny('runtime_source_state_invalid', 409);
   if (binding.context.kind === 'preview') deny('runtime_preview_read_only', 403);
   if (binding.context.kind === 'future_live') deny('runtime_future_live_denied', 409);
-  if (binding.context.kind === 'course' || binding.context.kind === 'class') {
-    deny('runtime_context_unimplemented', 409);
-  }
   const placement = binding.placements.find((candidate) => placementMatches(command, candidate));
   if (!placement) deny('runtime_placement_not_found', 404);
   if (binding.scope.kind === 'placements' && !binding.scope.placementIds.includes(command.placementId)) {
@@ -411,6 +405,28 @@ export const revalidateRuntimeScheduleAuthorization = async (
   if (!context.scheduleAuthority) {
     if (context.binding.context.kind === 'homework') {
       deny('runtime_schedule_authority_unavailable', 503);
+    }
+    if (context.binding.context.kind === 'course' || context.binding.context.kind === 'class') {
+      if (!schedulePolicy.revalidate) deny('runtime_schedule_authority_unavailable', 503);
+      const scheduleInput = {
+        operation: context.operationKind,
+        actorUid: context.actorUid,
+        binding: context.binding,
+        target: {
+          placementId: context.placementId,
+          activityId: context.activityId,
+          activityVersion: context.activityVersion,
+          interactionId: context.interactionId,
+        },
+        now,
+      } as const;
+      const current = applyScheduleDecision(
+        await schedulePolicy.revalidate(scheduleInput),
+        context.binding,
+        schedulePolicy,
+        scheduleInput,
+      );
+      return current ? { ...context, scheduleAuthority: current } : context;
     }
     return context;
   }

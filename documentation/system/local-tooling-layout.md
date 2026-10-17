@@ -134,6 +134,13 @@ requires an explicit `--audit` for execution; contract inspection and doctor
 remain available without running a product command. Generic skill revisions
 are informational and do not gate repository evidence.
 
+Copied checkouts and older worktrees can retain the retired dispatcher even
+after the canonical checkout is updated. Inspect the actual package script
+before execution there. Reuse the canonical resolver with the selected
+checkout's cwd/configuration and compatible lockfile; do not assume that an
+`npm test` script is stateless. If a failed command starts installing a harness
+dependency tree, stop that route and classify the failure before retrying.
+
 Retained Wrangler audits run Windows x64 against the live checkout and the
 selected package's existing dependencies. They create evidence/run receipts,
 but no source snapshot, dependency installation, or WSL environment. Other
@@ -168,6 +175,10 @@ toolchain.
   compatible.
 - Remove any authorized isolated dependency tree with its worktree when the
   task is finished.
+- Retire task-owned release/verification copies and their generated caches
+  after the owning task preserves its source and unique evidence. Dependency
+  junctions save package space, but retained source/build copies still occupy
+  disk. Keep candidates belonging to active tasks.
 - Never borrow a global Wrangler/Firebase binary to make a worktree pass.
   Resolve the locked repo dependency instead.
 

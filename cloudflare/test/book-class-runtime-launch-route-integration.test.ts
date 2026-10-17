@@ -25,9 +25,11 @@ describe('#104 canonical class/runtime-launch handler composition', () => {
       '/v1/book-class-placement/current/class-1/copy-1/placement-1/material-1/binding-1',
       ),
       env: { BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED: 'enabled' },
+      params: { classId: 'class-1', copyId: 'copy-1', classPlacementId: 'placement-1',
+        classCourseMaterialId: 'material-1', bindingId: 'binding-1' },
     });
 
-    expect(resolveCurrent).toHaveBeenCalledWith({}, {
+    expect(resolveCurrent).toHaveBeenCalledWith({ BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED: 'enabled' }, {
       classId: 'class-1',
       copyId: 'copy-1',
       classPlacementId: 'placement-1',

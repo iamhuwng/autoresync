@@ -1,3 +1,11 @@
+import type {
+  BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeStatus,
+} from './bookSource.types';
+import type { ActivityPresentationMode } from './bookActivity.types';
+
 /** Pure, student-safe Mode 2 assembly candidate contract. */
 export const BOOK_SOURCE_STRATEGIES = ['full_pdf', 'component_pdfs'] as const;
 export type BookSourceStrategy = (typeof BOOK_SOURCE_STRATEGIES)[number];
@@ -21,6 +29,76 @@ export type ActivityContextRequirement = (typeof ACTIVITY_CONTEXT_REQUIREMENTS)[
 
 export const PAGE_GROUP_MODES = ['activity', 'reference_only'] as const;
 export type PageGroupMode = (typeof PAGE_GROUP_MODES)[number];
+
+export const COMPONENT_PDF_ROTATIONS = [0, 90, 180, 270] as const;
+export type ComponentPdfRotation = (typeof COMPONENT_PDF_ROTATIONS)[number];
+export type ComponentPdfPresentationMode = ActivityPresentationMode;
+
+export interface ComponentPdfPreparationComponentInput {
+  readonly sourceKey: string;
+  readonly displayFilename: string;
+  readonly printedLabel: string;
+  readonly rotation: ComponentPdfRotation;
+  readonly presentationMode: ComponentPdfPresentationMode;
+}
+
+export interface ComponentPdfPreparationComponent {
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly sourceOrder: number;
+  readonly ownerNodeKey: string;
+  readonly displayFilename: string;
+  readonly rotation: ComponentPdfRotation;
+  readonly presentationMode: ComponentPdfPresentationMode;
+}
+
+export interface ComponentPdfPreparationPageGroup {
+  readonly pageGroupKey: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly pages: readonly number[];
+  readonly activityKeys: readonly string[];
+  readonly mode: PageGroupMode;
+  readonly defaultPhysicalPageNumber?: number;
+}
+
+export interface ComponentPdfPreparationMapping {
+  readonly pageGroupKey: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly pages: readonly SourceQualifiedPageIdentity[];
+}
+
+export interface ComponentPdfPreparationCitation {
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly physicalPageNumber: number;
+  /** Citation-only label; never an identity, provider key, or route value. */
+  readonly printedLabel: string;
+}
+
+export interface ComponentPdfPreparationInput {
+  readonly bookId: string;
+  readonly ownerId: string;
+  readonly sourceSet: SourceSetCandidate;
+  readonly sourceVersionAuthority: BookSourceVersionAuthority;
+  readonly components: readonly ComponentPdfPreparationComponentInput[];
+  readonly pageGroups: readonly BookPageGroupCandidate[];
+  readonly provenance: readonly string[];
+}
+
+export interface ComponentPdfPreparationArtifact {
+  readonly schemaVersion: 1;
+  readonly kind: 'component-pdf-preparation';
+  readonly bookId: string;
+  readonly ownerId: string;
+  readonly sourceStrategy: 'component_pdfs';
+  readonly components: readonly ComponentPdfPreparationComponent[];
+  readonly pageGroups: readonly ComponentPdfPreparationPageGroup[];
+  readonly mappings: readonly ComponentPdfPreparationMapping[];
+  readonly citations: readonly ComponentPdfPreparationCitation[];
+  readonly provenance: readonly string[];
+}
 
 /** Logical candidate binding. Verification facts come only from injected authority. */
 export interface FullPdfSourceCandidate {
@@ -53,8 +131,14 @@ export type SourceSetCandidate = FullPdfSourceSetCandidate | ComponentPdfsSource
 
 /** Safe projection from the trusted immutable Source Version boundary. */
 export interface TrustedBookSourceVersionProjection {
+  readonly sourceKey: string;
   readonly sourceVersionId: string;
   readonly bookId: string;
+  readonly checksum: BookSourceChecksum;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  /** Present for every decided status and bound to this version's canonical hash. */
+  readonly studentSafeDecision?: BookSourceStudentSafeDecision;
   readonly physicalPageCount: number;
   /**
    * Assembly usability from trusted lifecycle authority: verified, confirmed,
@@ -140,6 +224,7 @@ export type BookAssemblyValidationCode =
   | 'duplicate-key'
   | 'duplicate-order'
   | 'unknown-source-key'
+  | 'source-identity-mismatch'
   | 'unknown-source-version'
   | 'unverified-source-version'
   | 'source-book-mismatch'

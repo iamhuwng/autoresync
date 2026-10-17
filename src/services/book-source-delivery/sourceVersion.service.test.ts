@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
+import { STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import { createBookSourceVersionStorageIdentity } from './sourceVersion.service';
 
 describe('createBookSourceVersionStorageIdentity', () => {
-  it('accepts exactly 500 MiB and rejects one byte more', () => {
-    expect(() => createBookSourceVersionStorageIdentity(identity(BOOK_SOURCE_MAX_PDF_BYTES))).not.toThrow();
-    expect(() => createBookSourceVersionStorageIdentity(identity(BOOK_SOURCE_MAX_PDF_BYTES + 1))).toThrow('no greater than');
+  it('accepts exactly 100 MiB and rejects one byte more without adding purpose to generic identity', () => {
+    expect(() => createBookSourceVersionStorageIdentity(identity(STUDENT_DOCUMENT_MAX_PDF_BYTES))).not.toThrow();
+    expect(() => createBookSourceVersionStorageIdentity(identity(STUDENT_DOCUMENT_MAX_PDF_BYTES + 1))).toThrow('no greater than');
   });
 });
 

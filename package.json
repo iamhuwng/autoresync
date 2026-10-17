@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-env.mjs ensure && cross-env VITE_READING_PASSAGE_LIBRARY=enabled VITE_MATERIAL_BOOKS=enabled VITE_MATERIAL_BOOK_EDITOR=enabled VITE_BOOK_ACTIVITY_CREATE_PRESENTATION=enabled VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION=enabled VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION=enabled VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION=enabled VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=enabled vite",
+    "dev:admin": "npm run dev -- --port 5175",
     "env:bootstrap": "node scripts/dev-env.mjs bootstrap",
     "env:check": "node scripts/dev-env.mjs check",
     "tooling:doctor": "node scripts/tooling-doctor.mjs",
@@ -83,6 +84,7 @@
     "jsonrepair": "^3.13.1",
     "jspdf": "^4.0.0",
     "mammoth": "^1.11.0",
+    "pdf-lib": "1.17.1",
     "pdfjs-dist": "^5.4.296",
     "perfect-freehand": "^1.2.2",
     "postcss": "^8.5.6",

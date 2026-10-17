@@ -17,6 +17,8 @@ import type {
   BookHomeworkStudentExtensionCommand,
   BookHomeworkStudentProjection,
   BookHomeworkVisibilityCommand,
+  BookHomeworkManualFeedbackReleaseCommand,
+  BookHomeworkManualFeedbackReleaseResult,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
 import {
   assertIso as assertAuthorityIso,
@@ -25,6 +27,7 @@ import {
   BookHomeworkAuthorityError,
   cloneAuthorityRecord,
   fingerprint,
+  operationFingerprint,
   inheritedBookHomeworkDueAt,
 } from './authority.ts';
 import {
@@ -35,6 +38,7 @@ import { BookHomeworkProjectionDiagnosticError } from './projection-diagnostics.
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const ASSIGNMENT_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
+const MANUAL_FEEDBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
 const MAX_RETRIES = 5;
 
 const assertIso: (value: unknown, label: string) => asserts value is string = assertAuthorityIso;
@@ -231,6 +235,8 @@ export class BookHomeworkAuthorityRepository {
       bookManifest: toStudentSafeBookHomeworkProjection(record.bookManifest),
       schedule: record.schedule,
       studentExtensions: record.studentExtensions[studentId] ?? {},
+      ...(record.frozenPolicy === undefined ? {} : { frozenPolicy: record.frozenPolicy }),
+      ...(record.activityPolicies === undefined ? {} : { activityPolicies: record.activityPolicies }),
     });
   }
 
@@ -257,6 +263,7 @@ export class BookHomeworkAuthorityRepository {
     if (fingerprint(input.schedule.scheduleRules) !== fingerprint(input.manifest.scheduleRules)) {
       throw new BookHomeworkAuthorityError('immutable-manifest', 'Initial authority schedule must match the frozen manifest schedule rules.');
     }
+    const commandFingerprint = await operationFingerprint(input);
     assertValidBookHomeworkAuthorityRecord({
       assignmentId: scope.authorityId,
       assignmentKind: 'book_activity_bundle',
@@ -265,6 +272,7 @@ export class BookHomeworkAuthorityRepository {
       bookManifest: input.manifest,
       schedule: input.schedule,
       activityPolicies: input.activityPolicies,
+      ...(input.frozenPolicy === undefined ? {} : { frozenPolicy: input.frozenPolicy }),
       studentExtensions: {},
       saga: { sagaId: scope.assignmentId, state: 'prepared', lastCommandId: input.commandId },
       visibility: {
@@ -278,7 +286,7 @@ export class BookHomeworkAuthorityRepository {
       updatedAt: input.createdAt,
     });
 
-    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, fingerprint(input), input.createdAt, (current) => {
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, commandFingerprint, input.createdAt, (current) => {
       if (current) throw new BookHomeworkAuthorityError('revision-conflict', 'Book Homework assignment already exists.');
       const record: BookHomeworkAuthorityRecord = {
         assignmentId: scope.authorityId,
@@ -288,6 +296,7 @@ export class BookHomeworkAuthorityRepository {
         bookManifest: clone(input.manifest),
         schedule: clone(input.schedule),
         activityPolicies: clone(input.activityPolicies),
+        ...(input.frozenPolicy === undefined ? {} : { frozenPolicy: clone(input.frozenPolicy) }),
         studentExtensions: {},
         saga: { sagaId: scope.assignmentId, state: 'prepared', lastCommandId: input.commandId },
         visibility: {
@@ -301,7 +310,7 @@ export class BookHomeworkAuthorityRepository {
         updatedAt: input.createdAt,
       };
       const operationResult = result('created', record);
-      return { record: withOperation(record, input.idempotencyKey, fingerprint(input), operationResult, input.createdAt), operationResult };
+      return { record: withOperation(record, input.idempotencyKey, commandFingerprint, operationResult, input.createdAt), operationResult };
     });
   }
 
@@ -312,8 +321,8 @@ export class BookHomeworkAuthorityRepository {
     if (input.changedNodeKey !== '$assignment' && input.changedNodeKey !== '$availability') {
       assertCommandId(input.changedNodeKey, 'changedNodeKey');
     }
-    const operationFingerprint = fingerprint(input);
-    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+    const commandFingerprint = await operationFingerprint(input);
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, commandFingerprint, input.updatedAt, async (current) => {
       const record = this.requireOwner(current, scope.ownerId);
       assertValidBookHomeworkSchedule(input.schedule, record.bookManifest.outline);
       const changedKeys = changedScheduleKeys(record.schedule as BookHomeworkSchedule, input.schedule as BookHomeworkSchedule);
@@ -357,7 +366,7 @@ export class BookHomeworkAuthorityRepository {
         saga: { ...record.saga, lastCommandId: input.commandId },
       };
       const operationResult = result('updated', next);
-      return { record: withOperation(next, input.idempotencyKey, operationFingerprint, operationResult, input.updatedAt), operationResult };
+      return { record: withOperation(next, input.idempotencyKey, commandFingerprint, operationResult, input.updatedAt), operationResult };
     });
   }
 
@@ -368,8 +377,8 @@ export class BookHomeworkAuthorityRepository {
     assertCommandId(input.studentId, 'studentId');
     assertCommandId(input.nodeKey, 'nodeKey');
     assertIso(input.dueAt, 'dueAt');
-    const operationFingerprint = fingerprint(input);
-    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+    const commandFingerprint = await operationFingerprint(input);
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, commandFingerprint, input.updatedAt, async (current) => {
       const record = this.requireOwner(current, scope.ownerId);
       if (record.bookManifest.context.recipientId !== input.studentId) {
         throw new BookHomeworkAuthorityError('invalid-command', 'Student extension is outside the frozen recipient boundary.');
@@ -405,7 +414,7 @@ export class BookHomeworkAuthorityRepository {
         saga: { ...record.saga, lastCommandId: input.commandId },
       };
       const operationResult = result('updated', next);
-      return { record: withOperation(next, input.idempotencyKey, operationFingerprint, operationResult, input.updatedAt), operationResult };
+      return { record: withOperation(next, input.idempotencyKey, commandFingerprint, operationResult, input.updatedAt), operationResult };
     });
   }
 
@@ -417,6 +426,138 @@ export class BookHomeworkAuthorityRepository {
     return this.mutateVisibility(input, 'recover');
   }
 
+  async releaseManualFeedback(
+    input: BookHomeworkManualFeedbackReleaseCommand,
+  ): Promise<BookHomeworkManualFeedbackReleaseResult> {
+    validateCommandCommon(input);
+    assertCommandId(input.recipientId, 'recipientId');
+    if (!MANUAL_FEEDBACK_ID.test(input.attemptId)) throw new BookHomeworkAuthorityError('invalid-command', 'attemptId is invalid.');
+    if (!MANUAL_FEEDBACK_ID.test(input.resultId)) throw new BookHomeworkAuthorityError('invalid-command', 'resultId is invalid.');
+    if (!MANUAL_FEEDBACK_ID.test(input.bindingId)) throw new BookHomeworkAuthorityError('invalid-command', 'bindingId is invalid.');
+    if (!MANUAL_FEEDBACK_ID.test(input.placementId)
+      || !MANUAL_FEEDBACK_ID.test(input.activityId)
+      || !MANUAL_FEEDBACK_ID.test(input.activityVersionId)) {
+      throw new BookHomeworkAuthorityError('invalid-command', 'Manual feedback Activity identity is invalid.');
+    }
+    if (input.terminalFeedbackPolicy !== 'manual'
+      || !Number.isSafeInteger(input.bindingRevision) || input.bindingRevision <= 0
+      || !Number.isSafeInteger(input.activityVersion) || input.activityVersion <= 0
+      || input.resultId !== `${input.attemptId}:result`) {
+      throw new BookHomeworkAuthorityError('invalid-command', 'Manual feedback target identity is invalid.');
+    }
+    const commandFingerprint = await operationFingerprint({
+      scope: input.scope,
+      assignmentId: input.assignmentId,
+      ownerId: input.ownerId,
+      recipientId: input.recipientId,
+      attemptId: input.attemptId,
+      resultId: input.resultId,
+      bindingId: input.bindingId,
+      bindingRevision: input.bindingRevision,
+      placementId: input.placementId,
+      activityId: input.activityId,
+      activityVersionId: input.activityVersionId,
+      activityVersion: input.activityVersion,
+      commandId: input.commandId,
+    });
+    let result: BookHomeworkAuthorityMutationResult;
+    try {
+      result = await this.mutate(
+      input.scope,
+      input.expectedRevision,
+      input.idempotencyKey,
+        commandFingerprint,
+      input.updatedAt,
+      async (current) => {
+        const record = this.requireOwner(current, input.ownerId);
+        if (record.visibility.status !== 'committed'
+          || record.saga.state !== 'committed'
+          || !await this.options.resolveCommittedRoot(record)) {
+          throw new BookHomeworkAuthorityError('visibility-conflict', 'Book Homework is not currently releasable.');
+        }
+        if (record.bookManifest.context.recipientId !== input.recipientId
+          || record.bookManifest.context.contextId !== input.assignmentId
+          || record.saga.sagaId !== input.assignmentId) {
+          throw new BookHomeworkAuthorityError('invalid-command', 'Manual feedback target context is invalid.');
+        }
+
+        const existing = record.manualFeedbackReleases?.[input.resultId];
+        if (existing) {
+          if (existing.resultId !== input.resultId
+            || existing.recipientId !== input.recipientId
+            || existing.bindingId !== input.bindingId
+            || existing.bindingRevision !== input.bindingRevision
+            || existing.placementId !== input.placementId
+            || existing.activityId !== input.activityId
+            || existing.activityVersionId !== input.activityVersionId
+            || existing.activityVersion !== input.activityVersion) {
+            throw new BookHomeworkAuthorityError('idempotency-conflict', 'Attempt already has a different release target.');
+          }
+          throw new ManualFeedbackAlreadyReleased(existing.resultId, existing.releasedAt, record.revision);
+        }
+        const release = {
+          schemaVersion: 1 as const,
+          attemptId: input.attemptId,
+          resultId: input.resultId,
+          recipientId: input.recipientId,
+          contextId: input.assignmentId,
+          bindingId: input.bindingId,
+          bindingRevision: input.bindingRevision,
+          placementId: input.placementId,
+          activityId: input.activityId,
+          activityVersionId: input.activityVersionId,
+          activityVersion: input.activityVersion,
+          releasedBy: input.ownerId,
+          releasedAt: input.updatedAt,
+          commandId: input.commandId,
+        };
+        const operations = Object.entries(record.operations ?? {})
+          .sort((left, right) => left[1].createdAt.localeCompare(right[1].createdAt))
+          .slice(-63);
+        const next: BookHomeworkAuthorityRecord = {
+          ...record,
+          operations: Object.fromEntries(operations),
+          manualFeedbackReleases: {
+            ...(record.manualFeedbackReleases ?? {}),
+            [input.resultId]: release,
+          },
+          revision: record.revision + 1,
+          updatedAt: input.updatedAt,
+          saga: { ...record.saga, lastCommandId: input.commandId },
+        };
+        return {
+          record: next,
+          operationResult: {
+            status: 'updated',
+            assignmentId: next.assignmentId,
+            revision: next.revision,
+            visibility: next.visibility.status,
+          },
+        };
+      },
+      );
+    } catch (error) {
+      if (error instanceof ManualFeedbackAlreadyReleased) {
+        return {
+          status: 'replayed',
+          resultId: error.resultId,
+          releasedAt: error.releasedAt,
+          revision: error.revision,
+        };
+      }
+      throw error;
+    }
+    const stored = await this.read(input.scope);
+    const release = stored?.manualFeedbackReleases?.[input.resultId];
+    if (!release) throw new BookHomeworkAuthorityError('invalid-record', 'Manual feedback release was not persisted.');
+    return {
+      status: result.status === 'replayed' ? 'replayed' : 'released',
+      resultId: release.resultId,
+      releasedAt: release.releasedAt,
+      revision: result.revision,
+    };
+  }
+
   private async mutateVisibility(
     input: BookHomeworkVisibilityCommand | BookHomeworkRecoveryCommand,
     kind: 'set' | 'recover',
@@ -424,8 +565,8 @@ export class BookHomeworkAuthorityRepository {
     validateCommandCommon(input);
     const scope = input.scope;
     assertScope(scope);
-    const operationFingerprint = fingerprint({ kind, ...input });
-    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, operationFingerprint, input.updatedAt, async (current) => {
+    const commandFingerprint = await operationFingerprint({ kind, ...input });
+    return this.mutate(scope, input.expectedRevision, input.idempotencyKey, commandFingerprint, input.updatedAt, async (current) => {
       const record = this.requireOwner(current, scope.ownerId);
       if (kind === 'set' && record.visibility.status !== 'prepared') {
         throw new BookHomeworkAuthorityError('visibility-conflict', 'Only prepared Book Homework can change visibility.');
@@ -445,7 +586,7 @@ export class BookHomeworkAuthorityRepository {
         ? 'recovered'
         : input.state === 'committed' ? 'committed' : 'compensating';
       const operationResult = result(status, next);
-      return { record: withOperation(next, input.idempotencyKey, operationFingerprint, operationResult, input.updatedAt), operationResult };
+      return { record: withOperation(next, input.idempotencyKey, commandFingerprint, operationResult, input.updatedAt), operationResult };
     });
   }
 
@@ -580,6 +721,11 @@ const encodeMap = (value: Record<string, unknown>): Record<string, FirestoreValu
 const decodeMap = (value: Record<string, FirestoreValue> | undefined): unknown =>
   Object.fromEntries(Object.entries(value ?? {}).map(([key, entry]) => [key, decodeValue(entry)]));
 
+class ManualFeedbackAlreadyReleased extends Error {
+  constructor(readonly resultId: string, readonly releasedAt: string, readonly revision: number) {
+    super('manual_feedback_already_released');
+  }
+}
 export class FirebaseRestBookHomeworkDocumentStore implements BookHomeworkDocumentStore {
   private readonly projectId: string;
   private readonly fetchImpl: typeof fetch;

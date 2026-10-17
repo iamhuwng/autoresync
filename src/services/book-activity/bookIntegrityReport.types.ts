@@ -65,6 +65,7 @@ export interface BookIntegrityTerminalAttempt {
   readonly resultId: string;
   readonly completionId: string;
   readonly attemptNumber: number;
+  readonly captureSlotId: string;
   readonly submittedAt: string;
   readonly recipientId: string;
   readonly ownerId: string;

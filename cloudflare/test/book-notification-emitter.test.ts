@@ -62,6 +62,14 @@ const enabledEmitter = (
 });
 
 describe('Book notification emitter additive seam', () => {
+  it('preserves known partial fanout and stops after an uncertain write', async () => {
+    const create = vi.fn().mockResolvedValueOnce({ status: 'replayed', notificationId: 'prior' })
+      .mockRejectedValueOnce(new Error('private-provider-error'));
+    await expect(enabledEmitter({ create }, action(['student-1', 'student-2', 'student-3'])).emit(identity))
+      .rejects.toMatchObject({ code: 'book_notification_write_unknown', delivery: {
+        status: 'unknown', delivered: 1, failed: 0, unknown: 1, unattempted: 1 } });
+    expect(create).toHaveBeenCalledTimes(2);
+  });
   it('handles zero, one, and multiple frozen recipients', async () => {
     const emptyRepository = new InMemoryNotificationCommandRepository();
     await expect(enabledEmitter(emptyRepository, action([])).emit(identity))
@@ -141,9 +149,10 @@ describe('Book notification emitter additive seam', () => {
       repository,
       action(['student-2', 'student-1']),
     );
-    await expect(emitter.emit(identity)).rejects.toThrow(
-      'lost_acknowledgement',
-    );
+    await expect(emitter.emit(identity)).rejects.toMatchObject({
+      code: 'book_notification_write_unknown',
+      delivery: { status: 'unknown', delivered: 0, failed: 0, unknown: 1, unattempted: 1 },
+    });
     expect(Object.keys(durable.snapshot())).toHaveLength(1);
     await expect(emitter.emit(identity)).resolves.toMatchObject({
       created: 1,
@@ -267,7 +276,8 @@ describe('Book notification emitter additive seam', () => {
       now: 1,
     });
     await expect(enabledEmitter(repository).emit(identity)).rejects
-      .toMatchObject({ code: 'book_notification_idempotency_conflict' });
+      .toMatchObject({ code: 'book_notification_idempotency_conflict',
+        delivery: { status: 'failed', delivered: 0, failed: 1, unknown: 0, unattempted: 0 } });
     expect(Object.keys(repository.snapshot())).toHaveLength(1);
   });
 

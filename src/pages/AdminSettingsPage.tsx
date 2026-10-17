@@ -44,6 +44,8 @@ import {
     createMaterialTestTypeConfigRepository,
 } from '../services/materialCatalog/testTypeConfig.service';
 import { createMaterialBooksRepository } from '../services/materialCatalog/materialBooks.service';
+import { refreshPublicBookReadiness } from '../services/materialCatalog/publicBookReadiness.client';
+import { resolveBookDeliveryWorkerOrigin } from '../services/book-delivery/bookDelivery.browser';
 import AIMaintenanceBanner from '../components/ai/AIMaintenanceBanner';
 
 // ============================================================================
@@ -718,6 +720,10 @@ const AdminSettingsPage: React.FC = () => {
     const materialBooksRepository = useMemo(
         () =>
             createMaterialBooksRepository({
+                refreshPublicReadiness: async (bookId) => {
+                    if (!user) throw new Error('public_book_readiness_unavailable');
+                    await refreshPublicBookReadiness({ baseUrl: resolveBookDeliveryWorkerOrigin(), bookId, getIdToken: () => user.getIdToken() });
+                },
                 read: async (path) => {
                     const snapshot = await get(ref(database, path));
                     return snapshot.val();
@@ -732,7 +738,7 @@ const AdminSettingsPage: React.FC = () => {
                     await updateDb(ref(database), payload);
                 },
             }),
-        []
+        [user]
     );
 
     // Load .env keys on mount

@@ -1,7 +1,9 @@
 import {
   BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES,
   BOOK_SOURCE_MAX_PDF_BYTES,
+  STUDENT_DOCUMENT_MAX_PDF_BYTES,
   type BookSourceCapacityUsage,
+  type BookSourcePurpose,
   type BookSourceUploadKind,
   type BookSourceUploadOperation,
 } from '../../types/bookSource.types';
@@ -19,9 +21,19 @@ const BYTE_FIELDS = [
   'temporaryBytes',
 ] as const;
 
-export function assertBookSourcePdfByteSize(byteSize: unknown): asserts byteSize is number {
-  if (typeof byteSize !== 'number' || !Number.isSafeInteger(byteSize) || byteSize <= 0 || byteSize > BOOK_SOURCE_MAX_PDF_BYTES) {
-    throw new SourceCapacityError(`byteSize must be a positive safe integer no greater than ${BOOK_SOURCE_MAX_PDF_BYTES}.`);
+export function maxSourcePdfByteSize(purpose: BookSourcePurpose): number {
+  if (purpose === 'book-source') return BOOK_SOURCE_MAX_PDF_BYTES;
+  if (purpose === 'student-document') return STUDENT_DOCUMENT_MAX_PDF_BYTES;
+  throw new SourceCapacityError('purpose must be book-source or student-document.');
+}
+
+export function assertBookSourcePdfByteSize(
+  byteSize: unknown,
+  purpose: BookSourcePurpose = 'book-source',
+): asserts byteSize is number {
+  const maximum = maxSourcePdfByteSize(purpose);
+  if (typeof byteSize !== 'number' || !Number.isSafeInteger(byteSize) || byteSize <= 0 || byteSize > maximum) {
+    throw new SourceCapacityError(`byteSize must be a positive safe integer no greater than ${maximum}.`);
   }
 }
 
@@ -37,7 +49,7 @@ export function calculateBookSourceCapacityUsage(input: {
   let replacementUploadBytes = 0;
   for (const operation of Object.values(input.operations)) {
     if (operation.status !== 'reserved') continue;
-    assertBookSourcePdfByteSize(operation.byteSize);
+    assertBookSourcePdfByteSize(operation.byteSize, operation.purpose);
     if (operation.kind === 'initial') pendingUploadBytes += operation.byteSize;
     else if (operation.kind === 'replacement') replacementUploadBytes += operation.byteSize;
     else throw new SourceCapacityError('operation.kind must be initial or replacement.');

@@ -181,6 +181,7 @@ const activityPolicySnapshots = (
       activityVersion: binding.activityVersion,
       lateSubmissionAllowed: policy.lateSubmissionAllowed,
       maxAttempts: policy.maxAttempts,
+      feedbackRelease: policy.feedbackRelease,
     }];
   }));
 };
@@ -197,12 +198,38 @@ const assertDeliveryPlacementContract = (
   const required = canonical.manifest.bindings
     .filter((binding) => binding.state === 'required')
     .map((binding) => {
+      const sourcePageScopes = new Map<string, number[]>();
       for (const source of binding.sourceContext) {
-        if (sourceVersions.get(source.sourceKey) !== source.sourceVersionId) {
+        const matchesCombined = canonical.manifest.studentDocument
+          && source.sourceKey === 'student-document'
+          && source.sourceVersionId === canonical.manifest.studentDocument.sourceVersionId;
+        if (!matchesCombined && sourceVersions.get(source.sourceKey) !== source.sourceVersionId) {
           throw new BookHomeworkSagaError(
             'stale-publication',
             'Manifest source identity does not match the Delivery publication.',
           );
+        }
+        if (matchesCombined) {
+          for (const combinedPage of source.physicalPageNumbers) {
+            const component = canonical.studentDocumentComponents?.find((candidate) => (
+              combinedPage >= candidate.combinedStartPage
+              && combinedPage < candidate.combinedStartPage + candidate.localPageCount
+            ));
+            if (!component || sourceVersions.get(component.sourceKey) !== component.sourceVersionId) {
+              throw new BookHomeworkSagaError(
+                'stale-publication',
+                'Combined document page does not map to the Delivery publication.',
+              );
+            }
+            const pages = sourcePageScopes.get(component.sourceKey) ?? [];
+            pages.push(combinedPage - component.combinedStartPage + 1);
+            sourcePageScopes.set(component.sourceKey, pages);
+          }
+        } else {
+          sourcePageScopes.set(source.sourceKey, [
+            ...(sourcePageScopes.get(source.sourceKey) ?? []),
+            ...source.physicalPageNumbers,
+          ]);
         }
       }
       return {
@@ -214,11 +241,8 @@ const assertDeliveryPlacementContract = (
         order: binding.order,
         contextMode: binding.contextMode,
         pageGroupKeys: sortedStrings(binding.pageGroupKeys),
-        sourcePageScopes: binding.sourceContext
-          .map((source) => ({
-            sourceKey: source.sourceKey,
-            pages: [...source.physicalPageNumbers].sort((left, right) => left - right),
-          }))
+        sourcePageScopes: [...sourcePageScopes.entries()]
+          .map(([sourceKey, pages]) => ({ sourceKey, pages: pages.sort((left, right) => left - right) }))
           .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
       };
     })
@@ -433,9 +457,10 @@ export class BookHomeworkAssignmentSaga {
 
   async readCommittedAssignment(
     assignmentId: string,
+    ownerId: string,
   ): Promise<BookHomeworkSagaRecord | null> {
     assertAssignmentId(assignmentId);
-    const record = await this.dependencies.sagaRepository.read(assignmentId);
+    const record = await this.dependencies.sagaRepository.read(assignmentId, ownerId);
     if (!record) return null;
     assertValidBookHomeworkSagaRecord(record);
     return record.state === 'committed'
@@ -654,6 +679,8 @@ export class BookHomeworkAssignmentSaga {
         publicationId: canonical.publication.publicationId,
         publicationRevision: canonical.publication.publicationRevision,
         contextId: canonical.manifest.context.contextId,
+        ...(canonical.manifest.studentDocument === undefined ? {} : { studentDocument: canonical.manifest.studentDocument }),
+        ...(canonical.manifest.targetPreview === undefined ? {} : { targetPreview: canonical.manifest.targetPreview }),
         presentation: clone(command.intent.presentation),
         fingerprint,
         requestFingerprint: requestFingerprint(command),
@@ -817,6 +844,12 @@ export class BookHomeworkAssignmentSaga {
         manifest,
         schedule: canonical.schedule,
         activityPolicies: activityPolicySnapshots(canonical),
+        ...(canonical.frozenPolicy.intent === undefined ? {} : { frozenPolicy: {
+          intent: canonical.frozenPolicy.intent,
+          integrityDefault: canonical.frozenPolicy.integrityDefault!,
+          integrityOverride: canonical.frozenPolicy.integrityOverride!,
+          integrityEffective: canonical.frozenPolicy.integrityEffective!,
+        } }),
         sagaId: command.assignmentId,
         commandId: childId(command.operationId, entry.recipientId, 'authority-create'),
         idempotencyKey: childId(command.idempotencyKey, entry.recipientId, 'authority-create'),
@@ -835,6 +868,12 @@ export class BookHomeworkAssignmentSaga {
       || authority.bookManifest.bindingRevision !== canonical.manifest.bindingRevision
       || stable(authority.bookManifest) !== stable(manifest)
       || stable(authority.activityPolicies) !== stable(activityPolicySnapshots(canonical))
+      || (canonical.frozenPolicy.intent !== undefined && stable(authority.frozenPolicy) !== stable({
+        intent: canonical.frozenPolicy.intent,
+        integrityDefault: canonical.frozenPolicy.integrityDefault,
+        integrityOverride: canonical.frozenPolicy.integrityOverride,
+        integrityEffective: canonical.frozenPolicy.integrityEffective,
+      }))
       || authority.visibility.status === 'compensating') {
       throw new BookHomeworkSagaError('authority-conflict', 'Existing authority does not match the canonical recipient record.');
     }

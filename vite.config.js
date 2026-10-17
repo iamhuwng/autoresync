@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => {
   const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
 
   return {
+    cacheDir: process.env.LUYENTAP_VITE_CACHE_DIR || path.resolve(repoRoot, 'node_modules/.vite'),
     // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
     envDir,
     define: bookEnvDefinitions,

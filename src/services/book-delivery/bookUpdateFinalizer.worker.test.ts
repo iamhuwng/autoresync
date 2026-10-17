@@ -20,7 +20,8 @@ const committedAction = (state: BookUpdateActionRecord['state'] = 'committed'): 
   actionId: 'action-1', actorId: 'teacher-1', ownerId: 'teacher-1', bookId: 'book-1',
   snapshotId: 'snapshot-1', snapshotFingerprint: 'a'.repeat(64), idempotencyKey: 'operation-1',
   requestFingerprint: 'b'.repeat(64), reason: 'Reviewed update', selections: [{
-    contextKey: 'homework:homework-1', placementId: 'placement-1', choice: 'apply-with-redo',
+    contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', placementId: 'placement-1', choice: 'apply-with-redo',
+  }, { contextKey: 'homework:f4f786a7ca8ce8b88aa0251672f459c31c31ce394a8143e406f6342cb1136724', placementId: 'placement-1', choice: 'apply-with-redo',
   }],
   state,
   stateRevision: state === 'committed' ? 2 : state === 'notification-pending' ? 3 : 1,
@@ -30,7 +31,7 @@ const committedAction = (state: BookUpdateActionRecord['state'] = 'committed'): 
   audit: {
     actorId: 'teacher-1', acceptedAt: '2026-08-10T00:00:00.000Z', reason: 'Reviewed update',
     bookId: 'book-1', oldActivityVersionId: 'activity-v1', newActivityVersionId: 'activity-v2',
-    selectedContextKeys: ['homework:homework-1'], classifications: ['redo-required'],
+    selectedContextKeys: ['homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', 'homework:f4f786a7ca8ce8b88aa0251672f459c31c31ce394a8143e406f6342cb1136724'], classifications: ['redo-required'],
     affectedCount: 1, checkpointCount: 1, regradeCount: 0, notificationCount: 1,
     terminalStatus: null, terminalAt: null,
   },
@@ -70,17 +71,28 @@ const resolver = (plans: readonly BookUpdateNotificationPlan[]): BookUpdateNotif
 });
 
 describe('#110 post-commit finalizer', () => {
+  it('rejects effects for an unselected recipient of the same assignment', async () => {
+    const current = committedAction();
+    const actions = new MemoryActions({ ...current, selections: current.selections.slice(0, 1),
+      audit: { ...current.audit, selectedContextKeys: ['homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e'] } });
+    const emit = vi.fn();
+    const result = await createBookUpdateFinalizer({ actions,
+      plans: resolver([plan(), plan({ recipientId: 'student-2' })]), emitter: { emit },
+    }).finalize({ ownerId: 'teacher-1', actionId: 'action-1' });
+    expect(result).toMatchObject({ status: 'notification-pending', code: 'notification-plan-invalid' });
+    expect(emit).not.toHaveBeenCalled();
+  });
   it('emits nothing for reorder-only or invisible removal and completes terminally', async () => {
     const base = committedAction();
     const actions = new MemoryActions({
       ...base,
       selections: [
-        { contextKey: 'homework:homework-1', placementId: 'placement-1', choice: 'apply-without-redo' },
-        { contextKey: 'homework:homework-2', placementId: 'placement-2', choice: 'remove-from-current' },
+        { contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', placementId: 'placement-1', choice: 'apply-without-redo' },
+        { contextKey: 'homework:cd64569ce6ba14d1b79917c447e84d655e0ed3da3456a80428bb2ebbe20ea58e', placementId: 'placement-2', choice: 'remove-from-current' },
       ],
       audit: {
         ...base.audit,
-        selectedContextKeys: ['homework:homework-1', 'homework:homework-2'],
+        selectedContextKeys: ['homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', 'homework:cd64569ce6ba14d1b79917c447e84d655e0ed3da3456a80428bb2ebbe20ea58e'],
         classifications: ['removed', 'reordered'],
       },
     });

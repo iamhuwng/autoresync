@@ -12,6 +12,8 @@ import type {
   BookRuntimeTrustedCommandContext,
   BookRuntimeSourceProvenance,
   BookRuntimeScore,
+  BookRuntimeTerminalLateFact,
+  BookRuntimeFeedbackPolicy,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import {
@@ -20,6 +22,7 @@ import {
 } from '../../../../src/services/book-activity/bookRuntime.recovery.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
+import { requireBookScheduleWindowDecision } from '../../../../src/services/book-delivery/bookScheduleWindow.service.ts';
 
 export interface BookRuntimeRepository {
   /** Recovery hold is an internal denial gate; it never returns runtime rows. */
@@ -53,6 +56,24 @@ export interface BookRuntimeRepository {
     readonly bindingRevision?: number;
     readonly limit: number;
   }): Promise<readonly BookRuntimeAttemptRecord[]>;
+  /** Read-only terminal rows from one bounded placement scope. */
+  listTerminalTuples?(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
+    readonly limit: number;
+  }): Promise<readonly BookRuntimeTerminalTuple[]>;
+}
+
+export interface BookRuntimeTerminalTuple {
+  readonly attempt: BookRuntimeAttemptRecord;
+  readonly result: BookRuntimeResultRecord;
+  readonly completion: BookRuntimeCompletionRecord;
+  readonly index: BookRuntimeAttemptIndexRecord;
 }
 
 export interface BookRuntimeRepositorySnapshot {
@@ -119,10 +140,39 @@ const assertAttemptPolicy = (
     || (policy.maxAttempts !== null
       && (!Number.isSafeInteger(policy.maxAttempts)
         || policy.maxAttempts <= 0
-        || policy.maxAttempts > 50))) {
+        || policy.maxAttempts > 50))
+    || (policy.feedbackPolicy !== undefined
+      && !['immediate', 'after_completion', 'after_deadline', 'never', 'manual'].includes(policy.feedbackPolicy))) {
     throw new BookRuntimeRepositoryError('runtime_attempt_policy_invalid');
   }
   return policy;
+};
+
+const terminalFeedbackPolicy = (
+  context: BookRuntimeTrustedCommandContext,
+  policy: BookRuntimeAttemptPolicy,
+): BookRuntimeFeedbackPolicy | undefined => {
+  if (context.binding.context.kind !== 'homework') return undefined;
+  if (policy.feedbackPolicy === undefined) {
+    throw new BookRuntimeRepositoryError('runtime_feedback_policy_missing');
+  }
+  return policy.feedbackPolicy;
+};
+
+const terminalLateFact = (
+  context: BookRuntimeTrustedCommandContext,
+): BookRuntimeTerminalLateFact | undefined => {
+  if (context.binding.context.kind !== 'homework') return undefined;
+  const authority = context.scheduleAuthority;
+  if (!authority) throw new BookRuntimeRepositoryError('runtime_terminal_late_metadata_missing');
+  const window = requireBookScheduleWindowDecision(authority.window);
+  return {
+    effectiveDeadline: clone(window.deadline),
+    policyRevision: authority.policyRevision,
+    authorityRevision: authority.authorityRevision,
+    evaluatedAt: authority.evaluatedAt,
+    late: window.phase === 'overdue',
+  };
 };
 
 const deniedAttemptLimit = (
@@ -201,6 +251,8 @@ const terminalRecordMatchesAttempt = (
   && record.submissionScope === attempt.submissionScope
   && stable(record.requiredInteractionIds) === stable(attempt.requiredInteractionIds)
   && stable(record.submittedInteractionIds) === stable(attempt.submittedInteractionIds)
+  && record.feedbackPolicy === attempt.feedbackPolicy
+  && stable(record.terminalLate) === stable(attempt.terminalLate)
   && record.acknowledgedDraftRevision === attempt.acknowledgedDraftRevision
   && record.attemptNumber === attempt.attemptNumber
   && stable(record.pageGroupKeys) === stable(attempt.pageGroupKeys)
@@ -543,6 +595,44 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
       .map(clone);
   }
 
+  async listTerminalTuples(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
+    readonly limit: number;
+  }): Promise<readonly BookRuntimeTerminalTuple[]> {
+    if (!Number.isSafeInteger(input.limit) || input.limit <= 0 || input.limit > 50) {
+      throw new BookRuntimeRepositoryError('runtime_attempt_query_unbounded');
+    }
+    assertTerminalAggregateIntegrity({
+      attempts: this.attempts,
+      results: this.results,
+      completions: this.completions,
+      indexes: this.indexes,
+      operations: this.operations,
+    });
+    return Object.values(this.attempts)
+      .filter((attempt) => attempt.recipientId === input.recipientId
+        && attempt.contextId === input.contextId
+        && attempt.placementId === input.placementId
+        && attempt.activityId === input.activityId
+        && attempt.activityVersion === input.activityVersion
+        && (input.bindingId === undefined || attempt.bindingId === input.bindingId)
+        && (input.bindingRevision === undefined || attempt.bindingRevision === input.bindingRevision))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(0, input.limit)
+      .map((attempt) => ({
+        attempt: clone(attempt),
+        result: clone(this.results[`${attempt.attemptId}:result`]!),
+        completion: clone(this.completions[`${attempt.attemptId}:completion`]!),
+        index: clone(this.indexes[attempt.attemptId]!),
+      }));
+  }
+
   async applyCommand(input: {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
@@ -582,6 +672,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
 
     if (command.commandKind === 'submit') {
       const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
+      const feedbackPolicy = terminalFeedbackPolicy(context, attemptPolicy);
+      const terminalLate = terminalLateFact(context);
       const activitySubmissionBoundary = assertActivitySubmissionBoundary(
         command,
         input.activitySubmissionBoundary,
@@ -628,6 +720,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         pageGroupKeys: provenance.pageGroupKeys,
         sourceProvenance: provenance.sourceProvenance,
         feedbackRelease: 'pending',
+        ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+        ...(terminalLate === undefined ? {} : { terminalLate }),
         response: clone(command.response),
         createdByOperationId: command.operationId,
         createdAt: context.now,
@@ -645,8 +739,10 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         pageGroupKeys: provenance.pageGroupKeys,
         sourceProvenance: provenance.sourceProvenance,
         feedbackRelease: 'pending',
+        ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+        ...(terminalLate === undefined ? {} : { terminalLate }),
         ...(input.score ? { score: clone(input.score) } : {}),
-        status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
+        status: context.binding.context.kind === 'public' || input.score?.status === 'scored' ? 'submitted' : 'pending_review',
         createdByOperationId: command.operationId,
         createdAt: context.now,
       };
@@ -663,6 +759,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         attemptNumber,
         pageGroupKeys: provenance.pageGroupKeys,
         sourceProvenance: provenance.sourceProvenance,
+        ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+        ...(terminalLate === undefined ? {} : { terminalLate }),
         status: 'completed',
         createdByOperationId: command.operationId,
         createdAt: context.now,
@@ -678,6 +776,8 @@ export class InMemoryBookRuntimeRepository implements BookRuntimeRepository {
         acknowledgedDraftRevision: command.clientRevision,
         attemptNumber,
         pageGroupKeys: provenance.pageGroupKeys,
+        ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+        ...(terminalLate === undefined ? {} : { terminalLate }),
         createdByOperationId: command.operationId,
         createdAt: context.now,
       };
@@ -1175,6 +1275,44 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       .map(durableClone);
   }
 
+  async listTerminalTuples(input: {
+    readonly recipientId: string;
+    readonly contextId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly bindingId?: string;
+    readonly bindingRevision?: number;
+    readonly limit: number;
+  }): Promise<readonly BookRuntimeTerminalTuple[]> {
+    if (!Number.isSafeInteger(input.limit) || input.limit <= 0 || input.limit > 50) {
+      throw new BookRuntimeRepositoryError('runtime_attempt_query_unbounded');
+    }
+    const value = await this.rtdb.readValue(durableScopePath(
+      input.recipientId,
+      input.contextId,
+      input.placementId,
+    ));
+    const aggregate = durableTerminalAggregateForPlacement(value, '', {});
+    assertTerminalAggregateIntegrity(aggregate);
+    return Object.values(aggregate.attempts)
+      .filter((attempt) => attempt.recipientId === input.recipientId
+        && attempt.contextId === input.contextId
+        && attempt.placementId === input.placementId
+        && attempt.activityId === input.activityId
+        && attempt.activityVersion === input.activityVersion
+        && (input.bindingId === undefined || attempt.bindingId === input.bindingId)
+        && (input.bindingRevision === undefined || attempt.bindingRevision === input.bindingRevision))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(0, input.limit)
+      .map((attempt) => ({
+        attempt: durableClone(attempt),
+        result: durableClone(aggregate.results[`${attempt.attemptId}:result`]!),
+        completion: durableClone(aggregate.completions[`${attempt.attemptId}:completion`]!),
+        index: durableClone(aggregate.indexes[attempt.attemptId]!),
+      }));
+  }
+
   async applyCommand(input: {
     readonly command: BookRuntimeCommandPayload;
     readonly context: BookRuntimeTrustedCommandContext;
@@ -1235,6 +1373,8 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
       let output: BookRuntimeCommandResult;
       if (command.commandKind === 'submit') {
         const attemptPolicy = assertAttemptPolicy(input.attemptPolicy);
+        const feedbackPolicy = terminalFeedbackPolicy(context, attemptPolicy);
+        const terminalLate = terminalLateFact(context);
         const activitySubmissionBoundary = assertActivitySubmissionBoundary(
           command,
           input.activitySubmissionBoundary,
@@ -1299,6 +1439,8 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           pageGroupKeys: provenance.pageGroupKeys,
           sourceProvenance: provenance.sourceProvenance,
           feedbackRelease: 'pending',
+          ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+          ...(terminalLate === undefined ? {} : { terminalLate }),
           response: durableClone(command.response),
           createdByOperationId: command.operationId,
           createdAt: context.now,
@@ -1322,8 +1464,10 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           pageGroupKeys: provenance.pageGroupKeys,
           sourceProvenance: provenance.sourceProvenance,
           feedbackRelease: 'pending',
+          ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+          ...(terminalLate === undefined ? {} : { terminalLate }),
           ...(input.score ? { score: durableClone(input.score) } : {}),
-          status: input.score?.status === 'scored' ? 'submitted' : 'pending_review',
+          status: context.binding.context.kind === 'public' || input.score?.status === 'scored' ? 'submitted' : 'pending_review',
           createdByOperationId: command.operationId,
           createdAt: context.now,
         };
@@ -1346,6 +1490,8 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,
           sourceProvenance: provenance.sourceProvenance,
+          ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+          ...(terminalLate === undefined ? {} : { terminalLate }),
           status: 'completed',
           createdByOperationId: command.operationId,
           createdAt: context.now,
@@ -1367,6 +1513,8 @@ export class FirebaseRestBookRuntimeRepository implements BookRuntimeRepository 
           acknowledgedDraftRevision: command.clientRevision,
           attemptNumber: terminalAttemptNumber,
           pageGroupKeys: provenance.pageGroupKeys,
+          ...(feedbackPolicy === undefined ? {} : { feedbackPolicy }),
+          ...(terminalLate === undefined ? {} : { terminalLate }),
           createdByOperationId: command.operationId,
           createdAt: context.now,
         };

@@ -52,7 +52,7 @@ const BookPdfEditWorkspace = ({
   onSaved,
   onDirtyChange,
 }: BookPdfEditWorkspaceProps) => {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const [activeTab, setActiveTab] = useState<BookPdfEditTab>('metadata');
   const [metadataDirty, setMetadataDirty] = useState(false);
   const [assemblyDirty, setAssemblyDirty] = useState(false);

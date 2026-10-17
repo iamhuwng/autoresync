@@ -218,7 +218,7 @@ describe('Book Homework authoritative return-path resolver', () => {
       trustedBookProjection: canonical().projection,
     });
     expect(ports.authorities.read).toHaveBeenCalledWith({ authorityId, assignmentId, ownerId });
-    expect(ports.publications.readScope).toHaveBeenCalledWith('book-vocab-u1-d43935c735245dc8');
+    expect(ports.publications.readScope).toHaveBeenCalledWith('book-vocab-u1-d43935c735245dc8', ownerId);
     expect(ports.exactActivityVersions.readExact).toHaveBeenCalledWith({
       bookId: 'book-vocab-u1-d43935c735245dc8',
       manifestVersionId: 'manifest-vocab-u1',

@@ -22,6 +22,21 @@ This repository has no production users or production data. Revisit this policy 
 - Preserve database invariants, transactional safety, migration idempotence, and deterministic setup. These are correctness properties, not backward-compatibility requirements.
 - Consolidate the migration baseline only as an explicit, coordinated change rather than as incidental work in a feature branch.
 
+## Implementor Escalation Protocol
+
+Resolve straightforward issues locally. While evidence still suggests a viable
+local fix, make at most three focused retries; a retry must test a materially
+new hypothesis, not repeat the same action.
+
+After one to three failed attempts with no optimistic next step, send the Astra
+main task one comprehensive state report containing the exact reproduction and
+current error, relevant source/data/deployment state, attempt chronology,
+tests/logs, touched files and configuration, deployed version, observed side
+effects, ruled-out causes, remaining uncertainty, and a request for a one-pass
+plan. Pause only the affected work until Astra replies, then work within that
+plan for up to three focused retries before reporting the complete state again.
+Continue independent authorized work while waiting.
+
 ## Live State Before Claims (MANDATORY)
 
 Before claiming repo state, task completion, blocker resolution, test proof, browser behavior, staging, commit readiness, or handoff readiness, inspect the current live source of truth: relevant files, current diff/status, task docs, and runtime behavior when the claim depends on product behavior.
@@ -52,12 +67,15 @@ Temporary bridge: remove after Codex memory index contains `prd0055-authority-sy
 ## Dev Login Shortcuts (MANDATORY)
 
 When testing authenticated teacher or student flows in this repo:
-- Prefer the built-in dev quick-login buttons on the login page before asking for credentials.
-- First click the subtle settings icon in the bottom-right corner of the login page to reveal the hidden dev quick-login buttons.
+- Always open the login route at `/login` first. Do not substitute `/`, a role route, or a deep link as the login entry point.
+- Prefer the built-in dev quick-login buttons on `/login` before asking for credentials.
+- First click the subtle settings icon in the bottom-right corner of `/login` to reveal the hidden dev quick-login buttons.
 - Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
 - If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
+
+For local browser verification, use `http://localhost:5173/login` for teacher flows and `http://localhost:5174/login` for student flows.
 
 ## Live Browser Testing URLs (MANDATORY)
 
@@ -83,6 +101,7 @@ this pause is an instruction lookup, not a request for user confirmation.
 
 | When you are... | READ this file |
 |----------------|----------------|
+| Creating or changing a feature/workflow, or replacing its backend, when shared notifications, announcements, reporting, or admin monitoring may apply | [`rules/shared-feature-integration.md`](documentation/rules/shared-feature-integration.md) |
 | Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |
 | Writing `useEffect` with `setInterval`/`setTimeout` + state deps | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
 | Creating state initialized as `'pending'` or `'loading'` | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
@@ -120,3 +139,7 @@ this pause is an instruction lookup, not a request for user confirmation.
 ## Repo Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
+- Local dependency installation, tool provisioning, tool lookup, Windows ARM64/x64 routing, or worktree cleanup: read `documentation/system/local-tooling-layout.md`. Run `npm run tooling:doctor` before installing anything, and use `npm run tooling:where -- <tool>` to locate the existing repo-owned or shared tool before downloading or invoking a global binary.
+- Before tests, builds, or dev commands in a copied checkout/worktree, inspect that checkout's package script and read `documentation/system/local-tooling-layout.md`; older copies may still launch the retired dependency-installing harness. Resolve the existing tool from the canonical checkout while preserving the selected source/configuration and working directory.
+- Prefer Codex Local for ordinary implementation and verification. Use a worktree only for concurrent source isolation; never install dependencies into a managed worktree just to run checks. Hand off to Local and use the canonical checkout's dependencies instead.
+- With the DevSpace plugin, open the canonical checkout using `mode="checkout"` and reuse the returned `workspaceId`. Use `mode="worktree"` only when the user explicitly needs parallel isolation.

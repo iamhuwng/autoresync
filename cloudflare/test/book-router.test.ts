@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createBookRouter,
+  matchCanonicalBookRoute,
   type CanonicalBookRouteDescriptor,
   type FirebaseVerifier,
 } from '../src/upload-worker/book-router.ts';
+import { bookActivityEvaluationRouteDescriptors } from '../src/upload-worker/book-activity-grading/route.ts';
 
 const ORIGIN = 'http://localhost:5173';
 const identity = JSON.stringify({
@@ -96,6 +98,14 @@ describe('canonical Book router core', () => {
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({ uid: 'teacher-1', params: { bookId: 'book-1' } }));
   });
 
+  it('forwards the native execution context to the resolved handler', async () => {
+    const executionContext = { waitUntil: vi.fn() } as unknown as ExecutionContext;
+    const response = await makeRouter()(request(), env(), executionContext);
+
+    expect(response?.status).toBe(200);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ executionContext }));
+  });
+
   it('returns null for non-Book paths', async () => {
     const response = await makeRouter()(request('/listening-delivery/content'), env());
     expect(response).toBeNull();
@@ -113,6 +123,25 @@ describe('canonical Book router core', () => {
       expect(response?.status).toBe(404);
     }
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('permits only declared grading query keys in matching and preflight candidate selection', async () => {
+    const read = bookActivityEvaluationRouteDescriptors.find((entry) => entry.handler === 'bookActivityEvaluation.history')!;
+    const path = '/book-evaluation/history/book-1/student-1?view=teacher&contextKind=homework&contextId=homework-1&placementId=placement-1&activityId=activity-1&activityVersionId=version-1&attemptId=attempt-1';
+    const router = makeRouter(read, { 'bookActivityEvaluation.history': handler });
+    const readEnv = env({ BOOK_EVALUATION_HISTORY_ROUTES_ENABLED: 'enabled',
+      BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY: 'book-service@example.test', BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY: identity });
+    expect(matchCanonicalBookRoute(request(path, { method: 'GET' }), [read])?.descriptor.id).toBe(read.id);
+    expect((await router(request(path, { method: 'GET' }), readEnv))?.status).toBe(200);
+    expect((await router(request(path, { method: 'OPTIONS', headers: { 'Access-Control-Request-Method': 'GET' } }), readEnv))?.status).toBe(204);
+    handler.mockClear();
+    for (const invalid of [`${path}&unknown=1`, `${path}&view=teacher`, `${path}#fragment`, '/book-evaluation/history/book-1/student-1?']) {
+      expect(matchCanonicalBookRoute(request(invalid, { method: 'GET' }), [read])).toBeNull();
+      expect((await router(request(invalid, { method: 'OPTIONS', headers: { 'Access-Control-Request-Method': 'GET' } }), readEnv))?.status).toBe(404);
+      expect((await router(request(invalid, { method: 'GET' }), readEnv))?.status).toBe(404);
+    }
+    expect(handler).not.toHaveBeenCalled();
+    expect((await makeRouter()(request('/book-delivery/test/book-1?view=teacher'), env()))?.status).toBe(404);
   });
 
   it('requires enabled gate', async () => {

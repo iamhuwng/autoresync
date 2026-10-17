@@ -4,6 +4,8 @@ import type { ReplacementPlanRecord, ReplacementPlanReviewRecord, ReplacementTok
 import type { ReplacementSagaDependencies, ReplacementSagaRecord } from './contract.ts';
 import { InMemoryReplacementSagaLedger } from './repository.ts';
 import { createReplacementSagaService } from './service.ts';
+import { replacementReviewSelectionFingerprint } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
+import { createReplacementConfirmationToken } from '../replacement-plans/token.ts';
 
 const hash = (character: string) => ({ d: 'd', s: 'e', p: 'f', a: 'a', r: 'b', v: 'c', q: '9', x: '8' }[character] ?? '0').repeat(64);
 const now = '2026-08-11T04:00:00.000Z';
@@ -28,8 +30,8 @@ const plan = (): ReplacementPlanRecord => ({
   reviewState: 'unreviewed', createdAt: now, expiresAt: '2026-08-11T05:00:00.000Z', planFingerprint: hash('p'),
 });
 
-const review = (): ReplacementPlanReviewRecord => ({ schemaVersion: 1, reviewId: 'review-1', planId: 'plan-1', ownerId: 'teacher-1', bookId: 'book-1', planFingerprint: hash('p'), deltaFingerprint: hash('d'), snapshotFingerprint: hash('s'), revisionVector: { old: 1 }, reviewedAt: now, expiresAt: '2026-08-11T05:00:00.000Z', state: 'reviewed' });
-const stored = async (): Promise<ReplacementTokenRecord> => ({ schemaVersion: 1, tokenHash: await (async () => { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)); return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join(''); })(), purpose: 'replacement-confirmation', ownerId: 'teacher-1', bookId: 'book-1', planId: 'plan-1', reviewId: 'review-1', planFingerprint: hash('p'), deltaFingerprint: hash('d'), snapshotFingerprint: hash('s'), revisionVector: { old: 1 }, adapterFingerprint: hash('a'), issuedAt: now, expiresAt: '2026-08-11T05:00:00.000Z' });
+const review = (): ReplacementPlanReviewRecord => ({ selections: [{ contextKey: 'homework:hw-1', placementId: 'placement-1', choice: 'adopt-successor' }], reason: 'Replace component', selectionFingerprint: 'a1cba53c8b1de20c5b2b4175376cac53a52dbaf266141edcc8ac35b3f503ee36', schemaVersion: 1, reviewId: 'review-1', planId: 'plan-1', ownerId: 'teacher-1', bookId: 'book-1', planFingerprint: hash('p'), deltaFingerprint: hash('d'), snapshotFingerprint: hash('s'), revisionVector: { old: 1 }, reviewedAt: now, expiresAt: '2026-08-11T05:00:00.000Z', state: 'reviewed' });
+const stored = async (): Promise<ReplacementTokenRecord> => ({ schemaVersion: 1, tokenHash: await (async () => { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)); return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join(''); })(), selectionFingerprint: 'a1cba53c8b1de20c5b2b4175376cac53a52dbaf266141edcc8ac35b3f503ee36', purpose: 'replacement-confirmation', ownerId: 'teacher-1', bookId: 'book-1', planId: 'plan-1', reviewId: 'review-1', planFingerprint: hash('p'), deltaFingerprint: hash('d'), snapshotFingerprint: hash('s'), revisionVector: { old: 1 }, adapterFingerprint: hash('a'), issuedAt: now, expiresAt: '2026-08-11T05:00:00.000Z' });
 
 const makeDependencies = async (overrides: Partial<ReplacementSagaDependencies> = {}): Promise<ReplacementSagaDependencies> => {
   const currentPlan = plan();
@@ -55,18 +57,134 @@ const makeDependencies = async (overrides: Partial<ReplacementSagaDependencies> 
 const input = { ownerId: 'teacher-1', bookId: 'book-1', planId: 'plan-1', reviewId: 'review-1', confirmationToken: token, idempotencyKey: 'replacement-1' };
 
 describe('#116 durable replacement saga', () => {
-  it('runs one visible replacement, delegates #117, then queues a metadata-only #119 handoff', async () => {
+  it('retains only old-minus-next candidates and never includes an unchanged component sibling', async () => {
+    const dependencies = await makeDependencies();
+    const original = await dependencies.plans.readPlan({ ownerId: input.ownerId, bookId: input.bookId, planId: input.planId });
+    if (!original) throw new Error('missing plan');
+    const sibling = { ...original.sourceSetDelta.old.sources[0]!, sourceKey: 'sibling', sourceVersionId: 'retained', sourceOrder: 2 };
+    const withSibling: ReplacementPlanRecord = {
+      ...original,
+      sourceSetDelta: {
+        ...original.sourceSetDelta,
+        old: { ...original.sourceSetDelta.old, sources: [...original.sourceSetDelta.old.sources, sibling] },
+        next: { ...original.sourceSetDelta.next, sources: [...original.sourceSetDelta.next.sources, sibling] },
+      },
+    };
+    vi.mocked(dependencies.plans.readPlan).mockResolvedValue(withSibling);
+    const result = await createReplacementSagaService(dependencies).execute(input);
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked') throw new Error(result.code);
+    expect(result.saga.sourceVersionIds).toEqual(['old']);
+    expect(result.saga.retiredByteHandoff).toMatchObject({ status: 'retained', sourceVersionIds: ['old'] });
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('runs selected adoption and completes with predecessor bytes retained', async () => {
     const dependencies = await makeDependencies();
     const result = await createReplacementSagaService(dependencies).execute(input);
-    expect(result.status).toBe('awaiting-retired-byte-deletion');
+    expect(result.status).toBe('completed');
     if (result.status === 'blocked' || result.status === 'pending') throw new Error('unexpected result');
-    expect(result.saga.state).toBe('awaiting-retired-byte-deletion');
+    expect(result.saga.state).toBe('completed');
     expect(result.saga.stateRevision).toBe(6);
     expect(result.saga.contexts['homework:hw-1']?.state).toBe('retired-revoked');
     expect(dependencies.visibility.publish).toHaveBeenCalledOnce();
     expect(dependencies.contexts.adoptAndRevoke).toHaveBeenCalledOnce();
-    expect(dependencies.retiredBytes.enqueueExactDeletion).toHaveBeenCalledWith(expect.objectContaining({ precondition: 'all-contexts-retired-deliveries-revoked' }));
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
     expect(JSON.stringify(result.saga)).not.toMatch(/confirmationToken|"token"/u);
+  });
+
+  it('applies only the reviewed context and leaves another impacted context untouched on replay', async () => {
+    const dependencies = await makeDependencies();
+    const current = plan();
+    vi.mocked(dependencies.plans.readPlan).mockResolvedValue({ ...current, contexts: [
+      ...current.contexts, { ...current.contexts[0]!, contextKey: 'homework:hw-2' },
+    ] });
+    const service = createReplacementSagaService(dependencies);
+    const result = await service.execute(input);
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked') throw new Error(result.code);
+    expect(Object.keys(result.saga.contexts)).toEqual(['homework:hw-1']);
+    expect(dependencies.contexts.adoptAndRevoke).toHaveBeenCalledOnce();
+    expect((await service.execute(input)).status).toBe('replayed');
+    expect(dependencies.contexts.adoptAndRevoke).toHaveBeenCalledOnce();
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('retains the predecessor when one of two contexts adopts the successor', async () => {
+    const dependencies = await makeDependencies();
+    const current = plan();
+    const unselected = { ...current.contexts[0]!, contextKey: 'homework:hw-2' };
+    vi.mocked(dependencies.plans.readPlan).mockResolvedValue({
+      ...current,
+      contexts: [...current.contexts, unselected],
+    });
+
+    const result = await createReplacementSagaService(dependencies).execute(input);
+
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked' || result.status === 'pending') throw new Error('unexpected result');
+    expect(Object.keys(result.saga.contexts)).toEqual(['homework:hw-1']);
+    expect(result.saga.contexts['homework:hw-1']?.state).toBe('retired-revoked');
+    expect(result.saga.sourceVersionIds).toEqual(['old']);
+    expect(result.saga.retiredByteHandoff).toMatchObject({ status: 'retained', sourceVersionIds: ['old'] });
+    expect(dependencies.contexts.adoptAndRevoke).toHaveBeenCalledTimes(1);
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('blocks predecessor deletion when an unselected context would retain access', async () => {
+    const dependencies = await makeDependencies();
+    const current = plan();
+    const unselected = { ...current.contexts[0]!, contextKey: 'homework:hw-2' };
+    const invalidating = { ...review(), selections: [{ ...review().selections[0]!, choice: 'invalidate-context' as const }] };
+    const selectionFingerprint = await replacementReviewSelectionFingerprint(invalidating);
+    vi.mocked(dependencies.plans.readPlan).mockResolvedValue({ ...current, contexts: [...current.contexts, unselected] });
+    vi.mocked(dependencies.plans.readReview).mockResolvedValue({ ...invalidating, selectionFingerprint });
+    vi.mocked(dependencies.plans.readToken).mockResolvedValue({ ...await stored(), selectionFingerprint });
+
+    const result = await createReplacementSagaService(dependencies).execute(input);
+
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked' || result.status === 'pending') throw new Error('unexpected result');
+    expect(result.saga.retiredByteHandoff).toMatchObject({ status: 'retained', sourceVersionIds: ['old'] });
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('publishes an empty selection without context mutation or deletion', async () => {
+    const dependencies = await makeDependencies();
+    const empty = { ...review(), selections: [], reason: '' };
+    const selectionFingerprint = await replacementReviewSelectionFingerprint(empty);
+    vi.mocked(dependencies.plans.readReview).mockResolvedValue({ ...empty, selectionFingerprint });
+    vi.mocked(dependencies.plans.readToken).mockResolvedValue({ ...await stored(), selectionFingerprint });
+    const result = await createReplacementSagaService(dependencies).execute(input);
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked') throw new Error(result.code);
+    expect(result.saga.contexts).toEqual({});
+    expect(dependencies.visibility.publish).toHaveBeenCalledOnce();
+    expect(dependencies.contexts.adoptAndRevoke).not.toHaveBeenCalled();
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('completes a no-retirement source reorder without deletion', async () => {
+    const dependencies = await makeDependencies();
+    const current = plan();
+    vi.mocked(dependencies.plans.readPlan).mockResolvedValue({ ...current, contexts: current.contexts.map((context) => ({ ...context, classification: 'reordered' })), sourceSetDelta: {
+      ...current.sourceSetDelta, next: current.sourceSetDelta.old,
+    } });
+    const result = await createReplacementSagaService(dependencies).execute(input);
+    expect(result.status).toBe('completed');
+    if (result.status === 'blocked') throw new Error(result.code);
+    expect(result.saga.sourceVersionIds).toEqual([]);
+    expect(result.saga.retiredByteHandoff?.status).toBe('not-required');
+    expect(dependencies.contexts.adoptAndRevoke).not.toHaveBeenCalled();
+    expect(dependencies.retiredBytes.enqueueExactDeletion).not.toHaveBeenCalled();
+  });
+
+  it('rejects changed reviewed choices before publication or context effects', async () => {
+    const dependencies = await makeDependencies();
+    vi.mocked(dependencies.plans.readReview).mockResolvedValue({ ...review(), selections: [] });
+    expect(await createReplacementSagaService(dependencies).execute(input)).toEqual({ status: 'blocked', code: 'token-stale-review' });
+    expect(dependencies.visibility.publish).not.toHaveBeenCalled();
+    expect(dependencies.contexts.adoptAndRevoke).not.toHaveBeenCalled();
   });
 
   it('replays terminal state and rejects changed idempotency input without a second visibility point', async () => {
@@ -76,7 +194,20 @@ describe('#116 durable replacement saga', () => {
     const replay = await service.execute(input);
     expect(replay.status).toBe('replayed');
     expect(dependencies.visibility.publish).toHaveBeenCalledOnce();
-    await expect(service.execute({ ...input, confirmationToken: 'b'.repeat(43) })).resolves.toEqual({ status: 'blocked', code: 'replay-conflict' });
+    await expect(service.execute({ ...input, confirmationToken: 'b'.repeat(43) })).resolves.toEqual({ status: 'blocked', code: 'token-invalid-token' });
+  });
+
+  it('replays an accepted command after the same reviewed intent receives a fresh confirmation token', async () => {
+    const dependencies = await makeDependencies();
+    const service = createReplacementSagaService(dependencies);
+    await service.execute(input);
+    const replacementToken = await createReplacementConfirmationToken({
+      ownerId: input.ownerId, bookId: input.bookId, plan: plan(), review: review(), adapterFingerprint: hash('a'), now,
+    });
+    vi.mocked(dependencies.plans.readToken).mockResolvedValue(replacementToken.record);
+    expect((await service.execute({ ...input, confirmationToken: replacementToken.token })).status).toBe('replayed');
+    expect(dependencies.visibility.publish).toHaveBeenCalledOnce();
+    expect(dependencies.contexts.adoptAndRevoke).toHaveBeenCalledOnce();
   });
 
   it('denies stale token fences before the ledger is mutated', async () => {

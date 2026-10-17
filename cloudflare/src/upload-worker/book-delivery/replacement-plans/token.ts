@@ -5,7 +5,7 @@ import type {
   ReplacementCurrentPlanPointer,
   ReplacementTokenRecord,
 } from '../../../../../src/services/book-source-delivery/replacementPlan.types.ts';
-import { isReplacementPlanExpired } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
+import { isReplacementPlanExpired, replacementReviewSelectionFingerprint } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
 import type { ReplacementPlanRepository } from './contract.ts';
 
 export const REPLACEMENT_CONFIRMATION_TOKEN_PURPOSE = 'replacement-confirmation' as const;
@@ -65,8 +65,14 @@ export const createReplacementConfirmationToken = async (input: {
     || input.plan.ownerId !== input.ownerId || input.plan.bookId !== input.bookId
     || input.review.ownerId !== input.ownerId || input.review.bookId !== input.bookId
     || input.review.planId !== input.plan.planId
+    || input.review.planFingerprint !== input.plan.planFingerprint
+    || input.review.deltaFingerprint !== input.plan.deltaFingerprint
+    || input.review.snapshotFingerprint !== input.plan.impactSnapshotFingerprint
+    || !sameVector(input.review.revisionVector, input.plan.impactSnapshotRevisionVector)
     || !HASH.test(input.plan.planFingerprint) || !HASH.test(input.review.planFingerprint)
     || !HASH.test(input.adapterFingerprint)
+    || !HASH.test(input.review.selectionFingerprint)
+    || await replacementReviewSelectionFingerprint(input.review) !== input.review.selectionFingerprint
     || !Number.isFinite(Date.parse(input.now))
     || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > REPLACEMENT_CONFIRMATION_TOKEN_MAX_TTL_MS
     || isReplacementPlanExpired(input.plan, input.now)
@@ -97,6 +103,7 @@ export const createReplacementConfirmationToken = async (input: {
     snapshotFingerprint: input.plan.impactSnapshotFingerprint,
     revisionVector: clone(input.plan.impactSnapshotRevisionVector),
     adapterFingerprint: input.adapterFingerprint,
+    selectionFingerprint: input.review.selectionFingerprint,
     issuedAt: input.now,
     expiresAt,
   });
@@ -112,6 +119,7 @@ export const createReplacementConfirmationToken = async (input: {
     snapshotFingerprint: input.plan.impactSnapshotFingerprint,
     revisionVector: clone(input.plan.impactSnapshotRevisionVector),
     expiresAt,
+    selectionFingerprint: input.review.selectionFingerprint,
   });
   return { token, record, handoff };
 };
@@ -152,6 +160,9 @@ export const validateReplacementConfirmationToken = async (input: {
   }
   if (input.stored.invalidatedAt && now >= Date.parse(input.stored.invalidatedAt)) return { status: 'invalid', code: 'invalidated' };
   if (input.review.state !== 'reviewed' || input.review.planFingerprint !== input.plan.planFingerprint) return { status: 'invalid', code: 'stale-review' };
+  if (!HASH.test(input.review.selectionFingerprint)
+    || input.stored.selectionFingerprint !== input.review.selectionFingerprint
+    || await replacementReviewSelectionFingerprint(input.review) !== input.review.selectionFingerprint) return { status: 'invalid', code: 'stale-review' };
   if (!sameVector(input.stored.revisionVector, input.currentRevisionVector)) return { status: 'invalid', code: 'revision-changed' };
   if (input.stored.adapterFingerprint !== input.adapterFingerprint) return { status: 'invalid', code: 'adapter-changed' };
   return {
@@ -166,6 +177,7 @@ export const validateReplacementConfirmationToken = async (input: {
       planFingerprint: input.plan.planFingerprint,
       deltaFingerprint: input.plan.deltaFingerprint,
       snapshotFingerprint: input.plan.impactSnapshotFingerprint,
+      selectionFingerprint: input.review.selectionFingerprint,
       revisionVector: clone(input.stored.revisionVector),
       expiresAt: input.stored.expiresAt,
     }),

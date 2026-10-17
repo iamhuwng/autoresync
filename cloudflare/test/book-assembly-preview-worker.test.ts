@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { NormalizedActivity } from '../../src/types/bookActivity.types';
 import type { BookAssemblyBookAuthority, BookAssemblyCandidateRecord } from '../../src/services/book-assembly/unitAssembly.types';
 import { createCandidatePreviewWorkerHandlers } from '../src/upload-worker/book-assembly/preview-worker';
+import { previewInputFingerprint } from '../../src/services/book-assembly/unitPreview.service';
+import { createComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types';
 
 const activity = (): NormalizedActivity => ({
   schemaVersion: 1, title: 'Choose safely', taskProfile: null, presentationMode: 'source-assisted',
@@ -31,6 +33,69 @@ const authority = (): BookAssemblyBookAuthority => ({
 const body = { bookId: 'book-1', unitKey: 'unit-1', candidateId: 'candidate-1', expectedCandidateRevision: 5 };
 
 describe('PRD0062 #63 candidate preview Worker', () => {
+  it('binds each displayed component Unit to one freshly reconstructed whole activation digest', async () => {
+    const componentManifest = {
+      ...candidate().manifest!,
+      sourceSet: { sourceStrategy: 'component_pdfs' as const, sources: [
+        { sourceKey: 'a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'b', sourceVersionId: 'source-b', sourceOrder: 2, ownerNodeKey: 'unit-2' },
+      ] },
+      units: [{ ...candidate().manifest!.units[0]!, pageGroups: [{ ...candidate().manifest!.units[0]!.pageGroups[0]!, sourceKey: 'a', pages: [1] }] }, {
+        unitKey: 'unit-2',
+        activitySlots: [{ activityKey: 'activity-2', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-2'] }],
+        pageGroups: [{ pageGroupKey: 'pages-2', sourceKey: 'b', pages: [1], activityKeys: ['activity-2'], mode: 'activity' as const }],
+      }],
+    };
+    const descriptor = createComponentStudentDocument({ sourceVersionId: 'student-v1', descriptorRevision: 4,
+      sha256Hex: 'a'.repeat(64), byteSize: 20, physicalPageCount: 2, compositionFingerprint: 'composition-1', components: [
+        { sourceKey: 'a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'b', sourceVersionId: 'source-b', sourceOrder: 2, ownerNodeKey: 'unit-2', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ] });
+    const componentCandidate = { ...candidate(), manifest: componentManifest };
+    const whole = {
+      ownerId: 'teacher-1', bookId: 'book-1', bookRevision: 3, sourceSetRevision: 4,
+      sourceSet: componentManifest.sourceSet,
+      activationReceipt: { schemaVersion: 1 as const, operationId: 'activation-1', inputFingerprint: 'fnv1a64:1111111111111111',
+        ownerId: 'teacher-1', bookId: 'book-1' as never, bookRevision: 3, sourceSetRevision: 4,
+        sourceSet: componentManifest.sourceSet, unitCandidates: [
+          { unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 5, manifestFingerprint: 'fnv1a64:2222222222222222' },
+          { unitKey: 'unit-2', candidateId: 'candidate-2', candidateRevision: 6, manifestFingerprint: 'fnv1a64:2222222222222222' },
+        ], studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: 4, descriptorFingerprint: 'fnv1a64:3333333333333333' },
+        activities: [
+          { unitKey: 'unit-1', activityKey: 'activity-1', activityId: 'activity-id-1', activityCandidateId: 'activity-candidate-1', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+          { unitKey: 'unit-2', activityKey: 'activity-2', activityId: 'activity-id-2', activityCandidateId: 'activity-candidate-2', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+        ], activatedAt: '2026-07-27T00:00:00.000Z' },
+      units: [
+        { unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 5, manifestFingerprint: 'fnv1a64:2222222222222222', manifest: componentManifest },
+        { unitKey: 'unit-2', candidateId: 'candidate-2', candidateRevision: 6, manifestFingerprint: 'fnv1a64:2222222222222222', manifest: componentManifest },
+      ], studentDocument: descriptor, registryVersion: 'registry-v1',
+      activities: [
+        { unitKey: 'unit-1', activityKey: 'activity-1', activityId: 'activity-id-1', activityCandidateId: 'activity-candidate-1', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+        { unitKey: 'unit-2', activityKey: 'activity-2', activityId: 'activity-id-2', activityCandidateId: 'activity-candidate-2', activityCandidateRevision: 1, activityPayloadFingerprint: 'fnv1a64:4444444444444444' },
+      ],
+    };
+    const recordApproval = vi.fn(async () => undefined);
+    const handlers = createCandidatePreviewWorkerHandlers({ now: () => '2026-07-27T00:00:00.000Z',
+      createApprovalId: () => 'approval-1', registryVersion: 'registry-v1', port: {
+        readUser: async () => ({ role: 'teacher', status: 'active' }),
+        readBookAuthority: async () => ({ ...authority(), sourceSet: componentManifest.sourceSet,
+          sourceVersionAuthority: { getSourceVersion: (sourceVersionId: string) => ({ sourceKey: sourceVersionId === 'source-a' ? 'a' : 'b',
+            sourceVersionId, bookId: 'book-1', physicalPageCount: 1, verifiedUsable: true }) } }),
+        readCandidate: async () => componentCandidate,
+        readActivities: async () => [{ activityKey: 'activity-1', ownerId: 'teacher-1', lifecycle: 'validated', content: activity() }],
+        sourceIsPreviewReady: async () => true, readWholeActivationApprovalInput: async () => whole,
+        readStudentDocument: async () => ({ descriptor, request: { opaqueRouteKey: 'doc', expectedByteLength: 20, expectedEtag: 'etag' } }),
+        recordApproval,
+      } });
+    const preview = await handlers.preview({ uid: 'teacher-1', body });
+    const projection = (preview.body as { preview: ReturnType<typeof JSON.parse>; qualification: { wholeActivationFingerprint: string } }).preview;
+    const digest = (preview.body as { qualification: { wholeActivationFingerprint: string } }).qualification.wholeActivationFingerprint;
+    await expect(handlers.approve({ uid: 'teacher-1', body })).resolves.toMatchObject({ init: { status: 409 } });
+    await expect(handlers.approve({ uid: 'teacher-1', body: { ...body,
+      expectedUnitInputFingerprint: previewInputFingerprint(projection), expectedWholeActivationFingerprint: digest } }))
+      .resolves.toMatchObject({ init: { status: 200 } });
+    expect(recordApproval).toHaveBeenCalledWith(expect.objectContaining({ wholeActivationFingerprint: digest }));
+  });
   it('rechecks authority, returns candidate-scoped answer-safe projection, and records trusted approval', async () => {
     const recordApproval = vi.fn(async () => undefined);
     const handlers = createCandidatePreviewWorkerHandlers({
@@ -128,6 +193,35 @@ describe('PRD0062 #63 candidate preview Worker', () => {
     }, registryVersion: 'registry-v1' });
     await expect(handlers.preview({ uid: 'teacher-1', body })).resolves.toEqual({ body: { code: 'preview_forbidden' }, init: expect.objectContaining({ status: 403 }) });
     expect(readCandidate).not.toHaveBeenCalled();
+  });
+
+  it('requires an active teacher profile and excludes super-admin authoring', async () => {
+    const deniedProfiles: readonly unknown[] = [
+      undefined,
+      null,
+      [],
+      { role: 'teacher' },
+      { role: 'super_admin', status: 'active' },
+      { role: 'student', status: 'active' },
+      { role: 'teacher', status: 'inactive' },
+      { role: 'teacher', status: 'blocked' },
+      { role: 'teacher', status: 'suspended' },
+      { role: 'teacher', status: 'active', disabled: true },
+      { role: 'teacher', status: 'active', forceReauth: true },
+      { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-07-27T12:00:00.000Z' },
+      { role: 'teacher', status: 'ACTIVE' },
+    ];
+    for (const profile of deniedProfiles) {
+      const readCandidate = vi.fn(async () => candidate());
+      const handlers = createCandidatePreviewWorkerHandlers({ port: {
+        readUser: async () => profile, readBookAuthority: async () => authority(), readCandidate,
+        readActivities: async () => [], sourceIsPreviewReady: async () => true, recordApproval: async () => undefined,
+      }, registryVersion: 'registry-v1' });
+      await expect(handlers.preview({ uid: 'teacher-1', body })).resolves.toEqual({
+        body: { code: 'preview_forbidden' }, init: expect.objectContaining({ status: 403 }),
+      });
+      expect(readCandidate).not.toHaveBeenCalled();
+    }
   });
 
   it('rejects malformed commands before reads or approval writes', async () => {

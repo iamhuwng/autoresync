@@ -4,6 +4,7 @@ import type {
   BookSourceVersionAuthority,
   SourceSetCandidate,
 } from '../../types/bookAssembly.types';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
 
 export const BOOK_ASSEMBLY_CANDIDATE_LIFECYCLES = [
   'draft',
@@ -22,6 +23,7 @@ export interface BookAssemblyBookAuthority {
   readonly sourceSetRevision: number;
   readonly sourceSet: SourceSetCandidate;
   readonly sourceVersionAuthority: BookSourceVersionAuthority;
+  readonly setupActivations?: readonly MaterialBookSetupActivation[];
 }
 
 export interface BookAssemblyCandidateRecord {
@@ -58,6 +60,7 @@ export interface BookAssemblyMutationResult {
   readonly status:
     | 'created'
     | 'replaced'
+    | 'rebased'
     | 'validated'
     | 'discarded'
     | 'loaded'

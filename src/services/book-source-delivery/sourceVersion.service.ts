@@ -1,5 +1,5 @@
 import {
-  BOOK_SOURCE_MAX_PDF_BYTES,
+  STUDENT_DOCUMENT_MAX_PDF_BYTES,
 } from '../../types/bookSource.types';
 import type {
   BookSourceChecksum,
@@ -98,9 +98,9 @@ export function assertBookSourceVersionStorageIdentity(
     typeof identity.byteSize !== 'number' ||
     !Number.isSafeInteger(identity.byteSize) ||
     identity.byteSize <= 0
-    || identity.byteSize > BOOK_SOURCE_MAX_PDF_BYTES
+    || identity.byteSize > STUDENT_DOCUMENT_MAX_PDF_BYTES
   ) {
-    throw new SourceVersionError(`byteSize must be a positive safe integer no greater than ${BOOK_SOURCE_MAX_PDF_BYTES}.`);
+    throw new SourceVersionError(`byteSize must be a positive safe integer no greater than ${STUDENT_DOCUMENT_MAX_PDF_BYTES}.`);
   }
 }
 

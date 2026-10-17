@@ -122,6 +122,13 @@ describe('useTeacherTests universal material summaries', () => {
       },
     );
 
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/book', {
+      'book-1': summary({ materialId: 'book-1', producerId: 'material-book', materialKind: 'book', surfaceFamily: 'book' }),
+    });
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/passage', {
+      'passage-1': summary({ materialId: 'passage-1', producerId: 'reading-v2-passage', materialKind: 'reading-passage', surfaceFamily: 'passage' }),
+    });
+
     const { result } = renderHook(() => useTeacherTests({
       ownerId: 'teacher-1',
       realtime: false,
@@ -134,10 +141,8 @@ describe('useTeacherTests universal material summaries', () => {
       'thcs-thpt-test',
       'writing-prompt',
     ]));
-    expect(result.current.tests.map((row) => row.materialKind)).not.toEqual(expect.arrayContaining([
-      'book',
-      'reading-passage',
-    ]));
+    expect(result.current.tests.map((row) => row.materialKind)).not.toContain('book');
+    expect(result.current.tests.map((row) => row.materialKind)).not.toContain('reading-passage');
     expect(result.current.tests.map((row) => row.materialId)).toEqual(expect.arrayContaining([
       'material-1',
       'public-test',
@@ -156,6 +161,9 @@ describe('useTeacherTests universal material summaries', () => {
     expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
       path: 'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
     }));
+    expect(mockGet.mock.calls.map(([target]) => target.path)).toEqual([
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+    ]);
   });
 
   it('keeps My Content owned-only even when other teachers have public tests', async () => {

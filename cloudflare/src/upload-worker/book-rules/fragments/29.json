@@ -7,19 +7,37 @@
     "generatedRuleLocations": [
       "book_result_read_models/.read",
       "book_result_read_models/.write",
+      "book_result_read_models/students/.read",
       "book_result_read_models/students/$studentId/books/$bookId/group_summaries/.read",
       "book_result_read_models/students/$studentId/books/$bookId/group_summaries/.indexOn",
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey/.read",
       "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey/.write",
       "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/.read",
       "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.read",
       "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.write",
+      "book_result_read_models/homework/.read",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/.read",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/.indexOn",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey/.read",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey/.write",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/.read",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.read",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.write",
-      "book_result_read_models/details/$resultId/.read"
+      "book_result_read_models/details/.read",
+      "book_result_read_models/details/$resultId/.read",
+      "book_result_read_models/details/$resultId/.write",
+      "book_result_read_models/students/$studentId/books/$bookId/group_summaries/.write",
+      "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/.write",
+      "book_result_read_models/contexts/.read",
+      "book_result_read_models/contexts/.write",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/.read",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/.indexOn",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/$groupKey/.read",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/$groupKey/.write",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/.read",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.read",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId/.write",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/.write"
     ],
     "serviceIdentity": "book_result_read_service",
     "leastPrivilegePaths": [
@@ -27,7 +45,9 @@
       "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey",
       "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
-      "book_result_read_models/details/$resultId"
+      "book_result_read_models/details/$resultId",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId"
     ]
   },
   "operations": [
@@ -57,7 +77,7 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25 && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries",
@@ -68,31 +88,38 @@
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
+    },
+    {
+      "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51 && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/homework",
@@ -106,7 +133,7 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25 && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries",
@@ -117,31 +144,38 @@
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
+    },
+    {
+      "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51 && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_homeworkId == $homeworkId && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class')"
     },
     {
       "path": "book_result_read_models/details",
@@ -155,14 +189,14 @@
       "rule": ".read",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId"
+      "expression": "(auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class') && !(data.child('surface').val() == 'public' || data.child('surface').val() == 'course' || data.child('surface').val() == 'class')) || (auth != null && auth.token.book_result_read_service == true && (auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class') && auth.token.book_result_read_contextId != null && auth.token.book_result_read_studentId != null && auth.token.book_result_read_bookId != null && auth.token.book_result_read_resultId == $resultId && (!data.exists() || (auth.token.book_result_read_contextKind == data.child('surface').val() && auth.token.book_result_read_contextId == data.child('contextId').val() && auth.token.book_result_read_studentId == data.child('studentId').val() && auth.token.book_result_read_studentId == data.child('recipientId').val() && auth.token.book_result_read_bookId == data.child('bookId').val() && auth.token.book_result_read_resultId == data.child('resultId').val())))"
     },
     {
       "path": "book_result_read_models/details/$resultId",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId && newData.child('schemaVersion').val() == 1 && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists()"
+      "expression": "(auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_resultId == $resultId && newData.child('schemaVersion').val() == 1 && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && !(auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class') && !(data.child('surface').val() == 'public' || data.child('surface').val() == 'course' || data.child('surface').val() == 'class') && !(newData.child('surface').val() == 'public' || newData.child('surface').val() == 'course' || newData.child('surface').val() == 'class')) || (auth != null && auth.token.book_result_read_service == true && (auth.token.book_result_read_contextKind == 'public' || auth.token.book_result_read_contextKind == 'course' || auth.token.book_result_read_contextKind == 'class') && auth.token.book_result_read_contextId != null && auth.token.book_result_read_studentId != null && auth.token.book_result_read_bookId != null && auth.token.book_result_read_resultId == $resultId && auth.token.book_result_read_contextKind == newData.child('surface').val() && auth.token.book_result_read_contextId == newData.child('contextId').val() && auth.token.book_result_read_studentId == newData.child('studentId').val() && auth.token.book_result_read_studentId == newData.child('recipientId').val() && auth.token.book_result_read_bookId == newData.child('bookId').val() && auth.token.book_result_read_resultId == newData.child('resultId').val() && (!data.exists() || (auth.token.book_result_read_contextKind == data.child('surface').val() && auth.token.book_result_read_contextId == data.child('contextId').val() && auth.token.book_result_read_studentId == data.child('studentId').val() && auth.token.book_result_read_studentId == data.child('recipientId').val() && auth.token.book_result_read_bookId == data.child('bookId').val() && auth.token.book_result_read_resultId == data.child('resultId').val())) && newData.child('schemaVersion').val() == 1 && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists())"
     },
     {
       "path": "book_result_read_models/students/$studentId/books/$bookId/group_summaries",
@@ -173,6 +207,76 @@
     },
     {
       "path": "book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/contexts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/contexts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && query.orderByChild == 'latestSubmittedAt' && query.limitToLast != null && query.limitToLast <= 25 && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries",
+      "rule": ".indexOn",
+      "merge": "replace-exact-index",
+      "requiresExistingRule": false,
+      "expression": "latestSubmittedAt"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries/$groupKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && query.orderByKey == true && query.limitToFirst != null && query.limitToFirst <= 51 && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_attempts/$groupKey/$resultId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_result_read_service == true && auth.token.book_result_read_studentId == $studentId && auth.token.book_result_read_bookId == $bookId && auth.token.book_result_read_groupKey == $groupKey && auth.token.book_result_read_resultId == $resultId && !newData.child('answerKey').exists() && !newData.child('pdfBytes').exists() && !newData.child('providerAuthority').exists() && !newData.child('storage').exists() && !newData.child('privateSourceAuthority').exists() && auth.token.book_result_read_contextKind == $contextKind && ($contextKind == 'public' || $contextKind == 'course' || $contextKind == 'class') && auth.token.book_result_read_contextId == $contextId"
+    },
+    {
+      "path": "book_result_read_models/contexts/$contextKind/$contextId/students/$studentId/books/$bookId/group_summaries",
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,

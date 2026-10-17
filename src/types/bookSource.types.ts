@@ -4,6 +4,19 @@ export interface BookSourceChecksum {
   readonly value: string;
 }
 
+/** Immutable publication identity bound to a retirement operation. */
+export interface PublicationRetirementGuard {
+  readonly bookId: string;
+  readonly sourceVersionId: string;
+  readonly deletionId: string;
+  readonly publicationId: string;
+  readonly publicationRevision: number;
+  readonly manifestVersionId: string;
+  readonly sourceSetRevision: number;
+  readonly inputFingerprint: string;
+  readonly sourceVersionIds: readonly string[];
+}
+
 /** Immutable storage coordinates for one Book PDF Source Version. */
 export interface BookSourceVersionStorageIdentity {
   readonly bookId: string;
@@ -29,7 +42,10 @@ export interface BookSourceVersionMetadata {
   readonly storage: BookSourceVersionStorageIdentity;
 }
 
-export const BOOK_SOURCE_MAX_PDF_BYTES = 500 * 1024 * 1024;
+/** Maximum bytes for one original/component Book source PDF. */
+export const BOOK_SOURCE_MAX_PDF_BYTES = 50 * 1024 * 1024;
+/** Maximum bytes for a provider-backed student-document source/output. */
+export const STUDENT_DOCUMENT_MAX_PDF_BYTES = 100 * 1024 * 1024;
 export const BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES = 9_000_000_000;
 export const BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS = 15 * 60 * 1_000;
 
@@ -72,10 +88,28 @@ export interface BookSourceUploadAccountCapacityState extends Pick<
 }
 
 export type BookSourceUploadKind = 'initial' | 'replacement';
+export type BookSourcePurpose = 'book-source' | 'student-document';
+export type BookSourceStudentSafeStatus = 'unreviewed' | 'review-required' | 'ready' | 'rejected';
+export type BookSourceStudentSafeReasonCode =
+  | 'teacher-reviewed'
+  | 'teacher-only-content'
+  | 'invalid-document'
+  | 'superseded';
+
+export interface BookSourceStudentSafeDecision {
+  readonly decidedBy: string;
+  readonly decidedAt: string;
+  readonly sourceVersionId: string;
+  readonly sha256Hex: string;
+  readonly reasonCode: BookSourceStudentSafeReasonCode;
+}
+
 export type BookSourceUploadStatus =
   | 'reserved'
   | 'cleanup_pending'
   | 'verified_completed'
+  | 'retirement_pending'
+  | 'retired'
   | 'released';
 
 export type BookSourceUploadCleanupReason =
@@ -117,13 +151,10 @@ export interface BookSourceUploadReservation {
   /** Worker-generated immutable object key; never derived from filename. */
   readonly providerObjectKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  readonly studentSafeDecision?: BookSourceStudentSafeDecision;
   readonly byteSize: number;
-  /**
-   * Page count attested by the authenticated owner's PDF.js inspection. It is
-   * bound to `expectedChecksum` and `byteSize` for the lifetime of a
-   * reservation; trusted completion never replaces it with a provider hint.
-   */
-  readonly ownerAttestedPhysicalPageCount: number;
   readonly originalFilename: string;
   readonly expectedChecksum: BookSourceChecksum;
   readonly createdAt: string;
@@ -136,11 +167,15 @@ export interface BookSourceAssemblyProjection {
   readonly bookId: string;
   readonly sourceKey: string;
   readonly sourceVersionId: string;
+  readonly checksum: BookSourceChecksum;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  readonly studentSafeDecision?: BookSourceStudentSafeDecision;
   readonly physicalPageCount: number;
   readonly verifiedUsable: boolean;
 }
 
-/** Current source map for one Book, keyed by logical source key. */
+/** Current source map for one Book, keyed by immutable source version id. */
 export type BookSourceAssemblySourceMap = Readonly<Record<string, BookSourceAssemblyProjection>>;
 
 /** Provider-free current Assembly projections, keyed by Book id. */
@@ -148,13 +183,17 @@ export type BookSourceAssemblyBooks = Readonly<Record<string, BookSourceAssembly
 
 export interface BookSourceUploadOperation extends Omit<
   BookSourceUploadReservation,
-  'ownerAttestedPhysicalPageCount'
+  never
 > {
   /**
-   * Legacy operations may predate the owner page-count attestation. Such rows
-   * remain readable for capacity/lifecycle work but are never Assembly-usable.
+   * Worker-derived page count. It is absent until trusted completion reads the
+   * immutable provider object through the bounded SourceProvider seam.
    */
+  readonly physicalPageCount?: number;
+  /** Retained only on the pre-existing retired-history representation. */
   readonly ownerAttestedPhysicalPageCount?: number;
+  /** Immutable predecessor provenance for replacement completion. */
+  readonly replacesSourceVersionId?: string;
   readonly status: BookSourceUploadStatus;
   /** Provider file/version identity is absent until trusted completion verifies it. */
   readonly verifiedStorage?: BookSourceVersionStorageIdentity;
@@ -164,6 +203,13 @@ export interface BookSourceUploadOperation extends Omit<
   readonly versionReconciliation?: BookSourceCommittedVersionReconciliationState;
   readonly releasedAt?: string;
   readonly releaseProof?: 'exact_version_deleted' | 'provider_absent';
+  /** Retired rows retain only provider-free immutable history. */
+  readonly checksum?: BookSourceChecksum;
+  readonly retiredAt?: string;
+  readonly retirementProof?: 'exact_version_deleted' | 'provider_absent';
+  readonly retiredDeletionId?: string;
+  readonly retirementGuard?: PublicationRetirementGuard;
+  readonly retirementPendingAt?: string;
 }
 
 export interface BookSourceUploadAccountState {
@@ -172,4 +218,28 @@ export interface BookSourceUploadAccountState {
   readonly operations: Readonly<Record<string, BookSourceUploadOperation>>;
   /** Atomically updated with reservations/completions in this account CAS. */
   readonly assemblyBooks?: BookSourceAssemblyBooks;
+  /** Deterministic create/replace lifecycle events in the same account CAS. */
+  readonly lifecycleAuditEvents?: Readonly<Record<string, BookSourceLifecycleAuditEvent>>;
+}
+
+export type BookSourceLifecycleTransition =
+  | 'private_ready'
+  | 'private_replaced'
+  | 'retirement_pending'
+  | 'retired';
+
+export interface BookSourceLifecycleAuditEvent {
+  readonly eventId: string;
+  readonly transition: BookSourceLifecycleTransition;
+  readonly revision: number;
+  readonly occurredAt: string;
+  readonly reservationId: string;
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly replacesSourceVersionId?: string;
+  readonly deletionId?: string;
+  readonly retirementGuard?: PublicationRetirementGuard;
+  readonly retirementProof?: 'exact_version_deleted' | 'provider_absent';
 }

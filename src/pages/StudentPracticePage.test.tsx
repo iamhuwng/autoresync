@@ -82,6 +82,7 @@ vi.mock('../components/book-runtime/BookPlacementRuntimeHost', () => ({
     projection: unknown;
     onAction?: (action: string, metadata?: Record<string, unknown>) => void;
     onReturn?: () => void;
+    onProjectionExpired?: (reason: 'not-found' | 'stale-binding') => void | Promise<void>;
   }) => (
     <div data-testid="book-placement-runtime-host">
       Book runtime: {String((props.projection as { bindingId?: unknown }).bindingId)}
@@ -95,6 +96,12 @@ vi.mock('../components/book-runtime/BookPlacementRuntimeHost', () => ({
         >
           Return
         </button>
+      ) : null}
+      {props.onProjectionExpired ? (
+        <button type="button" onClick={() => {
+          props.onProjectionExpired?.('stale-binding');
+          props.onProjectionExpired?.('stale-binding');
+        }}>Expire route</button>
       ) : null}
     </div>
   ),
@@ -459,6 +466,40 @@ describe('StudentPracticePage', () => {
     }));
     expect(getMock).not.toHaveBeenCalled();
     expect(refMock).not.toHaveBeenCalled();
+  });
+
+  it('launches Solo and coalesces one exact-context projection refresh', async () => {
+    const initial = {
+      bindingId: 'solo-binding-1', bindingRevision: 1, recipientId: 'student-1',
+      context: { kind: 'solo', contextId: 'solo-1' },
+      documentRequests: [{ opaqueRouteKey: 'bd_1111111111111111111111111111111111111111', expectedByteLength: 1024, expectedEtag: '"1111111111111111111111111111111111111111111111111111111111111111"' }],
+    };
+    const refreshed = {
+      ...initial,
+      bindingId: 'solo-binding-2', bindingRevision: 2,
+      documentRequests: [{ opaqueRouteKey: 'bd_2222222222222222222222222222222222222222', expectedByteLength: 1024, expectedEtag: '"2222222222222222222222222222222222222222222222222222222222222222"' }],
+    };
+    resolveBookPlacementLaunchMock
+      .mockResolvedValueOnce({ status: 'resolved', projection: initial })
+      .mockResolvedValueOnce({ status: 'resolved', projection: refreshed });
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/student/practice/book-1?bookSurface=solo&contextId=solo-1']}>
+        <Routes><Route path="/student/practice/:materialId" element={<StudentPracticePage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('book-placement-runtime-host')).toHaveTextContent('solo-binding-1');
+    await user.click(screen.getByRole('button', { name: 'Expire route' }));
+    await waitFor(() => expect(screen.getByTestId('book-placement-runtime-host')).toHaveTextContent('solo-binding-2'));
+    expect(resolveBookPlacementLaunchMock).toHaveBeenCalledTimes(2);
+    expect(trackActionMock).toHaveBeenCalledWith('bookRuntimeProjectionRefreshed', expect.objectContaining({
+      surface: 'solo', reason: 'stale-binding', bindingRevision: 2, outcome: 'success',
+    }));
+    await user.click(screen.getByRole('button', { name: 'Expire route' }));
+    expect(resolveBookPlacementLaunchMock).toHaveBeenCalledTimes(2);
+    expect(getMock).not.toHaveBeenCalled();
   });
 
   it('tracks Return from an invalid explicit Book launch', async () => {

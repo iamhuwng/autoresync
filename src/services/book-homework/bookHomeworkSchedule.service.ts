@@ -55,8 +55,83 @@ const parseTimestamp = (value: string, label: string): number => {
   return timestamp;
 };
 
-const toIso = (value: string, label: string): string =>
-  new Date(parseTimestamp(value, label)).toISOString();
+const LOCAL_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/u;
+const EXPLICIT_TIMESTAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)(Z|[+-]\d{2}:\d{2})$/u;
+
+export interface BookHomeworkLocalTimeResolution {
+  readonly timeZone: string;
+  readonly offsets: readonly string[];
+  readonly instants: readonly string[];
+}
+
+const offsetLabel = (minutes: number): string => {
+  const sign = minutes >= 0 ? '+' : '-';
+  const absolute = Math.abs(minutes);
+  return `${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`;
+};
+
+export const resolveBookHomeworkLocalTime = (
+  value: string,
+  timeZone: string,
+): BookHomeworkLocalTimeResolution => {
+  const match = LOCAL_TIMESTAMP.exec(value);
+  if (!match) throw new Error('Local date and time must use YYYY-MM-DDTHH:mm.');
+  const fields = match.slice(1, 6).map(Number);
+  const second = Number(match[6] ?? 0);
+  const wallUtc = Date.UTC(fields[0]!, fields[1]! - 1, fields[2]!, fields[3]!, fields[4]!, second);
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  } catch {
+    throw new Error(`Unknown schedule timezone ${timeZone}.`);
+  }
+  const partsAt = (instant: number) => Object.fromEntries(
+    formatter.formatToParts(instant)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  const offsets = new Set<number>();
+  for (let hour = -24; hour <= 24; hour += 1) {
+    const instant = wallUtc + hour * 60 * 60 * 1000;
+    const parts = partsAt(instant);
+    offsets.add((Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - instant) / 60_000);
+  }
+  const candidates = [...offsets].flatMap((offset) => {
+    const instant = wallUtc - offset * 60_000;
+    const parts = partsAt(instant);
+    return parts.year === fields[0] && parts.month === fields[1] && parts.day === fields[2]
+      && parts.hour === fields[3] && parts.minute === fields[4] && parts.second === second
+      ? [{ offset, instant }]
+      : [];
+  }).sort((left, right) => left.instant - right.instant);
+  return {
+    timeZone,
+    offsets: candidates.map((candidate) => offsetLabel(candidate.offset)),
+    instants: candidates.map((candidate) => new Date(candidate.instant).toISOString()),
+  };
+};
+
+export const toBookHomeworkScheduleIso = (value: string, label: string, timeZone: string): string => {
+  const explicit = EXPLICIT_TIMESTAMP.exec(value);
+  const wallValue = explicit?.[1] ?? value;
+  const resolution = resolveBookHomeworkLocalTime(wallValue, timeZone);
+  if (resolution.instants.length === 0) throw new Error(`${label} does not exist in ${timeZone}.`);
+  if (explicit) {
+    const offset = explicit[2] === 'Z' ? '+00:00' : explicit[2];
+    const index = resolution.offsets.indexOf(offset);
+    if (index < 0) throw new Error(`${label} UTC offset ${offset} does not apply in ${timeZone}.`);
+    const parsed = new Date(parseTimestamp(value, label)).toISOString();
+    if (parsed !== resolution.instants[index]) throw new Error(`${label} does not match ${timeZone} at UTC${offset}.`);
+    return parsed;
+  }
+  if (resolution.instants.length > 1) throw new Error(`${label} is ambiguous in ${timeZone}; choose an explicit UTC offset.`);
+  return resolution.instants[0]!;
+};
 
 const outlineMap = (
   outline: readonly BookHomeworkStructuralOutlineNode[],
@@ -131,6 +206,7 @@ export const validateBookHomeworkSchedule = (
 export const compileBookHomeworkScheduleDraft = (
   draft: BookHomeworkScheduleDraft,
   outline: readonly BookHomeworkStructuralOutlineNode[],
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): BookHomeworkSchedule => {
   if (!draft.dueDate) throw new Error('Final due date is required.');
   const seen = new Set<string>();
@@ -140,13 +216,13 @@ export const compileBookHomeworkScheduleDraft = (
     if (!rule.availableFrom && !rule.dueAt) return [];
     return [{
       nodeKey: rule.nodeKey,
-      ...(rule.availableFrom ? { availableFrom: toIso(rule.availableFrom, `Release for ${rule.nodeKey}`) } : {}),
-      ...(rule.dueAt ? { dueAt: toIso(rule.dueAt, `Deadline for ${rule.nodeKey}`) } : {}),
+      ...(rule.availableFrom ? { availableFrom: toBookHomeworkScheduleIso(rule.availableFrom, `Release for ${rule.nodeKey}`, timeZone) } : {}),
+      ...(rule.dueAt ? { dueAt: toBookHomeworkScheduleIso(rule.dueAt, `Deadline for ${rule.nodeKey}`, timeZone) } : {}),
     }];
   }).sort((left, right) => left.nodeKey.localeCompare(right.nodeKey));
   const schedule: BookHomeworkSchedule = {
-    ...(draft.availableFrom ? { availableFrom: toIso(draft.availableFrom, 'Assignment release') } : {}),
-    finalDueAt: toIso(draft.dueDate, 'Final due date'),
+    ...(draft.availableFrom ? { availableFrom: toBookHomeworkScheduleIso(draft.availableFrom, 'Assignment release', timeZone) } : {}),
+    finalDueAt: toBookHomeworkScheduleIso(draft.dueDate, 'Final due date', timeZone),
     scheduleRules,
   };
   validateBookHomeworkSchedule(schedule, outline);
@@ -248,8 +324,8 @@ export const classifyBookHomeworkDeadlineMutation = (input: {
   return {
     kind,
     nodeKey: input.nodeKey,
-    ...(input.previousDueAt ? { previousDueAt: toIso(input.previousDueAt, 'Previous deadline') } : {}),
-    ...(input.nextDueAt ? { nextDueAt: toIso(input.nextDueAt, 'Next deadline') } : {}),
+    ...(input.previousDueAt ? { previousDueAt: new Date(parseTimestamp(input.previousDueAt, 'Previous deadline')).toISOString() } : {}),
+    ...(input.nextDueAt ? { nextDueAt: new Date(parseTimestamp(input.nextDueAt, 'Next deadline')).toISOString() } : {}),
     affectedStudentStates: states,
     affectedStudentStateKnown,
     requiresTrustedDenial: (!affectedStudentStateKnown || affectedStarted)

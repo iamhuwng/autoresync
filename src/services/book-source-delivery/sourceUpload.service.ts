@@ -1,21 +1,36 @@
 import type {
   BookSourceUploadAccountState,
   BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceAssemblyProjection,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeReasonCode,
+  BookSourceStudentSafeStatus,
   BookSourceUploadKind,
   BookSourceUploadOperation,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
-import { BOOK_SOURCE_MAX_PDF_BYTES } from '../../types/bookSource.types';
+import {
+  BOOK_SOURCE_MAX_PDF_BYTES,
+  STUDENT_DOCUMENT_MAX_PDF_BYTES,
+} from '../../types/bookSource.types';
 import { normalizeBookSourceDisplayFilename } from './sourceDisplayFilename.service';
 import {
   SourceUploadConflictError,
   type CompleteSourceUploadInput as RepositoryCompleteSourceUploadInput,
+  type DecideStudentSafeSourceInput as RepositoryDecideStudentSafeSourceInput,
   type ReserveSourceUploadInput,
   type SourceUploadRtdbRepository,
 } from './sourceUpload.rtdbRepository';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
 import { createBookSourceVersionStorageIdentity } from './sourceVersion.service';
 import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
+import type {
+  SourceProviderBoundedRead,
+  SourceProviderObjectReservation,
+  SourceProviderReadRange,
+  SourceProviderRequestOptions,
+} from './sourceProvider.port';
 
 const SOURCE_UPLOAD_PROVIDER_FAILURE_CODES = [
   'aborted',
@@ -45,7 +60,7 @@ export interface SourceUploadProviderObjectMetadata {
   readonly contentType: 'application/pdf';
 }
 
-/** Provider-neutral trusted seam; concrete #27 adapters conform structurally. */
+/** Provider-neutral trusted seam; concrete adapters conform structurally. */
 export interface SourceUploadProviderPort {
   authorizeUpload(input: {
     readonly storageLocationId: string;
@@ -58,9 +73,25 @@ export interface SourceUploadProviderPort {
     /** Canonical reservation time used to reconstruct an exact replay URL. */
     readonly issuedAt?: string;
   }): Promise<SourceUploadProviderAuthorization>;
-  verifyCompletedObject(input: {
-    readonly expected: BookSourceVersionStorageIdentity;
-  }): Promise<SourceUploadProviderObjectMetadata>;
+  resolveCompletedObject(input: {
+    readonly expected: SourceProviderObjectReservation;
+  }, options?: SourceProviderRequestOptions): Promise<SourceUploadProviderObjectMetadata>;
+  readBounded(input: {
+    readonly identity: BookSourceVersionStorageIdentity;
+    readonly range: SourceProviderReadRange;
+  }, options?: SourceProviderRequestOptions): Promise<SourceProviderBoundedRead>;
+}
+
+/** Trusted count is derived from provider bytes, never from a browser claim. */
+export interface TrustedSourcePageCountAdapter {
+  countVerifiedPages(input: {
+    readonly identity: BookSourceVersionStorageIdentity;
+    readonly checksum: BookSourceChecksum;
+    readonly byteSize: number;
+    readonly signal?: AbortSignal;
+    readonly deadlineAt?: number;
+    readonly deferCleanup?: (promise: Promise<unknown>) => void;
+  }): Promise<number>;
 }
 
 const SAFE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -80,8 +111,9 @@ const CLAIM_KEYS = [
   'pdfType',
   'readability',
 ] as const;
-const BEGIN_KEYS = ['actorId', 'bookId', 'idempotencyKey', 'sourceKey', 'kind', 'claim'] as const;
-const COMPLETE_KEYS = ['actorId', 'bookId', 'reservationId', 'providerFileId', 'providerFileVersionId'] as const;
+const BEGIN_KEYS = ['actorId', 'bookId', 'idempotencyKey', 'sourceKey', 'kind', 'purpose', 'claim'] as const;
+const COMPLETE_KEYS = ['actorId', 'bookId', 'reservationId', 'operationId'] as const;
+const DECIDE_KEYS = ['actorId', 'bookId', 'reservationId', 'operationId', 'studentSafeStatus', 'reasonCode'] as const;
 
 export type SourceUploadControlErrorCode =
   | 'invalid_input'
@@ -115,6 +147,7 @@ export class SourceUploadControlError extends Error {
 
 export interface SourceUploadBookManagementAuthority {
   readonly canManageBookSource: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
+  readonly canDecideStudentSafeSource: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
 }
 
 export interface BookSourceUploadReleaseAuthorization {
@@ -142,19 +175,16 @@ export interface BookSourceUploadControlDependencies {
   readonly releaseAuthorization: BookSourceUploadReleaseAuthorization;
   readonly deployment: SourceUploadDeploymentConfig;
   readonly accountStateReader: SourceUploadAccountStateReader;
-  readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
+  readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>
+    & Partial<Pick<SourceUploadRtdbRepository, 'decideStudentSafeSource'>>;
   readonly provider: SourceUploadProviderPort;
+  readonly pageCount: TrustedSourcePageCountAdapter;
   /** Worker-memory cache for short-lived exact replay authorities only. */
   readonly authorizationCache?: Map<string, SourceUploadBeginResult>;
   readonly clock: SourceUploadClock;
   readonly reservationTtlMs?: number;
   /** Canonical recovery never creates a new upload or verifies provider bytes. */
   readonly recoveryContext?: BookSourceRecoveryContext;
-  /** Trusted production-normal completion continuation (for example, source attachment). */
-  readonly onVerified?: (
-    operation: SourceUploadVerifiedOperation,
-    context: { readonly ownerId: string },
-  ) => void | SourceUploadVerifiedAuthority | Promise<void | SourceUploadVerifiedAuthority>;
 }
 
 export interface BeginSourceUploadInput {
@@ -163,6 +193,7 @@ export interface BeginSourceUploadInput {
   readonly idempotencyKey: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly purpose: BookSourcePurpose;
   readonly claim: SourceUploadInspectionClaim;
 }
 
@@ -173,14 +204,24 @@ export interface SourceUploadBeginResult {
   readonly requiredHeaders: Readonly<Record<string, string>>;
   readonly reservationId: string;
   readonly sourceVersionId: string;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  readonly studentSafeDecision?: BookSourceStudentSafeDecision;
 }
 
 export interface CompleteSourceUploadInput {
   readonly actorId: string;
   readonly bookId: string;
   readonly reservationId: string;
-  readonly providerFileId: string;
-  readonly providerFileVersionId: string;
+  /** Original begin idempotency identity; binds completion to the reservation. */
+  readonly operationId: string;
+}
+
+/** Request-owned cancellation context; never accepted from the browser payload. */
+export interface SourceUploadCompletionContext {
+  readonly signal?: AbortSignal;
+  readonly deadlineAt?: number;
+  readonly deferCleanup?: (promise: Promise<unknown>) => void;
 }
 
 /** Browser-safe immutable completion projection. Storage authority is omitted. */
@@ -190,21 +231,31 @@ export interface SourceUploadVerifiedOperation {
   readonly sourceVersionId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly checksum: BookSourceChecksum;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  readonly studentSafeDecision?: BookSourceStudentSafeDecision;
+  readonly physicalPageCount: number;
   readonly status: 'verified_completed';
   readonly completedAt: string;
-  /** Returned only when trusted completion also advanced the canonical Book authority. */
-  readonly bookRevision?: number;
-  readonly sourceSetRevision?: number;
 }
 
-export interface SourceUploadVerifiedAuthority {
-  readonly bookRevision: number;
-  readonly sourceSetRevision: number;
+export interface DecideStudentSafeSourceInput {
+  readonly actorId: string;
+  readonly bookId: string;
+  readonly reservationId: string;
+  readonly operationId: string;
+  readonly studentSafeStatus: Exclude<BookSourceStudentSafeStatus, 'unreviewed'>;
+  readonly reasonCode: BookSourceStudentSafeReasonCode;
 }
 
 export interface BookSourceUploadControl {
   readonly begin: (input: BeginSourceUploadInput) => Promise<SourceUploadBeginResult>;
-  readonly complete: (input: CompleteSourceUploadInput) => Promise<SourceUploadVerifiedOperation>;
+  readonly complete: (
+    input: CompleteSourceUploadInput,
+    context?: SourceUploadCompletionContext,
+  ) => Promise<SourceUploadVerifiedOperation>;
+  readonly decideStudentSafeSource: (input: DecideStudentSafeSourceInput) => Promise<SourceUploadVerifiedOperation>;
 }
 
 type ResolvedDependencies = {
@@ -212,15 +263,13 @@ type ResolvedDependencies = {
   readonly releaseAuthorization: BookSourceUploadReleaseAuthorization;
   readonly deployment: SourceUploadDeploymentConfig & { readonly objectKeyPrefix: string };
   readonly accountStateReader: SourceUploadAccountStateReader;
-  readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>;
+  readonly repository: Pick<SourceUploadRtdbRepository, 'reserve' | 'completeVerified'>
+    & Partial<Pick<SourceUploadRtdbRepository, 'decideStudentSafeSource'>>;
   readonly provider: SourceUploadProviderPort;
+  readonly pageCount: TrustedSourcePageCountAdapter;
   readonly authorizationCache: Map<string, SourceUploadBeginResult>;
   readonly clock: () => Date;
   readonly reservationTtlMs: number;
-  readonly onVerified?: (
-    operation: SourceUploadVerifiedOperation,
-    context: { readonly ownerId: string },
-  ) => void | SourceUploadVerifiedAuthority | Promise<void | SourceUploadVerifiedAuthority>;
 };
 
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
@@ -251,7 +300,10 @@ const assertBeginInput = (value: BeginSourceUploadInput): void => {
   }
   assertSafeIdentifier(value.sourceKey);
   if (value.kind !== 'initial' && value.kind !== 'replacement') throw new SourceUploadControlError('invalid_input');
-  assertClaim(value.claim);
+  if (value.purpose !== 'book-source' && value.purpose !== 'student-document') {
+    throw new SourceUploadControlError('invalid_input');
+  }
+  assertClaim(value.claim, value.purpose);
 };
 
 const assertCompleteInput = (value: CompleteSourceUploadInput): void => {
@@ -259,11 +311,26 @@ const assertCompleteInput = (value: CompleteSourceUploadInput): void => {
   assertSafeIdentifier(value.actorId);
   assertSafeIdentifier(value.bookId);
   assertSafeIdentifier(value.reservationId);
-  assertSafeIdentifier(value.providerFileId);
-  assertSafeIdentifier(value.providerFileVersionId);
+  if (typeof value.operationId !== 'string' || !UUID.test(value.operationId)) {
+    throw new SourceUploadControlError('invalid_input');
+  }
 };
 
-function assertClaim(value: unknown): asserts value is SourceUploadInspectionClaim {
+const assertDecisionRequest = (value: DecideStudentSafeSourceInput): void => {
+  assertExactRecord(value, DECIDE_KEYS, 'invalid_input');
+  assertSafeIdentifier(value.actorId);
+  assertSafeIdentifier(value.bookId);
+  assertSafeIdentifier(value.reservationId);
+  if (typeof value.operationId !== 'string' || !UUID.test(value.operationId)) {
+    throw new SourceUploadControlError('invalid_input');
+  }
+  if (!['review-required', 'ready', 'rejected'].includes(value.studentSafeStatus)
+    || !['teacher-reviewed', 'teacher-only-content', 'invalid-document', 'superseded'].includes(value.reasonCode)) {
+    throw new SourceUploadControlError('invalid_input');
+  }
+};
+
+function assertClaim(value: unknown, purpose: BookSourcePurpose): asserts value is SourceUploadInspectionClaim {
   try {
     assertExactRecord(value, CLAIM_KEYS, 'invalid_claim');
     if (value.schemaVersion !== 1
@@ -277,7 +344,7 @@ function assertClaim(value: unknown): asserts value is SourceUploadInspectionCla
       || typeof value.exactByteSize !== 'number'
       || !Number.isSafeInteger(value.exactByteSize)
       || value.exactByteSize <= 0
-      || value.exactByteSize > BOOK_SOURCE_MAX_PDF_BYTES
+      || value.exactByteSize > (purpose === 'book-source' ? BOOK_SOURCE_MAX_PDF_BYTES : STUDENT_DOCUMENT_MAX_PDF_BYTES)
       || typeof value.physicalPageCount !== 'number'
       || !Number.isSafeInteger(value.physicalPageCount)
       || value.physicalPageCount <= 0
@@ -292,9 +359,10 @@ function assertClaim(value: unknown): asserts value is SourceUploadInspectionCla
 }
 
 const resolveDependencies = (input: BookSourceUploadControlDependencies): ResolvedDependencies => {
-  const { bookManagementAuthority, releaseAuthorization, deployment, accountStateReader, repository, provider } = input;
-  if (!bookManagementAuthority?.canManageBookSource || !releaseAuthorization?.authorizeUpload
-    || !deployment || !accountStateReader?.read || !repository || !provider) {
+  const { bookManagementAuthority, releaseAuthorization, deployment, accountStateReader, repository, provider, pageCount } = input;
+  if (!bookManagementAuthority?.canManageBookSource || !bookManagementAuthority?.canDecideStudentSafeSource
+    || !releaseAuthorization?.authorizeUpload
+    || !deployment || !accountStateReader?.read || !repository || !provider || !pageCount?.countVerifiedPages) {
     throw new SourceUploadControlError('invalid_deployment');
   }
   for (const value of [
@@ -320,10 +388,10 @@ const resolveDependencies = (input: BookSourceUploadControlDependencies): Resolv
     accountStateReader,
     repository,
     provider,
+    pageCount,
     authorizationCache: input.authorizationCache ?? new Map<string, SourceUploadBeginResult>(),
     clock,
     reservationTtlMs,
-    onVerified: input.onVerified,
   };
 };
 
@@ -343,6 +411,20 @@ const readAccountState = async (reader: SourceUploadAccountStateReader, accountI
 const authorizeBook = async (authority: SourceUploadBookManagementAuthority, actorId: string, bookId: string): Promise<void> => {
   try {
     const result = await authority.canManageBookSource({ actorId, bookId });
+    if (result !== true) throw new SourceUploadControlError('authority_denied');
+  } catch (error) {
+    if (error instanceof SourceUploadControlError) throw error;
+    throw new SourceUploadControlError('authority_denied');
+  }
+};
+
+const authorizeStudentSafeDecision = async (
+  authority: SourceUploadBookManagementAuthority,
+  actorId: string,
+  bookId: string,
+): Promise<void> => {
+  try {
+    const result = await authority.canDecideStudentSafeSource({ actorId, bookId });
     if (result !== true) throw new SourceUploadControlError('authority_denied');
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
@@ -404,11 +486,16 @@ const cacheAuthorization = (
   cache.set(reservationId, authorization);
 };
 
+const derivedReservationId = (actorId: string, bookId: string, operationId: string): string => {
+  const key = operationId.toLowerCase();
+  return `reservation-${stableDigest(`${actorId}\u0000${bookId}\u0000${key}`)}`;
+};
+
 const derivedIdentity = (input: BeginSourceUploadInput, objectKeyPrefix: string) => {
   const key = input.idempotencyKey.toLowerCase();
   const digest = stableDigest(`${input.actorId}\u0000${input.bookId}\u0000${key}`);
   return Object.freeze({
-    reservationId: `reservation-${digest}`,
+    reservationId: derivedReservationId(input.actorId, input.bookId, input.idempotencyKey),
     sourceVersionId: `source-version-${stableDigest(`${input.bookId}\u0000${input.actorId}\u0000${key}`)}`,
     providerObjectKey: `${objectKeyPrefix}${input.actorId}/${input.bookId}/${digest}.pdf`,
   });
@@ -419,8 +506,8 @@ const sameRequest = (operation: BookSourceUploadOperation, input: BeginSourceUpl
   && operation.ownerId === input.actorId
   && operation.sourceKey === input.sourceKey
   && operation.kind === input.kind
+  && operation.purpose === input.purpose
   && operation.byteSize === input.claim.exactByteSize
-  && operation.ownerAttestedPhysicalPageCount === input.claim.physicalPageCount
   && operation.originalFilename === input.claim.displayFilename
   && operation.expectedChecksum.value === input.claim.sha256Hex.toLowerCase();
 
@@ -480,6 +567,11 @@ const providerAuthorization = async (
     requiredHeaders: Object.freeze({ ...authorization.requiredHeaders }),
     reservationId: input.reservationId,
     sourceVersionId: input.sourceVersionId,
+    purpose: input.purpose,
+    studentSafeStatus: input.studentSafeStatus,
+    ...(input.studentSafeDecision === undefined ? {} : {
+      studentSafeDecision: input.studentSafeDecision,
+    }),
   });
 };
 
@@ -520,18 +612,18 @@ const providerError = (error: unknown): SourceUploadControlError => {
   return new SourceUploadControlError('provider_failed');
 };
 
-const sameIdentity = (left: BookSourceVersionStorageIdentity, right: BookSourceVersionStorageIdentity): boolean =>
-  left.bookId === right.bookId
-  && left.sourceVersionId === right.sourceVersionId
-  && left.storageLocationId === right.storageLocationId
-  && left.providerKind === right.providerKind
-  && left.privateBucketId === right.privateBucketId
-  && left.providerObjectKey === right.providerObjectKey
-  && left.providerFileId === right.providerFileId
-  && left.providerFileVersionId === right.providerFileVersionId
-  && left.byteSize === right.byteSize
-  && left.checksum.algorithm === right.checksum.algorithm
-  && left.checksum.value === right.checksum.value;
+const sameReservationIdentity = (
+  identity: BookSourceVersionStorageIdentity,
+  operation: BookSourceUploadOperation,
+): boolean => identity.bookId === operation.bookId
+  && identity.sourceVersionId === operation.sourceVersionId
+  && identity.storageLocationId === operation.storageLocationId
+  && identity.providerKind === operation.providerKind
+  && identity.privateBucketId === operation.privateBucketId
+  && identity.providerObjectKey === operation.providerObjectKey
+  && identity.byteSize === operation.byteSize
+  && identity.checksum.algorithm === operation.expectedChecksum.algorithm
+  && identity.checksum.value === operation.expectedChecksum.value;
 
 const verifiedProjection = (operation: BookSourceUploadOperation): SourceUploadVerifiedOperation => {
   if (operation.status !== 'verified_completed' || !operation.completedAt) {
@@ -543,19 +635,45 @@ const verifiedProjection = (operation: BookSourceUploadOperation): SourceUploadV
     sourceVersionId: operation.sourceVersionId,
     sourceKey: operation.sourceKey,
     kind: operation.kind,
+    checksum: Object.freeze({ ...operation.expectedChecksum }),
+    purpose: operation.purpose,
+    studentSafeStatus: operation.studentSafeStatus,
+    ...(operation.studentSafeDecision === undefined ? {} : {
+      studentSafeDecision: operation.studentSafeDecision,
+    }),
+    physicalPageCount: operation.physicalPageCount!,
     status: 'verified_completed',
     completedAt: operation.completedAt,
   });
 };
 
-const providerIdentity = async (
+export interface SourceUploadListedProjection extends BookSourceAssemblyProjection {}
+
+export const listBookSourceProjections = (
+  state: Pick<BookSourceUploadAccountState, 'assemblyBooks'>,
+  actorId: string,
+  bookId: string,
+): readonly SourceUploadListedProjection[] => Object.entries(state.assemblyBooks?.[bookId] ?? {})
+  .filter(([sourceVersionId, projection]) => projection.ownerId === actorId
+    && projection.bookId === bookId
+    && projection.sourceVersionId === sourceVersionId
+    && projection.purpose === 'book-source'
+    && projection.studentSafeStatus !== 'rejected'
+    && projection.verifiedUsable === true)
+  .map(([, projection]) => Object.freeze({ ...projection }))
+  .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)
+    || left.sourceVersionId.localeCompare(right.sourceVersionId));
+
+const resolveProviderObject = async (
   provider: SourceUploadProviderPort,
-  expected: BookSourceVersionStorageIdentity,
-  input: CompleteSourceUploadInput,
+  expected: SourceProviderObjectReservation,
+  options?: SourceProviderRequestOptions,
 ): Promise<BookSourceVersionStorageIdentity> => {
   let result: SourceUploadProviderObjectMetadata;
   try {
-    result = await provider.verifyCompletedObject({ expected });
+    result = options === undefined
+      ? await provider.resolveCompletedObject({ expected })
+      : await provider.resolveCompletedObject({ expected }, options);
   } catch (error) {
     throw providerError(error);
   }
@@ -564,16 +682,22 @@ const providerIdentity = async (
   let identity: BookSourceVersionStorageIdentity;
   try {
     const candidate = result.identity as unknown as Record<string, unknown>;
-    if (candidate.providerFileId !== input.providerFileId
-      || candidate.providerFileVersionId !== input.providerFileVersionId) {
-      throw new SourceUploadControlError('provider_identity_mismatch');
-    }
     identity = createBookSourceVersionStorageIdentity(candidate);
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
     throw new SourceUploadControlError('provider_metadata_mismatch');
   }
-  if (!sameIdentity(identity, expected)) throw new SourceUploadControlError('provider_identity_mismatch');
+  if (identity.bookId !== expected.bookId
+    || identity.sourceVersionId !== expected.sourceVersionId
+    || identity.storageLocationId !== expected.storageLocationId
+    || identity.providerKind !== expected.providerKind
+    || identity.privateBucketId !== expected.privateBucketId
+    || identity.providerObjectKey !== expected.providerObjectKey
+    || identity.byteSize !== expected.byteSize
+    || identity.checksum.algorithm !== expected.checksum.algorithm
+    || identity.checksum.value !== expected.checksum.value) {
+    throw new SourceUploadControlError('provider_identity_mismatch');
+  }
   return identity;
 };
 
@@ -612,7 +736,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
       resolved.authorizationCache.delete(identity.reservationId);
       throw new SourceUploadControlError('cleanup_pending');
     }
-    if (existing.status === 'verified_completed') {
+    if (existing.status === 'verified_completed' || existing.status === 'retired') {
       resolved.authorizationCache.delete(identity.reservationId);
       throw new SourceUploadControlError('reservation_conflict');
     }
@@ -629,8 +753,12 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
       privateBucketId: existing.privateBucketId,
       providerObjectKey: existing.providerObjectKey,
       kind: existing.kind,
+      purpose: existing.purpose,
+      studentSafeStatus: existing.studentSafeStatus,
+      ...(existing.studentSafeDecision === undefined ? {} : {
+        studentSafeDecision: existing.studentSafeDecision,
+      }),
       byteSize: existing.byteSize,
-      ownerAttestedPhysicalPageCount: existing.ownerAttestedPhysicalPageCount,
       originalFilename: existing.originalFilename,
       expectedChecksum: existing.expectedChecksum,
       createdAt: existing.createdAt,
@@ -684,8 +812,9 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
     privateBucketId: resolved.deployment.privateBucketId,
     providerObjectKey: identity.providerObjectKey,
     kind: input.kind,
+    purpose: input.purpose,
+    studentSafeStatus: 'unreviewed',
     byteSize: input.claim.exactByteSize,
-    ownerAttestedPhysicalPageCount: input.claim.physicalPageCount,
     originalFilename: input.claim.displayFilename,
     expectedChecksum: { algorithm: 'sha-256', value: input.claim.sha256Hex.toLowerCase() },
     createdAt: createdAt.toISOString(),
@@ -709,7 +838,11 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
   return authorized;
 };
 
-const complete = async (input: CompleteSourceUploadInput, dependencies: BookSourceUploadControlDependencies): Promise<SourceUploadVerifiedOperation> => {
+const complete = async (
+  input: CompleteSourceUploadInput,
+  dependencies: BookSourceUploadControlDependencies,
+  context: SourceUploadCompletionContext = {},
+): Promise<SourceUploadVerifiedOperation> => {
   assertCompleteInput(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
@@ -721,39 +854,14 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
   }
   if (operation.status === 'released') throw new SourceUploadControlError('reservation_released');
   if (operation.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
-  const finishVerified = async (verified: BookSourceUploadOperation): Promise<SourceUploadVerifiedOperation> => {
-    const result = verifiedProjection(verified);
-    const authority = await resolved.onVerified?.(result, { ownerId: input.actorId });
-    if (authority === undefined) return result;
-    if (!Number.isSafeInteger(authority.bookRevision)
-      || authority.bookRevision < 0
-      || !Number.isSafeInteger(authority.sourceSetRevision)
-      || authority.sourceSetRevision < 0) {
-      throw new SourceUploadControlError('account_state_unavailable');
-    }
-    return {
-      ...result,
-      bookRevision: authority.bookRevision,
-      sourceSetRevision: authority.sourceSetRevision,
-    };
-  };
-  let expected: BookSourceVersionStorageIdentity;
-  try {
-    expected = createBookSourceVersionStorageIdentity({
-      bookId: operation.bookId,
-      sourceVersionId: operation.sourceVersionId,
-      storageLocationId: operation.storageLocationId,
-      providerKind: operation.providerKind,
-      privateBucketId: operation.privateBucketId,
-      providerObjectKey: operation.providerObjectKey,
-      providerFileId: input.providerFileId,
-      providerFileVersionId: input.providerFileVersionId,
-      checksum: operation.expectedChecksum,
-      byteSize: operation.byteSize,
-    });
-  } catch {
-    throw new SourceUploadControlError('account_state_unavailable');
+  if (operation.status === 'retired') throw new SourceUploadControlError('reservation_conflict');
+  if (operation.studentSafeStatus === 'rejected') throw new SourceUploadControlError('reservation_conflict');
+  if (derivedReservationId(operation.ownerId, input.bookId, input.operationId) !== operation.reservationId) {
+    throw new SourceUploadControlError('reservation_conflict');
   }
+  const finishVerified = async (verified: BookSourceUploadOperation): Promise<SourceUploadVerifiedOperation> => {
+    return verifiedProjection(verified);
+  };
   if (operation.status === 'verified_completed') {
     let storedIdentity: BookSourceVersionStorageIdentity;
     try {
@@ -761,16 +869,21 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
     } catch {
       throw new SourceUploadControlError('account_state_unavailable');
     }
-    if (!sameIdentity(storedIdentity, expected)) {
-      throw new SourceUploadControlError('provider_identity_mismatch');
+    if (!sameReservationIdentity(storedIdentity, operation)) {
+      throw new SourceUploadControlError('account_state_unavailable');
     }
-    const projection = state.assemblyBooks?.[operation.bookId]?.[operation.sourceKey];
+    if (operation.physicalPageCount === undefined) {
+      throw new SourceUploadControlError('account_state_unavailable');
+    }
+    const projection = state.assemblyBooks?.[operation.bookId]?.[operation.sourceVersionId];
     if (projection
       && projection.ownerId === operation.ownerId
       && projection.bookId === operation.bookId
       && projection.sourceKey === operation.sourceKey
       && projection.sourceVersionId === operation.sourceVersionId
-      && projection.physicalPageCount === operation.ownerAttestedPhysicalPageCount
+      && projection.checksum?.algorithm === operation.expectedChecksum.algorithm
+      && projection.checksum?.value === operation.expectedChecksum.value
+      && projection.physicalPageCount === operation.physicalPageCount
       && projection.verifiedUsable === true) {
       return finishVerified(operation);
     }
@@ -781,6 +894,7 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
         expectedRevision: state.revision,
         reservationId: operation.reservationId,
         verifiedStorage: storedIdentity,
+        physicalPageCount: operation.physicalPageCount,
         verifiedAt: operation.completedAt!,
       });
     } catch (error) {
@@ -792,7 +906,40 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
     }
     return finishVerified(repaired);
   }
-  const verifiedStorage = await providerIdentity(resolved.provider, expected, input);
+  const expected: SourceProviderObjectReservation = {
+    bookId: operation.bookId,
+    sourceVersionId: operation.sourceVersionId,
+    storageLocationId: operation.storageLocationId,
+    providerKind: operation.providerKind,
+    privateBucketId: operation.privateBucketId,
+    providerObjectKey: operation.providerObjectKey,
+    checksum: operation.expectedChecksum,
+    byteSize: operation.byteSize,
+  };
+  const providerOptions: SourceProviderRequestOptions | undefined =
+    context.signal || context.deadlineAt !== undefined
+      ? {
+          ...(context.signal === undefined ? {} : { signal: context.signal }),
+          ...(context.deadlineAt === undefined ? {} : { deadlineAt: context.deadlineAt }),
+        }
+      : undefined;
+  const verifiedStorage = await resolveProviderObject(resolved.provider, expected, providerOptions);
+  let physicalPageCount: number;
+  try {
+    physicalPageCount = await resolved.pageCount.countVerifiedPages({
+      identity: verifiedStorage,
+      checksum: operation.expectedChecksum,
+      byteSize: operation.byteSize,
+      ...(context.signal === undefined ? {} : { signal: context.signal }),
+      ...(context.deadlineAt === undefined ? {} : { deadlineAt: context.deadlineAt }),
+      ...(context.deferCleanup === undefined ? {} : { deferCleanup: context.deferCleanup }),
+    });
+  } catch (error) {
+    throw providerError(error);
+  }
+  if (!Number.isSafeInteger(physicalPageCount) || physicalPageCount < 1 || physicalPageCount > 100_000) {
+    throw new SourceUploadControlError('provider_metadata_mismatch');
+  }
   const verifiedAt = nowIso(resolved.clock).toISOString();
   let completedState: BookSourceUploadAccountState;
   try {
@@ -801,6 +948,7 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
       expectedRevision: state.revision,
       reservationId: operation.reservationId,
       verifiedStorage,
+      physicalPageCount,
       verifiedAt,
     };
     completedState = await resolved.repository.completeVerified(completion);
@@ -812,12 +960,76 @@ const complete = async (input: CompleteSourceUploadInput, dependencies: BookSour
   return finishVerified(completed);
 };
 
+const decideStudentSafeSource = async (
+  input: DecideStudentSafeSourceInput,
+  dependencies: BookSourceUploadControlDependencies,
+): Promise<SourceUploadVerifiedOperation> => {
+  assertDecisionRequest(input);
+  const resolved = resolveDependencies(dependencies);
+  if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
+  await authorizeStudentSafeDecision(resolved.authority, input.actorId, input.bookId);
+  const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
+  const operation = state.operations[input.reservationId];
+  if (!operation || operation.bookId !== input.bookId) {
+    throw new SourceUploadControlError('reservation_not_found');
+  }
+  if (derivedReservationId(operation.ownerId, input.bookId, input.operationId) !== operation.reservationId) {
+    throw new SourceUploadControlError('reservation_conflict');
+  }
+  if (operation.status !== 'verified_completed') {
+    throw new SourceUploadControlError('reservation_conflict');
+  }
+  if (!resolved.repository.decideStudentSafeSource) {
+    throw new SourceUploadControlError('invalid_deployment');
+  }
+  if (operation.studentSafeStatus !== 'unreviewed') {
+    const persistedDecision = operation.studentSafeDecision;
+    if (operation.studentSafeStatus === input.studentSafeStatus
+      && persistedDecision?.sourceVersionId === operation.sourceVersionId
+      && persistedDecision.sha256Hex === operation.expectedChecksum.value
+      && persistedDecision.reasonCode === input.reasonCode) {
+      return verifiedProjection(operation);
+    }
+    throw new SourceUploadControlError('reservation_conflict');
+  }
+  const decidedAt = nowIso(resolved.clock).toISOString();
+  const decision: RepositoryDecideStudentSafeSourceInput = {
+    accountId: resolved.deployment.accountId,
+    expectedRevision: state.revision,
+    reservationId: operation.reservationId,
+    bookId: operation.bookId,
+    actorId: input.actorId,
+    studentSafeStatus: input.studentSafeStatus,
+    studentSafeDecision: {
+      decidedBy: input.actorId,
+      decidedAt,
+      sourceVersionId: operation.sourceVersionId,
+      sha256Hex: operation.expectedChecksum.value,
+      reasonCode: input.reasonCode,
+    },
+  };
+  let next: BookSourceUploadAccountState;
+  try {
+    next = await resolved.repository.decideStudentSafeSource(decision);
+  } catch (error) {
+    throw completeRepositoryError(error);
+  }
+  const decided = next.operations[input.reservationId];
+  if (!decided || decided.status !== 'verified_completed') {
+    throw new SourceUploadControlError('reservation_conflict');
+  }
+  return verifiedProjection(decided);
+};
+
 export const createBookSourceUploadControl = (dependencies: BookSourceUploadControlDependencies): BookSourceUploadControl => {
   const authorizationCache = dependencies.authorizationCache ?? new Map<string, SourceUploadBeginResult>();
   const resolvedDependencies = { ...dependencies, authorizationCache };
   return Object.freeze({
     begin: (input: BeginSourceUploadInput) => begin(input, resolvedDependencies),
-    complete: (input: CompleteSourceUploadInput) => complete(input, resolvedDependencies),
+    complete: (input: CompleteSourceUploadInput, context?: SourceUploadCompletionContext) =>
+      complete(input, resolvedDependencies, context),
+    decideStudentSafeSource: (input: DecideStudentSafeSourceInput) =>
+      decideStudentSafeSource(input, resolvedDependencies),
   });
 };
 
@@ -833,6 +1045,13 @@ export async function completeSourceUpload(
   dependencies: BookSourceUploadControlDependencies,
 ): Promise<SourceUploadVerifiedOperation> {
   return complete(input, dependencies);
+}
+
+export async function decideStudentSafeSourceVersion(
+  input: DecideStudentSafeSourceInput,
+  dependencies: BookSourceUploadControlDependencies,
+): Promise<SourceUploadVerifiedOperation> {
+  return decideStudentSafeSource(input, dependencies);
 }
 
 export const beginBookSourceUpload = beginSourceUpload;

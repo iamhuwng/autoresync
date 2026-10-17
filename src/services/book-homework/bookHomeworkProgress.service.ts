@@ -21,6 +21,10 @@ import {
   type BookHomeworkTerminalFact,
   type BookHomeworkTerminalResultFact,
 } from './bookHomeworkProgress.types';
+import type {
+  BookRuntimeFeedbackPolicy,
+  BookRuntimeTerminalLateFact,
+} from '../book-activity/activityRuntimeAttempt.types';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
@@ -47,6 +51,8 @@ interface NormalizedFact {
   readonly resultStatus?: 'pending_review' | 'submitted';
   readonly gradingState: BookHomeworkProgressGradingState;
   readonly score?: BookHomeworkProgressScore;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
   readonly fingerprint: string;
 }
 
@@ -140,6 +146,28 @@ const scoreFor = (
   };
 };
 
+const FEEDBACK_POLICIES: readonly BookRuntimeFeedbackPolicy[] = ['immediate', 'after_completion', 'after_deadline', 'never', 'manual'];
+
+const validateTerminalLate = (value: unknown, path: string, errors: MutableErrors): void => {
+  if (!isRecord(value)) { push(errors, path, 'Terminal late fact must be an object.'); return; }
+  const deadline = value.effectiveDeadline;
+  if (!isRecord(deadline)
+    || !['source', 'at'].every((key) => key in deadline)
+    || Object.keys(deadline).some((key) => !['source', 'at', 'nodeKey'].includes(key))
+    || !['open-access', 'assignment', 'ancestor', 'student-extension'].includes(deadline.source as string)
+    || (deadline.at !== null && !isIso(deadline.at))
+    || (deadline.nodeKey !== undefined && !isId(deadline.nodeKey))) {
+    push(errors, `${path}.effectiveDeadline`, 'Effective deadline winner is invalid.');
+  }
+  if (!isPositiveInt(value.policyRevision)) push(errors, `${path}.policyRevision`, 'Policy revision is invalid.');
+  if (!isPositiveInt(value.authorityRevision)) push(errors, `${path}.authorityRevision`, 'Authority revision is invalid.');
+  if (!isIso(value.evaluatedAt)) push(errors, `${path}.evaluatedAt`, 'Evaluation timestamp is invalid.');
+  if (typeof value.late !== 'boolean') push(errors, `${path}.late`, 'Late flag is invalid.');
+  if (Object.keys(value).some((key) => !['effectiveDeadline', 'policyRevision', 'authorityRevision', 'evaluatedAt', 'late'].includes(key))) {
+    push(errors, path, 'Terminal late fact has unsupported fields.');
+  }
+};
+
 const factIdentityFields: readonly (keyof BookHomeworkTerminalFact)[] = [
   'recipientId', 'contextId', 'bindingId', 'bindingRevision', 'placementId',
   'activityId', 'activityVersion', 'activityVersionId',
@@ -172,6 +200,10 @@ export const validateBookHomeworkTerminalFact = (
   }
   if (value.createdAt !== undefined && !isIso(value.createdAt)) {
     push(errors, '$.createdAt', 'createdAt must be a canonical UTC timestamp.');
+  }
+  if (value.terminalLate !== undefined) validateTerminalLate(value.terminalLate, '$.terminalLate', errors);
+  if (value.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(value.feedbackPolicy as BookRuntimeFeedbackPolicy)) {
+    push(errors, '$.feedbackPolicy', 'Feedback policy is invalid.');
   }
   const requiredInteractionIds = value.requiredInteractionIds;
   const submittedInteractionIds = value.submittedInteractionIds;
@@ -250,6 +282,8 @@ const normalizeFact = (fact: BookHomeworkTerminalFact): NormalizedFact => {
     ...(terminalId === undefined ? {} : { terminalId }),
     ...(fact.attemptNumber === undefined ? {} : { attemptNumber: fact.attemptNumber }),
     ...(fact.createdAt === undefined ? {} : { createdAt: fact.createdAt }),
+    ...(fact.terminalLate === undefined ? {} : { terminalLate: structuredClone(fact.terminalLate) }),
+    ...(fact.feedbackPolicy === undefined ? {} : { feedbackPolicy: fact.feedbackPolicy }),
     recipientId: fact.recipientId,
     contextId: fact.contextId,
     bindingId: fact.bindingId,
@@ -301,6 +335,8 @@ const rowFromFact = (
   ...(terminalIdOf(fact) === undefined ? {} : { terminalId: terminalIdOf(fact) }),
   gradingState: fact.gradingState,
   ...(fact.score === undefined ? {} : { score: fact.score }),
+  ...(fact.terminalLate === undefined ? {} : { terminalLate: fact.terminalLate }),
+  ...(fact.feedbackPolicy === undefined ? {} : { feedbackPolicy: fact.feedbackPolicy }),
 });
 
 const rowFromExcludedBinding = (
@@ -480,6 +516,8 @@ export function deriveBookHomeworkProgress(
         gradingState: fact?.gradingState ?? 'ungraded',
         ...(fact?.score === undefined ? {} : { score: fact.score }),
         ...(fact?.terminalId === undefined ? {} : { terminalId: fact.terminalId }),
+        ...(fact?.terminalLate === undefined ? {} : { terminalLate: fact.terminalLate }),
+        ...(fact?.feedbackPolicy === undefined ? {} : { feedbackPolicy: fact.feedbackPolicy }),
       }));
     });
 
@@ -623,7 +661,7 @@ export const validateBookHomeworkProgressProjection = (
       projectionExact(activity, [
         'activityId', 'activityVersion', 'activityVersionId', 'bindingId', 'contextMode',
         'gradingState', 'order', 'placementId', 'submitted',
-      ], ['score', 'terminalId'], path, errors);
+      ], ['feedbackPolicy', 'score', 'terminalId', 'terminalLate'], path, errors);
       if (!isId(activity.bindingId) || !isId(activity.placementId) || !isId(activity.activityId)
         || !isPositiveInt(activity.activityVersion) || !isId(activity.activityVersionId)
         || !isPositiveInt(activity.order)) push(errors, path, 'Activity identity is invalid.');
@@ -633,13 +671,19 @@ export const validateBookHomeworkProgressProjection = (
       if (!['ungraded', 'scored', 'review_required'].includes(activity.gradingState as string)) push(errors, `${path}.gradingState`, 'Grading state is invalid.');
       if (typeof activity.submitted !== 'boolean') push(errors, `${path}.submitted`, 'Submitted flag is invalid.');
       if (activity.terminalId !== undefined && !isId(activity.terminalId)) push(errors, `${path}.terminalId`, 'Terminal ID is invalid.');
+      if (activity.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(activity.feedbackPolicy as BookRuntimeFeedbackPolicy)) push(errors, `${path}.feedbackPolicy`, 'Feedback policy is invalid.');
+      if (activity.terminalLate !== undefined) validateTerminalLate(activity.terminalLate, `${path}.terminalLate`, errors);
       if (activity.score !== undefined) validateProjectionScore(activity.score, `${path}.score`, errors);
       if (activity.submitted === false && (activity.gradingState !== 'ungraded'
-        || activity.score !== undefined || activity.terminalId !== undefined)) {
+        || activity.score !== undefined || activity.terminalId !== undefined
+        || activity.terminalLate !== undefined || activity.feedbackPolicy !== undefined)) {
         push(errors, path, 'An unsubmitted Activity cannot carry grading, score, or terminal identity.');
       }
       if (activity.submitted === true && activity.terminalId === undefined) {
         push(errors, `${path}.terminalId`, 'A submitted Activity requires terminal identity.');
+      }
+      if (activity.submitted === true && (activity.terminalLate === undefined || activity.feedbackPolicy === undefined)) {
+        push(errors, path, 'A submitted Activity requires immutable terminal policy snapshots.');
       }
       if (activity.gradingState === 'scored' && activity.score === undefined) {
         push(errors, `${path}.score`, 'A scored Activity requires an Activity score.');
@@ -678,6 +722,7 @@ export const validateBookHomeworkProgressProjection = (
         'activityBindingId', 'activityId', 'activityVersion', 'activityVersionId',
         'bindingRevision', 'contextId', 'deliveryBindingId', 'gradingState', 'recipientId',
         'score', 'terminalId',
+        'feedbackPolicy', 'terminalLate',
       ], path, errors);
       if (!isId(row.placementId)) push(errors, `${path}.placementId`, 'Placement ID is invalid.');
       if (!['excluded-binding', 'removed-binding', 'context-mismatch', 'binding-mismatch', 'binding-revision-mismatch', 'activity-mismatch', 'activity-version-mismatch', 'activity-version-id-mismatch', 'duplicate'].includes(row.reason as string)) push(errors, `${path}.reason`, 'Historical reason is invalid.');
@@ -690,6 +735,8 @@ export const validateBookHomeworkProgressProjection = (
       });
       if (row.gradingState !== undefined && !['ungraded', 'scored', 'review_required'].includes(row.gradingState as string)) push(errors, `${path}.gradingState`, 'Historical grading state is invalid.');
       if (row.score !== undefined) validateProjectionScore(row.score, `${path}.score`, errors);
+      if (row.feedbackPolicy !== undefined && !FEEDBACK_POLICIES.includes(row.feedbackPolicy as BookRuntimeFeedbackPolicy)) push(errors, `${path}.feedbackPolicy`, 'Feedback policy is invalid.');
+      if (row.terminalLate !== undefined) validateTerminalLate(row.terminalLate, `${path}.terminalLate`, errors);
     });
   }
   return deepFreeze({ valid: errors.length === 0, errors: errors.slice() });

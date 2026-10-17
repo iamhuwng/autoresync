@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherHomeworkDetailPage from './TeacherHomeworkDetailPage';
+import { parseBookResultRouteHandle } from '../services/bookResult.browser';
+import { bookResultGroupKey } from '../services/book-activity/results/bookResult.types';
 import { toast } from '../components/modern/ToastNotification';
 
 const {
@@ -9,6 +11,7 @@ const {
   useClassRosterMock,
   useAuthMock,
   useNavigationMock,
+  navigateToMock,
   resetStudentHomeworkMock,
   updateStudentOverrideMock,
   updateHomeworkMock,
@@ -22,7 +25,8 @@ const {
   useHomeworkDetailMock: vi.fn(),
   useClassRosterMock: vi.fn(),
   useAuthMock: vi.fn(),
-  useNavigationMock: vi.fn(),
+    useNavigationMock: vi.fn(),
+    navigateToMock: vi.fn(),
   resetStudentHomeworkMock: vi.fn(),
   updateStudentOverrideMock: vi.fn(),
   updateHomeworkMock: vi.fn(),
@@ -326,7 +330,7 @@ describe('TeacherHomeworkDetailPage', () => {
     });
 
     useNavigationMock.mockReturnValue({
-      navigateTo: vi.fn(),
+      navigateTo: navigateToMock,
     });
 
     resetStudentHomeworkMock.mockResolvedValue({
@@ -644,7 +648,7 @@ describe('TeacherHomeworkDetailPage', () => {
     expect(row).not.toHaveTextContent('Activities submitted');
   });
 
-  it('suppresses grading and integrity actions without a trusted Book locator', async () => {
+  it('keeps grading and integrity actions gated while opening results from a trusted compatibility Book id', async () => {
     vi.stubEnv('VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION', 'enabled');
     isBookHomeworkCompatibilityProjectionMock.mockReturnValue(true);
     getTeacherBookHomeworkProgressMock.mockResolvedValue([{
@@ -697,6 +701,19 @@ describe('TeacherHomeworkDetailPage', () => {
     expect(progress).not.toHaveTextContent('book-1');
     expect(screen.queryByRole('button', { name: 'Grade Activity' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'View integrity signals' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View Activity result' }));
+    expect(navigateToMock).toHaveBeenCalledWith(
+      'RESULT_DETAIL',
+      { resultId: expect.any(String) },
+      { reason: 'teacher_book_activity_result_opened' },
+    );
+    const resultHandle = navigateToMock.mock.calls.at(-1)?.[1]?.resultId;
+    expect(parseBookResultRouteHandle(resultHandle)).toEqual({
+      bookId: 'book-material-1',
+      studentId: 'student-1',
+      groupKey: bookResultGroupKey('student-1', 'activity-1'),
+      homeworkId: 'hw-1',
+    });
     expect(screen.queryByTestId('book-activity-grading-panel')).not.toBeInTheDocument();
     expect(progress).toHaveTextContent('1 of 2');
     expect(getTeacherBookHomeworkProgressMock).toHaveBeenCalledTimes(1);

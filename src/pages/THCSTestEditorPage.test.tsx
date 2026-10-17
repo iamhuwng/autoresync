@@ -281,9 +281,30 @@ describe('THCSTestEditorSurface', () => {
         expect(screen.getByText('Questions Step')).toBeInTheDocument();
     });
 
+    it('persists the test content into a newly created draft before announcing success', async () => {
+        mockCreateThcsDraft.mockResolvedValue({ success: true, data: { draftId: 'draft-new' } });
+        mockSaveNow.mockResolvedValue({ success: true });
+        const user = userEvent.setup();
+        renderSurface();
 
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
+        await waitFor(() => expect(mockSaveNow).toHaveBeenCalledWith('draft-new'));
+        expect(screen.getByRole('status')).toHaveTextContent('Saved draft');
+    });
 
+    it('shows the save failure and retains the draft for retry', async () => {
+        mockSaveNow.mockResolvedValue({ success: false, error: 'Permission denied' });
+        const user = userEvent.setup();
+        renderSurface({ initialDraftId: 'draft-existing' });
+
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Permission denied'));
+        expect(screen.queryByText('Saved draft')).not.toBeInTheDocument();
+    });
 
     it('keeps Paste Test in Test Setup and parses from the shared footer', async () => {
         const user = userEvent.setup();

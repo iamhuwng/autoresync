@@ -9,7 +9,7 @@ import {
 } from '../book-activity-authoring/firebase-token.ts';
 import {
   readMaterialBookPdfAuthorityFromMetadata,
-  type MaterialBookPdfAuthority,
+  isSourceSetCandidate,
 } from '../../../../src/services/materialCatalog/materialBooks.service.ts';
 import type {
   BookAssemblyBookAuthority,
@@ -19,6 +19,9 @@ import type {
   TrustedBookSourceVersionProjection,
   SourceSetCandidate,
 } from '../../../../src/types/bookAssembly.types.ts';
+import {
+  readTrustedBookSourceProjection,
+} from '../book-source/trusted-source-contract.ts';
 
 /** Canonical Material Book authority path. This is read before source state. */
 export const MATERIAL_BOOK_PATH = (bookId: string): string =>
@@ -37,19 +40,11 @@ export const BOOK_SOURCE_ASSEMBLY_PROJECTION_PATH = (
 export const BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH = (
   accountId: string,
   bookId: string,
-  sourceKey: string,
-): string => `${BOOK_SOURCE_ASSEMBLY_PROJECTION_PATH(accountId, bookId)}/${sourceKey}`;
+  sourceVersionId: string,
+): string => `${BOOK_SOURCE_ASSEMBLY_PROJECTION_PATH(accountId, bookId)}/${sourceVersionId}`;
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
 const ACCOUNT_ID = /^[A-Za-z0-9_:@-]{1,256}$/u;
-const SOURCE_PROJECTION_KEYS = [
-  'ownerId',
-  'bookId',
-  'sourceKey',
-  'sourceVersionId',
-  'physicalPageCount',
-  'verifiedUsable',
-] as const;
 
 type RecordValue = Record<string, unknown>;
 
@@ -61,6 +56,8 @@ export interface ReadBookSourceAuthorityInput {
   /** Authenticated owner; never derive this from a Book row or source row. */
   readonly ownerId: string;
   readonly bookId: string;
+  /** Owner-only first setup input; never persisted as Material current. */
+  readonly proposedSourceSet?: SourceSetCandidate;
 }
 
 export interface BookSourceAuthorityReaderOptions extends RepositoryEnv {
@@ -69,10 +66,6 @@ export interface BookSourceAuthorityReaderOptions extends RepositoryEnv {
   readonly fetchImpl?: typeof fetch;
   /** Existing scoped Firebase ID-token seam. */
   readonly getFirebaseAuthToken?: (
-    request?: FirebaseRtdbAuthRequest,
-  ) => Promise<string>;
-  /** Existing OAuth seam, retained only for already-authorized trusted callers. */
-  readonly getAccessToken?: (
     request?: FirebaseRtdbAuthRequest,
   ) => Promise<string>;
 }
@@ -87,24 +80,11 @@ const isRecord = (value: unknown): value is RecordValue => (
   value !== null && typeof value === 'object' && !Array.isArray(value)
 );
 
-const exactKeys = (value: RecordValue, expected: readonly string[]): boolean => {
-  const actual = Object.keys(value).sort();
-  const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
-};
-
 const validId = (value: unknown): value is string =>
   typeof value === 'string' && ID.test(value);
 
 const validAccountId = (value: unknown): value is string =>
   typeof value === 'string' && ACCOUNT_ID.test(value);
-
-const validPageCount = (value: unknown): value is number =>
-  typeof value === 'number'
-  && Number.isSafeInteger(value)
-  && value >= 1
-  && value <= 100_000;
 
 const cloneSourceSet = (sourceSet: SourceSetCandidate): SourceSetCandidate =>
   structuredClone(sourceSet);
@@ -119,33 +99,23 @@ const projectionFor = (
   if (sourceEntries.length !== sourceSet.sources.length) return null;
 
   const byVersion = new Map<string, TrustedBookSourceVersionProjection>();
-  const sourceKeys = new Set(sourceSet.sources.map((source) => source.sourceKey));
-  for (const [sourceKey, rawProjection] of sourceEntries) {
-    if (!sourceKeys.has(sourceKey) || !isRecord(rawProjection)
-      || !exactKeys(rawProjection, SOURCE_PROJECTION_KEYS)) {
+  const sourceVersionIds = new Set(sourceSet.sources.map((source) => source.sourceVersionId));
+  for (const [sourceVersionId, rawProjection] of sourceEntries) {
+    if (!sourceVersionIds.has(sourceVersionId)) {
       return null;
     }
-    const source = sourceSet.sources.find((candidate) => candidate.sourceKey === sourceKey);
-    if (!source
-      || rawProjection.ownerId !== input.ownerId
-      || rawProjection.bookId !== input.bookId
-      || rawProjection.sourceKey !== sourceKey
-      || rawProjection.sourceVersionId !== source.sourceVersionId
-      || rawProjection.verifiedUsable !== true
-      || !validPageCount(rawProjection.physicalPageCount)
-      || !validId(rawProjection.ownerId)
-      || !validId(rawProjection.bookId)
-      || !validId(rawProjection.sourceKey)
-      || !validId(rawProjection.sourceVersionId)
-      || byVersion.has(source.sourceVersionId)) {
-      return null;
-    }
-    byVersion.set(source.sourceVersionId, Object.freeze({
-      sourceVersionId: source.sourceVersionId,
+    const source = sourceSet.sources.find((candidate) => candidate.sourceVersionId === sourceVersionId);
+    const projection = source && readTrustedBookSourceProjection(rawProjection, {
+      ownerId: input.ownerId,
       bookId: input.bookId,
-      physicalPageCount: rawProjection.physicalPageCount,
-      verifiedUsable: true,
-    }));
+      sourceKey: source.sourceKey,
+      sourceVersionId,
+      purpose: 'book-source',
+    });
+    if (!projection || byVersion.has(sourceVersionId)) {
+      return null;
+    }
+    byVersion.set(sourceVersionId, projection);
   }
   return byVersion.size === sourceSet.sources.length ? byVersion : null;
 };
@@ -156,6 +126,23 @@ const sourceVersionAuthority = (
   getSourceVersion: (sourceVersionId: string): TrustedBookSourceVersionProjection | undefined =>
     projections.get(sourceVersionId),
 });
+
+const sourceSetAuthority = (book: RecordValue, input: ReadBookSourceAuthorityInput) => {
+  if (input.proposedSourceSet === undefined) return readMaterialBookPdfAuthorityFromMetadata(book as never);
+  if (book.bookMode !== 'pdf' || !['draft-empty', 'draft-in-progress', 'ready'].includes(String(book.status))
+    || book.bookRevision !== 0 || book.sourceSetRevision !== 0
+    || book.sourceSet != null || book.setupActivations !== undefined
+    || !isSourceSetCandidate(input.proposedSourceSet)
+    || input.proposedSourceSet.sourceStrategy !== 'component_pdfs') return null;
+  return {
+    bookId: input.bookId,
+    ownerId: input.ownerId,
+    bookMode: 'pdf' as const,
+    bookRevision: 0,
+    sourceSetRevision: 0,
+    sourceSet: input.proposedSourceSet,
+  };
+};
 
 /**
  * Pure parser for the canonical Book row and Source Upload aggregate
@@ -171,9 +158,9 @@ export const parseBookSourceAuthority = (
   if (!isRecord(input.book) || input.book.bookId !== input.bookId
     || input.book.ownerId !== input.ownerId) return null;
 
-  let authority: MaterialBookPdfAuthority | null;
+  let authority: ReturnType<typeof sourceSetAuthority>;
   try {
-    authority = readMaterialBookPdfAuthorityFromMetadata(input.book as never);
+    authority = sourceSetAuthority(input.book, input);
   } catch {
     return null;
   }
@@ -191,6 +178,8 @@ export const parseBookSourceAuthority = (
     sourceSetRevision: authority.sourceSetRevision,
     sourceSet: cloneSourceSet(authority.sourceSet),
     sourceVersionAuthority: sourceVersionAuthority(projections),
+    ...('setupActivations' in authority && authority.setupActivations
+      ? { setupActivations: structuredClone(authority.setupActivations) } : {}),
   });
 };
 
@@ -211,7 +200,7 @@ export const readBookSourceAuthority = async (
   }
   const materialAuthority = (() => {
     try {
-      return readMaterialBookPdfAuthorityFromMetadata(book as never);
+      return sourceSetAuthority(book, input);
     } catch {
       return null;
     }
@@ -224,17 +213,18 @@ export const readBookSourceAuthority = async (
   // The Book parent is intentionally never read: #118B grants only the
   // immutable source leaves selected by the already-validated Source Set.
   const sourceEntries = await Promise.all(materialAuthority.sourceSet.sources.map(async (source) => [
-    source.sourceKey,
+    source.sourceVersionId,
     await port.readValue(BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(
       input.accountId,
       input.bookId,
-      source.sourceKey,
+      source.sourceVersionId,
     )),
   ] as const));
   const sourceProjection = Object.fromEntries(sourceEntries);
   return parseBookSourceAuthority({
     ownerId: input.ownerId,
     bookId: input.bookId,
+    proposedSourceSet: input.proposedSourceSet,
     book,
     sourceProjection,
   });
@@ -251,8 +241,7 @@ export const createFirebaseBookSourceAuthorityReader = (
   if (!validAccountId(accountId)) throw new Error('invalid_book_source_upload_account_id');
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const getFirebaseAuthToken = options.getFirebaseAuthToken;
-  const getAccessToken = options.getAccessToken;
-  if (!getFirebaseAuthToken && !getAccessToken && !options.GOOGLE_SA_KEY?.trim()) {
+  if (!getFirebaseAuthToken && !options.GOOGLE_SA_KEY?.trim()) {
     throw new Error('missing_book_source_authority_firebase_auth_token');
   }
   const rtdb = new FirebaseRtdbRestClient({
@@ -261,7 +250,7 @@ export const createFirebaseBookSourceAuthorityReader = (
     ...(getFirebaseAuthToken ? {
       firebaseAuthToken: true,
       getFirebaseAuthToken,
-    } : getAccessToken ? { getAccessToken } : {}),
+    } : {}),
   });
   return {
     read: (input) => readBookSourceAuthority(rtdb, { ...input, accountId }),

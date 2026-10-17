@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { validateBookAssemblyManifestCandidate } from '../../src/services/book-assembly/manifestCandidate.service';
 import { FirebaseRestBookAssemblyRepository } from '../src/upload-worker/book-assembly/repository';
 
 const env = {
@@ -7,6 +8,21 @@ const env = {
 } as const;
 
 describe('Book Assembly Firebase repository', () => {
+  it('enumerates only shallow bounded Unit keys on the dedicated parent read', async () => {
+    const urls: URL[] = [];
+    const repository = new FirebaseRestBookAssemblyRepository({
+      env, ownerId: 'teacher-1', getAccessToken: async () => 'discovery-token',
+      fetchImpl: async (input) => {
+        urls.push(new URL(String(input)));
+        return new Response(JSON.stringify({ 'unit-2': true, 'unit-1': true }), { status: 200 });
+      },
+    });
+    await expect(repository.listUnitKeys('book-1')).resolves.toEqual(['unit-1', 'unit-2']);
+    expect(urls).toHaveLength(1);
+    expect(urls[0]!.pathname).toBe('/book_assembly/books/book-1/units.json');
+    expect(urls[0]!.searchParams.get('shallow')).toBe('true');
+  });
+
   it('uses one Book/Unit scope path and retries only scoped ETag CAS', async () => {
     const calls: string[] = [];
     let writes = 0;
@@ -155,6 +171,102 @@ describe('Book Assembly Firebase repository', () => {
     expect(requests).toHaveLength(1);
     expect((requests[0]!.body as { candidates: Record<string, { revision: number }> })
       .candidates['candidate-1']!.revision).toBe(2);
+  });
+
+  it('hydrates RTDB-omitted empty Unit and reference-only activity arrays without masking malformed values', async () => {
+    const candidate = {
+      candidateId: 'candidate-empty-unit',
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      bookRevision: 1,
+      sourceSetRevision: 1,
+      unitKey: 'unit-1',
+      revision: 1,
+      lifecycle: 'draft',
+      manifest: {
+        bookId: 'book-1',
+        sourceSet: {
+          sourceStrategy: 'full_pdf',
+          sources: [{ sourceKey: 'full', sourceVersionId: 'version-1', sourceOrder: 1 }],
+        },
+        nodes: [
+          { nodeKey: 'unit-1', nodeType: 'unit', order: 1 },
+          { nodeKey: 'unit-2', nodeType: 'unit', order: 2 },
+        ],
+        units: [
+          { unitKey: 'unit-1' },
+          {
+            unitKey: 'unit-2',
+            pageGroups: [{
+              pageGroupKey: 'reference-1',
+              sourceKey: 'full',
+              pages: [1],
+              mode: 'reference_only',
+            }],
+          },
+        ],
+      },
+      validation: { valid: true },
+      updatedAt: '2026-08-13T00:00:00.000Z',
+    };
+    const malformedCandidate = {
+      ...candidate,
+      candidateId: 'candidate-malformed-unit-values',
+      manifest: {
+        ...candidate.manifest,
+        units: [
+          { unitKey: 'unit-1', activitySlots: null, pageGroups: 'malformed' },
+          {
+            unitKey: 'unit-2',
+            activitySlots: [],
+            pageGroups: [{
+              pageGroupKey: 'reference-1',
+              sourceKey: 'full',
+              pages: [1],
+              activityKeys: null,
+              mode: 'reference_only',
+            }],
+          },
+        ],
+      },
+    };
+    const repository = new FirebaseRestBookAssemblyRepository({
+      env,
+      ownerId: 'teacher-1',
+      fetchImpl: async () => new Response(JSON.stringify({ candidates: {
+        [candidate.candidateId]: candidate,
+        [malformedCandidate.candidateId]: malformedCandidate,
+      } }), {
+        status: 200,
+        headers: { etag: '"scope-etag"' },
+      }),
+      getAccessToken: async () => 'test-token',
+    });
+
+    const scope = await repository.readScope('book-1', 'unit-1');
+    const manifest = scope.candidates?.[candidate.candidateId]?.manifest;
+    const unit = manifest?.units[0];
+    expect(unit?.activitySlots).toEqual([]);
+    expect(unit?.pageGroups).toEqual([]);
+    expect(manifest?.units[1]?.activitySlots).toEqual([]);
+    expect(manifest?.units[1]?.pageGroups[0]?.activityKeys).toEqual([]);
+    expect(validateBookAssemblyManifestCandidate(manifest, {
+      getSourceVersion: () => ({
+        sourceVersionId: 'version-1',
+        sourceKey: 'full',
+        bookId: 'book-1',
+        physicalPageCount: 1,
+        verifiedUsable: true,
+        purpose: 'book-source',
+        studentSafeStatus: 'unreviewed',
+        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      }),
+    })).toEqual({ valid: true, errors: [] });
+
+    const malformedManifest = scope.candidates?.[malformedCandidate.candidateId]?.manifest;
+    expect(malformedManifest?.units[0]?.activitySlots).toBeNull();
+    expect(malformedManifest?.units[0]?.pageGroups).toBe('malformed');
+    expect(malformedManifest?.units[1]?.pageGroups[0]?.activityKeys).toBeNull();
   });
 
   it('rejects broad and malformed authority paths', async () => {

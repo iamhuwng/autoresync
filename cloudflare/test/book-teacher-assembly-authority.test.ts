@@ -180,6 +180,46 @@ describe('PRD0062 #58 teacher Assembly document authority', () => {
     }
   });
 
+  it('authorizes the combined student document only after owner and exact candidate checks', async () => {
+    const ports = portsFor({ book: book(true), candidate: candidate({}, true) });
+    ports.readStudentDocument = vi.fn(async () => source({ sourceVersionId: 'student-document-v1' }));
+    const combined = new Request('https://book.test/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/3/student-document/2/4', {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    const result = await authorizeTeacherAssemblyDocumentRequest({ request: combined, ports });
+    expect(result).toMatchObject({ ok: true, decision: {
+      sourceKey: 'student-document', sourceVersionId: 'student-document-v1',
+    } });
+    expect(ports.readSourceVersion).not.toHaveBeenCalled();
+    expect(ports.readStudentDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['active teacher', { uid: 'teacher-1', role: 'teacher', status: 'active' }, true],
+    ['active super_admin', { uid: 'teacher-1', role: 'super_admin', status: 'active' }, true],
+    ['active teacher with null revocation', {
+      uid: 'teacher-1', role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: null,
+    }, true],
+    ['missing status', { uid: 'teacher-1', role: 'teacher' }, false],
+    ['unknown status', { uid: 'teacher-1', role: 'teacher', status: 'unknown' }, false],
+    ['pending status', { uid: 'teacher-1', role: 'teacher', status: 'pending' }, false],
+    ['disabled', { uid: 'teacher-1', role: 'teacher', status: 'active', disabled: true }, false],
+    ['force reauth', { uid: 'teacher-1', role: 'teacher', status: 'active', forceReauth: true }, false],
+    ['privileged authority revoked', {
+      uid: 'teacher-1', role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-09-15T00:00:00.000Z',
+    }, false],
+  ] as const)('enforces the strict active privileged profile: %s', async (_label, identity, allowed) => {
+    const ports = portsFor({ identity });
+    const result = await authorize(ports);
+    expect(result.ok).toBe(allowed);
+    if (!allowed) {
+      expect(result).toEqual({ ok: false, code: 'unauthorized' });
+      expect(ports.readBookAuthority).not.toHaveBeenCalled();
+      expect(ports.readCandidate).not.toHaveBeenCalled();
+      expect(ports.readSourceVersion).not.toHaveBeenCalled();
+    }
+  });
+
   it('rechecks identity before any Book, candidate, or Source lookup', async () => {
     const ports = portsFor({ identity: { uid: 'student-1', role: 'student', status: 'active' } });
     const result = await authorize(ports);

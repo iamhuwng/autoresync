@@ -17,6 +17,7 @@ describe('#102 Course Book authority rules fragment', () => {
     for (const required of [
       "auth.token.operation === 'enrollment-transition'",
       "auth.token.operation === 'release-transition'",
+      "auth.token.operation === 'placement-transition'",
       "course_enrollments').child(auth.token.legacyEnrollmentId)",
       "course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId)",
       "course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId)",
@@ -52,12 +53,16 @@ describe('#102 Course Book authority rules fragment', () => {
       'course_book_authority/enrollments/$courseId/$studentId',
       'course_book_authority/releases/$courseId/$moduleId/$studentId',
       'course_book_authority/operations/$operationId',
+      'course_materials/$materialId',
     ]);
     const releaseLeaf = leafWrites.find((operation) => operation.path.includes('/releases/'))?.expression ?? '';
     const receiptLeaf = leafWrites.find((operation) => operation.path.includes('/operations/'))?.expression ?? '';
+    const placementLeaf = leafWrites.find((operation) => operation.path === 'course_materials/$materialId')?.expression ?? '';
     expect(releaseLeaf).toContain("auth.token.operation === 'release-transition'");
     expect(releaseLeaf).toContain('auth.token.expectedReleaseRevision');
     expect(receiptLeaf).toContain("auth.token.operation === 'release-transition'");
     expect(receiptLeaf).toContain("auth.token.operation === 'enrollment-transition'");
+    expect(placementLeaf).toContain("auth.token.operation === 'placement-transition'");
+    expect(placementLeaf).toContain("auth.token.courseMaterialId === $materialId");
   });
 });

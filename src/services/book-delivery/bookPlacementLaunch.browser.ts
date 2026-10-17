@@ -13,11 +13,12 @@ import {
 } from './courseBookPlacement.browser';
 import type { BookRuntimeDeliveryProjection } from './bookDelivery.types';
 import { resolveBookDeliveryWorkerOrigin } from './bookDelivery.browser';
+import { isBookIntegrityPolicyValid } from '../book-activity/bookIntegrityCapture.service';
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const ROUTE_KEY = /^[A-Za-z0-9._~-]{1,160}$/u;
 
-export type BookPlacementSurface = 'course' | 'class' | 'homework';
+export type BookPlacementSurface = 'solo' | 'course' | 'class' | 'homework' | 'public';
 
 export interface CourseBookPlacementLaunch {
   readonly kind: 'course';
@@ -42,10 +43,24 @@ export interface HomeworkBookPlacementLaunch {
   readonly homeworkId: string;
 }
 
+export interface PublicBookPlacementLaunch {
+  readonly kind: 'public';
+  readonly surface: 'public';
+  readonly bookId: string;
+}
+
+export interface SoloBookPlacementLaunch {
+  readonly kind: 'solo';
+  readonly surface: 'solo';
+  readonly contextId: string;
+}
+
 export type ValidBookPlacementLaunch =
   | CourseBookPlacementLaunch
   | ClassBookPlacementLaunch
-  | HomeworkBookPlacementLaunch;
+  | HomeworkBookPlacementLaunch
+  | SoloBookPlacementLaunch
+  | PublicBookPlacementLaunch;
 
 export type BookPlacementLaunchQuery =
   | { readonly kind: 'none'; readonly explicit: false }
@@ -69,6 +84,8 @@ const classKeys = new Set([
   'bindingId',
 ]);
 const homeworkKeys = new Set(['bookSurface', 'homeworkId']);
+const soloKeys = new Set(['bookSurface', 'contextId']);
+const publicKeys = new Set(['bookSurface', 'bookId']);
 
 const queryInput = (value: string | URLSearchParams | { readonly search: string }): URLSearchParams => {
   if (typeof value === 'string') return new URLSearchParams(value.startsWith('?') ? value.slice(1) : value);
@@ -93,11 +110,13 @@ export const parseBookPlacementLaunchQuery = (
   if (!params.has('bookSurface')) return { kind: 'none', explicit: false };
 
   const surface = params.get('bookSurface');
-  if (surface !== 'course' && surface !== 'class' && surface !== 'homework') {
+  if (surface !== 'course' && surface !== 'class' && surface !== 'homework' && surface !== 'solo' && surface !== 'public') {
     return invalid('unsupported-surface');
   }
 
-  const allowed = surface === 'course' ? courseKeys : surface === 'class' ? classKeys : homeworkKeys;
+  const allowed = surface === 'course' ? courseKeys
+    : surface === 'class' ? classKeys
+      : surface === 'homework' ? homeworkKeys : surface === 'public' ? publicKeys : soloKeys;
   for (const key of new Set(params.keys())) {
     if (!allowed.has(key)) return invalid('unexpected-parameter');
     if (params.getAll(key).length !== 1) return invalid('duplicate-parameter');
@@ -107,7 +126,7 @@ export const parseBookPlacementLaunchQuery = (
     ? ['courseMaterialId', 'bindingId']
     : surface === 'class'
       ? ['classId', 'copyId', 'classPlacementId', 'classCourseMaterialId', 'bindingId']
-      : ['homeworkId'];
+      : surface === 'homework' ? ['homeworkId'] : surface === 'public' ? ['bookId'] : ['contextId'];
   for (const key of required) {
     const valueForKey = params.get(key);
     if (valueForKey === null || valueForKey.length === 0) return invalid('missing-parameter');
@@ -133,6 +152,19 @@ export const parseBookPlacementLaunchQuery = (
     };
   }
 
+  if (surface === 'public') {
+    return { kind: 'public', surface, explicit: true, bookId: params.get('bookId')! };
+  }
+
+  if (surface === 'solo') {
+    return {
+      kind: 'solo',
+      surface,
+      explicit: true,
+      contextId: params.get('contextId')!,
+    };
+  }
+
   return {
     kind: 'class',
     surface,
@@ -152,10 +184,42 @@ export const isExplicitBookPlacementLaunch = (
   value: BookPlacementLaunchQuery,
 ): value is Exclude<BookPlacementLaunchQuery, { readonly kind: 'none' }> => value.explicit;
 
+export interface PublicBookLaunchResponse { readonly title: string; readonly projection: BookRuntimeDeliveryProjection }
+
+export interface PublicBookPlacementBrowserClient { readonly launch: (bookId: string) => Promise<PublicBookLaunchResponse> }
+
+export interface PublicBookPlacementBrowserClientOptions {
+  readonly baseUrl?: string; readonly fetchImpl?: typeof fetch;
+  readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
+  readonly getCurrentUserId?: () => string | null | undefined;
+}
+
+export const createPublicBookPlacementBrowserClient = (options: PublicBookPlacementBrowserClientOptions = {}): PublicBookPlacementBrowserClient => {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const baseUrl = options.baseUrl?.replace(/\/$/u, '') ?? resolveBookDeliveryWorkerOrigin();
+  const getIdToken = options.getIdToken ?? ((forceRefresh = false) => getAuth().currentUser?.getIdToken(forceRefresh) ?? Promise.resolve(null));
+  const getCurrentUserId = options.getCurrentUserId ?? (() => getAuth().currentUser?.uid ?? null);
+  const launch = async (bookId: string): Promise<PublicBookLaunchResponse> => {
+    if (!SAFE_ID.test(bookId)) throw new Error('book_public_launch_invalid_id');
+    const recipientId = getCurrentUserId(); if (!recipientId || !SAFE_ID.test(recipientId)) throw new Error('book_public_launch_authentication_required');
+    let token = await getIdToken(false); if (!token) throw new Error('book_public_launch_authentication_required');
+    const operationId = crypto.randomUUID();
+    let response: Response | undefined; let body: unknown;
+    for (let attempt=0; attempt<2; attempt+=1) {
+      response = await fetchImpl(`${baseUrl}/v1/book-public/books/${encodeURIComponent(bookId)}/launch`, { method:'POST', headers:{Accept:'application/json','Content-Type':'application/json',Authorization:`Bearer ${token}`}, credentials:'omit', redirect:'error', body: JSON.stringify({ operationId }) });
+      body = await response.json().catch(() => ({})); if (response.status !== 401 || attempt === 1) break; token = await getIdToken(true); if (!token) throw new Error('book_public_launch_authentication_required');
+    }
+    if (!response?.ok || !record(body) || typeof body.title !== 'string' || !isCanonicalBookRuntimeDeliveryProjection(body.projection) || body.projection.context.kind !== 'public' || body.projection.context.entitlementBasis !== 'public-library' || body.projection.book.bookId !== bookId || body.projection.recipientId !== recipientId) throw new Error(record(body) && typeof body.code === 'string' ? body.code : 'book_public_launch_unavailable');
+    return { title: body.title, projection: body.projection };
+  }; return { launch };
+};
+
 export interface BookPlacementLaunchClients {
   readonly course?: Pick<CourseBookPlacementClient, 'current'>;
   readonly class?: Pick<ClassBookPlacementBrowserClient, 'resolveCurrent'>;
   readonly homework?: Pick<BookHomeworkPlacementBrowserClient, 'current'>;
+  readonly solo?: Pick<BookHomeworkPlacementBrowserClient, 'current'>;
+  readonly public?: Pick<PublicBookPlacementBrowserClient, 'launch'>;
 }
 
 export interface BookHomeworkPlacementBrowserClient {
@@ -259,10 +323,12 @@ const isCanonicalBookRuntimeDeliveryProjection = (
     || !record(value.context)
     || typeof value.context.contextId !== 'string'
     || !SAFE_ID.test(value.context.contextId)
-    || !(['course', 'class', 'homework'] as const).includes(value.context.kind as 'course' | 'class' | 'homework')
+    || !(['solo', 'course', 'class', 'homework', 'public'] as const).includes(value.context.kind as 'solo' | 'course' | 'class' | 'homework')
     || (value.context.entitlementBasis !== 'enrollment'
       && value.context.entitlementBasis !== 'membership'
-      && value.context.entitlementBasis !== 'assignment')
+      && value.context.entitlementBasis !== 'assignment'
+      && value.context.entitlementBasis !== 'solo'
+      && value.context.entitlementBasis !== 'public-library')
     || !record(value.book)
     || typeof value.book.bookId !== 'string'
     || !SAFE_ID.test(value.book.bookId)
@@ -303,14 +369,28 @@ const isCanonicalBookRuntimeDeliveryProjection = (
     || value.provenance.bindingRevision !== value.bindingRevision) {
     return false;
   }
-  return value.documentRequests.every((request) => record(request)
+  const componentDocument = value.sourceSet.strategy === 'component_pdfs';
+  const requestsValid = componentDocument ? value.sourceSet.sources.length === 0
+    && value.documentRequests.length === 1
+    && record(value.documentRequests[0])
+    && Object.keys(value.documentRequests[0]).every((key) => [
+      'opaqueRouteKey', 'expectedByteLength', 'expectedEtag',
+    ].includes(key))
+    && typeof value.documentRequests[0].opaqueRouteKey === 'string'
+    && ROUTE_KEY.test(value.documentRequests[0].opaqueRouteKey)
+    && Number.isSafeInteger(value.documentRequests[0].expectedByteLength)
+    && (value.documentRequests[0].expectedByteLength as number) > 0
+    && (value.documentRequests[0].expectedEtag === undefined
+      || (typeof value.documentRequests[0].expectedEtag === 'string'
+        && /^"[A-Fa-f0-9]{64}"$/u.test(value.documentRequests[0].expectedEtag)))
+    : value.documentRequests.every((request) => record(request)
       && typeof request.sourceKey === 'string' && SAFE_ID.test(request.sourceKey)
       && typeof request.sourceVersionId === 'string' && SAFE_ID.test(request.sourceVersionId)
       && typeof request.opaqueRouteKey === 'string' && ROUTE_KEY.test(request.opaqueRouteKey)
       && record(request.localPageScope)
       && (request.localPageScope.kind === 'all' || request.localPageScope.kind === 'pages')
-      && Array.isArray(request.localPageScope.pages))
-    && value.activities.every((activity) => record(activity)
+      && Array.isArray(request.localPageScope.pages));
+  return requestsValid && value.activities.every((activity) => record(activity)
       && typeof activity.placementId === 'string' && SAFE_ID.test(activity.placementId)
       && typeof activity.activityId === 'string' && SAFE_ID.test(activity.activityId)
       && typeof activity.activityVersionId === 'string' && SAFE_ID.test(activity.activityVersionId)
@@ -322,7 +402,15 @@ const isCanonicalBookRuntimeDeliveryProjection = (
       && typeof activity.sourceContext.available === 'boolean'
       && typeof activity.sourceContext.description === 'string'
       && Array.isArray(activity.sourceContext.pageGroupKeys)
-      && Array.isArray(activity.sourceContext.sourcePageScopes));
+      && Array.isArray(activity.sourceContext.sourcePageScopes)
+      && (activity.integrityCapture === undefined || (record(activity.integrityCapture)
+        && typeof activity.integrityCapture.captureSlotId === 'string'
+        && /^book-integrity-slot-v1-[a-f0-9]{40}$/u.test(activity.integrityCapture.captureSlotId)
+        && Number.isSafeInteger(activity.integrityCapture.captureAttemptNumber)
+        && (activity.integrityCapture.captureAttemptNumber as number) > 0
+        && typeof activity.integrityCapture.enabled === 'boolean'
+        && isBookIntegrityPolicyValid(activity.integrityCapture.frozenPolicy)))
+      && (!componentDocument || activity.sourceContext.sourcePageScopes.length === 0));
 };
 
 const blocked = (
@@ -418,6 +506,25 @@ const resolveHomework = async (
   return { status: 'resolved', projection: candidate };
 };
 
+const resolveSolo = async (
+  launch: SoloBookPlacementLaunch,
+  studentId: string,
+  client: Pick<BookHomeworkPlacementBrowserClient, 'current'>,
+): Promise<BookPlacementLaunchResolution> => {
+  let candidate: unknown;
+  try {
+    candidate = await client.current(launch.contextId);
+  } catch (error) {
+    return blocked('projection-unavailable', error);
+  }
+  if (!isCanonicalBookRuntimeDeliveryProjection(candidate)) return blocked('projection-kind-mismatch');
+  if (candidate.context.kind !== 'solo'
+    || candidate.context.contextId !== launch.contextId
+    || candidate.context.entitlementBasis !== 'solo') return blocked('context-mismatch');
+  if (candidate.recipientId !== studentId) return blocked('recipient-mismatch');
+  return { status: 'resolved', projection: candidate };
+};
+
 export const resolveBookPlacementLaunch = async (
   input: ResolveBookPlacementLaunchInput,
 ): Promise<BookPlacementLaunchResolution> => {
@@ -440,6 +547,27 @@ export const resolveBookPlacementLaunch = async (
       return blocked('client-unavailable', error);
     }
     return resolveHomework(input.launch, input.studentId, client);
+  }
+
+  if (input.launch.kind === 'solo') {
+    let client: Pick<BookHomeworkPlacementBrowserClient, 'current'>;
+    try {
+      client = input.clients?.solo ?? createBookHomeworkPlacementBrowserClient();
+    } catch (error) {
+      return blocked('client-unavailable', error);
+    }
+    return resolveSolo(input.launch, input.studentId, client);
+  }
+
+  if (input.launch.kind === 'public') {
+    let client: Pick<PublicBookPlacementBrowserClient, 'launch'>; try { client = input.clients?.public ?? createPublicBookPlacementBrowserClient(); } catch (error) { return blocked('client-unavailable', error); }
+    let result: PublicBookLaunchResponse; try { result = await client.launch(input.launch.bookId); } catch (error) { return blocked('projection-unavailable', error); }
+    if (!isCanonicalBookRuntimeDeliveryProjection(result.projection)) return blocked('projection-kind-mismatch');
+    if (result.projection.context.kind !== 'public' || result.projection.context.entitlementBasis !== 'public-library'
+      || result.projection.book.bookId !== input.launch.bookId
+      || result.projection.recipientId !== input.studentId
+      || !/^public_[a-f0-9]{32}$/u.test(result.projection.context.contextId)) return blocked('context-mismatch');
+    return { status: 'resolved', projection: result.projection };
   }
 
   let client: Pick<ClassBookPlacementBrowserClient, 'resolveCurrent'>;
@@ -485,8 +613,11 @@ export const buildBookPlacementPracticeRouteParam = (
         classPlacementId: launch.classPlacementId,
         classCourseMaterialId: launch.classCourseMaterialId,
         bindingId: launch.bindingId,
-        } : {
+        } : launch.kind === 'public' ? { bookId: launch.bookId
+        } : launch.kind === 'homework' ? {
           homeworkId: launch.homeworkId,
+        } : {
+          contextId: launch.contextId,
         }),
   });
   return `${encodeURIComponent(materialId)}?${query.toString()}`;

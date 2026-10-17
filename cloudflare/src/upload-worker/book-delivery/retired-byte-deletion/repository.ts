@@ -27,6 +27,26 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 const validId = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
 const validHash = (value: unknown): value is string => typeof value === 'string' && HASH.test(value);
+const validSafety = (value: Record<string, unknown>, sourceVersionId: string): boolean => {
+  const decision = value.studentSafeDecision;
+  const checksum = value.sourceChecksum;
+  return value.purpose === 'book-source'
+    && value.studentSafeStatus === 'ready'
+    && isRecord(checksum)
+    && checksum.algorithm === 'sha-256'
+    && validHash(checksum.value)
+    && isRecord(decision)
+    && validId(decision.decidedBy)
+    && typeof decision.decidedAt === 'string'
+    && Number.isFinite(Date.parse(decision.decidedAt))
+    && decision.sourceVersionId === sourceVersionId
+    && validHash(decision.sha256Hex)
+    && decision.sha256Hex === checksum.value
+    && (decision.reasonCode === 'teacher-reviewed'
+      || decision.reasonCode === 'teacher-only-content'
+      || decision.reasonCode === 'invalid-document'
+      || decision.reasonCode === 'superseded');
+};
 
 const rootFrom = (value: unknown): RetiredByteDeletionRoot => {
   if (value === null || value === undefined) return {};
@@ -48,6 +68,8 @@ const validRecord = (value: unknown, ownerId: string, deletionId: string): value
   && Array.isArray(value.sourceVersionIds)
   && value.sourceVersionIds.length === 1
   && value.sourceVersionIds[0] === value.sourceVersionId
+  && typeof value.sourceVersionId === 'string'
+  && validSafety(value, value.sourceVersionId)
   && (value.state === 'queued' || value.state === 'preflighted'
     || value.state === 'delete-started' || value.state === 'absence-verified' || value.state === 'settled')
   && Number.isSafeInteger(value.stateRevision)

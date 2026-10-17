@@ -1,18 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from '../modern/ToastNotification';
 import type { SourceUploadBrowserWorkflow, SourceUploadSelection } from '../../services/book-source-delivery/sourceUpload.browserWorkflow';
 import type { SourceUploadSafeOperationState } from '../../services/book-source-delivery/sourceUpload.client';
 import type { SourceSetAttachmentClient } from '../../services/book-source-delivery/sourceUpload.client';
-import type { BookAssemblyMigrationClient } from '../../services/book-assembly/assemblyClient.browser';
-import type { BookAssemblyPreviewClient, AssemblyPublicationReceipt } from '../../services/book-assembly/assemblyPublication.client';
+import type { BookAssemblyMigrationClient, ComponentPdfActivationClient } from '../../services/book-assembly/assemblyClient.browser';
+import type { BookAssemblyCurrentPublication, BookAssemblyPreviewClient, AssemblyPublicationReceipt } from '../../services/book-assembly/assemblyPublication.client';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
-import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
+import type { BookAssemblyCandidateRecord, BookAssemblyMutationResult } from '../../services/book-assembly/unitAssembly.types';
 import type { SourceStrategyMigrationRemap } from '../../services/book-assembly/sourceStrategyMigration.service';
-import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
+import { previewInputFingerprint, type CandidateUnitPreviewProjection, type WholeActivationApprovalQualification } from '../../services/book-assembly/unitPreview.service';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import type { BookTeacherAssemblyDocumentProjection } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import type { SourceSetCandidate, TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
 import type { BookAssemblyPreviewApprovalReference } from '../../types/bookAssembly.types';
 import type { ReactNode } from 'react';
+import {
+  composeComponentPdfs,
+} from '../../services/book-source-delivery/componentPdfComposition.browser';
+import {
+  ComponentPdfCompositionError,
+  type ComponentPdfInputManifestEntry,
+  type ComponentPdfCompositionResult,
+} from '../../services/book-source-delivery/componentPdfComposition.types';
+import {
+  inspectSourcePdf,
+  isSourcePdfInspectionClaimForFile,
+  SourcePdfInspectionError,
+  type SourcePdfInspectionClaim,
+} from '../../services/book-source-delivery/sourcePdfInspection.browser';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 import BookAssemblyStudentPreviewHost from './assembly/BookAssemblyStudentPreviewHost';
 import BookSourceInspectionPanel, { type BookSourceInspectionAction } from './BookSourceInspectionPanel';
@@ -22,6 +38,8 @@ import './BookPdfFlowWorkspace.css';
 type PdfFlowMode = 'full' | 'component';
 type PdfFlowStep = 1 | 2 | 3 | 4 | 5;
 type AssemblyStep = 'mode' | 'outline' | 'pages' | 'review';
+type PublicationRefreshStatus = 'ready' | 'pending' | 'error';
+export type BookCurrentPublicationStatus = 'loading' | 'loaded' | 'error';
 export type BookPdfEditorSection = 'pdf-files' | 'content-tree' | 'activity-json' | 'page-mapping' | 'preview';
 
 interface SourceSlot {
@@ -30,6 +48,36 @@ interface SourceSlot {
   readonly label: string;
   readonly selection: SourceUploadSelection | null;
   readonly uploadState: SourceUploadSafeOperationState | null;
+}
+
+interface CombinedPdfSelection {
+  readonly selectionId: number;
+  readonly file: File;
+  readonly inspectionGeneration: number;
+  readonly status: 'checking' | 'ready' | 'failed';
+  readonly claim: SourcePdfInspectionClaim | null;
+  readonly duplicateDecision?: 'keep';
+  readonly errorCode?: string;
+  readonly errorCause?: string;
+  readonly errorReason?: string;
+}
+
+interface CombinedPdfBinding {
+  readonly outputSha256Hex: string;
+  readonly inputManifest: readonly ComponentPdfInputManifestEntry[];
+}
+
+type CombinedPdfPhase = 'files' | 'combining' | 'preview';
+
+interface ReplacementReview {
+  readonly slotId: string;
+  readonly sourceKey: string;
+  readonly sourceVersionId: string;
+  readonly displayFilename: string;
+  readonly oldPageCount: number;
+  readonly newPageCount: number;
+  readonly pageGroupCount: number;
+  readonly activityCount: number;
 }
 
 type LocalSourceVersionProjection = TrustedBookSourceVersionProjection & {
@@ -48,10 +96,15 @@ export interface BookPdfFlowWorkspaceProps {
   readonly uploadUnavailableMessage?: string;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
   readonly assemblyMigrationClient?: BookAssemblyMigrationClient | null;
+  readonly componentPdfActivationClient?: ComponentPdfActivationClient | null;
+  readonly componentStudentDocumentSourceVersionId?: string | null;
+  readonly componentPdfActivationRecovery?: MaterialBookSetupActivation | null;
   readonly activityAuthoring?: ActivityAuthoringService | null;
   readonly assemblySourceVersions: readonly TrustedBookSourceVersionProjection[];
   readonly assemblyInitialSourceSet?: SourceSetCandidate | null;
   readonly assemblyInitialCandidate?: BookAssemblyCandidateRecord | null;
+  readonly assemblyInitialPublication?: BookAssemblyCurrentPublication | null;
+  readonly assemblyInitialPublicationStatus?: BookCurrentPublicationStatus;
   readonly assemblyInitialSavedActivityKeysByUnit?: Readonly<Record<string, readonly string[]>>;
   readonly assemblyBookRevision: number;
   readonly assemblySourceSetRevision: number;
@@ -64,14 +117,46 @@ export interface BookPdfFlowWorkspaceProps {
   readonly onInspectionAction?: (action: BookSourceInspectionAction, metadata?: Record<string, unknown>) => void;
   readonly onUploadAction?: (action: BookSourceUploadAction, metadata?: Record<string, unknown>) => void;
   readonly onTrackAction?: (action: string, metadata?: Record<string, unknown>) => void;
+  readonly onHomeworkHandoff?: () => void;
+  readonly onRetryCurrentPublication?: () => void;
+  readonly onCurrentPublicationChange?: (publication: BookAssemblyCurrentPublication) => void;
 }
 
 const FLOW_STEPS = ['Prepare files', 'Build your Book', 'Connect pages', 'Check & preview', 'Publish'] as const;
+const MAX_COMPONENT_PDFS = 20;
 const ASSEMBLY_STEP_TO_FLOW: Record<AssemblyStep, PdfFlowStep> = {
   mode: 2,
   outline: 2,
   pages: 3,
   review: 4,
+};
+
+const failureCode = (error: unknown): string => (
+  typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+    ? error.code.toLowerCase()
+    : ''
+);
+
+const failureStatus = (error: unknown): number | undefined => (
+  typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number'
+    ? error.status
+    : undefined
+);
+
+const isConflictFailure = (error: unknown): boolean => {
+  const code = failureCode(error);
+  return failureStatus(error) === 409 || code.includes('conflict') || code.includes('stale') || code.includes('revision');
+};
+
+const actionableFailureToast = (error: unknown, fallback: string): string => {
+  const code = failureCode(error);
+  const status = failureStatus(error);
+  if (isConflictFailure(error)) return 'The Book changed elsewhere. Refresh and retry.';
+  if (status === 401 || code.includes('unauthorized')) return 'Your session expired. Sign in again and retry.';
+  if (status === 403 || code.includes('forbidden') || code.includes('permission')) return 'You no longer have access to this Book. Reopen it and retry.';
+  if (status === 404 || code.includes('not_found')) return 'This Book is unavailable. Reopen it and retry.';
+  if (status === 0 || (status !== undefined && status >= 500) || code.includes('unavailable')) return 'The Book service is unavailable. Retry.';
+  return fallback;
 };
 
 const slotFor = (mode: PdfFlowMode, index: number): SourceSlot => ({
@@ -93,8 +178,21 @@ const sourceProjection = (
     sourceVersionId: state.sourceVersionId,
     bookId: state.bookId,
     physicalPageCount: claim.physicalPageCount,
+    checksum: { algorithm: 'sha-256', value: claim.sha256Hex },
+    purpose: 'book-source',
+    studentSafeStatus: 'unreviewed',
     verifiedUsable: true,
   };
+};
+
+const duplicateOfIndex = (
+  entries: readonly CombinedPdfSelection[],
+  index: number,
+): number | null => {
+  const hash = entries[index]?.claim?.sha256Hex;
+  if (!hash) return null;
+  const match = entries.findIndex((entry, entryIndex) => entryIndex < index && entry.claim?.sha256Hex === hash);
+  return match === -1 ? null : match;
 };
 
 const BookPdfFlowWorkspace = ({
@@ -109,10 +207,15 @@ const BookPdfFlowWorkspace = ({
   uploadUnavailableMessage,
   assemblyRepository,
   assemblyMigrationClient,
+  componentPdfActivationClient,
+  componentStudentDocumentSourceVersionId,
+  componentPdfActivationRecovery,
   activityAuthoring,
   assemblySourceVersions,
   assemblyInitialSourceSet,
   assemblyInitialCandidate,
+  assemblyInitialPublication,
+  assemblyInitialPublicationStatus = 'loaded',
   assemblyInitialSavedActivityKeysByUnit,
   assemblyBookRevision,
   assemblySourceSetRevision,
@@ -125,6 +228,9 @@ const BookPdfFlowWorkspace = ({
   onInspectionAction,
   onUploadAction,
   onTrackAction,
+  onHomeworkHandoff,
+  onRetryCurrentPublication,
+  onCurrentPublicationChange,
 }: BookPdfFlowWorkspaceProps) => {
   const persistedSourceSet = assemblyInitialCandidate?.manifest?.sourceSet ?? assemblyInitialSourceSet ?? null;
   const initialStrategy = persistedSourceSet?.sourceStrategy;
@@ -137,28 +243,113 @@ const BookPdfFlowWorkspace = ({
     const initialCount = initialStrategy === 'component_pdfs'
       ? Math.max(2, assemblyInitialCandidate?.manifest?.sourceSet.sources.length ?? 0)
       : 1;
-    return Array.from({ length: initialCount }, (_, index) => slotFor(initialStrategy === 'component_pdfs' ? 'component' : 'full', index));
+    return Array.from({ length: initialCount }, (_, index) => ({
+      ...slotFor(initialStrategy === 'component_pdfs' ? 'component' : 'full', index),
+      ...(persistedSourceSet?.sources[index] ? { sourceKey: persistedSourceSet.sources[index]!.sourceKey } : {}),
+    }));
   });
   const [replacingSourceId, setReplacingSourceId] = useState<string | null>(null);
-  const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(assemblyInitialCandidate ?? null);
   const [previewProjection, setPreviewProjection] = useState<CandidateUnitPreviewProjection | null>(null);
   const [dismissedPreviewIdentity, setDismissedPreviewIdentity] = useState<string | null>(null);
   const [previewApproval, setPreviewApproval] = useState<BookAssemblyPreviewApprovalReference | null>(null);
+  const [previewQualification, setPreviewQualification] = useState<WholeActivationApprovalQualification | null>(null);
+  const [componentPreviewInput, setComponentPreviewInput] = useState<{
+    readonly bookId: string; readonly unitKey: string; readonly candidateId: string; readonly expectedCandidateRevision: number;
+  } | null>(null);
+  const [componentApprovals, setComponentApprovals] = useState<Record<string, BookAssemblyPreviewApprovalReference>>({});
+  const [currentPublication, setCurrentPublication] = useState<BookAssemblyCurrentPublication | null>(
+    assemblyInitialPublicationStatus === 'loaded' ? assemblyInitialPublication ?? null : null,
+  );
   const [publication, setPublication] = useState<AssemblyPublicationReceipt | null>(null);
-  const [publishRights, setPublishRights] = useState(false);
+  const [publicationOperationId, setPublicationOperationId] = useState<string | null>(null);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publicationRefreshStatus, setPublicationRefreshStatus] = useState<PublicationRefreshStatus>('ready');
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
   const [migrationBusy, setMigrationBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; kind: '' | 'good' | 'warn' | 'error' }>({ text: '', kind: '' });
   const [effectiveAssemblyBookRevision, setEffectiveAssemblyBookRevision] = useState(assemblyBookRevision);
   const [effectiveAssemblySourceSetRevision, setEffectiveAssemblySourceSetRevision] = useState(assemblySourceSetRevision);
   const [assemblyDirty, setAssemblyDirty] = useState(false);
+  const [combinedFiles, setCombinedFiles] = useState<CombinedPdfSelection[]>([]);
+  const [combinedPhase, setCombinedPhase] = useState<CombinedPdfPhase>('files');
+  const [combinedResult, setCombinedResult] = useState<ComponentPdfCompositionResult | null>(null);
+  const [combinedDocumentSelection, setCombinedDocumentSelection] = useState<SourceUploadSelection | null>(null);
+  const [combinedDocumentUploadState, setCombinedDocumentUploadState] = useState<SourceUploadSafeOperationState | null>(null);
+  const [combinedBinding, setCombinedBinding] = useState<CombinedPdfBinding | null>(null);
+  const [combinedError, setCombinedError] = useState('');
+  const combinedControllerRef = useRef<AbortController | null>(null);
+  const combinedInspectionControllersRef = useRef(new Map<number, AbortController>());
+  const combinedInspectionGenerationBySelectionRef = useRef(new Map<number, number>());
+  const combinedInspectionGenerationRef = useRef(0);
+  const combinedSelectionIdRef = useRef(0);
+  const combinedMountedRef = useRef(true);
+  const combinedInputRef = useRef<HTMLInputElement | null>(null);
+  const [isPickerOpening, setIsPickerOpening] = useState(false);
+  const [combinedPreviewUrl, setCombinedPreviewUrl] = useState<string | null>(null);
+  const [replacementReview, setReplacementReview] = useState<ReplacementReview | null>(null);
+  const [replacementBusy, setReplacementBusy] = useState(false);
+  const [replacementError, setReplacementError] = useState('');
+  const [replacementOperationId, setReplacementOperationId] = useState<string | null>(null);
+  const [fullAttachmentBusy, setFullAttachmentBusy] = useState(false);
+  const [fullAttachmentOperationId, setFullAttachmentOperationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    combinedMountedRef.current = true;
+    return () => {
+      combinedMountedRef.current = false;
+      combinedInspectionGenerationRef.current += 1;
+      combinedInspectionControllersRef.current.forEach((controller) => controller.abort());
+      combinedInspectionControllersRef.current.clear();
+      combinedInspectionGenerationBySelectionRef.current.clear();
+      combinedControllerRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    setCurrentPublication(assemblyInitialPublicationStatus === 'loaded' ? assemblyInitialPublication ?? null : null);
+  }, [assemblyInitialPublication, assemblyInitialPublicationStatus]);
+
+  useEffect(() => {
+    if (!combinedResult) {
+      setCombinedPreviewUrl(null);
+      return undefined;
+    }
+    if (typeof URL.createObjectURL !== 'function' || typeof URL.revokeObjectURL !== 'function') {
+      return undefined;
+    }
+    const url = URL.createObjectURL(combinedResult.file);
+    setCombinedPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [combinedResult]);
 
   const canEdit = access !== 'public-readonly';
   const focusedEditing = experience === 'focused-editing';
+  const publicationStatusReady = assemblyInitialPublicationStatus === 'loaded';
+  const hasCurrentPublication = publicationStatusReady && currentPublication !== null;
+  const isPublished = publication !== null || hasCurrentPublication;
+  const reviewedDraftDiffers = hasCurrentPublication
+    && previewApproval?.approvedInputFingerprint !== undefined
+    && previewApproval.approvedInputFingerprint !== currentPublication.pointer.inputFingerprint;
+  const showPublishControls = !isPublished || reviewedDraftDiffers;
   const selectedMode = mode ?? 'full';
+  const componentReadyToPublish = previewQualification !== null
+    && previewQualification.units.every((unit) => componentApprovals[unit.unitKey] !== undefined);
+  const approvedComponentUnitKeys = previewQualification?.units
+    .filter((unit) => componentApprovals[unit.unitKey] !== undefined)
+    .map((unit) => unit.unitKey) ?? [];
   const visibleSlots = selectedMode === 'full' ? slots.slice(0, 1) : slots;
+  const componentSelectionMatchesBinding = combinedBinding !== null
+    && combinedBinding.inputManifest.length === visibleSlots.length
+    && visibleSlots.every((slot, index) => {
+      const selection = slot.selection;
+      const manifestEntry = combinedBinding.inputManifest[index];
+      return selection !== null
+        && manifestEntry?.componentIndex === index
+        && manifestEntry.sha256Hex === selection.claim.sha256Hex
+        && manifestEntry.byteSize === selection.file.size
+        && manifestEntry.pageCount === selection.claim.physicalPageCount;
+    });
   const verifiedSlots = visibleSlots.filter((slot) => slot.uploadState?.phase === 'verified');
   const candidateSourceIds = new Set(persistedSourceSet?.sources.map((source) => source.sourceVersionId) ?? []);
   const persistedStrategyMatches = persistedSourceSet?.sourceStrategy
@@ -168,12 +359,13 @@ const BookPdfFlowWorkspace = ({
     && [...candidateSourceIds].every((sourceVersionId) => assemblySourceVersions.some((source) => source.sourceVersionId === sourceVersionId && source.verifiedUsable));
   const sourceReady = replacingSourceId === null && (selectedMode === 'full'
     ? verifiedSlots.length === 1 || persistedSourceReady
-    : (verifiedSlots.length >= 2 && verifiedSlots.length === visibleSlots.length) || persistedSourceReady);
-  const sourceDirty = slots.some((slot) => slot.selection !== null || slot.uploadState !== null);
+    : ((verifiedSlots.length >= 2 && verifiedSlots.length === visibleSlots.length && componentSelectionMatchesBinding) || persistedSourceReady));
+  const sourceDirty = combinedFiles.length > 0 || slots.some((slot) => slot.selection !== null || slot.uploadState !== null);
 
   useEffect(() => {
     setEffectiveAssemblyBookRevision((current) => Math.max(current, assemblyBookRevision));
     setEffectiveAssemblySourceSetRevision((current) => Math.max(current, assemblySourceSetRevision));
+    setFullAttachmentOperationId(null);
   }, [assemblyBookRevision, assemblySourceSetRevision]);
 
   const updateAuthorityRevisions = (revisions: {
@@ -230,41 +422,71 @@ const BookPdfFlowWorkspace = ({
     }
   }, [candidate, previewApproval, previewProjection]);
 
+  useEffect(() => {
+    setPublicationOperationId(null);
+  }, [candidate?.candidateId, candidate?.revision]);
+
   const track = (action: string, metadata?: Record<string, unknown>) => {
     onTrackAction?.(action, { bookId, mode, step, ...metadata });
   };
 
+  const resetCombinedOutput = () => {
+    if (fullAttachmentBusy) return;
+    combinedControllerRef.current?.abort();
+    combinedControllerRef.current = null;
+    setCombinedResult(null);
+    setCombinedDocumentSelection(null);
+    setCombinedDocumentUploadState(null);
+    setCombinedBinding(null);
+    setCombinedError('');
+    setCombinedPhase('files');
+    setPreviewProjection(null);
+    setPreviewApproval(null);
+    setPublication(null);
+    setPublicationOperationId(null);
+  };
+
   const chooseMode = (next: PdfFlowMode) => {
+    if (fullAttachmentBusy) return;
+    resetCombinedOutput();
     setMode(next);
     setStep(1);
     setAssemblyStep('outline');
     setSlots((current) => next === 'full'
       ? (current.length > 0 && current[0]?.id === 'full-1' ? current.slice(0, 1) : [slotFor('full', 0)])
       : (current.some((slot) => slot.sourceKey.startsWith('component-')) ? current : []));
-    setPublishRights(false);
+    setPublicationOperationId(null);
     setPublishConfirmOpen(false);
-    setMessage({ text: '', kind: '' });
+    setCombinedBinding(null);
+    setFullAttachmentOperationId(null);
     track('teacher_materials_book_pdf_mode_selected', { nextMode: next });
   };
 
   const requestSetupChange = () => {
+    if (fullAttachmentBusy) return;
     setMigrationOpen(true);
     track('teacher_materials_book_assembly_strategy_migration_requested', { fromMode: selectedMode });
   };
 
   const requestSourceReplacement = (slot: SourceSlot) => {
+    if (fullAttachmentBusy) return;
     updateSlot(slot.id, { selection: null, uploadState: null });
+    setReplacementReview(null);
+    setReplacementError('');
+    setReplacementOperationId(null);
     setReplacingSourceId(slot.id);
-    setActiveUploadId(null);
-    setMessage({ text: '', kind: '' });
+    setCombinedBinding(null);
+    setPublicationOperationId(null);
+    if (slot.sourceKey === 'full') setFullAttachmentOperationId(null);
     track('teacher_materials_book_pdf_source_replacement_requested', { sourceKey: slot.sourceKey });
   };
 
   const confirmSetupChange = async () => {
+    if (fullAttachmentBusy) return;
     const nextMode: PdfFlowMode = selectedMode === 'full' ? 'component' : 'full';
     if (!candidate || !candidate.manifest || !assemblyMigrationClient) {
       if (candidate) {
-        setMessage({ text: 'Setup changes are unavailable until the trusted migration service is configured. Your current Book is unchanged.', kind: 'warn' });
+        toast.warning('Setup changes are unavailable until the trusted migration service is configured. Your current Book is unchanged.');
         return;
       }
       setMigrationOpen(false);
@@ -277,7 +499,7 @@ const BookPdfFlowWorkspace = ({
     if (nextMode === 'full') {
       const source = verified[0];
       if (!source) {
-        setMessage({ text: 'Add and verify the PDF needed for the new setup before changing the Book.', kind: 'warn' });
+        toast.warning('Add and verify the PDF needed for the new setup before changing the Book.');
         return;
       }
       targetSourceSet = {
@@ -293,7 +515,7 @@ const BookPdfFlowWorkspace = ({
         ownerNodeKey: ownerNodeKey ?? '',
       }));
       if (targetSources.length < 2 || targetSources.some((source) => !source.ownerNodeKey)) {
-        setMessage({ text: 'Add and verify at least two component PDFs before changing the Book.', kind: 'warn' });
+        toast.warning('Add and verify at least two component PDFs before changing the Book.');
         return;
       }
       const [first, ...rest] = targetSources;
@@ -334,10 +556,10 @@ const BookPdfFlowWorkspace = ({
       setStep(2);
       setAssemblyStep('outline');
       setMigrationOpen(false);
-      setMessage({ text: 'Your reviewed setup change is ready. The original Book remains safe.', kind: 'good' });
-      track('teacher_materials_book_assembly_strategy_migration_confirmed', { fromMode: selectedMode, toMode: nextMode, candidateId: nextCandidate.candidateId });
+      toast.success('Your reviewed setup change is ready. The original Book remains safe.');
+      track('teacher_materials_book_assembly_strategy_migration_confirmed', { fromMode: selectedMode, toMode: nextMode, status: 'confirmed' });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'Setup change could not be prepared. Your current Book is unchanged.', kind: 'error' });
+      toast.error(actionableFailureToast(error, 'Setup change could not be prepared. Retry; your current Book is unchanged.'));
       track('teacher_materials_book_assembly_strategy_migration_failed', { fromMode: selectedMode, toMode: nextMode });
     } finally {
       setMigrationBusy(false);
@@ -348,43 +570,520 @@ const BookPdfFlowWorkspace = ({
     setSlots((current) => current.map((slot) => slot.id === id ? { ...slot, ...update } : slot));
   };
 
-  const addComponentSlot = () => {
-    if (selectedMode !== 'component') return;
-    const nextIndex = slots.length;
-    setSlots((current) => [...current, slotFor('component', nextIndex)]);
-    track('teacher_materials_book_pdf_component_slot_added', { sourceKey: `component-${nextIndex + 1}` });
+  const combinedErrorMessage = (error: unknown): string => {
+    if (error instanceof ComponentPdfCompositionError) {
+      if (error.code === 'too_many_components') return 'Choose no more than 20 PDFs.';
+      if (error.code === 'aggregate_too_large') return 'Choose PDFs whose combined input is no larger than 50 MiB.';
+      if (error.code === 'too_many_pages') return 'Choose PDFs with no more than 500 pages in total.';
+      if (error.code === 'output_too_large') return 'The combined PDF is larger than the 100 MiB output limit.';
+      if (error.code === 'timeout') return 'Combining the PDFs took too long. Your selection is still available to retry.';
+      if (error.code === 'cancelled') return 'PDF combine canceled. Your selection is still here.';
+      if (error.code === 'encrypted_pdf') return 'Encrypted PDFs cannot be combined.';
+      if (error.code === 'not_pdf' || error.code === 'invalid_pdf' || error.code === 'unsupported_pdf') return 'One selected file is not a supported readable PDF.';
+    }
+    if (error instanceof SourcePdfInspectionError) {
+      if (error.code === 'file_too_large') return 'Choose PDFs within the accepted source-file limit.';
+      if (error.code === 'invalid_filename') return 'One selected PDF has an unsafe filename.';
+      if (error.code === 'not_pdf' || error.code === 'empty_pdf' || error.code === 'unreadable') return 'One selected file is not a readable PDF.';
+    }
+    return 'The PDFs could not be combined. Your selection is still available to retry.';
+  };
+
+  const cancelCombinedWork = () => {
+    if (combinedControllerRef.current === null) return;
+    combinedControllerRef.current.abort();
+    combinedControllerRef.current = null;
+    setCombinedPhase('files');
+    setCombinedError('');
+    toast.info('PDF combine canceled. Your selection is still here.');
+    track('teacher_materials_book_pdf_combine_canceled');
+  };
+
+  const combinedInspectionFailure = (file: File, error: unknown) => {
+    const errorCode = error instanceof SourcePdfInspectionError
+      ? error.code
+      : typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+        ? error.code
+        : undefined;
+    const errorCause = error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined;
+    const errorReason = errorCode === 'file_too_large'
+      ? 'file is too large'
+      : errorCode === 'invalid_filename'
+        ? 'filename is not allowed'
+        : errorCode === 'not_pdf'
+          ? 'file is not a PDF'
+          : errorCode === 'empty_pdf'
+            ? 'PDF has no pages'
+            : errorCode === 'unreadable'
+              ? 'PDF could not be read in this browser'
+              : 'PDF could not be checked';
+    return {
+      errorCode,
+      errorCause,
+      errorReason: `${file.name} — ${errorReason}${errorCode ? ` (${errorCode})` : ''}`,
+    };
+  };
+
+  const inspectCombinedFileBatch = (
+    files: readonly File[],
+    append: boolean,
+    retrySelectionId?: number,
+  ) => {
+    if (files.length === 0) return;
+    const inspections = files.map((file) => ({
+      file,
+      selectionId: append
+        ? ++combinedSelectionIdRef.current
+        : retrySelectionId!,
+      inspectionGeneration: ++combinedInspectionGenerationRef.current,
+    }));
+    inspections.forEach(({ selectionId, inspectionGeneration }) => {
+      combinedInspectionGenerationBySelectionRef.current.set(selectionId, inspectionGeneration);
+    });
+    if (append) {
+      setCombinedFiles((current) => [...current, ...inspections.map(({ file, selectionId, inspectionGeneration }) => ({
+        selectionId,
+        file,
+        inspectionGeneration,
+        status: 'checking' as const,
+        claim: null,
+      }))]);
+      resetCombinedOutput();
+      track('teacher_materials_book_pdf_combine_files_selected', { count: files.length });
+    } else {
+      setCombinedFiles((current) => current.map((entry) => entry.selectionId === retrySelectionId
+        ? { ...entry, inspectionGeneration: inspections[0]!.inspectionGeneration, status: 'checking' as const, claim: null, duplicateDecision: undefined }
+        : entry));
+      track('book_source_pdf_inspection_retried');
+    }
+
+    void Promise.all(inspections.map(async ({ file, selectionId, inspectionGeneration }) => {
+      const previousController = combinedInspectionControllersRef.current.get(selectionId);
+      previousController?.abort();
+      const controller = new AbortController();
+      combinedInspectionControllersRef.current.set(selectionId, controller);
+      const isCurrent = () => combinedMountedRef.current
+        && combinedInspectionGenerationBySelectionRef.current.get(selectionId) === inspectionGeneration
+        && !controller.signal.aborted;
+      try {
+        const claim = await inspectSourcePdf(file, { signal: controller.signal });
+        if (!isCurrent()) return { file, failed: false, applied: false };
+        setCombinedFiles((current) => current.map((entry) => entry.selectionId === selectionId
+          && entry.inspectionGeneration === inspectionGeneration
+          ? { ...entry, status: 'ready' as const, claim, duplicateDecision: undefined }
+          : entry));
+        return { file, failed: false, applied: true };
+      } catch (error) {
+        if (!isCurrent()) return { file, failed: false, applied: false };
+        const failure = combinedInspectionFailure(file, error);
+        setCombinedFiles((current) => current.map((entry) => entry.selectionId === selectionId
+          && entry.inspectionGeneration === inspectionGeneration
+          ? { ...entry, status: 'failed' as const, claim: null, duplicateDecision: undefined, ...failure }
+          : entry));
+        track('book_source_pdf_inspection_failed', {
+          code: failure.errorCode,
+          cause: failure.errorCause,
+        });
+        return { file, failed: true, applied: true };
+      } finally {
+        if (combinedInspectionControllersRef.current.get(selectionId) === controller) {
+          combinedInspectionControllersRef.current.delete(selectionId);
+        }
+      }
+    })).then((results) => {
+      if (!combinedMountedRef.current || results.some((result) => !result.applied)) return;
+      const failedCount = results.filter((result) => result.failed).length;
+      const readyCount = results.length - failedCount;
+      toast[failedCount > 0 ? 'warning' : 'success'](
+        failedCount > 0
+          ? `${readyCount} PDF${readyCount === 1 ? '' : 's'} checked; review ${failedCount} failed file${failedCount === 1 ? '' : 's'}.`
+          : `${readyCount} PDF${readyCount === 1 ? '' : 's'} checked. Review the order before combining.`,
+      );
+      track('teacher_materials_book_pdf_combine_files_checked', { count: results.length, readyCount, failedCount });
+    });
+  };
+
+  const inspectCombinedFiles = (fileList: FileList | null) => {
+    setIsPickerOpening(false);
+    if (fullAttachmentBusy) return;
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+    if (combinedFiles.length + files.length > MAX_COMPONENT_PDFS) {
+      toast.warning(`You can add up to ${MAX_COMPONENT_PDFS} component PDFs. Remove a PDF before adding this batch.`);
+      track('teacher_materials_book_pdf_combine_selection_rejected', {
+        count: files.length,
+        currentCount: combinedFiles.length,
+      });
+      return;
+    }
+    inspectCombinedFileBatch(files, true);
+  };
+
+  const retryCombinedFile = (index: number) => {
+    if (fullAttachmentBusy) return;
+    const entry = combinedFiles[index];
+    if (!entry || entry.status !== 'failed') return;
+    resetCombinedOutput();
+    inspectCombinedFileBatch([entry.file], false, entry.selectionId);
+  };
+
+  const reorderCombinedFile = (index: number, direction: -1 | 1) => {
+    if (fullAttachmentBusy) return;
+    setCombinedFiles((current) => {
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    resetCombinedOutput();
+    track('teacher_materials_book_pdf_combine_order_changed', { index, direction });
+  };
+
+  const removeCombinedFile = (index: number) => {
+    if (fullAttachmentBusy) return;
+    const entry = combinedFiles[index];
+    if (entry) {
+      combinedInspectionControllersRef.current.get(entry.selectionId)?.abort();
+      combinedInspectionControllersRef.current.delete(entry.selectionId);
+      combinedInspectionGenerationBySelectionRef.current.delete(entry.selectionId);
+    }
+    setCombinedFiles((current) => current.filter((_, entryIndex) => entryIndex !== index));
+    resetCombinedOutput();
+    track('teacher_materials_book_pdf_combine_file_removed', { index });
+  };
+
+  const combineSelectedPdfs = () => {
+    if (fullAttachmentBusy) return;
+    if (combinedFiles.length < 2 || combinedFiles.some((entry) => entry.status !== 'ready' || entry.claim === null)) return;
+    if (combinedFiles.some((entry, index) => duplicateOfIndex(combinedFiles, index) !== null && entry.duplicateDecision !== 'keep')) {
+      toast.warning('Choose Keep both or Remove duplicate for every duplicate PDF before combining.');
+      return;
+    }
+    combinedControllerRef.current?.abort();
+    const controller = new AbortController();
+    combinedControllerRef.current = controller;
+    setCombinedError('');
+    setCombinedPhase('combining');
+    track('teacher_materials_book_pdf_combine_started', { count: combinedFiles.length });
+    void composeComponentPdfs(combinedFiles.map((entry) => entry.file), {
+      signal: controller.signal,
+      outputFilename: `${title.replace(/[^a-z0-9]+/giu, '-').replace(/^-|-$/gu, '') || 'book'}-combined.pdf`,
+    }).then(async (result) => {
+      if (!combinedMountedRef.current || controller.signal.aborted || combinedControllerRef.current !== controller) return;
+      const claim = await inspectSourcePdf(result.file, { signal: controller.signal, purpose: 'student-document' });
+      if (!combinedMountedRef.current || controller.signal.aborted || combinedControllerRef.current !== controller) return;
+      if (claim.sha256Hex !== result.sha256Hex
+        || claim.exactByteSize !== result.file.size
+        || claim.physicalPageCount !== result.mapping.reduce((total, entry) => total + entry.pageCount, 0)) {
+        throw new Error('combined_pdf_inspection_mismatch');
+      }
+      combinedControllerRef.current = null;
+      setCombinedDocumentSelection({ file: result.file, claim });
+      setCombinedResult(result);
+      setCombinedPhase('preview');
+      toast.success('Combined PDF is ready to preview.');
+      track('teacher_materials_book_pdf_combine_completed', { count: result.mapping.length });
+    }).catch((error: unknown) => {
+      if (!combinedMountedRef.current || controller.signal.aborted || combinedControllerRef.current !== controller) return;
+      const message = combinedErrorMessage(error);
+      combinedControllerRef.current = null;
+      setCombinedError(message);
+      setCombinedPhase('files');
+      toast.error(message);
+      track('teacher_materials_book_pdf_combine_failed');
+    });
+  };
+
+  const useCombinedPdf = () => {
+    if (fullAttachmentBusy) return;
+    if (!combinedResult || !combinedDocumentSelection
+      || combinedDocumentSelection.file !== combinedResult.file
+      || !isSourcePdfInspectionClaimForFile(combinedDocumentSelection.claim, combinedResult.file)) return;
+    const selections = combinedFiles
+      .filter((entry): entry is CombinedPdfSelection & { claim: SourcePdfInspectionClaim } => entry.status === 'ready' && entry.claim !== null)
+      .map((entry) => ({ file: entry.file, claim: entry.claim } satisfies SourceUploadSelection));
+    if (selections.length < 2) return;
+    const inputManifestMatches = combinedResult.inputManifest.length === selections.length
+      && combinedResult.inputManifest.every((entry, index) => {
+        const selection = selections[index];
+        return entry.componentIndex === index
+          && entry.sha256Hex === selection?.claim.sha256Hex
+          && entry.byteSize === selection?.file.size
+          && entry.pageCount === selection?.claim.physicalPageCount;
+      });
+    if (!inputManifestMatches || selections.some((selection) => !isSourcePdfInspectionClaimForFile(selection.claim, selection.file))) {
+      resetCombinedOutput();
+      toast.error('The combined PDF no longer matches the selected files. Combine the current selection again.');
+      return;
+    }
+    setCombinedError('');
+    setCombinedBinding({ outputSha256Hex: combinedResult.sha256Hex, inputManifest: combinedResult.inputManifest });
+    setSlots(selections.map((selection, index) => ({ ...slotFor('component', index), selection })));
+    setMode('component');
+    setStep(1);
+    setAssemblyStep('outline');
+    setReplacingSourceId(null);
+    setPreviewProjection(null);
+    setPreviewApproval(null);
+    setPublication(null);
+    setPublicationOperationId(null);
+    setCombinedResult(null);
+    setCombinedPhase('files');
+    track('teacher_materials_book_pdf_combine_handed_off_to_upload', {
+      count: selections.length,
+    });
+  };
+
+  const keepCombinedDuplicate = (selectionId: number) => {
+    setCombinedFiles((current) => current.map((entry) => entry.selectionId === selectionId
+      ? { ...entry, duplicateDecision: 'keep' as const }
+      : entry));
+    track('teacher_materials_book_pdf_combine_duplicate_kept');
+  };
+
+  const renderCombinedPdfFlow = () => {
+    const hasUnresolvedDuplicate = combinedFiles.some((entry, index) => (
+      duplicateOfIndex(combinedFiles, index) !== null && entry.duplicateDecision !== 'keep'
+    ));
+    const canCombine = combinedFiles.length >= 2
+      && combinedFiles.every((entry) => entry.status === 'ready' && entry.claim !== null)
+      && !hasUnresolvedDuplicate
+      && combinedPhase === 'files';
+    if (combinedPhase === 'preview' && combinedResult) {
+      return (
+        <FlowSurface>
+          <div className="pbf-row">
+            <div>
+              <h3>Combined PDF preview</h3>
+              <p className="pbf-muted">Preview the ordered PDF, then use it as the Book PDF through the existing checked upload and draft workflow.</p>
+            </div>
+            <span className="pbf-status is-good">Ready</span>
+          </div>
+          {combinedPreviewUrl && (
+            <iframe
+              title="Combined PDF preview"
+              src={combinedPreviewUrl}
+              style={{ width: '100%', minHeight: 520, border: '1px solid #abb3b7', marginTop: 14 }}
+            />
+          )}
+          <ol className="pbf-checklist" aria-label="Combined PDF component ranges" style={{ marginTop: 14 }}>
+            {combinedResult.mapping.map((entry) => <li key={`${entry.componentIndex}-${entry.fileName}`}>{entry.fileName}: pages {entry.startPage}–{entry.endPage} ({entry.pageCount} pages)</li>)}
+          </ol>
+          {combinedError && <p className="pbf-callout is-danger" role="alert" style={{ marginTop: 14 }}>{combinedError}</p>}
+          <div className="pbf-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => { resetCombinedOutput(); track('teacher_materials_book_pdf_combine_back_to_files'); }}>Back to files</button>
+            <button type="button" className="pbf-button pbf-button-primary" disabled={fullAttachmentBusy} onClick={useCombinedPdf}>
+              Use these PDFs
+            </button>
+          </div>
+        </FlowSurface>
+      );
+    }
+    return (
+      <FlowSurface>
+        <div className="pbf-row">
+          <div>
+            <h3>Combine PDFs for a single preview</h3>
+            <p className="pbf-muted">Add files in order, combine them for a derived preview, then keep each checked source in the existing component assembly workflow.</p>
+          </div>
+          <span className="pbf-status">Required</span>
+        </div>
+        <input
+          ref={combinedInputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          aria-label="Choose PDFs to combine"
+          disabled={fullAttachmentBusy}
+          onChange={(event) => {
+            inspectCombinedFiles(event.currentTarget.files);
+            event.currentTarget.value = '';
+          }}
+          style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+        />
+        <div className="pbf-actions" style={{ marginTop: 14 }}>
+          <button type="button" className="pbf-button" onClick={() => {
+            if (fullAttachmentBusy) return;
+            setIsPickerOpening(true);
+            combinedInputRef.current?.click();
+            setTimeout(() => setIsPickerOpening(false), 0);
+          }} disabled={isPickerOpening || fullAttachmentBusy}>Add PDFs</button>
+          {combinedPhase === 'combining' && <button type="button" className="pbf-button" onClick={cancelCombinedWork}>Cancel</button>}
+        </div>
+        {combinedFiles.some((entry) => entry.status === 'checking') && <p className="pbf-callout" role="status" aria-busy="true" style={{ marginTop: 14 }}>Checking selected PDFs in your browser…</p>}
+        {combinedPhase === 'combining' && <p className="pbf-callout" role="status" aria-busy="true" style={{ marginTop: 14 }}>Combining PDFs in your browser…</p>}
+        {combinedFiles.length === 1 && <p className="pbf-callout is-warn" role="status" style={{ marginTop: 14 }}>Add at least one more PDF, or choose One complete PDF.</p>}
+        {combinedFiles.length > 0 && (
+          <ol aria-label="Selected PDFs" style={{ marginTop: 14 }}>
+            {combinedFiles.map((entry, index) => (
+              <li key={entry.selectionId} style={{ marginBottom: 10 }}>
+                <div className="pbf-row">
+                  <span>
+                    <strong>{entry.file.name}</strong> · {entry.status === 'ready' && entry.claim
+                      ? `${entry.claim.physicalPageCount} pages`
+                      : entry.status === 'checking'
+                        ? 'Checking…'
+                        : `Failed: ${entry.errorReason ?? `${entry.file.name} — PDF could not be checked`}`}
+                  </span>
+                  <span className="pbf-actions">
+                    <button type="button" className="pbf-button" aria-label={`Move ${entry.file.name} up`} onClick={() => reorderCombinedFile(index, -1)} disabled={index === 0 || combinedPhase !== 'files'}>Move up</button>
+                    <button type="button" className="pbf-button" aria-label={`Move ${entry.file.name} down`} onClick={() => reorderCombinedFile(index, 1)} disabled={index === combinedFiles.length - 1 || combinedPhase !== 'files'}>Move down</button>
+                    {entry.status === 'failed' && <button type="button" className="pbf-button" aria-label={`Retry ${entry.file.name}`} onClick={() => retryCombinedFile(index)} disabled={combinedPhase !== 'files'}>Retry</button>}
+                    <button type="button" className="pbf-button" aria-label={`Remove ${entry.file.name}`} onClick={() => removeCombinedFile(index)} disabled={combinedPhase !== 'files'}>Remove</button>
+                  </span>
+                </div>
+                {duplicateOfIndex(combinedFiles, index) !== null && (
+                  <div className="pbf-callout is-warn" role="status" style={{ marginTop: 8 }}>
+                    <strong>Duplicate PDF bytes detected.</strong>
+                    <span>{entry.file.name} has the same bytes as {combinedFiles[duplicateOfIndex(combinedFiles, index)!].file.name}. Choose whether to keep both files or remove this copy.</span>
+                    <div className="pbf-actions" style={{ marginTop: 8 }}>
+                      <button type="button" className="pbf-button" onClick={() => keepCombinedDuplicate(entry.selectionId)} disabled={entry.duplicateDecision === 'keep'}>Keep both</button>
+                      <button type="button" className="pbf-button" onClick={() => removeCombinedFile(index)}>Remove duplicate</button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+        {combinedError && <p className="pbf-callout is-danger" role="alert" style={{ marginTop: 14 }}>{combinedError}</p>}
+        <div className="pbf-actions" style={{ marginTop: 14 }}>
+          <button type="button" className="pbf-button pbf-button-primary" onClick={combineSelectedPdfs} disabled={fullAttachmentBusy || !canCombine}>Combine and preview</button>
+        </div>
+      </FlowSurface>
+    );
   };
 
   const workflowFor = (sourceKey: string) => uploadWorkflowForSource?.(sourceKey) ?? uploadWorkflow;
   const beginUpload = (slot: SourceSlot, selection: SourceUploadSelection) => {
+    if (fullAttachmentBusy) return;
     updateSlot(slot.id, { selection });
-    setActiveUploadId(slot.id);
-    setMessage({ text: '', kind: '' });
+    if (slot.sourceKey === 'full') setFullAttachmentOperationId(null);
     track('teacher_materials_book_pdf_source_verified', {
       sourceKey: slot.sourceKey,
       physicalPageCount: selection.claim.physicalPageCount,
-      sha256Hex: selection.claim.sha256Hex,
     });
   };
 
   const onUploadState = (slot: SourceSlot, state: SourceUploadSafeOperationState | null) => {
     updateSlot(slot.id, { uploadState: state });
     if (state?.phase === 'verified') {
-      if (slot.sourceKey === 'full'
-        && state.bookRevision !== undefined
-        && state.sourceSetRevision !== undefined) {
-        updateAuthorityRevisions({
-          bookRevision: state.bookRevision,
-          sourceSetRevision: state.sourceSetRevision,
-        });
-      }
-      setActiveUploadId(null);
       setReplacingSourceId((current) => current === slot.id ? null : current);
+      if (replacingSourceId === slot.id && persistedSourceSet) {
+        const oldSource = persistedSourceSet.sources.find((source) => source.sourceKey === slot.sourceKey);
+        const oldVersion = oldSource && assemblySourceVersions.find((source) => source.sourceVersionId === oldSource.sourceVersionId);
+        const groups = candidate?.manifest?.units.flatMap((unit) => unit.pageGroups)
+          .filter((group) => group.sourceKey === slot.sourceKey) ?? [];
+        const activityKeys = new Set(groups.flatMap((group) => group.activityKeys));
+        if (oldSource && oldVersion) {
+          setReplacementReview({
+            slotId: slot.id,
+            sourceKey: slot.sourceKey,
+            sourceVersionId: state.sourceVersionId,
+            displayFilename: state.displayFilename,
+            oldPageCount: oldVersion.physicalPageCount,
+            newPageCount: slot.selection?.claim.physicalPageCount ?? 0,
+            pageGroupCount: groups.length,
+            activityCount: activityKeys.size,
+          });
+          setReplacementError('');
+        }
+      }
       onDirtyChange?.(true);
       track('teacher_materials_book_pdf_source_upload_verified', {
         sourceKey: slot.sourceKey,
-        sourceVersionId: state.sourceVersionId,
+        status: state.phase,
       });
+    }
+  };
+
+  const cancelReplacementReview = () => {
+    setReplacementReview(null);
+    setReplacementError('');
+    setReplacementOperationId(null);
+    toast.info('PDF replacement canceled. The verified file is still available to review.');
+    track('teacher_materials_book_pdf_source_replacement_canceled');
+  };
+
+  const applySourceReplacement = async () => {
+    if (!replacementReview || !candidate?.manifest || !persistedSourceSet || replacementBusy) return;
+    if (!sourceSetAttachmentClient) {
+      setReplacementError('PDF replacement is unavailable until the trusted source service is configured.');
+      toast.error('PDF replacement is unavailable. The current Book remains unchanged.');
+      return;
+    }
+    const nextSourceSet: SourceSetCandidate = {
+      ...persistedSourceSet,
+      sources: persistedSourceSet.sources.map((source) => source.sourceKey === replacementReview.sourceKey
+        ? { ...source, sourceVersionId: replacementReview.sourceVersionId }
+        : source),
+    } as unknown as SourceSetCandidate;
+    const operationId = replacementOperationId
+      ?? globalThis.crypto?.randomUUID?.()
+      ?? `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+    setReplacementOperationId(operationId);
+    setReplacementBusy(true);
+    setReplacementError('');
+    try {
+      const attached = await sourceSetAttachmentClient.attachSourceSet({
+        bookId,
+        operationId,
+        expectedBookRevision: effectiveAssemblyBookRevision,
+        expectedSourceSetRevision: effectiveAssemblySourceSetRevision,
+        sourceSet: nextSourceSet,
+      });
+      updateAuthorityRevisions(attached);
+      let result: BookAssemblyMutationResult;
+      if (selectedMode === 'component') {
+        if (!assemblyMigrationClient?.rebase) throw new Error('rebase_unavailable');
+        result = await assemblyMigrationClient.rebase({
+          operationId,
+          bookId,
+          unitKey: candidate.unitKey,
+          candidateId: candidate.candidateId,
+          expectedBookRevision: attached.bookRevision,
+          expectedSourceSetRevision: attached.sourceSetRevision,
+          expectedCandidateRevision: candidate.revision,
+        });
+      } else {
+        if (!assemblyRepository) throw new Error('assembly_replace_unavailable');
+        result = await assemblyRepository.replace({
+          operationId,
+          bookId,
+          unitKey: candidate.unitKey,
+          candidateId: candidate.candidateId,
+          expectedBookRevision: attached.bookRevision,
+          expectedSourceSetRevision: attached.sourceSetRevision,
+          expectedCandidateRevision: candidate.revision,
+          manifest: { ...candidate.manifest, sourceSet: attached.sourceSet },
+        });
+      }
+      if (result.status === 'conflict' || result.status === 'idempotency-conflict') {
+        throw Object.assign(new Error('replacement_conflict'), { status: 409 });
+      }
+      if (!result.candidate) throw new Error('replacement_candidate_missing');
+      setCandidate(result.candidate);
+      setEffectiveAssemblyBookRevision(result.candidate.bookRevision);
+      setEffectiveAssemblySourceSetRevision(result.candidate.sourceSetRevision);
+      setReplacementReview(null);
+      setReplacementOperationId(null);
+      setReplacementError('');
+      onDirtyChange?.(false);
+      toast.success('PDF replaced. Review the updated Book before publishing.');
+      track('teacher_materials_book_pdf_source_replaced', { sourceKey: replacementReview.sourceKey });
+    } catch (error) {
+      const conflict = typeof error === 'object' && error !== null && 'status' in error && error.status === 409;
+      setReplacementError(conflict ? 'This book changed; review again.' : 'PDF replacement did not finish. Your file is still here; try again.');
+      if (conflict) {
+        setReplacementOperationId(null);
+        toast.warning('This book changed; review again.');
+      } else {
+        toast.error('PDF replacement did not finish. Your file is still here; try again.');
+      }
+      track('teacher_materials_book_pdf_source_replacement_failed', { conflict });
+    } finally {
+      setReplacementBusy(false);
     }
   };
 
@@ -415,13 +1114,107 @@ const BookPdfFlowWorkspace = ({
     setAssemblyStep('review');
   }, [editingSection, focusedEditing, mode]);
 
-  const continueFromFiles = () => {
+  const continueFromFiles = async () => {
+    if (fullAttachmentBusy) return;
     if (!sourceReady) {
-      setMessage({ text: selectedMode === 'full' ? 'Verify and upload the Book PDF before continuing.' : 'Verify and upload every component PDF before continuing.', kind: 'warn' });
+      toast.warning(selectedMode === 'full' ? 'Verify and upload the Book PDF before continuing.' : 'Verify and upload every component PDF before continuing.');
       return;
     }
-    setFlowStep(2);
-    track('teacher_materials_book_pdf_workflow_step_changed', { nextStep: 2 });
+    if (selectedMode === 'full') {
+      if (!sourceSetAttachmentClient) {
+        toast.error('The Book PDF is ready, but the trusted attachment service is unavailable.');
+        track('book_source_upload_failed', { reason: 'attachment_service_unavailable' });
+        return;
+      }
+      const source = localSources.find((candidate) => candidate.sourceKey === 'full')
+        ?? (persistedSourceSet?.sourceStrategy === 'full_pdf' ? persistedSourceSet.sources[0] : undefined);
+      if (!source) {
+        toast.error('The Book PDF could not be bound to this Book. Verify the file again.');
+        track('book_source_upload_failed', { reason: 'attachment_source_unavailable' });
+        return;
+      }
+      const operationId = fullAttachmentOperationId
+        ?? globalThis.crypto?.randomUUID?.()
+        ?? `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+      setFullAttachmentOperationId(operationId);
+      setFullAttachmentBusy(true);
+      try {
+        const attached = await sourceSetAttachmentClient.attachSourceSet({
+          bookId,
+          operationId,
+          expectedBookRevision: effectiveAssemblyBookRevision,
+          expectedSourceSetRevision: effectiveAssemblySourceSetRevision,
+          sourceSet: {
+            sourceStrategy: 'full_pdf',
+            sources: [{
+              sourceKey: source.sourceKey,
+              sourceVersionId: source.sourceVersionId,
+              sourceOrder: 1,
+            }],
+          },
+        });
+        updateAuthorityRevisions(attached);
+        setFullAttachmentOperationId(null);
+        setFlowStep(2);
+        track('teacher_materials_book_pdf_workflow_step_changed', { nextStep: 2, attachmentStatus: attached.status });
+      } catch (error) {
+        if (isConflictFailure(error)) setFullAttachmentOperationId(null);
+        toast.error(actionableFailureToast(error, 'The Book PDF could not be attached. Retry.'));
+        track('book_source_upload_failed', { reason: 'attachment_failed' });
+      } finally {
+        setFullAttachmentBusy(false);
+      }
+      return;
+    }
+    const combinedWorkflow = workflowFor('student-document');
+    if (!combinedWorkflow) {
+      toast.error('The combined PDF upload service is unavailable.');
+      return;
+    }
+    setFullAttachmentBusy(true);
+    try {
+      if (persistedSourceSet?.sourceStrategy === 'component_pdfs'
+        && effectiveAssemblyBookRevision === 0 && effectiveAssemblySourceSetRevision === 0) {
+        const recoveredSlots = await Promise.all(visibleSlots.map(async (slot) => {
+          const source = persistedSourceSet.sources.find((entry) => entry.sourceKey === slot.sourceKey);
+          const recovered = slot.uploadState?.phase === 'verified' ? slot.uploadState
+            : await workflowFor(slot.sourceKey)?.load(bookId);
+          if (!source || recovered?.phase !== 'verified' || recovered.bookId !== bookId
+            || recovered.sourceKey !== source.sourceKey || recovered.sourceVersionId !== source.sourceVersionId
+            || (recovered.purpose ?? 'book-source') !== 'book-source') {
+            throw new Error('component_pdf_upload_recovery_mismatch');
+          }
+          return { ...slot, uploadState: recovered };
+        }));
+        setSlots(recoveredSlots);
+      }
+      let state = combinedDocumentUploadState;
+      if (!state) {
+        const recovered = await combinedWorkflow.load(bookId);
+        if (recovered?.phase === 'verified' && recovered.sourceKey === 'student-document') state = recovered;
+      }
+      if (!state || state.phase !== 'verified') {
+        if (!combinedDocumentSelection) throw new Error('combined_pdf_file_required');
+        state = (await combinedWorkflow.start({
+          ...combinedDocumentSelection,
+          bookId,
+          sourceKey: 'student-document',
+          kind: 'initial',
+          purpose: 'student-document',
+        })).state;
+      }
+      if (state.phase !== 'verified' || !state.reservationId) throw new Error('combined_pdf_upload_incomplete');
+      await combinedWorkflow.decideStudentSafeSource?.(bookId);
+      setCombinedDocumentUploadState(state);
+      setFlowStep(2);
+      track('teacher_materials_book_pdf_workflow_step_changed', { nextStep: 2 });
+    } catch (error) {
+      toast.error(actionableFailureToast(error, error instanceof Error && error.message === 'combined_pdf_file_required'
+        ? 'Reselect the exact combined PDF to finish its upload.'
+        : 'The combined PDF could not be prepared. Retry.'));
+    } finally {
+      setFullAttachmentBusy(false);
+    }
   };
 
   const onAssemblyStepChange = (next: AssemblyStep) => {
@@ -436,17 +1229,17 @@ const BookPdfFlowWorkspace = ({
     candidateId: candidate.candidateId,
     expectedCandidateRevision: candidate.revision,
   } : null;
+  const activePreviewInput = selectedMode === 'component' ? componentPreviewInput ?? previewInput : previewInput;
   const trustedRuntimePreview = useMemo(() => {
     const preview = previewProjection ?? assemblyCandidateRuntimePreview;
-    if (!candidate || !preview
+    const expected = activePreviewInput;
+    if (!expected || !preview
       || preview.bookId !== bookId
-      || preview.bookRevision !== candidate.bookRevision
       || preview.bookRevision !== effectiveAssemblyBookRevision
-      || preview.candidateId !== candidate.candidateId
-      || preview.candidateRevision !== candidate.revision
-      || preview.sourceSetRevision !== candidate.sourceSetRevision
+      || preview.candidateId !== expected.candidateId
+      || preview.candidateRevision !== expected.expectedCandidateRevision
       || preview.sourceSetRevision !== effectiveAssemblySourceSetRevision
-      || preview.unitKey !== candidate.unitKey) {
+      || preview.unitKey !== expected.unitKey) {
       return null;
     }
     const identity = [
@@ -460,7 +1253,7 @@ const BookPdfFlowWorkspace = ({
   }, [
     assemblyCandidateRuntimePreview,
     bookId,
-    candidate,
+    activePreviewInput,
     dismissedPreviewIdentity,
     effectiveAssemblyBookRevision,
     effectiveAssemblySourceSetRevision,
@@ -468,64 +1261,147 @@ const BookPdfFlowWorkspace = ({
   ]);
 
   const requestPreview = async () => {
-    if (!assemblyPreviewClient || !previewInput) {
-      setMessage({ text: 'Student preview is unavailable until the trusted preview Worker is configured.', kind: 'warn' });
+    if (!assemblyPreviewClient || !activePreviewInput) {
+      toast.warning('Student preview is unavailable until the trusted preview Worker is configured.');
       return;
     }
     try {
-      const result = await assemblyPreviewClient.preview(previewInput);
+      const result = await assemblyPreviewClient.preview(activePreviewInput);
       setPreviewProjection(result.preview);
+      if (result.qualification) {
+        setPreviewQualification(result.qualification);
+        const current = result.qualification.units.find((unit) => unit.unitKey === result.preview.unitKey);
+        if (current) setComponentPreviewInput({ bookId, unitKey: current.unitKey, candidateId: current.candidateId,
+          expectedCandidateRevision: current.candidateRevision });
+      }
       setDismissedPreviewIdentity(null);
       setPreviewApproval(null);
-      setMessage({ text: '', kind: '' });
-      track('teacher_materials_book_assembly_candidate_preview_opened', { candidateId: candidate?.candidateId });
+      track('teacher_materials_book_assembly_candidate_preview_opened', { status: 'opened' });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'Student preview could not be loaded.', kind: 'error' });
+      toast.error(actionableFailureToast(error, 'Student preview could not be loaded. Retry.'));
     }
   };
 
   const approvePreview = async () => {
-    if (!assemblyPreviewClient || !previewInput || !previewProjection) {
-      setMessage({ text: 'Open the trusted student preview before approving it.', kind: 'warn' });
+    if (!assemblyPreviewClient || !activePreviewInput || !previewProjection) {
+      toast.warning('Open the trusted student preview before approving it.');
       return;
     }
     try {
-      const result = await assemblyPreviewClient.approve(previewInput);
-      setPreviewApproval(result.approval);
-      track('teacher_materials_book_assembly_candidate_preview_approved', { candidateId: candidate?.candidateId, approvalId: result.approval.approvalId });
-      setMessage({ text: 'Preview approved. You can now publish this draft.', kind: 'good' });
+      const result = await assemblyPreviewClient.approve({
+        ...activePreviewInput,
+        ...(previewQualification ? {
+          expectedUnitInputFingerprint: previewInputFingerprint(previewProjection),
+          expectedWholeActivationFingerprint: previewQualification.wholeActivationFingerprint,
+        } : {}),
+      });
+      if (previewQualification) {
+        const nextApprovals = { ...componentApprovals, [activePreviewInput.unitKey]: result.approval };
+        setComponentApprovals(nextApprovals);
+        const next = previewQualification.units.find((unit) => !nextApprovals[unit.unitKey]);
+        setPreviewProjection(null);
+        if (next) {
+          setComponentPreviewInput({ bookId, unitKey: next.unitKey, candidateId: next.candidateId,
+            expectedCandidateRevision: next.candidateRevision });
+          toast.success(`Preview approved. Open ${next.unitKey} before publishing.`);
+        } else {
+          setPreviewApproval(result.approval);
+          toast.success('Every Unit preview is approved. You can now publish this Book.');
+        }
+      } else {
+        setPreviewApproval(result.approval);
+        toast.success('Preview approved. You can now publish this draft.');
+      }
+      track('teacher_materials_book_assembly_candidate_preview_approved', { status: 'approved' });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'Preview approval could not be saved.', kind: 'error' });
+      toast.error(actionableFailureToast(error, 'Preview approval could not be saved. Retry.'));
+    }
+  };
+
+  const refreshCurrentPublication = async (expectedReceipt = publication) => {
+    if (!assemblyPreviewClient?.readCurrentPublication) {
+      setPublicationRefreshStatus('error');
+      toast.warning('Book published, but its current publication could not be refreshed. Close and reopen the editor to verify it.');
+      return;
+    }
+    setPublicationRefreshStatus('pending');
+    try {
+      const refreshed = await assemblyPreviewClient.readCurrentPublication(bookId);
+      if (!refreshed || (expectedReceipt && (
+        refreshed.pointer.publicationId !== expectedReceipt.publicationId
+        || refreshed.pointer.publicationRevision !== expectedReceipt.publicationRevision
+        || refreshed.pointer.manifestVersionId !== expectedReceipt.manifestVersionId
+      ))) {
+        throw new Error('publication_not_current');
+      }
+      setCurrentPublication(refreshed);
+      onCurrentPublicationChange?.(refreshed);
+      setPublicationRefreshStatus('ready');
+      toast.success('Book published. The current publication is now confirmed.');
+    } catch {
+      setPublicationRefreshStatus('error');
+      toast.warning('Book published, but the current publication could not be refreshed. Retry the publication check before resubmitting.');
     }
   };
 
   const publish = async () => {
-    if (!assemblyPreviewClient || !previewInput || !previewApproval || !candidate) {
-      setMessage({ text: 'Save and approve the trusted preview before publishing.', kind: 'warn' });
+    if (publishBusy) return;
+    if (!publicationStatusReady) {
+      toast.warning('Current publication status is not verified. Retry the check or reopen the editor before publishing.');
       return;
     }
+    if (!assemblyPreviewClient || !previewInput || !previewApproval || !candidate) {
+      toast.warning('Save and approve the trusted preview before publishing.');
+      return;
+    }
+    const sourceWorkflow = workflowFor('full');
+    if (selectedMode === 'full' && !sourceWorkflow?.decideStudentSafeSource) {
+      toast.warning('The Book PDF cannot be confirmed for student access. Reopen the upload and retry.');
+      track('teacher_materials_book_pdf_student_safe_decision', { status: 'unavailable' });
+      return;
+    }
+    setPublishBusy(true);
     try {
-      const result = selectedMode === 'full'
-        ? await assemblyPreviewClient.publishFull({
-            ...previewInput,
-            expectedCurrentPublicationId: null,
-            expectedBookRevision: candidate.bookRevision,
-            expectedSourceSetRevision: candidate.sourceSetRevision,
-            previewApproval,
-          })
-        : await assemblyPreviewClient.publishComponent({
-            ...previewInput,
-            expectedCurrentPublicationId: null,
-            expectedBookRevision: candidate.bookRevision,
-            expectedSourceSetRevision: candidate.sourceSetRevision,
-            previewApproval,
-          });
+      if (selectedMode === 'full') {
+        await sourceWorkflow!.decideStudentSafeSource!(bookId);
+        track('teacher_materials_book_pdf_student_safe_decision', { status: 'ready' });
+      }
+      const requestOperationId = publicationOperationId
+        ?? globalThis.crypto?.randomUUID?.()
+        ?? `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+      setPublicationOperationId(requestOperationId);
+      const result = selectedMode === 'component' && previewQualification
+        ? await assemblyPreviewClient.publishComponent({
+          bookId, operationId: requestOperationId,
+          expectedCurrentPublicationId: currentPublication?.pointer.publicationId ?? null,
+          expectedBookRevision: candidate.bookRevision,
+          expectedSourceSetRevision: candidate.sourceSetRevision,
+          unitApprovals: previewQualification.units.map((unit) => {
+            const approval = componentApprovals[unit.unitKey]!;
+            return { ...unit, approvalId: approval.approvalId, approvalRevision: approval.approvalRevision,
+              approvedAt: approval.approvedAt, expiresAt: approval.expiresAt };
+          }),
+        })
+        : await assemblyPreviewClient.publishFull({
+        ...previewInput,
+        operationId: requestOperationId,
+        expectedCurrentPublicationId: currentPublication?.pointer.publicationId ?? null,
+        expectedBookRevision: candidate.bookRevision,
+        expectedSourceSetRevision: candidate.sourceSetRevision,
+        previewApproval,
+      });
       setPublication(result);
-      setMessage({ text: 'Book published. The trusted service returned a publication receipt.', kind: 'good' });
+      setPublicationOperationId(null);
+      setPublishConfirmOpen(false);
+      toast.success('Book published. The trusted service returned a publication receipt.');
       onDirtyChange?.(false);
-      track('teacher_materials_book_pdf_published', { publicationId: result.publicationId, publicationRevision: result.publicationRevision });
+      track('teacher_materials_book_pdf_published', { status: 'published', publicationRevision: result.publicationRevision });
+      void refreshCurrentPublication(result);
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'Publication failed. Your draft is unchanged.', kind: 'error' });
+      toast.error(actionableFailureToast(error, 'Publication failed. Retry; your draft is unchanged.'));
+      track('teacher_materials_book_pdf_student_safe_decision', { status: 'failed' });
+    } finally {
+      setPublishBusy(false);
     }
   };
 
@@ -541,7 +1417,8 @@ const BookPdfFlowWorkspace = ({
     const replacing = replacingSourceId === slot.id;
     const verified = !replacing && (slot.uploadState?.phase === 'verified' || Boolean(persistedVersion?.verifiedUsable));
     const persistedReady = !replacing && !slot.uploadState && Boolean(persistedVersion?.verifiedUsable);
-    const activeUpload = activeUploadId === slot.id && slot.selection !== null;
+    const activeUpload = slot.selection !== null && workflow !== null && !persistedReady;
+    const replacementReady = replacementReview?.slotId === slot.id;
     return (
       <section className="pbf-surface" key={slot.id} aria-labelledby={`${slot.id}-title`}>
         <div className="pbf-row">
@@ -560,18 +1437,43 @@ const BookPdfFlowWorkspace = ({
               instanceKey={`${slot.id}-upload`}
               uiVariant="mockup"
               sourceKey={slot.sourceKey}
-              immutablePublished={false}
+              immutablePublished={replacing}
               onAction={onUploadAction}
               onStateChange={(state) => onUploadState(slot, state)}
               selection={slot.selection}
               workflow={workflow}
             />
           </div>
+        ) : replacementReady ? (
+          <div className="pbf-surface" style={{ marginTop: 14 }} aria-label="PDF replacement review">
+            <div className="pbf-row">
+              <div>
+                <strong>Review this PDF replacement</strong>
+                <p className="pbf-muted">{replacementReview.displayFilename} will become the new private source for this Book.</p>
+              </div>
+              <span className="pbf-status is-warn">Review needed</span>
+            </div>
+            <dl style={{ marginTop: 14 }}>
+              <div><dt>Pages</dt><dd>{replacementReview.oldPageCount} → {replacementReview.newPageCount}</dd></div>
+              <div><dt>Page connections to recheck</dt><dd>{replacementReview.pageGroupCount}</dd></div>
+              <div><dt>Activities using this PDF</dt><dd>{replacementReview.activityCount}</dd></div>
+            </dl>
+            <p className="pbf-callout is-warn" role="status" style={{ marginTop: 14 }}>
+              Nothing in the Book changes until you choose Replace. Your existing content stays in place while this is reviewed.
+            </p>
+            {replacementError && <p className="pbf-callout is-danger" role="alert" style={{ marginTop: 14 }}>{replacementError}</p>}
+            <div className="pbf-actions" style={{ marginTop: 14 }}>
+              <button type="button" className="pbf-button" onClick={cancelReplacementReview} disabled={replacementBusy}>Cancel</button>
+              <button type="button" className="pbf-button pbf-button-primary" onClick={() => void applySourceReplacement()} disabled={replacementBusy}>
+                {replacementBusy ? 'Replacing PDF…' : 'Replace PDF'}
+              </button>
+            </div>
+          </div>
         ) : verified ? (
           <div className="pbf-callout is-good" style={{ marginTop: 14 }}>
             <strong>{selectedMode === 'full' ? 'Your PDF is ready' : 'PDF ready'}</strong>
             <span>{persistedReady ? 'This verified PDF is already part of the saved Book draft.' : 'Nothing is published yet. You can continue to assemble the Book.'}</span>
-            {focusedEditing && <div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" onClick={() => requestSourceReplacement(slot)}>Replace PDF</button></div>}
+            {focusedEditing && <div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => requestSourceReplacement(slot)}>Replace PDF</button></div>}
           </div>
         ) : (
           <div className="pbf-real-source-panel">
@@ -593,27 +1495,24 @@ const BookPdfFlowWorkspace = ({
 
   const renderFiles = () => (
     <FlowView
-      title={focusedEditing ? 'Manage PDF files' : selectedMode === 'full' ? 'Start with one PDF' : 'Bring in your PDF sections'}
+      title={focusedEditing ? 'Manage PDF files' : selectedMode === 'full' ? 'Start with one PDF' : 'Combine your PDF sections'}
       subtitle={focusedEditing
         ? selectedMode === 'full'
           ? 'This Book uses one complete PDF. Replace that file here without rebuilding the Book structure.'
-          : 'This Book uses component PDFs. Replace or add files here without rebuilding the Book.'
+          : 'Select the component PDFs, review their order, and preview their composed pages without changing their source ownership.'
         : selectedMode === 'full'
           ? 'Choose the student-safe PDF you want to use in this Book.'
-          : 'Each file becomes a named part of the Book. Add at least two so we can compose them together.'}
-      status={sourceReady ? 'Ready' : selectedMode === 'full' ? '1 file' : `${verifiedSlots.length} of 2 files`}
+          : 'Select at least two PDFs, review their order, and preview the composed pages before assigning each source to the Book.'}
+      status={sourceReady ? 'Ready' : selectedMode === 'full' ? '1 file' : combinedFiles.length > 0 ? `${combinedFiles.length} selected` : 'Add PDFs'}
       statusKind={sourceReady ? 'good' : undefined}
     >
-      {visibleSlots.length === 0 && <FlowSurface><div className="pbf-upload-zone"><div><div className="pbf-upload-icon">PDF</div><strong>Add a PDF</strong><p>We will check the file in your browser before anything is uploaded.</p><button type="button" className="pbf-button pbf-button-primary" onClick={addComponentSlot}>Add a PDF</button></div></div></FlowSurface>}
-      {visibleSlots.map(renderSourceCard)}
-      {selectedMode === 'component' && visibleSlots.length > 0 && (
-        <button type="button" className="pbf-button" style={{ marginTop: 12 }} onClick={addComponentSlot}>{focusedEditing ? 'Add another PDF' : 'Add a PDF'}</button>
-      )}
-      {!focusedEditing && selectedMode === 'component' && visibleSlots.length > 0 && visibleSlots.length < 2 && <p className="pbf-callout is-warn" style={{ marginTop: 12 }}>Add at least two PDFs so we can compose them together.</p>}
+      {selectedMode === 'component' && renderCombinedPdfFlow()}
+      {selectedMode === 'component' && visibleSlots.map(renderSourceCard)}
+      {selectedMode === 'full' && visibleSlots.map(renderSourceCard)}
       {focusedEditing && (
         <div className="pbf-actions" style={{ marginTop: 14, justifyContent: 'space-between' }}>
           <span className="pbf-status">PDF mode: {selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}</span>
-          <button type="button" className="pbf-button" onClick={requestSetupChange}>Change PDF setup</button>
+          <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={requestSetupChange}>Change PDF setup</button>
         </div>
       )}
     </FlowView>
@@ -651,6 +1550,16 @@ const BookPdfFlowWorkspace = ({
           initialSavedActivityKeysByUnit={assemblyInitialSavedActivityKeysByUnit}
           initialSourceSet={persistedSourceSet}
           migrationClient={assemblyMigrationClient}
+          componentPdfActivationClient={componentPdfActivationClient}
+          componentStudentDocumentSourceVersionId={componentStudentDocumentSourceVersionId}
+          componentPdfActivationRecovery={componentPdfActivationRecovery}
+          componentPdfPreparation={combinedDocumentUploadState?.phase === 'verified' && combinedDocumentUploadState.reservationId
+            && visibleSlots.every((slot) => slot.uploadState?.phase === 'verified' && slot.uploadState.reservationId)
+            ? {
+                componentReservationIds: visibleSlots.map((slot) => slot.uploadState!.reservationId!),
+                studentDocumentReservationId: combinedDocumentUploadState.reservationId,
+              }
+            : undefined}
           onAction={onTrackAction}
           onCandidateChange={setCandidate}
           onDirtyChange={setAssemblyDirty}
@@ -688,7 +1597,6 @@ const BookPdfFlowWorkspace = ({
             {trustedRuntimePreview ? (
               <BookAssemblyStudentPreviewHost
                 bookTitle={title}
-                documents={assemblyPreviewDocuments}
                 getIdToken={assemblyPreviewGetIdToken}
                 preview={trustedRuntimePreview.preview}
                 onExit={() => setDismissedPreviewIdentity(trustedRuntimePreview.identity)}
@@ -701,16 +1609,20 @@ const BookPdfFlowWorkspace = ({
   };
 
   const renderPublish = () => (
-    <FlowView title={publication ? 'Unit 1 is live' : 'Ready to share Unit 1?'} subtitle={publication ? 'Students can now open the published Unit. Unit 2 and your existing homework are unchanged.' : 'This will make Unit 1 available to students. Later Units will stay private until you publish them.'} status={publication ? 'Published' : 'Ready'} statusKind={publication ? 'good' : undefined}>
+    <FlowView title={isPublished ? 'Unit 1 is published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking publication status' : assemblyInitialPublicationStatus === 'error' ? 'Unable to verify publication status' : 'Ready to share Unit 1?'} subtitle={isPublished ? 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.' : assemblyInitialPublicationStatus === 'loading' ? 'Publishing stays locked until the current publication is confirmed.' : assemblyInitialPublicationStatus === 'error' ? 'Publishing stays locked until the current publication can be confirmed.' : 'This will publish Unit 1. Students receive access only after you assign it as homework.'} status={isPublished ? 'Published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking' : assemblyInitialPublicationStatus === 'error' ? 'Blocked' : 'Ready'} statusKind={isPublished ? 'good' : assemblyInitialPublicationStatus === 'loaded' ? undefined : 'warn'}>
       <FlowSurface className="pbf-publish-surface">
         {focusedEditing && (
           <div className="pbf-actions" style={{ marginBottom: 14 }}>
             <button type="button" className="pbf-button" onClick={() => setFlowStep(4)}>Back to preview</button>
           </div>
         )}
-        {publication && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is live</h2><p>Students can now open the published Unit. Unit 2 and your existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" disabled>Preview homework handoff</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setPublishRights(false); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
-        {!publication && <><div className="pbf-callout is-warn"><strong>Nothing is published yet</strong><span>Publishing Unit 1 will not change later Units or existing homework.</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">Unit 1 will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and later Units will remain safe</div></div></>}
-        {!publication && <><label className="pbf-check"><input type="checkbox" checked={publishRights} onChange={(event) => setPublishRights(event.currentTarget.checked)} /> <span>I confirm the PDF permission is still valid for publishing.</span></label><div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !publishRights || !previewApproval || !assemblyPreviewClient || !candidate}>{assemblyPreviewClient ? 'Publish Unit 1' : 'Publication service unavailable'}</button></div></>}
+        {isPublished && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is published</h2><p>Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" onClick={onHomeworkHandoff} disabled={!onHomeworkHandoff}>Assign as homework</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
+        {assemblyInitialPublicationStatus === 'loading' && <p className="pbf-callout is-warn" aria-busy="true">Checking whether Unit 1 is already published. Publishing is locked until this finishes.</p>}
+        {assemblyInitialPublicationStatus === 'error' && <><p className="pbf-callout is-warn" role="alert">We could not verify the current publication. Retry the check or close and reopen the editor before publishing.</p>{onRetryCurrentPublication && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button" onClick={onRetryCurrentPublication}>Retry publication check</button></div>}</>}
+        {publicationRefreshStatus === 'pending' && <p className="pbf-callout is-warn" aria-busy="true">The publication was accepted. Confirming the current publication before another submission.</p>}
+        {publicationRefreshStatus === 'error' && <div className="pbf-callout is-warn" role="status"><strong>The publication was accepted</strong><span>Refresh the current publication before resubmitting this draft.</span><div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" onClick={() => void refreshCurrentPublication()}>Refresh publication status</button></div></div>}
+        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <><div className="pbf-callout is-warn"><strong>{reviewedDraftDiffers ? 'A reviewed successor is ready' : 'Nothing is published yet'}</strong><span>{reviewedDraftDiffers ? 'The current publication remains assignable until this successor is committed.' : 'Publishing Unit 1 will not change later Units or existing homework.'}</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">Unit 1 will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and later Units will remain safe</div></div></>}
+        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !previewApproval || !assemblyPreviewClient || !candidate || (selectedMode === 'component' && !componentReadyToPublish)}>{assemblyPreviewClient ? selectedMode === 'full' ? 'Publish Unit 1' : componentReadyToPublish ? 'Publish Book' : 'Combine PDFs before publishing' : 'Publication service unavailable'}</button></div>}
       </FlowSurface>
     </FlowView>
   );
@@ -754,9 +1666,8 @@ const BookPdfFlowWorkspace = ({
       <section className="book-pdf-flow" data-access={access} data-presentation={presentation} data-mode={mode} data-experience="focused-editing">
         <div className="pbf-window pbf-window--focused">
           <main className="pbf-main">{renderStep()}</main>
-          {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">Publish Unit 1?</h2><p>Students will be able to open this Unit immediately.</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'} source is ready</li><li>Student preview is approved</li><li>Later Units remain private</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { setPublishConfirmOpen(false); void publish(); }}>Publish Unit 1</button></div></div></div>}
+           {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students will be able to open every approved Unit: ${approvedComponentUnitKeys.join(', ')}.` : 'Students will be able to open this Unit immediately.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : 'Publish Unit 1'}</button></div></div></div>}
           {migrationOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-migration-title"><h2 id="pbf-migration-title">Change your PDF setup</h2><p>This creates a reviewed draft. Your current Book stays safe while you check the new setup.</p><div className="pbf-surface" style={{ marginTop: 15 }}><div className="pbf-row"><strong>Current setup</strong><span>{selectedMode === 'full' ? 'One complete PDF' : 'Several component PDFs'}</span></div><div className="pbf-row"><strong>New setup</strong><span>{selectedMode === 'full' ? 'Several component PDFs' : 'One complete PDF'}</span></div><div className="pbf-row"><strong>Page connections</strong><span className="pbf-status is-warn">Review before publishing</span></div></div><div className="pbf-callout is-warn" style={{ marginTop: 13 }}><strong>Your current Book stays safe</strong><span>The new setup is prepared and confirmed separately. Nothing is published by changing setup.</span></div><div className="pbf-overlay-footer"><button type="button" className="pbf-button" disabled={migrationBusy} onClick={() => setMigrationOpen(false)}>Cancel</button><button type="button" className="pbf-button pbf-button-primary" disabled={migrationBusy} onClick={() => void confirmSetupChange()}>{migrationBusy ? 'Preparing reviewed change…' : 'Prepare reviewed change'}</button></div></div></div>}
-          {message.text && <div className={`pbf-toast is-${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</div>}
         </div>
       </section>
     );
@@ -767,20 +1678,19 @@ const BookPdfFlowWorkspace = ({
       <div className="pbf-window">
         <header className="pbf-header">
           <div className="pbf-brand"><span className="pbf-mark">PDF</span><div><p className="pbf-eyebrow">Book editor</p><h1>{title}</h1></div></div>
-          <div className="pbf-header-actions"><span className="pbf-status">{selectedMode === 'full' ? 'Full PDF · Draft' : 'Component PDFs · Draft'}</span><button type="button" className="pbf-button pbf-button-quiet" onClick={requestSetupChange}>Change PDF setup</button></div>
+          <div className="pbf-header-actions"><span className="pbf-status">{selectedMode === 'full' ? 'Full PDF · Draft' : 'Component PDFs · Draft'}</span><button type="button" className="pbf-button pbf-button-quiet" disabled={fullAttachmentBusy} onClick={requestSetupChange}>Change PDF setup</button></div>
         </header>
         <nav className="pbf-progress" aria-label="PDF Book progress">
           {FLOW_STEPS.map((label, index) => {
             const number = (index + 1) as PdfFlowStep;
-            const disabled = number > unlockedStep;
+            const disabled = fullAttachmentBusy || number > unlockedStep;
             return <button key={label} type="button" className={`pbf-progress-step${step === number ? ' is-current' : ''}${number < step ? ' is-done' : ''}`} disabled={disabled} onClick={() => setFlowStep(number)}><span>{number < step ? '✓' : number}</span><strong>{label}</strong></button>;
           })}
         </nav>
         <main className="pbf-main">{renderStep()}</main>
-        <footer className="pbf-footer"><p>{step === 1 ? 'Your original files stay on your device until you choose to upload.' : `Step ${step} of 5 · ${selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}`}</p><div className="pbf-actions"><button type="button" className="pbf-button pbf-button-quiet" onClick={() => setFlowStep(Math.max(1, step - 1) as PdfFlowStep)} disabled={step === 1}>Back</button>{step === 1 && <button type="button" className="pbf-button pbf-button-primary" onClick={continueFromFiles} disabled={!sourceReady}>Continue</button>}{step === 4 && <button type="button" className="pbf-button pbf-button-primary" onClick={() => setFlowStep(5)} disabled={!previewApproval}>Continue</button>}</div></footer>
-        {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">Publish Unit 1?</h2><p>Students will be able to open this Unit immediately.</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'} source is ready</li><li>Student preview is approved</li><li>Later Units remain private</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { setPublishConfirmOpen(false); void publish(); }}>Publish Unit 1</button></div></div></div>}
+        <footer className="pbf-footer"><p>{step === 1 ? 'Your original files stay on your device until you choose to upload.' : `Step ${step} of 5 · ${selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}`}</p><div className="pbf-actions"><button type="button" className="pbf-button pbf-button-quiet" onClick={() => setFlowStep(Math.max(1, step - 1) as PdfFlowStep)} disabled={step === 1 || fullAttachmentBusy}>Back</button>{step === 1 && <button type="button" className="pbf-button pbf-button-primary" onClick={() => void continueFromFiles()} disabled={!sourceReady || fullAttachmentBusy}>{fullAttachmentBusy ? 'Attaching…' : 'Continue'}</button>}{step === 4 && <button type="button" className="pbf-button pbf-button-primary" onClick={() => setFlowStep(5)} disabled={!previewApproval}>Continue</button>}</div></footer>
+         {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students will be able to open every approved Unit: ${approvedComponentUnitKeys.join(', ')}.` : 'Students will be able to open this Unit immediately.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : 'Publish Unit 1'}</button></div></div></div>}
         {migrationOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-migration-title"><h2 id="pbf-migration-title">Change your PDF setup</h2><p>This creates a reviewed draft. Your current Book stays safe while you check the new setup.</p><div className="pbf-surface" style={{ marginTop: 15 }}><div className="pbf-row"><strong>Current setup</strong><span>{selectedMode === 'full' ? 'One complete PDF' : 'Several component PDFs'}</span></div><div className="pbf-row"><strong>New setup</strong><span>{selectedMode === 'full' ? 'Several component PDFs' : 'One complete PDF'}</span></div><div className="pbf-row"><strong>Page connections</strong><span className="pbf-status is-warn">Review before publishing</span></div></div><div className="pbf-callout is-warn" style={{ marginTop: 13 }}><strong>Your current Book stays safe</strong><span>The new setup is prepared and confirmed separately. Nothing is published by changing setup.</span></div><div className="pbf-overlay-footer"><button type="button" className="pbf-button" disabled={migrationBusy} onClick={() => setMigrationOpen(false)}>Cancel</button><button type="button" className="pbf-button pbf-button-primary" disabled={migrationBusy} onClick={() => void confirmSetupChange()}>{migrationBusy ? 'Preparing reviewed change…' : 'Prepare reviewed change'}</button></div></div></div>}
-        {message.text && <div className={`pbf-toast is-${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>{message.text}</div>}
       </div>
     </section>
   );

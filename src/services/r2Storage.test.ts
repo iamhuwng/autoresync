@@ -193,7 +193,6 @@ describe('R2StorageService compatibility facade', () => {
     it.each([
         ['listening audio temp', (service: R2StorageService, file: File) => service.uploadAudio(file, 'listening-audio'), 'listening_audio_temp'],
         ['test audio temp', (service: R2StorageService, file: File) => service.uploadAudio(file, 'audio'), 'test_audio_temp'],
-        ['test image temp', (service: R2StorageService, file: File) => service.uploadImage(file, 'images'), 'test_image_temp'],
         ['avatar permanent', (service: R2StorageService, file: File) => service.uploadAvatar(file, 'user-123'), 'avatar_permanent'],
         ['announcement attachment permanent', (service: R2StorageService, file: File) => service.uploadFilePermanent(file, 'announcements'), 'announcement_attachment_permanent'],
         ['book cover permanent', (service: R2StorageService, file: File) => service.uploadFileAtKey(file, 'book-covers/book-123/cover'), 'book_cover_permanent'],
@@ -224,7 +223,6 @@ describe('R2StorageService compatibility facade', () => {
     });
 
     it.each([
-        ['image', (service: R2StorageService, file: File, url: string) => service.uploadImageReplacement(file, url), 'test_image_temp'],
         ['audio', (service: R2StorageService, file: File, url: string) => service.uploadAudioReplacement(file, url), 'test_audio_temp'],
         ['book cover', (service: R2StorageService, file: File, url: string) => service.uploadFileAtKey(file, url), 'book_cover_permanent'],
     ] satisfies Array<[string, (service: R2StorageService, file: File, current: string) => Promise<UploadResult>, UploadOperationKind]>)
@@ -243,6 +241,43 @@ describe('R2StorageService compatibility facade', () => {
             expect(client.upload).toHaveBeenCalledWith(file, operationKind, undefined);
             expect(client.upload.mock.calls[0]).not.toContain(browserKey);
         });
+
+    it.each([
+        ['image', (service: R2StorageService, file: File) => service.uploadImage(file)],
+        ['image replacement', (service: R2StorageService, file: File) => service.uploadImageReplacement(file, 'https://pub.example/images/old.png')],
+    ] satisfies Array<[string, (service: R2StorageService, file: File) => Promise<UploadResult>]>)(
+        'returns a durable %s only after the move succeeds', async (_label, invoke) => {
+            const client = makeClient();
+            const tempKey = 'temp/images/user-123/image.png';
+            const permanentKey = 'images/user-123/image.png';
+            const permanentUrl = `https://pub.example/${permanentKey}`;
+            client.upload.mockResolvedValue(makeResult(tempKey, true));
+            client.move.mockResolvedValue({ success: true, newKey: permanentKey, newUrl: permanentUrl });
+            const service = new R2StorageService(client);
+            const file = new File(['image'], 'image.png', { type: 'image/png' });
+
+            await expect(invoke(service, file)).resolves.toEqual({
+                ...makeResult(tempKey, true),
+                url: permanentUrl,
+                streamUrl: permanentUrl,
+                directUrl: permanentUrl,
+                key: permanentKey,
+                isTemp: false,
+            });
+            expect(client.upload).toHaveBeenCalledWith(file, 'test_image_temp', undefined);
+            expect(client.move).toHaveBeenCalledWith(tempKey);
+        },
+    );
+
+    it('rejects an image upload when promotion fails', async () => {
+        const client = makeClient();
+        client.upload.mockResolvedValue(makeResult('temp/images/user-123/image.png', true));
+        client.move.mockResolvedValue({ success: false, newKey: '', newUrl: '' });
+        const service = new R2StorageService(client);
+
+        await expect(service.uploadImage(new File(['image'], 'image.png', { type: 'image/png' })))
+            .rejects.toThrow('Image move failed');
+    });
 
     it('preserves avatar singleton intent even with an existing URL', async () => {
         const client = makeClient();

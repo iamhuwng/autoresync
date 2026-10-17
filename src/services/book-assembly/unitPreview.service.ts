@@ -6,15 +6,21 @@ import type {
 import type {
   BookAssemblyPreviewApprovalReference,
   BookUnitCandidate,
+  SourceSetCandidate,
   TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
 import type { BookAssemblyCandidateRecord } from './unitAssembly.types';
 import type { BookRuntimeCandidatePreviewProjection } from '../book-delivery/bookDelivery.types';
+import type { BookRuntimeStudentDocumentRequest } from '../book-delivery/bookDelivery.types';
+import type { ComponentStudentDocument } from './componentStudentDocument.types';
+import { projectCombinedPageContext } from './componentStudentDocument.types';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
 
 export type UnitPreviewFailureCode =
   | 'candidate-not-previewable'
   | 'candidate-unit-mismatch'
   | 'source-not-previewable'
+  | 'student-document-not-previewable'
   | 'activity-missing'
   | 'activity-context-mismatch'
   | 'activity-projection-invalid'
@@ -46,6 +52,8 @@ export interface CandidateUnitPreviewProjection {
   readonly sourceSetRevision: number;
   readonly unitKey: string;
   readonly registryVersion: string;
+  /** Opaque approval input; never part of the Runtime document request or page map. */
+  readonly studentDocumentContentFingerprint?: string;
   readonly activities: readonly UnitPreviewActivity[];
   /** Absent only on stale pre-upgrade fixtures/responses; the UI fails closed. */
   readonly runtime?: BookRuntimeCandidatePreviewProjection;
@@ -64,6 +72,8 @@ export interface BookAssemblyPreviewApprovalRecord extends BookAssemblyPreviewAp
   readonly inputFingerprint: string;
   /** Trusted server-only fingerprints of the full answer-bearing Activity payloads. */
   readonly canonicalActivityFingerprintsByKey: Readonly<Record<string, string>>;
+  /** Required for component publication; identical on every Unit approval in one activation. */
+  readonly wholeActivationFingerprint?: string;
 }
 
 const stable = (value: unknown): string => {
@@ -87,6 +97,116 @@ const fingerprint = (value: unknown): string => {
 export const canonicalActivityPayloadFingerprint = (
   activity: NormalizedActivity,
 ): string => fingerprint(activity);
+
+/**
+ * Stable approval identity for one complete activation.  Keep this projection
+ * deliberately explicit: transport/request metadata and approval lifecycle
+ * fields must never change the content identity.
+ */
+export interface WholeActivationApprovalUnit {
+  readonly unitKey: string;
+  readonly candidateId: string;
+  readonly candidateRevision: number;
+  readonly manifestFingerprint: string;
+  readonly manifest: BookAssemblyCandidateRecord['manifest'];
+}
+
+export interface WholeActivationApprovalActivity {
+  readonly unitKey: string;
+  readonly activityKey: string;
+  readonly activityId: string;
+  readonly activityCandidateId: string;
+  readonly activityCandidateRevision: number;
+  readonly activityPayloadFingerprint: string;
+}
+
+export interface WholeActivationApprovalInput {
+  readonly ownerId: string;
+  readonly bookId: string;
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+  readonly activationReceipt: MaterialBookSetupActivation;
+  readonly units: readonly WholeActivationApprovalUnit[];
+  readonly studentDocument: ComponentStudentDocument;
+  readonly registryVersion: string;
+  readonly activities: readonly WholeActivationApprovalActivity[];
+}
+
+export interface WholeActivationApprovalQualification {
+  readonly wholeActivationFingerprint: string;
+  readonly units: readonly {
+    readonly unitKey: string;
+    readonly candidateId: string;
+    readonly candidateRevision: number;
+  }[];
+}
+
+const exactKeys = (left: readonly string[], right: readonly string[]): boolean => (
+  left.length === right.length && new Set(left).size === left.length
+    && new Set(right).size === right.length && left.every((key) => right.includes(key))
+);
+
+export const wholeActivationApprovalFingerprint = (input: WholeActivationApprovalInput): string => {
+  const unitKeys = input.units.map((unit) => unit.unitKey);
+  const receiptUnitKeys = input.activationReceipt.unitCandidates.map((unit) => unit.unitKey);
+  const activityKeys = input.activities.map((activity) => `${activity.unitKey}:${activity.activityKey}`);
+  const receiptActivityKeys = input.activationReceipt.activities
+    .map((activity) => `${activity.unitKey}:${activity.activityKey}`);
+  const manifestActivityKeys: string[] = [];
+  const pageGroupKeys: string[] = [];
+  for (const entry of input.units) {
+    const selected = entry.manifest?.units.filter((unit) => unit.unitKey === entry.unitKey) ?? [];
+    if (selected.length !== 1) throw new Error('whole_activation_unit_relationship_invalid');
+    for (const slot of selected[0]!.activitySlots) {
+      manifestActivityKeys.push(`${entry.unitKey}:${slot.activityKey}`);
+      if (slot.pageGroupKeys.length !== new Set(slot.pageGroupKeys).size
+        || slot.pageGroupKeys.some((pageGroupKey) => !selected[0]!.pageGroups
+          .some((group) => group.pageGroupKey === pageGroupKey
+            && group.activityKeys.includes(slot.activityKey)))) {
+        throw new Error('whole_activation_page_group_relationship_invalid');
+      }
+    }
+    for (const group of selected[0]!.pageGroups) {
+      const key = `${entry.unitKey}:${group.pageGroupKey}`;
+      if (pageGroupKeys.includes(key)
+        || group.activityKeys.length !== new Set(group.activityKeys).size
+        || group.activityKeys.some((activityKey) => !selected[0]!.activitySlots
+          .some((slot) => slot.activityKey === activityKey && slot.pageGroupKeys.includes(group.pageGroupKey)))) {
+        throw new Error('whole_activation_page_group_relationship_invalid');
+      }
+      pageGroupKeys.push(key);
+    }
+  }
+  if (!exactKeys(unitKeys, receiptUnitKeys)
+    || !exactKeys(activityKeys, receiptActivityKeys)
+    || !exactKeys(activityKeys, manifestActivityKeys)) {
+    throw new Error('whole_activation_relationship_invalid');
+  }
+  return fingerprint({
+  schemaVersion: 1,
+  ownerId: input.ownerId,
+  bookId: input.bookId,
+  bookRevision: input.bookRevision,
+  sourceSetRevision: input.sourceSetRevision,
+  sourceSet: input.sourceSet,
+  activationReceipt: {
+    schemaVersion: input.activationReceipt.schemaVersion,
+    ownerId: input.activationReceipt.ownerId,
+    bookId: input.activationReceipt.bookId,
+    bookRevision: input.activationReceipt.bookRevision,
+    sourceSetRevision: input.activationReceipt.sourceSetRevision,
+    sourceSet: input.activationReceipt.sourceSet,
+    unitCandidates: input.activationReceipt.unitCandidates,
+    studentDocument: input.activationReceipt.studentDocument,
+    activities: input.activationReceipt.activities,
+  },
+  units: input.units,
+  studentDocument: input.studentDocument,
+  registryVersion: input.registryVersion,
+  activities: input.activities,
+});
+};
 
 const nonEmpty = (value: string): boolean => value.trim().length > 0;
 
@@ -117,6 +237,10 @@ const sourceDescription = (unit: BookUnitCandidate, activityKey: string): string
 const runtimeProjection = (
   candidate: BookAssemblyCandidateRecord,
   unit: BookUnitCandidate,
+  studentDocument?: {
+    readonly descriptor: ComponentStudentDocument;
+    readonly request: BookRuntimeStudentDocumentRequest;
+  },
 ): BookRuntimeCandidatePreviewProjection => {
   const manifest = candidate.manifest!;
   const selectedSources = manifest.sourceSet.sources.filter((source) => (
@@ -142,7 +266,7 @@ const runtimeProjection = (
         ? { kind: 'all' as const, pages: [] }
         : { kind: 'pages' as const, pages: sourceScopes.get(source.sourceKey) ?? [] },
     }));
-  const requests = sources.map((source) => ({
+  const requests = studentDocument ? [studentDocument.request] : sources.map((source) => ({
     sourceKey: source.sourceKey,
     sourceVersionId: source.sourceVersionId,
     opaqueRouteKey: source.sourceKey,
@@ -163,9 +287,11 @@ const runtimeProjection = (
         contextMode: slot.contextRequirement,
         sourceContext: {
           available: groups.length > 0,
-          description: sourceDescription(unit, slot.activityKey),
+          description: studentDocument ? 'Combined student document.' : sourceDescription(unit, slot.activityKey),
           pageGroupKeys: slot.pageGroupKeys,
-          sourcePageScopes: groups.map((group) => ({ sourceKey: group.sourceKey, pages: group.pages })),
+          sourcePageScopes: studentDocument
+            ? []
+            : groups.map((group) => ({ sourceKey: group.sourceKey, pages: group.pages })),
         },
       };
     });
@@ -183,10 +309,18 @@ const runtimeProjection = (
       entitlementBasis: 'candidate-preview' as const,
     },
     outline: Object.freeze(manifest.nodes.map((node) => ({ ...node }))),
-    sourceSet: { strategy: manifest.sourceSet.sourceStrategy, sources: Object.freeze(sources) },
+    sourceSet: studentDocument
+      ? { strategy: 'component_pdfs' as const, sources: [] }
+      : { strategy: manifest.sourceSet.sourceStrategy, sources: Object.freeze(sources) },
     documentRequests: Object.freeze(requests),
+    pageGroups: studentDocument
+      ? projectCombinedPageContext(studentDocument.descriptor, unit.pageGroups)
+      : Object.freeze(unit.pageGroups.map((group) => Object.freeze({
+        pageGroupKey: group.pageGroupKey,
+        combinedPhysicalPages: Object.freeze([...group.pages]),
+      }))),
     activities: Object.freeze(placements),
-    actionFlags: { canAutosave: false, canSubmit: false, canReview: false },
+    actionFlags: { canAutosave: false as const, canSubmit: false as const, canReview: false as const },
   });
 };
 
@@ -197,11 +331,18 @@ export const createCandidateUnitPreview = (input: {
   readonly sourceIsPreviewReady: (source: TrustedBookSourceVersionProjection) => boolean;
   readonly activitiesByKey: Readonly<Record<string, NormalizedActivity>>;
   readonly registryVersion: string;
+  readonly studentDocument?: {
+    readonly descriptor: ComponentStudentDocument;
+    readonly request: BookRuntimeStudentDocumentRequest;
+  };
 }): CandidateUnitPreviewProjection => {
   if (!nonEmpty(input.registryVersion)) {
     throw new UnitPreviewError('activity-projection-invalid', 'Preview requires a renderer registry version.');
   }
   const unit = selectedUnit(input.candidate);
+  if (input.candidate.manifest!.sourceSet.sourceStrategy === 'component_pdfs' && !input.studentDocument) {
+    throw new UnitPreviewError('student-document-not-previewable', 'Combined student document is unavailable for preview.');
+  }
   const sourceById = new Map(input.sourceVersions.map((source) => [source.sourceVersionId, source]));
   for (const source of input.candidate.manifest!.sourceSet.sources) {
     const authority = sourceById.get(source.sourceVersionId);
@@ -226,7 +367,9 @@ export const createCandidateUnitPreview = (input: {
           projection: projectStudentActivity(activity),
           sourceContext: {
             available: slot.contextRequirement !== 'required' || slot.pageGroupKeys.length > 0,
-            description: sourceDescription(unit, slot.activityKey),
+            description: input.studentDocument
+              ? 'Combined student document.'
+              : sourceDescription(unit, slot.activityKey),
           },
         };
       } catch {
@@ -241,12 +384,29 @@ export const createCandidateUnitPreview = (input: {
     sourceSetRevision: input.candidate.sourceSetRevision,
     unitKey: unit.unitKey,
     registryVersion: input.registryVersion,
+    ...(input.studentDocument ? { studentDocumentContentFingerprint: fingerprint({
+      descriptorRevision: input.studentDocument.descriptor.descriptorRevision,
+      sha256Hex: input.studentDocument.descriptor.sha256Hex,
+      compositionFingerprint: input.studentDocument.descriptor.compositionFingerprint,
+    }) } : {}),
     activities: Object.freeze(activities),
-    runtime: runtimeProjection(input.candidate, unit),
+    runtime: runtimeProjection(input.candidate, unit, input.studentDocument),
   });
 };
 
-export const previewInputFingerprint = (preview: CandidateUnitPreviewProjection): string => fingerprint(preview);
+export const previewInputFingerprint = (preview: CandidateUnitPreviewProjection): string => fingerprint({
+  ...preview,
+  runtime: preview.runtime ? {
+    ...preview.runtime,
+    documentRequests: preview.runtime.documentRequests.map((request) => (
+      'expectedByteLength' in request ? { expectedByteLength: request.expectedByteLength } : {
+        sourceKey: request.sourceKey,
+        sourceVersionId: request.sourceVersionId,
+        localPageScope: request.localPageScope,
+      }
+    )),
+  } : undefined,
+});
 
 export const createPreviewApproval = (input: {
   readonly approvalId: string;
@@ -256,6 +416,7 @@ export const createPreviewApproval = (input: {
   readonly expiresAt: string;
   readonly preview: CandidateUnitPreviewProjection;
   readonly canonicalActivitiesByKey: Readonly<Record<string, NormalizedActivity>>;
+  readonly wholeActivationFingerprint?: string;
 }): BookAssemblyPreviewApprovalRecord => {
   const approvedAt = Date.parse(input.approvedAt);
   const expiresAt = Date.parse(input.expiresAt);
@@ -296,5 +457,8 @@ export const createPreviewApproval = (input: {
     registryVersion: input.preview.registryVersion,
     inputFingerprint: previewInputFingerprint(input.preview),
     canonicalActivityFingerprintsByKey,
+    ...(input.wholeActivationFingerprint
+      ? { wholeActivationFingerprint: input.wholeActivationFingerprint }
+      : {}),
   });
 };

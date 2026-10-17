@@ -146,14 +146,6 @@ const setup = (source = sourceBook()) => {
         return kind + '-' + next;
       };
     })(),
-    documentIssuer: {
-      issue: async () => ({
-        resourcePath: '/v1/book-delivery/documents/document-1',
-        expiresAt: '2026-08-05T00:05:00.000Z',
-        byteSize: 120,
-        contentType: 'application/pdf' as const,
-      }),
-    },
   });
   return { store, service };
 };
@@ -209,12 +201,12 @@ describe('public Book reference/fork vertical', () => {
       role: 'student',
       selection: activitySelection('source-version-old'),
     })).rejects.toMatchObject({ code: 'selection-version-mismatch' });
-    await expect(service.prepareRuntime({
+    await expect(service.resolve({
       actorId: 'student-2',
       role: 'student',
       selection: activitySelection(),
       entitlementId: 'entitlement-1',
-    })).rejects.toMatchObject({ code: 'entitlement-invalid' });
+    })).resolves.toMatchObject({ publicState: 'tree-public-runtime-blocked' });
     await expect(service.reference({
       ...mutationInput(),
       actorId: 'teacher-2',
@@ -223,22 +215,6 @@ describe('public Book reference/fork vertical', () => {
       code: 'fork-disabled',
       statusCode: 503,
     });
-  });
-
-  it('prepares an opaque document only for an entitled student-safe runtime', async () => {
-    const { service } = setup();
-    const runtime = await service.prepareRuntime({
-      actorId: 'student-1',
-      role: 'student',
-      selection: activitySelection(),
-      entitlementId: 'entitlement-1',
-    });
-    expect(runtime).toMatchObject({
-      bookId: 'source-book',
-      sourceVersionId: 'source-pdf-1',
-      document: { resourcePath: '/v1/book-delivery/documents/document-1' },
-    });
-    expect(JSON.stringify(runtime)).not.toMatch(/objectKey|provider|privateAsset|bucket|answerKey|teacherNotes/i);
   });
 
   it('creates a pinned reference without creating a teacher-owned fork', async () => {

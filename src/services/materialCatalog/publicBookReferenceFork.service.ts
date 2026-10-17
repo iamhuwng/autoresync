@@ -4,7 +4,6 @@ import {
   type PublicBookActivitySelectionSnapshot,
   type PublicBookCanonicalForkResult,
   type PublicBookCatalogView,
-  type PublicBookDocumentIssuer,
   type PublicBookEntitlementSnapshot,
   type PublicBookLegacyReferenceMigrationInput,
   type PublicBookReferenceForkMutationInput,
@@ -17,7 +16,6 @@ import {
   type PublicBookReferenceSource,
   type PublicBookReferenceStatus,
   type PublicBookReferenceMigrationReceipt,
-  type PublicBookRuntimePreparation,
   type PublicBookRuntimeState,
   type PublicBookSelectionRequest,
   type PublicBookSelectionSnapshot,
@@ -349,22 +347,6 @@ const sourceIdentityFor = (
   })),
   sourceVersionId: source.source.sourceVersionId,
 });
-
-const assertIssuedDocument = (
-  issuer: PublicBookDocumentIssuer,
-  document: Awaited<ReturnType<PublicBookDocumentIssuer['issue']>>,
-): void => {
-  if (!document || typeof document.resourcePath !== 'string'
-    || !document.resourcePath.startsWith('/v1/book-delivery/documents/')
-    || /(?:objectKey|private|r2|gs:\/\/|https?:\/\/|\.pdf)/iu.test(document.resourcePath)
-    || typeof document.expiresAt !== 'string'
-    || document.contentType !== 'application/pdf'
-    || !Number.isSafeInteger(document.byteSize)
-    || document.byteSize <= 0
-    || !issuer) {
-    throw new PublicBookReferenceForkError('document-authority-invalid', 'Document authority was not opaque.', 503);
-  }
-};
 
 const referenceStatusFor = (
   reference: PublicBookReferenceRecord,
@@ -821,41 +803,6 @@ export const createPublicBookReferenceForkService = (
         selectionKind: input.selection.kind,
         selectionPath: [...input.selection.selectionPath],
         newerVersionAvailable: false,
-      };
-    },
-
-    async prepareRuntime(input): Promise<PublicBookRuntimePreparation> {
-      if (input.role !== 'student') {
-        throw new PublicBookReferenceForkError('student-runtime-only', 'Public runtime preparation requires a student identity.', 403);
-      }
-      const resolved = await resolveProjection(input);
-      if (resolved.publicState !== 'playable'
-        || !entitlementMatches(resolved.entitlement, {
-          actorId: input.actorId,
-          source: resolved.source,
-          selection: input.selection,
-        })) {
-        throw new PublicBookReferenceForkError('entitlement-invalid', 'Student entitlement does not authorize this public Book selection.', 403);
-      }
-      if (!options.documentIssuer) {
-        throw new PublicBookReferenceForkError('runtime-not-configured', 'Book Delivery document preparation is not configured.', 503);
-      }
-      const document = await options.documentIssuer.issue({
-        studentId: input.actorId,
-        bookId: resolved.source.bookId,
-        sourceVersionId: resolved.source.source.sourceVersionId,
-        entitlementId: resolved.entitlement.entitlementId,
-        contextId: resolved.entitlement.contextId,
-      });
-      assertIssuedDocument(options.documentIssuer, document);
-      return {
-        bookId: resolved.source.bookId,
-        title: resolved.source.title,
-        sourceVersionId: resolved.source.source.sourceVersionId,
-        activityIds: resolved.activities.map((activity) => activity.activityId),
-        selectionPath: [...input.selection.selectionPath],
-        sourceContext: resolved.context,
-        document,
       };
     },
 

@@ -47,6 +47,7 @@ const NODE_LABELS: Record<MaterialBookNodeType, string> = {
   'note-placeholder': 'Note Placeholder',
   section: 'Section',
   chapter: 'Chapter',
+  unit: 'Unit',
   test: 'Test',
 };
 

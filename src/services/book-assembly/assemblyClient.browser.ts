@@ -13,6 +13,7 @@ import type {
 } from './unitAssembly.types';
 import type { LoadedCurrentAssemblyDraft } from './unitAssembly.repository';
 import type { BookAssemblyPublicationStatus } from './publicationTransaction.service';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -46,6 +47,25 @@ export interface CreateAssemblyCandidateInput {
   readonly expectedSourceSetRevision: number;
   readonly unitKey: string;
   readonly manifest: BookAssemblyManifestCandidate;
+}
+
+export interface ActivateComponentPdfInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+  readonly manifest: BookAssemblyManifestCandidate;
+  readonly studentDocumentSourceVersionId?: string;
+  readonly preparation?: {
+    readonly componentReservationIds: readonly string[];
+    readonly studentDocumentReservationId: string;
+  };
+  readonly activatedAt: string;
+}
+
+export interface ComponentPdfActivationClient {
+  activateComponentPdf(input: ActivateComponentPdfInput): Promise<MaterialBookSetupActivation>;
 }
 
 export interface ReplaceAssemblyCandidateInput extends CreateAssemblyCandidateInput {
@@ -90,6 +110,17 @@ export interface BookAssemblyMigrationClient {
   migrate(input: MigrateAssemblySourceStrategyInput): Promise<BookAssemblyMutationResult>;
   confirm(input: ConfirmAssemblySourceStrategyMigrationInput): Promise<BookAssemblyMutationResult>;
   discardMigration(input: DiscardAssemblySourceStrategyMigrationInput): Promise<BookAssemblyMutationResult>;
+  rebase?(input: RebaseAssemblyCandidateInput): Promise<BookAssemblyMutationResult>;
+}
+
+export interface RebaseAssemblyCandidateInput {
+  readonly operationId: string;
+  readonly bookId: string;
+  readonly unitKey: string;
+  readonly candidateId: string;
+  readonly expectedBookRevision: number;
+  readonly expectedSourceSetRevision: number;
+  readonly expectedCandidateRevision: number;
 }
 
 export interface PublishSourceStrategySuccessorInput {
@@ -256,6 +287,35 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
     }
     return publicationResult(parsed);
   };
+  const requestActivation = async (input: ActivateComponentPdfInput): Promise<MaterialBookSetupActivation> => {
+    const token = (await options.getIdToken()).trim();
+    if (!token) throw new BookAssemblyClientError('unauthorized', 401);
+    const url = `${base}/book-assembly/books/${encodeURIComponent(input.bookId)}/component-pdf-activation`;
+    const { bookId: _bookId, ...payload } = input;
+    const response = await (options.fetchImpl ?? globalThis.fetch)(url, {
+      method: 'POST',
+      credentials: 'omit',
+      redirect: 'error',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': input.operationId,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (response.redirected || (response.url && response.url !== url)) {
+      throw new BookAssemblyClientError('response_binding_mismatch', 502);
+    }
+    const parsed = await body(response);
+    if (!response.ok || parsed.status !== 'activated' || !parsed.receipt
+      || typeof parsed.receipt !== 'object' || Array.isArray(parsed.receipt)) {
+      throw new BookAssemblyClientError(
+        typeof parsed.code === 'string' ? parsed.code : `http_${response.status}`,
+        response.status,
+      );
+    }
+    return parsed.receipt as unknown as MaterialBookSetupActivation;
+  };
   const validateCreateInput = (input: CreateAssemblyCandidateInput): void => {
     safeOperationId(input.operationId);
     safeId(input.bookId, 'book_id');
@@ -274,9 +334,72 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
     safeRevision(input.targetSourceSetRevision, 'target_source_set_revision');
   };
   return {
+    async discoverDrafts(bookId: string): Promise<readonly LoadedCurrentAssemblyDraft[]> {
+      safeId(bookId, 'book_id');
+      const token = (await options.getIdToken()).trim();
+      if (!token) throw new BookAssemblyClientError('unauthorized', 401);
+      const url = `${base}/book-assembly/books/${encodeURIComponent(bookId)}/drafts`;
+      const response = await (options.fetchImpl ?? globalThis.fetch)(url, {
+        method: 'GET', credentials: 'omit', redirect: 'error',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.redirected || (response.url && response.url !== url)) {
+        throw new BookAssemblyClientError('response_binding_mismatch', 502);
+      }
+      const parsed = await body(response);
+      if (!response.ok || parsed.status !== 'loaded' || !Array.isArray(parsed.drafts)
+        || parsed.drafts.length > 32) {
+        throw new BookAssemblyClientError(typeof parsed.code === 'string' ? parsed.code : `http_${response.status}`, response.status);
+      }
+      try {
+        return parsed.drafts.map((draft: LoadedCurrentAssemblyDraft) => {
+          const candidate = draft?.candidate;
+          if (!candidate || candidate.bookId !== bookId || candidate.bookRevision !== 0
+            || candidate.sourceSetRevision !== 0 || candidate.lifecycle !== 'validated'
+            || !Number.isSafeInteger(candidate.revision) || candidate.revision < 1
+            || !candidate.manifest || candidate.manifest.bookId !== bookId
+            || !Array.isArray(candidate.manifest.units) || !candidate.manifest.sourceSet
+            || !candidate.manifest.units.some((unit) => unit.unitKey === candidate.unitKey)
+            || typeof candidate.updatedAt !== 'string') throw new Error('invalid_response');
+          safeId(candidate.candidateId, 'candidate_id');
+          safeId(candidate.ownerId, 'owner_id');
+          safeId(candidate.unitKey, 'unit_key');
+          const savedKeys = savedActivityKeysByUnit(draft.savedActivityKeysByUnit);
+          for (const [unitKey, keys] of Object.entries(savedKeys)) {
+            const unit = candidate.manifest.units.find((entry) => entry.unitKey === unitKey);
+            if (!unit || !Array.isArray(unit.activitySlots) || new Set(keys).size !== keys.length
+              || keys.some((key) => !unit.activitySlots.some((slot) => slot.activityKey === key))) {
+              throw new Error('invalid_response');
+            }
+          }
+          return { candidate, savedActivityKeysByUnit: savedKeys };
+        });
+      } catch {
+        throw new BookAssemblyClientError('invalid_response', 502);
+      }
+    },
     create(input: CreateAssemblyCandidateInput) {
       validateCreateInput(input);
       return request(`/book-assembly/books/${encodeURIComponent(input.bookId)}/units/${encodeURIComponent(input.unitKey)}/candidates`, 'POST', { ...input });
+    },
+    activateComponentPdf(input: ActivateComponentPdfInput) {
+      safeOperationId(input.operationId);
+      safeId(input.bookId, 'book_id');
+      safeRevision(input.expectedBookRevision, 'expected_book_revision');
+      safeRevision(input.expectedSourceSetRevision, 'expected_source_set_revision');
+      if ((input.studentDocumentSourceVersionId === undefined) === (input.preparation === undefined)) {
+        throw new BookAssemblyClientError('component_pdf_activation_authority_invalid', 422);
+      }
+      if (input.studentDocumentSourceVersionId !== undefined) {
+        safeId(input.studentDocumentSourceVersionId, 'student_document_source_version_id');
+      } else {
+        if (!input.preparation || input.preparation.componentReservationIds.length < 2) {
+          throw new BookAssemblyClientError('component_pdf_activation_authority_invalid', 422);
+        }
+        input.preparation.componentReservationIds.forEach((reservationId) => safeId(reservationId, 'component_reservation_id'));
+        safeId(input.preparation.studentDocumentReservationId, 'student_document_reservation_id');
+      }
+      return requestActivation(input);
     },
     replace(input: ReplaceAssemblyCandidateInput) {
       validateCreateInput(input);
@@ -309,6 +432,20 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
       safeRevision(input.expectedMigrationCandidateRevision, 'expected_migration_candidate_revision');
       const { bookId, unitKey, migrationCandidateId, ...payload } = input;
       return request(`/book-assembly/books/${encodeURIComponent(bookId)}/units/${encodeURIComponent(unitKey)}/migrations/${encodeURIComponent(migrationCandidateId)}`, 'DELETE', payload);
+    },
+    rebase(input: RebaseAssemblyCandidateInput) {
+      safeOperationId(input.operationId);
+      safeId(input.bookId, 'book_id');
+      safeId(input.unitKey, 'unit_key');
+      safeId(input.candidateId, 'candidate_id');
+      safeRevision(input.expectedBookRevision, 'expected_book_revision');
+      safeRevision(input.expectedSourceSetRevision, 'expected_source_set_revision');
+      safeRevision(input.expectedCandidateRevision, 'expected_candidate_revision');
+      return request(
+        `/book-assembly/books/${encodeURIComponent(input.bookId)}/units/${encodeURIComponent(input.unitKey)}/candidates/${encodeURIComponent(input.candidateId)}/rebase`,
+        'POST',
+        { ...input },
+      );
     },
     publishSuccessor(input: PublishSourceStrategySuccessorInput) {
       safeOperationId(input.operationId);

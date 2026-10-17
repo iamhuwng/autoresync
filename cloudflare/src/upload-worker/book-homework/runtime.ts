@@ -28,7 +28,10 @@ import {
   FirebaseRestBookAssemblyPublicationRepository,
   type BookAssemblyPublicationRepositoryEnv,
 } from '../book-assembly/publication-repository.ts';
-import { createBookHomeworkCanonicalResolver } from './canonical-resolver.ts';
+import {
+  createBookHomeworkCanonicalResolver,
+  type BookHomeworkCanonicalResolver,
+} from './canonical-resolver.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import {
@@ -126,6 +129,72 @@ const requireProductionConfig = (env: BookHomeworkTrustedRuntimeEnv): void => {
   if (required.some((key) => typeof env[key] !== 'string' || !String(env[key]).trim())) {
     throw new BookHomeworkRuntimeUnavailableError();
   }
+};
+
+const requireProductionCanonicalReadConfig = (env: BookHomeworkTrustedRuntimeEnv): void => {
+  const required = [
+    'FIREBASE_DB_URL',
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_WEB_API_KEY',
+    'BOOK_HOMEWORK_SERVICE_IDENTITY',
+    'BOOK_HOMEWORK_GOOGLE_SA_KEY',
+    'BOOK_ASSEMBLY_SERVICE_IDENTITY',
+    'BOOK_ASSEMBLY_GOOGLE_SA_KEY',
+  ] as const;
+  if (required.some((key) => typeof env[key] !== 'string' || !String(env[key]).trim())) {
+    throw new BookHomeworkRuntimeUnavailableError();
+  }
+};
+
+/** Read-only production resolver used by preview routes; it has no saga or repository write port. */
+export const createBookHomeworkProductionCanonicalResolver = (
+  env: BookHomeworkTrustedRuntimeEnv,
+  ownerId: string,
+  options: Pick<BookHomeworkProductionRuntimeOptions, 'fetchImpl'> = {},
+): BookHomeworkCanonicalResolver => {
+  requireProductionCanonicalReadConfig(env);
+  const fetchImpl = resolveBookHomeworkProductionFetch(options.fetchImpl);
+  const homeworkTokenProvider = createFirebaseClaimTokenProvider({
+    serviceAccountJson: String(env.BOOK_HOMEWORK_GOOGLE_SA_KEY),
+    serviceIdentity: String(env.BOOK_HOMEWORK_SERVICE_IDENTITY),
+    firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
+    firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
+    fetchImpl,
+  });
+  const authorityReader = new FirebaseRtdbRestClient({
+    env,
+    fetchImpl,
+    firebaseAuthToken: true,
+    getFirebaseAuthToken: () => homeworkTokenProvider({
+      service: 'book_homework', ownerId,
+    }),
+  });
+  const assemblyTokenProvider = createFirebaseClaimTokenProvider({
+    serviceAccountJson: String(env.BOOK_ASSEMBLY_GOOGLE_SA_KEY),
+    serviceIdentity: String(env.BOOK_ASSEMBLY_SERVICE_IDENTITY),
+    firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
+    firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
+    fetchImpl,
+  });
+  const publicationReader = new FirebaseRestBookAssemblyPublicationRepository({
+    env,
+    fetchImpl,
+    ownerId,
+    getFirebaseAuthToken: (bookId, ownerId) => assemblyTokenProvider({
+      service: 'book_assembly_publication',
+      bookId,
+      ownerId,
+    }),
+  });
+  return createBookHomeworkCanonicalResolver({
+    readPublicationScope: (bookId) => publicationReader.readScope(bookId),
+    classReader: async (classId) => {
+      const value = await authorityReader.readValue(`classes/${classId}`);
+      return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as never
+        : null;
+    },
+  });
 };
 
 const createProductionDependencies = (
@@ -267,15 +336,20 @@ export const createBookHomeworkProductionContextResolver = (
       firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY ?? '').trim(),
       fetchImpl,
     });
-    const publications = new FirebaseRestBookAssemblyPublicationRepository({
-      env,
-      fetchImpl,
-      getFirebaseAuthToken: (bookId) => assemblyTokenProvider({
-        service: 'book_assembly_publication',
-        bookId,
-        ownerId: assemblyIdentity,
-      }),
-    });
+    const publications = {
+      readScope: (bookId: string, ownerId: string) => (
+        new FirebaseRestBookAssemblyPublicationRepository({
+          env,
+          fetchImpl,
+          ownerId,
+          getFirebaseAuthToken: (scopedBookId, scopedOwnerId) => assemblyTokenProvider({
+            service: 'book_assembly_publication',
+            bookId: scopedBookId,
+            ownerId: scopedOwnerId,
+          }),
+        }).readScope(bookId)
+      ),
+    };
     const exactActivityVersions = new FirebaseRestExactPublishedActivityVersionReader({
       env: {
         ...env,

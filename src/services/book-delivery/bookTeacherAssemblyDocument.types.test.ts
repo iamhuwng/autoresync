@@ -62,6 +62,18 @@ describe('bookTeacherAssemblyDocument.types', () => {
     }
   });
 
+  it('creates the source-free combined terminal without descriptor identity', () => {
+    expect(createBookTeacherAssemblyDocumentRoute({
+      workerOrigin: 'https://worker.example', bookId: 'book-1', unitKey: 'unit-1',
+      candidateId: 'candidate-1', candidateRevision: 3,
+      sourceKey: 'student-document', sourceVersionId: 'student-document',
+      sourceSetRevision: 4, bookRevision: 7, expectedByteLength: 123,
+    })).toEqual({
+      url: 'https://worker.example/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/3/student-document/4/7',
+      sourceVersionId: 'student-document', expectedByteLength: 123,
+    });
+  });
+
   it('accepts only an exact current non-discarded candidate/source binding', () => {
     expect(isCurrentBookTeacherAssemblyDocument(projection(), current())).toBe(true);
 

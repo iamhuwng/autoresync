@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   materialCatalogIds,
@@ -10,6 +10,10 @@ import {
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
 import type { MaterialBooksRepository } from '../../services/materialCatalog/materialBooks.service';
 import { PublicBookReviewPanel } from './PublicBookReviewPanel';
+
+const { announcements } = vi.hoisted(() => ({ announcements: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
+vi.mock('../modern', async (importOriginal) => ({ ...await importOriginal<typeof import('../modern')>(), toast: announcements }));
+beforeEach(() => vi.clearAllMocks());
 
 const NOW = '2026-06-02T00:00:00.000Z';
 
@@ -152,6 +156,20 @@ const renderPanel = (repository = createRepo(), onTrackAction = vi.fn()) => {
 };
 
 describe('PublicBookReviewPanel', () => {
+  it('announces persisted approval truthfully and removes the pending row when readiness refresh fails', async () => {
+    const user = userEvent.setup();
+    const repository = createRepo();
+    repository.refreshPublicReadiness = vi.fn(async () => { throw new Error('offline'); });
+    renderPanel(repository);
+    await screen.findByText('Pending Public Book');
+    await user.type(screen.getByLabelText(/Approval reason for Pending Public Book/i), 'Reviewed public content.');
+    await user.click(screen.getByRole('button', { name: /Approve Pending Public Book/i }));
+    await waitFor(() => expect(announcements.warning).toHaveBeenCalledWith('Pending Public Book approved for public library. Book availability could not be refreshed.'));
+    expect((await repository.readBook('book-1'))?.visibility).toBe('public-library-published');
+    expect(repository.updates).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Approve Pending Public Book/i })).not.toBeInTheDocument();
+    expect(announcements.error).not.toHaveBeenCalled();
+  });
   it('loads pending public Books and approves with a required visible reason field', async () => {
     const user = userEvent.setup();
     const { repository, onTrackAction } = renderPanel();
@@ -168,7 +186,7 @@ describe('PublicBookReviewPanel', () => {
     await user.click(approveButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/approved for public library/i)).toBeInTheDocument();
+      expect(announcements.success).toHaveBeenCalledWith('Pending Public Book approved for public library.');
     });
 
     expect(repository.writes.map((write) => write.path)).toEqual(
@@ -197,7 +215,7 @@ describe('PublicBookReviewPanel', () => {
     await user.click(rejectButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/rejected from public review/i)).toBeInTheDocument();
+      expect(announcements.success).toHaveBeenCalledWith('Pending Public Book rejected from public review.');
     });
     expect(onTrackAction).toHaveBeenCalledWith('rejectPublicBookReview', { bookId: 'book-1' });
     expect(rejectRepo.removals).toContain('material_catalog/public_book_projections/book-1');
@@ -220,7 +238,7 @@ describe('PublicBookReviewPanel', () => {
     await user.click(returnButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/returned to private/i)).toBeInTheDocument();
+      expect(announcements.success).toHaveBeenCalledWith('Pending Public Book returned to private.');
     });
     expect(onTrackAction).toHaveBeenCalledWith('returnPublicBookToPrivate', { bookId: 'book-1' });
     expect(returnRepo.removals).toContain('material_catalog/public_book_projections/book-1');

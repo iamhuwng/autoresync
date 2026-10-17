@@ -38,6 +38,33 @@ const normalizedActivity = (): NormalizedActivity => {
   return normalizeActivity(editable, { createId: () => `id-${++nextId}` });
 };
 
+const normalizedLongResponseActivity = (): NormalizedActivity => {
+  const editable: EditableActivity = {
+    schemaVersion: 1,
+    title: 'Explain the source evidence',
+    taskProfile: null,
+    presentationMode: 'source-assisted',
+    contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+    instructions: [{ text: 'Explain using the source.' }],
+    stimulus: null,
+    assetRefs: [],
+    interaction: { family: 'long-response', variant: 'essay' },
+    answerRule: { defaultPoints: 2, normalization: 'exact' },
+    interactions: [{
+      prompt: 'Explain the evidence.',
+      rubric: { criteria: ['Evidence'] },
+      sourceAssisted: {
+        questionLabel: '1',
+        accessiblePrompt: 'Explain the evidence in the source.',
+        responseShape: 'long-response',
+        sourceExerciseLabel: 'Exercise 1',
+      },
+    }],
+    scoring: { mode: 'review-required' },
+  };
+  return normalizeActivity(editable, undefined, undefined, { mappedBookPageRefs: ['source:full:page:4'] });
+};
+
 const withoutFingerprint = (
   record: CanonicalPublishedActivityVersionRecord,
 ): Omit<CanonicalPublishedActivityVersionRecord, 'payloadFingerprint'> => {
@@ -310,6 +337,36 @@ describe('canonicalActivityVersion.service', () => {
     (sensitiveActivity.interactions as Array<Record<string, unknown>>)[0]!.answers = ['secret'];
     expect(resultErrors({ ...record, activity: sensitiveActivity })).toEqual(
       expect.arrayContaining([expect.stringContaining('sensitive-field')]),
+    );
+  });
+
+  it('validates normalized long-response rubric only in the authoritative answer key', () => {
+    const activity = normalizedLongResponseActivity();
+    expect(activity.interactions[0]).not.toHaveProperty('rubric');
+    const base = initialRecord();
+    const record = withFingerprint({
+      ...withoutFingerprint(base),
+      activity,
+      projection: projectStudentActivity(activity),
+    });
+    expect(validateCanonicalPublishedActivityVersion(record)).toMatchObject({ valid: true });
+
+    const missingRubric = structuredClone(record) as unknown as Record<string, any>;
+    delete missingRubric.activity.interactions[0].answerKey.rubric;
+    expect(resultErrors(missingRubric)).toEqual(
+      expect.arrayContaining([expect.stringContaining('answerKey.rubric:missing-field')]),
+    );
+
+    const malformedRubric = structuredClone(record) as unknown as Record<string, any>;
+    malformedRubric.activity.interactions[0].answerKey.rubric.criteria = [];
+    expect(resultErrors(malformedRubric)).toEqual(
+      expect.arrayContaining([expect.stringContaining('answerKey.rubric.criteria:array-limit-exceeded')]),
+    );
+
+    const duplicatedEditableRubric = structuredClone(record) as unknown as Record<string, any>;
+    duplicatedEditableRubric.activity.interactions[0].rubric = { criteria: ['Evidence'] };
+    expect(resultErrors(duplicatedEditableRubric)).toEqual(
+      expect.arrayContaining([expect.stringContaining('interactions[0].rubric:unknown-field')]),
     );
   });
 

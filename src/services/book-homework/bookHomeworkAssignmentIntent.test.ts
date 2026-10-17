@@ -72,6 +72,7 @@ const draft = (): BookHomeworkPreviewDraft => {
     createdByCommandId: 'command-1',
     createdAt: '2026-07-28T00:00:00.000Z',
     bindingRevision: 2,
+    studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
   });
   const policy = createDefaultBookHomeworkPolicy(manifest, 'practice');
   const preview = buildBookHomeworkPreview({ source, manifest, policy });
@@ -125,13 +126,19 @@ describe('createBookHomeworkAssignmentIntent', () => {
         publicationRevision: 2,
         manifestVersionId: 'manifest-v1',
       },
+      expectedStudentDocument: {
+        sourceVersionId: 'source-v4',
+        descriptorRevision: 1,
+        sha256Hex: 'a'.repeat(64),
+      },
+      expectedPreviewFingerprint: expect.any(String),
       presentation: { title: 'Preview Book' },
     });
     expect(command).not.toHaveProperty('ownerId');
     expect(command).not.toHaveProperty('createdAt');
     expect(command).not.toHaveProperty('manifest');
     expect(command).not.toHaveProperty('delivery');
-    expect(JSON.stringify(command)).not.toContain('source-4');
+    expect(command.intent.expectedStudentDocument.sourceVersionId).toBe('source-v4');
     expect(JSON.stringify(command)).not.toContain('activity-1-v1');
   });
 

@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { BookRuntimeDeliveryProjection } from '../../services/book-delivery/bookDelivery.types';
-import type { BookHomeworkScheduleDraft } from '../../services/book-homework/bookHomeworkPreview.service';
+import type {
+  BookHomeworkPreviewSource,
+  BookHomeworkScheduleDraft,
+} from '../../services/book-homework/bookHomeworkPreview.service';
+import type { BookHomeworkSelectionTarget } from '../../types/homework.types';
 import BookHomeworkPreviewPanel from './BookHomeworkPreviewPanel';
 import previewStyles from './BookHomeworkPreviewPanel.css?raw';
 
@@ -255,6 +259,51 @@ describe('BookHomeworkPreviewPanel', () => {
     );
 
     expect(screen.getByLabelText('Assignment scope')).toHaveValue('activity:placement-1');
+  });
+
+  it('keeps confirmation invalid until the latest changed target has a matching trusted preview', async () => {
+    let resolveBook!: (value: BookHomeworkPreviewSource) => void;
+    let resolveActivity!: (value: BookHomeworkPreviewSource) => void;
+    const loadTargetPreview = vi.fn((target: BookHomeworkSelectionTarget) => new Promise<BookHomeworkPreviewSource>((resolve) => {
+      if (target.kind === 'book') resolveBook = resolve;
+      else resolveActivity = resolve;
+    }));
+    const onConfirm = vi.fn();
+    render(
+      <BookHomeworkPreviewPanel
+        source={{
+          ...source,
+          initialTarget: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1' },
+        }}
+        loadTargetPreview={loadTargetPreview}
+        renderScheduleEditor={renderScheduleEditor}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: '2026-08-01T12:00' } });
+    fireEvent.change(screen.getByLabelText('Assignment scope'), { target: { value: 'book' } });
+    fireEvent.change(screen.getByLabelText('Assignment scope'), { target: { value: 'activity:placement-1' } });
+    expect(screen.getByRole('button', { name: /confirm preview/i })).toBeDisabled();
+
+    resolveBook({ ...source, initialTarget: { kind: 'book', bookId: 'book-1' } });
+    await Promise.resolve();
+    expect(screen.getByRole('button', { name: /confirm preview/i })).toBeDisabled();
+
+    resolveActivity({
+      ...source,
+      initialTarget: {
+        kind: 'activity', bookId: 'book-1', activityId: 'activity-1', placementId: 'placement-1',
+      },
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm preview/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({
+        selectedTarget: expect.objectContaining({ kind: 'activity', placementId: 'placement-1' }),
+      }),
+    }));
   });
 
   it('filters hidden rules and carries fail-closed mutation intent to the trusted handoff', () => {

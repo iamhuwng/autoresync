@@ -13,7 +13,7 @@ describe('#103 Class Book durable projection storage', () => {
       .toBe('class_book_authority/placements/versions/context-1/2');
     expect(classBookDurablePaths.binding('binding-1')).toBe('book_delivery/bindings/class-course/binding-1');
     expect(classBookDurablePaths.lock('class-1', 'class-placement-1'))
-      .toBe('class_book_authority/locks/class-1/class-placement-1');
+      .toBe('classes/class-1/book_locks/class-placement-1');
     expect(classBookDurablePaths.progress('class-book-progress/class-1/copy-1')).toContain('class_book_authority/progress/');
     expect(classBookDurablePaths.result('class-book-result/class-1/copy-1')).toContain('class_book_authority/results/');
   });

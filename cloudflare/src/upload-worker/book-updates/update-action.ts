@@ -159,6 +159,19 @@ const validateSelections = (
   return { selections: Object.freeze(selections), contexts: Object.freeze([...contexts.values()]) };
 };
 
+/** Shared reviewed replacement intent uses the same placement/choice authority as update actions. */
+export const validateReplacementUpdateSelections = (
+  command: BookUpdateActionCommand,
+  snapshot: BookImpactSnapshot,
+  now: string,
+): readonly BookUpdateActionSelection[] | null => {
+  if (!Array.isArray(command.selections)) return null;
+  if (command.selections.length === 0) return [];
+  const normalized = normalizeSelections(command.selections);
+  if (!normalized) return null;
+  return validateSelections({ ...command, selections: normalized }, snapshot, now)?.selections ?? null;
+};
+
 export const createBookUpdateActionService = (options: {
   readonly snapshots: BookImpactSnapshotRepository;
   readonly actions: BookUpdateActionRepository;
@@ -178,12 +191,15 @@ export const createBookUpdateActionService = (options: {
       || !HASH.test(command.snapshotFingerprint)
       || !IDEMPOTENCY_KEY.test(command.idempotencyKey)
       || typeof command.reason !== 'string'
-      || command.reason.trim().length === 0
       || command.reason.length > BOOK_UPDATE_ACTION_MAX_REASON_LENGTH) {
       return { status: 'blocked', code: 'invalid-request' };
     }
     const normalizedSelections = normalizeSelections(command.selections);
     if (!normalizedSelections) return { status: 'blocked', code: 'invalid-selection' };
+    if (!command.reason.trim() && normalizedSelections.some((selection) =>
+      !['review-only', 'retain-current', 'retain-historical'].includes(selection.choice))) {
+      return { status: 'blocked', code: 'invalid-request' };
+    }
     const requestFingerprint = await sha256({
       actorId: command.actorId,
       bookId: command.bookId,

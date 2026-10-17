@@ -80,7 +80,7 @@ export function assertValidBookHomeworkSagaRecord(
     'publicationId', 'publicationRevision', 'contextId', 'presentation', 'fingerprint', 'requestFingerprint', 'state', 'visibility',
     'recipients', 'recipientCount', 'committedRecipientCount', 'revision', 'createdAt', 'updatedAt',
   ];
-  if (Object.keys(record).some((key) => !required.includes(key) && key !== 'lastError')
+  if (Object.keys(record).some((key) => !required.includes(key) && !['lastError', 'studentDocument', 'targetPreview'].includes(key))
     || required.some((key) => !Object.hasOwn(record, key))) {
     throw new Error('invalid_book_homework_saga_fields');
   }
@@ -108,6 +108,8 @@ export function assertValidBookHomeworkSagaRecord(
     throw new Error('invalid_book_homework_saga_context_identity');
   }
   assertPresentation(record.presentation);
+  if (record.studentDocument !== undefined && !isRecord(record.studentDocument)) throw new Error('invalid_book_homework_saga_student_document');
+  if (record.targetPreview !== undefined && !isRecord(record.targetPreview)) throw new Error('invalid_book_homework_saga_target_preview');
   assertIso(record.createdAt, 'created_at');
   assertIso(record.updatedAt, 'updated_at');
   if (!Array.isArray(record.recipients) || record.recipients.length === 0 || record.recipients.length > MAX_RECIPIENTS) {

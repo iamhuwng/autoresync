@@ -13,7 +13,9 @@
       "book_replacement_sagas/records/$ownerId/$sagaId/.read",
       "book_replacement_sagas/records/$ownerId/$sagaId/.write",
       "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey/.read",
-      "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey/.write"
+      "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey/.write",
+      "book_replacement_sagas/records/$ownerId/$sagaId/contexts/$contextKey/.validate",
+      "book_replacement_sagas/records/$ownerId/$sagaId/contexts/$contextKey/selections/$selectionIndex/.validate"
     ],
     "leastPrivilegePaths": [
       "book_replacement_sagas/records/$ownerId/$sagaId",
@@ -23,11 +25,61 @@
     "recoveryLedgerRoot": "book_replacement_saga_recovery"
   },
   "operations": [
-    { "path": "book_replacement_sagas", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
-    { "path": "book_replacement_sagas", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
-    { "path": "book_replacement_sagas/records/$ownerId/$sagaId", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.a == $sagaId && auth.token.brs.dl >= now" },
-    { "path": "book_replacement_sagas/records/$ownerId/$sagaId", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.a == $sagaId && auth.token.brs.dl >= now && newData.exists() && newData.child('ownerId').val() == $ownerId && newData.child('sagaId').val() == $sagaId && newData.child('schemaVersion').val() == 1 && newData.hasChild('tokenHash') && !newData.hasChild('confirmationToken') && !newData.hasChild('token') && newData.child('stateRevision').isNumber() && ((!data.exists() && newData.child('stateRevision').val() == 0) || (data.exists() && newData.child('stateRevision').val() == data.child('stateRevision').val() + 1 && newData.child('bookId').val() == data.child('bookId').val() && newData.child('planId').val() == data.child('planId').val() && newData.child('requestFingerprint').val() == data.child('requestFingerprint').val() && newData.child('tokenHash').val() == data.child('tokenHash').val() && newData.child('deltaFingerprint').val() == data.child('deltaFingerprint').val() && newData.child('snapshotFingerprint').val() == data.child('snapshotFingerprint').val() && newData.child('adapterFingerprint').val() == data.child('adapterFingerprint').val() && newData.child('acceptedAt').val() == data.child('acceptedAt').val()))" },
-    { "path": "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey", "rule": ".read", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "false" },
-    { "path": "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey", "rule": ".write", "merge": "replace-exact-deny", "requiresExistingRule": false, "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.b == $bookId && auth.token.brs.k == $idempotencyKey && auth.token.brs.dl >= now && newData.exists() && !data.exists() && newData.child('sagaId').isString() && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('requestFingerprint').isString()" }
+    {
+      "path": "book_replacement_sagas",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_sagas",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_sagas/records/$ownerId/$sagaId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.a == $sagaId && auth.token.brs.dl >= now"
+    },
+    {
+      "path": "book_replacement_sagas/records/$ownerId/$sagaId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.a == $sagaId && auth.token.brs.dl >= now && newData.exists() && newData.child('ownerId').val() == $ownerId && newData.child('sagaId').val() == $sagaId && newData.child('schemaVersion').val() == 1 && newData.hasChild('tokenHash') && !newData.hasChild('confirmationToken') && !newData.hasChild('token') && newData.child('stateRevision').isNumber() && ((!data.exists() && newData.child('stateRevision').val() == 0) || (data.exists() && newData.child('stateRevision').val() == data.child('stateRevision').val() + 1 && newData.child('bookId').val() == data.child('bookId').val() && newData.child('planId').val() == data.child('planId').val() && newData.child('requestFingerprint').val() == data.child('requestFingerprint').val() && newData.child('tokenHash').val() == data.child('tokenHash').val() && newData.child('deltaFingerprint').val() == data.child('deltaFingerprint').val() && newData.child('snapshotFingerprint').val() == data.child('snapshotFingerprint').val() && newData.child('adapterFingerprint').val() == data.child('adapterFingerprint').val() && newData.child('acceptedAt').val() == data.child('acceptedAt').val())) && newData.child('selectionFingerprint').isString() && newData.child('selectionFingerprint').val().matches(/^[a-f0-9]{64}$/) && newData.child('reason').isString() && newData.child('reason').val().length <= 500 && (!data.exists() || (newData.child('selectionFingerprint').val() === data.child('selectionFingerprint').val() && newData.child('reason').val() === data.child('reason').val())) && (newData.child('state').val() !== 'completed' || (data.child('state').val() === 'contexts-pending' && (newData.child('retiredByteHandoff/status').val() === 'retained' || newData.child('retiredByteHandoff/status').val() === 'not-required')))"
+    },
+    {
+      "path": "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_replacement_sagas/by_idempotency/$ownerId/$bookId/$idempotencyKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.brs.s == true && auth.token.brs.o == $ownerId && auth.token.brs.b == $bookId && auth.token.brs.k == $idempotencyKey && auth.token.brs.dl >= now && newData.exists() && !data.exists() && newData.child('sagaId').isString() && newData.child('ownerId').val() == $ownerId && newData.child('bookId').val() == $bookId && newData.child('requestFingerprint').isString()"
+    },
+    {
+      "path": "book_replacement_sagas/records/$ownerId/$sagaId/contexts/$contextKey",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.child('contextKey').val() === $contextKey && newData.child('stateRevision').isNumber() && ((newData.child('state').val() === 'pending' && (!data.exists() ? newData.child('stateRevision').val() === 0 : data.child('state').val() === 'pending' && newData.child('stateRevision').val() === data.child('stateRevision').val())) || (newData.child('state').val() === 'retired-revoked' && data.exists() && ((data.child('state').val() === 'pending' && newData.child('stateRevision').val() === data.child('stateRevision').val() + 1) || (data.child('state').val() === 'retired-revoked' && newData.child('stateRevision').val() === data.child('stateRevision').val())))) && (newData.parent().parent().child('state').val() !== 'completed' || newData.child('state').val() === 'retired-revoked') && (!data.exists() || (newData.child('contextKind').val() === data.child('contextKind').val() && newData.child('classification').val() === data.child('classification').val() && newData.child('lifecycle').val() === data.child('lifecycle').val() && newData.child('status').val() === data.child('status').val() && newData.child('operationId').val() === data.child('operationId').val()))"
+    },
+    {
+      "path": "book_replacement_sagas/records/$ownerId/$sagaId/contexts/$contextKey/selections/$selectionIndex",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.child('contextKey').val() === $contextKey && newData.child('placementId').isString() && newData.child('choice').isString() && (!data.parent().parent().parent().parent().exists() || (data.exists() && newData.child('contextKey').val() === data.child('contextKey').val() && newData.child('placementId').val() === data.child('placementId').val() && newData.child('choice').val() === data.child('choice').val() && newData.child('replacementDeadline').val() === data.child('replacementDeadline').val()))"
+    }
   ]
 }

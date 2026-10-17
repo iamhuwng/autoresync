@@ -10,7 +10,10 @@ import type {
 import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/publication-repository.ts';
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
-import { createTrustedBookDeliveryPublication } from '../book-delivery/worker.ts';
+import {
+  createTrustedBookDeliveryPublication,
+  resolveTrustedBookDeliveryStudentDocument,
+} from '../book-delivery/worker.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 import {
   CourseBookCommandError,
@@ -195,6 +198,7 @@ export const createProductionCourseBookCommand = (env: WorkerEnv) => {
         }
         return createBookDeliveryProjectionResolver({
           repository: deliveryRepository, allowedAdapterContexts: ['course'],
+          resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
         }).resolve({
           recipientId: input.studentId, contextId: input.placement.courseMaterialId,
           actor: { uid: input.studentId },
@@ -217,13 +221,16 @@ export const resolveCurrentCourseBook = async (env: WorkerEnv, uid: string, cour
     read.readValue(`course_book_authority/releases/${placement.courseId}/${placement.moduleId}/${uid}`),
     read.readValue('system_flags'),
   ]) as [Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null];
-  if (course?.ownerId !== placement.ownerId || course?.archivedAt || enrollment?.status !== 'active'
+  // This is the existing-delivery resolver. Course archive blocks issuance in
+  // the placement command, while already-issued pinned deliveries stay usable.
+  if (course?.ownerId !== placement.ownerId || enrollment?.status !== 'active'
     || release?.released !== true || flags?.restore_in_progress === true || flags?.course_book_rollback === true) {
     throw new Error('course_book_resolution_denied');
   }
   const repository = new FirebaseRestBookDeliveryRepository({ env });
   return createBookDeliveryProjectionResolver({
     repository, allowedAdapterContexts: ['course'],
+    resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
   }).resolve({
     recipientId: uid, contextId: courseMaterialId, actor: { uid },
   });

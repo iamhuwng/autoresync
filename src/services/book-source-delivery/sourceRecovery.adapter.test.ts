@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeStatus,
   BookSourceUploadAccountState,
   BookSourceVersionStorageIdentity,
 } from '../../types/bookSource.types';
@@ -20,8 +23,26 @@ const storage = (sourceVersionId = 'source-1'): BookSourceVersionStorageIdentity
   byteSize: 10,
 });
 
-const account = (ownerId = 'teacher-1', sourceVersionId = 'source-1'): BookSourceUploadAccountState => {
+const account = (
+  ownerId = 'teacher-1',
+  sourceVersionId = 'source-1',
+  safety: {
+    readonly purpose?: BookSourcePurpose;
+    readonly studentSafeStatus?: BookSourceStudentSafeStatus;
+  } = {},
+): BookSourceUploadAccountState => {
   const identity = storage(sourceVersionId);
+  const purpose = safety.purpose ?? 'book-source';
+  const studentSafeStatus = safety.studentSafeStatus ?? 'ready';
+  const studentSafeDecision: BookSourceStudentSafeDecision | undefined = studentSafeStatus === 'unreviewed'
+    ? undefined
+    : {
+      decidedBy: ownerId,
+      decidedAt: '2026-08-11T00:02:00.000Z',
+      sourceVersionId,
+      sha256Hex: identity.checksum.value,
+      reasonCode: studentSafeStatus === 'rejected' ? 'invalid-document' : 'teacher-reviewed',
+    };
   return {
     revision: 1,
     capacity: {
@@ -46,7 +67,11 @@ const account = (ownerId = 'teacher-1', sourceVersionId = 'source-1'): BookSourc
         privateBucketId: identity.privateBucketId,
         providerObjectKey: identity.providerObjectKey,
         kind: 'initial',
+        purpose,
+        studentSafeStatus,
+        ...(studentSafeDecision === undefined ? {} : { studentSafeDecision }),
         byteSize: identity.byteSize,
+        physicalPageCount: 4,
         originalFilename: 'lesson.pdf',
         expectedChecksum: identity.checksum,
         createdAt: '2026-08-11T00:00:00.000Z',
@@ -54,6 +79,22 @@ const account = (ownerId = 'teacher-1', sourceVersionId = 'source-1'): BookSourc
         status: 'verified_completed',
         verifiedStorage: identity,
         completedAt: '2026-08-11T00:01:00.000Z',
+      },
+    },
+    assemblyBooks: {
+      'book-1': {
+        [sourceVersionId]: {
+          ownerId,
+          bookId: 'book-1',
+          sourceKey: 'full',
+          sourceVersionId,
+          checksum: identity.checksum,
+          purpose,
+          studentSafeStatus,
+          ...(studentSafeDecision === undefined ? {} : { studentSafeDecision }),
+          physicalPageCount: 4,
+          verifiedUsable: true,
+        },
       },
     },
   };
@@ -76,6 +117,12 @@ describe('Book Source recovery authority', () => {
       sourceKey: 'full',
       available: true,
       storage: storage(),
+      checksum: storage().checksum,
+      purpose: 'book-source',
+      studentSafeStatus: 'ready',
+      studentSafeDecision: expect.objectContaining({ sourceVersionId: 'source-1', sha256Hex: 'a'.repeat(64) }),
+      physicalPageCount: 4,
+      verifiedUsable: true,
     });
   });
 
@@ -128,6 +175,90 @@ describe('Book Source recovery authority', () => {
     expect(approvedDeletion.missingSourceVersionIds).toEqual(['source-1']);
     expect(approvedDeletion.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'source-version-approved-removed' }),
+    ]));
+  });
+
+  it.each([
+    ['rejected', { studentSafeStatus: 'rejected' as const }],
+    ['student document', { purpose: 'student-document' as const }],
+  ])('does not expose a %s as a usable Book source', (_label, safety) => {
+    const result = validateBookSourceRecoveryAuthority({
+      uploadAccounts: { 'account-1': account('teacher-1', 'source-1', safety) },
+      sourceVersionIds: ['source-1'],
+      availability: { 'source-1': true },
+      requireUsableBookSource: true,
+    });
+
+    expect(result.missingSourceVersionIds).toEqual(['source-1']);
+    expect(result.authorities.get('source-1')?.available).toBe(false);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-not-usable' }),
+    ]));
+  });
+
+  it.each([
+    ['missing projection', (value: BookSourceUploadAccountState) => {
+      const { assemblyBooks: _assemblyBooks, ...withoutProjection } = value;
+      return withoutProjection;
+    }, 'source-projection-missing'],
+    ['malformed projection', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      assemblyBooks: { 'book-1': { 'source-1': {
+        ...value.assemblyBooks?.['book-1']?.['source-1'], unexpected: true,
+      } } },
+    }), 'invalid-source-account'],
+    ['missing checksum', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      assemblyBooks: { 'book-1': { 'source-1': (() => {
+        const { checksum: _checksum, ...withoutChecksum } = value.assemblyBooks?.['book-1']?.['source-1'] ?? {};
+        return withoutChecksum;
+      })() } },
+    }), 'invalid-source-account'],
+    ['mismatched checksum', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      assemblyBooks: { 'book-1': { 'source-1': {
+        ...value.assemblyBooks?.['book-1']?.['source-1'],
+        checksum: { algorithm: 'sha-256' as const, value: 'b'.repeat(64) },
+      } } },
+    }), 'invalid-source-account'],
+    ['mismatched projection source key', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      assemblyBooks: { 'book-1': { 'source-1': {
+        ...value.assemblyBooks?.['book-1']?.['source-1'],
+        sourceKey: 'other-source',
+      } } },
+    }), 'invalid-source-account'],
+    ['hash-mismatched authority', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      operations: { ...value.operations, 'reservation-1': {
+        ...value.operations['reservation-1'],
+        studentSafeDecision: {
+          ...value.operations['reservation-1'].studentSafeDecision!,
+          sha256Hex: 'b'.repeat(64),
+        },
+      } },
+    }), 'invalid-source-account'],
+    ['stale authority', (value: BookSourceUploadAccountState) => ({
+      ...value,
+      operations: { ...value.operations, 'reservation-1': {
+        ...value.operations['reservation-1'],
+        studentSafeDecision: {
+          ...value.operations['reservation-1'].studentSafeDecision!,
+          sourceVersionId: 'other-source',
+        },
+      } },
+    }), 'invalid-source-account'],
+  ] as const)('fails closed on %s', (_label, mutate, diagnosticCode) => {
+    const result = validateBookSourceRecoveryAuthority({
+      uploadAccounts: { 'account-1': mutate(account()) },
+      sourceVersionIds: ['source-1'],
+      availability: { 'source-1': true },
+      requireUsableBookSource: true,
+    });
+
+    expect(result.missingSourceVersionIds).toEqual(['source-1']);
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: diagnosticCode }),
     ]));
   });
 });

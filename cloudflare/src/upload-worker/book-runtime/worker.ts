@@ -87,6 +87,12 @@ export interface BookRuntimeWorkerHandlersOptions {
     readonly result: BookRuntimeCommandResult;
     readonly env: BookRuntimeWorkerEnv;
   }) => Promise<void>;
+  /** Projects a committed terminal tuple into the bounded result indexes. */
+  readonly projectBookResult?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeWorkerEnv;
+  }) => Promise<void>;
   /**
    * Additive #92 seam.  This callback consumes an already accepted terminal
    * result; failures are isolated so integrity cannot affect submission,
@@ -215,6 +221,19 @@ export const createBookRuntimeWorkerHandlers = (
     }
   };
 
+  const projectBookResult = async (
+    binding: BookDeliveryBinding,
+    result: BookRuntimeCommandResult,
+    env: BookRuntimeWorkerEnv,
+  ): Promise<void> => {
+    if (!options.projectBookResult
+      || !result.attempt
+      || !result.result
+      || !result.completion
+      || !result.index) return;
+    await options.projectBookResult({ binding, result, env });
+  };
+
   const linkIntegrityReport = (
     binding: BookDeliveryBinding,
     result: BookRuntimeCommandResult,
@@ -289,6 +308,9 @@ export const createBookRuntimeWorkerHandlers = (
             && replayed.completion
             && replayed.index) {
             await projectHomeworkCompletion(binding, replayed, input.env);
+          }
+          if (replayed.status === 'replayed') {
+            await projectBookResult(binding, replayed, input.env);
           }
           if (replayed.status === 'replayed') {
             await linkIntegrityReport(binding, replayed, input.env);
@@ -379,7 +401,7 @@ export const createBookRuntimeWorkerHandlers = (
         if (result.status === 'invalid') {
           throw new BookRuntimeWorkerError('runtime_submission_invalid', 409);
         }
-        score = result.status === 'scored'
+        score = binding.context.kind === 'public' ? undefined : result.status === 'scored'
           ? result
           : { status: 'review_required' };
       }
@@ -407,6 +429,15 @@ export const createBookRuntimeWorkerHandlers = (
         && result.completion
         && result.index) {
         await projectHomeworkCompletion(binding, result, input.env);
+      }
+      if (options.projectBookResult
+        && payload.commandKind === 'submit'
+        && (result.status === 'accepted' || result.status === 'replayed')
+        && result.attempt
+        && result.result
+        && result.completion
+        && result.index) {
+        await projectBookResult(binding, result, input.env);
       }
       if (payload.commandKind === 'submit'
         && (result.status === 'accepted' || result.status === 'replayed')) {
@@ -526,7 +557,102 @@ export const createBookRuntimeWorkerHandlers = (
     }
   };
 
-  return { command, readDraft };
+  const readTerminal = async (input: {
+    readonly request: Request;
+    readonly env: BookRuntimeWorkerEnv;
+    readonly uid: string;
+    readonly bindingId: string;
+    readonly bindingRevision: string;
+    readonly contextId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: string;
+    readonly interactionId: string;
+  }) => {
+    try {
+      if (!options.repository?.listTerminalTuples || !options.resolveBinding) {
+        throw new BookRuntimeWorkerError('book_runtime_terminal_reader_unavailable', 503);
+      }
+      const bindingRevision = Number(input.bindingRevision);
+      const activityVersion = Number(input.activityVersion);
+      if (!Number.isSafeInteger(bindingRevision) || bindingRevision <= 0
+        || !Number.isSafeInteger(activityVersion) || activityVersion <= 0) {
+        throw new BookRuntimeWorkerError('runtime_terminal_address_invalid', 400);
+      }
+      const readInput: BookRuntimeDraftReadInput = {
+        bindingId: input.bindingId,
+        bindingRevision,
+        contextId: input.contextId,
+        placementId: input.placementId,
+        activityId: input.activityId,
+        activityVersion,
+        interactionId: input.interactionId,
+      };
+      const [actor, binding] = await Promise.all([
+        readActor({ uid: input.uid, env: input.env }),
+        options.resolveBinding({
+          bindingId: input.bindingId,
+          recipientId: input.uid,
+          contextId: input.contextId,
+          env: input.env,
+        }),
+      ]);
+      await assertNoRuntimeRecoveryHold({
+        repository: options.repository,
+        recipientId: input.uid,
+        contextId: input.contextId,
+      });
+      const context = await authorizeRuntimeDraftRead(
+        actor,
+        readInput,
+        binding,
+        schedulePolicy,
+        now(),
+        options.resolveActivity
+          ? async (targetInput) => {
+            const activity = await options.resolveActivity?.({
+              binding: targetInput.binding,
+              placementId: targetInput.target.placementId,
+              activityId: targetInput.target.activityId,
+              activityVersion: targetInput.target.activityVersion,
+              interactionId: targetInput.target.interactionId,
+              env: input.env,
+            });
+            return activity?.interactions.some((interaction) =>
+              interaction.interactionId === targetInput.target.interactionId) ?? false;
+          }
+          : undefined,
+      );
+      const terminals = await options.repository.listTerminalTuples({
+        recipientId: context.actorUid,
+        contextId: context.binding.context.contextId,
+        placementId: context.placementId,
+        activityId: context.activityId,
+        activityVersion: context.activityVersion,
+        bindingId: context.binding.bindingId,
+        bindingRevision: context.binding.revision,
+        limit: 50,
+      });
+      const latest = terminals.at(-1);
+      return latest
+        ? json({
+          status: 'present',
+          attemptId: latest.attempt.attemptId,
+          resultStatus: latest.result.status,
+        })
+        : json({ status: 'absent' });
+    } catch (error) {
+      if (error instanceof BookRuntimeAuthorizationError || error instanceof BookRuntimeWorkerError) {
+        return json({ code: error.code }, error.status);
+      }
+      if (error instanceof BookRuntimeRepositoryError) {
+        return json({ code: error.code }, 409);
+      }
+      return json({ code: 'book_runtime_terminal_read_failed' }, 500);
+    }
+  };
+
+  return { command, readDraft, readTerminal };
 };
 
 export default createBookRuntimeWorkerHandlers;

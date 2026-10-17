@@ -7,9 +7,13 @@ import {
   createClassBookDeliveryProductionAdapter,
   type ClassBookDeliveryPorts,
 } from '../../../cloudflare/src/upload-worker/class-book-placement/production.ts';
+import { createBookRuntimeWorkerHandlers } from '../../../cloudflare/src/upload-worker/book-runtime/worker.ts';
+import { InMemoryBookRuntimeRepository } from '../../../cloudflare/src/upload-worker/book-runtime/repository.ts';
+import type { NormalizedActivity } from '../../types/bookActivity.types';
 
 const now = '2026-08-08T00:00:00.000Z';
 const operation = '11111111-1111-4111-8111-111111111111';
+const laterOperation = '22222222-2222-4222-8222-222222222222';
 
 const placement: ClassBookPlacement = {
   schemaVersion: 1,
@@ -67,26 +71,29 @@ const publication: BookDeliveryPublishedPublicationReference = {
   schedulePolicy: { policyId: 'class-policy', policyRevision: 1, basis: 'immutable-reference' },
 };
 
-const setup = () => {
+const setup = (selected = placement, published = publication) => {
   const repository = new InMemoryBookDeliveryRepository();
   let classRecord: unknown = { createdBy: 'teacher-1', status: 'active' };
   let membership: unknown = { uid: 'student-1', status: 'active' };
-  let current: ClassBookPlacement | null = placement;
+  let lock: unknown = null;
+  let current: ClassBookPlacement | null = selected;
   const ports: ClassBookDeliveryPorts = {
     readValue: async (path) => path.endsWith('/students/student-1') ? membership : classRecord,
     placements: {
       readCurrent: async () => current,
       readCopy: async () => copy,
-      readLock: async () => null,
+      readLock: async () => lock as never,
     },
     deliveryRepository: repository,
-    loadPublication: async () => publication,
+    loadPublication: async () => published,
     now: () => now,
   };
   return {
     adapter: createClassBookDeliveryProductionAdapter(ports),
+    repository,
     setMembership: (value: unknown) => { membership = value; },
     setClass: (value: unknown) => { classRecord = value; },
+    setLock: (value: unknown) => { lock = value; },
     setCurrent: (value: ClassBookPlacement | null) => { current = value; },
   };
 };
@@ -98,7 +105,7 @@ const identity = {
 
 describe('canonical Class Book delivery production adapter', () => {
   it('prepares and resolves only canonical runtime projections from exact frozen authority', async () => {
-    const { adapter } = setup();
+    const { adapter, repository } = setup();
     const prepared = await adapter.prepare({ ...identity, operationId: operation });
     expect(prepared).toMatchObject({
       projectionKind: 'book-runtime-delivery',
@@ -107,6 +114,13 @@ describe('canonical Class Book delivery production adapter', () => {
         contextId: 'class-class-1-copy-copy-1-material-class-material-1-placement-placement-1',
       },
       book: { publicationId: 'publication-1', publicationRevision: 2 },
+    });
+    const binding = await repository.readBinding(prepared.bindingId);
+    expect(binding?.binding.context).toMatchObject({
+      classLocator: {
+        classId: placement.classId, copyId: placement.copyId,
+        classPlacementId: placement.classPlacementId, courseMaterialId: placement.courseMaterialId,
+      },
     });
     expect(prepared).not.toHaveProperty('binding');
     await expect(adapter.resolve({ ...identity, bindingId: prepared.bindingId })).resolves.toEqual(prepared);
@@ -130,5 +144,92 @@ describe('canonical Class Book delivery production adapter', () => {
     const { adapter, setCurrent } = setup();
     setCurrent({ ...placement, pins: { ...placement.pins, publicationRevision: 0 } });
     await expect(adapter.prepare({ ...identity, operationId: operation })).rejects.toBeInstanceOf(ClassBookDeliveryProductionError);
+  });
+
+  it('blocks new issuance after Class archive while preserving existing pinned delivery resolution', async () => {
+    const { adapter, setClass } = setup();
+    const existing = await adapter.prepare({ ...identity, operationId: operation });
+    setClass({ createdBy: 'teacher-1', status: 'archived' });
+    await expect(adapter.resolve({ ...identity, bindingId: existing.bindingId })).resolves.toEqual(existing);
+    await expect(adapter.prepare({ ...identity, operationId: laterOperation }))
+      .rejects.toMatchObject({ code: 'class_book_class_unavailable' });
+  });
+
+  it('denies Class delivery issuance when the placement is locked', async () => {
+    const { adapter, setLock } = setup();
+    setLock({
+      classId: 'class-1', classPlacementId: 'placement-1', state: 'locked', revision: 1,
+      changedBy: 'teacher-1', changedAt: now, operationId: operation,
+    });
+    await expect(adapter.prepare({ ...identity, operationId: operation }))
+      .rejects.toMatchObject({ code: 'class_book_locked' });
+  });
+
+  it('keeps same-Activity placements independent through canonical Class issuance, draft and terminal submission', async () => {
+    const selected = {
+      ...placement, selection: { ...placement.selection, placementIds: ['placement-1', 'placement-2'] },
+      activities: [...placement.activities, { ...placement.activities[0]!, placementId: 'placement-2', order: 1 }],
+    };
+    const published = { ...publication, scope: selected.selection, placements: [
+      ...publication.placements, { ...publication.placements[0]!, placementId: 'placement-2', order: 2 },
+    ] };
+    const { adapter, repository, setClass, setLock, setMembership } = setup(selected, published);
+    const projection = await adapter.prepare({ ...identity, operationId: operation });
+    const binding = (await repository.readBinding(projection.bindingId))!.binding;
+    const runtimeRepository = new InMemoryBookRuntimeRepository();
+    const activity: NormalizedActivity = {
+      schemaVersion: 1, title: 'Shared Activity', taskProfile: null, presentationMode: 'structured',
+      contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] }, instructions: [{ text: 'Answer.' }],
+      stimulus: null, assetRefs: [], interaction: { family: 'text-entry', variant: 'generic' },
+      answerRule: { defaultPoints: 1, normalization: 'exact' }, scoring: { mode: 'auto-where-possible' },
+      interactions: [{ family: 'text-entry', interactionId: 'interaction-1', prompt: 'Answer.',
+        itemIdentities: { family: 'text-entry', itemIds: [] },
+        answerKey: { family: 'text-entry', acceptedAnswers: ['first'] } }],
+    };
+    const authorize = async () => {
+      try { await adapter.resolve({ ...identity, bindingId: binding.bindingId }); return { outcome: 'allowed' as const }; }
+      catch { return { outcome: 'denied' as const, code: 'runtime_class_membership_denied' }; }
+    };
+    const runtime = createBookRuntimeWorkerHandlers({
+      repository: runtimeRepository, resolveBinding: async () => binding, resolveActivity: async () => activity,
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' }),
+      schedulePolicy: { authorize, revalidate: authorize }, requireCanonicalDraftForSubmit: true, now: () => now,
+    });
+    let operationNumber = 3;
+    const command = (placementId: string, commandKind: 'autosave' | 'submit', answer: string, clientRevision: number) => runtime.command({
+      request: new Request('https://worker.test/book-runtime/commands', { method: 'POST',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+          operationId: `00000000-0000-4000-8000-${String(operationNumber++).padStart(12, '0')}`,
+          commandKind, bindingId: binding.bindingId, bindingRevision: binding.revision,
+          contextId: binding.context.contextId, placementId, activityId: 'activity-1', activityVersion: 1,
+          interactionId: 'interaction-1', clientRevision, response: [{ interactionId: 'interaction-1', answer }],
+        }) }), env: {}, uid: 'student-1',
+    });
+    expect((await command('placement-1', 'autosave', 'first', 0)).body.status).toBe('accepted');
+    expect((await command('placement-2', 'autosave', 'second', 0)).body.status).toBe('accepted');
+    const first = await command('placement-1', 'submit', 'first', 1);
+    expect(first.body.status).toBe('accepted');
+    const rows = (placementId: string) => runtimeRepository.listTerminalTuples({ recipientId: 'student-1',
+      contextId: binding.context.contextId, placementId, activityId: 'activity-1', activityVersion: 1, limit: 50 });
+    expect(await rows('placement-2')).toHaveLength(0);
+    const second = await command('placement-2', 'submit', 'second', 1);
+    expect(second.body.status).toBe('accepted');
+    const left = (await rows('placement-1'))[0]!;
+    const right = (await rows('placement-2'))[0]!;
+    expect(left.attempt.attemptId).not.toBe(right.attempt.attemptId);
+    expect(left.attempt.response).toEqual([{ interactionId: 'interaction-1', answer: 'first' }]);
+    expect(right.attempt.response).toEqual([{ interactionId: 'interaction-1', answer: 'second' }]);
+    expect(left.attempt.attemptNumber).toBe(1);
+    expect(right.attempt.attemptNumber).toBe(1);
+    setClass({ createdBy: 'teacher-1', status: 'archived' });
+    expect(await adapter.resolve({ ...identity, bindingId: binding.bindingId })).toEqual(projection);
+    await expect(adapter.prepare({ ...identity, operationId: laterOperation })).rejects.toMatchObject({ code: 'class_book_class_unavailable' });
+    setLock({ classId: 'class-1', classPlacementId: 'placement-1', state: 'locked', revision: 1 });
+    expect((await command('placement-2', 'autosave', 'changed', 1)).init.status).toBe(403);
+    setLock(null);
+    setMembership({ uid: 'student-1', status: 'removed' });
+    expect((await command('placement-1', 'autosave', 'changed', 1)).init.status).toBe(403);
+    expect(await rows('placement-1')).toEqual([left]);
+    expect(await rows('placement-2')).toEqual([right]);
   });
 });

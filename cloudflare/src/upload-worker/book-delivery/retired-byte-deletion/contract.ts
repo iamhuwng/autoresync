@@ -1,6 +1,11 @@
 import type {
+  BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeStatus,
   BookSourceUploadOperation,
   BookSourceVersionStorageIdentity,
+  PublicationRetirementGuard,
 } from '../../../../../src/types/bookSource.types.ts';
 import type { RecoveryEffectContext } from '../../../../../src/services/recoveryEffectGuard.ts';
 import type {
@@ -56,7 +61,21 @@ export interface RetiredByteSourceAuthority {
   readVersion(input: {
     readonly bookId: string;
     readonly sourceVersionId: string;
-  }): Promise<BookSourceVersionStorageIdentity | null>;
+  }): Promise<{
+    readonly storage: BookSourceVersionStorageIdentity;
+    readonly sourceKey: string;
+    readonly ownerId: string;
+    readonly status: BookSourceUploadOperation['status'];
+    readonly purpose: BookSourcePurpose;
+    readonly studentSafeStatus: BookSourceStudentSafeStatus;
+    readonly studentSafeDecision?: BookSourceStudentSafeDecision;
+    readonly retirementGuard?: PublicationRetirementGuard;
+    readonly retiredDeletionId?: string;
+  } | null>;
+}
+
+export interface RetiredBytePublicationGuardAuthority {
+  readCurrentGuard(input: { readonly bookId: string }): Promise<PublicationRetirementGuard | null>;
 }
 
 export interface RetiredByteContextAuthority {
@@ -84,6 +103,16 @@ export interface RetiredByteCapacityAuthority {
     readonly deletionId: string;
     readonly identity: BookSourceVersionStorageIdentity;
     readonly outcome: RetiredByteDeletionOutcome;
+    readonly publicationGuard: PublicationRetirementGuard;
+    readonly sourceRetirement: {
+      readonly ownerId: string;
+      readonly bookId: string;
+      readonly sourceVersionId: string;
+      readonly sourceKey: string;
+      readonly deletionId: string;
+      readonly proof: RetiredByteDeletionOutcome;
+      readonly publicationGuard: PublicationRetirementGuard;
+    };
   }): Promise<'settled' | 'replayed'>;
 }
 
@@ -112,7 +141,14 @@ export interface RetiredByteDeletionRecord {
   readonly ownerId: string;
   readonly bookId: string;
   readonly sourceVersionId: string;
+  readonly sourceKey: string;
   readonly sourceVersionIds: readonly [string];
+  /** Provider-free hash binding retained across the irreversible boundary. */
+  readonly sourceChecksum: BookSourceChecksum;
+  readonly publicationGuard?: PublicationRetirementGuard;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: BookSourceStudentSafeStatus;
+  readonly studentSafeDecision: BookSourceStudentSafeDecision;
   readonly contextPins: readonly {
     readonly contextKey: string;
     readonly operationId: string;
@@ -166,12 +202,12 @@ export interface RetiredByteDeletionRepository {
 export interface RetiredByteDeletionDependencies {
   readonly repository: RetiredByteDeletionRepository;
   readonly sourceVersions: RetiredByteSourceAuthority;
+  readonly publicationGuard?: RetiredBytePublicationGuardAuthority;
   readonly contexts: RetiredByteContextAuthority;
   readonly provider: RetiredByteProvider;
   readonly capacity: RetiredByteCapacityAuthority;
   readonly enabled?: boolean;
   readonly now?: () => Date;
-  readonly newId?: () => string;
   readonly recoveryContext?: RecoveryEffectContext;
 }
 

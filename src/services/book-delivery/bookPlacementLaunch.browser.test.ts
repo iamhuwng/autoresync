@@ -7,13 +7,16 @@ import {
   parseBookPlacementLaunchQuery,
   resolveBookPlacementLaunch,
   createBookHomeworkPlacementBrowserClient,
+  createPublicBookPlacementBrowserClient,
 } from './bookPlacementLaunch.browser';
 
 const courseQuery = '?bookSurface=course&courseMaterialId=course-material-1&bindingId=binding-1';
 const classQuery = '?bookSurface=class&classId=class-1&copyId=copy-1&classPlacementId=placement-1&classCourseMaterialId=course-material-1&bindingId=binding-1';
 const homeworkQuery = '?bookSurface=homework&homeworkId=homework-1';
+const soloQuery = '?bookSurface=solo&contextId=solo-1';
+const publicQuery = '?bookSurface=public&bookId=book-1';
 
-const projection = (kind: 'course' | 'class' | 'homework', contextId: string, overrides: Partial<BookRuntimeDeliveryProjection> = {}): BookRuntimeDeliveryProjection => ({
+const projection = (kind: 'solo' | 'course' | 'class' | 'homework' | 'public', contextId: string, overrides: Partial<BookRuntimeDeliveryProjection> = {}): BookRuntimeDeliveryProjection => ({
   schemaVersion: 1,
   projectionKind: 'book-runtime-delivery',
   bindingId: 'binding-1',
@@ -22,7 +25,7 @@ const projection = (kind: 'course' | 'class' | 'homework', contextId: string, ov
   context: {
     contextId,
     kind,
-    entitlementBasis: kind === 'course' ? 'enrollment' : kind === 'class' ? 'membership' : 'assignment',
+    entitlementBasis: kind === 'solo' ? 'solo' : kind === 'course' ? 'enrollment' : kind === 'class' ? 'membership' : kind === 'homework' ? 'assignment' : 'public-library',
   },
   book: {
     bookId: 'book-1',
@@ -47,10 +50,26 @@ const projection = (kind: 'course' | 'class' | 'homework', contextId: string, ov
 });
 
 describe('Book placement launch boundary', () => {
+  it('accepts one source-free component document but still rejects malformed activity identity', async () => {
+    const launch = parseBookPlacementLaunchQuery(courseQuery);
+    if (launch.kind !== 'course') throw new Error('fixture parse failed');
+    const combined = projection('course', 'course-material-1', {
+      sourceSet: { strategy: 'component_pdfs', sources: [] },
+      documentRequests: [{ opaqueRouteKey: 'opaque-student-document', expectedByteLength: 578 }],
+    });
+    const resolve = (value: unknown) => resolveBookPlacementLaunch({
+      launch, studentId: 'student-1', clients: { course: { current: vi.fn(async () => value) } },
+    });
+    await expect(resolve(combined)).resolves.toMatchObject({ status: 'resolved' });
+    await expect(resolve({ ...combined, activities: [{ placementId: 'bad' }] }))
+      .resolves.toMatchObject({ status: 'blocked', reason: 'projection-kind-mismatch' });
+  });
+
   it.each([
     [courseQuery, 'course'],
     [classQuery, 'class'],
     [homeworkQuery, 'homework'],
+    [soloQuery, 'solo'],
   ])('parses exact valid %s launch identity', (query, kind) => {
     expect(parseBookPlacementLaunchQuery(query)).toMatchObject({ kind, explicit: true });
   });
@@ -208,5 +227,39 @@ describe('Book placement launch boundary', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer token-1' }),
       }),
     );
+  });
+
+
+  it('launches Public Library through the stable operation endpoint and validates the projection', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      expect(body.operationId).toMatch(/^[0-9a-f-]{36}$/u);
+      return new Response(JSON.stringify({ title: 'Public Book', projection: projection('public', 'public_c68cda6320e85f57ab1a8bcfa27b8a0a') }), { status: 200 });
+    });
+    const client = createPublicBookPlacementBrowserClient({ baseUrl: 'https://worker.example.test', fetchImpl, getIdToken: async () => 'token-1', getCurrentUserId: () => 'student-1' });
+    await expect(client.launch('book-1')).resolves.toMatchObject({ title: 'Public Book', projection: { context: { kind: 'public', entitlementBasis: 'public-library' } } });
+    expect(fetchImpl).toHaveBeenCalledWith('https://worker.example.test/v1/book-public/books/book-1/launch', expect.objectContaining({ method: 'POST' }));
+    const retryIds: string[] = []; let retry = 0; const retryClient = createPublicBookPlacementBrowserClient({ baseUrl: 'https://worker.example.test', fetchImpl: vi.fn(async (_url: string, init: RequestInit) => { retryIds.push(JSON.parse(String(init.body)).operationId); retry += 1; return retry === 1 ? new Response('{}', { status: 401 }) : new Response(JSON.stringify({ title: 'Public Book', projection: projection('public', 'public_c68cda6320e85f57ab1a8bcfa27b8a0a') }), { status: 200 }); }), getIdToken: vi.fn(async (force) => force ? 'token-2' : 'token-1'), getCurrentUserId: () => 'student-1' }); await expect(retryClient.launch('book-1')).resolves.toMatchObject({ title: 'Public Book' }); expect(retryIds[0]).toBe(retryIds[1]);
+    const launch = parseBookPlacementLaunchQuery(publicQuery);
+    if (launch.kind !== 'public') throw new Error('fixture parse failed');
+    await expect(resolveBookPlacementLaunch({ launch, studentId: 'student-1', clients: { public: { launch: vi.fn(async () => ({ title: 'Public Book', projection: projection('public', 'public_c68cda6320e85f57ab1a8bcfa27b8a0a') })) } } })).resolves.toMatchObject({ status: 'resolved' });
+    await expect(resolveBookPlacementLaunch({ launch, studentId: 'other-student', clients: { public: { launch: vi.fn(async () => ({ title: 'Public Book', projection: projection('public', 'public_c68cda6320e85f57ab1a8bcfa27b8a0a') })) } } })).resolves.toMatchObject({ status: 'blocked', reason: 'context-mismatch' });
+    await expect(resolveBookPlacementLaunch({ launch, studentId: 'student-1', clients: { public: { launch: vi.fn(async () => ({ title: 'Public Book', projection: projection('solo', 'public_c68cda6320e85f57ab1a8bcfa27b8a0a') })) } } })).resolves.toMatchObject({ status: 'blocked', reason: 'context-mismatch' });
+  });
+
+  it('resolves Solo only from the exact current context and recipient', async () => {
+    const launch = parseBookPlacementLaunchQuery(soloQuery);
+    if (launch.kind !== 'solo') throw new Error('fixture parse failed');
+    const current = vi.fn(async () => projection('solo', 'solo-1'));
+
+    await expect(resolveBookPlacementLaunch({
+      launch, studentId: 'student-1', clients: { solo: { current } },
+    })).resolves.toMatchObject({ status: 'resolved', projection: { context: { kind: 'solo' } } });
+    expect(current).toHaveBeenCalledWith('solo-1');
+    await expect(resolveBookPlacementLaunch({
+      launch,
+      studentId: 'student-1',
+      clients: { solo: { current: vi.fn(async () => projection('solo', 'other-solo')) } },
+    })).resolves.toMatchObject({ status: 'blocked', reason: 'context-mismatch' });
   });
 });

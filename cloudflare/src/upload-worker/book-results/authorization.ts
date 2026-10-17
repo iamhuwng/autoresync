@@ -1,10 +1,13 @@
 import type {
   BookHomeworkReadAuthority,
   BookResultAttemptSummary,
+  BookResultGroupSummary,
+  BookResultContextKind,
   BookResultQueryInput,
   BookResultReadScope,
   BookResultViewer,
   BookResultViewerRole,
+  BookResultContextReadAuthority,
 } from './types.ts';
 
 export interface BookResultViewerRoleResolverInput {
@@ -24,6 +27,10 @@ export type BookResultViewerRoleResolver = (
 
 export interface BookResultHomeworkAuthorityResolverInput {
   readonly viewerUid: string;
+  readonly bookId: string;
+  readonly studentId: string;
+  readonly homeworkId?: string;
+  readonly contextKind?: BookResultContextKind;
   readonly homeworkIds: readonly string[];
   readonly request: Request;
   readonly env: Readonly<Record<string, unknown>>;
@@ -66,10 +73,14 @@ const authorityMap = (
 const assertAuthority = (
   authority: BookHomeworkReadAuthority | null | undefined,
   uid: string,
+  homeworkId: string,
   studentId: string,
+  bookId: string,
+  requireOwner: boolean,
 ): BookHomeworkReadAuthority => {
-  if (!authority || authority.status !== 'current' || authority.ownerId !== uid
-    || (authority.studentIds && !authority.studentIds.includes(studentId))) {
+  if (!authority || authority.homeworkId !== homeworkId || authority.bookId !== bookId
+    || authority.status !== 'current' || (requireOwner && authority.ownerId !== uid)
+    || !Array.isArray(authority.studentIds) || !authority.studentIds.includes(studentId)) {
     throw new BookResultVisibilityError('book_result_homework_not_current_or_owned');
   }
   return authority;
@@ -78,6 +89,7 @@ const assertAuthority = (
 export interface BookResultVisibilityContext {
   readonly viewer: BookResultViewer;
   readonly authorities: Readonly<Record<string, BookHomeworkReadAuthority | null>>;
+  readonly contextAuthority?: BookResultContextReadAuthority;
 }
 
 /**
@@ -93,6 +105,7 @@ export const resolveBookResultVisibility = async (input: {
   readonly scope: BookResultReadScope;
   readonly resolveViewerRole: BookResultViewerRoleResolver;
   readonly resolveHomeworkAuthorities: BookResultHomeworkAuthorityResolver;
+  readonly resolveContextAuthority?: (scope: BookResultReadScope) => Promise<BookResultContextReadAuthority | null>;
 }): Promise<BookResultVisibilityContext> => {
   const role = roleOf(await input.resolveViewerRole({
     uid: input.uid,
@@ -100,10 +113,24 @@ export const resolveBookResultVisibility = async (input: {
     env: input.env,
   }));
   if (!role) throw new BookResultVisibilityError('book_result_viewer_role_unavailable', 503);
+  if (input.scope.contextKind === 'public' || input.scope.contextKind === 'course' || input.scope.contextKind === 'class') {
+    const authority = await input.resolveContextAuthority?.(input.scope);
+    if ((input.scope.contextKind === 'public' && role !== 'student') || !authority || authority.contextKind !== input.scope.contextKind
+      || authority.contextId !== input.scope.contextId || authority.bookId !== input.scope.bookId
+      || authority.studentId !== input.scope.studentId
+      || (role === 'student' ? input.uid !== authority.studentId : input.uid !== authority.ownerId)) {
+      throw new BookResultVisibilityError('book_result_context_not_current_or_owned');
+    }
+    return { viewer: { uid: input.uid, role }, authorities: {}, contextAuthority: authority };
+  }
 
   const homeworkIds = input.scope.homeworkId ? [input.scope.homeworkId] : [];
   const authorities = authorityMap(homeworkIds, await input.resolveHomeworkAuthorities({
     viewerUid: input.uid,
+    bookId: input.scope.bookId,
+    studentId: input.scope.studentId,
+    ...(input.scope.homeworkId ? { homeworkId: input.scope.homeworkId } : {}),
+    ...(input.scope.contextKind ? { contextKind: input.scope.contextKind } : {}),
     homeworkIds,
     request: input.request,
     env: input.env,
@@ -114,13 +141,27 @@ export const resolveBookResultVisibility = async (input: {
       throw new BookResultVisibilityError('book_result_student_owner_required');
     }
     if (input.scope.homeworkId) {
-      assertAuthority(authorities[input.scope.homeworkId], input.uid, input.uid);
+      assertAuthority(
+        authorities[input.scope.homeworkId],
+        input.uid,
+        input.scope.homeworkId,
+        input.uid,
+        input.scope.bookId,
+        false,
+      );
     }
   } else {
     if (!input.scope.homeworkId || input.scope.contextKind === 'solo') {
       throw new BookResultVisibilityError('book_result_teacher_homework_required');
     }
-    assertAuthority(authorities[input.scope.homeworkId], input.uid, input.scope.studentId);
+    assertAuthority(
+      authorities[input.scope.homeworkId],
+      input.uid,
+      input.scope.homeworkId,
+      input.scope.studentId,
+      input.scope.bookId,
+      true,
+    );
   }
 
   return {
@@ -132,10 +173,24 @@ export const resolveBookResultVisibility = async (input: {
 export const assertBookResultVisible = (
   context: BookResultVisibilityContext,
   scope: BookResultQueryInput,
-  summary: Pick<BookResultAttemptSummary, 'studentId' | 'surface' | 'homeworkId'>,
+  summary: Pick<BookResultAttemptSummary, 'bookId' | 'studentId' | 'surface' | 'homeworkId' | 'contextId'>,
 ): void => {
-  if (summary.studentId !== context.viewer.uid && context.viewer.role === 'student') {
+  if (summary.bookId !== scope.bookId || summary.studentId !== scope.studentId) {
+    throw new BookResultVisibilityError('book_result_visibility_unresolved');
+  }
+  if (scope.homeworkId !== undefined && summary.homeworkId !== scope.homeworkId) {
+    throw new BookResultVisibilityError('book_result_visibility_unresolved');
+  }
+  if (context.viewer.role === 'student' && summary.studentId !== context.viewer.uid) {
     throw new BookResultVisibilityError('book_result_student_owner_required');
+  }
+  if (scope.contextKind && summary.surface !== scope.contextKind) {
+    throw new BookResultVisibilityError('book_result_visibility_unresolved');
+  }
+  if (context.contextAuthority) {
+    if (summary.surface !== context.contextAuthority.contextKind || summary.contextId !== context.contextAuthority.contextId
+      || summary.homeworkId) throw new BookResultVisibilityError('book_result_visibility_unresolved');
+    return;
   }
   if (context.viewer.role === 'teacher') {
     if (summary.surface !== 'homework' || !summary.homeworkId || !scope.homeworkId
@@ -145,10 +200,52 @@ export const assertBookResultVisible = (
     assertAuthority(
       context.authorities[summary.homeworkId],
       context.viewer.uid,
+      summary.homeworkId,
       summary.studentId,
+      scope.bookId,
+      true,
     );
   }
   if (summary.surface !== 'solo' && summary.surface !== 'homework') {
     throw new BookResultVisibilityError('book_result_visibility_unresolved');
   }
 }
+
+/** Group indexes have no single surface field; authorize every indexed context. */
+export const assertBookResultGroupVisible = (
+  context: BookResultVisibilityContext,
+  scope: BookResultQueryInput,
+  group: Pick<BookResultGroupSummary, 'bookId' | 'studentId' | 'homeworkId' | 'contexts'>,
+): void => {
+  const invalidIdentity = group.bookId !== scope.bookId
+    || group.studentId !== scope.studentId
+    || group.contexts.length === 0;
+  if (context.contextAuthority) {
+    if (invalidIdentity || group.homeworkId || group.contexts.some((entry) => (
+      entry.surface !== context.contextAuthority!.contextKind || entry.contextId !== context.contextAuthority!.contextId
+    ))) throw new BookResultVisibilityError('book_result_visibility_unresolved');
+    return;
+  }
+  const invalidHomework = scope.homeworkId
+    ? group.homeworkId !== scope.homeworkId
+      || group.contexts.some((entry) => entry.surface !== 'homework' || entry.contextId !== scope.homeworkId)
+    : group.homeworkId !== undefined
+      || group.contexts.some((entry) => entry.surface !== 'solo');
+  if (invalidIdentity || invalidHomework) {
+    throw new BookResultVisibilityError('book_result_visibility_unresolved');
+  }
+  if (context.viewer.role === 'student' && group.studentId !== context.viewer.uid) {
+    throw new BookResultVisibilityError('book_result_student_owner_required');
+  }
+  if (context.viewer.role === 'teacher') {
+    if (!scope.homeworkId) throw new BookResultVisibilityError('book_result_teacher_homework_required');
+    assertAuthority(
+      context.authorities[scope.homeworkId],
+      context.viewer.uid,
+      scope.homeworkId,
+      group.studentId,
+      scope.bookId,
+      true,
+    );
+  }
+};

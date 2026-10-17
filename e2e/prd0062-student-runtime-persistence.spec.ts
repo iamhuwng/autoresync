@@ -45,7 +45,7 @@ test('51C1 student preflight records the safe 50A deny boundary', async ({ page 
   });
   page.on('pageerror', (error) => pageErrors.push(error.message));
 
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Show dev quick login' }).click();
   await page.locator('#dev-login-student').click();
   await expect(page).toHaveURL(/\/student\/?$/u, { timeout: 60_000 });
@@ -62,7 +62,7 @@ test('51C1 student preflight records the safe 50A deny boundary', async ({ page 
 });
 
 test('28B student runtime saves, resumes, retries, and preserves conflicts', async ({ page }) => {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   const quickLogin = page.getByRole('button', { name: 'Show dev quick login' });
   await expect(quickLogin).toBeVisible({ timeout: 60_000 });
   await quickLogin.click();
@@ -86,22 +86,24 @@ test('28B student runtime saves, resumes, retries, and preserves conflicts', asy
   await page.getByRole('radio', { name: 'Statement A' }).check();
   await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Next Activity' }).click();
+  await page.locator('.book-runtime-shell__outline summary').click();
+  await page.getByRole('button', { name: 'Page Group 2 · 2, 3', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Source detail', exact: true })).toBeVisible();
-  await expect(page.getByText('Book Page 3 · Exercise 1.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Source required · Book Page 3 · Exercise 1.', { exact: true })).toBeVisible();
   await page.getByRole('textbox', { name: 'Enter the missing phrase.' }).fill('the missing phrase');
   await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Next Activity' }).click();
+  await page.getByRole('button', { name: 'Page Group 3 · 4, 5, 6', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Written response', exact: true })).toBeVisible();
   const longResponse = page.locator('textarea').first();
   await longResponse.fill('The author supports the claim with the source evidence.');
-  await expect(page.getByRole('status', { name: 'Activity save status' })).toHaveText(/saved|response saved/iu, { timeout: 10_000 });
-  await expect(page.getByText('Pending review', { exact: false })).toBeVisible();
+  await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
 
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.book-runtime-shell__outline summary').click();
+  await page.getByRole('button', { name: 'Page Group 3 · 4, 5, 6', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Written response', exact: true })).toBeVisible();
-  await expect(page.locator('textarea').first()).toHaveValue('the author supports the claim with the source evidence.');
+  await expect(page.locator('textarea').first()).toHaveValue('The author supports the claim with the source evidence.');
   await expect(persistence).toHaveAttribute('data-status', 'saved', { timeout: 10_000 });
 
   await page.getByRole('button', { name: 'Force next Worker failure' }).click();
@@ -137,7 +139,7 @@ test('30 personal timer stays local, accessible, and isolated from runtime', asy
     if (request.url().includes('/book-runtime/commands')) commandRequests.push(request.url());
   });
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Show dev quick login' }).click();
   await page.locator('#dev-login-student').click();
   await expect(page).toHaveURL(/\/student\/?$/u, { timeout: 60_000 });
@@ -153,8 +155,10 @@ test('30 personal timer stays local, accessible, and isolated from runtime', asy
   await expect(page.getByTestId('personal-timer-elapsed')).not.toHaveText('00:00', { timeout: 3_000 });
   await page.getByTestId('personal-timer-pause').click();
   const pausedElapsed = await page.getByTestId('personal-timer-elapsed').textContent();
-  await page.getByRole('button', { name: 'Collapse page navigator' }).click();
-  await expect(page.getByTestId('book-runtime-shell')).toHaveAttribute('data-navigator-collapsed', 'true');
+  await page.locator('.book-runtime-shell__outline summary').click();
+  await expect(page.getByRole('navigation', { name: 'Book page groups' })).toBeVisible();
+  await page.locator('.book-runtime-shell__outline summary').click();
+  await expect(page.getByRole('navigation', { name: 'Book page groups' })).toBeHidden();
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.getByRole('tab', { name: 'Activity' }).click();

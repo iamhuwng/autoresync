@@ -9,17 +9,21 @@ import type {
 import {
   canonicalActivityEvaluationFingerprint,
 } from '../../../../src/services/book-activity/activityEvaluation.types.ts';
+import { isBookActivityEvaluationTarget } from '../../../../src/services/book-activity/activityEvaluation.service.ts';
 import {
   FirebaseRtdbRestClient,
   type RepositoryEnv,
 } from '../listening-authoring/rtdb.ts';
+import {
+  createFirebaseClaimTokenProvider,
+  type BookFirebaseClaimTuple,
+} from '../book-activity-authoring/firebase-token.ts';
 
 export const BOOK_ACTIVITY_EVALUATION_ROOT = 'book_activity_evaluations';
 export const BOOK_ACTIVITY_EVALUATION_MAX_HISTORY = 100;
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 const MAX_SCOPE_BYTES = 512 * 1024;
-const MAX_RETRIES = 5;
 
 interface AggregateScoreFact {
   readonly revision: number;
@@ -33,13 +37,22 @@ interface CorrectionRevisionFact {
   readonly facts: readonly BookActivityCorrectionFact[];
 }
 
+type StoredEvaluationRevision = Omit<BookActivityEvaluationRevision, 'target'> & {
+  readonly target?: BookActivityEvaluationTarget;
+  readonly targetRevisionKey?: 'r000001';
+};
+
 interface DurableEvaluationScope {
-  readonly current?: BookActivityEvaluationRevision;
-  readonly history?: Readonly<Record<string, BookActivityEvaluationRevision>>;
+  readonly current?: { readonly revision: number; readonly revisionKey: string; readonly operationId: string };
+  readonly history?: Readonly<Record<string, StoredEvaluationRevision>>;
   readonly corrections?: Readonly<Record<string, CorrectionRevisionFact>>;
   readonly aggregateScores?: Readonly<Record<string, AggregateScoreFact>>;
   readonly operations?: Readonly<Record<string, BookActivityEvaluationOperation>>;
 }
+
+type HydratedEvaluationScope = Omit<DurableEvaluationScope, 'history'> & {
+  readonly history?: Readonly<Record<string, BookActivityEvaluationRevision>>;
+};
 
 export interface BookActivityEvaluationRepositorySnapshot {
   readonly scopes: Readonly<Record<string, DurableEvaluationScope>>;
@@ -60,7 +73,7 @@ export const bookActivityEvaluationTargetsEqual = (
   === canonicalActivityEvaluationFingerprint(right);
 
 const pathId = (value: string, label: string): string => {
-  if (!ID.test(value)) throw new BookActivityEvaluationRepositoryError(`evaluation_${label}_path_invalid`);
+  if (typeof value !== 'string' || !ID.test(value)) throw new BookActivityEvaluationRepositoryError(`evaluation_${label}_path_invalid`);
   return value;
 };
 
@@ -99,7 +112,52 @@ const record = (value: unknown): Record<string, unknown> | null => (
     : null
 );
 
-const durableScope = (value: unknown): DurableEvaluationScope => {
+// RTDB omits empty arrays; these two arrays have a canonical empty meaning.
+const hydrateRevision = (value: unknown): unknown => {
+  const source = record(value);
+  const facts = record(source?.facts);
+  const target = record(source?.target);
+  return source ? { ...source,
+    ...(facts ? { facts: { ...facts, correctionFacts: facts.correctionFacts === undefined ? [] : facts.correctionFacts } } : {}),
+    ...(target ? { target: { ...target,
+      pageGroupKeys: target.pageGroupKeys === undefined ? [] : target.pageGroupKeys,
+      sourceProvenance: target.sourceProvenance === undefined ? [] : target.sourceProvenance,
+    } } : {}),
+  } : value;
+};
+
+const encodeRevision = (revision: BookActivityEvaluationRevision): StoredEvaluationRevision => {
+  if (revision.revision === 1) return clone(revision);
+  const { target: _target, ...row } = revision;
+  return { ...clone(row), targetRevisionKey: 'r000001' };
+};
+
+const encodeScope = (scope: HydratedEvaluationScope): DurableEvaluationScope => ({
+  ...clone(scope), history: Object.fromEntries(Object.entries(scope.history ?? {})
+    .map(([key, row]) => [key, encodeRevision(row)])),
+});
+
+const decodeRevision = (key: string, value: unknown, anchor: BookActivityEvaluationRevision,
+  requestedTarget: BookActivityEvaluationTarget): BookActivityEvaluationRevision => {
+  const row = record(value);
+  if (!row || (key === 'r000001'
+    ? row.target === undefined || row.targetRevisionKey !== undefined
+    : row.target !== undefined || row.targetRevisionKey !== 'r000001')) {
+    throw new BookActivityEvaluationRepositoryError('evaluation_target_anchor_invalid');
+  }
+  const { targetRevisionKey: _reference, ...fields } = row;
+  return historyRevision(key, { ...fields, target: anchor.target }, requestedTarget);
+};
+
+const targetAnchor = (value: unknown, target: BookActivityEvaluationTarget): BookActivityEvaluationRevision => {
+  const row = record(value);
+  if (!row || row.targetRevisionKey !== undefined || row.target === undefined) {
+    throw new BookActivityEvaluationRepositoryError('evaluation_target_anchor_invalid');
+  }
+  return historyRevision('r000001', row, target);
+};
+
+const durableScope = (value: unknown, target: BookActivityEvaluationTarget): HydratedEvaluationScope => {
   if (value === null || value === undefined) return {};
   const source = record(value);
   if (!source || encodedBytes(source) > MAX_SCOPE_BYTES) {
@@ -117,16 +175,28 @@ const durableScope = (value: unknown): DurableEvaluationScope => {
       }
     }
   }
-  return clone(source as DurableEvaluationScope);
+  const hydrated = clone(source);
+  if (record(hydrated.history)) {
+    const rows = hydrated.history as Record<string, unknown>;
+    const anchor = targetAnchor(rows.r000001, target);
+    hydrated.history = Object.fromEntries(Object.entries(rows)
+      .map(([key, row]) => [key, decodeRevision(key, row, anchor, target)]));
+  }
+  if (record(hydrated.corrections)) hydrated.corrections = Object.fromEntries(Object.entries(hydrated.corrections as Record<string, unknown>)
+    .map(([key, value]) => {
+      const row = record(value);
+      return [key, row && row.facts === undefined ? { ...row, facts: [] } : value];
+    }));
+  return hydrated as HydratedEvaluationScope;
 };
 
-const assertScopeIntegrity = (scope: DurableEvaluationScope): void => {
+const assertScopeIntegrity = (scope: HydratedEvaluationScope): void => {
   const history = scope.history ?? {};
   const operations = scope.operations ?? {};
   const revisions = Object.values(history).sort((left, right) => left.revision - right.revision);
   const firstTarget = revisions[0]?.target;
   for (let index = 0; index < revisions.length; index += 1) {
-    const revision = revisions[index]!;
+    const revision = historyRevision(revisionKey(revisions[index].revision), revisions[index], revisions[index].target);
     if (revision.revision !== index + 1
       || revision.previousRevision !== index
       || history[revisionKey(revision.revision)] === undefined
@@ -139,7 +209,9 @@ const assertScopeIntegrity = (scope: DurableEvaluationScope): void => {
     const operation = operations[revision.operationId];
     if (!operation
       || operation.revision !== revision.revision
-      || operation.commandFingerprint !== revision.commandFingerprint) {
+      || operation.operationId !== revision.operationId
+      || operation.commandFingerprint !== revision.commandFingerprint
+      || operation.actorFingerprint !== canonicalActivityEvaluationFingerprint(revision.evaluatedBy)) {
       throw new BookActivityEvaluationRepositoryError('evaluation_operation_incomplete');
     }
     const aggregate = scope.aggregateScores?.[revisionKey(revision.revision)];
@@ -165,18 +237,24 @@ const assertScopeIntegrity = (scope: DurableEvaluationScope): void => {
   if ((scope.current === undefined) !== (revisions.length === 0)
     || (scope.current && (
       scope.current.revision !== revisions.length
-      || canonicalActivityEvaluationFingerprint(scope.current)
-        !== canonicalActivityEvaluationFingerprint(revisions[revisions.length - 1])
+      || Object.keys(scope.current).sort().join(',') !== 'operationId,revision,revisionKey'
+      || scope.current.revisionKey !== revisionKey(scope.current.revision)
+      || scope.current.operationId !== revisions[revisions.length - 1].operationId
     ))) {
     throw new BookActivityEvaluationRepositoryError('evaluation_current_invalid');
+  }
+  if (Object.keys(operations).length !== revisions.length
+    || Object.keys(scope.corrections ?? {}).length !== revisions.length
+    || Object.keys(scope.aggregateScores ?? {}).length !== revisions.filter((row) => row.facts.status === 'scored').length) {
+    throw new BookActivityEvaluationRepositoryError('evaluation_scope_invalid');
   }
 };
 
 const nextScope = (
-  scope: DurableEvaluationScope,
+  scope: HydratedEvaluationScope,
   revision: BookActivityEvaluationRevision,
   operation: BookActivityEvaluationOperation,
-): DurableEvaluationScope | BookActivityEvaluationCommandResult => {
+): HydratedEvaluationScope | BookActivityEvaluationCommandResult => {
   assertScopeIntegrity(scope);
   const existingOperation = scope.operations?.[operation.operationId];
   if (existingOperation) {
@@ -209,7 +287,7 @@ const nextScope = (
   }
   if (!bookActivityEvaluationTargetsEqual(
     revision.target,
-    scope.current?.target ?? revision.target,
+    (scope.current ? scope.history?.[scope.current.revisionKey]?.target : undefined) ?? revision.target,
   )) {
     return {
       status: 'rejected',
@@ -218,8 +296,8 @@ const nextScope = (
     };
   }
   const key = revisionKey(revision.revision);
-  const next: DurableEvaluationScope = {
-    current: clone(revision),
+  const next: HydratedEvaluationScope = {
+    current: { revision: revision.revision, revisionKey: key, operationId: operation.operationId },
     history: { ...(scope.history ?? {}), [key]: clone(revision) },
     corrections: {
       ...(scope.corrections ?? {}),
@@ -241,7 +319,7 @@ const nextScope = (
     operations: { ...(scope.operations ?? {}), [operation.operationId]: clone(operation) },
   };
   assertScopeIntegrity(next);
-  if (encodedBytes(next) > MAX_SCOPE_BYTES) {
+  if (encodedBytes(encodeScope(next)) > MAX_SCOPE_BYTES) {
     return {
       status: 'rejected',
       code: 'evaluation_repository_conflict',
@@ -252,7 +330,7 @@ const nextScope = (
 };
 
 const operationResult = (
-  scope: DurableEvaluationScope,
+  scope: HydratedEvaluationScope,
   operationId: string,
 ): { operation: BookActivityEvaluationOperation; revision: BookActivityEvaluationRevision } | null => {
   assertScopeIntegrity(scope);
@@ -268,7 +346,7 @@ const historyRevision = (
   value: unknown,
   target: BookActivityEvaluationTarget,
 ): BookActivityEvaluationRevision => {
-  const source = record(value);
+  const source = record(hydrateRevision(value));
   const facts = record(source?.facts);
   const revisionTarget = record(source?.target);
   const evaluatedBy = record(source?.evaluatedBy);
@@ -332,6 +410,7 @@ const historyRevision = (
   if (!source
     || !facts
     || !revisionTarget
+    || !isBookActivityEvaluationTarget(revisionTarget)
     || !evaluatedBy
     || !sourceKeysValid
     || source.schemaVersion !== 1
@@ -345,7 +424,7 @@ const historyRevision = (
     || source.commandFingerprint.length === 0
     || source.scorerVersion !== 1
     || source.activitySchemaVersion !== 1
-    || !['evaluate_objective', 'teacher_evaluation', 'regrade'].includes(source.commandKind as string)
+    || !['evaluate_objective', 'regrade_objective', 'teacher_evaluation', 'regrade'].includes(source.commandKind as string)
     || !['scored', 'review_required'].includes(facts.status as string)
     || !factsKeysValid
     || !correctionFactsValid
@@ -377,7 +456,7 @@ export class InMemoryBookActivityEvaluationRepository implements BookActivityEva
     target: BookActivityEvaluationTarget;
     operationId: string;
   }): Promise<{ operation: BookActivityEvaluationOperation; revision: BookActivityEvaluationRevision } | null> {
-    const scope = durableScope(this.scopes[bookActivityEvaluationScopePath(input.target)]);
+    const scope = durableScope(this.scopes[bookActivityEvaluationScopePath(input.target)], input.target);
     return operationResult(scope, pathId(input.operationId, 'operation'));
   }
 
@@ -386,9 +465,9 @@ export class InMemoryBookActivityEvaluationRepository implements BookActivityEva
     operation: BookActivityEvaluationOperation;
   }): Promise<BookActivityEvaluationCommandResult> {
     const path = bookActivityEvaluationScopePath(input.revision.target);
-    const updated = nextScope(durableScope(this.scopes[path]), input.revision, input.operation);
+    const updated = nextScope(durableScope(this.scopes[path], input.revision.target), input.revision, input.operation);
     if ('status' in updated) return updated;
-    this.scopes[path] = clone(updated);
+    this.scopes[path] = encodeScope(updated);
     return { status: 'accepted', revision: clone(input.revision) };
   }
 
@@ -400,7 +479,7 @@ export class InMemoryBookActivityEvaluationRepository implements BookActivityEva
       || input.limit > BOOK_ACTIVITY_EVALUATION_MAX_HISTORY) {
       throw new BookActivityEvaluationRepositoryError('evaluation_history_query_unbounded');
     }
-    const scope = durableScope(this.scopes[bookActivityEvaluationScopePath(input.target)]);
+    const scope = durableScope(this.scopes[bookActivityEvaluationScopePath(input.target)], input.target);
     assertScopeIntegrity(scope);
     return Object.values(scope.history ?? {})
       .sort((left, right) => left.revision - right.revision)
@@ -418,18 +497,19 @@ export class FirebaseRestBookActivityEvaluationRepository implements BookActivit
   private readonly rtdb: FirebaseRtdbRestClient;
   private readonly serviceIdentity: string;
   private readonly serviceAccountKey?: string;
+  private readonly getFirebaseIdToken: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_activity_evaluation' }>) => Promise<string>;
 
   constructor(private readonly options: {
     readonly env: FirebaseBookActivityEvaluationRepositoryEnv;
     readonly fetchImpl?: typeof fetch;
-    readonly getAccessToken?: () => Promise<string>;
+    readonly getFirebaseIdToken?: (claims: Extract<BookFirebaseClaimTuple, { service: 'book_activity_evaluation' }>) => Promise<string>;
   }) {
     const identity = options.env.BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY?.trim();
     if (!identity) {
       throw new BookActivityEvaluationRepositoryError('missing_evaluation_service_identity');
     }
     const keyJson = options.env.BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY?.trim();
-    if (!keyJson && !options.getAccessToken) {
+    if (!keyJson && !options.getFirebaseIdToken) {
       throw new BookActivityEvaluationRepositoryError('missing_evaluation_google_sa_key');
     }
     if (keyJson) {
@@ -445,14 +525,28 @@ export class FirebaseRestBookActivityEvaluationRepository implements BookActivit
     }
     this.serviceIdentity = identity;
     this.serviceAccountKey = keyJson;
-    this.rtdb = new FirebaseRtdbRestClient({
-      env: {
-        ...options.env,
-        GOOGLE_SA_KEY: this.serviceAccountKey,
-      },
+    this.getFirebaseIdToken = options.getFirebaseIdToken ?? createFirebaseClaimTokenProvider({
+      serviceAccountJson: keyJson!,
+      serviceIdentity: identity,
+      firebaseProjectId: options.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: options.env.FIREBASE_WEB_API_KEY?.trim() ?? '',
       fetchImpl: options.fetchImpl ?? fetch,
-      ...(options.getAccessToken ? { getAccessToken: options.getAccessToken } : {}),
-      firebaseAuthToken: Boolean(options.getAccessToken),
+    });
+    this.rtdb = new FirebaseRtdbRestClient({
+      env: options.env,
+      fetchImpl: options.fetchImpl ?? fetch,
+      firebaseAuthToken: true,
+      getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+        const match = /^book_activity_evaluations\/scopes\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)(?:\/history(?:\/r000001)?)?$/u.exec(path);
+        if (!match || !match.slice(1).every((value) => ID.test(value))) {
+          throw new BookActivityEvaluationRepositoryError('evaluation_claim_target_unavailable');
+        }
+        return this.getFirebaseIdToken({
+          service: 'book_activity_evaluation',
+          recipientId: match[1], contextId: match[2], placementId: match[3],
+          activityId: match[4], attemptId: match[5],
+        });
+      },
     });
   }
 
@@ -480,7 +574,7 @@ export class FirebaseRestBookActivityEvaluationRepository implements BookActivit
   }): Promise<{ operation: BookActivityEvaluationOperation; revision: BookActivityEvaluationRevision } | null> {
     this.assertIdentity();
     const raw = await this.rtdb.readValue(bookActivityEvaluationScopePath(input.target));
-    return operationResult(durableScope(raw), pathId(input.operationId, 'operation'));
+    return operationResult(durableScope(raw, input.target), pathId(input.operationId, 'operation'));
   }
 
   async appendRevision(input: {
@@ -489,15 +583,38 @@ export class FirebaseRestBookActivityEvaluationRepository implements BookActivit
   }): Promise<BookActivityEvaluationCommandResult> {
     this.assertIdentity();
     const path = bookActivityEvaluationScopePath(input.revision.target);
-    for (let retry = 0; retry < MAX_RETRIES; retry += 1) {
-      const current = await this.rtdb.readWithEtag<unknown>(path);
-      const updated = nextScope(durableScope(current.data), input.revision, input.operation);
-      if ('status' in updated) return updated;
-      if (await this.rtdb.writeIfMatch(path, updated, current.etag)) {
-        return { status: 'accepted', revision: clone(input.revision) };
+    const current = durableScope(await this.rtdb.readValue(path), input.revision.target);
+    const updated = nextScope(current, input.revision, input.operation);
+    if ('status' in updated) return updated;
+    const key = revisionKey(input.revision.revision);
+    const updates = [
+      { path: `${path}/current`, value: updated.current },
+      { path: `${path}/history/${key}`, value: encodeRevision(updated.history![key]) },
+      { path: `${path}/corrections/${key}`, value: updated.corrections![key] },
+      { path: `${path}/operations/${input.operation.operationId}`, value: updated.operations![input.operation.operationId] },
+      ...(updated.aggregateScores?.[key] ? [{ path: `${path}/aggregateScores/${key}`, value: updated.aggregateScores[key] }] : []),
+    ];
+    const target = input.revision.target;
+    const writer = new FirebaseRtdbRestClient({
+      env: this.options.env, fetchImpl: this.options.fetchImpl ?? fetch, firebaseAuthToken: true,
+      getFirebaseAuthToken: () => this.getFirebaseIdToken({ service: 'book_activity_evaluation',
+        recipientId: target.recipientId, contextId: target.contextId, placementId: target.placementId,
+        activityId: target.activityId, attemptId: target.attemptId }),
+    });
+    try {
+      await writer.patchMultiLocation(updates);
+      return { status: 'accepted', revision: clone(input.revision) };
+    } catch {
+      // One exact readback resolves a lost response or a competing append. Never resend.
+      try {
+        const readback = durableScope(await this.rtdb.readValue(path), input.revision.target);
+        const outcome = nextScope(readback, input.revision, input.operation);
+        if ('status' in outcome) return outcome;
+        return { status: 'rejected', code: 'evaluation_repository_conflict', currentRevision: readback.current?.revision ?? 0 };
+      } catch {
+        return { status: 'rejected', code: 'evaluation_repository_conflict' };
       }
     }
-    return { status: 'rejected', code: 'evaluation_repository_conflict' };
   }
 
   async listHistory(input: {
@@ -514,12 +631,15 @@ export class FirebaseRestBookActivityEvaluationRepository implements BookActivit
       limitToLast: input.limit,
     });
     const rows = record(raw);
-    if (!rows) return [];
+    if (raw === null) return [];
+    if (!rows) throw new BookActivityEvaluationRepositoryError('evaluation_history_readback_invalid');
     if (Object.keys(rows).length > input.limit) {
       throw new BookActivityEvaluationRepositoryError('evaluation_history_query_unbounded');
     }
+    if (Object.keys(rows).length === 0) return [];
+    const anchor = targetAnchor(rows.r000001 ?? await this.rtdb.readValue(`${bookActivityEvaluationHistoryPath(input.target)}/r000001`), input.target);
     return Object.entries(rows)
-      .map(([key, value]) => historyRevision(key, value, input.target))
+      .map(([key, value]) => decodeRevision(key, value, anchor, input.target))
       .sort((left, right) => left.revision - right.revision);
   }
 }

@@ -17,6 +17,7 @@ import {
   type MaterialTestTypeId,
 } from '../../types/materialCatalog.types';
 import type { SourceSetCandidate } from '../../types/bookAssembly.types';
+import { activeComponentPdfActivation } from '../book-assembly/componentPdfActivation.service';
 import type { MaterialCatalogIndexRow } from './materialCatalogIndexes.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
@@ -28,6 +29,7 @@ import {
   type MaterialSummary,
 } from './materialSummaryPort.service';
 import { materialCatalogPaths } from './materialCatalogPaths';
+import { publicBookReadinessPath } from './publicBookCatalogReadiness.service';
 import {
   deriveMaterialBookStatus,
   validateMaterialBook,
@@ -62,6 +64,7 @@ export interface MaterialBookIndexWrite {
 }
 
 export interface MaterialBooksRepository {
+  readonly refreshPublicReadiness?: (bookId: string) => Promise<void>;
   readonly readBook: (bookId: string) => Promise<MaterialBookMetadata | null>;
   readonly readPublicBookProjection?: (bookId: string) => Promise<MaterialBookPublicProjection | null>;
   readonly listBookNodes: (bookId: string) => Promise<readonly MaterialBookNode[]>;
@@ -93,6 +96,7 @@ export interface MaterialBookPdfAuthority {
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
   readonly sourceSet: SourceSetCandidate;
+  readonly setupActivations?: MaterialBookMetadata['setupActivations'];
 }
 
 export interface PublicBookReviewDecisionInput {
@@ -129,6 +133,7 @@ export interface MaterialBookListRow {
 }
 
 export interface MaterialBooksAdapter {
+  readonly refreshPublicReadiness?: (bookId: string) => Promise<void>;
   readonly read: (path: string) => Promise<unknown>;
   readonly readPage?: (path: string, limit: number, cursor?: MaterialSummaryPageCursor) => Promise<unknown>;
   readonly write: (path: string, value: unknown) => Promise<void>;
@@ -187,7 +192,7 @@ const isBoundedId = (value: unknown): value is string =>
   typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u.test(value);
 
 /** Runtime guard for the existing discriminated SourceSetCandidate contract. */
-const isSourceSetCandidate = (value: unknown): value is SourceSetCandidate => {
+export const isSourceSetCandidate = (value: unknown): value is SourceSetCandidate => {
   if (!isRecord(value) || !hasExactKeys(value, ['sourceStrategy', 'sources'])) {
     return false;
   }
@@ -197,14 +202,16 @@ const isSourceSetCandidate = (value: unknown): value is SourceSetCandidate => {
   if ((strategy !== 'full_pdf' && strategy !== 'component_pdfs') || !Array.isArray(sources)) {
     return false;
   }
-  if (sources.length === 0 || (strategy === 'full_pdf' && sources.length !== 1)) {
+  if (sources.length === 0
+    || (strategy === 'full_pdf' && sources.length !== 1)
+    || (strategy === 'component_pdfs' && (sources.length < 2 || sources.length > 20))) {
     return false;
   }
 
   const sourceKeys = new Set<string>();
   const sourceVersionIds = new Set<string>();
   const sourceOrders = new Set<number>();
-  return sources.every((entry) => {
+  return sources.every((entry, index) => {
     if (!isRecord(entry)) return false;
     const expectedKeys = strategy === 'component_pdfs'
       ? ['ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId']
@@ -216,7 +223,8 @@ const isSourceSetCandidate = (value: unknown): value is SourceSetCandidate => {
       || entry.sourceOrder < 1
       || sourceKeys.has(entry.sourceKey)
       || sourceVersionIds.has(entry.sourceVersionId)
-      || sourceOrders.has(entry.sourceOrder)) {
+      || sourceOrders.has(entry.sourceOrder)
+      || (strategy === 'component_pdfs' && entry.sourceOrder !== index + 1)) {
       return false;
     }
     if (strategy === 'component_pdfs' && !isBoundedId(entry.ownerNodeKey)) {
@@ -241,6 +249,7 @@ const materialBookPdfAuthorityFromMetadata = (
     || !isSourceSetCandidate(book.sourceSet)) {
     return null;
   }
+  if (book.setupActivations !== undefined && activeComponentPdfActivation(book) === null) return null;
 
   return {
     bookId: book.bookId,
@@ -250,6 +259,7 @@ const materialBookPdfAuthorityFromMetadata = (
     bookRevision: book.bookRevision,
     sourceSetRevision: book.sourceSetRevision,
     sourceSet: book.sourceSet,
+    ...(book.setupActivations ? { setupActivations: structuredClone(book.setupActivations) } : {}),
   };
 };
 
@@ -432,6 +442,7 @@ export const buildMaterialBookIndexCleanup = (
 export const createMaterialBooksRepository = (
   adapter: MaterialBooksAdapter,
 ): MaterialBooksRepository => ({
+  ...(adapter.refreshPublicReadiness ? { refreshPublicReadiness: adapter.refreshPublicReadiness } : {}),
   async readBook(bookId) {
     const value = await adapter.read(materialCatalogPaths.books(bookId));
     return isBook(value) ? cloneBook(value) : null;
@@ -506,6 +517,8 @@ const buildBookWithIndexesUpdate = (
   previous?: MaterialBookMetadata | null,
 ): Record<string, unknown | null> => ({
   [materialCatalogPaths.books(book.bookId)]: canonicalBookWrite(book, previous),
+  ...(previous?.visibility === 'public-library-published' || book.visibility === 'public-library-published'
+    ? { [publicBookReadinessPath(book.bookId)]: null } : {}),
   ...Object.fromEntries(buildMaterialBookIndexCleanup(previous, book).map((path) => [path, null])),
   ...Object.fromEntries(buildMaterialBookIndexWrites(book).map((write) => [write.path, write.value])),
   ...buildMaterialSummaryUpdatePayload(
@@ -650,6 +663,7 @@ export const createBookDraft = async (
   const book: MaterialBookMetadata = {
     bookId,
     bookMode: input.bookMode,
+    ...(input.bookMode === 'pdf' ? { bookRevision: 0, sourceSetRevision: 0 } : {}),
     ownerId: input.ownerId,
     title: input.title,
     subtitle: input.subtitle,
@@ -691,6 +705,7 @@ export const updateBookMetadata = async (
     MaterialBookMetadata,
     'bookId' | 'bookMode' | 'modeSuccessorLineage' | 'reusedActivityRefs'
       | 'sourceStrategySuccessorLineage' | 'bookRevision' | 'sourceSetRevision' | 'sourceSet'
+      | 'setupActivations'
       | 'ownerId' | 'createdAt' | 'createdBy'
   >>,
   repository: MaterialBooksRepository,
@@ -708,28 +723,34 @@ export const updateBookMetadata = async (
   if ('sourceStrategySuccessorLineage' in updates) {
     throw new Error('Material Book source-strategy successor lineage is immutable.');
   }
-  if ('bookRevision' in updates || 'sourceSetRevision' in updates || 'sourceSet' in updates) {
+  if ('bookRevision' in updates || 'sourceSetRevision' in updates || 'sourceSet' in updates || 'setupActivations' in updates) {
     throw new Error('Material Book PDF authority is immutable in metadata updates.');
   }
 
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = withBookRevisionBump(current, {
+  const moderationOnly = Object.keys(updates).every((key) => ['visibility', 'publicReview', 'updatedAt', 'updatedBy'].includes(key));
+  let next: MaterialBookMetadata = {
     ...current,
     ...updates,
     bookId: current.bookId,
     modeSuccessorLineage: current.modeSuccessorLineage,
     reusedActivityRefs: current.reusedActivityRefs,
     sourceStrategySuccessorLineage: current.sourceStrategySuccessorLineage,
+    setupActivations: current.setupActivations,
     ownerId: current.ownerId,
     createdAt: current.createdAt,
     createdBy: current.createdBy,
     testTypeIds: updates.testTypeIds ? unique(updates.testTypeIds) : current.testTypeIds,
-    status: updates.status ?? deriveMaterialBookStatus(nodes, current.status === 'archived'),
+    status: moderationOnly ? current.status : updates.status ?? deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  });
+  };
+  // Moderation changes eligibility; content/source authority keeps its existing revision.
+  if (!moderationOnly) {
+    next = withBookRevisionBump(current, next);
+  }
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -875,6 +896,14 @@ const buildPublicBookProjection = async (
   };
 };
 
+export class PublicBookReadinessRefreshError extends Error {
+  readonly readinessReason = 'public_book_readiness_unavailable';
+  constructor(readonly committedBook: MaterialBookMetadata) {
+    super('Book approval was saved, but Public Library readiness could not be refreshed.');
+    this.name = 'PublicBookReadinessRefreshError';
+  }
+}
+
 export const approvePublicBook = async (
   bookId: string,
   repository: MaterialBooksRepository,
@@ -895,7 +924,7 @@ export const approvePublicBook = async (
     throw new Error('Only ready Books can be approved for the public library.');
   }
 
-  const next: MaterialBookMetadata = withBookRevisionBump(current, {
+  const next: MaterialBookMetadata = {
     ...current,
     visibility: 'public-library-published',
     publicReview: {
@@ -906,7 +935,7 @@ export const approvePublicBook = async (
     },
     updatedAt: now,
     updatedBy: context.actorId,
-  });
+  };
   const projection = await buildPublicBookProjection(next, nodes, repository, context);
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -915,6 +944,10 @@ export const approvePublicBook = async (
     ...buildBookWithIndexesUpdate(next, current),
     [materialCatalogPaths.publicBookProjections(bookId)]: projection,
   });
+  if (repository.refreshPublicReadiness) {
+    try { await repository.refreshPublicReadiness(bookId); }
+    catch { throw new PublicBookReadinessRefreshError(next); }
+  }
   return next;
 };
 
@@ -928,14 +961,13 @@ export const rejectPublicBookReview = async (
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = withBookRevisionBump(current, {
+  const next: MaterialBookMetadata = {
     ...current,
     visibility: 'public-library-rejected',
     publicReview: publicReviewState('rejected', reviewReason(reasonInput), context),
-    status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  });
+  };
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));
@@ -956,14 +988,13 @@ export const returnPublicBookToPrivate = async (
   const current = await requireBook(repository, bookId);
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
-  const next: MaterialBookMetadata = withBookRevisionBump(current, {
+  const next: MaterialBookMetadata = {
     ...current,
     visibility: 'private',
     publicReview: publicReviewState('returned-private', reviewReason(reasonInput), context),
-    status: deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
-  });
+  };
 
   assertValid(validateMaterialBook({ metadata: next, nodes, context }));
   assertValid(validateMaterialBookModerationTransition(current, next, context));

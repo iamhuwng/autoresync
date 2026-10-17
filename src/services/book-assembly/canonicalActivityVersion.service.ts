@@ -470,7 +470,7 @@ const validateActivity = (value: unknown, path: string, errors: ValidationErrors
         'text-entry': common,
         matching: [...common, 'leftItems', 'rightItems'],
         ordering: [...common, 'orderingItems'],
-        'long-response': [...common, 'rubric'],
+        'long-response': common,
       };
       if (!exactRecord(entry, familyFields[family ?? ''] ?? common, ['family', 'interactionId', 'prompt', 'itemIdentities', 'answerKey'], entryPath, errors)) return;
       if (entry.family !== family) add(errors, `${entryPath}.family`, 'cross-family-mismatch');
@@ -534,9 +534,6 @@ const validateActivity = (value: unknown, path: string, errors: ValidationErrors
           entry.orderingItems.forEach((item, itemIndex) => validString(item, `${entryPath}.orderingItems[${itemIndex}]`, errors));
           if (entry.orderingItems.length !== identityArrays[0]!.length) add(errors, `${entryPath}.orderingItems`, 'identity-cardinality-mismatch');
         }
-      } else if (family === 'long-response') {
-        if (!exactRecord(entry.rubric, ['criteria'], ['criteria'], `${entryPath}.rubric`, errors)) return;
-        validateStringArray(entry.rubric.criteria, `${entryPath}.rubric.criteria`, errors, CANONICAL_ACTIVITY_VERSION_LIMITS.maxItemsPerInteraction, 'text', 1);
       }
 
       const answerKeys: Record<string, readonly string[]> = {

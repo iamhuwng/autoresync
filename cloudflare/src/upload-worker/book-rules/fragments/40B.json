@@ -83,7 +83,7 @@
       "rule": ".write",
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
-      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('checkpointId').val() == $checkpointId && (!data.exists() || newData.val() == data.val())"
+      "expression": "auth != null && auth.token.brd.s == true && auth.token.brd.o == $ownerId && auth.token.brd.c == $checkpointId && auth.token.brd.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('checkpointId').val() == $checkpointId && !data.exists()"
     },
     {
       "path": "book_update_checkpoints/records/$ownerId/$checkpointId",

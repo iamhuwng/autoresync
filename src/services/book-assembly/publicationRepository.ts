@@ -8,6 +8,7 @@ import type {
   BookAssemblyPublicationPointer,
   BookAssemblyPublishedUnitProjectionRecord,
 } from '../../types/bookAssembly.types';
+import type { ComponentStudentDocument } from './componentStudentDocument.types';
 
 export interface BookAssemblyPublicationOperationRecord<Result> {
   readonly ownerId: string;
@@ -23,6 +24,7 @@ export interface BookAssemblyPublicationScope<Result = unknown> {
   readonly placements?: Record<string, BookAssemblyPlacementRecord>;
   readonly unitProjections?: Record<string, BookAssemblyPublishedUnitProjectionRecord>;
   readonly deliveryPlans?: Record<string, BookAssemblyDeliveryPublicationPlan>;
+  readonly studentDocuments?: Record<string, ComponentStudentDocument>;
   readonly current?: BookAssemblyPublicationPointer;
   readonly operations?: Record<string, BookAssemblyPublicationOperationRecord<Result>>;
   readonly audits?: Record<string, BookAssemblyPublicationAuditRecord>;

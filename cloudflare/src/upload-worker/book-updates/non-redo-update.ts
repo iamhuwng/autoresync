@@ -1,4 +1,5 @@
 import type { BookUpdateActionRecord } from '../../../../src/services/book-delivery/bookUpdateAction.types.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import type {
   BookNonRedoUpdateGradingPort,
   BookNonRedoUpdateOperation,
@@ -7,6 +8,7 @@ import type {
 import { advanceBookUpdateAction, type BookUpdateActionRepository } from './update-action.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/u;
+const OPERATION_ID = /^[A-Za-z0-9_:-]{1,160}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
 
 export interface BookNonRedoUpdateResolver {
@@ -22,10 +24,10 @@ export type BookNonRedoUpdateResult =
   | { readonly status: 'blocked'; readonly code: string };
 
 const operationId = (actionId: string, operation: BookNonRedoUpdateOperation): string => (
-  `${actionId}:${operation.contextKind}:${operation.placementId}:${operation.kind}`
+  `${actionId}:${operation.contextKey}:${operation.placementId}:${operation.kind}`
 );
 
-const validOperation = (action: BookUpdateActionRecord, operation: BookNonRedoUpdateOperation): boolean => {
+const validOperation = async (action: BookUpdateActionRecord, operation: BookNonRedoUpdateOperation): Promise<boolean> => {
   const expectedClassification = operation.kind === 'display-only' ? 'display-only'
     : operation.kind === 'reorder' ? 'reordered'
       : operation.kind === 'regrade-objective' || operation.kind === 'regrade-rubric-review' ? 'regrade'
@@ -38,6 +40,9 @@ const validOperation = (action: BookUpdateActionRecord, operation: BookNonRedoUp
   if (!selection
     || !action.audit.classifications.includes(expectedClassification)
     || !ID.test(operation.contextKey)
+    || !ID.test(operation.contextId)
+    || !ID.test(operation.recipientId)
+    || operation.contextKey !== await bookImpactContextKey(operation)
     || !ID.test(operation.placementId)
     || !ID.test(operation.activityId)
     || !ID.test(operation.oldActivityVersionId)
@@ -55,7 +60,8 @@ const validOperation = (action: BookUpdateActionRecord, operation: BookNonRedoUp
         && Number.isSafeInteger(operation.expectedEvaluationRevision)
         && operation.expectedEvaluationRevision > 0
         && operation.evaluationTarget.contextKind === operation.contextKind
-        && operation.evaluationTarget.contextId === operation.contextKey.split(':').slice(1).join(':')
+        && operation.evaluationTarget.contextId === operation.contextId
+        && operation.evaluationTarget.recipientId === operation.recipientId
         && operation.evaluationTarget.placementId === operation.placementId
         && operation.evaluationTarget.activityId === operation.activityId;
     case 'move-retained':
@@ -110,7 +116,8 @@ export const createBookNonRedoUpdateExecutor = (options: {
     const operationIds = resolved.operations.map((operation) => operationId(action.actionId, operation));
     if (resolved.operations.length === 0
       || new Set(operationIds).size !== operationIds.length
-      || resolved.operations.some((operation) => !validOperation(action, operation))) {
+      || operationIds.some((id) => !OPERATION_ID.test(id))
+      || (await Promise.all(resolved.operations.map((operation) => validOperation(action, operation)))).some((valid) => !valid)) {
       return { status: 'pending', action, code: 'case-operation-invalid' };
     }
     for (const operation of resolved.operations) {

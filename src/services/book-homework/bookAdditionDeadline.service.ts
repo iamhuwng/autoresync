@@ -24,7 +24,7 @@ export type BookAdditionDeadlineErrorCode =
 export class BookAdditionDeadlineError extends Error {
   constructor(
     readonly code: BookAdditionDeadlineErrorCode,
-    message = code,
+    message: string = code,
   ) {
     super(message);
     this.name = 'BookAdditionDeadlineError';
@@ -100,23 +100,23 @@ const canonicalIso = (value: unknown): value is string => (
   && new Date(Date.parse(value)).toISOString() === value
 );
 
-const assertId = (value: unknown, label: string): asserts value is string => {
+function assertId(value: unknown, label: string): asserts value is string {
   if (typeof value !== 'string' || !ID.test(value)) {
     throw new BookAdditionDeadlineError('invalid-input', `${label} must be a safe identifier.`);
   }
-};
+}
 
-const assertPositive = (value: unknown, label: string): asserts value is number => {
-  if (!Number.isSafeInteger(value) || value <= 0) {
+function assertPositive(value: unknown, label: string): asserts value is number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
     throw new BookAdditionDeadlineError('invalid-input', `${label} must be positive.`);
   }
-};
+}
 
-const assertCanonical = (value: unknown, label: string): asserts value is string => {
+function assertCanonical(value: unknown, label: string): asserts value is string {
   if (!canonicalIso(value)) {
     throw new BookAdditionDeadlineError('invalid-input', `${label} must be canonical UTC.`);
   }
-};
+}
 
 const rejectUnsupportedPolicy = (input: Record<string, unknown>): void => {
   if (input.contextMode !== 'required') {

@@ -21,14 +21,29 @@ const labelForReason = (
     { state: 'historical_source_unavailable' }
   >['reason'],
 ): string => {
-  if (reason === 'deleted' || reason === 'replaced' || reason === 'revoked') {
-    return 'Historical PDF unavailable';
-  }
-  if (reason === 'missing' || reason === 'invalidated') {
-    return 'Historical PDF unavailable';
+  const readableReason = reason.replace(/[-_]/gu, ' ').replace(/^\w/gu, (letter) => letter.toUpperCase());
+  if (['missing', 'deleted', 'replaced', 'invalidated', 'revoked'].includes(reason)) {
+    return `Historical PDF unavailable · ${readableReason}`;
   }
   return 'Historical source context unavailable';
 };
+
+const pagePillLabel = (
+  projection: BookAttemptSourceContextProjection,
+): string => projection.metadata
+  ? projection.state === 'available'
+    ? `Book page · page ${projection.metadata.physicalPageNumber}`
+    : `Book page · page ${projection.metadata.physicalPageNumber} · unavailable`
+  : 'Book page unavailable';
+
+const unavailableDescription = (
+  reason: Extract<
+    BookAttemptSourceContextProjection,
+    { state: 'historical_source_unavailable' }
+  >['reason'],
+): string => ['missing', 'deleted', 'replaced', 'invalidated', 'revoked'].includes(reason)
+  ? 'The original PDF is unavailable. Result, response, provenance, and permitted feedback remain available.'
+  : 'The historical source context could not be verified. Result, response, and permitted feedback remain available.';
 
 export const BookAttemptSourceReview = ({
   projection,
@@ -74,9 +89,7 @@ export const BookAttemptSourceReview = ({
           onClick={() => selectTab('page')}
           type="button"
         >
-          {metadata
-            ? `Component ${metadata.componentId} · page ${metadata.physicalPageNumber}`
-            : 'Book Page unavailable'}
+          {pagePillLabel(projection)}
         </button>
         <button
           aria-current={mobileTab === 'activity' ? 'page' : undefined}
@@ -89,9 +102,7 @@ export const BookAttemptSourceReview = ({
           }}
           type="button"
         >
-          {metadata
-            ? `${metadata.activityId} · ${metadata.interactionFocusId}`
-            : 'Activity response'}
+          Activity response
         </button>
       </nav>
 
@@ -104,18 +115,21 @@ export const BookAttemptSourceReview = ({
         >
           <header className="book-attempt-review__heading">
             <p>Book Page</p>
-            <h3 id="book-attempt-page-title">Historical source context</h3>
+            <h3 id="book-attempt-page-title">Original book page</h3>
           </header>
 
           {metadata ? (
-            <dl className="book-attempt-review__metadata">
-              <div><dt>Component</dt><dd>{metadata.componentId}</dd></div>
-              <div><dt>Source Version</dt><dd>{metadata.sourceVersionId}</dd></div>
-              <div><dt>Local physical page</dt><dd>{metadata.physicalPageNumber}</dd></div>
-              <div><dt>Page Group</dt><dd>{metadata.pageGroupId}</dd></div>
-              <div><dt>Placement</dt><dd>{metadata.placementId}</dd></div>
-              <div><dt>Correspondence</dt><dd>{metadata.correspondence}</dd></div>
-            </dl>
+            <details className="book-attempt-review__metadata-details">
+              <summary>Technical source details</summary>
+              <dl className="book-attempt-review__metadata">
+                <div><dt>Component</dt><dd>{metadata.componentId}</dd></div>
+                <div><dt>Source Version</dt><dd>{metadata.sourceVersionId}</dd></div>
+                <div><dt>Local physical page</dt><dd>{metadata.physicalPageNumber}</dd></div>
+                <div><dt>Page Group</dt><dd>{metadata.pageGroupId}</dd></div>
+                <div><dt>Placement</dt><dd>{metadata.placementId}</dd></div>
+                <div><dt>Correspondence</dt><dd>{metadata.correspondence}</dd></div>
+              </dl>
+            </details>
           ) : null}
 
           {projection.state === 'available' ? (
@@ -141,7 +155,7 @@ export const BookAttemptSourceReview = ({
             >
               <strong>{labelForReason(projection.reason)}</strong>
               <span>
-                Result, response, provenance, and permitted feedback remain available.
+                {unavailableDescription(projection.reason)}
               </span>
             </div>
           )}
@@ -155,12 +169,13 @@ export const BookAttemptSourceReview = ({
         >
           <header className="book-attempt-review__heading">
             <p>Activity</p>
-            <h3 id="book-attempt-activity-title">
-              {metadata
-                ? `${metadata.activityId} · version ${metadata.activityVersionId}`
-                : 'Submitted Activity response'}
-            </h3>
+            <h3 id="book-attempt-activity-title">Submitted activity</h3>
           </header>
+          {metadata && (
+            <p className="book-attempt-review__activity-note">
+              Response recorded for this activity and its historical version.
+            </p>
+          )}
           <div>{children}</div>
         </section>
       </div>

@@ -5,16 +5,17 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export default defineConfig({
-  testDir: root,
-  testMatch: 'e2e/prd0062-ticket104-course-class-launch.spec.ts',
+  testDir: path.join(root, 'e2e'),
+  testMatch: 'prd0062-ticket104-course-class-launch.spec.ts',
   workers: 1,
+  timeout: 60_000,
   reporter: 'line',
-  use: { baseURL: 'http://localhost:5173' },
+  use: { baseURL: 'http://localhost:5174' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev -- --host localhost --port 5174 --strictPort',
     cwd: root,
-    url: 'http://localhost:5173',
+    url: 'http://localhost:5174',
     env: {
       VITE_FIREBASE_API_KEY: 'dummy',
       VITE_FIREBASE_AUTH_DOMAIN: 'dummy',

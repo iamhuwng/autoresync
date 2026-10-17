@@ -1,7 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import r2StorageService from '../../../services/r2Storage';
 import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fixtures/readingV2CanonicalFixtures';
 import { ReadingV2StimulusEditor } from './ReadingV2StimulusEditor';
+
+vi.mock('../../../services/r2Storage', () => ({ default: { uploadImage: vi.fn() } }));
+vi.mock('../../modern/ToastNotification', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 describe('ReadingV2StimulusEditor', () => {
   it('edits passage paragraphs in canonical stimulus content', () => {
@@ -139,6 +145,36 @@ describe('ReadingV2StimulusEditor', () => {
     const addedDocument = onDocumentChange.mock.calls[1]?.[0];
     const addedAnchorId = addedDocument.stimuli[stimulusId].anchorIds.at(-1);
     expect(addedDocument.anchors[addedAnchorId].kind).toBe('diagram-hotspot');
+  });
+
+  it('stores the uploaded diagram URL only after R2 succeeds', async () => {
+    vi.mocked(r2StorageService.uploadImage).mockResolvedValueOnce({ url: 'https://r2.test/stimulus.png' } as never);
+    const document = createReadingV2CanonicalFixture('diagram-labeling');
+    const onDocumentChange = vi.fn();
+    const file = new File(['image'], 'stimulus.png', { type: 'image/png' });
+    render(<ReadingV2StimulusEditor document={document} onDocumentChange={onDocumentChange} />);
+
+    fireEvent.change(screen.getByLabelText('Diagram image file'), { target: { files: [file] } });
+
+    await waitFor(() => expect(onDocumentChange).toHaveBeenCalled());
+    const nextDocument = onDocumentChange.mock.lastCall?.[0];
+    const diagram = Object.values(nextDocument.stimuli).find((item: any) => item.content.kind === 'diagram-content') as any;
+    expect(r2StorageService.uploadImage).toHaveBeenCalledWith(file);
+    expect(diagram.content.imageUrl).toBe('https://r2.test/stimulus.png');
+  });
+
+  it('keeps the old diagram URL when upload fails', async () => {
+    vi.mocked(r2StorageService.uploadImage).mockRejectedValueOnce(new Error('Upload failed'));
+    const document = createReadingV2CanonicalFixture('diagram-labeling');
+    const onDocumentChange = vi.fn();
+    render(<ReadingV2StimulusEditor document={document} onDocumentChange={onDocumentChange} />);
+
+    fireEvent.change(screen.getByLabelText('Diagram image file'), {
+      target: { files: [new File(['image'], 'broken.png', { type: 'image/png' })] },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText('Diagram image file')).not.toBeDisabled());
+    expect(onDocumentChange).not.toHaveBeenCalled();
   });
 
   it.each([

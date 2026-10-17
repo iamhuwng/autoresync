@@ -166,6 +166,17 @@ describe('Book Delivery component projection', () => {
     }));
   });
 
+  it('fails closed on the new source-free student document until the D1 viewer adapter owns it', () => {
+    const candidate = projection({
+      sourceSet: { strategy: 'component_pdfs', sources: [] },
+      documentRequests: [{ opaqueRouteKey: 'opaque-student-document', expectedByteLength: 578 }],
+    });
+    expect(validateBookDeliveryComponentProjection(candidate).errors).toContainEqual(expect.objectContaining({
+      path: 'documentRequests',
+    }));
+    expect(() => createBookDeliveryComponentProjection(candidate)).toThrow();
+  });
+
   it('accepts reordered source input but rejects unauthorized placement source references', () => {
     const reordered = projection({
       sourceSet: {

@@ -30,6 +30,7 @@ import type {
   BookRuntimeSchedulePolicy,
   BookRuntimeSchedulePolicyInput,
 } from '../book-runtime/authorization.ts';
+import type { BookRuntimeFeedbackPolicy } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import type {
   BookRuntimeRepository,
 } from '../book-runtime/repository.ts';
@@ -46,10 +47,20 @@ export interface BookHomeworkActivitySchedulePolicy {
   readonly authorityRevision: number;
   readonly placementId: string;
   readonly maxAttempts: number | null;
+  /** Frozen per-activity feedback policy carried into a new terminal attempt. */
+  readonly feedbackPolicy: BookRuntimeFeedbackPolicy;
   readonly lateSubmissionAllowed: boolean;
   /** Exact matching terminal attempts; review and retry authority stay distinct. */
   readonly attemptsUsed: number;
 }
+
+const FEEDBACK_POLICIES: readonly BookRuntimeFeedbackPolicy[] = [
+  'immediate', 'after_completion', 'after_deadline', 'never', 'manual',
+];
+
+const isFeedbackPolicy = (value: unknown): value is BookRuntimeFeedbackPolicy => (
+  typeof value === 'string' && FEEDBACK_POLICIES.includes(value as BookRuntimeFeedbackPolicy)
+);
 
 export interface BookHomeworkActivitySchedulePolicyResolver {
   resolve(input: {
@@ -116,7 +127,8 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       || snapshot.placementId !== placement.placementId
       || snapshot.activityId !== placement.activityId
       || snapshot.activityVersionId !== placement.activityVersionId
-      || snapshot.activityVersion !== placement.activityVersion) {
+      || snapshot.activityVersion !== placement.activityVersion
+      || !isFeedbackPolicy(snapshot.feedbackRelease)) {
       return null;
     }
     const attempts = await options.runtimeRepository.listAttempts({
@@ -143,6 +155,7 @@ export const createBookHomeworkActivitySchedulePolicyResolver = (options: {
       authorityRevision: authority.revision,
       placementId: snapshot.placementId,
       maxAttempts: snapshot.maxAttempts,
+      feedbackPolicy: snapshot.feedbackRelease,
       lateSubmissionAllowed: snapshot.lateSubmissionAllowed,
       attemptsUsed: matchingAttemptIds.size,
     };
@@ -262,6 +275,7 @@ export const createBookHomeworkScheduleEnforcement = (
       || policy.policyRevision !== input.binding.schedulePolicy.policyRevision
       || policy.authorityRevision !== authority.revision
       || policy.placementId !== placement.placementId
+      || !isFeedbackPolicy(policy.feedbackPolicy)
       || (policy.maxAttempts !== null
         && (!Number.isSafeInteger(policy.maxAttempts)
           || policy.maxAttempts <= 0

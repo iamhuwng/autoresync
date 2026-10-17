@@ -37,7 +37,7 @@ describe('13A Unit Assembly repository boundary', () => {
     });
     expect(commands.load).toHaveBeenCalledWith('book-1', 'unit-1', 'candidate-1');
     expect(commands.create).toHaveBeenCalledOnce();
-    expect(Object.keys(repository)).toEqual(['create', 'replace', 'validate', 'discard', 'load']);
+    expect(Object.keys(repository)).toEqual(['create', 'replace', 'validate', 'discard', 'load', 'loadCurrent', 'discoverDrafts']);
     expect(repository).not.toHaveProperty('publish');
     expect(repository).not.toHaveProperty('createDeliveryBinding');
   });

@@ -1,5 +1,6 @@
 import type { BookImpactSnapshot, BookImpactSnapshotReadResult } from '../book-delivery/bookImpactSnapshot.types';
 import type { BookSourceCapacityUsage } from '../../types/bookSource.types';
+import type { BookUpdateActionSelection } from '../book-delivery/bookUpdateAction.types';
 import type {
   ReplacementSourceSetDelta,
   ReplacementSourceSetDeltaInput,
@@ -119,6 +120,9 @@ export interface ReplacementPlanReviewRecord {
   readonly deltaFingerprint: string;
   readonly snapshotFingerprint: string;
   readonly revisionVector: Readonly<Record<string, number>>;
+  readonly selections: readonly BookUpdateActionSelection[];
+  readonly reason: string;
+  readonly selectionFingerprint: string;
   readonly reviewedAt: string;
   readonly expiresAt: string;
   readonly state: 'reviewed' | 'canceled';
@@ -162,6 +166,7 @@ export interface ReplacementTokenRecord {
   readonly snapshotFingerprint: string;
   readonly revisionVector: Readonly<Record<string, number>>;
   readonly adapterFingerprint: string;
+  readonly selectionFingerprint: string;
   readonly issuedAt: string;
   readonly expiresAt: string;
   readonly invalidatedAt?: string;
@@ -178,14 +183,19 @@ export interface ReplacementConfirmationHandoff {
   readonly planFingerprint: string;
   readonly deltaFingerprint: string;
   readonly snapshotFingerprint: string;
+  readonly selectionFingerprint: string;
   readonly revisionVector: Readonly<Record<string, number>>;
   readonly expiresAt: string;
 }
 
-export type ReplacementPlanClientCreateRequest = Omit<ReplacementPlanBuildInput, 'ownerId' | 'impactSnapshot'> & {
-  readonly snapshotFingerprint: string;
-  readonly snapshotRevisionVector: ReplacementSnapshotRevisionVector;
-};
+export interface ReplacementPlanClientCreateRequest {
+  readonly bookId: string;
+  readonly sourceSetDelta: ReplacementSourceSetDeltaInput;
+  readonly expectedCurrentRevisions: ReplacementCurrentRevisions;
+  readonly expectedSnapshotFingerprint: string;
+  readonly expectedSnapshotRevisionVector: ReplacementSnapshotRevisionVector;
+  readonly ttlMs?: number;
+}
 
 export interface ReplacementPlanClient {
   create(input: ReplacementPlanClientCreateRequest & { readonly idempotencyKey: string }): Promise<ReplacementPlanRecord>;
@@ -195,6 +205,8 @@ export interface ReplacementPlanClient {
     readonly planId: string;
     readonly planFingerprint: string;
     readonly idempotencyKey: string;
+    readonly selections?: readonly BookUpdateActionSelection[];
+    readonly reason?: string;
   }): Promise<{ readonly plan: ReplacementPlanRecord; readonly review: ReplacementPlanReviewRecord; readonly handoff: ReplacementConfirmationHandoff }>;
   cancel(input: { readonly bookId: string; readonly planId: string; readonly planFingerprint: string; readonly idempotencyKey: string }): Promise<ReplacementPlanOperationReceipt>;
 }

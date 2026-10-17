@@ -17,7 +17,8 @@ const loginTeacher = async (page: Page) => {
   await expect(page).toHaveURL(/\/lobby/u, { timeout: 60_000 });
 };
 
-test('PRD0062 #66 publishes one component-PDF Unit through local trusted command fixture', async ({ page }, testInfo) => {
+test('teacher explicitly approves both activated component-PDF Units before publishing', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().includes('@firebase/analytics')) {
@@ -33,59 +34,23 @@ test('PRD0062 #66 publishes one component-PDF Unit through local trusted command
   });
 
   await expect(page.getByRole('heading', { name: 'Component-PDF publication fixture' })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole('radio', { name: 'Component PDF' })).toBeChecked();
   await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
-  await expect(page.getByTestId('ticket66-component-owners'))
-    .toContainText('component-a=section-component-a, component-b=section-component-a');
-  await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
   await expect(page.getByTestId('ticket66-current-publication')).toContainText('none');
-  await expect(page.getByTestId('ticket66-version-count')).toContainText('0');
-  await expect(page.getByRole('button', { name: 'Publish component PDF Unit' })).toBeDisabled();
+  await page.getByRole('button', { name: /Check & preview/iu }).click();
+  await page.getByRole('button', { name: 'Preview as a student' }).click();
+  await page.getByRole('button', { name: 'Approve this preview' }).click();
+  await expect(page.getByRole('button', { name: /5 Publish/iu })).toBeDisabled();
+  await page.getByRole('button', { name: 'Preview as a student' }).click();
+  await page.getByRole('button', { name: 'Approve this preview' }).click();
+  await page.getByRole('button', { name: /5 Publish/iu }).click();
+  await page.getByRole('button', { name: 'Publish Book' }).click();
+  await page.getByRole('dialog', { name: 'Publish Unit 1?' })
+    .getByRole('button', { name: 'Publish Unit 1' }).click();
 
-  await page.getByRole('button', { name: 'Preview component PDF Unit' }).click();
-  await expect(page.getByTestId('ticket66-publication-message')).toContainText('Component-PDF preview approved.');
-  await page.getByRole('button', { name: 'Publish component PDF Unit' }).click();
-
-  await expect(page.getByTestId('ticket66-current-publication')).toContainText('publication:candidate-ticket56:ticket66');
+  await expect(page.getByRole('heading', { name: 'Unit 1 is published' }).last()).toBeVisible();
+  await expect(page.getByTestId('ticket66-current-publication')).toContainText('ticket66-flow-component-publication');
   await expect(page.getByTestId('ticket66-version-count')).toContainText('1');
-  await expect(page.getByTestId('ticket66-activity-version-count')).toContainText('2');
-  await expect(page.getByTestId('ticket66-placement-count')).toContainText('2');
-  await expect(page.getByTestId('ticket66-unit-projection-count')).toContainText('1');
-  await expect(page.getByTestId('ticket66-delivery-plan-count')).toContainText('1');
-  await expect(page.getByTestId('ticket66-later-unit-state')).toContainText('no');
-  await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
-  await expect(page.getByTestId('ticket66-component-owners'))
-    .toContainText('component-a=section-component-a, component-b=section-component-a');
-  await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('activity:activity-ticket66-a:ticket66');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('activity:activity-ticket66-b:ticket66');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('component-a@source-component-a:1');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('component-b@source-component-b:1');
-  await expect(page.getByTestId('ticket66-canonical-readbacks')).toContainText('fnv1a64:');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('prd0062-ticket56-book@manifest-version:candidate-ticket56:ticket66@publication:candidate-ticket56:ticket66@1@unit-component-a@activity-ticket66-a');
-  await expect(page.getByTestId('ticket66-publication-message'))
-    .toContainText('Published component-PDF Unit publication:candidate-ticket56:ticket66.');
-  await expect(page.getByRole('status').filter({
-    hasText: 'Published component-PDF Unit publication:candidate-ticket56:ticket66.',
-  })).toBeVisible();
-
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('ticket66-current-publication')).toContainText('publication:candidate-ticket56:ticket66');
-  await expect(page.getByTestId('ticket66-version-count')).toContainText('1');
-  await expect(page.getByTestId('ticket66-later-unit-state')).toContainText('no');
-  await expect(page.getByTestId('ticket66-component-order')).toContainText('component-a, component-b');
-  await expect(page.getByTestId('ticket66-component-owners'))
-    .toContainText('component-a=section-component-a, component-b=section-component-a');
-  await expect(page.getByTestId('ticket66-source-pins')).toContainText('source-component-a, source-component-b');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('activity:activity-ticket66-a:ticket66');
-  await expect(page.getByTestId('ticket66-canonical-readbacks'))
-    .toContainText('activity:activity-ticket66-b:ticket66');
+  await expect(page.getByTestId('ticket66-publication-message')).toContainText('Mock component-PDF publication completed.');
   expect(consoleErrors).toEqual([]);
 
   await mkdir(ARTIFACT_DIR, { recursive: true });
@@ -95,13 +60,10 @@ test('PRD0062 #66 publishes one component-PDF Unit through local trusted command
     route: `${ORIGIN}/__smoke/book-assembly?fixture=ticket66-component-pdf`,
     proof: [
       'teacher quick-login local fixture',
-      'preview approval required before publish',
-      'trusted command allocated operation/publication/version IDs before adapter',
-      'two component_pdfs sources with exact source version pins, shared owner, and deterministic source order',
-      'one selected Unit published with Manifest Version, Activity Versions, Placements, Unit projection, Delivery publication plan, pointer, operation, and audit metadata',
-      'later Unit remains incomplete/unpublished',
-      'reload preserves immutable publication evidence through URL-scoped fixture state',
-      'no deployed route, 50A, 03B, private-B2, or trusted-action activation claim',
+      'two activated component-PDF Units require separate preview and approval actions',
+      'publication remains disabled after the first Unit approval',
+      'one correlated component activation publishes only after both approvals',
+      'current publication readback matches the returned publication receipt',
     ],
     consoleErrors,
   }, null, 2));

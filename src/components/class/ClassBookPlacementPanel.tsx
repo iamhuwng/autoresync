@@ -6,6 +6,7 @@ export interface ClassBookPlacementPanelProps {
   readonly enabled?: boolean;
   readonly classId: string;
   readonly copyId: string;
+  readonly classPlacementId: string;
   readonly courseMaterialId: string;
   readonly bookTitle: string;
   readonly selectedActivityCount: number;
@@ -13,6 +14,7 @@ export interface ClassBookPlacementPanelProps {
   readonly onPlace?: (input: {
     readonly classId: string;
     readonly copyId: string;
+    readonly classPlacementId: string;
     readonly courseMaterialId: string;
     readonly confirmedSourceExposure: boolean;
   }) => void;
@@ -27,6 +29,7 @@ export function ClassBookPlacementPanel({
   enabled = false,
   classId,
   copyId,
+  classPlacementId,
   courseMaterialId,
   bookTitle,
   selectedActivityCount,
@@ -34,7 +37,7 @@ export function ClassBookPlacementPanel({
   onPlace,
   onSync,
 }: ClassBookPlacementPanelProps) {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.classes, { trackPageView: false });
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.classes);
   const [confirmed, setConfirmed] = useState(false);
   const needsConfirmation = sourceExposure === 'full-pdf' || sourceExposure === 'broad-component';
 
@@ -71,6 +74,7 @@ export function ClassBookPlacementPanel({
         <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '6px 14px', margin: '8px 0 0' }}>
           <dt>Class</dt><dd style={{ margin: 0 }}>{classId}</dd>
           <dt>Copy</dt><dd style={{ margin: 0 }}>{copyId}</dd>
+          <dt>Placement</dt><dd style={{ margin: 0 }}>{classPlacementId}</dd>
           <dt>Course material</dt><dd style={{ margin: 0 }}>{courseMaterialId}</dd>
         </dl>
         {exposureMessage && (
@@ -96,8 +100,8 @@ export function ClassBookPlacementPanel({
             type="button"
             disabled={!canPlace}
             onClick={() => {
-              trackAction('placeClassBook', { classId, copyId, courseMaterialId });
-              onPlace?.({ classId, copyId, courseMaterialId, confirmedSourceExposure: confirmed });
+              trackAction('placeClassBook', { classId, copyId, classPlacementId, courseMaterialId });
+              onPlace?.({ classId, copyId, classPlacementId, courseMaterialId, confirmedSourceExposure: confirmed });
             }}
             style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, border: 0, background: '#2446a8', color: '#fff', cursor: canPlace ? 'pointer' : 'not-allowed' }}
           >
@@ -107,7 +111,7 @@ export function ClassBookPlacementPanel({
             type="button"
             disabled={!onSync}
             onClick={() => {
-              trackAction('syncClassBook', { classId, copyId, courseMaterialId });
+              trackAction('syncClassBook', { classId, copyId, classPlacementId, courseMaterialId });
               onSync?.();
             }}
             style={{ minHeight: 44, padding: '10px 16px', borderRadius: 8, border: '1px solid #aab4c6', background: '#fff', color: '#172033', cursor: onSync ? 'pointer' : 'not-allowed' }}

@@ -494,16 +494,19 @@ export async function removeStudentFromClass(
 
     const now = Date.now();
 
-    const membershipUpdates: Record<string, unknown> = {
-      [`${CLASSES_REF}/${classId}/students/${studentId}`]: null,
-      [`${GAME_SESSIONS_REF}/${classId}/players/${studentId}`]: null,
-    };
+    await update(classRef, {
+      [`students/${studentId}`]: null,
+    });
 
     if (student.uid) {
-      membershipUpdates[`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`] = null;
+      try {
+        await update(ref(database), {
+          [`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`]: null,
+        });
+      } catch (cleanupError) {
+        console.warn(`[ClassManager] Failed to clean up student class projection for ${studentId}:`, cleanupError);
+      }
     }
-
-    await update(ref(database), membershipUpdates);
 
     // Clean up class-based course enrollments for this student
     try {
@@ -519,11 +522,15 @@ export async function removeStudentFromClass(
       const totalStudents = classData.stats?.totalStudents ?? Object.keys(classData.students || {}).length;
       const activeStudents = classData.stats?.activeStudents ?? Object.values(classData.students || {}).filter((s) => s.isOnline).length;
 
-      await update(classRef, {
-        'stats/totalStudents': Math.max(totalStudents - 1, 0),
-        'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
-        updatedAt: now,
-      });
+      try {
+        await update(classRef, {
+          'stats/totalStudents': Math.max(totalStudents - 1, 0),
+          'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
+          updatedAt: now,
+        });
+      } catch (statsError) {
+        console.warn(`[ClassManager] Failed to update class stats after removing ${studentId}:`, statsError);
+      }
     }
 
     return { success: true };
@@ -923,7 +930,7 @@ export async function enrollStudent(
     }
     const previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
       .membershipDecisions?.[studentUid]?.joinedAt;
-    const now = Math.max(Date.now(), Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
+    const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
     if (now > Date.now() + 5000) {
       return { success: false, error: 'Please retry joining this class in a few seconds' };
     }

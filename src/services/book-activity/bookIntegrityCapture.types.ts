@@ -51,6 +51,9 @@ export interface BookIntegritySignalRequest {
   readonly target: BookIntegrityCaptureTarget;
   readonly policyId: string;
   readonly policyRevision: number;
+  /** Trusted launch slot pinned by the browser; never a Runtime attempt ID. */
+  readonly captureSlotId: string;
+  readonly captureAttemptNumber: number;
   readonly clientSessionId: string;
   readonly sequence: number;
   readonly signal: BookIntegritySignalType;
@@ -58,10 +61,13 @@ export interface BookIntegritySignalRequest {
 
 export interface BookIntegrityAttemptAuthority extends BookIntegrityCaptureTarget {
   readonly recipientId: string;
-  readonly accountableAttemptId: string;
+  readonly accountableAttemptId?: string;
   readonly attemptNumber: number;
   readonly active: boolean;
   readonly frozenPolicy: BookIntegrityFrozenPolicy;
+  /** Deterministic preterminal capture identity for this Runtime ordinal. */
+  readonly captureSlotId: string;
+  readonly captureAttemptNumber: number;
 }
 
 export interface BookIntegrityCanonicalEvent {

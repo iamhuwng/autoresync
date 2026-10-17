@@ -2,7 +2,19 @@ import type {
   SourceSetCandidate,
   TrustedBookSourceVersionProjection,
 } from '../../types/bookAssembly.types';
+import type {
+  BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeStatus,
+} from '../../types/bookSource.types';
 import type { MaterialBookMetadata } from '../../types/materialCatalog.types';
+import type { MaterialBookSetupActivation } from '../../types/materialCatalog.types';
+import {
+  appendComponentPdfActivationReceipt,
+  createComponentPdfActivationReceipt,
+  fingerprintComponentPdfActivation,
+} from '../book-assembly/componentPdfActivation.service';
 
 export type { SourceSetCandidate } from '../../types/bookAssembly.types';
 
@@ -12,6 +24,7 @@ export type MaterialBookSourceAttachmentBook = MaterialBookMetadata & {
   readonly bookRevision: number;
   readonly sourceSetRevision: number;
   readonly sourceSet?: SourceSetCandidate | null;
+  readonly setupActivations?: readonly MaterialBookSetupActivation[];
 };
 
 /**
@@ -75,6 +88,7 @@ export interface MaterialBookSourceAttachmentRepository {
 }
 
 export type MaterialBookSourceAttachmentConflictCode =
+  | 'activation-required'
   | 'book-not-found'
   | 'wrong-owner'
   | 'wrong-book'
@@ -84,6 +98,7 @@ export type MaterialBookSourceAttachmentConflictCode =
   | 'idempotency-conflict'
   | 'missing-source-projection'
   | 'source-book-mismatch'
+  | 'source-identity-mismatch'
   | 'unverified-source'
   | 'invalid-source-projection'
   | 'invalid-input';
@@ -97,6 +112,7 @@ export interface MaterialBookSourceAttachmentResult {
   readonly bookRevision?: number;
   readonly sourceSetRevision?: number;
   readonly sourceSet?: SourceSetCandidate;
+  readonly activation?: MaterialBookSetupActivation;
 }
 
 export interface AttachMaterialBookSourceInput {
@@ -106,6 +122,7 @@ export interface AttachMaterialBookSourceInput {
   readonly expectedBookRevision: number;
   readonly expectedSourceSetRevision: number;
   readonly sourceSet: SourceSetCandidate;
+  readonly activation?: Pick<MaterialBookSetupActivation, 'unitCandidates' | 'studentDocument' | 'activities' | 'activatedAt'>;
 }
 
 export type MaterialBookSourceAttachmentInput = AttachMaterialBookSourceInput;
@@ -125,7 +142,17 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const SOURCE_SET_KEYS = ['sourceStrategy', 'sources'] as const;
 const FULL_SOURCE_KEYS = ['sourceKey', 'sourceVersionId', 'sourceOrder'] as const;
 const COMPONENT_SOURCE_KEYS = ['ownerNodeKey', 'sourceKey', 'sourceVersionId', 'sourceOrder'] as const;
-const PROJECTION_KEYS = ['bookId', 'physicalPageCount', 'sourceVersionId', 'verifiedUsable'] as const;
+const PROJECTION_KEYS = [
+  'bookId', 'checksum', 'physicalPageCount', 'purpose', 'sourceKey', 'sourceVersionId', 'studentSafeStatus', 'verifiedUsable',
+] as const;
+const DECISION_KEYS = ['decidedAt', 'decidedBy', 'reasonCode', 'sha256Hex', 'sourceVersionId'] as const;
+const PURPOSES: readonly BookSourcePurpose[] = ['book-source', 'student-document'];
+const SAFE_STATUSES: readonly BookSourceStudentSafeStatus[] = [
+  'unreviewed', 'review-required', 'ready', 'rejected',
+];
+const REASONS = ['teacher-reviewed', 'teacher-only-content', 'invalid-document', 'superseded'] as const;
+const HASH = /^[a-f0-9]{64}$/iu;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -149,11 +176,22 @@ const fingerprintOf = (value: unknown): string => {
 };
 
 export const fingerprintMaterialBookSourceAttachment = (
-  input: Pick<AttachMaterialBookSourceInput, 'ownerId' | 'bookId' | 'expectedBookRevision' | 'expectedSourceSetRevision' | 'sourceSet'>,
-): string => fingerprintOf({
-  action: 'material-book-source-attach',
+  input: Pick<AttachMaterialBookSourceInput, 'ownerId' | 'bookId' | 'operationId' | 'expectedBookRevision' | 'expectedSourceSetRevision' | 'sourceSet' | 'activation'>,
+): string => input.activation ? fingerprintComponentPdfActivation({
+  operationId: input.operationId,
   ownerId: input.ownerId,
   bookId: input.bookId,
+  expectedBookRevision: input.expectedBookRevision,
+  expectedSourceSetRevision: input.expectedSourceSetRevision,
+  sourceSet: input.sourceSet,
+  ...input.activation,
+}) : fingerprintOf({
+  action: 'material-book-source-attach',
+  operationId: input.operationId,
+  ownerId: input.ownerId,
+  bookId: input.bookId,
+  expectedBookRevision: input.expectedBookRevision,
+  expectedSourceSetRevision: input.expectedSourceSetRevision,
   sourceSet: input.sourceSet,
 });
 
@@ -178,16 +216,25 @@ const validSourceSet = (value: unknown): value is SourceSetCandidate => {
   if (!exactKeys(value, SOURCE_SET_KEYS) || !Array.isArray(value.sources) || value.sources.length === 0) return false;
   if (value.sourceStrategy !== 'full_pdf' && value.sourceStrategy !== 'component_pdfs') return false;
   if (value.sourceStrategy === 'full_pdf' && value.sources.length !== 1) return false;
+  if (value.sourceStrategy === 'component_pdfs'
+    && (value.sources.length < 2 || value.sources.length > 20)) return false;
 
+  const sourceKeys = new Set<string>();
+  const sourceVersions = new Set<string>();
   const orders = new Set<number>();
-  return value.sources.every((source) => {
+  return value.sources.every((source, index) => {
     const keys = value.sourceStrategy === 'full_pdf' ? FULL_SOURCE_KEYS : COMPONENT_SOURCE_KEYS;
     if (!exactKeys(source, keys)
       || !safeId(source.sourceKey)
       || !safeId(source.sourceVersionId)
       || !positiveInt(source.sourceOrder)
+      || source.sourceOrder !== index + 1
+      || sourceKeys.has(source.sourceKey)
+      || sourceVersions.has(source.sourceVersionId)
       || orders.has(source.sourceOrder)) return false;
     if (value.sourceStrategy === 'component_pdfs' && !safeId(source.ownerNodeKey)) return false;
+    sourceKeys.add(source.sourceKey);
+    sourceVersions.add(source.sourceVersionId);
     orders.add(source.sourceOrder);
     return true;
   });
@@ -203,12 +250,47 @@ const validInput = (input: AttachMaterialBookSourceInput): boolean => Boolean(
   && validSourceSet(input.sourceSet),
 );
 
-const validProjection = (value: unknown): value is MaterialBookSourceVersionProjection =>
-  exactKeys(value, PROJECTION_KEYS)
-  && safeId(value.sourceVersionId)
-  && safeId(value.bookId)
-  && positiveInt(value.physicalPageCount)
-  && typeof value.verifiedUsable === 'boolean';
+const validChecksum = (value: unknown): value is BookSourceChecksum => (
+  exactKeys(value, ['algorithm', 'value'])
+  && value.algorithm === 'sha-256'
+  && typeof value.value === 'string'
+  && /^[a-f0-9]{64}$/u.test(value.value)
+);
+
+const validDecision = (
+  value: unknown,
+  sourceVersionId: string,
+  checksum: BookSourceChecksum,
+): value is BookSourceStudentSafeDecision => {
+  if (!exactKeys(value, DECISION_KEYS)) return false;
+  const decision = value as Record<string, unknown>;
+  return safeId(decision.decidedBy)
+    && typeof decision.decidedAt === 'string'
+    && ISO.test(decision.decidedAt)
+    && Number.isFinite(Date.parse(decision.decidedAt))
+    && decision.sourceVersionId === sourceVersionId
+    && typeof decision.sha256Hex === 'string'
+    && HASH.test(decision.sha256Hex)
+    && decision.sha256Hex === checksum.value
+    && typeof decision.reasonCode === 'string'
+    && REASONS.includes(decision.reasonCode as typeof REASONS[number]);
+};
+
+const validProjection = (value: unknown): value is MaterialBookSourceVersionProjection => {
+  if (!exactKeys(value, PROJECTION_KEYS) && !(exactKeys(value, [...PROJECTION_KEYS, 'studentSafeDecision']))) return false;
+  const projection = value as Record<string, unknown>;
+  if (!safeId(projection.sourceKey)
+    || !safeId(projection.sourceVersionId)
+    || !safeId(projection.bookId)
+    || !validChecksum(projection.checksum)
+    || !positiveInt(projection.physicalPageCount)
+    || !PURPOSES.includes(projection.purpose as BookSourcePurpose)
+    || !SAFE_STATUSES.includes(projection.studentSafeStatus as BookSourceStudentSafeStatus)
+    || typeof projection.verifiedUsable !== 'boolean') return false;
+  return projection.studentSafeStatus === 'unreviewed'
+    ? !Object.hasOwn(projection, 'studentSafeDecision')
+    : validDecision(projection.studentSafeDecision, projection.sourceVersionId, projection.checksum);
+};
 
 const conflict = (
   input: AttachMaterialBookSourceInput,
@@ -226,6 +308,7 @@ const replay = (
   input: AttachMaterialBookSourceInput,
   fingerprint: string,
   receipt: MaterialBookSourceAttachmentOperationReceipt,
+  activation?: MaterialBookSetupActivation,
 ): MaterialBookSourceAttachmentResult => ({
   status: 'replayed',
   operationId: input.operationId,
@@ -234,6 +317,7 @@ const replay = (
   bookRevision: receipt.bookRevision,
   sourceSetRevision: receipt.sourceSetRevision,
   sourceSet: clone(receipt.sourceSet),
+  ...(activation ? { activation: clone(activation) } : {}),
 });
 
 const sameOperation = (
@@ -256,6 +340,9 @@ const execute = async (
 ): Promise<MaterialBookSourceAttachmentResult> => {
   const fingerprint = fingerprintMaterialBookSourceAttachment(input);
   if (!validInput(input)) return conflict(input, fingerprint, 'invalid-input', 'invalid');
+  if (input.sourceSet.sourceStrategy === 'component_pdfs' && !input.activation) {
+    return conflict(input, fingerprint, 'activation-required', 'forbidden');
+  }
 
   return repository.transaction({
     bookId: input.bookId,
@@ -267,8 +354,11 @@ const execute = async (
     mutate: (current) => {
       const stored = current.operations?.[input.operationId];
       if (stored) {
+        const activation = current.book?.setupActivations?.find(
+          (candidate) => candidate.operationId === input.operationId,
+        );
         const output = sameOperation(stored, input, fingerprint)
-          ? replay(input, fingerprint, stored)
+          ? replay(input, fingerprint, stored, activation)
           : conflict(input, fingerprint, 'idempotency-conflict');
         return { outcome: output, write: false };
       }
@@ -304,6 +394,12 @@ const execute = async (
         if (projection.sourceVersionId !== source.sourceVersionId || projection.bookId !== input.bookId) {
           return { outcome: conflict(input, fingerprint, 'source-book-mismatch'), write: false };
         }
+        if (projection.sourceKey !== source.sourceKey) {
+          return { outcome: conflict(input, fingerprint, 'source-identity-mismatch'), write: false };
+        }
+        if (projection.purpose !== 'book-source' || projection.studentSafeStatus === 'rejected') {
+          return { outcome: conflict(input, fingerprint, 'unverified-source'), write: false };
+        }
         if (!projection.verifiedUsable) {
           return { outcome: conflict(input, fingerprint, 'unverified-source'), write: false };
         }
@@ -328,7 +424,22 @@ const execute = async (
         sourceSet: clone(input.sourceSet),
         sourceSetRevision: nextSourceSetRevision,
         bookRevision: nextBookRevision,
+        ...(input.activation ? { setupActivations: appendComponentPdfActivationReceipt(
+          book.setupActivations,
+          createComponentPdfActivationReceipt({
+            operationId: input.operationId,
+            ownerId: input.ownerId,
+            bookId: input.bookId,
+            expectedBookRevision: input.expectedBookRevision,
+            expectedSourceSetRevision: input.expectedSourceSetRevision,
+            sourceSet: input.sourceSet,
+            ...input.activation,
+          }),
+        ) } : {}),
       } as MaterialBookSourceAttachmentBook;
+      const activation = input.activation
+        ? nextBook.setupActivations?.find((candidate) => candidate.operationId === input.operationId)
+        : undefined;
       const next: MaterialBookSourceAttachmentScope = {
         ...current,
         book: nextBook,
@@ -345,6 +456,7 @@ const execute = async (
         bookRevision: nextBookRevision,
         sourceSetRevision: nextSourceSetRevision,
         sourceSet: clone(input.sourceSet),
+        ...(activation ? { activation: clone(activation) } : {}),
       };
       return { outcome: output, next, write: true };
     },
@@ -354,8 +466,8 @@ const execute = async (
 export const createMaterialBookSourceAttachmentService = (
   repository: MaterialBookSourceAttachmentRepository,
 ): MaterialBookSourceAttachmentService => Object.freeze({
-  attach: (input) => execute(repository, input),
-  replace: (input) => execute(repository, input),
+  attach: (input: AttachMaterialBookSourceInput) => execute(repository, input),
+  replace: (input: AttachMaterialBookSourceInput) => execute(repository, input),
 });
 
 export const createMaterialBookSourceAttachment = createMaterialBookSourceAttachmentService;

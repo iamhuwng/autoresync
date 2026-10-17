@@ -43,6 +43,8 @@ const REQUEST_KEYS = new Set([
   'target',
   'policyId',
   'policyRevision',
+  'captureSlotId',
+  'captureAttemptNumber',
   'clientSessionId',
   'sequence',
   'signal',
@@ -130,7 +132,6 @@ export const shouldCaptureBookIntegritySignal = (
   policy: BookIntegrityFrozenPolicy,
   signal: BookIntegritySignalType,
 ): boolean => isBookIntegrityPolicyValid(policy)
-  && policy.intent === 'accountable'
   && policy.enabled
   && policy.signals[signal]
   && (signal !== 'focus_mode_exit' || policy.requiredFocusMode);
@@ -157,6 +158,8 @@ export const isBookIntegritySignalRequest = (value: unknown): value is BookInteg
     && isBookIntegrityCaptureTarget(source.target)
     && isId(source.policyId)
     && isPositiveInteger(source.policyRevision)
+    && isId(source.captureSlotId)
+    && isPositiveInteger(source.captureAttemptNumber, 1_000)
     && typeof source.clientSessionId === 'string'
     && SESSION_ID.test(source.clientSessionId)
     && isPositiveInteger(source.sequence, 1_000_000)
@@ -194,6 +197,29 @@ const sha256 = async (value: string): Promise<string> => {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
+export const deriveBookIntegrityCaptureSlotId = async (input: {
+  readonly target: BookIntegrityCaptureTarget;
+  readonly recipientId: string;
+  readonly attemptNumber: number;
+}): Promise<string> => {
+  if (!isBookIntegrityCaptureTarget(input.target)
+    || !isId(input.recipientId)
+    || !isPositiveInteger(input.attemptNumber, 1_000)) {
+    throw new BookIntegrityCaptureError('integrity_request_malformed', 400);
+  }
+  const digest = await sha256(stable({
+    bindingId: input.target.bindingId,
+    bindingRevision: input.target.bindingRevision,
+    recipientId: input.recipientId,
+    contextId: input.target.contextId,
+    placementId: input.target.placementId,
+    activityId: input.target.activityId,
+    activityVersion: input.target.activityVersion,
+    attemptNumber: input.attemptNumber,
+  }));
+  return `book-integrity-slot-v1-${digest.slice(0, 40)}`;
+};
+
 const eventIdentity = async (input: {
   readonly authority: BookIntegrityAttemptAuthority;
   readonly request: BookIntegritySignalRequest;
@@ -201,7 +227,7 @@ const eventIdentity = async (input: {
   const operation = {
     schemaVersion: BOOK_INTEGRITY_SCHEMA_VERSION,
     recipientId: input.authority.recipientId,
-    accountableAttemptId: input.authority.accountableAttemptId,
+    accountableAttemptId: input.authority.captureSlotId,
     clientSessionId: input.request.clientSessionId,
     sequence: input.request.sequence,
   };
@@ -211,6 +237,8 @@ const eventIdentity = async (input: {
     target: input.request.target,
     policyId: input.request.policyId,
     policyRevision: input.request.policyRevision,
+    captureSlotId: input.request.captureSlotId,
+    captureAttemptNumber: input.request.captureAttemptNumber,
   };
   const [operationHash, requestHash] = await Promise.all([
     sha256(stable(operation)),
@@ -267,7 +295,6 @@ export const createTrustedBookIntegrityCaptureService = (options: {
     if (!isBookIntegrityPolicyValid(authority.frozenPolicy)
       || authority.frozenPolicy.policyId !== input.request.policyId
       || authority.frozenPolicy.policyRevision !== input.request.policyRevision
-      || authority.frozenPolicy.intent !== 'accountable'
       || !authority.frozenPolicy.enabled) {
       return {
         status: 'ignored',
@@ -284,8 +311,11 @@ export const createTrustedBookIntegrityCaptureService = (options: {
         recordedEventCount: 0,
       };
     }
-    if (!isId(authority.accountableAttemptId)
-      || !isPositiveInteger(authority.attemptNumber, 1_000)) {
+    if (!isId(authority.captureSlotId)
+      || !isPositiveInteger(authority.captureAttemptNumber, 1_000)
+      || authority.captureSlotId !== input.request.captureSlotId
+      || authority.captureAttemptNumber !== input.request.captureAttemptNumber
+      || authority.attemptNumber !== input.request.captureAttemptNumber) {
       return {
         status: 'ignored',
         signal: input.request.signal,
@@ -307,8 +337,8 @@ export const createTrustedBookIntegrityCaptureService = (options: {
       clientSessionId: input.request.clientSessionId,
       sequence: input.request.sequence,
       recipientId: authority.recipientId,
-      accountableAttemptId: authority.accountableAttemptId,
-      attemptNumber: authority.attemptNumber,
+      accountableAttemptId: authority.captureSlotId,
+      attemptNumber: authority.captureAttemptNumber,
       target: { ...input.request.target },
       policyId: authority.frozenPolicy.policyId,
       policyRevision: authority.frozenPolicy.policyRevision,

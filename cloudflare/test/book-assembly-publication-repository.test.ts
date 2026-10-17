@@ -18,6 +18,10 @@ import {
 } from '../../src/services/book-assembly/publicationTransaction.service';
 import type { BookAssemblyPublicationScope } from '../../src/services/book-assembly/publicationRepository';
 import {
+  createComponentStudentDocument,
+  type ComponentStudentDocument,
+} from '../../src/services/book-assembly/componentStudentDocument.types';
+import {
   BOOK_ASSEMBLY_PUBLICATION_ROOT,
   FirebaseRestBookAssemblyPublicationRepository,
 } from '../src/upload-worker/book-assembly/publication-repository';
@@ -350,6 +354,7 @@ const toWireScope = <Result>(scope: BookAssemblyPublicationScope<Result>): Recor
   if (scope.placements !== undefined) wire.placements = scope.placements;
   if (scope.unitProjections !== undefined) wire.unit_projections = scope.unitProjections;
   if (scope.deliveryPlans !== undefined) wire.delivery_plans = scope.deliveryPlans;
+  if (scope.studentDocuments !== undefined) wire.student_documents = scope.studentDocuments;
   if (scope.current !== undefined) wire.current = scope.current;
   if (scope.operations !== undefined) wire.operations = scope.operations;
   if (scope.audits !== undefined) wire.audits = scope.audits;
@@ -408,6 +413,53 @@ const markerScope = (
 };
 
 describe('Book Assembly publication Firebase repository', () => {
+  it('reads and immutably prepares one source-version-keyed student-document descriptor', async () => {
+    const descriptor: ComponentStudentDocument = createComponentStudentDocument({
+      sourceVersionId: 'student-version-1',
+      descriptorRevision: 3,
+      sha256Hex: 'a'.repeat(64),
+      byteSize: 42,
+      physicalPageCount: 4,
+      compositionFingerprint: 'composition-1',
+      components: [
+        {
+          sourceKey: 'component-1', sourceVersionId: 'source-1', sourceOrder: 1,
+          ownerNodeKey: 'node-1', localPageCount: 2, combinedStartPage: 1, combinedEndPage: 2,
+        },
+        {
+          sourceKey: 'component-2', sourceVersionId: 'source-2', sourceOrder: 2,
+          ownerNodeKey: 'node-2', localPageCount: 2, combinedStartPage: 3, combinedEndPage: 4,
+        },
+      ],
+    });
+    const scope = {
+      studentDocuments: { [descriptor.sourceVersionId]: descriptor },
+    } as BookAssemblyPublicationScope<BookAssemblyPublicationResult>;
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: createFetchHarness(toWireScope(scope)).fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+    await expect(repository.readScope('book-1')).resolves.toEqual(scope);
+    const commitRepository = new FirebaseRestBookAssemblyPublicationRepository({
+      env,
+      fetchImpl: createFetchHarness(null).fetchImpl,
+      getAccessToken: async () => 'test-token',
+    });
+    await expect(commitRepository.transaction('book-1', () => ({
+      outcome: 'committed',
+      next: scope,
+      write: true,
+    }))).resolves.toBe('committed');
+    const conflict = structuredClone(scope);
+    conflict.studentDocuments!['student-version-1']!.compositionFingerprint = 'composition-2';
+    await expect(commitRepository.transaction('book-1', () => ({
+      outcome: 'conflict',
+      next: conflict,
+      write: true,
+    }))).rejects.toThrow('book_assembly_publication_immutable_update:student_documents/student-version-1');
+  });
+
   it('hydrates its canonical publication scope after Firebase omits nullable and empty-array fields', async () => {
     const scope = completeScope();
     scope.activitySafeProjections!['projection-1']!.placementIds = [];
@@ -949,6 +1001,26 @@ describe('Book Assembly publication Firebase repository', () => {
         getAccessToken: async () => 'test-token',
       });
       await expect(repository.readScope('book-1'))
+        .rejects.toThrow('invalid_book_assembly_publication_record');
+    }
+  });
+
+  it('round-trips reference-only groups through Firebase empty-array omission and rejects contradictory mappings', async () => {
+    const scope = completeScope();
+    const version = scope.versions!['manifest-1']!;
+    const reference = { ...version.manifest.units[0]!.pageGroups[0]!,
+      pageGroupKey: 'reference', activityKeys: [], mode: 'reference_only' as const };
+    version.manifest.units[0]!.pageGroups.push(reference);
+    const harness = createFetchHarness(null, { lossyFirebaseWire: true });
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env, fetchImpl: harness.fetchImpl, getAccessToken: async () => 'test-token',
+    });
+    await repository.transaction('book-1', () => ({ outcome: 'published', next: scope, write: true }));
+    await expect(repository.readScope('book-1')).resolves.toEqual(scope);
+    for (const group of [{ ...reference, activityKeys: ['activity-1'] }, { ...reference, mode: 'activity' }]) {
+      const invalid = structuredClone(scope);
+      invalid.versions!['manifest-1']!.manifest.units[0]!.pageGroups[1] = group;
+      await expect(repository.transaction('book-1', () => ({ outcome: 'invalid', next: invalid, write: true })))
         .rejects.toThrow('invalid_book_assembly_publication_record');
     }
   });

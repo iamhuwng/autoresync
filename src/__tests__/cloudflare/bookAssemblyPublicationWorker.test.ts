@@ -354,10 +354,54 @@ const publishBody = (input: {
 
 const env = {
   BOOK_ASSEMBLY_PUBLICATION_ENABLED: 'true',
-  readDatabaseValue: async () => ({ role: 'teacher' }),
+  readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
 };
 
+const authEnv = (profile: unknown) => ({
+  ...env,
+  readDatabaseValue: async () => profile,
+});
+
 describe('PRD0062 ticket 16A Assembly publication Worker boundary', () => {
+  it('requires the strict active authority profile and permits an active owner super-admin', async () => {
+    const deniedProfiles: readonly unknown[] = [
+      undefined,
+      null,
+      [],
+      { role: 'teacher' },
+      { role: 'student', status: 'active' },
+      { role: 'teacher', status: 'inactive' },
+      { role: 'teacher', status: 'blocked' },
+      { role: 'teacher', status: 'suspended' },
+      { role: 'teacher', status: 'active', disabled: true },
+      { role: 'teacher', status: 'active', forceReauth: true },
+      { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-07-27T12:00:00.000Z' },
+      { role: 'teacher', status: 'ACTIVE' },
+    ];
+    for (const profile of deniedProfiles) {
+      const handlers = createHandlers({});
+      await expect(handlers.publish({
+        env: authEnv(profile),
+        uid: 'teacher-1',
+        request: request(publishBody({
+          operationId: op('40'), expectedCurrentPublicationId: null,
+          publicationId: 'publication-40', publicationRevision: 1,
+        })),
+      })).resolves.toEqual({
+        body: { code: 'assembly_publication_forbidden' }, init: { status: 403 },
+      });
+    }
+
+    const handlers = createHandlers({});
+    await expect(handlers.publish({
+      env: authEnv({ role: 'super_admin', status: 'active' }),
+      uid: 'teacher-1',
+      request: request(publishBody({
+        operationId: op('41'), expectedCurrentPublicationId: null,
+        publicationId: 'publication-41', publicationRevision: 1,
+      })),
+    })).resolves.toMatchObject({ init: { status: 200 }, body: { status: 'published' } });
+  });
   it('publishes and rolls back through trusted owner commands without route integration claims', async () => {
     const repository = new InMemoryBookAssemblyPublicationRepository();
     const activityVersionWriter = new InMemoryCanonicalActivityVersionRepository();

@@ -14,7 +14,8 @@ import {
   createBookRuntimeProductionDependencies,
   type BookRuntimeCanonicalDependencies,
 } from '../src/upload-worker/book-runtime/canonical.ts';
-import type { BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
+import { InMemoryBookRuntimeRepository, type BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
+import * as resultProjection from '../src/upload-worker/book-results/production-projection.ts';
 
 const BOOK_HOMEWORK_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nredacted\n-----END PRIVATE KEY-----';
 
@@ -222,6 +223,7 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
     const handlers = createBookRouteHandlers();
     expect(typeof handlers['bookRuntime.command']).toBe('function');
     expect(typeof handlers['bookRuntime.readDraft']).toBe('function');
+    expect(typeof handlers['bookRuntime.readTerminal']).toBe('function');
   });
 
   it('injects the durable runtime repository and current Delivery binding resolver', async () => {
@@ -318,6 +320,48 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
     })).resolves.toBeUndefined();
   });
 
+  it('projects accepted and replayed committed tuples without a bounded terminal scan', async () => {
+    const runtime = new InMemoryBookRuntimeRepository();
+    const command = {
+      operationId: '00000000-0000-4000-8000-000000000101', commandKind: 'autosave' as const,
+      bindingId: 'binding-1', bindingRevision: 1, contextId: 'context-1',
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', clientRevision: 0, response: 'draft',
+    };
+    const context = {
+      actorUid: 'student-1', operationKind: 'autosave' as const, binding: binding(),
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', now: new Date().toISOString(),
+      scheduleAuthority: scheduleAuthority('submit'),
+    };
+    await runtime.applyCommand({ command, context, attemptId: 'unused' });
+    const submitted = await runtime.applyCommand({
+      command: { ...command, operationId: '00000000-0000-4000-8000-000000000102', commandKind: 'submit', clientRevision: 1 },
+      context: { ...context, operationKind: 'submit' }, attemptId: 'attempt-1',
+      attemptPolicy: { maxAttempts: null, feedbackPolicy: 'immediate' }, score: { status: 'review_required' },
+    });
+    const write = vi.fn(async () => {});
+    const writer = vi.spyOn(resultProjection, 'createFirebaseBookResultProjectionWriter').mockReturnValue({ write });
+    try {
+      const runtimeEnv = { ...env, BOOK_RESULT_PROJECTION_ENABLED: 'enabled' };
+      const production = createBookRuntimeProductionDependencies(runtimeEnv);
+      const scan = vi.spyOn(production.repository, 'listTerminalTuples').mockRejectedValue(new Error('bounded scan unavailable'));
+      for (const status of ['accepted', 'replayed'] as const) {
+        await production.projectBookResult!({ binding: binding(), result: { ...submitted, status }, env: runtimeEnv });
+      }
+      expect(scan).not.toHaveBeenCalled();
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(write).toHaveBeenLastCalledWith(expect.objectContaining({ projection: expect.objectContaining({
+        summary: expect.objectContaining({ attemptId: 'attempt-1', resultId: 'attempt-1:result' }),
+      }) }));
+      await expect(production.projectBookResult!({ binding: binding(), result: { ...submitted, result: undefined }, env: runtimeEnv }))
+        .rejects.toThrow('book_result_projection_terminal_reader_unavailable');
+      expect(write).toHaveBeenCalledTimes(2);
+    } finally {
+      writer.mockRestore();
+    }
+  });
+
   it('uses the runtime identity to resolve an exact canonical Activity Version', async () => {
     const current = {
       bindingId: 'binding-1',
@@ -340,7 +384,15 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       if (path === 'book_delivery/scopes/student-1/context-1/records/binding-1') return record;
       if (path === 'book_delivery/scopes/student-1/context-1/recovery/hold') return null;
       if (path === 'book_activity/versions/activity-1/activity-version-1') {
-        return canonicalActivityVersion();
+        const raw = structuredClone(canonicalActivityVersion()) as Record<string, any>;
+        delete raw.evidenceRefs;
+        delete raw.activity.taskProfile;
+        delete raw.activity.stimulus;
+        delete raw.activity.assetRefs;
+        delete raw.projection.taskProfile;
+        delete raw.projection.stimulus;
+        delete raw.projection.assetRefs;
+        return raw;
       }
       if (path === 'users/student-1') return null;
       if (path === 'book_runtime/scopes/student-1/context-1/placement-1/interaction-1') {
@@ -381,5 +433,33 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       'book_activity/versions/activity-1/activity-version-1',
       undefined,
     );
+  });
+
+  it('keeps Course and Class attempts unlimited without a Homework policy lookup', async () => {
+    const production = createBookRuntimeProductionDependencies(env, undefined, undefined);
+    for (const kind of ['course', 'class'] as const) {
+      const delivery = binding();
+      const current = {
+        ...delivery,
+        context: {
+          ...delivery.context,
+          kind,
+          entitlementBasis: kind === 'course' ? 'enrollment' : 'membership',
+          ...(kind === 'class' ? {
+            classLocator: {
+              classId: 'class-1', copyId: 'copy-1', courseMaterialId: 'material-1', classPlacementId: 'placement-1',
+            },
+          } : {}),
+        },
+      } as BookDeliveryBinding;
+      await expect(production.resolveAttemptPolicy?.({
+        binding: current,
+        placementId: 'placement-1',
+        activityId: 'activity-1',
+        activityVersion: 1,
+        interactionId: 'interaction-1',
+        env,
+      })).resolves.toEqual({ maxAttempts: null });
+    }
   });
 });

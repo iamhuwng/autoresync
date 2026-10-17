@@ -1,4 +1,5 @@
 import type { BookUpdateActionRecord } from '../../../../src/services/book-delivery/bookUpdateAction.types.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import { advanceBookUpdateAction, type BookUpdateActionRepository } from './update-action.ts';
 import {
   createBookUpdateFinalizer,
@@ -478,14 +479,7 @@ const operationId = (actionId: string, operation: BookRemovalUpdateOperation): s
   `${actionId}:removal:${operation.contextKey}:${operation.contextId}:${operation.studentId}:${operation.placementId}`
 );
 
-const contextIdFromKey = (contextKey: string, contextKind: BookRemovalContextKind): string | null => {
-  const prefix = `${contextKind}:`;
-  return contextKey.startsWith(prefix) && contextKey.length > prefix.length
-    ? contextKey.slice(prefix.length)
-    : null;
-};
-
-const validOperation = (action: BookUpdateActionRecord, operation: BookRemovalUpdateOperation): boolean => {
+const validOperation = async (action: BookUpdateActionRecord, operation: BookRemovalUpdateOperation): Promise<boolean> => {
   const selection = action.selections.find((candidate) => (
     candidate.contextKey === operation.contextKey
     && candidate.placementId === operation.placementId
@@ -502,7 +496,7 @@ const validOperation = (action: BookUpdateActionRecord, operation: BookRemovalUp
     && validId(operation.contextKey)
     && validId(operation.contextId)
     && ['solo', 'homework', 'course', 'class', 'public-reference'].includes(operation.contextKind)
-    && contextIdFromKey(operation.contextKey, operation.contextKind) === operation.contextId
+    && operation.contextKey === await bookImpactContextKey({ ...operation, recipientId: operation.studentId })
     && validId(operation.studentId)
     && validId(operation.placementId)
     && validId(operation.activityId)
@@ -512,7 +506,7 @@ const validOperation = (action: BookUpdateActionRecord, operation: BookRemovalUp
     && validSource(operation.source ?? { kind: 'none' });
 };
 
-const validPlan = (action: BookUpdateActionRecord, plan: BookRemovalUpdatePlan): boolean => {
+const validPlan = async (action: BookUpdateActionRecord, plan: BookRemovalUpdatePlan): Promise<boolean> => {
   if (plan.schemaVersion !== 1
     || !validId(plan.actionId)
     || plan.actionId !== action.actionId
@@ -524,7 +518,7 @@ const validPlan = (action: BookUpdateActionRecord, plan: BookRemovalUpdatePlan):
     || !validId(plan.contextId)
     || !validId(plan.studentId)
     || !['solo', 'homework', 'course', 'class', 'public-reference'].includes(plan.contextKind)
-    || plan.contextId !== contextIdFromKey(plan.contextKey, plan.contextKind)
+    || plan.contextKey !== await bookImpactContextKey({ ...plan, recipientId: plan.studentId })
     || typeof plan.reason !== 'string'
     || plan.reason.trim() !== plan.reason
     || plan.reason.length === 0
@@ -541,7 +535,7 @@ const validPlan = (action: BookUpdateActionRecord, plan: BookRemovalUpdatePlan):
       || operation.studentId !== plan.studentId
       || operation.choice !== 'remove-from-current'
       || seen.has(key)
-      || !validOperation(action, operation)) return false;
+      || !await validOperation(action, operation)) return false;
     seen.add(key);
   }
   return true;
@@ -843,7 +837,7 @@ export const createBookRemovalUpdateExecutor = (options: BookRemovalUpdateExecut
       || new Set(plans.map(planKey)).size !== plans.length
       || new Set(coveredKeys).size < new Set(selectedKeys).size
       || selectedKeys.some((key) => !coveredKeys.includes(key))
-      || plans.some((plan) => !validPlan(action, plan))) {
+      || (await Promise.all(plans.map((plan) => validPlan(action, plan)))).some((valid) => !valid)) {
       return { status: 'pending', action, code: 'case-plan-invalid', completedStudentCount: 0 };
     }
 

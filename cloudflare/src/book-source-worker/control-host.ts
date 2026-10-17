@@ -579,7 +579,7 @@ export const dispatchBookSourceControlRequest = async ({
       });
       if (result.status !== 'verified_completed'
         || result.reservationId !== route.reservationId
-        || result.purpose !== 'book-source'
+        || (result.purpose !== 'book-source' && result.purpose !== 'student-document')
         || result.studentSafeStatus !== body.studentSafeStatus
         || !checksum
         || !decision

@@ -4,6 +4,7 @@ import {
   SOURCE_PROVIDER_ACCOUNT_TOTALS_MAX_PAGE_SIZE,
   type SourceProviderAccountTotalsPage,
   type SourceProviderBoundedRead,
+  type SourceProviderObjectReservation,
   type SourceProviderObjectMetadata,
   type SourceProviderPort,
   type SourceProviderRequestOptions,
@@ -18,6 +19,7 @@ import {
  */
 type BackblazeB2ProviderOperations = Pick<SourceProviderPort,
   | 'authorizeUpload'
+  | 'resolveCompletedObject'
   | 'verifyCompletedObject'
   | 'readObjectMetadata'
   | 'readAccountTotalsPage'
@@ -30,6 +32,7 @@ const DEFAULT_MAX_READ_BYTES = 1024 * 1024;
 const SHA_256 = 'SHA-256';
 const MAX_ACCOUNT_TOTALS_CONTINUATION_LENGTH = 4_096;
 const MAX_METADATA_RESPONSE_BYTES = 64 * 1024;
+const MAX_COMPLETED_OBJECT_CANDIDATES = 32;
 
 export interface BackblazeB2SourceProviderConfig {
   /** Private B2 S3 endpoint, e.g. https://s3.us-west-004.backblazeb2.com. */
@@ -135,10 +138,26 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 const readBoundedJsonRecord = async (
   response: Response,
   maxBytes: number,
+  options?: SourceProviderRequestOptions,
 ): Promise<Record<string, unknown> | null> => {
+  const encoded = await readBoundedResponseBody(response, maxBytes, options);
+  try {
+    return asRecord(JSON.parse(new TextDecoder().decode(encoded)));
+  } catch {
+    fail('metadata_mismatch');
+  }
+};
+
+const readBoundedResponseBody = async (
+  response: Response,
+  maxBytes: number,
+  options?: SourceProviderRequestOptions,
+): Promise<Uint8Array> => {
   const declaredLength = response.headers.get('content-length');
   if (declaredLength !== null
     && (!/^\d+$/u.test(declaredLength) || Number(declaredLength) > maxBytes)) {
+    const body = response.body;
+    if (body) void body.cancel('metadata_mismatch').catch(() => undefined);
     fail('metadata_mismatch');
   }
   const reader = response.body?.getReader();
@@ -146,15 +165,51 @@ const readBoundedJsonRecord = async (
 
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalBytes += value.byteLength;
-    if (totalBytes > maxBytes) {
-      await reader.cancel();
-      fail('metadata_mismatch');
+  const configuredTimeoutMs = options?.timeoutMs ?? PROVIDER_TIMEOUT_MS;
+  if (!Number.isSafeInteger(configuredTimeoutMs) || configuredTimeoutMs < 1) {
+    void reader.cancel('timeout').catch(() => undefined);
+    fail('timeout', true);
+  }
+  const deadlineRemaining = options?.deadlineAt === undefined
+    ? configuredTimeoutMs
+    : Math.floor(options.deadlineAt - Date.now());
+  if (deadlineRemaining < 1) {
+    void reader.cancel('timeout').catch(() => undefined);
+    fail('timeout', true);
+  }
+  const timeoutMs = Math.min(configuredTimeoutMs, deadlineRemaining);
+  if (options?.signal?.aborted) {
+    void reader.cancel('aborted').catch(() => undefined);
+    fail('aborted');
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelledReject!: (reason: SourceProviderError) => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    cancelledReject = reject;
+  });
+  const onAbort = () => cancelledReject(new SourceProviderError('aborted', false));
+  options?.signal?.addEventListener('abort', onAbort, { once: true });
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SourceProviderError('timeout', true)), timeoutMs);
+  });
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), cancelled, timedOut]);
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        void reader.cancel().catch(() => undefined);
+        fail('metadata_mismatch');
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } catch (error) {
+    void reader.cancel(error).catch(() => undefined);
+    if (error instanceof SourceProviderError) throw error;
+    throw new SourceProviderError('timeout', true);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    options?.signal?.removeEventListener('abort', onAbort);
   }
 
   const encoded = new Uint8Array(totalBytes);
@@ -163,11 +218,7 @@ const readBoundedJsonRecord = async (
     encoded.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  try {
-    return asRecord(JSON.parse(new TextDecoder().decode(encoded)));
-  } catch {
-    fail('metadata_mismatch');
-  }
+  return encoded;
 };
 
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -236,6 +287,15 @@ const decodeAccountTotalsContinuation = (continuation: string): { readonly fileN
 
 const checkedNullableString = (value: unknown): string | null | undefined =>
   value === null ? null : checkedString(value) ?? undefined;
+
+const createReservationIdentity = (
+  reservation: SourceProviderObjectReservation,
+  fileId: string,
+): BookSourceVersionStorageIdentity => Object.freeze({
+  ...reservation,
+  providerFileId: fileId,
+  providerFileVersionId: fileId,
+});
 
 const requiredConfiguration = (env: Record<string, unknown>, name: string): string => {
   const value = env[name];
@@ -375,6 +435,53 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     });
   }
 
+  async resolveCompletedObject(input: {
+    readonly expected: SourceProviderObjectReservation;
+  }, options?: SourceProviderRequestOptions): Promise<SourceProviderObjectMetadata> {
+    this.assertReservationObject(input.expected);
+    const authorization = await this.b2Authorize(
+      this.config.metadataCredentials,
+      'metadata',
+      input.expected.providerObjectKey,
+      options,
+    );
+    const response = await this.request(`${authorization.apiUrl}/b2api/v4/b2_list_file_versions`, {
+      method: 'POST',
+      headers: { Authorization: authorization.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bucketId: input.expected.privateBucketId,
+        prefix: input.expected.providerObjectKey,
+        maxFileCount: MAX_COMPLETED_OBJECT_CANDIDATES,
+      }),
+    }, options);
+    if (!response.ok) throw statusFailure(response.status);
+    const parsed = await readBoundedJsonRecord(response, MAX_METADATA_RESPONSE_BYTES, options) as B2ListVersionsResponse | null;
+    if (!parsed || !Array.isArray(parsed.files) || parsed.files.length > MAX_COMPLETED_OBJECT_CANDIDATES) {
+      fail('metadata_mismatch');
+    }
+    const nextFileName = checkedString(parsed.nextFileName);
+    const nextFileId = checkedString(parsed.nextFileId);
+    if (nextFileName !== null || nextFileId !== null) fail('provider_drift');
+
+    let exactUpload: B2FileInfo | undefined;
+    for (const rawFile of parsed.files) {
+      const file = asRecord(rawFile) as B2FileInfo | null;
+      if (!file) fail('metadata_mismatch');
+      if (file.action !== 'upload' || file.fileName !== input.expected.providerObjectKey) continue;
+      const size = checkedInteger(file.contentLength);
+      const fileId = checkedString(file.fileId);
+      if (size === null || !fileId) fail('metadata_mismatch');
+      if (size !== input.expected.byteSize) fail('metadata_mismatch');
+      if (exactUpload !== undefined) fail('provider_drift');
+      exactUpload = file;
+    }
+    if (!exactUpload) fail('not_found');
+    const fileId = checkedString(exactUpload.fileId);
+    if (!fileId) fail('metadata_mismatch');
+    const identity = createReservationIdentity(input.expected, fileId);
+    return this.readObjectMetadata({ identity }, options);
+  }
+
   async verifyCompletedObject(input: { readonly expected: BookSourceVersionStorageIdentity }, options?: SourceProviderRequestOptions): Promise<SourceProviderObjectMetadata> {
     return this.readObjectMetadata({ identity: input.expected }, options);
   }
@@ -395,7 +502,7 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     }, options);
     if (!response.ok) throw statusFailure(response.status);
 
-    const metadata = await readBoundedJsonRecord(response, MAX_METADATA_RESPONSE_BYTES);
+    const metadata = await readBoundedJsonRecord(response, MAX_METADATA_RESPONSE_BYTES, options);
     const fileInfo = asRecord(metadata?.fileInfo);
     const length = checkedInteger(metadata?.contentLength);
     const contentType = checkedString(metadata?.contentType)?.trim().toLowerCase();
@@ -452,8 +559,8 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     }
     const declaredLength = response.headers.get('content-length');
     if (declaredLength !== null && Number(declaredLength) !== expectedLength) fail('metadata_mismatch');
-    const bytes = await this.readBoundedBody(response, expectedLength);
-    return Object.freeze({ bytes, totalByteSize, offset });
+    const bytes = await this.readBoundedBody(response, expectedLength, options);
+    return Object.freeze({ bytes, totalByteSize, offset, contentIdentity: input.identity });
   }
 
   async readAccountTotalsPage(input: {
@@ -521,6 +628,19 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
   private assertLocation(input: { readonly storageLocationId: string; readonly providerKind: string; readonly privateBucketId: string }): void {
     if (input.storageLocationId !== this.config.storageLocationId || input.providerKind !== PROVIDER_KIND || input.privateBucketId !== this.config.privateBucketId) {
       fail('unauthorized');
+    }
+  }
+
+  private assertReservationObject(reservation: SourceProviderObjectReservation): void {
+    this.assertLocation(reservation);
+    if (!safeProviderId.test(reservation.bookId)
+      || !safeProviderId.test(reservation.sourceVersionId)
+      || !safeObjectKey.test(reservation.providerObjectKey)
+      || reservation.checksum.algorithm !== 'sha-256'
+      || !sha256Hex.test(reservation.checksum.value)
+      || !Number.isSafeInteger(reservation.byteSize)
+      || reservation.byteSize < 1) {
+      fail('metadata_mismatch');
     }
   }
 
@@ -602,46 +722,32 @@ export class BackblazeB2SourceProvider implements BackblazeB2ProviderOperations 
     return hex(new Uint8Array(await crypto.subtle.digest(SHA_256, encoder.encode(value))));
   }
 
-  private async readBoundedBody(response: Response, expectedLength: number): Promise<Uint8Array> {
-    if (!response.body || expectedLength < 1 || expectedLength > this.maxReadBytes) fail('metadata_mismatch');
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let received = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value.byteLength;
-        if (received > expectedLength || received > this.maxReadBytes) {
-          await reader.cancel();
-          fail('metadata_mismatch');
-        }
-        chunks.push(value);
-      }
-    } catch (error) {
-      if (error instanceof SourceProviderError) throw error;
-      throw new SourceProviderError('timeout', true);
-    }
-    if (received !== expectedLength) fail('metadata_mismatch');
-
-    const result = new Uint8Array(received);
-    let cursor = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, cursor);
-      cursor += chunk.byteLength;
-    }
+  private async readBoundedBody(
+    response: Response,
+    expectedLength: number,
+    options?: SourceProviderRequestOptions,
+  ): Promise<Uint8Array> {
+    if (expectedLength < 1 || expectedLength > this.maxReadBytes) fail('metadata_mismatch');
+    const result = await readBoundedResponseBody(response, expectedLength, options);
+    if (result.byteLength !== expectedLength) fail('metadata_mismatch');
     return result;
   }
 
   private throwIfCancelled(options?: SourceProviderRequestOptions): void {
     if (options?.signal?.aborted) fail('aborted');
     if (options?.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1)) fail('timeout', true);
+    if (options?.deadlineAt !== undefined
+      && (!Number.isSafeInteger(options.deadlineAt) || options.deadlineAt <= Date.now())) fail('timeout', true);
   }
 
   private async request(url: string, init: RequestInit, options?: SourceProviderRequestOptions): Promise<Response> {
     this.throwIfCancelled(options);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? PROVIDER_TIMEOUT_MS);
+    const configuredTimeout = options?.timeoutMs ?? PROVIDER_TIMEOUT_MS;
+    const deadlineRemaining = options?.deadlineAt === undefined
+      ? configuredTimeout
+      : Math.floor(options.deadlineAt - Date.now());
+    const timeout = setTimeout(() => controller.abort(), Math.min(configuredTimeout, deadlineRemaining));
     const onAbort = () => controller.abort();
     options?.signal?.addEventListener('abort', onAbort, { once: true });
     try {

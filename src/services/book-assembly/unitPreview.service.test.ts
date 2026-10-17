@@ -6,7 +6,99 @@ import {
   UnitPreviewError,
   createCandidateUnitPreview,
   createPreviewApproval,
+  previewInputFingerprint,
+  wholeActivationApprovalFingerprint,
 } from './unitPreview.service';
+import { createComponentStudentDocument } from './componentStudentDocument.types';
+import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from './componentPdfActivation.service';
+
+describe('whole activation approval fingerprint', () => {
+  it('binds every stable activation input and has no transport or lifecycle input', () => {
+    const sourceSet = { sourceStrategy: 'component_pdfs' as const, sources: [
+      { sourceKey: 'a', sourceVersionId: 'sv-1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'b', sourceVersionId: 'sv-2', sourceOrder: 2, ownerNodeKey: 'unit-2' },
+    ] };
+    const studentDocument = createComponentStudentDocument({
+      sourceVersionId: 'doc-1', descriptorRevision: 4, sha256Hex: 'a'.repeat(64), byteSize: 10,
+      physicalPageCount: 2, compositionFingerprint: 'composition-1', components: [
+        { sourceKey: 'a', sourceVersionId: 'sv-1', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'b', sourceVersionId: 'sv-2', sourceOrder: 2, ownerNodeKey: 'unit-2', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ],
+    });
+    const manifest = { bookId: 'book-1', sourceSet, nodes: [], units: [
+      { unitKey: 'unit-1', pageGroups: [{ pageGroupKey: 'pg-1', sourceKey: 'a', pages: [1], defaultPhysicalPageNumber: 1, activityKeys: ['activity-1'], mode: 'activity' as const }], activitySlots: [{ activityKey: 'activity-1', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pg-1'] }] },
+      { unitKey: 'unit-2', pageGroups: [{ pageGroupKey: 'pg-2', sourceKey: 'b', pages: [1], defaultPhysicalPageNumber: 1, activityKeys: ['activity-2'], mode: 'activity' as const }], activitySlots: [{ activityKey: 'activity-2', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pg-2'] }] },
+    ] };
+    const manifestFingerprint = fingerprintComponentPdfActivationValue(manifest);
+    const activationReceipt = createComponentPdfActivationReceipt({
+      operationId: 'activation-1', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 2, expectedSourceSetRevision: 3, sourceSet,
+      unitCandidates: [
+        { unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 1, manifestFingerprint },
+        { unitKey: 'unit-2', candidateId: 'candidate-2', candidateRevision: 2, manifestFingerprint },
+      ],
+      studentDocument: { sourceVersionId: 'doc-1', descriptorRevision: 4, descriptorFingerprint: fingerprintComponentPdfActivationValue(studentDocument) },
+      activities: [
+        { unitKey: 'unit-1', activityKey: 'activity-1', activityId: 'activity-id-1', activityCandidateId: 'activity-candidate-1', activityCandidateRevision: 1, activityPayloadFingerprint: fingerprintComponentPdfActivationValue('payload-1') },
+        { unitKey: 'unit-2', activityKey: 'activity-2', activityId: 'activity-id-2', activityCandidateId: 'activity-candidate-2', activityCandidateRevision: 2, activityPayloadFingerprint: fingerprintComponentPdfActivationValue('payload-2') },
+      ],
+      activatedAt: '2026-09-21T00:00:00.000Z',
+    });
+    const base = { ownerId: 'teacher-1', bookId: 'book-1', bookRevision: 3, sourceSetRevision: 4,
+      sourceSet, activationReceipt, studentDocument, registryVersion: 'registry-1',
+      units: activationReceipt.unitCandidates.map((unit) => ({ ...unit, manifest })),
+      activities: activationReceipt.activities,
+    };
+    const original = wholeActivationApprovalFingerprint(base);
+    const changes = [
+      { ...base, ownerId: 'teacher-2' }, { ...base, bookId: 'book-2' },
+      { ...base, bookRevision: 4 }, { ...base, sourceSetRevision: 5 },
+      { ...base, sourceSet: { ...sourceSet, sources: sourceSet.sources.map((source, index) => index ? source : { ...source, sourceVersionId: 'sv-changed' }) } },
+      { ...base, activationReceipt: { ...activationReceipt, sourceSetRevision: 5 } },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, candidateId: 'candidate-changed' }) },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, candidateRevision: 3 }) },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, manifestFingerprint: fingerprintComponentPdfActivationValue('manifest-changed') }) },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, manifest: { ...manifest, units: manifest.units.map((entry, unitIndex) => unitIndex ? entry : { ...entry, pageGroups: [{ ...entry.pageGroups[0]!, pages: [2] }] }) } }) },
+      { ...base, studentDocument: { ...studentDocument, sha256Hex: 'b'.repeat(64) } },
+      { ...base, studentDocument: { ...studentDocument, byteSize: 11 } },
+      { ...base, studentDocument: { ...studentDocument, physicalPageCount: 3 } },
+      { ...base, studentDocument: { ...studentDocument, descriptorRevision: 5 } },
+      { ...base, studentDocument: { ...studentDocument, compositionFingerprint: 'composition-2' } },
+      { ...base, studentDocument: { ...studentDocument, components: studentDocument.components.map((component, index) => index ? component : { ...component, combinedEndPage: 2 }) } },
+      { ...base, registryVersion: 'registry-2' },
+      { ...base, activities: base.activities.map((entry, index) => index ? entry : { ...entry, activityCandidateId: 'activity-candidate-changed' }) },
+      { ...base, activities: base.activities.map((entry, index) => index ? entry : { ...entry, activityCandidateRevision: 3 }) },
+      { ...base, activities: base.activities.map((entry, index) => index ? entry : { ...entry, activityPayloadFingerprint: fingerprintComponentPdfActivationValue('payload-changed') }) },
+    ];
+    for (const changed of changes) expect(wholeActivationApprovalFingerprint(changed)).not.toBe(original);
+    const transient = { ...structuredClone(base), opaqueRouteKey: 'new-route', url: 'https://elsewhere.invalid',
+      requestId: 'request-2', publicationOperationId: 'publication-operation-2', headers: { Authorization: 'Bearer changed' },
+      expectedEtag: 'etag-2', expiresAt: '2099-01-01T00:00:00.000Z', refreshToken: 'refresh-2',
+      uiState: { selectedTab: 'other' }, approvalId: 'approval-2', approvedAt: 'later', lifecycle: 'revoked' };
+    expect(wholeActivationApprovalFingerprint(transient)).toBe(original);
+    expect(wholeActivationApprovalFingerprint({ ...base, activationReceipt: {
+      ...activationReceipt, operationId: 'activation-2', inputFingerprint: fingerprintComponentPdfActivationValue('operation-2'),
+    } })).toBe(original);
+    expect(wholeActivationApprovalFingerprint({ ...base, activationReceipt: {
+      ...activationReceipt, activatedAt: '2099-01-01T00:00:00.000Z',
+    } })).toBe(original);
+
+    const invalidRelationships = [
+      { ...base, units: base.units.slice(0, 1) },
+      { ...base, units: [...base.units, { ...base.units[1]!, unitKey: 'unit-extra' }] },
+      { ...base, units: [...base.units, base.units[0]!] },
+      { ...base, activities: base.activities.slice(0, 1) },
+      { ...base, activities: [...base.activities, { ...base.activities[1]!, activityKey: 'activity-extra' }] },
+      { ...base, activities: [...base.activities, base.activities[0]!] },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, manifest: { ...manifest, units: manifest.units.map((entry, unitIndex) => unitIndex ? entry : { ...entry, activitySlots: [{ ...entry.activitySlots[0]!, pageGroupKeys: [] }] }) } }) },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, manifest: { ...manifest, units: manifest.units.map((entry, unitIndex) => unitIndex ? entry : { ...entry, pageGroups: [] }) } }) },
+      { ...base, units: base.units.map((unit, index) => index ? unit : { ...unit, manifest: { ...manifest, units: manifest.units.map((entry, unitIndex) => unitIndex ? entry : { ...entry, pageGroups: [...entry.pageGroups, entry.pageGroups[0]!] }) } }) },
+    ];
+    for (const invalid of invalidRelationships) {
+      expect(() => wholeActivationApprovalFingerprint(invalid)).toThrow(/whole_activation/u);
+    }
+  });
+});
 
 const activity = (): NormalizedActivity => ({
   schemaVersion: 1,
@@ -51,7 +143,7 @@ const candidate = (): BookAssemblyCandidateRecord => ({
 
 const input = () => ({
   candidate: candidate(),
-  sourceVersions: [{ sourceVersionId: 'source-1', bookId: 'book-1', physicalPageCount: 4, verifiedUsable: true }],
+  sourceVersions: [{ sourceKey: 'full', sourceVersionId: 'source-1', bookId: 'book-1', physicalPageCount: 4, verifiedUsable: true }],
   sourceIsPreviewReady: () => true,
   activitiesByKey: { 'activity-1': activity() },
   registryVersion: 'registry-v1',
@@ -111,6 +203,55 @@ const activityForRegistration = (
 };
 
 describe('createCandidateUnitPreview', () => {
+  it('projects component preview as one combined request and source-free Page Group map', () => {
+    const baseCandidate = candidate();
+    const componentCandidate: BookAssemblyCandidateRecord = { ...baseCandidate, manifest: {
+      ...baseCandidate.manifest!,
+      sourceSet: { sourceStrategy: 'component_pdfs', sources: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+        { sourceKey: 'component-b', sourceVersionId: 'source-b', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+      ] },
+      units: [{ ...baseCandidate.manifest!.units[0]!, pageGroups: [
+        { ...baseCandidate.manifest!.units[0]!.pageGroups[0]!, sourceKey: 'component-b', pages: [2] },
+      ] }],
+    } };
+    const componentInput = {
+      ...input(), candidate: componentCandidate,
+      sourceVersions: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-a', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
+        { sourceKey: 'component-b', sourceVersionId: 'source-b', bookId: 'book-1', physicalPageCount: 3, verifiedUsable: true },
+      ],
+      studentDocument: {
+        descriptor: createComponentStudentDocument({
+          sourceVersionId: 'student-v1', descriptorRevision: 4, sha256Hex: 'a'.repeat(64), byteSize: 123,
+          physicalPageCount: 5, compositionFingerprint: 'composition-1', components: [
+            { sourceKey: 'component-a', sourceVersionId: 'source-a', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 2, combinedStartPage: 1, combinedEndPage: 2 },
+            { sourceKey: 'component-b', sourceVersionId: 'source-b', sourceOrder: 2, ownerNodeKey: 'unit-1', localPageCount: 3, combinedStartPage: 3, combinedEndPage: 5 },
+          ],
+        }),
+        request: { opaqueRouteKey: 'student-document', expectedByteLength: 123, expectedEtag: `"${'a'.repeat(64)}"` },
+      },
+    };
+    const preview = createCandidateUnitPreview(componentInput);
+    expect(preview.runtime).toMatchObject({
+      sourceSet: { strategy: 'component_pdfs', sources: [] },
+      documentRequests: [{ opaqueRouteKey: 'student-document', expectedByteLength: 123 }],
+      pageGroups: [{ pageGroupKey: 'pages-1', combinedPhysicalPages: [4] }],
+    });
+    expect(JSON.stringify(preview.runtime)).not.toMatch(/component-a|component-b|source-a|source-b/iu);
+    const refreshedRoute = createCandidateUnitPreview({ ...componentInput, studentDocument: {
+      ...componentInput.studentDocument,
+      request: { ...componentInput.studentDocument.request,
+        opaqueRouteKey: 'refreshed-route', expectedEtag: `"${'b'.repeat(64)}"` },
+    } });
+    const changedBytes = createCandidateUnitPreview({ ...componentInput, studentDocument: {
+      ...componentInput.studentDocument,
+      descriptor: { ...componentInput.studentDocument.descriptor, sha256Hex: 'b'.repeat(64) },
+    } });
+    expect(previewInputFingerprint(refreshedRoute)).toBe(previewInputFingerprint(preview));
+    expect(previewInputFingerprint(changedBytes)).not.toBe(previewInputFingerprint(preview));
+    expect(JSON.stringify(preview.runtime)).not.toContain(preview.studentDocumentContentFingerprint);
+  });
   it('projects only selected candidate Unit and strips Activity answer keys', () => {
     const withAuthoringOnlyFields = activity() as NormalizedActivity & Record<string, unknown>;
     withAuthoringOnlyFields.authoringNote = 'private authoring note';
@@ -177,6 +318,15 @@ describe('createCandidateUnitPreview', () => {
       approvedAt: '2026-07-27T00:00:00.000Z', expiresAt: '2026-07-27T01:00:00.000Z', preview: registryMutation,
       canonicalActivitiesByKey: { 'activity-1': activity() },
     }).inputFingerprint);
+  });
+
+  it('excludes ephemeral route keys and ETags from approval identity', () => {
+    const preview = createCandidateUnitPreview(input());
+    const request = preview.runtime!.documentRequests[0]!;
+    const refreshed = { ...preview, runtime: { ...preview.runtime!, documentRequests: [{
+      ...request, opaqueRouteKey: 'refreshed-route', expectedEtag: `"${'b'.repeat(64)}"`,
+    }] } };
+    expect(previewInputFingerprint(refreshed)).toBe(previewInputFingerprint(preview));
   });
 
   it('requires complete canonical activity bindings and a current Book revision', () => {

@@ -46,6 +46,8 @@ import {
     isBookActivityEvaluationPresentationEnabled,
     type BookActivityEvaluationLocator,
 } from '../services/book-activity/activityEvaluation.browser';
+import { bookResultGroupKey } from '../services/book-activity/results/bookResult.types';
+import { createBookResultRouteHandle } from '../services/bookResult.browser';
 import { normalizeHomeworkIntegrity } from '../utils/integrityUtils';
 
 interface AssignedStudent {
@@ -78,6 +80,7 @@ export function TeacherBookHomeworkProgressPanel({
     onBack,
     onRetry,
     onGradeActivity,
+    onViewResult,
     onViewIntegrity,
 }: {
     rows: readonly { studentId: string; completion: BookHomeworkProgressProjection | null }[] | null;
@@ -86,6 +89,10 @@ export function TeacherBookHomeworkProgressPanel({
     onBack: () => void;
     onRetry?: () => void;
     onGradeActivity?: (
+        studentId: string,
+        activity: BookHomeworkProgressActivity,
+    ) => void;
+    onViewResult?: (
         studentId: string,
         activity: BookHomeworkProgressActivity,
     ) => void;
@@ -203,6 +210,15 @@ export function TeacherBookHomeworkProgressPanel({
                                                             style={{ minWidth: 44, minHeight: 44 }}
                                                         >
                                                             {activity.gradingState === 'scored' ? 'Review / regrade' : 'Grade Activity'}
+                                                        </button>
+                                                    ) : null}
+                                                    {activity.submitted && onViewResult ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onViewResult(studentId, activity)}
+                                                            style={{ minWidth: 44, minHeight: 44 }}
+                                                        >
+                                                            View Activity result
                                                         </button>
                                                     ) : null}
                                                     {activity.submitted && activity.terminalId && onViewIntegrity ? (
@@ -972,6 +988,8 @@ function TeacherHomeworkDetailPage() {
             && isBookHomeworkAssignment(bookHomeworkCandidate)
             ? bookHomeworkCandidate.bookManifest
             : null;
+        const bookResultBookId = bookManifest?.book?.bookId
+            ?? (isBookCompatibilityHomework ? homework?.materialId : null);
         return (
             <div className="teacher-homework-detail-page" style={{ background: '#f8fafc' }}>
                 <TeacherHeader
@@ -1028,6 +1046,21 @@ function TeacherHomeworkDetailPage() {
                                         studentName: studentNames.get(studentId) || studentId,
                                         activityLabel: `Activity ${activity.order || activity.activityId}: ${activity.activityId}`,
                                     });
+                                }
+                                : undefined}
+                            onViewResult={bookResultBookId && homeworkId
+                                ? (studentId, activity) => {
+                                    trackAction('bookActivityResultOpened', {
+                                        activityId: activity.activityId,
+                                    });
+                                    navigateTo('RESULT_DETAIL', {
+                                        resultId: createBookResultRouteHandle({
+                                            bookId: bookResultBookId,
+                                            studentId,
+                                            groupKey: bookResultGroupKey(studentId, activity.activityId),
+                                            homeworkId,
+                                        }),
+                                    }, { reason: 'teacher_book_activity_result_opened' });
                                 }
                                 : undefined}
                             onViewIntegrity={bookManifest

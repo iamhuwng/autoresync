@@ -1,4 +1,5 @@
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 
 export const BOOK_ADDITION_RECEIPTS_ROOT = 'book_update_action_recovery/addition_receipts';
 export const BOOK_ADDITION_PHASES = Object.freeze([
@@ -78,8 +79,11 @@ const validIdentity = (identity: unknown): identity is BookAdditionReceiptIdenti
   && validId(identity.contextKey)
   && validId(identity.contextId)
   && validId(identity.studentId)
-  && identity.contextKey === `homework:${identity.contextId}`
+  && /^homework:[a-f0-9]{64}$/u.test(identity.contextKey)
 );
+
+const matchesAuthority = async (identity: BookAdditionReceiptIdentity): Promise<boolean> =>
+  identity.contextKey === await bookImpactContextKey({ contextKind: 'homework', contextId: identity.contextId, recipientId: identity.studentId });
 
 const phaseTemplate = (): Readonly<Record<BookAdditionPhase, BookAdditionPhaseReceipt>> => (
   Object.freeze(Object.fromEntries(BOOK_ADDITION_PHASES.map((phase) => [phase, {
@@ -173,6 +177,7 @@ export const recordBookAdditionPhaseSuccess = async (input: {
 }): Promise<BookAdditionPhaseAdvanceResult> => {
   if (!BOOK_ADDITION_PHASES.includes(input.phase)
     || !validIdentity(input.identity)
+    || !await matchesAuthority(input.identity)
     || input.fingerprint.length === 0
     || input.fingerprint.length > MAX_FINGERPRINT_LENGTH
     || !validIso(input.at)
@@ -245,7 +250,7 @@ export class InMemoryBookAdditionPhaseReceiptRepository implements BookAdditionP
   private readonly records = new Map<string, BookAdditionRecipientReceipt>();
 
   async read(identity: BookAdditionReceiptIdentity): Promise<BookAdditionRecipientReceipt | null> {
-    if (!validIdentity(identity)) return null;
+    if (!validIdentity(identity) || !await matchesAuthority(identity)) return null;
     const value = this.records.get(this.key(identity));
     return value ? clone(value) : null;
   }
@@ -256,6 +261,7 @@ export class InMemoryBookAdditionPhaseReceiptRepository implements BookAdditionP
     readonly receipt: BookAdditionRecipientReceipt;
   }): Promise<{ readonly status: 'advanced' | 'conflict'; readonly receipt?: BookAdditionRecipientReceipt }> {
     if (!validIdentity(input.identity)
+      || !await matchesAuthority(input.identity)
       || !validReceipt(input.receipt, input.identity)
       || input.receipt.revision !== (input.expectedRevision === null ? 1 : input.expectedRevision + 1)) {
       return { status: 'conflict' };
@@ -306,7 +312,7 @@ export class FirebaseRestBookAdditionPhaseReceiptRepository implements BookAddit
   }
 
   async read(identity: BookAdditionReceiptIdentity): Promise<BookAdditionRecipientReceipt | null> {
-    if (!validIdentity(identity)) return null;
+    if (!validIdentity(identity) || !await matchesAuthority(identity)) return null;
     const value = await this.rtdb.readValue(this.path(identity));
     return validReceipt(value, identity) ? clone(value) : null;
   }
@@ -316,7 +322,7 @@ export class FirebaseRestBookAdditionPhaseReceiptRepository implements BookAddit
     readonly expectedRevision: number | null;
     readonly receipt: BookAdditionRecipientReceipt;
   }): Promise<{ readonly status: 'advanced' | 'conflict'; readonly receipt?: BookAdditionRecipientReceipt }> {
-    if (!validIdentity(input.identity) || !validReceipt(input.receipt, input.identity)) return { status: 'conflict' };
+    if (!validIdentity(input.identity) || !await matchesAuthority(input.identity) || !validReceipt(input.receipt, input.identity)) return { status: 'conflict' };
     const maxRetries = this.options.maxRetries ?? 5;
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(BOOK_ADDITION_RECEIPTS_ROOT);

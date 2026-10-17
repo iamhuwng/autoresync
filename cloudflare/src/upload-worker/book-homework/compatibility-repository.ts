@@ -7,11 +7,13 @@ import {
 } from '../../../../src/services/book-homework/bookHomeworkCompatibilityProjection.service.ts';
 import {
   createFirebaseClaimTokenProvider,
+  isFirebaseTokenExchangeProviderCode,
   type BookFirebaseClaimTuple,
 } from '../book-activity-authoring/firebase-token.ts';
 import {
   BookHomeworkProjectionDiagnosticError,
   type BookHomeworkProjectionDiagnostic,
+  type BookHomeworkProjectionProviderDiagnostic,
 } from './projection-diagnostics.ts';
 
 const assertCompatibilityProjection: (
@@ -65,7 +67,66 @@ export class BookHomeworkCompatibilityRepositoryError extends BookHomeworkProjec
 const storageFailure = (
   stage: 'token_exchange' | 'firestore_get' | 'firestore_patch',
   errorClass: 'token-authentication' | 'firestore-read' | 'firestore-write',
-): BookHomeworkProjectionDiagnosticError => new BookHomeworkProjectionDiagnosticError({ stage, errorClass });
+  providerError?: unknown,
+): BookHomeworkProjectionDiagnosticError => {
+  const diagnostic: BookHomeworkProjectionDiagnostic = {
+    stage,
+    errorClass,
+    ...(stage === 'token_exchange'
+      ? { provider: providerDiagnosticFrom(providerError) }
+      : {}),
+  };
+  return new BookHomeworkProjectionDiagnosticError(diagnostic);
+};
+
+const providerDiagnosticFrom = (error: unknown): BookHomeworkProjectionProviderDiagnostic => {
+  const message = error instanceof Error ? error.message : '';
+  const match = /^(invalid_book_firebase_claims|invalid_book_firebase_service_account|book_firebase_service_identity_mismatch|book_firebase_token_exchange_failed|book_firebase_token_exchange_transport_failed|book_firebase_token_exchange_invalid_response)(?::([1-5][0-9]{2}))?(?::([A-Z0-9_]+))?$/u.exec(message);
+  if (!match) {
+    return { code: 'unknown', statusCategory: 'unknown', category: 'unknown' };
+  }
+
+  const code = match[1] as BookHomeworkProjectionProviderDiagnostic['code'];
+  if (code === 'invalid_book_firebase_claims') {
+    return { code, statusCategory: 'not_applicable', category: 'claims' };
+  }
+  if (code === 'invalid_book_firebase_service_account'
+    || code === 'book_firebase_service_identity_mismatch') {
+    return { code, statusCategory: 'not_applicable', category: 'configuration' };
+  }
+  if (code === 'book_firebase_token_exchange_transport_failed') {
+    return {
+      code,
+      statusCategory: 'not_applicable',
+      category: 'transport',
+    };
+  }
+  if (code === 'book_firebase_token_exchange_invalid_response') {
+    return {
+      code,
+      statusCategory: 'not_applicable',
+      category: 'invalid_response',
+    };
+  }
+  const status = Number(match[2]);
+  const statusCategory = match[2] === undefined
+    ? 'unknown'
+    : status >= 400 && status < 500
+      ? '4xx'
+      : status >= 500 && status < 600 ? '5xx' : 'other';
+  if (isFirebaseTokenExchangeProviderCode(match[3])) {
+    return {
+      code: match[3],
+      statusCategory,
+      category: 'http',
+    };
+  }
+  return {
+    code,
+    statusCategory,
+    category: 'http',
+  };
+};
 
 const clone = <T>(value: T): T => {
   if (typeof structuredClone === 'function') return structuredClone(value);
@@ -343,8 +404,8 @@ export class FirebaseRestBookHomeworkCompatibilityDocumentStore
       token = await this.getFirebaseIdToken({
         service: 'book_homework_compatibility', assignmentId, ownerId,
       });
-    } catch {
-      throw storageFailure('token_exchange', 'token-authentication');
+    } catch (error) {
+      throw storageFailure('token_exchange', 'token-authentication', error);
     }
     let response: Response;
     try {
@@ -390,8 +451,8 @@ export class FirebaseRestBookHomeworkCompatibilityDocumentStore
       token = await this.getFirebaseIdToken({
         service: 'book_homework_compatibility', assignmentId, ownerId: value.createdBy,
       });
-    } catch {
-      throw storageFailure('token_exchange', 'token-authentication');
+    } catch (error) {
+      throw storageFailure('token_exchange', 'token-authentication', error);
     }
     let response: Response;
     try {

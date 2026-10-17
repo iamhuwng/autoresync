@@ -15,6 +15,8 @@ import {
   type BookAssemblyPublicationRouteOptions,
 } from './book-assembly/publication-route-handlers.ts';
 import { createBookRuntimeCanonicalHandlers } from './book-runtime/canonical.ts';
+import { createBookIntegrityWorkerHandlers } from './book-activity-integrity/worker.ts';
+import { createProductionBookIntegrityWorkerOptions } from './book-activity-integrity/production-composition.ts';
 import type {
   BookHomeworkWorkerHandlersOptions,
 } from './book-homework/worker.ts';
@@ -29,6 +31,8 @@ import {
   type BookSourceDocumentDeliveryOptions,
 } from './book-source/document.ts';
 import { createCourseBookPlacementWorkerHandlers } from './course-book-placement/worker.ts';
+import { createPublicBookProductionHandlers } from './book-public/production.ts';
+import { createPublicBookReadinessRefreshHandlers } from './book-public/readiness-refresh.ts';
 import {
   createClassBookPlacementWorkerHandlers,
   type ClassBookPlacementWorkerHandlerOptions,
@@ -49,6 +53,7 @@ export interface BookRouteHandlerInput {
   readonly uid: string;
   readonly params: BookRouteParams;
   readonly descriptor: CanonicalBookRouteDescriptor;
+  readonly executionContext?: ExecutionContext;
 }
 
 export interface BookAssemblyPreviewRouteOptions {
@@ -88,6 +93,7 @@ const adapt = (
     uid: input.uid,
     params: input.params,
     descriptor: input.descriptor,
+    ...(input.executionContext === undefined ? {} : { executionContext: input.executionContext }),
     ...Object.fromEntries(params.map((name) => [name, input.params[name]])),
   });
 };
@@ -121,6 +127,8 @@ export interface BookRouteHandlersOptions {
   readonly assemblySuccessorHandlers?: Record<string, unknown>;
   readonly assemblyMappingRevisionHandlers?: Record<string, unknown>;
   readonly runtimeHandlers?: Record<string, unknown>;
+  readonly resultReadHandlers?: Record<string, unknown>;
+  readonly evaluationHandlers?: Record<string, unknown>;
   readonly homework?: BookHomeworkWorkerHandlersOptions;
   readonly homeworkHandlers?: Record<string, unknown>;
   readonly sourceUploadHandlers?: Record<string, unknown>;
@@ -242,6 +250,8 @@ export const createBookRouteHandlers = (
     handlers[name] = handler;
   }
   const delivery = options.deliveryHandlers ?? createBookDeliveryWorkerHandlers();
+  addFactoryHandlers(handlers, createPublicBookProductionHandlers(), ['launch'], 'publicBook', () => ['bookId']);
+  addFactoryHandlers(handlers, createPublicBookReadinessRefreshHandlers(), ['refreshReadiness'], 'publicBook', () => ['bookId']);
   const activity = options.activityAuthoringHandlers
     ?? createBookActivityAuthoringWorkerHandlers();
   const assembly = options.assemblyHandlers ?? createBookAssemblyWorkerHandlers();
@@ -251,6 +261,8 @@ export const createBookRouteHandlers = (
   const assemblySuccessor = options.assemblySuccessorHandlers ?? {};
   const assemblyMappingRevision = options.assemblyMappingRevisionHandlers ?? {};
   const runtime = options.runtimeHandlers ?? createBookRuntimeCanonicalHandlers();
+  const resultRead = options.resultReadHandlers ?? {};
+  const evaluation = options.evaluationHandlers ?? {};
   const homework = options.homeworkHandlers
     ?? createCanonicalBookHomeworkHandlers(options.homework);
   const sourceUpload = options.sourceUploadHandlers ?? createBookSourceUploadWorkerHandlers();
@@ -265,9 +277,11 @@ export const createBookRouteHandlers = (
     ['stage', 'validate', 'saveDraft', 'discard'], 'bookActivityAuthoring', () => []);
   addFactoryHandlers(handlers, activity, ['loadCandidate'], 'bookActivityAuthoring', () => ['candidateId']);
   addFactoryHandlers(handlers, assembly,
-    ['create', 'replace', 'validate', 'discard'], 'bookAssembly', () => ['bookId']);
+    ['create', 'replace', 'rebase', 'validate', 'discard'], 'bookAssembly', () => ['bookId']);
   addFactoryHandlers(handlers, assembly, ['load'], 'bookAssembly', () => ['bookId', 'unitKey', 'candidateId']);
   addFactoryHandlers(handlers, assembly, ['loadCurrent'], 'bookAssembly', () => ['bookId', 'unitKey']);
+  addFactoryHandlers(handlers, assembly, ['discoverDrafts'], 'bookAssembly', () => ['bookId']);
+  addFactoryHandlers(handlers, assembly, ['activateComponentPdf'], 'bookAssembly', () => ['bookId']);
   addFactoryHandlers(handlers, assemblyPreview, ['preview', 'approve', 'revoke'], 'bookAssembly', (name) => [
     'bookId', 'unitKey', 'candidateId',
     ...(name === 'revoke' ? ['approvalId'] : []),
@@ -278,6 +292,8 @@ export const createBookRouteHandlers = (
     ['confirm', 'discard', 'cancel'], 'bookAssemblyMigration', () => ['bookId', 'unitKey', 'migrationCandidateId']);
   addFactoryHandlers(handlers, assemblyPublication as unknown as Record<string, unknown>,
     ['fullPdfPublish', 'componentPdfPublish'], 'bookAssembly', () => []);
+  addFactoryHandlers(handlers, assemblyPublication as unknown as Record<string, unknown>,
+    ['currentPublication'], 'bookAssembly', () => ['bookId']);
   addFactoryHandlers(handlers, assemblySuccessor,
     ['publish'], 'bookAssemblySuccessor', () => []);
   addFactoryHandlers(handlers, assemblyMappingRevision,
@@ -292,16 +308,42 @@ export const createBookRouteHandlers = (
     'activityVersion',
     'interactionId',
   ]);
+  addFactoryHandlers(handlers, runtime, ['readTerminal'], 'bookRuntime', () => [
+    'bindingId',
+    'bindingRevision',
+    'contextId',
+    'placementId',
+    'activityId',
+    'activityVersion',
+    'interactionId',
+  ]);
+  addFactoryHandlers(handlers, resultRead, ['resultSummary', 'groupedAttempt', 'resultDetail', 'releaseFeedback'], 'bookResultRead', (name) => name === 'releaseFeedback'
+    ? ['bookId', 'studentId', 'homeworkId', 'resultId']
+    : [
+      'bookId', 'studentId',
+      ...(name === 'resultDetail' ? ['resultId'] : []),
+      ...(name === 'groupedAttempt' ? ['groupKey'] : []),
+      'homeworkId',
+      'contextKind', 'contextId',
+    ]);
+  addFactoryHandlers(handlers, evaluation, ['command'], 'bookActivityEvaluation');
+  addFactoryHandlers(handlers, evaluation, ['history'], 'bookActivityEvaluation', () => ['bookId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkAssignmentCommand'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkStudentProjection'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkStudentLaunch'], 'futureSeam', () => ['assignmentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherStudentProjection'], 'futureSeam', () => ['assignmentId', 'studentId']);
   addFactoryHandlers(handlers, homework, ['homeworkTeacherProjection'], 'futureSeam', () => ['assignmentId']);
-  addFactoryHandlers(handlers, sourceUpload, ['begin', 'complete', 'status', 'cancel', 'attach', 'sources'], 'bookSource');
+  const integrityHandlers = createBookIntegrityWorkerHandlers(createProductionBookIntegrityWorkerOptions());
+  for (const [name, handler] of Object.entries(integrityHandlers)) {
+    if (!Object.hasOwn(options.futureHandlers ?? {}, name)) handlers[name] = handler;
+  }
+  addFactoryHandlers(handlers, homework, ['homeworkPreviewSource'], 'bookHomework');
+  addFactoryHandlers(handlers, sourceUpload,
+    ['begin', 'decideStudentSafeSource', 'complete', 'status', 'cancel', 'attach', 'sources'], 'bookSource');
   addFactoryHandlers(handlers, courseBook, ['place', 'prepare', 'revoke'], 'courseBookPlacement');
   addFactoryHandlers(handlers, courseBook, ['current'], 'courseBookPlacement', () => ['courseMaterialId']);
   addFactoryHandlers(handlers, courseBook, ['catalog'], 'courseBookPlacement', () => ['bookId']);
-  addFactoryHandlers(handlers, classBookPlacement, ['prepare'], 'classBookPlacement');
+  addFactoryHandlers(handlers, classBookPlacement, ['prepare', 'copy', 'place', 'sync', 'lock'], 'classBookPlacement');
   addFactoryHandlers(handlers, classBookPlacement, ['current'], 'classBookPlacement', () => [
     'classId', 'copyId', 'classPlacementId', 'classCourseMaterialId', 'bindingId',
   ]);

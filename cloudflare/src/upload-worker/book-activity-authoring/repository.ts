@@ -41,8 +41,20 @@ const hydrateActivity = (value: unknown): unknown => {
   const record = plainRecord(value);
   if (!record) return value;
   const contextRequirement = plainRecord(record.contextRequirement);
+  const interactions = Array.isArray(record.interactions)
+    ? record.interactions.map((entry) => {
+      const interaction = plainRecord(entry);
+      const identities = plainRecord(interaction?.itemIdentities);
+      return (interaction?.family === 'long-response' || interaction?.family === 'text-entry')
+        && identities?.family === interaction.family
+        && identities.itemIds === undefined
+        ? { ...interaction, itemIdentities: { ...identities, itemIds: [] } }
+        : entry;
+    })
+    : record.interactions;
   return {
     ...record,
+    ...(Array.isArray(interactions) ? { interactions } : {}),
     ...(contextRequirement
       ? {
         contextRequirement: {

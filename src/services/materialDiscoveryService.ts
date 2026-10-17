@@ -141,7 +141,7 @@ async function getReadingV2PublicLibraryMaterials(
 
             return matchesReadingV2LibraryFilters(material, filters) ? material : null;
         })
-        .filter((material): material is LibraryMaterial => material !== null);
+        .filter((material) => material !== null);
 }
 
 function buildStudentMaterialHistoryMap(results: Awaited<ReturnType<typeof getCanonicalStudentResults>>): Map<string, StudentMaterialHistory> {

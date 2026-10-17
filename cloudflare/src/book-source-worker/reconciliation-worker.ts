@@ -24,6 +24,7 @@ import {
   CAPACITY_PROBE_FAILURE_HEADER,
   createCapacityProbeWorker,
 } from './capacity-probe-worker';
+import { isActiveBookSourceAuthorityProfile } from '../upload-worker/book-source/trusted-source-contract.ts';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
 const MAX_SCHEDULED_CAPACITY_WORK_UNITS = 4;
@@ -91,14 +92,6 @@ const record = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
-const activeTeacherProfile = (value: unknown): boolean => {
-  const profile = record(value);
-  return profile !== null
-    && (profile.role === 'teacher' || profile.role === 'super_admin')
-    && profile.disabled !== true
-    && profile.forceReauth !== true
-    && !['blocked', 'inactive', 'suspended'].includes(String(profile.status ?? ''));
-};
 
 const unavailable = (
   request?: Request,
@@ -258,7 +251,9 @@ export const createBookSourceReconciliationWorker = (
         && bookRecord.bookId === bookId
         && bookRecord.ownerId === actorId
         && bookRecord.status !== 'archived';
-      return ownsOperation && currentBookOwner && activeTeacherProfile(profile);
+      return ownsOperation
+        && currentBookOwner
+        && isActiveBookSourceAuthorityProfile(profile, 'teacher');
     };
     const dependencies: SourceUploadReconciliationDependencies = {
       accountId,

@@ -9,4 +9,9 @@ export const bookRuntimeRouteDescriptors = [
     path: '/book-runtime/drafts/:bindingId/:bindingRevision/:contextId/:placementId/:activityId/:activityVersion/:interactionId',
     handler: 'readDraft',
   },
+  {
+    method: 'GET',
+    path: '/book-runtime/terminals/:bindingId/:bindingRevision/:contextId/:placementId/:activityId/:activityVersion/:interactionId',
+    handler: 'readTerminal',
+  },
 ] as const;

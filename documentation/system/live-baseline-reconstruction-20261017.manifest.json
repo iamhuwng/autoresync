@@ -1,0 +1,604 @@
+{
+  "status": "CANDIDATE_NOT_PROVEN_STABLE",
+  "reconstructedOn": "2026-10-17",
+  "branch": "codex/live-baseline-reconstruction-20261017",
+  "parent": "422b7323f85a5b235d387cd18b25a1b9f63df46a",
+  "trackedSnapshot": "b73eb1fa65c205fc4cdb35f22fd97414c5b86c49",
+  "trackedSnapshotLocalTime": "2026-10-06T11:06:10+07:00",
+  "donors": [
+    {
+      "snapshot": "b73eb1fa^3",
+      "commit": "c2c178866d50e02fc623a49aa3e06fe9f333732d",
+      "files": [
+        {
+          "path": "cloudflare/src/upload-worker/book-source/trusted-source-contract.ts",
+          "blob": "963095649d5918b8d5698797f6357fa6113459d0"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfActivation.service.ts",
+          "blob": "d8203f555f92537707acc3ac21ecdd22543b13fa"
+        },
+        {
+          "path": "src/services/book-assembly/componentStudentDocument.types.ts",
+          "blob": "1a44701bdbbb6a6c66ed03f6683c3ead026004d4"
+        }
+      ]
+    },
+    {
+      "snapshot": "766c2d4a^3",
+      "commit": "bd4fc024f7be133c46e9bd9c251474a1e72bedd9",
+      "files": [
+        {
+          "path": "cloudflare/src/book-source-worker/direct-pdf-page-count.ts",
+          "blob": "a695ebfc4974899af451990ede2843d8640d69bd"
+        },
+        {
+          "path": "cloudflare/src/book-source-worker/processor-count.ts",
+          "blob": "601bad11c224b963748cc627c32a6929f3be2a35"
+        },
+        {
+          "path": "cloudflare/src/book-source-worker/processor-deadline.ts",
+          "blob": "2897a17fb0e558b91ef301ad58e8ad3f74b13599"
+        },
+        {
+          "path": "cloudflare/src/book-source-worker/processor-range.ts",
+          "blob": "40c6cc7c3d4cc82c5cb00bac728bda75a3c25da0"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-activity-grading/production-composition.ts",
+          "blob": "c1ec44750c41a0e2de3115c05bcacb5752057a1b"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-activity-integrity/production-composition.ts",
+          "blob": "7ae449a9bdeb82bbcc78b927e091e33b002464da"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-public/authority-reader.ts",
+          "blob": "b337119dc27878a79a20980414c817b60e970773"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-public/production.ts",
+          "blob": "0efd342f247c1a3915e36f90f72c207b1a772e15"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-public/readiness-producer.ts",
+          "blob": "4686279537b508c617e4b08311e33d7cd52e9f50"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-public/readiness-refresh.ts",
+          "blob": "7e363c5e32678432eec4cbe8904ddb5e88b4ae16"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-public/route.ts",
+          "blob": "97322043a7e3fab3c47b025bca78af8a505d34f3"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-results/production-composition.ts",
+          "blob": "a20497258c2cb46a953bc50eefa18e1bdc3d727a"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-results/production-projection.ts",
+          "blob": "1f2bfdd422c665aa8fc6039173be7a030198ae6e"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/book-updates/production-composition.ts",
+          "blob": "8501e473e5886ed9e6192d77358911a6229f2b86"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/class-book-placement/command-production.ts",
+          "blob": "503044b980a5ae02b096301becb0ae4c4b765224"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/class-book-placement/command-types.ts",
+          "blob": "f7e80fca9e42700cd34259be0e6af5d0f9021165"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/class-book-placement/command.ts",
+          "blob": "e0f4f85fee0821f53b06555768fc461c00ab57ba"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/class-book-placement/runtime-schedule-policy.ts",
+          "blob": "ff29334104a4c671c8c31dc73d882b917bcea6bc"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/course-book-placement/runtime-schedule-policy.ts",
+          "blob": "ad233029a54648da6f2aa4e4d0ecd1e635b0c000"
+        },
+        {
+          "path": "cloudflare/src/upload-worker/notifications/book-reporting.ts",
+          "blob": "98f2bc172ffcad91870b1a892fe6eead7fdeeca7"
+        },
+        {
+          "path": "cloudflare/test/book-activity-grading-production-composition.test.ts",
+          "blob": "94bdeffda9271f140f4e415768a8e74328a96122"
+        },
+        {
+          "path": "cloudflare/test/book-assembly-production-composition.test.ts",
+          "blob": "00d60a5f9a56397a63df0a7d041185fdf6db0505"
+        },
+        {
+          "path": "cloudflare/test/book-integrity-production-authority.test.ts",
+          "blob": "ad3a389caad54fde7f9db18c88fbc040b7cfe3b0"
+        },
+        {
+          "path": "cloudflare/test/book-replacement-plan-authority.test.ts",
+          "blob": "f420840e65a36039b30781147fe787e631f8edc6"
+        },
+        {
+          "path": "cloudflare/test/book-results-production-projection-concurrency.test.ts",
+          "blob": "7ecb403c5ef821580f53a31ee9c44606a4c34b00"
+        },
+        {
+          "path": "cloudflare/test/book-results-production-projection.test.ts",
+          "blob": "3cb65ec3b5eff28d4900c12847ee9f3f4859ef79"
+        },
+        {
+          "path": "cloudflare/test/book-results-production-read.test.ts",
+          "blob": "0a9abf24f5522077479e028e26320f9760d3cf9b"
+        },
+        {
+          "path": "cloudflare/test/book-source-capacity-edge.test.ts",
+          "blob": "2dae78ef2ad74e267ebb4553ce1e610cedad0160"
+        },
+        {
+          "path": "cloudflare/test/book-source-processor-count.test.ts",
+          "blob": "b038e24e49920d0cc3fdd7a002cfda3037570350"
+        },
+        {
+          "path": "cloudflare/test/book-source-route-registration.test.ts",
+          "blob": "a6e79ea27155dd112e728cc8ee893afb82d94a9b"
+        },
+        {
+          "path": "cloudflare/test/book-worker.test.ts",
+          "blob": "35bc1154d1241d2aa7a4f170b11d295cadad94ce"
+        },
+        {
+          "path": "cloudflare/test/class-book-command-default.test.ts",
+          "blob": "9cdbd3b23e30c4dd0834b82cfe7e2f3df6e1c076"
+        },
+        {
+          "path": "cloudflare/test/class-book-runtime-schedule-policy.test.ts",
+          "blob": "d3e3495bd4af87d4297f279865d559aaa6670467"
+        },
+        {
+          "path": "cloudflare/test/course-book-runtime-schedule-policy.test.ts",
+          "blob": "d84d74efa2f61aea57310e1cb5b4c301cfd9a33c"
+        },
+        {
+          "path": "cloudflare/test/prd0062-h-evaluation-rule-enforced.emulator.test.ts",
+          "blob": "e02a0533a15207dc4b3baecc31f25293297f97af"
+        },
+        {
+          "path": "cloudflare/test/public-book-production.test.ts",
+          "blob": "3c2a6d22520d0918d6d338763adc23b30dd45612"
+        },
+        {
+          "path": "cloudflare/test/public-book-readiness-producer.test.ts",
+          "blob": "6109424ab7671735c3bd3a69b9e0fee3c9f5ea39"
+        },
+        {
+          "path": "cloudflare/test/public-book-readiness-refresh.test.ts",
+          "blob": "a66ecde4de9a97b6861fa8516291cd9a5da1bc93"
+        },
+        {
+          "path": "cloudflare/vitest.public-book.config.mjs",
+          "blob": "6bea1a7e1ac766505a90bbdc7f0768500a97f1c2"
+        },
+        {
+          "path": "cloudflare/vitest.result-node.config.mjs",
+          "blob": "b5e5ba6719e83c8968fc0c8a477842d378ac1732"
+        },
+        {
+          "path": "cloudflare/wrangler.notification-firestore-bridge.jsonc",
+          "blob": "7d69038f992731ac63130387447abf9f892e1355"
+        },
+        {
+          "path": "documentation/cambridge-ielts-10-20-paragraph-pattern-index.md",
+          "blob": "5922a3908cd72ebced1252c3d29d28ca06ccd691"
+        },
+        {
+          "path": "documentation/cambridge-ielts-10-20-reading-topic-classification.html",
+          "blob": "504c38699ae25bf0417296d6ff8256a875e0c87d"
+        },
+        {
+          "path": "documentation/ielts-reading-paragraph-development-analysis.md",
+          "blob": "46ddc3061329224fa1e87d5f7e9748ef0d4f8e00"
+        },
+        {
+          "path": "documentation/mockups/prd0062-book-pdf-runtime-shell-mockup.html",
+          "blob": "63434d9ba63e5885514e5fa5a3620d7fcbff826a"
+        },
+        {
+          "path": "documentation/mockups/prd0062-pdf-book-flow-diagram.svg",
+          "blob": "a62e3d716678ef34698bee557bbc0b82caf950f4"
+        },
+        {
+          "path": "documentation/mockups/prd0062-pdf-book-full-flow-mockup.html",
+          "blob": "0776bc0cca318b3d5797c439afe76c0fea9c032a"
+        },
+        {
+          "path": "documentation/mockups/prd0062-pdf-book-schema-plan.md",
+          "blob": "f6493dee094717869211d266c99a5b05eb305d02"
+        },
+        {
+          "path": "documentation/mockups/prd0062-student-book-runtime-cleanroom-prd0063.html",
+          "blob": "519cf06d1afc79b1fe2e7f635e8cece2860eb5c9"
+        },
+        {
+          "path": "documentation/rules/shared-feature-integration.md",
+          "blob": "4007a7d4fdade939791d2ef9b4df787f20069bec"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/archive/component-pdf-plan-before-contract-audit-2026-10-03.md",
+          "blob": "8d38caad8cfef9922b2a9970cffa776121e74a9f"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/archive/component-pdf-recovery-execution-ledger-through-2026-09-22.md",
+          "blob": "978972f5e283e1d00f7f22d7891c3d456ed43cbb"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/archive/component-pdf-recovery-execution-ledger-through-h-evaluation-correction-2026-09-22.md",
+          "blob": "e303cb7cdfde54dc30e94fc26dca55c9dd83288e"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/archive/component-pdf-recovery-execution-plan-before-procedure-optimization-2026-10-02.md",
+          "blob": "0585009664432d6bb4d4f4588057b63b31b22a96"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/component-pdf-recovery-execution-plan-2026-09-14.md",
+          "blob": "2e6587b4718ef8eec6a718a9b9938721ec5d0c51"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/component-pdf-recovery-past-evidence-index.md",
+          "blob": "0c5227252fe8a3f960da768855b8b87fc0c57a10"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/evidence/provider-proof-recovery-2026-10-04/b2-final-verification.json",
+          "blob": "c9ed6de2fffb089a26f50bb2e9d7fe1ad1683348"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/evidence/provider-proof-recovery-2026-10-04/b2-provider-closure.md",
+          "blob": "27431168badd6477ee3d5bbc44ec1e95cf76df85"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/evidence/provider-proof-recovery-2026-10-04/r2-range-count-result.md",
+          "blob": "5d39d00cebf2cda0901194e8152bb3c4f2804017"
+        },
+        {
+          "path": "documentation/tasks/PRD0062/planner-retrospective-k1-current-2026-09-22.md",
+          "blob": "a4b7fa5d4fc1234faf97823e605b0199567f943b"
+        },
+        {
+          "path": "documentation/tasks/PRD0062b/approval-record-2026-09-14-component-combination-gate-0.md",
+          "blob": "280472ddf45f96dc1a999b8db9cb800f9e1ad66b"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-cpu-escalation.md",
+          "blob": "9d505838036186f72a619b64cc512d8c0eee7359"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-event-matrix.md",
+          "blob": "612da15152ace15835147dc40285029f460e724d"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-historical-backfill.md",
+          "blob": "a3d45d7e1aba0458595e48a20409b5dffe5fd03b"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-release-candidate.md",
+          "blob": "be591c9cf1c558d990a0b7ce939450e164a99727"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-rotation-handoff-2026-09-26.md",
+          "blob": "c5a4742bea2fbcccdb60bc6eee358104b889d613"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-route-boundary.md",
+          "blob": "b30bf025ea5a099dcbf6d567ec6d919b31d17f07"
+        },
+        {
+          "path": "documentation/tasks/notification-recovery-scheduler-budget.md",
+          "blob": "f91a517ff09d85b4aec92cb3603050cefcda2339"
+        },
+        {
+          "path": "documentation/tasks/notification-system-recovery-plan.md",
+          "blob": "97cbc526bd21ae83a7d5bc395f8085f7cf3d5f1d"
+        },
+        {
+          "path": "documentation/tasks/notification-upgrade-implementer-handoff-2026-09-27.md",
+          "blob": "e1a8c82c27f065060f09a86977a2ca9860cd91b9"
+        },
+        {
+          "path": "e2e/prd0062-d1-teacher-combined-preview.spec.ts",
+          "blob": "f291cd0971949505dd40cfca5846fcba0d018425"
+        },
+        {
+          "path": "e2e/prd0062-d2-runtime-completion.spec.ts",
+          "blob": "7203dddfb4d040e2cbae921db5b783b6b4bde4bb"
+        },
+        {
+          "path": "e2e/prd0062-homework-production.spec.ts",
+          "blob": "aa47351a2eb73ccb07c7251f265edfbc84b855c5"
+        },
+        {
+          "path": "e2e/prd0062-public-library.spec.ts",
+          "blob": "12747ac0138a54e7cead18804c78e6611ec36de0"
+        },
+        {
+          "path": "e2e/prd0062-vertical-slice.spec.ts",
+          "blob": "06119f9db936d2689c9981d6e02525037507d1a6"
+        },
+        {
+          "path": "playwright.prd0062-public-library.config.mjs",
+          "blob": "3ccf149bef1f228f0a8d0f98a91d4fb1d97632f3"
+        },
+        {
+          "path": "public/fonts/fredoka/OFL.txt",
+          "blob": "791a98de7893b9bb62d06729745d00655e791a40"
+        },
+        {
+          "path": "public/fonts/fredoka/fredoka-latin-ext.woff2",
+          "blob": "e16cd42416e0fabe1062233bc6d282758f3842a4"
+        },
+        {
+          "path": "public/fonts/fredoka/fredoka-latin.woff2",
+          "blob": "8d290e33894ad1c8d3a525017642e13107c237aa"
+        },
+        {
+          "path": "scripts/__tests__/prd0062-lane0-component-pdf-fixture.test.mjs",
+          "blob": "d963c5ad431c91058ea6ea6ad647d49d924cdc40"
+        },
+        {
+          "path": "scripts/fixtures/prd0062-lane0-component-pdf-fixture.mjs",
+          "blob": "11c5afbf461e69f2deb789d6d90a7c0eee80c1dd"
+        },
+        {
+          "path": "scripts/qa/prd0062-capacity.md",
+          "blob": "4e34e8c09e64c0814378b338ca646b2be456331e"
+        },
+        {
+          "path": "scripts/qa/prd0062-capacity.ts",
+          "blob": "26b85d7da854ae5268f01a4ed10adc60c0b8df98"
+        },
+        {
+          "path": "scripts/qa/prd0062-cc-native-bridge.ts",
+          "blob": "9495593f555f80e5c45ff1b5ece920994e6bba4e"
+        },
+        {
+          "path": "scripts/qa/prd0062-cc-results-rules-candidate.mjs",
+          "blob": "d193042f5b8ec03d628cde576111d0b480ec2677"
+        },
+        {
+          "path": "scripts/qa/prd0062-cc-results-rules-native.mjs",
+          "blob": "ea07be5ca7ce27a09f745e58200fd2292735c43b"
+        },
+        {
+          "path": "scripts/qa/prd0062-first-component-authoring-browser-harness.mjs",
+          "blob": "35f872d1104a717077fda975c09e955bd6aff94f"
+        },
+        {
+          "path": "scripts/qa/prd0062-first-component-authoring-fixture.ts",
+          "blob": "44315194b465f2717d6046aac1a813e40c5b8474"
+        },
+        {
+          "path": "scripts/qa/prd0062-homework-class-provisioning.test.ts",
+          "blob": "1832451be021d728333244d6ad160cdf215a2c9a"
+        },
+        {
+          "path": "scripts/qa/prd0062-homework-production-fixture.ts",
+          "blob": "07c797fed6221e4210fcfe984da0cd2db2dbb5ab"
+        },
+        {
+          "path": "scripts/qa/prd0062-owned-rules-native.mjs",
+          "blob": "9f3b9e524a7670d152447c60647fc9a386a36686"
+        },
+        {
+          "path": "scripts/verify-thcs-bulk-answer.cjs",
+          "blob": "0e0f2af786cb641d24d14f08d46a98b032b3bf7b"
+        },
+        {
+          "path": "src/__tests__/security/prd0062-u-checkpoint-recovery-rules.emulator.test.ts",
+          "blob": "d07fca7ffce0c4513ab120a887a36fdc96c95505"
+        },
+        {
+          "path": "src/__tests__/security/publicBookReadinessRules.emulator.test.ts",
+          "blob": "641a5301ef937bac4dfc34cd8caf97c36ff8fe76"
+        },
+        {
+          "path": "src/__tests__/security/publishedDraftProtectionRules.emulator.test.ts",
+          "blob": "053817cc57f786e2582cc8cef97e5dab082a6209"
+        },
+        {
+          "path": "src/__tests__/security/thcsPublishFirebaseRules.emulator.test.ts",
+          "blob": "2215c7d82e6a726c57c33004ecfe11c19e33b96d"
+        },
+        {
+          "path": "src/__tests__/security/writingActorProofRules.emulator.test.ts",
+          "blob": "fddff272ecced7aa05ffc3c329bb775cdd35a7e9"
+        },
+        {
+          "path": "src/__tests__/security/writingSourceCandidateRules.emulator.test.ts",
+          "blob": "4acfcd7cac5fe9d32ac46912fd00cd55c9421b9e"
+        },
+        {
+          "path": "src/components/book-runtime/BookRuntimeActivityCard.tsx",
+          "blob": "774141965b7269ae0a2bc8fc99448a74debdba96"
+        },
+        {
+          "path": "src/components/books/assembly/BookAssemblyReconciliationPanel.test.tsx",
+          "blob": "227980c9a51795ac3852668bc6703bace76698fb"
+        },
+        {
+          "path": "src/components/feedback/FeedbackEditor.test.tsx",
+          "blob": "fddaf4134841bda21c0eba560ff034e9fa33b2db"
+        },
+        {
+          "path": "src/components/student/StudentPublicBooksPanel.test.tsx",
+          "blob": "d8ebf670cf2e56508fe72d2b302dde70f29139d0"
+        },
+        {
+          "path": "src/components/student/StudentPublicBooksPanel.tsx",
+          "blob": "991aa09dd1ba3aaeeeca6ba617042665b0d20bc7"
+        },
+        {
+          "path": "src/components/thcs-editor/THCSHomeworkAssignDialog.test.tsx",
+          "blob": "f13b2281b05c8c2c8922eed3fa51b8d89fe971ae"
+        },
+        {
+          "path": "src/components/thcs-editor/THCSNestedDialog.css",
+          "blob": "db1a380e22192f7dea4f20670e269c21ec5319dd"
+        },
+        {
+          "path": "src/components/thcs-editor/THCSNestedDialog.test.tsx",
+          "blob": "1e4b95d3f221e57ced902dfbda4c0c44aec85148"
+        },
+        {
+          "path": "src/components/thcs-editor/THCSReviewStep.test.tsx",
+          "blob": "3ed2ca828702a995c9f41f4f3afe6ef8e4629f50"
+        },
+        {
+          "path": "src/hooks/thcs/useThcsAutoSave.test.ts",
+          "blob": "228ca22a679e34ed4cf5409334b79102163fad34"
+        },
+        {
+          "path": "src/hooks/usePublicBookCatalog.test.ts",
+          "blob": "d398f9b62f7a7826c6b6193ac4ee3476b766e92e"
+        },
+        {
+          "path": "src/hooks/usePublicBookCatalog.ts",
+          "blob": "291501466b484756cd39d40b83242cb3a3146d38"
+        },
+        {
+          "path": "src/hooks/useTestCreation.test.tsx",
+          "blob": "acdd2ced99484cf20390c292c031fdc045bc5853"
+        },
+        {
+          "path": "src/pages/BookHomeworkProductionSmoke.tsx",
+          "blob": "95082309e4ee469ee813ef2818977c09c1cede6b"
+        },
+        {
+          "path": "src/services/book-assembly/assemblyPublication.client.test.ts",
+          "blob": "1ae68702a3680162a4c8fd299cfb5cfe6033da52"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfActivation.service.test.ts",
+          "blob": "2d25c1982ae71ac3b55666a006793b9846d1d9c1"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfActivation.worker.test.ts",
+          "blob": "c096b81b69899298fce9ab830c3240dcaa8fdd00"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfPreparation.service.test.ts",
+          "blob": "3337274fdae658d37e93630af9fec8391dfcb6ca"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfPreparation.service.ts",
+          "blob": "002af933d8501499e81eb0fb9fb51a9edba812cd"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfStaging.service.test.ts",
+          "blob": "bd54410320b64080a551f344a15ef592d8bed6e8"
+        },
+        {
+          "path": "src/services/book-assembly/componentPdfStaging.service.ts",
+          "blob": "49acce56e24c1909aecf39911a03fb7e9a960484"
+        },
+        {
+          "path": "src/services/book-assembly/componentStudentDocument.types.test.ts",
+          "blob": "4a10943a65af9cc14e04ec169579def1a8c3612a"
+        },
+        {
+          "path": "src/services/book-delivery/classBookPlacement.command.test.ts",
+          "blob": "389dba6c8b8570b44761c0cdb22a77d823dd642a"
+        },
+        {
+          "path": "src/services/book-source-delivery/componentPdfComposition.browser.test.ts",
+          "blob": "2d24c4505ba4720305bcfcd6a1c4cb7b854f1b3e"
+        },
+        {
+          "path": "src/services/book-source-delivery/componentPdfComposition.browser.ts",
+          "blob": "4a603254ea3a05aa3539cfdb0c756d6d199643b6"
+        },
+        {
+          "path": "src/services/book-source-delivery/componentPdfComposition.types.ts",
+          "blob": "8b5ac04396135b9e8c4822934632ed4a1559d3ae"
+        },
+        {
+          "path": "src/services/book-source-delivery/componentPdfComposition.worker.test.ts",
+          "blob": "98be22b9ea0129aefb69681edf94e386bc833a22"
+        },
+        {
+          "path": "src/services/book-source-delivery/componentPdfComposition.worker.ts",
+          "blob": "05f0e0122d01d90fc81228f983b72df7281dab7f"
+        },
+        {
+          "path": "src/services/courseAnnouncementService.test.ts",
+          "blob": "72daf601009382b14bb6c3467776f6188084fd64"
+        },
+        {
+          "path": "src/services/courseTypeDecision.test.ts",
+          "blob": "dc977a1ac595dfbc20f337540212343384f13f9e"
+        },
+        {
+          "path": "src/services/materialCatalog/publicBookCatalogReadiness.browser.test.ts",
+          "blob": "ff8cc695ee97daad099af9e15ef42f32e0ddfaad"
+        },
+        {
+          "path": "src/services/materialCatalog/publicBookCatalogReadiness.browser.ts",
+          "blob": "b068dd87549912e0e2b90f3f116d5f6a4e0af7b3"
+        },
+        {
+          "path": "src/services/materialCatalog/publicBookCatalogReadiness.service.test.ts",
+          "blob": "fd9004089508eee958c634ceea8825365dcc5bf4"
+        },
+        {
+          "path": "src/services/materialCatalog/publicBookCatalogReadiness.service.ts",
+          "blob": "7b2cd4618992c191660339e93bcab7883a6d096a"
+        },
+        {
+          "path": "src/services/materialCatalog/publicBookReadiness.client.ts",
+          "blob": "21a8904c46295beda8646b11608ac554e45a7c23"
+        },
+        {
+          "path": "src/utils/sha256.ts",
+          "blob": "8644b7c63719b1388b103cb31a078dd6d75b2d62"
+        }
+      ]
+    }
+  ],
+  "exclusions": [
+    "Untracked output/artifacts/tmp/work/trace-read and package runtime caches",
+    "Untracked .env/.dev.vars, credential exports, private-key files, archives/logs/bytecode",
+    "Untracked IELTS grading personal skills under .agents/skills",
+    "All post-2026-10-06 canonical modifications"
+  ],
+  "verification": {
+    "donorBlobEquality": true,
+    "trackedSnapshotBlobEqualityExceptGitignore": true,
+    "trackedSnapshotPathsVerified": 6972,
+    "addedPathsReviewed": 139,
+    "utf8": {
+      "status": "passed",
+      "textFiles": 640
+    },
+    "diffCheck": {
+      "status": "inherited-whitespace-findings",
+      "files": [
+        "cloudflare/src/upload-worker/book-results/production-composition.ts",
+        "documentation/cambridge-ielts-10-20-paragraph-pattern-index.md",
+        "documentation/cambridge-ielts-10-20-reading-topic-classification.html",
+        "documentation/ielts-reading-paragraph-development-analysis.md",
+        "public/fonts/fredoka/OFL.txt",
+        "scripts/qa/prd0062-owned-rules-native.mjs"
+      ],
+      "reason": "Frozen donor bytes retained; five extra EOF blank lines and one existing font-license trailing space."
+    },
+    "sensitiveFilenameReview": "no forbidden additions",
+    "credentialPatternReview": "two pre-existing test PEM fixtures unchanged from parent; no new credential export files",
+    "build": "not run",
+    "tests": "not run",
+    "browser": "not run",
+    "deployedSourceEquality": "unverified"
+  }
+}

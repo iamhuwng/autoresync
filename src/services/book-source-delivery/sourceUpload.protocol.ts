@@ -9,7 +9,7 @@ export interface SourceUploadInspectionClaim {
   readonly displayFilename: string;
   readonly exactByteSize: number;
   readonly sha256Hex: string;
-  /** Authenticated-owner PDF.js attestation; trusted completion binds it to exact bytes. */
+  /** Browser-only UX/preflight count; trusted completion independently recounts bytes. */
   readonly physicalPageCount: number;
   readonly pdfType: 'application/pdf';
   readonly readability: 'readable';

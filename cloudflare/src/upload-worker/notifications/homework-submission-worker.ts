@@ -12,6 +12,7 @@ import {
 const COMMAND_PATH = '/book-notifications/commands';
 const ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ]);
@@ -158,6 +159,23 @@ const trustedHomeworkSubmission = (
   return { homeworkId, studentName, sourceTitle };
 };
 
+const trustedClassJoin = (
+  value: unknown,
+  input: { readonly actorUid: string; readonly requestedRecipientId: string },
+): { readonly className: string; readonly studentName: string } | null => {
+  const classRecord = asRecord(value);
+  const student = asRecord(asRecord(classRecord?.students)?.[input.actorUid]);
+  if (!classRecord || !student
+    || classRecord.status !== 'active'
+    || (classRecord.createdBy !== input.requestedRecipientId && input.actorUid !== input.requestedRecipientId)
+    || student.uid !== input.actorUid
+    || student.status !== 'pending_approval') return null;
+  return {
+    className: typeof classRecord.name === 'string' && classRecord.name ? classRecord.name : String(classRecord.classCode || classRecord.id),
+    studentName: typeof student.name === 'string' && student.name ? student.name : 'Student',
+  };
+};
+
 const limiterFrom = (env: WorkerEnv): RateLimiter | null => {
   const value = env.NOTIFICATION_RATE_LIMITER;
   if (!value || typeof value !== 'object' || !('limit' in value)) return null;
@@ -212,32 +230,49 @@ export const createHomeworkSubmissionNotificationWorker = (
 
       try {
         const command = await readNotificationCommand(request);
-        if (command.producerFamily !== 'homework' || command.authority.kind !== 'homework') {
+        if (command.producerFamily !== 'homework' && command.producerFamily !== 'class') {
           return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
         }
-
-        const canonical = trustedHomeworkSubmission(
-          await readDatabaseValue(env, `test_results/${command.authority.recordId}`),
-          {
-            resultId: command.authority.recordId,
-            actorUid: auth.uid,
-            requestedRecipientId: command.recipientId,
-          },
-        );
-        if (!canonical) {
-          return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
-        }
-
-        const expectedOperationId = notificationOperationId(
-          `homework-submitted:teacher:${command.authority.recordId}:${command.recipientId}`,
-        );
-        const expectedMessage = `${canonical.studentName} submitted "${canonical.sourceTitle}".`;
-        if (command.operationId !== expectedOperationId
-          || command.notification.type !== 'info'
-          || command.notification.title !== 'Homework Submitted'
-          || command.notification.message !== expectedMessage
-          || command.notification.link !== `/teacher/homework/${canonical.homeworkId}`) {
-          return json(request, { code: 'notification_command_content_forbidden' }, 403);
+        if (command.producerFamily === 'class') {
+          const canonical = trustedClassJoin(
+            await readDatabaseValue(env, `classes/${command.authority.recordId}`),
+            { actorUid: auth.uid, requestedRecipientId: command.recipientId },
+          );
+          if (!canonical) return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
+          const studentRecipient = command.recipientId === auth.uid;
+          const expectedOperationId = studentRecipient
+            ? notificationOperationId(`class-join-pending:student:${command.authority.recordId}:${auth.uid}:${auth.uid}`)
+            : notificationOperationId(`class-join-pending:teacher:${command.authority.recordId}:${auth.uid}:${command.recipientId}`);
+          const expectedTitle = studentRecipient ? '🏫 Joined Class — Pending Approval' : '👋 New Student Request';
+          const expectedMessage = studentRecipient
+            ? `You've requested to join ${canonical.className}. Waiting for teacher approval.`
+            : `${canonical.studentName} wants to join your class "${canonical.className}". Review in class management.`;
+          const expectedLink = studentRecipient ? '/student/dashboard' : `/teacher/classes/${command.authority.recordId}`;
+          if (command.operationId !== expectedOperationId
+            || command.notification.type !== 'info'
+            || command.notification.title !== expectedTitle
+            || command.notification.message !== expectedMessage
+            || command.notification.link !== expectedLink) {
+            return json(request, { code: 'notification_command_content_forbidden' }, 403);
+          }
+        } else {
+          const canonical = trustedHomeworkSubmission(
+            await readDatabaseValue(env, `test_results/${command.authority.recordId}`),
+            {
+              resultId: command.authority.recordId,
+              actorUid: auth.uid,
+              requestedRecipientId: command.recipientId,
+            },
+          );
+          if (!canonical) return json(request, { code: 'notification_command_recipient_forbidden' }, 403);
+          if (command.operationId !== notificationOperationId(
+            `homework-submitted:teacher:${command.authority.recordId}:${command.recipientId}`,
+          ) || command.notification.type !== 'info'
+            || command.notification.title !== 'Homework Submitted'
+            || command.notification.message !== `${canonical.studentName} submitted "${canonical.sourceTitle}".`
+            || command.notification.link !== `/teacher/homework/${canonical.homeworkId}`) {
+            return json(request, { code: 'notification_command_content_forbidden' }, 403);
+          }
         }
 
         const result = await repositoryFactory(env).create({

@@ -16,6 +16,10 @@ export interface BookPdfViewerHostProps {
   readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   readonly trustedWorkerOrigins?: readonly string[];
   readonly transportFactory?: typeof createBookDeliveryDocumentTransport;
+  readonly onRouteExpired?: (reason: 'not-found' | 'stale-binding') => void;
+  readonly allowedPages?: readonly number[];
+  readonly onPageChange?: (page: number) => void;
+  readonly onPageReady?: (page: number) => void;
 }
 export const BookPdfViewerHost = ({
   title,
@@ -26,6 +30,10 @@ export const BookPdfViewerHost = ({
   getIdToken,
   trustedWorkerOrigins,
   transportFactory = createBookDeliveryDocumentTransport,
+  onRouteExpired,
+  allowedPages,
+  onPageChange,
+  onPageReady,
 }: BookPdfViewerHostProps) => {
   const [retryToken, setRetryToken] = useState(0);
   const [transport, setTransport] = useState<BookDocumentTransport | null>(null);
@@ -42,13 +50,14 @@ export const BookPdfViewerHost = ({
         return auth.getAuth().currentUser?.getIdToken(forceRefresh) ?? '';
       },
       trustedWorkerOrigins,
+      onRouteExpired,
     });
     setTransport(nextTransport);
 
     return () => {
       nextTransport.destroy();
     };
-  }, [env, getIdToken, retryToken, route, transportFactory, trustedWorkerOrigins]);
+  }, [env, getIdToken, onRouteExpired, retryToken, route, transportFactory, trustedWorkerOrigins]);
 
   if (!transport) {
     return <div role="status">Preparing PDF transport...</div>;
@@ -59,6 +68,9 @@ export const BookPdfViewerHost = ({
       documentTitle={title}
       initialPage={initialPage}
       initialZoom={initialZoom}
+      allowedPages={allowedPages}
+      onPageChange={onPageChange}
+      onPageReady={onPageReady}
       onRetry={() => setRetryToken((value) => value + 1)}
       transport={transport}
     />

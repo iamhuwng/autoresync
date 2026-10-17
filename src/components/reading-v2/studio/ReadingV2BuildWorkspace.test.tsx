@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import r2StorageService from '../../../services/r2Storage';
 import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fixtures/readingV2CanonicalFixtures';
 import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
 import { readingV2Ids, type ReadingV2Document } from '../../../types/readingV2.types';
@@ -10,6 +11,11 @@ import type {
   ReadingV2QuestionLinkTarget,
 } from './ReadingV2BuildWorkspace';
 import type { ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
+
+vi.mock('../../../services/r2Storage', () => ({ default: { uploadImage: vi.fn() } }));
+vi.mock('../../modern/ToastNotification', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock('./ReadingV2PassageEditor', () => ({
   ReadingV2PassageEditor: ({
@@ -548,6 +554,22 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     }));
   });
 
+  it('uses the durable R2 URL for a passage image block upload', async () => {
+    vi.mocked(r2StorageService.uploadImage).mockResolvedValueOnce({ url: 'https://r2.test/passage.png' } as never);
+    const { onDocumentChange, onPassageEditorAction } = renderWorkspace('sentence-completion', { withImageBlock: true });
+    const file = new File(['image'], 'passage.png', { type: 'image/png' });
+
+    fireEvent.change(screen.getByLabelText('Image block 1 file'), { target: { files: [file] } });
+
+    await waitFor(() => expect(onDocumentChange).toHaveBeenCalled());
+    const nextDocument = onDocumentChange.mock.lastCall?.[0] as ReadingV2Document;
+    expect(r2StorageService.uploadImage).toHaveBeenCalledWith(file);
+    expect(nextDocument.stimuli[readingV2Ids.stimulusId('existing-passage-image')]?.content).toEqual(expect.objectContaining({
+      mediaUrl: 'https://r2.test/passage.png',
+    }));
+    expect(onPassageEditorAction).toHaveBeenCalledWith('image-block-uploaded', expect.any(Object));
+  });
+
   it('uses one whole-sentence field and group word limit for sentence-completion', () => {
     const { onInteractionChange, onTaskGroupChange } = renderWorkspace('sentence-completion', {
       firstPromptText: 'The ancient sailors used',
@@ -994,5 +1016,21 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     expect(onInteractionChange).toHaveBeenCalledWith(expect.objectContaining({
       scoringRule: expect.objectContaining({ acceptableAnswers: ['greenbelts'] }),
     }));
+  });
+
+  it('uses the durable R2 URL for a diagram file', async () => {
+    vi.mocked(r2StorageService.uploadImage).mockResolvedValueOnce({ url: 'https://r2.test/diagram.png' } as never);
+    const { onDocumentChange, document } = renderWorkspace('diagram-labeling');
+    const file = new File(['image'], 'diagram.png', { type: 'image/png' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload file' }));
+    fireEvent.change(screen.getByLabelText('Diagram image file'), { target: { files: [file] } });
+
+    await waitFor(() => expect(onDocumentChange).toHaveBeenCalled());
+    const nextDocument = onDocumentChange.mock.lastCall?.[0] as ReadingV2Document;
+    const diagram = Object.values(nextDocument.stimuli).find((item) => item.content.kind === 'diagram-content');
+    expect(r2StorageService.uploadImage).toHaveBeenCalledWith(file);
+    expect(diagram?.content).toEqual(expect.objectContaining({ imageUrl: 'https://r2.test/diagram.png' }));
+    expect(nextDocument.sectionIds).toEqual(document.sectionIds);
   });
 });

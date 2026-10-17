@@ -133,6 +133,14 @@ const terminal = (
     sourceProvenance: [{ sourceKey: 'source-1', sourceVersionId: 'source-v1', pages: [number] }],
     createdByOperationId: `operation-${number}-${attemptNumber}`,
     createdAt: iso(number),
+    terminalLate: {
+      effectiveDeadline: { source: 'assignment', nodeKey: 'unit-1', at: iso(59) },
+      policyRevision: 1,
+      authorityRevision: 1,
+      evaluatedAt: iso(number),
+      late: false,
+    },
+    feedbackPolicy: 'after_completion' as const,
   } as const;
   const resultId = `${attemptId}:result`;
   const attempt: BookRuntimeAttemptRecord = {
@@ -180,6 +188,8 @@ describe('Ticket 88 context-scoped Book Homework completion repository', () => {
       completion: { requiredCount: 2, submittedCount: 1, status: 'in_progress' },
       grading: { pendingReviewCount: 1, scoredCount: 0 },
     });
+    expect(first.projection.activities.find((activity) => activity.placementId === 'placement-1'))
+      .toMatchObject({ terminalLate: terminal(1)?.attempt.terminalLate, feedbackPolicy: 'after_completion' });
     expect(replay.status).toBe('replayed');
     expect(replay.projection).toEqual(first.projection);
     expect((replay.fact as Record<string, unknown>).response).toBeUndefined();
@@ -187,6 +197,20 @@ describe('Ticket 88 context-scoped Book Homework completion repository', () => {
     expect(readback).toEqual(first.projection);
     const snapshot = repository.snapshot();
     expect(Object.keys(snapshot.scopes?.['student-1/homework-1']?.facts ?? {})).toEqual(['attempt-1:completion']);
+  });
+
+  it('rejects missing or cross-row late and feedback snapshots on a new Homework terminal', async () => {
+    const missing = terminal(1)!;
+    const missingAttempt = { ...missing.attempt } as Record<string, unknown>;
+    delete missingAttempt.terminalLate;
+    await expect(new InMemoryBookHomeworkCompletionRepository().project(input(1, {
+      terminal: { ...missing, attempt: missingAttempt as unknown as BookRuntimeAttemptRecord },
+    }))).rejects.toMatchObject({ code: 'homework_completion_terminal_snapshot_invalid' });
+
+    const changedResult = { ...missing.result, feedbackPolicy: 'manual' as const };
+    await expect(new InMemoryBookHomeworkCompletionRepository().project(input(1, {
+      terminal: { ...missing, result: changedResult },
+    }))).rejects.toMatchObject({ code: 'homework_completion_terminal_snapshot_mismatch' });
   });
 
   it('merges concurrent different submissions and completes all required activities', async () => {
@@ -234,6 +258,7 @@ describe('Ticket 88 context-scoped Book Homework completion repository', () => {
     const changedManifest: BookHomeworkManifest = {
       ...current,
       manifestVersionId: 'manifest-2',
+      book: { ...current.book, manifestVersionId: 'manifest-2' },
       bindings: current.bindings.map((entry) => entry.placementId === 'placement-2'
         ? {
           bindingId: entry.bindingId,
@@ -276,6 +301,7 @@ describe('Ticket 88 context-scoped Book Homework completion repository', () => {
     const nextManifest: BookHomeworkManifest = {
       ...current,
       manifestVersionId: 'manifest-3',
+      book: { ...current.book, manifestVersionId: 'manifest-3' },
       bindings: [
         {
           bindingId: 'activity-binding-1',
@@ -434,5 +460,38 @@ describe('Ticket 88 context-scoped Book Homework completion repository', () => {
     })).resolves.toMatchObject({ completion: { submittedCount: 1 } });
     expect(calls.filter((call) => call.startsWith('PUT:'))).toHaveLength(writesBeforeRead);
     expect(calls.some((call) => call.includes(`${BOOK_HOMEWORK_COMPLETION_ROOT}/student-1/homework-1.json`))).toBe(true);
+  });
+
+  it('rebuilds progress when a persisted projection is stale but its facts are valid', async () => {
+    const source = new InMemoryBookHomeworkCompletionRepository();
+    await source.project(input(1));
+    const persisted = source.snapshot().scopes?.['student-1/homework-1'];
+    expect(persisted?.projection).toBeDefined();
+    const staleProjection = { ...persisted!.projection } as Record<string, unknown>;
+    delete staleProjection.excludedHistoricalRows;
+    const persistedScope = { ...persisted!, projection: staleProjection };
+
+    const repository = new FirebaseRestBookHomeworkCompletionRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://database.example.test',
+        BOOK_RUNTIME_SERVICE_IDENTITY: 'runtime@example.test',
+      },
+      getAccessToken: async () => 'token',
+      fetchImpl: async (_request, init) => {
+        expect(init?.method ?? 'GET').toBe('GET');
+        return new Response(JSON.stringify(persistedScope), {
+          status: 200,
+          headers: { etag: 'stale-projection' },
+        });
+      },
+    });
+
+    await expect(repository.resolveCurrentProjection({
+      authority: { assignmentId: 'homework-1', manifest: manifest() },
+      binding: binding(),
+    })).resolves.toMatchObject({
+      completion: { submittedCount: 1 },
+      excludedHistoricalRows: [],
+    });
   });
 });

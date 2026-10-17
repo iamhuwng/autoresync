@@ -5,6 +5,7 @@ import type {
   BookImpactDiscoveryResult,
   BookImpactSummary,
 } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import {
   BOOK_IMPACT_SNAPSHOT_CONTEXT_KINDS,
   BOOK_IMPACT_SNAPSHOT_DEFAULT_TTL_MS,
@@ -108,7 +109,7 @@ const choicesFor = (effect: BookImpactSummary['classification']['primaryEffect']
   }
 };
 
-const contextFor = (actorId: string, impact: BookImpactSummary): BookImpactSnapshotContext => {
+const contextFor = async (actorId: string, impact: BookImpactSummary): Promise<BookImpactSnapshotContext> => {
   const allowedChoices = choicesFor(impact.classification.primaryEffect);
   const activityChoices: BookImpactSnapshotActivityChoice[] = impact.placements.map((placement) => ({
     activityId: placement.activityId,
@@ -121,7 +122,7 @@ const contextFor = (actorId: string, impact: BookImpactSummary): BookImpactSnaps
   const started = impact.lifecycle !== 'not-started';
   const affected = impact.classification.primaryEffect !== 'unchanged';
   return {
-    contextKey: `${impact.contextKind}:${impact.contextId}`,
+    contextKey: await bookImpactContextKey(impact),
     impact,
     updateAuthority: { ownerId: impact.ownerId, actorId, permitted: true },
     recipientScope: {
@@ -205,7 +206,7 @@ export const createBookImpactSnapshotService = (options: {
     const contextKeys = new Set<string>();
     const contexts: BookImpactSnapshotContext[] = [];
     for (const impact of impacts) {
-      const context = contextFor(command.actorId, impact);
+      const context = await contextFor(command.actorId, impact);
       if (contextKeys.has(context.contextKey)) {
         return { status: 'blocked', code: 'duplicate-context' };
       }

@@ -143,6 +143,38 @@ const handlersFor = (value = dependencies()) => ({
 });
 
 describe('Book Runtime launch production composition', () => {
+  it('hydrates one immutable Activity for repeated placements and preserves an independent Activity', async () => {
+    const production = dependencies();
+    const current = await production.delivery.resolveCurrent('student-1', 'course-material-1');
+    const active = current!.record.binding;
+    const placements = [active.placements[0]!, { ...active.placements[0]!, placementId: 'placement-repeat', order: 2 },
+      { ...active.placements[0]!, placementId: 'placement-other', activityId: 'activity-2', activityVersionId: 'activity-version-2', order: 3 }];
+    Object.assign(active, { placements, scope: { ...active.scope, placementIds: placements.map((p) => p.placementId) } });
+    const published = scope();
+    published.placements!['placement-repeat'] = { ...published.placements!['placement-1']!, placementId: 'placement-repeat', order: 2 };
+    published.placements!['placement-other'] = { ...published.placements!['placement-1']!, placementId: 'placement-other', activityId: 'activity-2', activityVersionId: 'activity-version-2', order: 3 };
+    published.activityVersions!['manifest-1:activity-version-2'] = { ...published.activityVersions!['manifest-1:activity-version-1']!, activityId: 'activity-2', activityVersionId: 'activity-version-2' };
+    vi.mocked(production.publications.readScope).mockResolvedValue(published);
+    vi.mocked(production.exactReader.readExact).mockImplementation(async (input) => ({ ...canonical(),
+      activityId: input.activityId, activityVersionId: input.activityVersionId,
+      placementIds: input.activityId === 'activity-1' ? ['placement-1', 'placement-repeat'] : ['placement-other'] }));
+    const result = await handlersFor(production).handlers.launch({ request: request({ activityPins: [
+      { activityId: 'activity-1', activityVersionId: 'activity-version-1' },
+      { activityId: 'activity-2', activityVersionId: 'activity-version-2' },
+    ] }), env, uid: 'student-1' });
+    expect(result).toMatchObject({ init: { status: 200 }, body: { activities: [{ activityId: 'activity-1' }, { activityId: 'activity-2' }] } });
+    expect(production.exactReader.readExact).toHaveBeenCalledTimes(2);
+    expect(active.placements.map((p) => p.placementId)).toEqual(['placement-1', 'placement-repeat', 'placement-other']);
+  });
+
+  it.each([{ activityVersionId: 'conflicting-version' }, { activityVersion: 8 }])('rejects conflicting immutable versions before hydration: %j', async (conflict) => {
+    const production = dependencies();
+    const current = await production.delivery.resolveCurrent('student-1', 'course-material-1');
+    const active = current!.record.binding;
+    Object.assign(active, { placements: [...active.placements, { ...active.placements[0], placementId: 'placement-repeat', ...conflict }] });
+    expect(await handlersFor(production).handlers.launch({ request: request(), env, uid: 'student-1' })).toMatchObject({ init: { status: 403 } });
+    expect(production.exactReader.readExact).not.toHaveBeenCalled();
+  });
   it('maps the assembly identity explicitly when dedicated reader bindings are absent', () => {
     const env = {
       FIREBASE_DB_URL: 'https://firebase.test',

@@ -20,6 +20,7 @@ import type {
 import type {
   BookAssemblyPublicationRepository,
 } from '../../../../src/services/book-assembly/publicationRepository.ts';
+import { isActiveBookSourceAuthorityProfile } from '../book-source/trusted-source-contract.ts';
 
 const MAX_BODY_BYTES = 1_200_000;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
@@ -152,11 +153,8 @@ const nullableId = (value: unknown, code: string): string | null => {
 };
 
 const roleAllowed = (value: unknown): boolean => {
-  const profile = plain(value);
-  return !!profile
-    && (profile.role === 'teacher' || profile.role === 'super_admin')
-    && !['blocked', 'inactive', 'suspended'].includes(String(profile.status ?? ''))
-    && profile.forceReauth !== true;
+  return isActiveBookSourceAuthorityProfile(value, 'teacher')
+    || isActiveBookSourceAuthorityProfile(value, 'super_admin');
 };
 
 const statusFor = (result: BookAssemblyPublicationResult): number => {

@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
+  BookSourceUploadAccountState,
   BookSourceVersionStorageIdentity,
 } from '../../src/types/bookSource.types.ts';
+import type { SourceUploadRtdbTransaction } from '../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
+import {
+  SourceUploadRtdbRepository,
+} from '../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
 import type {
   ReplacementSagaRecord,
 } from '../src/upload-worker/book-delivery/replacement-saga/contract.ts';
@@ -11,7 +16,9 @@ import {
   InMemoryRetiredByteDeletionRepository,
 } from '../src/upload-worker/book-delivery/retired-byte-deletion/repository.ts';
 import type {
+  RetiredByteCapacityAuthority,
   RetiredByteContextReadback,
+  RetiredByteSourceAuthority,
 } from '../src/upload-worker/book-delivery/retired-byte-deletion/contract.ts';
 import {
   createRetiredByteDeletionOwner,
@@ -31,6 +38,36 @@ const identity: BookSourceVersionStorageIdentity = {
 };
 
 const fixedNow = '2026-08-11T05:00:00.000Z';
+const retirementGuard = {
+  bookId: 'book-1',
+  sourceVersionId: 'source-old',
+  deletionId: 'deletion-1',
+  publicationId: 'publication-1',
+  publicationRevision: 1,
+  manifestVersionId: 'manifest-1',
+  sourceSetRevision: 2,
+  inputFingerprint: 'b'.repeat(64),
+  sourceVersionIds: ['source-new'],
+} as const;
+
+const sourceAuthority = {
+  storage: identity,
+  sourceKey: 'unit-1',
+  ownerId: 'teacher-1',
+  status: 'retirement_pending' as const,
+  purpose: 'book-source' as const,
+  studentSafeStatus: 'ready' as const,
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: fixedNow,
+    sourceVersionId: 'source-old',
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed' as const,
+  },
+  retirementGuard,
+  retiredDeletionId: 'deletion-1',
+};
+
 const operationId = 'saga-1:retired-byte-deletion';
 
 const saga = {
@@ -113,14 +150,27 @@ const makeHarness = (options: {
   readonly deleteBehavior?: 'success' | 'before-crash' | 'after-crash';
   readonly capacityBehavior?: 'success' | 'crash';
   readonly contextProof?: () => RetiredByteContextReadback;
+  readonly sourceAuthority?: typeof sourceAuthority | null;
+  readonly publicationGuard?: typeof retirementGuard;
+  readonly driftAtCapacity?: boolean;
+  readonly driftDuringProviderRead?: boolean;
+  readonly sourceVersions?: RetiredByteSourceAuthority;
+  readonly capacity?: RetiredByteCapacityAuthority;
+  readonly publicationAuthority?: boolean;
 } = {}) => {
   const repository = new InMemoryRetiredByteDeletionRepository();
   let providerPresent = options.providerPresent ?? true;
   let deleteBehavior = options.deleteBehavior ?? 'success';
+  let driftAtCapacity = options.driftAtCapacity ?? false;
+  let providerReads = 0;
   const events: string[] = [];
   const provider = {
     resolveExactVersion: vi.fn(async () => {
+      providerReads += 1;
       events.push('provider-read');
+      if (options.driftDuringProviderRead && providerReads === 3) {
+        currentPublicationGuard = { ...retirementGuard, publicationRevision: 2 };
+      }
       return providerPresent ? identity : null;
     }),
     deleteExactVersion: vi.fn(async ({ identity: requested }) => {
@@ -131,9 +181,14 @@ const makeHarness = (options: {
     }),
   };
   let capacitySettled = false;
-  const capacity = {
+  const capacity = options.capacity ?? {
     settle: vi.fn(async () => {
       events.push('capacity-settle');
+      if (driftAtCapacity) {
+        driftAtCapacity = false;
+        currentPublicationGuard = { ...retirementGuard, publicationRevision: 2 };
+        throw new Error('publication guard drift');
+      }
       if (options.capacityBehavior === 'crash') throw new Error('capacity-unavailable');
       if (capacitySettled) return 'replayed' as const;
       capacitySettled = true;
@@ -143,17 +198,20 @@ const makeHarness = (options: {
   const contexts = {
     readRevocation: vi.fn(async () => options.contextProof?.() ?? proof()),
   };
+  let currentPublicationGuard = options.publicationGuard ?? retirementGuard;
   const owner = createRetiredByteDeletionOwner({
     repository,
-    sourceVersions: { readVersion: vi.fn(async () => identity) },
+    sourceVersions: options.sourceVersions ?? { readVersion: vi.fn(async () => options.sourceAuthority === undefined ? sourceAuthority : options.sourceAuthority) },
+    publicationGuard: options.publicationAuthority === false
+      ? undefined
+      : { readCurrentGuard: vi.fn(async () => currentPublicationGuard) },
     contexts,
     provider,
     capacity,
     enabled: true,
     now: () => new Date(fixedNow),
-    newId: () => 'deletion-1',
   });
-  return { repository, owner, provider, capacity, contexts, events, setProviderPresent: (value: boolean) => { providerPresent = value; }, setDeleteBehavior: (value: 'success' | 'before-crash' | 'after-crash') => { deleteBehavior = value; } };
+  return { repository, owner, provider, capacity, contexts, events, setProviderPresent: (value: boolean) => { providerPresent = value; }, setDeleteBehavior: (value: 'success' | 'before-crash' | 'after-crash') => { deleteBehavior = value; }, setPublicationGuard: (value: typeof retirementGuard) => { currentPublicationGuard = value; } };
 };
 
 const enqueue = async (owner: ReturnType<typeof createRetiredByteDeletionOwner>) => {
@@ -162,10 +220,146 @@ const enqueue = async (owner: ReturnType<typeof createRetiredByteDeletionOwner>)
     operationId,
     sourceVersionIds: ['source-old'],
     precondition: 'all-contexts-retired-deliveries-revoked',
+    deletionId: 'deletion-1',
   })).resolves.toEqual({ status: 'queued' });
 };
 
+const createSourceRetirementOwner = () => {
+  let sourceState: BookSourceUploadAccountState = {
+    revision: 0,
+    capacity: {
+      trackedAccountBytes: identity.byteSize,
+      temporaryBytes: 0,
+      providerReconciliation: {
+        status: 'healthy',
+        totalBytes: identity.byteSize,
+        objectCount: 1,
+        completedAt: fixedNow,
+      },
+    },
+    operations: {
+      'reservation-1': {
+        reservationId: 'reservation-1',
+        bookId: 'book-1',
+        sourceVersionId: 'source-old',
+        sourceKey: 'unit-1',
+        ownerId: 'teacher-1',
+        storageLocationId: 'b2-primary',
+        providerKind: 'backblaze-b2-s3',
+        privateBucketId: 'bucket-1',
+        providerObjectKey: identity.providerObjectKey,
+        kind: 'replacement',
+        purpose: 'book-source',
+        studentSafeStatus: 'ready',
+        studentSafeDecision: sourceAuthority.studentSafeDecision,
+        byteSize: identity.byteSize,
+        originalFilename: 'source.pdf',
+        expectedChecksum: identity.checksum,
+        createdAt: fixedNow,
+        expiresAt: '2026-08-11T05:05:00.000Z',
+        status: 'retirement_pending',
+        physicalPageCount: 1,
+        verifiedStorage: identity,
+        completedAt: fixedNow,
+        retirementGuard,
+        retiredDeletionId: 'deletion-1',
+        retirementPendingAt: fixedNow,
+      },
+    },
+  };
+  const transaction: SourceUploadRtdbTransaction = async (input) => {
+    if (sourceState.revision !== input.expectedRevision) {
+      return { committed: false, value: sourceState as never };
+    }
+    const next = input.update(sourceState as never);
+    sourceState = next as never;
+    return { committed: true, value: sourceState as never };
+  };
+  const sourceRepository = new SourceUploadRtdbRepository(transaction, { now: () => new Date(fixedNow) });
+  const readVersion: RetiredByteSourceAuthority['readVersion'] = async () => {
+    const operation = sourceState.operations['reservation-1'];
+    if (!operation || !operation.verifiedStorage) return null;
+    return {
+      storage: operation.verifiedStorage,
+      sourceKey: operation.sourceKey,
+      ownerId: operation.ownerId,
+      status: operation.status,
+      purpose: operation.purpose,
+      studentSafeStatus: operation.studentSafeStatus,
+      studentSafeDecision: operation.studentSafeDecision,
+      retirementGuard: operation.retirementGuard,
+      retiredDeletionId: operation.retiredDeletionId,
+    };
+  };
+  const publication = { current: retirementGuard };
+  const sourceVersions: RetiredByteSourceAuthority = { readVersion };
+  const capacity: RetiredByteCapacityAuthority = {
+    settle: vi.fn(async (input) => {
+      const current = publication.current;
+      if (JSON.stringify(current) !== JSON.stringify(input.publicationGuard)) throw new Error('publication guard drift');
+      const proofReadback = await contextAuthority.readRevocation({
+        sagaId: saga.sagaId,
+        ownerId: saga.ownerId,
+        bookId: saga.bookId,
+        contextKey: 'context-1',
+        operationId: 'saga-1:context:context-1',
+        sourceVersionIds: ['source-old'],
+      });
+      if (!proofReadback
+        || proofReadback.currentSourceVersionIds.includes('source-old')
+        || proofReadback.remainingActiveSourceVersionIds.includes('source-old')) {
+        throw new Error('source still referenced');
+      }
+      const operation = sourceState.operations['reservation-1']!;
+      const before = operation.status;
+      await sourceRepository.retireVerifiedSource({
+        accountId: 'account-1',
+        expectedRevision: sourceState.revision,
+        reservationId: operation.reservationId,
+        bookId: operation.bookId,
+        sourceVersionId: operation.sourceVersionId,
+        sourceKey: operation.sourceKey,
+        ownerId: operation.ownerId,
+        verifiedStorage: input.identity,
+        deletionId: input.sourceRetirement.deletionId,
+        proof: input.sourceRetirement.proof === 'provider-already-absent' ? 'provider_absent' : 'exact_version_deleted',
+        retiredAt: fixedNow,
+        currentSourceVersionIds: [],
+        remainingActiveSourceVersionIds: [],
+        retirementGuard: input.sourceRetirement.publicationGuard,
+      });
+      return before === 'retired' ? 'replayed' : 'settled';
+    }),
+  };
+  const contextAuthority = {
+    readRevocation: vi.fn(async () => proof()),
+  };
+  const harness = makeHarness({ sourceVersions, capacity });
+  return { ...harness, sourceState: () => sourceState, contextAuthority };
+};
+
 describe('#119 retired-byte deletion owner', () => {
+  it('settles the Source retirement CAS before settling the deletion record', async () => {
+    const harness = createSourceRetirementOwner();
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'settled', record: { state: 'settled' } });
+    expect(harness.sourceState().operations['reservation-1']).toMatchObject({
+      status: 'retired',
+      sourceKey: 'unit-1',
+      ownerId: 'teacher-1',
+      retiredDeletionId: 'deletion-1',
+    });
+    expect(harness.sourceState().capacity.trackedAccountBytes).toBe(0);
+    expect(Object.values(harness.sourceState().lifecycleAuditEvents ?? {})
+      .filter((event) => event.transition === 'retired')).toHaveLength(1);
+    expect(harness.contextAuthority.readRevocation).toHaveBeenCalled();
+    expect(harness.capacity.settle).toHaveBeenCalledWith(expect.objectContaining({
+      publicationGuard: retirementGuard,
+      sourceRetirement: expect.objectContaining({ sourceKey: 'unit-1', ownerId: 'teacher-1' }),
+    }));
+  });
+
   it('deletes one exact pinned version and settles capacity after authoritative absence', async () => {
     const harness = makeHarness();
     await enqueue(harness.owner);
@@ -192,10 +386,149 @@ describe('#119 retired-byte deletion owner', () => {
     }
   });
 
+  it.each([
+    ['logical-key', { sourceKey: 'unit-2' }],
+    ['owner', { ownerId: 'teacher-2' }],
+  ] as const)('rejects queued Source %s drift before provider work', async (_label, drift) => {
+    const sourceVersions = {
+      readVersion: vi.fn()
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce({ ...sourceAuthority, ...drift }),
+    };
+    const harness = makeHarness({ sourceVersions });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', code: 'retirement-pending-identity-mismatch' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it('blocks same-checksum queued storage drift before provider reads or capacity settlement', async () => {
+    const driftedStorage = {
+      ...identity,
+      storageLocationId: 'b2-secondary',
+      privateBucketId: 'bucket-2',
+      providerObjectKey: 'book-source/book-1/source-old-drifted.pdf',
+      providerFileId: '4_file-drifted',
+      providerFileVersionId: '4_file-drifted',
+    };
+    const sourceVersions = {
+      readVersion: vi.fn()
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce({ ...sourceAuthority, storage: driftedStorage }),
+    };
+    const harness = makeHarness({ sourceVersions });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'blocked', code: 'stale-source-provenance' });
+    expect(harness.provider.resolveExactVersion).not.toHaveBeenCalled();
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+    expect(harness.capacity.settle).not.toHaveBeenCalled();
+  });
+
+  it('conflicts idempotent enqueue when the full source storage identity drifts', async () => {
+    const driftedStorage = {
+      ...identity,
+      providerObjectKey: 'book-source/book-1/source-old-drifted.pdf',
+      providerFileId: '4_file-drifted',
+      providerFileVersionId: '4_file-drifted',
+    };
+    let current = sourceAuthority;
+    const sourceVersions = { readVersion: vi.fn(async () => current) };
+    const harness = makeHarness({ sourceVersions });
+    await enqueue(harness.owner);
+    current = { ...sourceAuthority, storage: driftedStorage };
+    await expect(harness.owner.enqueueExactDeletion({
+      saga,
+      operationId,
+      sourceVersionIds: ['source-old'],
+      precondition: 'all-contexts-retired-deliveries-revoked',
+      deletionId: 'deletion-1',
+    })).resolves.toEqual({ status: 'pending' });
+  });
+
+  it.each([
+    ['logical-key', { sourceKey: 'unit-2' }],
+    ['owner', { ownerId: 'teacher-2' }],
+  ] as const)('rejects preflighted Source %s drift before provider work', async (_label, drift) => {
+    const sourceVersions = {
+      readVersion: vi.fn()
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce({ ...sourceAuthority, ...drift }),
+    };
+    const harness = makeHarness({ sourceVersions });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', code: 'retirement-pending-identity-mismatch', record: { state: 'preflighted' } });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['logical-key', { sourceKey: 'unit-2' }],
+    ['owner', { ownerId: 'teacher-2' }],
+  ] as const)('rejects resumed-delete Source %s drift before provider work', async (_label, drift) => {
+    const sourceVersions = {
+      readVersion: vi.fn()
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce(sourceAuthority)
+        .mockResolvedValueOnce({ ...sourceAuthority, ...drift }),
+    };
+    const harness = makeHarness({ sourceVersions, deleteBehavior: 'before-crash' });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', record: { state: 'delete-started' } });
+    harness.provider.deleteExactVersion.mockClear();
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', code: 'retirement-pending-identity-mismatch' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it('conflicts idempotent enqueue when the fenced source key drifts', async () => {
+    let current = sourceAuthority;
+    const sourceVersions = { readVersion: vi.fn(async () => current) };
+    const harness = makeHarness({ sourceVersions });
+    await enqueue(harness.owner);
+    current = { ...sourceAuthority, sourceKey: 'unit-2' };
+    await expect(harness.owner.enqueueExactDeletion({
+      saga,
+      operationId,
+      sourceVersionIds: ['source-old'],
+      precondition: 'all-contexts-retired-deliveries-revoked',
+      deletionId: 'deletion-1',
+    })).resolves.toEqual({ status: 'pending' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for rejected, student-document, stale, or unavailable source authority', async () => {
+    for (const source of [
+      { ...sourceAuthority, purpose: 'student-document' as const },
+      { ...sourceAuthority, studentSafeStatus: 'rejected' as const },
+      { ...sourceAuthority, studentSafeDecision: { ...sourceAuthority.studentSafeDecision, sourceVersionId: 'other-source' } },
+      { ...sourceAuthority, storage: { ...identity, sourceVersionId: 'other-source' } },
+      null,
+    ]) {
+      const harness = makeHarness({ sourceAuthority: source });
+      await expect(harness.owner.enqueueExactDeletion({
+        saga,
+        operationId,
+        sourceVersionIds: ['source-old'],
+        precondition: 'all-contexts-retired-deliveries-revoked',
+        deletionId: 'deletion-1',
+      })).resolves.toEqual({ status: 'pending' });
+      expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+    }
+  });
+
   it('denies active or partial revocation readback', async () => {
     for (const contextProof of [
       () => proof({ currentSourceVersionIds: ['source-old'] }),
       () => proof({ remainingActiveSourceVersionIds: ['source-old'] }),
+      () => proof({ retiredDeliveries: [{
+        ...proof().retiredDeliveries[0]!,
+        sourceVersionIds: ['source-old', 'source-unrelated'],
+      }] }),
     ]) {
       const harness = makeHarness({ contextProof });
       await enqueue(harness.owner);
@@ -265,6 +598,59 @@ describe('#119 retired-byte deletion owner', () => {
     harness.setProviderPresent(false);
     await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
       .resolves.toMatchObject({ status: 'settled' });
+  });
+
+  it('stops the provider retry when the publication guard drifts', async () => {
+    const harness = makeHarness({ deleteBehavior: 'before-crash' });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', record: { state: 'delete-started' } });
+    harness.setPublicationGuard({ ...retirementGuard, publicationRevision: 2 });
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'blocked', code: 'publication-guard-stale' });
+    expect(harness.provider.deleteExactVersion).toHaveBeenCalledTimes(1);
+  });
+
+  it('rechecks the publication guard after the final provider read before deletion', async () => {
+    const harness = makeHarness({ driftDuringProviderRead: true });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'blocked', code: 'publication-guard-stale' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it('rechecks publication guard at capacity settlement before final source retirement', async () => {
+    const harness = makeHarness({ driftAtCapacity: true });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', code: 'capacity-settlement-pending', record: { state: 'absence-verified' } });
+    expect(harness.capacity.settle).toHaveBeenCalledTimes(1);
+    harness.setPublicationGuard(retirementGuard);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'settled' });
+    expect(harness.capacity.settle).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a missing publication validator retryable before provider effect', async () => {
+    const harness = makeHarness({ publicationAuthority: false });
+    await enqueue(harness.owner);
+    await expect(harness.owner.execute({ ownerId: 'teacher-1', deletionId: 'deletion-1' }))
+      .resolves.toMatchObject({ status: 'pending', code: 'publication-guard-authority-unavailable' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
+  });
+
+  it('keeps a missing source guard pending before enqueue', async () => {
+    const harness = makeHarness({
+      sourceAuthority: { ...sourceAuthority, retirementGuard: undefined } as never,
+    });
+    await expect(harness.owner.enqueueExactDeletion({
+      saga,
+      operationId,
+      sourceVersionIds: ['source-old'],
+      precondition: 'all-contexts-retired-deliveries-revoked',
+      deletionId: 'deletion-1',
+    })).resolves.toEqual({ status: 'pending' });
+    expect(harness.provider.deleteExactVersion).not.toHaveBeenCalled();
   });
 
   it('persists a dedicated metadata-only delete identity and no backup bytes', async () => {

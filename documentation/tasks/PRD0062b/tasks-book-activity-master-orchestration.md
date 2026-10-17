@@ -15,6 +15,8 @@ Status: CLOSURE_BLOCKED — current packet P2
 - Evidence snapshots: [`recovered/`](recovered/). Never use recovered checkbox state as current status.
 - Audit/evidence: [`implementation-audit.md`](implementation-audit.md), [`reconciliation-ledger.md`](reconciliation-ledger.md). These classify; they do not close task rows.
 
+The [2026-09-14 Gate 0 decision](approval-record-2026-09-14-component-combination-gate-0.md) is dormant authority only. It does not close taskboxes or claim implementation, browser, Worker, emulator, deployment, or protected-state proof; reconcile it through the [traceability record](traceability-book-activity-v1.md), [reconciliation ledger](reconciliation-ledger.md), and this file's [packet-exit contract](#packet-exit-contract).
+
 ## Operating rule
 
 Implement packet by packet. Within current packet, verify interfaces, allow current-packet consumers, complete all required proof, reconcile canonical task rows, and close packet. Do not carry unreviewed behavior or proof debt across packet boundaries. A remote/deployment action without separate approval is a blocker, not a reason to skip a row.

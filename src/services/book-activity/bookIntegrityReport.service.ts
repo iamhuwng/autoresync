@@ -120,6 +120,7 @@ const validTerminal = (value: unknown): value is BookIntegrityTerminalAttempt =>
       'resultId',
       'completionId',
       'attemptNumber',
+      'captureSlotId',
       'submittedAt',
       'recipientId',
       'ownerId',
@@ -149,6 +150,7 @@ const validTerminal = (value: unknown): value is BookIntegrityTerminalAttempt =>
       'placementId',
       'activityId',
       'activityVersionId',
+      'captureSlotId',
     ].every((key) => typeof source[key] === 'string'
       && (key === 'attemptId' ? ID : TERMINAL_ID).test(source[key] as string))
     && source.attemptNumber !== undefined
@@ -277,7 +279,7 @@ export const isBookIntegritySignalScope = (value: unknown): value is BookIntegri
 const targetMatchesTerminal = (
   event: BookIntegrityCanonicalEvent,
   terminal: BookIntegrityTerminalAttempt,
-): boolean => event.accountableAttemptId === terminal.attemptId
+): boolean => event.accountableAttemptId === terminal.captureSlotId
   && event.recipientId === terminal.recipientId
   && event.target.bookId === terminal.bookId
   && event.target.bindingId === terminal.bindingId
@@ -341,7 +343,7 @@ const reportFor = (input: {
       || input.scope.contextId !== input.terminal.contextId
       || input.scope.placementId !== input.terminal.placementId
       || input.scope.activityId !== input.terminal.activityId
-      || input.scope.accountableAttemptId !== input.terminal.attemptId) {
+      || input.scope.accountableAttemptId !== input.terminal.captureSlotId) {
       throw new BookIntegrityReportError('integrity_report_scope_mismatch');
     }
   }
@@ -353,7 +355,9 @@ const reportFor = (input: {
       if (!targetMatchesTerminal(event, input.terminal)) {
         throw new BookIntegrityReportError('integrity_report_scope_mismatch');
       }
-      return true;
+      return event.accountableAttemptId === input.terminal.captureSlotId
+        && event.attemptNumber === input.terminal.attemptNumber
+        && Date.parse(event.recordedAt) <= Date.parse(input.terminal.submittedAt);
     })
     .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt)
       || left.eventId.localeCompare(right.eventId));
@@ -500,7 +504,7 @@ export const createTrustedBookIntegrityReportService = (options: {
       contextId: input.terminal.contextId,
       placementId: input.terminal.placementId,
       activityId: input.terminal.activityId,
-      accountableAttemptId: input.terminal.attemptId,
+      accountableAttemptId: input.terminal.captureSlotId,
     });
     const report = reportFor({
       terminal: input.terminal,

@@ -89,6 +89,22 @@ describe('Ticket #77 Book result read rules fragment', () => {
     }
   });
 
+  it('allows the writer-required exact group-summary child reads in both scopes', () => {
+    const operations = fragment.operations as Operation[];
+    for (const path of [
+      'book_result_read_models/students/$studentId/books/$bookId/group_summaries/$groupKey',
+      'book_result_read_models/homework/$homeworkId/students/$studentId/books/$bookId/group_summaries/$groupKey',
+    ]) {
+      const read = operations.find((operation) => operation.path === path && operation.rule === '.read');
+      expect(read).toMatchObject({
+        merge: 'replace-exact-deny',
+        requiresExistingRule: false,
+      });
+      expect(read?.expression).toContain('auth.token.book_result_read_groupKey == $groupKey');
+      expect(read?.expression).not.toMatch(/query\./u);
+    }
+  });
+
   it('remains a fragment-level contract and does not claim assembled generated-rules proof', () => {
     expect(JSON.stringify(fragment)).not.toMatch(/database\.rules\.json|emulator|assembled|readback/iu);
   });

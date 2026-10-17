@@ -237,6 +237,7 @@ export function THCSTestEditorSurface({
     const [isDirty, setIsDirty] = useState(false);
     const [draftId, setDraftId] = useState<string | null>(initialDraftId || null);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [showPublishWarnings, setShowPublishWarnings] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [publishedTestId, setPublishedTestId] = useState<string | null>(null);
@@ -554,24 +555,36 @@ setIsDirty(true);
 
     // ─── Save Draft ─────────────────────────────────────────────
     const handleSaveDraft = useCallback(async () => {
-        if (!user?.uid) return;
+        if (!user?.uid) {
+            toast.error('Could not save draft: sign in and try again.');
+            return;
+        }
 
-        if (!draftId) {
-            const result = await createThcsDraft(user.uid, metadata);
-            if (result.success && result.data) {
-                const newDraftId = result.data.draftId;
-                setDraftId(newDraftId);
-                onDraftCreated?.(newDraftId);
-                await saveNow();
-                setIsDirty(false);
-                toast.success('Saved draft.');
+        trackAction('saveDraft');
+        setIsSavingDraft(true);
+        try {
+            let currentDraftId = draftId;
+            if (!currentDraftId) {
+                const result = await createThcsDraft(user.uid, metadata);
+                if (!result.success || !result.data?.draftId) {
+                    throw new Error(result.error || 'Could not create draft');
+                }
+                currentDraftId = result.data.draftId;
+                setDraftId(currentDraftId);
             }
-        } else {
-            await saveNow();
+
+            const result = await saveNow(currentDraftId);
+            if (!result.success) throw new Error(result.error || 'Could not save draft');
+
             setIsDirty(false);
             toast.success('Saved draft.');
+            if (!draftId) onDraftCreated?.(currentDraftId);
+        } catch (error) {
+            toast.error(`Could not save draft: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsSavingDraft(false);
         }
-    }, [draftId, metadata, onDraftCreated, saveNow, user]);
+    }, [draftId, metadata, onDraftCreated, saveNow, trackAction, user]);
 
     // ─── Publish ────────────────────────────────────────────────
     const handlePublish = useCallback(async () => {
@@ -583,6 +596,7 @@ setIsDirty(true);
             return;
         }
 
+        trackAction('publishTest');
         setIsPublishing(true);
         setShowPublishWarnings(false);
 
@@ -681,23 +695,28 @@ setIsDirty(true);
         } finally {
             setIsPublishing(false);
         }
-    }, [draftId, isPublic, isValid, metadata, onPublished, publishedTestId, sections, showPublishWarnings, user, warnings]);
+    }, [draftId, isPublic, isValid, metadata, onPublished, publishedTestId, sections, showPublishWarnings, trackAction, user, warnings]);
 
     // ─── Duplicate ──────────────────────────────────────────────
     const handleDuplicate = useCallback(async () => {
         if (!user?.uid) return;
 
-        const dupMetadata = { ...metadata, title: `Copy of ${metadata.title}` };
-        const result = await createThcsDraft(user.uid, dupMetadata);
-        if (result.success && result.data) {
+        trackAction('duplicateTest');
+        try {
+            const dupMetadata = { ...metadata, title: `Copy of ${metadata.title}` };
+            const result = await createThcsDraft(user.uid, dupMetadata);
+            if (!result.success || !result.data?.draftId) {
+                throw new Error(result.error || 'Could not create draft');
+            }
             const newDraftId = result.data.draftId;
             const { updateThcsDraft } = await import('../services/thcsDraftService');
-            await updateThcsDraft(newDraftId, {
+            const saved = await updateThcsDraft(newDraftId, {
                 metadata: dupMetadata,
                 sections,
                 questionCount: sections.reduce((sum, s) => sum + s.questions.length, 0),
                 totalPoints: sections.reduce((sum, s) => sum + s.totalPoints, 0),
             } as any);
+            if (!saved.success) throw new Error(saved.error || 'Could not save draft copy');
 
             toast.success(`Created draft copy "${dupMetadata.title}".`);
             if (onDuplicateCreated) {
@@ -707,8 +726,10 @@ setIsDirty(true);
                 setPublishedTestId(null);
                 setIsDirty(false);
             }
+        } catch (error) {
+            toast.error(`Could not duplicate test: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    }, [metadata, onDuplicateCreated, sections, user]);
+    }, [metadata, onDuplicateCreated, sections, trackAction, user]);
 
     if (draftLoading) {
         return (
@@ -891,6 +912,7 @@ setIsDirty(true);
                         warnings={warnings}
                         isValid={isValid}
                         isPublishing={isPublishing}
+                        isSavingDraft={isSavingDraft}
                         publishedTestId={publishedTestId}
                         draftId={draftId}
                         userId={user?.uid || ''}
@@ -958,7 +980,9 @@ setIsDirty(true);
                     )}
                     {/* Save Draft on Step 1 per mockup */}
                     {setupMode !== 'paste' && currentStep === 1 && (
-                        <Button variant="glass" onClick={handleSaveDraft}>Save Draft</Button>
+                        <Button variant="glass" onClick={handleSaveDraft} disabled={isSavingDraft}>
+                            {isSavingDraft ? 'Saving...' : 'Save Draft'}
+                        </Button>
                     )}
 
                     {/* Preview button on Steps 1 and 2 (Amendment G4) */}

@@ -52,6 +52,8 @@ const authority = (attemptId = 'attempt-1'): BookIntegrityAttemptAuthority => ({
   recipientId: 'student-1',
   accountableAttemptId: attemptId,
   attemptNumber: 1,
+  captureSlotId: 'capture-slot-attempt-1',
+  captureAttemptNumber: 1,
   active: true,
   frozenPolicy: createDefaultBookIntegrityPolicy('accountable', {
     policyId: 'capture-policy',
@@ -65,6 +67,7 @@ const terminal = (attemptId = 'attempt-1', update: Partial<BookIntegrityTerminal
   resultId: `${attemptId}:result`,
   completionId: `${attemptId}:completion`,
   attemptNumber: 1,
+  captureSlotId: `capture-slot-${attemptId}`,
   submittedAt: '2026-08-02T00:00:10.000Z',
   recipientId: 'student-1',
   ownerId: 'teacher-1',
@@ -92,6 +95,8 @@ const request = (
   target,
   policyId: 'capture-policy',
   policyRevision: 1,
+  captureSlotId: 'capture-slot-attempt-1',
+  captureAttemptNumber: 1,
   clientSessionId: session,
   sequence,
   signal,
@@ -113,7 +118,7 @@ const capturedScope = async (signals: readonly BookIntegritySignalRequest[]): Pr
 
 const repoFor = (scope: BookIntegritySignalScope) => new InMemoryBookIntegrityReportRepository({
   scopes: {
-    'book_activity_integrity/scopes/student-1/homework-1/placement-1/activity-1/attempt-1': scope,
+    'book_activity_integrity/scopes/student-1/homework-1/placement-1/activity-1/capture-slot-attempt-1': scope,
   },
 });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import fragment41B from '../src/upload-worker/book-rules/fragments/41B.json';
 import {
   createBookRemovalUpdateExecutor,
@@ -78,7 +79,7 @@ const operation = (
   const contextId = `${contextKind}-${index}`;
   return {
     actionId: 'action-1', ownerId: 'teacher-1', bookId: 'book-1',
-    contextKey: `${contextKind}:${contextId}`, contextId, studentId: `student-${index}`,
+    contextKey: contextKind === 'homework' ? `homework:${createHash('sha256').update(JSON.stringify([contextId, `student-${index}`])).digest('hex')}` : `${contextKind}:${contextId}`, contextId, studentId: `student-${index}`,
     placementId: `placement-${index}`, reason: 'Reviewed removal',
     contextKind, lifecycle, activityId: `activity-${index}`, oldActivityVersionId: `activity-v${index}`,
     choice: 'remove-from-current', feedbackRelease: index % 2 === 0 ? 'released' : 'hidden',
@@ -286,7 +287,7 @@ describe('#113 removal update executor', () => {
     });
     await expect(repository.read({
       ownerId: 'teacher/other', actionId: 'action-1', bookId: 'book-1',
-      contextKey: 'homework:homework-1', contextId: 'homework-1', studentId: 'student-1',
+      contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
     })).resolves.toBeNull();
     expect(fetches).toBe(0);
   });

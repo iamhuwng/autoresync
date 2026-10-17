@@ -331,6 +331,21 @@ describe('39B uploader-owned Homework impact adapter', () => {
     }).discover(query)).resolves.toMatchObject({ status: 'blocked', code: 'ambiguous' });
   });
 
+  it('keeps recipients of one assignment distinct and rejects a duplicate recipient authority', async () => {
+    const first = context({ contextId: 'assignment-1' });
+    const second = context({ contextId: 'assignment-1', recipientId: 'student-2', bindingId: 'assignment-1--student-2--delivery' });
+    const discover = (contexts: HomeworkContext[]) => createBookHomeworkImpactAdapter({
+      reader: { authorize: authority, readOwnedContexts: async () => ({ contexts, complete: true as const }) },
+    }).discover(query);
+    const result = await discover([second, first]);
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') throw new Error(result.code);
+    expect(result.impacts.map((impact) => [impact.contextId, impact.recipientId, impact.bindingId]))
+      .toEqual([['assignment-1', 'student-1', first.bindingId], ['assignment-1', 'student-2', second.bindingId]]);
+    await expect(discover([first, { ...first, bindingId: 'duplicate-delivery' }]))
+      .resolves.toMatchObject({ status: 'blocked', code: 'ambiguous' });
+  });
+
   it('does not read after denied authorization and rejects sensitive payloads', async () => {
     const readOwnedContexts = vi.fn(async () => ({ contexts: [context()], complete: true as const }));
     const denied = await createBookHomeworkImpactAdapter({

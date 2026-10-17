@@ -116,7 +116,7 @@ describe('Ticket #77 disposable preview Worker', () => {
 
     const teacherSolo = await proof(
       'result-private-solo',
-      ticket77PreviewFixture.historicalRouteKey,
+      ticket77PreviewFixture.soloHistoricalRouteKey,
       'teacher-token',
     );
     expect(teacherSolo.status).toBe(403);
@@ -124,7 +124,7 @@ describe('Ticket #77 disposable preview Worker', () => {
 
     const studentSolo = await proof(
       'result-private-solo',
-      ticket77PreviewFixture.historicalRouteKey,
+      ticket77PreviewFixture.soloHistoricalRouteKey,
       'student-token',
     );
     expect(studentSolo.status).toBe(200);

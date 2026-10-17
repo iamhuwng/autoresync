@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(path, 'utf8');
 
-test('preserves PRD0062b as a dormant future plan without restoring product code', () => {
+test('preserves PRD0062b as a dormant future plan without granting it product authority', () => {
   const status = read('documentation/tasks/PRD0062b/DORMANT-STATUS-2026-07-18.md');
   const readme = read('documentation/tasks/PRD0062b/README.md');
   const authority = read('documentation/tasks/PRD0062b/authority-and-provenance.md');
@@ -23,6 +23,9 @@ test('preserves PRD0062b as a dormant future plan without restoring product code
   );
   const fullDocumentDecision = read(
     'documentation/tasks/PRD0062b/approval-record-2026-07-17-student-safe-full-pdf-streaming.md',
+  );
+  const activeRecoveryPlan = read(
+    'documentation/tasks/PRD0062/component-pdf-recovery-execution-plan-2026-09-14.md',
   );
 
   assert.match(status, /Status: DORMANT_AFTER_CODE_RESET/);
@@ -53,12 +56,9 @@ test('preserves PRD0062b as a dormant future plan without restoring product code
   );
   assert.match(checkerOutput, /PRD0062b dormant archive:/);
 
-  for (const retiredProductPath of [
-    'src/services/book-activity',
-    'src/services/book-assembly',
-    'src/services/book-delivery',
-    'cloudflare/src/book-source-worker',
-  ]) {
-    assert.equal(existsSync(retiredProductPath), false, retiredProductPath);
-  }
+  // PRD0062 is the separately authorized active recovery. Its implementation
+  // paths may exist; dormant status only forbids PRD0062b from reactivating
+  // its historical taskboxes or claiming authority over those paths.
+  assert.match(activeRecoveryPlan, /execution authorization is the autonomy override above/);
+  assert.equal(existsSync('documentation/tasks/PRD0062'), true);
 });

@@ -46,6 +46,7 @@ describe('book source control worker activation seam', () => {
           operationId,
           sourceKey: 'source-1',
           kind: 'initial',
+          purpose: 'book-source',
           inspection: {
             schemaVersion: 1,
             trust: 'browser-supplied-untrusted',

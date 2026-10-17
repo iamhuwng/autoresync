@@ -57,8 +57,9 @@ const predecessor: BookAssemblyImmutableManifestVersion = {
 };
 
 const sourceVersions = [
-  { sourceVersionId: 'full-v1', bookId: 'book-1', physicalPageCount: 10, verifiedUsable: true },
-  { sourceVersionId: 'component-v1', bookId: 'book-1', physicalPageCount: 10, verifiedUsable: true },
+  { sourceKey: 'full', sourceVersionId: 'full-v1', bookId: 'book-1', checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) }, purpose: 'book-source' as const, studentSafeStatus: 'ready' as const, studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-07-27T20:00:00.000Z', sourceVersionId: 'full-v1', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' as const }, physicalPageCount: 10, verifiedUsable: true },
+  { sourceKey: 'component-1', sourceVersionId: 'component-v1', bookId: 'book-1', checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) }, purpose: 'book-source' as const, studentSafeStatus: 'ready' as const, studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-07-27T20:00:00.000Z', sourceVersionId: 'component-v1', sha256Hex: 'b'.repeat(64), reasonCode: 'teacher-reviewed' as const }, physicalPageCount: 10, verifiedUsable: true },
+  { sourceKey: 'component-2', sourceVersionId: 'component-v2', bookId: 'book-1', checksum: { algorithm: 'sha-256', value: 'c'.repeat(64) }, purpose: 'book-source' as const, studentSafeStatus: 'ready' as const, studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-07-27T20:00:00.000Z', sourceVersionId: 'component-v2', sha256Hex: 'c'.repeat(64), reasonCode: 'teacher-reviewed' as const }, physicalPageCount: 10, verifiedUsable: true },
 ] as const;
 
 describe('BookAssemblySourceStrategySuccessorPanel', () => {
@@ -99,8 +100,13 @@ describe('BookAssemblySourceStrategySuccessorPanel', () => {
     expect(screen.getByTestId('book-assembly-successor-predecessor')).toHaveTextContent('publication-before');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Successor Source Version 1' }), 'component-v1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Successor owner node 1' }), 'section-1');
+    await user.click(screen.getByRole('button', { name: 'Add component Source' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Successor Source Version 2' }), 'component-v2');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Successor owner node 2' }), 'unit-1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Successor mapping source for pages-1' }), 'component-1');
-    await user.type(screen.getByRole('textbox', { name: 'Successor local page pages-1 1' }), '1');
+    const localPage = screen.getByRole('textbox', { name: 'Successor local page pages-1 1' });
+    await user.clear(localPage);
+    await user.type(localPage, '1');
     await user.click(screen.getByRole('button', { name: 'Publish successor' }));
 
     await waitFor(() => expect(client.publishSuccessor).toHaveBeenCalledOnce());

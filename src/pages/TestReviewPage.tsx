@@ -64,6 +64,10 @@ import type { UncertainItem } from '../services/test-creation/validator.service'
 import { ROUTES } from '../constants/routes';
 import type { DraftDocument } from '../types/draft.types';
 import { useDraftAutoSave } from '../hooks/useDraftAutoSave';
+import r2StorageService from '../services/r2Storage';
+import { toast } from '../components/modern/ToastNotification';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
 import auditService from '../services/auditService';
 import type { ReadingLabeledOption, ReadingSectionReference } from '../types/document.types';
 import {
@@ -169,6 +173,7 @@ const serializeDraftQuestions = (
         points: 1,
         wordLimit: question.wordLimit,
         sectionInstructionId: question.sectionInstructionId,
+        imageUrl: question.diagramImage,
     };
 });
 
@@ -359,6 +364,7 @@ const TestReviewPage: React.FC = () => {
     const { draftId } = useParams<{ draftId: string }>();
     const navigate = useNavigate();
     const { user, profile } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
     // Page state
     const [state, setState] = useState<PageState>({
@@ -493,6 +499,7 @@ const TestReviewPage: React.FC = () => {
                     passageId: q.passageId,
                     sectionInstructionId: q.sectionInstructionId,
                     wordLimit: q.wordLimit,
+                    diagramImage: q.imageUrl,
                     confidence: q.confidence ?? 100,
                     uncertain: false, // Default to false for loaded drafts
                 };
@@ -601,10 +608,17 @@ const TestReviewPage: React.FC = () => {
         setHasUnsavedChanges(true);
     }, [triggerSave, localPassages]);
 
-    const handleDiagramUpload = useCallback((questionNumber: number, file: File) => {
-        const url = URL.createObjectURL(file);
-        handleQuestionChange(questionNumber, { diagramImage: url } as any);
-    }, [handleQuestionChange]);
+    const handleDiagramUpload = useCallback(async (questionNumber: number, file: File) => {
+        trackAction('uploadDiagramImage', { questionNumber });
+        try {
+            const { url } = await r2StorageService.uploadImage(file);
+            handleQuestionChange(questionNumber, { diagramImage: url });
+            toast.success(`Uploaded diagram for question ${questionNumber}.`);
+        } catch (error) {
+            console.error('Diagram upload failed:', error);
+            toast.error(`Could not upload diagram for question ${questionNumber}. Try again.`);
+        }
+    }, [handleQuestionChange, trackAction]);
 
     const handleItemClick = useCallback((questionNumber: number) => {
         setHighlightedQuestion(questionNumber);
@@ -744,6 +758,7 @@ const TestReviewPage: React.FC = () => {
                     confidence: q.confidence || 80,
                     points: 1,
                     wordLimit: q.wordLimit,
+                    imageUrl: q.diagramImage,
                 };
             });
 

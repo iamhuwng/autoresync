@@ -1,4 +1,8 @@
 import type { BookHomeworkManifest } from '../../types/homework.types';
+import type {
+  BookRuntimeFeedbackPolicy,
+  BookRuntimeTerminalLateFact,
+} from '../book-activity/activityRuntimeAttempt.types';
 
 /**
  * The progress projection is deliberately independent from legacy homework
@@ -41,6 +45,8 @@ export interface BookHomeworkTerminalFact {
   readonly completionId?: string;
   readonly attemptNumber?: number;
   readonly createdAt?: string;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
 
   /** Exact identity dimensions required for Homework aggregation. */
   readonly recipientId: string;
@@ -97,6 +103,8 @@ export interface BookHomeworkProgressActivity {
   readonly gradingState: BookHomeworkProgressGradingState;
   readonly score?: BookHomeworkProgressScore;
   readonly terminalId?: string;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
 }
 
 export type BookHomeworkProgressHistoricalReason =
@@ -131,6 +139,8 @@ export interface BookHomeworkProgressHistoricalRow {
   readonly terminalId?: string;
   readonly gradingState?: BookHomeworkProgressGradingState;
   readonly score?: BookHomeworkProgressScore;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
 }
 
 export interface BookHomeworkProgressProjection {

@@ -594,3 +594,65 @@
   .book-assembly-edit__savebar { align-items: stretch; flex-direction: column; }
   .book-assembly-edit__savebar .pbf-button { width: 100%; }
 }
+.book-assembly-reconciliation__summary,
+.book-assembly-reconciliation__filters {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.book-assembly-reconciliation__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #d5d9df;
+  background: #d5d9df;
+}
+
+.book-assembly-reconciliation__grid > strong,
+.book-assembly-reconciliation__row > div,
+.book-assembly-reconciliation__empty {
+  min-width: 0;
+  padding: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.book-assembly-reconciliation__row {
+  display: contents;
+}
+
+.book-assembly-reconciliation__row span {
+  display: block;
+  color: #586064;
+  font-size: 0.8rem;
+}
+
+.book-assembly-reconciliation__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.book-assembly-reconciliation__empty {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .book-assembly-reconciliation__grid {
+    display: block;
+  }
+
+  .book-assembly-reconciliation__grid > strong {
+    display: none;
+  }
+
+  .book-assembly-reconciliation__row {
+    display: grid;
+    gap: 1px;
+    margin-bottom: 8px;
+  }
+}

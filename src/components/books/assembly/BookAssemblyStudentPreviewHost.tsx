@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FEATURE_IDS } from '../../../config/featureRegistry';
 import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
 import { bookActivityRendererRegistry, type ActivityRendererRegistry } from '../../../services/book-activity/runtime/activityRendererRegistry';
-import type { CandidateUnitPreviewProjection } from '../../../services/book-assembly/unitPreview.service';
 import {
-  createBookTeacherAssemblyDocumentRoute,
-  isCurrentBookTeacherAssemblyDocument,
-  type BookTeacherAssemblyDocumentProjection,
-} from '../../../services/book-delivery/bookTeacherAssemblyDocument.types';
+  previewInputFingerprint,
+  type CandidateUnitPreviewProjection,
+} from '../../../services/book-assembly/unitPreview.service';
+import { createBookTeacherAssemblyDocumentRoute } from '../../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import { BookPdfViewerHost } from '../../book-runtime/BookPdfViewerHost';
 import {
   BookRuntimeShell,
@@ -18,7 +17,6 @@ import {
 export interface BookAssemblyStudentPreviewHostProps {
   readonly bookTitle: string;
   readonly preview: CandidateUnitPreviewProjection;
-  readonly documents?: readonly BookTeacherAssemblyDocumentProjection[];
   readonly workerOrigin?: string;
   readonly getIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   readonly registry?: ActivityRendererRegistry;
@@ -29,75 +27,57 @@ type ReadyCandidatePreview = CandidateUnitPreviewProjection & {
   readonly runtime: NonNullable<CandidateUnitPreviewProjection['runtime']>;
 };
 
-const previewIdentity = (preview: CandidateUnitPreviewProjection): string => [
-  preview.candidateId,
-  preview.candidateRevision,
-  preview.sourceSetRevision,
-  preview.unitKey,
-  preview.registryVersion,
-].join(':');
-
 const BookAssemblyStudentPreviewReady = ({
   bookTitle,
   preview,
-  documents,
   workerOrigin = import.meta.env.VITE_BOOK_ASSEMBLY_WORKER_URL?.trim(),
   getIdToken,
   registry = bookActivityRendererRegistry,
   onExit,
 }: Omit<BookAssemblyStudentPreviewHostProps, 'preview'> & { readonly preview: ReadyCandidatePreview }) => {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
-  const identity = previewIdentity(preview);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
+  const identity = previewInputFingerprint(preview);
   const [responseState, setResponseState] = useState<{
     readonly identity: string;
     readonly responses: Readonly<Record<string, unknown>>;
   }>({ identity, responses: {} });
   const responses = responseState.identity === identity ? responseState.responses : {};
-  const sourceVersionIds = preview.runtime.sourceSet.sources.map((source) => source.sourceVersionId);
   const trustedWorkerOrigins = useMemo(
     () => workerOrigin ? [workerOrigin] : undefined,
     [workerOrigin],
   );
-  const candidateDocuments = useMemo<readonly BookTeacherAssemblyDocumentProjection[]>(() => {
-    if (documents !== undefined) return documents;
-    if (!workerOrigin) return [];
-    return preview.runtime.documentRequests.map((request) => ({
-      kind: 'teacher_assembly',
+  const request = preview.runtime.documentRequests.length === 1
+    ? preview.runtime.documentRequests[0]
+    : null;
+  const fullPdfSource = preview.runtime.sourceSet.strategy === 'full_pdf'
+    && preview.runtime.sourceSet.sources.length === 1
+    ? preview.runtime.sourceSet.sources[0]
+    : null;
+  const sourceRequest = request && 'sourceKey' in request ? request : null;
+  const combinedRequest = request && !('sourceKey' in request) ? request : null;
+  const validFullPdfRequest = sourceRequest && fullPdfSource
+    && sourceRequest.sourceKey === fullPdfSource.sourceKey
+    && sourceRequest.sourceVersionId === fullPdfSource.sourceVersionId;
+  const validCombinedRequest = combinedRequest && preview.runtime.sourceSet.strategy === 'component_pdfs';
+  const route = useMemo(() => !workerOrigin || (!validFullPdfRequest && !validCombinedRequest) ? null
+    : createBookTeacherAssemblyDocumentRoute({
+      workerOrigin,
       bookId: preview.bookId,
+      unitKey: preview.unitKey,
       candidateId: preview.candidateId,
       candidateRevision: preview.candidateRevision,
-      bookRevision: preview.bookRevision,
       sourceSetRevision: preview.sourceSetRevision,
-      sourceKey: request.sourceKey,
-      sourceVersionId: request.sourceVersionId,
-      route: createBookTeacherAssemblyDocumentRoute({
-        workerOrigin,
-        bookId: preview.bookId,
-        unitKey: preview.unitKey,
-        candidateId: preview.candidateId,
-        candidateRevision: preview.candidateRevision,
-        sourceKey: request.sourceKey,
-        sourceVersionId: request.sourceVersionId,
-        sourceSetRevision: preview.sourceSetRevision,
-        bookRevision: preview.bookRevision,
+      bookRevision: preview.bookRevision,
+      ...(validFullPdfRequest ? {
+        sourceKey: sourceRequest.sourceKey,
+        sourceVersionId: sourceRequest.sourceVersionId,
+      } : {
+        expectedByteLength: combinedRequest!.expectedByteLength,
+        expectedEtag: combinedRequest!.expectedEtag,
       }),
-    }));
-  }, [documents, preview, workerOrigin]);
-  const currentDocuments = useMemo(() => candidateDocuments.filter((document) => {
-    const requested = preview.runtime.documentRequests.some((request) => (
-      request.sourceKey === document.sourceKey
-      && request.sourceVersionId === document.sourceVersionId
-    ));
-    return requested && isCurrentBookTeacherAssemblyDocument(document, {
-      bookId: preview.bookId,
-      bookRevision: preview.bookRevision,
-      sourceSetRevision: preview.sourceSetRevision,
-      candidateId: preview.candidateId,
-      candidateRevision: preview.candidateRevision,
-      candidateLifecycle: 'validated',
-      sourceVersionIds,
-    });
-  }), [candidateDocuments, preview, sourceVersionIds.join(':')]);
+    }), [preview.bookId, preview.bookRevision, preview.candidateId, preview.candidateRevision,
+      preview.sourceSetRevision, preview.unitKey, validFullPdfRequest, validCombinedRequest,
+      sourceRequest, combinedRequest, workerOrigin]);
 
   useEffect(() => {
     setResponseState({ identity, responses: {} });
@@ -105,30 +85,24 @@ const BookAssemblyStudentPreviewReady = ({
 
   const viewer = useMemo(() => ({
     title: `${bookTitle} — ${preview.unitKey}`,
-    status: currentDocuments.length === preview.runtime.documentRequests.length
+    status: route
       ? { state: 'ready' as const, message: 'Authorized candidate PDF is ready.' }
       : { state: 'error' as const, message: 'The current candidate PDF authorization is unavailable.' },
     render: (input: BookRuntimeViewerRenderInput): ReactNode => {
-      const document = input.request
-        ? currentDocuments.find((entry) => (
-          entry.sourceKey === input.request?.sourceKey
-          && entry.sourceVersionId === input.request.sourceVersionId
-        ))
-        : null;
-      if (!document) {
+      if (!route) {
         return <p role="alert">The current candidate PDF is unavailable. Refresh the Book and preview again.</p>;
       }
       return (
         <BookPdfViewerHost
           getIdToken={getIdToken}
-          initialPage={input.physicalPageNumber}
-          route={document.route}
-          title={`${bookTitle} — ${document.sourceKey}`}
+          initialPage={input.combinedPhysicalPage}
+          route={route}
+          title={validFullPdfRequest ? `${bookTitle} — Book document` : `${bookTitle} — combined student document`}
           trustedWorkerOrigins={trustedWorkerOrigins}
         />
       );
     },
-  }), [bookTitle, currentDocuments, getIdToken, preview.runtime.documentRequests.length, preview.unitKey, trustedWorkerOrigins]);
+  }), [bookTitle, getIdToken, preview.unitKey, route, trustedWorkerOrigins, validFullPdfRequest]);
 
   const trackRuntimeAction = (action: BookRuntimeAction, metadata?: Record<string, unknown>) => {
     const shared = {

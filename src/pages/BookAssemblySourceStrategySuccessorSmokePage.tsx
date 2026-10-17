@@ -30,8 +30,24 @@ const NOW = '2026-07-28T00:00:00.000Z';
 const BOOK_ID = 'prd0062-ticket71-book';
 const OWNER_ID = 'teacher-1';
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { sourceVersionId: 'source-full-v1', bookId: BOOK_ID, physicalPageCount: 20, verifiedUsable: true },
-  { sourceVersionId: 'source-component-v1', bookId: BOOK_ID, physicalPageCount: 12, verifiedUsable: true },
+  {
+    sourceKey: 'full', sourceVersionId: 'source-full-v1', bookId: BOOK_ID, purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: 'f8e08a5b0bf35e98c472fc4e6b29b823421b913446cc7e79aa3aa225f01d217f' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-full-v1', sha256Hex: 'f8e08a5b0bf35e98c472fc4e6b29b823421b913446cc7e79aa3aa225f01d217f', reasonCode: 'teacher-reviewed' },
+    physicalPageCount: 20, verifiedUsable: true,
+  },
+  {
+    sourceKey: 'component-a', sourceVersionId: 'source-component-v1', bookId: BOOK_ID, purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: '9dcdb68545c08f099023a7fbc3a2a109486124802944e01691bca8a04b7abb7b' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-component-v1', sha256Hex: '9dcdb68545c08f099023a7fbc3a2a109486124802944e01691bca8a04b7abb7b', reasonCode: 'teacher-reviewed' },
+    physicalPageCount: 12, verifiedUsable: true,
+  },
+  {
+    sourceKey: 'component-b', sourceVersionId: 'source-component-b-v1', bookId: BOOK_ID, purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: 'a3b9f57b9e0cc8a1db0d63a18a60d94d4b4e6b6df8a78cf6b9bc1b06c3f8d6a1' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-component-b-v1', sha256Hex: 'a3b9f57b9e0cc8a1db0d63a18a60d94d4b4e6b6df8a78cf6b9bc1b06c3f8d6a1', reasonCode: 'teacher-reviewed' },
+    physicalPageCount: 8, verifiedUsable: true,
+  },
 ];
 
 const fullSources: SourceSetCandidate = {
@@ -40,7 +56,10 @@ const fullSources: SourceSetCandidate = {
 };
 const componentSources: SourceSetCandidate = {
   sourceStrategy: 'component_pdfs',
-  sources: [{ sourceKey: 'component-a', sourceVersionId: 'source-component-v1', sourceOrder: 1, ownerNodeKey: 'section-1' }],
+  sources: [
+    { sourceKey: 'component-a', sourceVersionId: 'source-component-v1', sourceOrder: 1, ownerNodeKey: 'section-1' },
+    { sourceKey: 'component-b', sourceVersionId: 'source-component-b-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+  ],
 };
 const authority: BookSourceVersionAuthority = {
   getSourceVersion: (sourceVersionId) => sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),

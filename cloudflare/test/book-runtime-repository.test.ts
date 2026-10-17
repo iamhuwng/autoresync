@@ -94,6 +94,7 @@ const terminalRecords = (
   attemptId: string,
   attemptNumber: number,
   operationId: string,
+  activityId = 'activity-1',
 ): {
   attempt: BookRuntimeAttemptRecord;
   result: BookRuntimeResultRecord;
@@ -107,7 +108,7 @@ const terminalRecords = (
     recipientId: 'student-1',
     contextId: 'context-1',
     placementId: 'placement-1',
-    activityId: 'activity-1',
+    activityId,
     activityVersion: 1,
     activityVersionId: 'activity-version-1',
     interactionId: 'interaction-1',
@@ -312,6 +313,95 @@ describe('Ticket 28A runtime repository', () => {
       contextId: 'context-1',
       limit: 500,
     })).rejects.toMatchObject({ code: 'runtime_attempt_query_unbounded' });
+  });
+
+  it('reads complete terminal tuples from one exact placement scope', async () => {
+    const first = terminalRecords(
+      'attempt-terminal-1',
+      1,
+      '00000000-0000-4000-8000-000000000081',
+    );
+    const second = terminalRecords(
+      'attempt-terminal-2',
+      2,
+      '00000000-0000-4000-8000-000000000082',
+    );
+    const repository = new InMemoryBookRuntimeRepository({
+      attempts: {
+        [first.attempt.attemptId]: first.attempt,
+        [second.attempt.attemptId]: second.attempt,
+      },
+      results: {
+        [first.result.resultId]: first.result,
+        [second.result.resultId]: second.result,
+      },
+      completions: {
+        [first.completion.completionId]: first.completion,
+        [second.completion.completionId]: second.completion,
+      },
+      indexes: {
+        [first.index.attemptId]: first.index,
+        [second.index.attemptId]: second.index,
+      },
+      operations: {
+        [first.receipt.operationId]: first.receipt,
+        [second.receipt.operationId]: second.receipt,
+      },
+    });
+
+    await expect(repository.listTerminalTuples({
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-1',
+      activityVersion: 1,
+      bindingId: 'binding-1',
+      bindingRevision: 1,
+      limit: 1,
+    })).resolves.toMatchObject([{
+      attempt: { attemptId: 'attempt-terminal-1' },
+      result: { resultId: 'attempt-terminal-1:result' },
+      completion: { completionId: 'attempt-terminal-1:completion' },
+      index: { attemptId: 'attempt-terminal-1' },
+    }]);
+    await expect(repository.listTerminalTuples({
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      placementId: 'other-placement',
+      activityId: 'activity-1',
+      activityVersion: 1,
+      limit: 5,
+    })).resolves.toEqual([]);
+  });
+
+  it('filters terminal recovery by activity before applying its bounded limit', async () => {
+    const busy = Array.from({ length: 50 }, (_, index) => terminalRecords(
+      `busy-attempt-${index + 1}`,
+      index + 1,
+      `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    ));
+    const target = terminalRecords(
+      'target-attempt',
+      1,
+      '00000000-0000-4000-8000-000000000150',
+      'activity-target',
+    );
+    const repository = new InMemoryBookRuntimeRepository({
+      attempts: Object.fromEntries([...busy, target].map((entry) => [entry.attempt.attemptId, entry.attempt])),
+      results: Object.fromEntries([...busy, target].map((entry) => [entry.result.resultId, entry.result])),
+      completions: Object.fromEntries([...busy, target].map((entry) => [entry.completion.completionId, entry.completion])),
+      indexes: Object.fromEntries([...busy, target].map((entry) => [entry.index.attemptId, entry.index])),
+      operations: Object.fromEntries([...busy, target].map((entry) => [entry.receipt.operationId, entry.receipt])),
+    });
+
+    await expect(repository.listTerminalTuples({
+      recipientId: 'student-1',
+      contextId: 'context-1',
+      placementId: 'placement-1',
+      activityId: 'activity-target',
+      activityVersion: 1,
+      limit: 1,
+    })).resolves.toMatchObject([{ attempt: { attemptId: 'target-attempt' } }]);
   });
 
   it('fails closed on a gapped persisted attempt sequence', async () => {

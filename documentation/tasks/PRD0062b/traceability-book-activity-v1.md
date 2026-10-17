@@ -104,3 +104,7 @@ The [student-safe full-PDF streaming decision](approval-record-2026-07-17-studen
 | C06 | `PLANNED` | Stale grant/resource invalidation requirements preserved for P6 |
 | C07 | `IMPLEMENTING` | Local result/delivery work retained; `1.4` reopened for stronger contract |
 | C08 | `IMPLEMENTING` | Local validation evidence exists; shippable and Full V1 release gates remain open |
+
+## Gate 0 Reference Boundary — 2026-09-14
+
+The [Gate 0 decision](approval-record-2026-09-14-component-combination-gate-0.md) is dormant authority only. It does not close taskboxes or claim implementation, browser, Worker, emulator, deployment, or protected-state proof. Apply it with this traceability record, the [reconciliation ledger](reconciliation-ledger.md), and the [packet-exit contract](tasks-book-activity-master-orchestration.md#packet-exit-contract).

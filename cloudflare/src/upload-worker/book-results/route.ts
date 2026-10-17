@@ -8,6 +8,17 @@ const MAX_RESULT_RESPONSE_BYTES = 256 * 1024;
  * disabled gate is assembled.
  */
 export const bookResultReadRouteDescriptors: readonly CanonicalBookRouteDescriptor[] = Object.freeze([
+  ...(['result-summary', 'grouped-attempt', 'result-detail'] as const).map((operation): CanonicalBookRouteDescriptor => ({
+    id: `book.evaluation-history.context-${operation}`,
+    methods: ['GET'],
+    pathTemplate: `/v1/book-evaluation/results/:bookId/:studentId/contexts/:contextKind/:contextId${operation === 'grouped-attempt' ? '/groups/:groupKey' : operation === 'result-detail' ? '/details/:resultId' : ''}`,
+    owner: '#77', domain: 'evaluation-history',
+    handler: operation === 'result-summary' ? 'bookResultRead.resultSummary' : operation === 'grouped-attempt' ? 'bookResultRead.groupedAttempt' : 'bookResultRead.resultDetail',
+    firebaseAuth: 'firebase-id-token', rateClass: 'book-read', gateEnv: 'BOOK_RESULT_READ_ROUTES_ENABLED', gateDefault: 'disabled',
+    requestBodyBytes: 0, responseLimitBytes: MAX_RESULT_RESPONSE_BYTES,
+    identityEnv: 'BOOK_RESULT_READ_SERVICE_IDENTITY', credentialEnv: 'BOOK_RESULT_READ_GOOGLE_SA_KEY',
+    source: 'contributor', contributorTicket: '#77',
+  })),
   {
     id: 'book.evaluation-history.result-summary',
     methods: ['GET'],
@@ -113,6 +124,24 @@ export const bookResultReadRouteDescriptors: readonly CanonicalBookRouteDescript
     responseLimitBytes: MAX_RESULT_RESPONSE_BYTES,
     identityEnv: 'BOOK_RESULT_READ_SERVICE_IDENTITY',
     credentialEnv: 'BOOK_RESULT_READ_GOOGLE_SA_KEY',
+    source: 'contributor',
+    contributorTicket: '#77',
+  },
+  {
+    id: 'book.evaluation-history.release-manual-feedback',
+    methods: ['POST'],
+    pathTemplate: '/v1/book-evaluation/results/:bookId/:studentId/homework/:homeworkId/details/:resultId/release-feedback',
+    owner: '#77',
+    domain: 'evaluation-history',
+    handler: 'bookResultRead.releaseFeedback',
+    firebaseAuth: 'firebase-id-token-teacher',
+    rateClass: 'book-control',
+    gateEnv: 'BOOK_RESULT_READ_ROUTES_ENABLED',
+    gateDefault: 'disabled',
+    requestBodyBytes: 16 * 1024,
+    responseLimitBytes: 16 * 1024,
+    identityEnv: 'BOOK_HOMEWORK_SERVICE_IDENTITY',
+    credentialEnv: 'BOOK_HOMEWORK_GOOGLE_SA_KEY',
     source: 'contributor',
     contributorTicket: '#77',
   },

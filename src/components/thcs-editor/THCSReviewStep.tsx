@@ -24,6 +24,7 @@ export interface THCSReviewStepProps {
     warnings: string[];
     isValid: boolean;
     isPublishing: boolean;
+    isSavingDraft: boolean;
     publishedTestId: string | null;
     draftId: string | null;
     userId: string;
@@ -43,6 +44,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
     warnings,
     isValid,
     isPublishing,
+    isSavingDraft,
     publishedTestId,
     draftId,
     userId,
@@ -366,6 +368,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
 
                         <button
                             onClick={onSaveDraft}
+                            disabled={isSavingDraft}
                             style={{
                                 width: '100%',
                                 padding: '0.5rem',
@@ -379,7 +382,7 @@ const THCSReviewStep: React.FC<THCSReviewStepProps> = ({
                                 marginBottom: '0.375rem',
                             }}
                         >
-                            💾 Save as Draft
+                            {isSavingDraft ? 'Saving...' : '💾 Save as Draft'}
                         </button>
 
                         {draftId && (

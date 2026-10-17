@@ -35,6 +35,7 @@ export interface UsePersonalTimerOptions {
   readonly wallNow?: () => number;
   readonly tabId?: string;
   readonly channelFactory?: PersonalTimerChannelFactory;
+  readonly durationMs?: number;
 }
 
 export interface PersonalTimerControls {
@@ -45,6 +46,7 @@ export interface PersonalTimerControls {
   readonly isVisible: boolean;
   readonly start: () => void;
   readonly pause: () => void;
+  readonly finish: () => void;
   readonly reset: () => void;
   readonly show: () => void;
   readonly hide: () => void;
@@ -130,6 +132,7 @@ export const usePersonalTimer = ({
   wallNow,
   tabId,
   channelFactory,
+  durationMs,
 }: UsePersonalTimerOptions): PersonalTimerControls => {
   const storageAdapter = storage ?? sessionStore;
   const monotonicClock = monotonicNow ?? defaultMonotonicNow;
@@ -151,9 +154,9 @@ export const usePersonalTimer = ({
   });
 
   const currentElapsed = useCallback((state: InternalTimerState): number => {
-    if (!state.running || state.startedAtMonotonicMs === null) return state.elapsedMs;
-    return state.elapsedMs + Math.max(0, monotonicClock() - state.startedAtMonotonicMs);
-  }, [monotonicClock]);
+    const elapsed = state.elapsedMs + (state.running && state.startedAtMonotonicMs !== null ? Math.max(0, monotonicClock() - state.startedAtMonotonicMs) : 0);
+    return durationMs === undefined ? elapsed : Math.min(durationMs, elapsed);
+  }, [durationMs, monotonicClock]);
 
   const persist = useCallback((state: InternalTimerState, elapsedOverride?: number): void => {
     const snapshot: PersonalTimerSnapshot = {
@@ -200,6 +203,7 @@ export const usePersonalTimer = ({
   const start = useCallback((): void => {
     if (!hydratedRef.current || stateRef.current.running) return;
     const elapsedMs = currentElapsed(stateRef.current);
+    if (durationMs !== undefined && elapsedMs >= durationMs) return;
     const next: InternalTimerState = {
       ...stateRef.current,
       elapsedMs,
@@ -209,7 +213,7 @@ export const usePersonalTimer = ({
     ownerRef.current = stableTabId;
     commit(next, elapsedMs);
     post({ type: 'claim', timerKey, tabId: stableTabId, elapsedMs, visible: next.visible });
-  }, [commit, currentElapsed, monotonicClock, post, stableTabId, timerKey]);
+  }, [commit, currentElapsed, durationMs, monotonicClock, post, stableTabId, timerKey]);
 
   const pause = useCallback((): void => {
     if (!hydratedRef.current || !stateRef.current.running) return;
@@ -237,6 +241,15 @@ export const usePersonalTimer = ({
     commit(next, 0);
     post({ type: 'release', timerKey, tabId: stableTabId, elapsedMs: 0, visible: next.visible });
   }, [commit, post, stableTabId, timerKey]);
+
+  const finish = useCallback(() => {
+    if (!hydratedRef.current || durationMs === undefined) return;
+    const next = { ...stateRef.current, elapsedMs: durationMs, running: false, startedAtMonotonicMs: null };
+    ownerRef.current = null;
+    commit(next, durationMs);
+    post({ type: 'release', timerKey, tabId: stableTabId, elapsedMs: durationMs, visible: next.visible });
+  }, [commit, durationMs, post, stableTabId, timerKey]);
+  useEffect(() => { if (durationMs !== undefined && view.isRunning && view.elapsedMs >= durationMs) finish(); }, [durationMs, finish, view.elapsedMs, view.isRunning]);
 
   const setVisible = useCallback((visible: boolean): void => {
     if (!hydratedRef.current || stateRef.current.visible === visible) return;
@@ -360,9 +373,10 @@ export const usePersonalTimer = ({
     isVisible: view.isVisible,
     start,
     pause,
+    finish,
     reset,
     show,
     hide,
     toggleVisibility,
-  }), [hide, pause, reset, show, start, toggleVisibility, view]);
+  }), [finish, hide, pause, reset, show, start, toggleVisibility, view]);
 };

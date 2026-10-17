@@ -4,7 +4,7 @@ import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection 
 import { buildUnitActivityImportPrompt, UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { bookId: 'book-1', sourceVersionId: 'source-secret-version', physicalPageCount: 48, verifiedUsable: true },
+  { sourceKey: 'full', bookId: 'book-1', sourceVersionId: 'source-secret-version', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-secret-version', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 48, verifiedUsable: true },
 ];
 
 const manifest: BookAssemblyManifestCandidate = {

@@ -748,6 +748,10 @@ describe('canonical fork rule composition', () => {
     expect(book.expression).not.toContain("newData.child('testTypeIds')");
     expect(book?.expression).toContain("newData.child('updatedAt').val() == auth.token.pbcf.ct");
     expect(book?.expression).toContain("newData.child('status').val() == auth.token.pbcf.bs");
+    const receiptHistory = fragment44.operations.find((entry) =>
+      entry.path === 'material_catalog/books/$bookId' && entry.rule === '.validate');
+    expect(receiptHistory?.expression).toContain("newData.child('setupActivations/0').exists() == data.child('setupActivations/0').exists()");
+    expect(receiptHistory?.expression).toContain("newData.child('setupActivations/31/inputFingerprint').val() == data.child('setupActivations/31/inputFingerprint').val()");
     const summary = canonicalCapabilityOperation(
       fragment44.operations,
       'material_catalog/material_summary_indexes/v1/by_id/$materialId',

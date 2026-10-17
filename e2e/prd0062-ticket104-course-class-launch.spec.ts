@@ -1,7 +1,10 @@
 import { expect, type Page, type Route, test } from '@playwright/test';
+import { PDFDocument } from 'pdf-lib';
+import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 
-const ORIGIN = 'http://localhost:5173';
-const WORKER_ORIGIN = 'https://r2-upload-signer.iamhuwng.workers.dev';
+const ORIGIN = 'http://localhost:5174';
+const WORKER_ORIGIN = 'https://luyentap-book-source-canonical-preview.iamhuwng.workers.dev';
 const COURSE_ROUTE = `/student/practice/book-1?bookSurface=course&courseMaterialId=course-material-1&bindingId=binding-1`;
 const CLASS_ROUTE = `/student/practice/book-1?bookSurface=class&classId=class-1&copyId=copy-1&classPlacementId=placement-1&classCourseMaterialId=material-1&bindingId=binding-1`;
 const CLASS_CONTEXT_ID = 'class-class-1-copy-copy-1-material-material-1-placement-placement-1';
@@ -23,6 +26,13 @@ const HARNESS_DOCUMENT = `<!doctype html>
     <script type="module" src="/e2e/fixtures/prd0062-ticket104-runtime-host-harness.tsx"></script>
   </body>
 </html>`;
+
+const PDF_BYTES = await (async () => {
+  const document = await PDFDocument.create();
+  document.addPage([612, 792]);
+  return new Uint8Array(await document.save());
+})();
+const PDF_ETAG = `"${createHash('sha256').update(PDF_BYTES).digest('hex')}"`;
 
 type LaunchSurface = 'course' | 'class';
 type FailureMode = 'none' | 'wrong-context' | 'expired';
@@ -73,6 +83,7 @@ const deliveryProjection = (
       bookId: 'book-1',
       bookMode: 'pdf',
       bookRevision: 1,
+      manifestVersionId: 'manifest-1',
       publicationId: 'publication-1',
       publicationRevision: 1,
       publicationStatus: 'published',
@@ -87,20 +98,15 @@ const deliveryProjection = (
     }],
     sourceSet: {
       strategy: 'component_pdfs',
-      sources: [{
-        sourceKey: 'source-1',
-        sourceVersionId: 'source-version-1',
-        lifecycle: 'verified-usable',
-        sourceOrder: 1,
-        ownerNodeKey: 'node-1',
-        localPageScope: { kind: 'all', pages: [] },
-      }],
+      // Student delivery exposes only the trusted combined document route.
+      // Private component source identities stay behind the delivery boundary.
+      sources: [],
     },
+    pageGroups: [{ pageGroupKey: 'node-1', combinedPhysicalPages: [1] }],
     documentRequests: [{
-      sourceKey: 'source-1',
-      sourceVersionId: 'source-version-1',
-      opaqueRouteKey: 'route-1',
-      localPageScope: { kind: 'all', pages: [] },
+      opaqueRouteKey: 'bd_0123456789abcdef0123456789abcdef01234567-1-student-document',
+      expectedByteLength: PDF_BYTES.length,
+      expectedEtag: PDF_ETAG,
     }],
     activities: [{
       placementId: 'placement-1',
@@ -114,7 +120,7 @@ const deliveryProjection = (
         available: false,
         description: 'No source context is required.',
         pageGroupKeys: ['node-1'],
-        sourcePageScopes: [{ sourceKey: 'source-1', pages: [] }],
+        sourcePageScopes: [],
       },
     }],
     actionFlags: { canAutosave: true, canSubmit: true, canReview: false },
@@ -129,8 +135,9 @@ const deliveryProjection = (
 
 const corsHeaders = {
   'access-control-allow-origin': ORIGIN,
-  'access-control-allow-headers': 'accept, authorization, content-type, idempotency-key',
-  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-headers': 'accept, authorization, content-type, idempotency-key, range',
+  'access-control-allow-methods': 'GET,HEAD,POST,OPTIONS',
+  'access-control-expose-headers': 'etag, content-length, content-range, accept-ranges',
 };
 
 const fulfillJson = async (
@@ -208,10 +215,32 @@ const installExternalBoundaryMocks = async (
     }
 
     if (path.includes('/v1/book-delivery/document/')) {
-      // The runtime shell is the acceptance target. The document transport is
-      // an external boundary, so a deterministic expired document keeps the
-      // test independent of R2/PDF bytes while the shell remains mounted.
-      await fulfillJson(route, { code: 'not_found' }, 404);
+      const range = request.headers()['range'];
+      const end = PDF_BYTES.length - 1;
+      const headers = {
+        ...corsHeaders,
+        'content-type': 'application/pdf',
+        'content-length': String(PDF_BYTES.length),
+        etag: PDF_ETAG,
+        'accept-ranges': 'bytes',
+      };
+      if (request.method() === 'HEAD') {
+        await route.fulfill({ status: 200, headers });
+        return;
+      }
+      if (range) {
+        const match = /^bytes=(\d+)-(\d*)$/u.exec(range);
+        if (!match) { await route.fulfill({ status: 416, headers }); return; }
+        const start = Number(match[1]);
+        const requestedEnd = match[2] ? Number(match[2]) : end;
+        if (!Number.isSafeInteger(start) || start > end || requestedEnd < start) {
+          await route.fulfill({ status: 416, headers }); return;
+        }
+        const boundedEnd = Math.min(requestedEnd, end);
+        await route.fulfill({ status: 206, headers: { ...headers, 'content-length': String(boundedEnd - start + 1), 'content-range': `bytes ${start}-${boundedEnd}/${PDF_BYTES.length}` }, body: Buffer.from(PDF_BYTES.slice(start, boundedEnd + 1)) });
+        return;
+      }
+      await route.fulfill({ status: 200, headers, body: Buffer.from(PDF_BYTES) });
       return;
     }
 
@@ -243,8 +272,23 @@ const expectRuntime = async (
   options: { readonly assertActivityHeading?: boolean } = {},
 ): Promise<void> => {
   const shell = page.getByTestId('book-runtime-shell');
-  await expect(shell).toBeVisible();
-  await expect(shell.locator('.book-runtime-shell__context')).toHaveText(`${context} · publication-1`);
+  try {
+    await expect(shell).toBeVisible();
+  } catch (error) {
+    const diagnostic = await page.evaluate(async () => {
+      const { parseBookPlacementLaunchQuery, resolveBookPlacementLaunch } =
+        await import(`${location.origin}/src/services/book-delivery/bookPlacementLaunch.browser.ts`);
+      const launch = parseBookPlacementLaunchQuery(location.search);
+      if (launch.kind === 'none' || launch.kind === 'invalid') return launch;
+      const result = await resolveBookPlacementLaunch({ launch, studentId: 'student-1' });
+      return { result, error: result.status === 'blocked' && result.error instanceof Error
+        ? { name: result.error.name, message: result.error.message, ...result.error } : null };
+    });
+    const path = test.info().outputPath('launch-diagnostic.json');
+    await writeFile(path, JSON.stringify({ diagnostic, bodyText: await page.locator('body').textContent() }, null, 2));
+    await test.info().attach('launch-diagnostic.json', { contentType: 'application/json', path });
+    throw error;
+  }
   if (options.assertActivityHeading !== false) {
     await expect(page.getByRole('heading', { name: 'Choose one' })).toBeVisible();
   }
@@ -305,13 +349,15 @@ for (const width of [375, 320]) {
           return rect.width > 0 && rect.height > 0;
         })
         .map((element) => {
-          const rect = element.getBoundingClientRect();
-          return { width: rect.width, height: rect.height };
+          const target = element instanceof HTMLInputElement && ['radio', 'checkbox'].includes(element.type)
+            ? element.labels?.[0] ?? element : element;
+          const rect = target.getBoundingClientRect();
+          return { width: rect.width, height: rect.height, label: target.getAttribute('aria-label') ?? target.textContent ?? target.tagName };
         }),
     }));
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
     expect(metrics.controls.length).toBeGreaterThan(0);
-    expect(metrics.controls.every(({ width: controlWidth, height }) => controlWidth >= 44 && height >= 44)).toBeTruthy();
+    expect(metrics.controls.filter(({ width: controlWidth, height }) => controlWidth < 44 || height < 44)).toEqual([]);
   });
 
   test(`PRD0062 #104 blocked runtime controls are touch-safe without overflow at ${width}px`, async ({ page }) => {

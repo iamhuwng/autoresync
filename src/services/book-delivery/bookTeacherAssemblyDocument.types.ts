@@ -10,8 +10,8 @@ export interface BookTeacherAssemblyDocumentRouteInput {
   readonly unitKey: string;
   readonly candidateId: string;
   readonly candidateRevision: number;
-  readonly sourceKey: string;
-  readonly sourceVersionId: string;
+  readonly sourceKey?: string;
+  readonly sourceVersionId?: string;
   readonly sourceSetRevision: number;
   readonly bookRevision: number;
   readonly expectedByteLength?: number;
@@ -63,11 +63,13 @@ export const createBookTeacherAssemblyDocumentRoute = (
     input.bookId,
     input.unitKey,
     input.candidateId,
-    input.sourceKey,
-    input.sourceVersionId,
   ];
+  const combined = (input.sourceKey === undefined && input.sourceVersionId === undefined)
+    || (input.sourceKey === 'student-document' && input.sourceVersionId === 'student-document');
   if (
     ids.some((value) => !SAFE_ID.test(value))
+    || (!combined && (!input.sourceKey || !input.sourceVersionId
+      || !SAFE_ID.test(input.sourceKey) || !SAFE_ID.test(input.sourceVersionId)))
     || !Number.isSafeInteger(input.candidateRevision)
     || input.candidateRevision < 1
     || !Number.isSafeInteger(input.sourceSetRevision)
@@ -78,19 +80,27 @@ export const createBookTeacherAssemblyDocumentRoute = (
     throw new BookDocumentTransportError('invalid_route');
   }
   const origin = workerOrigin(input.workerOrigin);
-  const segments = [
+  const segments = combined ? [
     input.bookId,
     input.unitKey,
     input.candidateId,
     String(input.candidateRevision),
-    input.sourceKey,
-    input.sourceVersionId,
+    'student-document',
     String(input.sourceSetRevision),
     String(input.bookRevision),
-  ].map(encodeURIComponent);
+  ] : [
+    input.bookId,
+    input.unitKey,
+    input.candidateId,
+    String(input.candidateRevision),
+    input.sourceKey!,
+    input.sourceVersionId!,
+    String(input.sourceSetRevision),
+    String(input.bookRevision),
+  ];
   return Object.freeze({
-    url: `${origin}/v1/book-delivery/teacher-assembly/${segments.join('/')}`,
-    sourceVersionId: input.sourceVersionId,
+    url: `${origin}/v1/book-delivery/teacher-assembly/${segments.map(encodeURIComponent).join('/')}`,
+    sourceVersionId: input.sourceVersionId ?? 'student-document',
     expectedByteLength: input.expectedByteLength,
     expectedEtag: input.expectedEtag,
     physicalPageNumber: input.physicalPageNumber,
@@ -117,4 +127,5 @@ export const isCurrentBookTeacherAssemblyDocument = (
   && projection.candidateId === current.candidateId
   && projection.candidateRevision === current.candidateRevision
   && projection.route.sourceVersionId === projection.sourceVersionId
-  && current.sourceVersionIds.includes(projection.sourceVersionId);
+  && (projection.sourceVersionId === 'student-document'
+    || current.sourceVersionIds.includes(projection.sourceVersionId));

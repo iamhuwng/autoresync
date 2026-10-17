@@ -883,6 +883,24 @@ describe('testStorage', () => {
     });
   });
 
+  it('persists a diagram image for the student question', async () => {
+    vi.clearAllMocks();
+    const { update } = await import('firebase/database');
+    (update as any).mockResolvedValue(undefined);
+
+    await saveTestToFirebase(
+      { title: 'Diagram', type: 'IELTS', skill: 'Reading', duration: 60 },
+      [{ id: 'p1', title: 'P1', content: 'Passage', type: 'text', wordCount: 1, questionStart: 1, questionEnd: 1, createdAt: '' }],
+      [{ id: 'q1', number: 1, questionNumber: 1, questionText: 'Label the diagram', question: 'Label the diagram', type: 'diagram-labeling', answer: 'A', answerSource: 'ai-suggestion', confidence: 90, passageId: 'p1', imageUrl: 'https://example.com/diagram.png' }],
+      'teacher',
+    );
+
+    const saved = Object.entries((update as any).mock.calls[0][1])
+      .find(([path]) => path.startsWith('tests/'))?.[1] as any;
+    expect(saved.questions[0].imageUrl).toBe('https://example.com/diagram.png');
+    expect(buildStudentSafeTestData(saved).questions[0].imageUrl).toBe('https://example.com/diagram.png');
+  });
+
   describe('persistIELTSCanonicalQuestionGroupsToFirebase', () => {
     beforeEach(async () => {
       vi.clearAllMocks();

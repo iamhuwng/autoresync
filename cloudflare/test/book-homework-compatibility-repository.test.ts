@@ -340,4 +340,37 @@ describe('Book Homework compatibility projection', () => {
     await expect(testCase.invoke(store)).rejects.toMatchObject({ diagnostic: testCase.diagnostic });
     await expect(testCase.invoke(store)).rejects.not.toThrow(/secret/u);
   });
+
+  it('retains only the allowlisted token provider code and status category', async () => {
+    const cases = [
+      ['invalid_book_firebase_claims', { code: 'invalid_book_firebase_claims', statusCategory: 'not_applicable', category: 'claims' }],
+      ['invalid_book_firebase_service_account', { code: 'invalid_book_firebase_service_account', statusCategory: 'not_applicable', category: 'configuration' }],
+      ['book_firebase_service_identity_mismatch', { code: 'book_firebase_service_identity_mismatch', statusCategory: 'not_applicable', category: 'configuration' }],
+      ['book_firebase_token_exchange_failed:403', { code: 'book_firebase_token_exchange_failed', statusCategory: '4xx', category: 'http' }],
+      ['book_firebase_token_exchange_failed:403:INVALID_CUSTOM_TOKEN', { code: 'INVALID_CUSTOM_TOKEN', statusCategory: '4xx', category: 'http' }],
+      ['book_firebase_token_exchange_transport_failed', { code: 'book_firebase_token_exchange_transport_failed', statusCategory: 'not_applicable', category: 'transport' }],
+      ['book_firebase_token_exchange_invalid_response', { code: 'book_firebase_token_exchange_invalid_response', statusCategory: 'not_applicable', category: 'invalid_response' }],
+    ] as const;
+
+    for (const [providerMessage, provider] of cases) {
+      const store = new FirebaseRestBookHomeworkCompatibilityDocumentStore({
+        env: { FIREBASE_PROJECT_ID: 'project-1' },
+        getFirebaseIdToken: async () => {
+          throw new Error(providerMessage);
+        },
+      });
+      const failure = await store.read(bookHomeworkCompatibilityPath('assignment-1'), 'teacher-1')
+        .catch((error: unknown) => error as Error & { diagnostic?: unknown });
+
+      expect(failure).toMatchObject({
+        diagnostic: {
+          stage: 'token_exchange',
+          errorClass: 'token-authentication',
+          provider,
+        },
+      });
+      expect(failure.message).toBe('token-authentication');
+      expect(JSON.stringify(failure)).not.toContain('403');
+    }
+  });
 });

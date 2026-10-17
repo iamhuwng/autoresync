@@ -107,6 +107,11 @@ export const sameBookRuntimeScheduleAuthority = (
 
 const responseAnswer = (interactionId: string, response: unknown): ActivitySubmissionAnswer => {
   if (response === null) return null;
+  if (Array.isArray(response)) {
+    const legacy = savedSubmissionAnswer(interactionId, response);
+    if (legacy === undefined) throw new TypeError('runtime_activity_response_invalid');
+    return legacy;
+  }
   if (typeof response !== 'object' || Array.isArray(response)) {
     if (typeof response === 'string') return response;
     throw new TypeError('runtime_activity_response_invalid');
@@ -129,6 +134,71 @@ const responseAnswer = (interactionId: string, response: unknown): ActivitySubmi
     return structuredClone(value.orderedItemIds) as string[];
   }
   throw new TypeError('runtime_activity_response_invalid');
+};
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const isPairArray = (
+  value: unknown,
+): value is Array<{ leftItemId: string; rightItemId: string }> =>
+  Array.isArray(value) && value.every((item) =>
+    isPlainRecord(item) &&
+    typeof item.leftItemId === 'string' &&
+    typeof item.rightItemId === 'string',
+  );
+
+const isSubmissionAnswer = (value: unknown): value is ActivitySubmissionAnswer =>
+  value === null || typeof value === 'string' || isStringArray(value) || isPairArray(value);
+
+const savedSubmissionAnswer = (
+  interactionId: string,
+  response: readonly unknown[],
+): ActivitySubmissionAnswer | undefined => {
+  if (response.length !== 1) return undefined;
+  const entry = response[0];
+  if (!isPlainRecord(entry) || entry.interactionId !== interactionId || !Object.hasOwn(entry, 'answer')) {
+    return undefined;
+  }
+  if (!isSubmissionAnswer(entry.answer)) return undefined;
+  return structuredClone(entry.answer);
+};
+
+/**
+ * Drafts created by the legacy activity runtime store one submission row per
+ * interaction. Keep that stored value untouched, but present the current
+ * renderer with the canonical response shape.
+ */
+export const normalizeSavedActivityResponse = (
+  interactionId: string,
+  response: unknown,
+  responseCodec: string,
+): unknown => {
+  if (!Array.isArray(response)) return response;
+  const answer = savedSubmissionAnswer(interactionId, response);
+  if (answer === undefined) return response;
+  switch (responseCodec) {
+    case 'choice-single-v1':
+      return isStringArray(answer) && answer.length <= 1
+        ? { interactionId, selectedOptionId: answer[0] ?? null }
+        : response;
+    case 'choice-multiple-v1':
+      return isStringArray(answer)
+        ? { interactionId, selectedOptionIds: answer }
+        : response;
+    case 'text-entry-v1':
+    case 'long-response-v1':
+      return typeof answer === 'string' ? { interactionId, text: answer } : response;
+    case 'matching-pairs-v1':
+      return isPairArray(answer) ? { interactionId, pairs: answer } : response;
+    case 'ordering-items-v1':
+      return isStringArray(answer) ? { interactionId, orderedItemIds: answer } : response;
+    default:
+      return response;
+  }
 };
 
 export const activitySubmissionFromRuntimeResponses = (

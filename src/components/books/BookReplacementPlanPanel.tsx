@@ -43,7 +43,7 @@ const BookReplacementPlanPanel = ({
   onConfirmationHandoff,
   onAction,
 }: BookReplacementPlanPanelProps) => {
-  const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
   const [state, setState] = useState<PanelState>({ kind: 'empty' });
   const handoffRef = useRef<ReplacementConfirmationHandoff | null>(null);
   const emit = (action: string, metadata?: Record<string, unknown>) => {

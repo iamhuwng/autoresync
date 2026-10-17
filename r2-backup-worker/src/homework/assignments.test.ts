@@ -241,6 +241,32 @@ describe('homework assignment Worker route', () => {
         });
     });
 
+    it('stores the Firebase UID when a direct target uses a class-member key', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'reading-v2-1', skill: 'Reading' }));
+        records.set('classes/class-1', {
+            ...classRecord,
+            students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+        });
+        records.set('classes', {
+            'class-1': {
+                ...classRecord,
+                students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+            },
+        });
+        records.set('student_teacher_links/teacher-1', {});
+        records.set('student_teacher_assignments', {});
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_reading', contentId: 'reading-v2-1' },
+            target: { type: 'students', studentIds: ['member-key'] },
+        })), env);
+
+        expect(response.status).toBe(201);
+        expect(JSON.stringify(firestoreWrites[0])).toContain('student-uid');
+        expect(JSON.stringify(firestoreWrites[0])).not.toContain('member-key');
+    });
+
     it('accepts direct student targets through active assignment records', async () => {
         const records = okRecords();
         records.set('classes', {});

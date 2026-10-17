@@ -57,9 +57,23 @@ export interface CourseBookAuthority102RequestClaims {
 }
 
 export type CourseBookAuthority102Claims =
+  | CourseBookAuthority102PlacementClaims
   | CourseBookAuthority102RequestClaims
   | CourseBookAuthority102EnrollmentClaims
   | CourseBookAuthority102ReleaseClaims;
+
+export interface CourseBookAuthority102PlacementClaims {
+  readonly operation: 'placement-transition';
+  readonly action: 'create' | 'revoke';
+  readonly actorUid: string;
+  readonly courseId: string;
+  readonly moduleId: string;
+  readonly courseMaterialId: string;
+  readonly operationId: string;
+  readonly expectedPlacementRevision: number;
+  readonly nextPlacementRevision: number;
+  readonly fingerprint: string;
+}
 
 export type CourseBookAuthority102TokenProvider =
   (claims: CourseBookAuthority102Claims) => Promise<string>;
@@ -154,6 +168,11 @@ const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache =
 
 const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => {
   switch (claims.operation) {
+    case 'placement-transition':
+      return JSON.stringify({ operation: claims.operation, action: claims.action, actorUid: claims.actorUid,
+        courseId: claims.courseId, moduleId: claims.moduleId, courseMaterialId: claims.courseMaterialId,
+        operationId: claims.operationId, expectedPlacementRevision: claims.expectedPlacementRevision,
+        nextPlacementRevision: claims.nextPlacementRevision, fingerprint: claims.fingerprint });
     case 'enrollment-transition':
       return JSON.stringify({
         operation: claims.operation,
@@ -191,6 +210,19 @@ const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => {
 const assertCourseClaims = (claims: CourseBookAuthority102Claims): void => {
   if (!claims || typeof claims !== 'object' || Array.isArray(claims)) {
     throw new Error('invalid_course_book_authority_102_claims');
+  }
+  if (claims.operation === 'placement-transition') {
+    const keys = Object.keys(claims).sort().join('\u0000');
+    if (keys !== ['operation', 'action', 'actorUid', 'courseId', 'moduleId', 'courseMaterialId', 'operationId',
+      'expectedPlacementRevision', 'nextPlacementRevision', 'fingerprint'].sort().join('\u0000')
+      || !['create', 'revoke'].includes(claims.action)
+      || ![claims.actorUid, claims.courseId, claims.moduleId, claims.courseMaterialId].every((value) => ID.test(value))
+      || !OPERATION.test(claims.operationId) || !/^[0-9a-f]{64}$/u.test(claims.fingerprint)
+      || !Number.isSafeInteger(claims.expectedPlacementRevision) || claims.expectedPlacementRevision < 0
+      || !Number.isSafeInteger(claims.nextPlacementRevision) || claims.nextPlacementRevision !== claims.expectedPlacementRevision + 1
+      || (claims.action === 'create' && claims.expectedPlacementRevision !== 0)
+      || (claims.action === 'revoke' && claims.expectedPlacementRevision < 1)) throw new Error('invalid_course_book_authority_102_claims');
+    return;
   }
   if (claims.operation === 'enrollment-transition') {
     const keys = Object.keys(claims as unknown as Record<string, unknown>).sort();
@@ -252,6 +284,8 @@ const assertCourseClaims = (claims: CourseBookAuthority102Claims): void => {
 
 const jwtClaimsFor = (claims: CourseBookAuthority102Claims): Record<string, unknown> => {
   switch (claims.operation) {
+    case 'placement-transition':
+      return { courseBookAuthority102: true, ...claims };
     case 'enrollment-transition':
       return {
         courseBookAuthority102: true,
@@ -411,7 +445,7 @@ const withQuery = (
   return encoded ? `${url}?${encoded}` : url;
 };
 
-const PATCH_PATH = /^[A-Za-z0-9_-]{1,160}(?:\/[A-Za-z0-9_-]{1,160})*$/u;
+const PATCH_PATH = /^[A-Za-z0-9_:-]{1,160}(?:\/[A-Za-z0-9_:-]{1,160})*$/u;
 
 export class FirebaseRtdbRestClient {
   constructor(
@@ -435,6 +469,19 @@ export class FirebaseRtdbRestClient {
     });
     const body = parseJsonBody(await response.text());
     if (!response.ok) throw new Error(`firebase_rtdb_get_failed:${response.status}`);
+    return body;
+  }
+
+  async readShallowKeys(path: string): Promise<unknown> {
+    const auth = await this.requestAuth(path);
+    const url = new URL(auth.url);
+    url.searchParams.set('shallow', 'true');
+    const response = await this.options.fetchImpl.call(globalThis, url.toString(), {
+      method: 'GET',
+      headers: auth.headers,
+    });
+    const body = parseJsonBody(await response.text());
+    if (!response.ok) throw new Error(`firebase_rtdb_shallow_get_failed:${response.status}`);
     return body;
   }
 
@@ -500,8 +547,8 @@ export class FirebaseRtdbRestClient {
     });
     if (response.status === 412) return false;
     if (!response.ok) {
-      const body = (await response.text()).slice(0, 240).replace(/[\r\n]+/gu, ' ');
-      throw new Error(`firebase_rtdb_put_failed:${response.status}:${body}`);
+      const body = (await response.text()).slice(0, 240).replace(/[\r]+/gu, ' ');
+      throw new Error(`firebase_rtdb_put_failed:${response.status}:${path}:${body}`);
     }
     return true;
   }

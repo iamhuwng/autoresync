@@ -31,6 +31,7 @@ const BROWSER_AUTHORITY_FIELDS = [
 ];
 const LISTENING_UPLOAD_SESSION_ALLOWED_ORIGINS = new Set([
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ]);

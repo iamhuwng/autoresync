@@ -4,6 +4,10 @@ import type {
   BookRuntimeAttemptPolicy,
   BookRuntimeCommandResult,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import {
+  createFirebaseBookResultProjectionWriter,
+  projectCommittedBookResult,
+} from '../book-results/production-projection.ts';
 import type {
   BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
@@ -12,11 +16,15 @@ import {
 } from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
 import {
   CANONICAL_ACTIVITY_VERSION_ROOT,
+  hydrateCanonicalActivityVersionFromRtdb,
 } from '../book-assembly/canonical-activity-version-repository.ts';
 import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
 } from '../book-delivery/repository.ts';
+import { createClassBookRuntimeSchedulePolicy } from '../class-book-placement/runtime-schedule-policy.ts';
+import { authorizePublicBookBinding } from '../book-public/production.ts';
+import { createCourseBookRuntimeSchedulePolicy } from '../course-book-placement/runtime-schedule-policy.ts';
 import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import {
@@ -53,6 +61,9 @@ import {
 import {
   createTrustedBookIntegrityReportService,
 } from '../../../../src/services/book-activity/bookIntegrityReport.service.ts';
+import {
+  deriveBookIntegrityCaptureSlotId,
+} from '../../../../src/services/book-activity/bookIntegrityCapture.service.ts';
 import type {
   BookIntegrityTerminalAttempt,
 } from '../../../../src/services/book-activity/bookIntegrityReport.types.ts';
@@ -60,7 +71,12 @@ import type {
 export type BookRuntimeCanonicalEnv =
   & BookRuntimeWorkerEnv
   & BookRuntimeRepositoryEnv
-  & BookDeliveryRepositoryEnv;
+  & BookDeliveryRepositoryEnv
+  & {
+    readonly BOOK_RESULT_PROJECTION_ENABLED?: string;
+    readonly BOOK_RESULT_READ_GOOGLE_SA_KEY?: string;
+    readonly BOOK_RESULT_READ_SERVICE_IDENTITY?: string;
+  };
 
 export interface BookRuntimeCanonicalDependencies {
   readonly repository: BookRuntimeRepository;
@@ -88,6 +104,11 @@ export interface BookRuntimeCanonicalDependencies {
     readonly env: BookRuntimeCanonicalEnv;
   }) => Promise<BookRuntimeAttemptPolicy | null>;
   readonly projectHomeworkCompletion?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
+  readonly projectBookResult?: (input: {
     readonly binding: BookDeliveryBinding;
     readonly result: BookRuntimeCommandResult;
     readonly env: BookRuntimeCanonicalEnv;
@@ -161,14 +182,68 @@ export const createBookRuntimeProductionDependencies = (
       authorityStore,
       runtimeRepository,
     });
-  const effectiveSchedulePolicy = schedulePolicy ?? (
-    createBookHomeworkScheduleEnforcement({
-      authorityStore,
-      activityPolicy: effectiveActivitySchedulePolicy,
-    }).policy
-  );
+  const homeworkSchedulePolicy = createBookHomeworkScheduleEnforcement({
+    authorityStore,
+    activityPolicy: effectiveActivitySchedulePolicy,
+  }).policy;
+  const courseSchedulePolicy = createCourseBookRuntimeSchedulePolicy(env);
+  const classSchedulePolicy = createClassBookRuntimeSchedulePolicy(env);
+  const publicSchedulePolicy: BookRuntimeSchedulePolicy = {
+    async authorize(input) {
+      return input.actorUid === input.binding.context.recipientId
+        && await authorizePublicBookBinding(env, input.binding)
+        ? { outcome: 'allowed' }
+        : { outcome: 'denied', code: 'public_book_unavailable' };
+    },
+    revalidate(input) { return this.authorize(input); },
+  };
+  const effectiveSchedulePolicy = schedulePolicy ?? {
+    authorize(input) {
+      if (input.binding.context.kind === 'public') return publicSchedulePolicy.authorize(input);
+      if (input.binding.context.kind === 'course') {
+        return courseSchedulePolicy.authorize(input);
+      }
+      if (input.binding.context.kind === 'class') {
+        return classSchedulePolicy.authorize(input);
+      }
+      return homeworkSchedulePolicy.authorize(input);
+    },
+    revalidate(input) {
+      if (input.binding.context.kind === 'public') return publicSchedulePolicy.revalidate!(input);
+      if (input.binding.context.kind === 'course') {
+        return courseSchedulePolicy.revalidate!(input);
+      }
+      if (input.binding.context.kind === 'class') {
+        return classSchedulePolicy.revalidate!(input);
+      }
+      return homeworkSchedulePolicy.revalidate?.(input)
+        ?? { outcome: 'unavailable', code: 'runtime_schedule_authority_unavailable' };
+    },
+  };
+  const projectBookResult = async ({ binding, result, env: runtimeEnv }: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }): Promise<void> => {
+    if (runtimeEnv.BOOK_RESULT_PROJECTION_ENABLED !== 'enabled'
+      || !['solo', 'public', 'homework', 'course', 'class'].includes(binding.context.kind)) return;
+    if (!result.attempt || !result.result || !result.completion || !result.index) {
+      throw new Error('book_result_projection_terminal_reader_unavailable');
+    }
+    await projectCommittedBookResult({
+      binding,
+      terminal: {
+        attempt: result.attempt,
+        result: result.result,
+        completion: result.completion,
+        index: result.index,
+      },
+      writer: createFirebaseBookResultProjectionWriter(runtimeEnv),
+    });
+  };
   return {
     repository: runtimeRepository,
+    projectBookResult,
     resolveBinding: async ({ bindingId, recipientId, contextId }) => {
       const resolved = await deliveryRepository.resolveCurrent(recipientId, contextId);
       if (!resolved || resolved.record.binding.bindingId !== bindingId) return null;
@@ -191,7 +266,9 @@ export const createBookRuntimeProductionDependencies = (
         `${CANONICAL_ACTIVITY_VERSION_ROOT}/${activityId}/${placement.activityVersionId}`,
       );
       try {
-        const record = assertCanonicalPublishedActivityVersion(value);
+        const record = assertCanonicalPublishedActivityVersion(
+          hydrateCanonicalActivityVersionFromRtdb(value),
+        );
         if (record.activityId !== activityId
           || record.activityVersionId !== placement.activityVersionId
           || record.activityVersion !== activityVersion
@@ -203,7 +280,10 @@ export const createBookRuntimeProductionDependencies = (
       }
     },
     resolveAttemptPolicy: async ({ binding, placementId }) => {
-      if (binding.context.kind === 'solo') return { maxAttempts: null };
+      if (binding.context.kind === 'solo' || binding.context.kind === 'public') return { maxAttempts: null };
+      if (binding.context.kind === 'course' || binding.context.kind === 'class') {
+        return { maxAttempts: null };
+      }
       if (binding.context.kind !== 'homework') return null;
       const policy = await effectiveActivitySchedulePolicy.resolve({
         assignmentId: binding.context.contextId,
@@ -215,7 +295,12 @@ export const createBookRuntimeProductionDependencies = (
         policyRevision: binding.schedulePolicy.policyRevision,
         placementId,
       });
-      return policy ? { maxAttempts: policy.maxAttempts } : null;
+      return policy
+        ? {
+          maxAttempts: policy.maxAttempts,
+          feedbackPolicy: policy.feedbackPolicy,
+        }
+        : null;
     },
     projectHomeworkCompletion: async ({ binding, result }) => {
       if (binding.context.kind !== 'homework'
@@ -322,6 +407,20 @@ export const createBookRuntimeProductionDependencies = (
         resultId: terminalResult.resultId,
         completionId: completion.completionId,
         attemptNumber: attempt.attemptNumber,
+        captureSlotId: await deriveBookIntegrityCaptureSlotId({
+          target: {
+            bookId: binding.book.bookId,
+            bindingId: attempt.bindingId,
+            bindingRevision: attempt.bindingRevision,
+            contextKind: 'homework',
+            contextId: attempt.contextId,
+            placementId: attempt.placementId,
+            activityId: attempt.activityId,
+            activityVersion: attempt.activityVersion,
+          },
+          recipientId: attempt.recipientId,
+          attemptNumber: attempt.attemptNumber,
+        }),
         submittedAt: completion.createdAt,
         recipientId: attempt.recipientId,
         ownerId: binding.context.ownerId,
@@ -402,6 +501,19 @@ export const createBookRuntimeCanonicalHandlers = (
       readonly interactionId: string;
     }) => withDependencies(input.env, async (dependencies) =>
       createBookRuntimeWorkerHandlers(dependencies).readDraft(input)),
+    readTerminal: (input: {
+      readonly request: Request;
+      readonly env: BookRuntimeCanonicalEnv;
+      readonly uid: string;
+      readonly bindingId: string;
+      readonly bindingRevision: string;
+      readonly contextId: string;
+      readonly placementId: string;
+      readonly activityId: string;
+      readonly activityVersion: string;
+      readonly interactionId: string;
+    }) => withDependencies(input.env, async (dependencies) =>
+      createBookRuntimeWorkerHandlers(dependencies).readTerminal(input)),
   };
 };
 

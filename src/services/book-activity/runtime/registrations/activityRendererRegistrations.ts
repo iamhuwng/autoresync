@@ -43,9 +43,9 @@ const asUnknownRenderer = <Response>(
 ): ActivityRenderer<unknown> => renderer as unknown as ActivityRenderer<unknown>;
 
 const choiceCodecFor = (variant: string): ActivityResponseCodec<unknown> =>
-  asUnknownCodec(variant === 'multiple-choice' ? choiceMultipleResponseCodec : choiceSingleResponseCodec);
+  asUnknownCodec(['multiple-choice', 'multi-select'].includes(variant) ? choiceMultipleResponseCodec : choiceSingleResponseCodec);
 const choiceRendererFor = (variant: string): ActivityRenderer<unknown> =>
-  asUnknownRenderer(variant === 'multiple-choice' ? MultipleChoiceRenderer : SingleChoiceRenderer);
+  asUnknownRenderer(['multiple-choice', 'multi-select'].includes(variant) ? MultipleChoiceRenderer : SingleChoiceRenderer);
 
 const supportedRegistrationSpecs: readonly SupportedRegistrationSpec[] = [
   {
@@ -236,6 +236,18 @@ export const ticket23ActivityRendererRegistrations: readonly ActivityRendererReg
 export const activityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] = [
   ...ticket23ActivityRendererRegistrations,
   ...matchingOrderingRendererRegistrations,
+  ...(['single-select', 'multi-select'] as const).flatMap((variant) =>
+    (['structured', 'source-assisted'] as const).map((presentationMode) => ({
+      family: 'choice' as const,
+      variant,
+      presentationMode,
+      responseCodec: variant === 'multi-select' ? CHOICE_MULTIPLE_RESPONSE_CODEC_ID : CHOICE_SINGLE_RESPONSE_CODEC_ID,
+      rendererId: 'choice-v1',
+      codecId: variant === 'multi-select' ? CHOICE_MULTIPLE_RESPONSE_CODEC_ID : CHOICE_SINGLE_RESPONSE_CODEC_ID,
+      renderer: choiceRendererFor(variant),
+      codec: choiceCodecFor(variant),
+    })),
+  ),
   {
     family: 'choice',
     variant: 'v1',
@@ -266,8 +278,18 @@ export const activityRendererRegistrations: readonly ActivityRendererRegistratio
     renderer: asUnknownRenderer(LongResponseRenderer),
     codec: asUnknownCodec(longResponseResponseCodec),
   },
+  {
+    family: 'long-response',
+    variant: 'v1',
+    presentationMode: 'source-assisted',
+    responseCodec: LONG_RESPONSE_RESPONSE_CODEC_ID,
+    rendererId: 'long-response-v1',
+    codecId: LONG_RESPONSE_RESPONSE_CODEC_ID,
+    renderer: asUnknownRenderer(LongResponseRenderer),
+    codec: asUnknownCodec(longResponseResponseCodec),
+  },
 ];
 
-export const ticket25LongResponseRendererRegistration = activityRendererRegistrations[
-  activityRendererRegistrations.length - 1
-];
+export const ticket25LongResponseRendererRegistration = activityRendererRegistrations.find((entry) => (
+  entry.family === 'long-response' && entry.presentationMode === 'structured'
+))!;

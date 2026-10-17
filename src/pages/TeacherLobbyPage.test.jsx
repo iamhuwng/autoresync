@@ -510,7 +510,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.updateBookMetadata.mockReset();
     mocks.loadThcsTest.mockReset();
     mocks.deleteTest.mockReset();
-    mocks.deleteDraft.mockReset();
+    mocks.deleteDraft.mockReset().mockResolvedValue(true);
     mocks.refreshTests.mockReset();
     mocks.refreshDrafts.mockReset();
     mocks.confirm.mockReturnValue(true);
@@ -2590,6 +2590,21 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'deleteSelectedMaterials',
       expect.objectContaining({ count: 1, materialKind: 'draft' }),
     );
+    expect(await screen.findByText('Deleted 1 draft.')).toBeInTheDocument();
+  });
+
+  it('reports failed draft deletion without claiming success', async () => {
+    const user = userEvent.setup();
+    mocks.drafts = [{ id: 'draft-failed', metadata: { title: 'Unpublished draft' } }];
+    mocks.deleteDraft.mockResolvedValue(false);
+    renderTeacherLobbyWithToasts();
+
+    await user.click(screen.getByRole('tab', { name: 'Drafts' }));
+    await user.click(screen.getByRole('button', { name: 'Select Unpublished draft' }));
+    await user.click(screen.getByRole('button', { name: 'Delete selected' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete selected drafts.');
+    expect(screen.queryByText(/Deleted 1 draft\./)).not.toBeInTheDocument();
   });
 
   it('loads Reading Passage private scope by default and keeps scope separate from top-level public tab', async () => {

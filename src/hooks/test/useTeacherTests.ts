@@ -14,6 +14,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { database, firestore as db } from '../../services/firebase';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
 import {
   adaptMaterialSummariesToTeacherCards,
 } from '../../services/materialCatalog/materialSummaryCardAdapter.service';
@@ -138,13 +139,14 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   const requestVersion = useRef(0);
   const moreInFlight = useRef(false);
   const buildQuery = useCallback((): MaterialSummaryPageQuery => {
+    const normalizedTestTypeId = testTypeId ? materialCatalogIds.testTypeId(testTypeId) : undefined;
     if (listScope === 'public') {
-      return { scope: 'public', surfaceFamily: 'assessment', testTypeId: testTypeId || undefined };
+      return { scope: 'public', surfaceFamily: 'assessment', testTypeId: normalizedTestTypeId };
     }
     if (!ownerId) {
       throw new Error('My Content requires an authenticated owner.');
     }
-    return { scope: 'owned', ownerId, surfaceFamily: 'assessment', testTypeId: testTypeId || undefined };
+    return { scope: 'owned', ownerId, surfaceFamily: 'assessment', testTypeId: normalizedTestTypeId };
   }, [listScope, ownerId, testTypeId]);
 
   const loadTeacherMaterials = useCallback(async (pageCursor?: MaterialSummaryPageCursor) =>

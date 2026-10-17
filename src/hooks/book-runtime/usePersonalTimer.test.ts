@@ -45,6 +45,28 @@ const hydrate = async () => {
 };
 
 describe('usePersonalTimer', () => {
+  it('clamps a countdown at its duration, supports finish, and resets before restarting', async () => {
+    vi.useFakeTimers();
+    let monotonic = 0;
+    const storage = createStore();
+    const monotonicNow = () => monotonic;
+    const channelFactory = () => null;
+    const { result } = renderHook(() => usePersonalTimer({ timerKey: 'countdown', durationMs: 20 * 60_000,
+      storage, monotonicNow, tabId: 'countdown-tab', channelFactory }));
+    await hydrate();
+    act(() => result.current.start());
+    monotonic = 21 * 60_000;
+    act(() => vi.advanceTimersByTime(250));
+    expect(result.current.elapsedMs).toBe(20 * 60_000);
+    expect(result.current.isRunning).toBe(false);
+    act(() => result.current.start());
+    expect(result.current.isRunning).toBe(false);
+    act(() => { result.current.reset(); result.current.start(); });
+    expect(result.current.isRunning).toBe(true);
+    act(() => result.current.finish());
+    expect(result.current.isRunning).toBe(false);
+    expect(result.current.elapsedMs).toBe(20 * 60_000);
+  });
   afterEach(() => {
     vi.useRealTimers();
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });

@@ -17,8 +17,8 @@ vi.mock('../../book-runtime/BookPdfViewerHost', () => ({
 }));
 
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { sourceVersionId: 'source-full', bookId: 'book-1', physicalPageCount: 40, verifiedUsable: true },
-  { sourceVersionId: 'source-part-a', bookId: 'book-1', physicalPageCount: 2, verifiedUsable: true },
+  { sourceVersionId: 'source-full', bookId: 'book-1', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-full', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 40, verifiedUsable: true },
+  { sourceVersionId: 'source-part-a', bookId: 'book-1', purpose: 'book-source', studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-part-a', sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' }, physicalPageCount: 2, verifiedUsable: true },
 ];
 
 const document = (

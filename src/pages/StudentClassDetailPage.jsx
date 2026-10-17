@@ -1,18 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ref, update } from 'firebase/database';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getClass, subscribeToClass, subscribeToActiveSessions } from '../services/classManager';
 import { getSession } from '../services/sessionManager';
 import { sessionService } from '../services/sessionService';
-import { buildRoute } from '../constants/routes';
-import { Loader } from '@mantine/core';
 import { StudentLayout } from '../components/layout/StudentLayout';
 import { StudentSidebar } from '../components/layout/StudentSidebar';
-import { S, studentTokens } from '../components/layout/studentLayoutStyles';
-import { database } from '../services/firebase';
-import { getStudentResults } from '../services/testResults.service';
+import { S, studentTokens, mobileStyles } from '../components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList } from '../context/StudentShellDataContext';
+import { useNavigation } from '../hooks/useNavigation';
+import { createClassBookPlacementBrowserClient } from '../services/book-delivery/classBookPlacement.browser';
+import { buildBookPlacementPracticeRouteParams } from '../services/book-delivery/bookPlacementLaunch.browser';
 
 const localStyles = {
   card: { background: studentTokens.bgSurface, borderRadius: 12, border: `1px solid ${studentTokens.borderWhisper}`, padding: 24, marginBottom: 16 },
@@ -20,38 +18,28 @@ const localStyles = {
   badgeProgress: { background: studentTokens.accentSoft, color: studentTokens.accentHover, border: `1px solid ${studentTokens.borderWhisper}` },
   badgeAvailable: { background: '#dce4e8', color: studentTokens.textPrimary, border: `1px solid ${studentTokens.borderWhisper}` },
   badgeDefault: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textBody, border: `1px solid ${studentTokens.borderWhisper}` },
-  primaryBtn: { background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
-  successBtn: { background: '#4c5458', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
-  disabledBtn: { background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  primaryBtn: { ...mobileStyles.touchTarget, background: studentTokens.accent, color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  successBtn: { ...mobileStyles.touchTarget, background: '#4c5458', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  disabledBtn: { ...mobileStyles.touchTarget, background: studentTokens.bgSurfaceAlt, color: studentTokens.textDim, border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'not-allowed', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
   liveSessionCard: { background: studentTokens.bgSurface, border: `1px solid ${studentTokens.borderWhisper}`, borderRadius: 12, padding: '16px 24px', marginBottom: 16 },
   testTag: { background: studentTokens.accentSoft, color: studentTokens.accentHover, padding: '4px 12px', borderRadius: 999, fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase' }
 };
 
-const getResolvedAssignmentResult = (assignment, progress, results) => {
-  if (!assignment?.testId || !Array.isArray(results) || results.length === 0) {
+const getClassBookPlacement = (assignment, classId) => {
+  const placement = assignment?.bookPlacement;
+  if (!placement || placement.status !== 'active' || placement.classId !== classId
+    || typeof placement.copyId !== 'string'
+    || typeof placement.classPlacementId !== 'string'
+    || typeof placement.courseMaterialId !== 'string'
+    || typeof placement.pins?.bookId !== 'string') {
     return null;
   }
-
-  const matchingResults = results.filter((result) => (
-    result.testId === assignment.testId || result.sessionCode === assignment.testId
-  ));
-  if (matchingResults.length === 0) {
-    return null;
-  }
-
-  if (typeof progress?.submittedAt === 'number') {
-    const exactMatch = matchingResults.find((result) => result.submittedAt === progress.submittedAt);
-    if (exactMatch) {
-      return exactMatch;
-    }
-  }
-
-  return [...matchingResults].sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0))[0] || null;
+  return placement;
 };
 
 const StudentClassDetailPage = () => {
   const { classId } = useParams();
-  const navigate = useNavigate();
+  const { navigateTo } = useNavigation('student');
   const { user, profile } = useAuth();
   const [classData, setClassData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,8 +47,10 @@ const StudentClassDetailPage = () => {
   const [, setSelfStudyContent] = useState({ tests: [], quizzes: [] });
   const [, setIsLoadingSelfStudy] = useState(false);
   const [activeSessions, setActiveSessions] = useState([]);
+  const [launchingBookAssignmentId, setLaunchingBookAssignmentId] = useState(null);
+  const [bookLaunchError, setBookLaunchError] = useState(null);
   const { notStarted } = useResolvedStudentHomeworkList(user?.uid || '');
-  const repairAttemptedRef = useRef(new Set());
+  const classBookClient = useMemo(() => createClassBookPlacementBrowserClient(), []);
 
   // Subscribe to active sessions (Live Sessions)
   useEffect(() => {
@@ -151,7 +141,7 @@ const StudentClassDetailPage = () => {
     if (!classData || !user?.uid) return [];
 
     const student = classData.students?.[user.uid];
-    if (!student) return [];
+    if (!student || (student.status && student.status !== 'active')) return [];
 
     const assignments = Object.values(classData.assignments || {}).map((assignment) => {
       const studentProgress = student.assignments?.[assignment.id];
@@ -169,8 +159,9 @@ const StudentClassDetailPage = () => {
 
   const handleStartTest = (assignment) => {
     if (assignment.testType === 'quiz') {
-      navigate(buildRoute('STUDENT_QUIZ', { gameSessionId: assignment.testId }), {
-        state: { classId, assignmentId: assignment.id }
+      navigateTo('STUDENT_QUIZ', { gameSessionId: assignment.testId }, {
+        state: { classId, assignmentId: assignment.id },
+        reason: 'class_assignment_started',
       });
       return;
     }
@@ -183,130 +174,55 @@ const StudentClassDetailPage = () => {
       );
     }
 
-    navigate(buildRoute('STUDENT_TEST', { sessionCode: assignment.testId }), {
-      state: { classId, assignmentId: assignment.id }
+    navigateTo('STUDENT_TEST', { sessionCode: assignment.testId }, {
+      state: { classId, assignmentId: assignment.id },
+      reason: 'class_assignment_started',
     });
   };
 
-  const patchAssignmentResultId = (assignmentId, resultId) => {
-    if (!classId || !user?.uid || !assignmentId || !resultId) {
-      return;
-    }
-
-    setClassData((currentClassData) => {
-      const currentStudent = currentClassData?.students?.[user.uid];
-      const currentAssignment = currentStudent?.assignments?.[assignmentId];
-      if (!currentStudent || !currentAssignment || currentAssignment.resultId === resultId) {
-        return currentClassData;
-      }
-
-      return {
-        ...currentClassData,
-        students: {
-          ...currentClassData.students,
-          [user.uid]: {
-            ...currentStudent,
-            assignments: {
-              ...currentStudent.assignments,
-              [assignmentId]: {
-                ...currentAssignment,
-                resultId,
-              },
-            },
-          },
-        },
-      };
-    });
-  };
-
-  const resolveAssignmentResultId = async (assignmentId, assignment, progress, studentResults = null) => {
-    if (!assignmentId || !assignment?.testId || !user?.uid) {
-      return null;
-    }
-
-    if (progress?.resultId) {
-      return progress.resultId;
-    }
-
-    const results = studentResults || await getStudentResults(user.uid);
-    const resolvedResult = getResolvedAssignmentResult(assignment, progress, results);
-
-    if (!resolvedResult?.resultId) {
-      return null;
-    }
-
-    patchAssignmentResultId(assignmentId, resolvedResult.resultId);
-
-    if (classId) {
-      try {
-        await update(ref(database, `classes/${classId}/students/${user.uid}/assignments/${assignmentId}`), {
-          resultId: resolvedResult.resultId,
-        });
-      } catch (error) {
-        console.warn('Failed to persist repaired assignment resultId:', error);
-      }
-    }
-
-    return resolvedResult.resultId;
-  };
-
-  useEffect(() => {
-    if (!classId || !user?.uid || !classData?.students?.[user.uid]) {
-      return;
-    }
-
-    const student = classData.students[user.uid];
-    const assignmentsNeedingRepair = Object.entries(classData.assignments || {})
-      .filter(([assignmentId, assignment]) => {
-        const progress = student.assignments?.[assignmentId];
-        return (
-          assignment?.testId &&
-          progress &&
-          !progress.resultId &&
-          (progress.status === 'submitted' || progress.status === 'graded')
-        );
+  const handleStartClassBook = async (assignment, placement) => {
+    const membershipStatus = classData?.students?.[user?.uid]?.status;
+    if (!classId || !user?.uid || !placement || (membershipStatus && membershipStatus !== 'active')) return;
+    setLaunchingBookAssignmentId(assignment.id);
+    setBookLaunchError(null);
+    try {
+      const projection = await classBookClient.prepareDelivery({
+        operationId: crypto.randomUUID(),
+        classId,
+        copyId: placement.copyId,
+        classPlacementId: placement.classPlacementId,
+        classCourseMaterialId: placement.courseMaterialId,
       });
-
-    if (assignmentsNeedingRepair.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const repairMissingResultIds = async () => {
-      try {
-        const studentResults = await getStudentResults(user.uid);
-        if (cancelled) {
-          return;
-        }
-
-        for (const [assignmentId, assignment] of assignmentsNeedingRepair) {
-          const progress = student.assignments?.[assignmentId];
-          const repairKey = `${assignmentId}:${progress?.submittedAt ?? 'na'}:${progress?.status ?? 'na'}`;
-          if (repairAttemptedRef.current.has(repairKey)) {
-            continue;
-          }
-
-          repairAttemptedRef.current.add(repairKey);
-          await resolveAssignmentResultId(assignmentId, assignment, progress, studentResults);
-        }
-      } catch (error) {
-        console.warn('Failed to repair missing assignment result links:', error);
+      if (projection?.projectionKind !== 'book-runtime-delivery' || typeof projection.bindingId !== 'string'
+        || projection.recipientId !== user.uid
+        || projection.context?.kind !== 'class') {
+        throw new Error('class_book_canonical_projection_required');
       }
-    };
+      navigateTo(
+        'STUDENT_PRACTICE',
+        buildBookPlacementPracticeRouteParams(placement.pins.bookId, {
+          kind: 'class',
+          surface: 'class',
+          classId,
+          copyId: placement.copyId,
+          classPlacementId: placement.classPlacementId,
+          classCourseMaterialId: placement.courseMaterialId,
+          bindingId: projection.bindingId,
+        }),
+        { force: true, reason: 'class_book_runtime_launch' },
+      );
+    } catch (error) {
+      setBookLaunchError(error instanceof Error ? error.message : 'class_book_launch_unavailable');
+    } finally {
+      setLaunchingBookAssignmentId(null);
+    }
+  };
 
-    void repairMissingResultIds();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [classData, classId, user?.uid]);
-
-  const handleViewResults = async (assignment) => {
+  const handleViewResults = (assignment) => {
     const progress = classData?.students?.[user?.uid]?.assignments?.[assignment.id];
-    const resultId = progress?.resultId || await resolveAssignmentResultId(assignment.id, assignment, progress);
+    const resultId = progress?.resultId;
     if (!resultId) return;
-    navigate(buildRoute('RESULT_DETAIL', { resultId }));
+    navigateTo('RESULT_DETAIL', { resultId }, { reason: 'class_result_viewed' });
   };
 
   const getAssignmentStatusBadge = (assignment) => {
@@ -356,7 +272,7 @@ const StudentClassDetailPage = () => {
         sidebar={<StudentSidebar user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined} activePage="courses" pendingHomeworkCount={notStarted.length} />}
       >
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-          <Loader size="md" />
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 28, height: 28, border: `3px solid ${studentTokens.accentSoft}`, borderTopColor: studentTokens.accent, borderRadius: '50%' }} />
           <p style={{ color: studentTokens.textMuted, marginTop: 16 }}>Loading class...</p>
         </div>
       </StudentLayout>
@@ -377,7 +293,7 @@ const StudentClassDetailPage = () => {
           </svg>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>Class Not Found</h2>
           <p style={{ color: studentTokens.textMuted, fontSize: '1rem', margin: '0 0 24px' }}>This class doesn't exist or you don't have access to it.</p>
-          <button style={localStyles.primaryBtn} onClick={() => navigate('/student/dashboard')}>Back to Dashboard</button>
+          <button style={localStyles.primaryBtn} onClick={() => navigateTo('STUDENT_DASHBOARD', {}, { reason: 'class_not_found_return' })}>Back to Dashboard</button>
         </div>
       </StudentLayout>
     );
@@ -394,8 +310,8 @@ const StudentClassDetailPage = () => {
       <div style={S.feedHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button
-            onClick={() => navigate('/student/courses')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
+            onClick={() => navigateTo('STUDENT_COURSES', {}, { reason: 'class_detail_back' })}
+            style={{ ...mobileStyles.touchTarget, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: 8, color: studentTokens.textMuted }}
             onMouseEnter={e => e.currentTarget.style.background = studentTokens.bgSurfaceStrong}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
@@ -416,13 +332,13 @@ const StudentClassDetailPage = () => {
         <div style={S.filterBar}>
           <button
             onClick={() => setActiveTab('assignments')}
-            style={{ ...S.filterTab, ...(activeTab === 'assignments' ? S.filterTabActive : {}) }}
+            style={{ ...S.filterTab, ...mobileStyles.touchTarget, ...(activeTab === 'assignments' ? S.filterTabActive : {}) }}
           >
             Assignments ({assignments.length})
           </button>
           <button
             onClick={() => setActiveTab('self-study')}
-            style={{ ...S.filterTab, ...(activeTab === 'self-study' ? S.filterTabActive : {}) }}
+            style={{ ...S.filterTab, ...mobileStyles.touchTarget, ...(activeTab === 'self-study' ? S.filterTabActive : {}) }}
           >
             Self-Study
           </button>
@@ -458,7 +374,7 @@ const StudentClassDetailPage = () => {
                     if (user) {
                       sessionService.setPlayerData(user.uid, user.displayName || user.email || 'Student', session.code);
                     }
-                    navigate(buildRoute('STUDENT_WAITING', { gameSessionId: session.code }));
+                    navigateTo('STUDENT_WAITING', { gameSessionId: session.code }, { reason: 'class_live_session_joined' });
                   }}
                 >
                   Join Session →
@@ -488,6 +404,7 @@ const StudentClassDetailPage = () => {
                   const statusBadge = getAssignmentStatusBadge(assignment);
                   const deadline = assignment.deadline ? formatDeadline(assignment.deadline) : null;
                   const isCompleted = assignment.studentProgress?.status === 'submitted' || assignment.studentProgress?.status === 'graded';
+                  const classBookPlacement = getClassBookPlacement(assignment, classId);
                   const assignmentResultId = assignment.studentProgress?.resultId;
                   const canViewResults = isCompleted && Boolean(assignmentResultId);
 
@@ -508,7 +425,7 @@ const StudentClassDetailPage = () => {
                               </span>
                             )}
                           </div>
-                          <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>{assignment.testTitle}</h4>
+                          <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: studentTokens.textPrimary, margin: '0 0 8px' }}>{classBookPlacement?.title || assignment.testTitle}</h4>
                           <div style={{ display: 'flex', gap: 16, fontSize: '0.875rem', color: studentTokens.textMuted, flexWrap: 'wrap' }}>
                             {assignment.timeLimit && <span>{assignment.timeLimit} minutes</span>}
                             {assignment.maxAttempts && <span>{assignment.maxAttempts} {assignment.maxAttempts === 1 ? 'attempt' : 'attempts'}</span>}
@@ -518,7 +435,15 @@ const StudentClassDetailPage = () => {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          {canViewResults ? (
+                          {classBookPlacement ? (
+                            <button
+                              style={launchingBookAssignmentId === assignment.id ? localStyles.disabledBtn : localStyles.primaryBtn}
+                              disabled={launchingBookAssignmentId === assignment.id}
+                              onClick={() => handleStartClassBook(assignment, classBookPlacement)}
+                            >
+                              {launchingBookAssignmentId === assignment.id ? 'Opening…' : 'Open Book'}
+                            </button>
+                          ) : canViewResults ? (
                             <button style={localStyles.successBtn} onClick={() => handleViewResults(assignment)}>
                               View Results
                             </button>
@@ -532,6 +457,11 @@ const StudentClassDetailPage = () => {
                             <button style={localStyles.disabledBtn} disabled>Not Available</button>
                           )}
                         </div>
+                        {bookLaunchError && classBookPlacement && (
+                          <p role="alert" style={{ flexBasis: '100%', margin: '4px 0 0', color: '#9b2c2c' }}>
+                            This Book is currently unavailable. ({bookLaunchError})
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

@@ -119,8 +119,8 @@ const readRule = (root: Record<string, unknown>, location: string): unknown => {
   const segments = location.split('/');
   const rule = segments.pop()!;
   let cursor: unknown = root;
-  for (const segment of segments.filter(Boolean)) cursor = (cursor as Record<string, unknown>)[segment];
-  return (cursor as Record<string, unknown>)[rule];
+  for (const segment of segments.filter(Boolean)) cursor = (cursor as Record<string, unknown> | undefined)?.[segment];
+  return (cursor as Record<string, unknown> | undefined)?.[rule];
 };
 
 const sourceSha256 = (sourceText: string): string => createHash('sha256')
@@ -209,7 +209,7 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(forward.fragmentIds).toContain('49C');
     expect(forward.fragmentIds).toContain('49D');
     expect(forward.composerVersion).toBe(GENERATED_BOOK_RULE_COMPOSER_VERSION);
-    expect(forward.operations).toHaveLength(416);
+    expect(forward.operations).toHaveLength(572);
     expect(forward.operations.every((operation) => hasBalancedParentheses(operation.expression))).toBe(true);
     expect(forward.operations.every((operation) => !operation.expression.includes('numChildren'))).toBe(true);
     expect(JSON.stringify(currentFragment('49D'))).toBe(JSON.stringify(fragment49D));
@@ -218,9 +218,9 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(sourceSha256(fragment37BRaw))
       .toBe('a2152e623f058de22c107ba1b629c48397e84f46cd5664e6faf56f3e255b456e');
     expect(sourceSha256(fragment49DRaw))
-      .toBe('48bcfe6ed11a5acbc8901498664a4d6e21cf90933f4ae7be866b40237ad922a0');
+      .toBe('e6532d1d98b1642a529547cf5ec015e61de8e5c0bafae94ede4ef3eac4cf1aa5');
     expect(sourceSha256(fragment44Raw))
-      .toBe('014a0e5fd104be06b9627ac5e2281b3d36825b5eab2eb6927f474d03310dc2fc');
+      .toBe('9df815724e30e82607db771e82773338d6938e5f129182c15f725227b51a1f5d');
     expect(sourceSha256(fragment20ARaw))
       .toBe('d288db0c09572b43f212c94a3082fe9519b6eeccff73ad7f24172c3a612db160');
     expect(trustedPreviewSource).toContain('Object.keys(events).length <= 64');
@@ -282,6 +282,11 @@ describe('generated Book RTDB rule manifest and composer', () => {
       expect(operation.expression).not.toContain('numChildren');
       for (const clause of clauses) expect(operation.expression).toContain(clause);
     }
+    const previewApprovalWrite = forward.operations.find((operation) => operation.fragmentId === '15B' && operation.operationIndex === 7);
+    expect(previewApprovalWrite?.expression).not.toContain("newData.child('canonicalActivityFingerprintsByKey').exists()");
+    const previewApprovalValidation = forward.operations.find((operation) => operation.fragmentId === '118D' && operation.operationIndex === 0);
+    expect(previewApprovalValidation?.expression).not.toContain("newData.child('canonicalActivityFingerprintsByKey').exists()");
+    expect(previewApprovalValidation?.expression).not.toContain("'canonicalActivityFingerprintsByKey'");
     expect(forward.byLocation[
       'book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/.validate'
     ].expression).toBe('true');
@@ -305,11 +310,12 @@ describe('generated Book RTDB rule manifest and composer', () => {
       "newData.child('deliveryState').val() == 'unavailable'",
       "newData.child('readDenied').val() == true",
       "newData.child('activation').val() == 'held-for-reconciliation'",
-      '((!data.exists()) || newData.val() == data.val())',
+      '!data.exists()',
       "!newData.child('message').exists()",
       "!newData.child('title').exists()",
       "!newData.child('link').exists()",
     ]) expect(recoveryNotificationExpression).toContain(clause);
+    expect(recoveryNotificationExpression).not.toContain('newData.val() == data.val()');
     const courseEnrollments = forward.rules.course_enrollments as Record<string, unknown>;
     expect(Object.keys(courseEnrollments).filter((key) => key.startsWith('$')))
       .toEqual(['$enrollmentId']);
@@ -329,30 +335,11 @@ describe('generated Book RTDB rule manifest and composer', () => {
     const notificationRead = String(readRule(forward.rules, 'notifications/$userId/.read'));
     expect(notificationRead).toContain('auth.uid === $userId');
     expect(notificationRead).not.toContain('$recipientId');
-    const notificationTransition = String(readRule(
-      forward.rules,
-      'notifications/$userId/$notificationId/read/.write',
-    ));
-    expect(notificationTransition).toContain('auth.uid === $userId');
-    expect(notificationTransition).toContain('data.exists()');
-    expect(notificationTransition).toContain('newData.exists()');
-    expect(notificationTransition).not.toContain('$recipientId');
-    expect(forward.byLocation['notifications/$userId/.read']).toMatchObject({
-      fragmentId: '38B5',
-      operationIndex: 2,
-    });
-    expect(forward.byLocation['notifications/$userId/.write']).toMatchObject({
-      fragmentId: '38B5',
-      operationIndex: 3,
-    });
-    expect(forward.byLocation['notifications/$userId/$notificationId/.write']).toMatchObject({
-      fragmentId: '38B5',
-      operationIndex: 4,
-    });
-    expect(forward.byLocation['notifications/$userId/$notificationId/read/.write']).toMatchObject({
-      fragmentId: '38B5',
-      operationIndex: 5,
-    });
+    expect(forward.byLocation['notifications/$userId/.read']).toMatchObject({ fragmentId: '38B5', operationIndex: 2 });
+    for (const location of ['notifications/$userId/.write', 'notifications/$userId/$notificationId/.write', 'notifications/$userId/$notificationId/read/.write']) {
+      expect(forward.byLocation[location]).toBeUndefined();
+      expect(readRule(forward.rules, location)).toBe(readRule(databaseRules.rules, location));
+    }
     expect(forward.byLocation['notifications/$recipientId/.read']).toBeUndefined();
     expect(readRule(forward.rules, '/.read')).toBe(readRule(databaseRules.rules, '/.read'));
     expect(readRule(forward.rules, 'courses/.read')).toBe(readRule(databaseRules.rules, 'courses/.read'));
@@ -366,13 +353,61 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(readRule(forward.rules, 'material_catalog/material_summary_indexes/v1/by_id/$materialId/.write')).toContain('pbcf');
     expect(String(readRule(forward.rules, 'material_catalog/books/$bookId/$other/.validate')))
       .toContain("$other == 'sourceSet'");
-    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceKey/.write'])
+    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/.write'])
       .toMatchObject({ fragmentId: '118B', operationIndex: 7 });
+    const sourceRead = forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/.read'].expression;
+    const sourceWrite = forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/.write'].expression;
+    const sourceValidation = forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/.validate'].expression;
+    expect(sourceRead).toContain("data.child('purpose').val() == 'book-source'");
+    expect(sourceRead).toContain("data.child('checksum/algorithm').val() == 'sha-256'");
+    expect(sourceRead).toContain("data.child('studentSafeDecision/sha256Hex').val() == data.child('checksum/value').val()");
+    expect(sourceRead).toContain("data.child('studentSafeStatus').val() == 'unreviewed' && !data.child('studentSafeDecision').exists()");
+    expect(sourceRead).toContain("data.child('studentSafeStatus').val() == 'review-required'");
+    expect(sourceRead).toContain("data.child('studentSafeStatus').val() == 'ready'");
+    expect(sourceRead).toContain("data.child('studentSafeDecision/sourceVersionId').val() == $sourceVersionId");
+    expect(sourceRead).toContain("data.child('studentSafeDecision/sha256Hex').val().matches(/^[a-f0-9]{64}$/)");
+    expect(sourceRead).toContain("auth.uid == data.child('ownerId').val()");
+    expect(sourceRead).toContain("root.child('users').child(data.child('ownerId').val()).child('role').val() == 'teacher'");
+    expect(sourceRead).toContain("root.child('users').child(data.child('ownerId').val()).child('status').val() == 'active'");
+    expect(sourceRead).toContain("root.child('users').child(data.child('ownerId').val()).child('disabled').val() != true");
+    expect(sourceRead).toContain("root.child('users').child(data.child('ownerId').val()).child('forceReauth').val() != true");
+    expect(sourceRead).toContain("root.child('users').child(data.child('ownerId').val()).child('privilegedAuthorityRevokedAt').exists()");
+    expect(sourceRead).not.toContain("root.child('users').child(auth.uid).child('role').val() == 'super_admin'");
+    expect(sourceRead).not.toContain("root.child('users').child(auth.uid).child('status').val() == 'active'");
+    expect(sourceRead).not.toContain("root.child('users').child(auth.uid).child('privilegedAuthorityRevokedAt').exists()");
+    expect(sourceWrite).toContain("data.child('studentSafeStatus').val() == 'unreviewed'");
+    expect(sourceWrite).toContain("newData.child('studentSafeStatus').val() == 'unreviewed'");
+    expect(sourceWrite).toContain("newData.child('checksum/value').val() == data.child('checksum/value').val()");
+    expect(sourceWrite).toContain("newData.child('studentSafeDecision/decidedBy').val() == data.child('ownerId').val()");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('ownerId').val()).child('status').val() == 'active'");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('ownerId').val()).child('disabled').val() != true");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('ownerId').val()).child('forceReauth').val() != true");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('ownerId').val()).child('privilegedAuthorityRevokedAt').exists()");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('studentSafeDecision/decidedBy').val()).child('role').val() == 'super_admin'");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('studentSafeDecision/decidedBy').val()).child('status').val() == 'active'");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('studentSafeDecision/decidedBy').val()).child('disabled').val() != true");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('studentSafeDecision/decidedBy').val()).child('forceReauth').val() != true");
+    expect(sourceWrite).toContain("root.child('users').child(newData.child('studentSafeDecision/decidedBy').val()).child('privilegedAuthorityRevokedAt').exists()");
+    expect(sourceValidation).toContain("newData.hasChildren(['ownerId', 'bookId', 'sourceKey', 'sourceVersionId', 'checksum', 'physicalPageCount', 'verifiedUsable', 'purpose', 'studentSafeStatus'])");
+    expect(sourceValidation).toContain("newData.child('checksum/algorithm').val() == 'sha-256'");
+    expect(sourceValidation).toContain("newData.child('checksum/value').val().matches(/^[a-f0-9]{64}$/)");
+    expect(sourceValidation).toContain("newData.child('studentSafeDecision/sourceVersionId').val() == newData.child('sourceVersionId').val()");
+    expect(sourceValidation).toContain("newData.child('studentSafeDecision/sha256Hex').val() == newData.child('checksum/value').val()");
+    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/$other/.validate'])
+      .toMatchObject({ fragmentId: '118B', operationIndex: 9 });
+    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/studentSafeDecision/$other/.validate'])
+      .toMatchObject({ fragmentId: '118B', operationIndex: 10 });
+    expect(forward.byLocation['book_source_upload_accounts/$accountId/assemblyBooks/$bookId/$sourceVersionId/checksum/$other/.validate'])
+      .toMatchObject({ fragmentId: '118B', operationIndex: 11 });
     expect(forward.byLocation['book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey/.write'])
       .toMatchObject({ fragmentId: '118C', operationIndex: 9 });
     expect(forward.byLocation['book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/.write'])
       .toMatchObject({ fragmentId: '15B', operationIndex: 7 });
-    expect(JSON.stringify(forward.rules)).toBe(JSON.stringify(generatedRules.rules));
+    const canonicalCandidate = composeGeneratedBookRules(currentFragmentSources(), {
+      baseRules: generatedRules.rules,
+      requiredFragmentIds: FINAL_BOOK_RULE_FRAGMENT_IDS,
+    });
+    expect(canonicalCandidate.rules).toEqual(generatedRules.rules);
 
     const baseLeaves = flattenRuleLeaves(databaseRules.rules);
     const generatedLeaves = flattenRuleLeaves(forward.rules);
@@ -385,6 +420,32 @@ describe('generated Book RTDB rule manifest and composer', () => {
       && !ownedLocations.has(location)
     ));
     expect(changedOutsideOwnedLocations).toEqual([]);
+  });
+
+  it('preserves canonical inbox writes and composes idempotently without touching unowned leaves', () => {
+    const once = composeGeneratedBookRules(currentFragmentSources(), { baseRules: generatedRules.rules });
+    const twice = composeGeneratedBookRules(currentFragmentSources(), { baseRules: once.rules });
+    expect(twice.rules).toEqual(once.rules);
+    for (const location of ['notifications/$userId/.write', 'notifications/$userId/$notificationId/.write', 'notifications/$userId/$notificationId/read/.write']) {
+      expect(readRule(once.rules, location)).toBe(readRule(generatedRules.rules, location));
+    }
+    const before = flattenRuleLeaves(generatedRules.rules);
+    const after = flattenRuleLeaves(once.rules);
+    const owned = new Set(once.operations.map(operation => operation.location));
+    for (const [location, expression] of before) if (!owned.has(location)) expect(after.get(location)).toEqual(expression);
+    for (const location of [
+      'course_enrollments/$enrollmentId/.write',
+      'course_book_authority/enrollments/$courseId/$studentId/.write',
+    ]) expect(readRule(once.rules, location)).toBe(readRule(generatedRules.rules, location));
+    // New scoped placement alternatives extend the owning Course predicates;
+    // their existing enrollment/request/release branch bytes remain intact.
+    for (const location of ['/.validate', 'course_book_authority/operations/$operationId/.write']) {
+      expect(String(readRule(once.rules, location))).toContain(String(readRule(generatedRules.rules, location)).slice(0, -1));
+    }
+    expect(String(readRule(once.rules, '/.validate'))).toContain('auth.token.classBookOperation');
+    expect(String(readRule(once.rules, 'class_book_authority/operations/$operationId/.write'))).toContain('!data.exists()');
+    expect(String(readRule(once.rules, 'book_replacement_plans/tokens/$ownerId/$planId/$reviewId/.write'))).toContain('selectionFingerprint');
+    expect(String(readRule(once.rules, 'book_replacement_sagas/records/$ownerId/$sagaId/.write'))).toContain("newData.child('reason').val() === data.child('reason').val()");
   });
 
   it('keeps ordinary material-catalog writes on base ownership and denies inverse-gate escapes', () => {
@@ -475,12 +536,13 @@ describe('generated Book RTDB rule manifest and composer', () => {
   });
 
   it('rejects each producer owner-location gap without final reconciliation', () => {
-    for (const fileName of ['16A', '28A', '29', '40B', '44']) {
+    for (const fileName of ['16A', '28A', '40B', '44']) {
       expectCode(
         () => validateGeneratedBookRuleFragment(currentFragment(fileName)),
         'declared-path-gap',
       );
     }
+    expect(() => validateGeneratedBookRuleFragment(currentFragment('29'))).not.toThrow();
   });
 
   it('rejects a true incompatible producer duplicate after isolating its owner gap', () => {

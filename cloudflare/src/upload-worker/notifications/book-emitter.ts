@@ -8,6 +8,7 @@ import type {
 } from '../../../../src/types/notification.types.ts';
 import type { NotificationCommand } from './command-schema.ts';
 import type { NotificationCommandRepository } from './repository.ts';
+import type { NotificationDeliveryResult } from '../../../../src/services/notificationProducerClient.ts';
 import {
   isRecoveryEffectSuppressed,
   type RecoveryEffectContext,
@@ -89,7 +90,7 @@ export interface BookNotificationEmissionResult {
 }
 
 export class BookNotificationEmissionError extends Error {
-  constructor(readonly code: string) {
+  constructor(readonly code: string, readonly delivery?: NotificationDeliveryResult) {
     super(code);
     this.name = 'BookNotificationEmissionError';
   }
@@ -341,25 +342,43 @@ export const createBookNotificationEmitter = (
     let replayed = 0;
     const notificationIds: string[] = [];
     for (const recipientId of recipientIds) {
-      const operationId = await deterministicBookNotificationId({
-        ...identity,
-        recipientId,
-      });
-      const result = await options.repository.create({
-        operationId,
-        recipientId,
-        notification: {
-          type: action.notification.type,
-          title: action.notification.title,
-          message: action.notification.message,
-          link: destinations.get(recipientId),
-          metadata,
-        },
-        now: options.now?.() ?? Date.now(),
-      });
+      let operationId: string;
+      try {
+        operationId = await deterministicBookNotificationId({ ...identity, recipientId });
+      } catch {
+        throw new BookNotificationEmissionError('book_notification_identity_unavailable', {
+          status: 'unknown', delivered: created + replayed, failed: 0, unknown: 0,
+          unattempted: recipientIds.length - notificationIds.length,
+          code: 'book_notification_identity_unavailable',
+        });
+      }
+      let result;
+      try {
+        result = await options.repository.create({
+          operationId,
+          recipientId,
+          notification: {
+            type: action.notification.type,
+            title: action.notification.title,
+            message: action.notification.message,
+            link: destinations.get(recipientId),
+            metadata,
+          },
+          now: options.now?.() ?? Date.now(),
+        });
+      } catch {
+        throw new BookNotificationEmissionError('book_notification_write_unknown', {
+          status: 'unknown', delivered: created + replayed, failed: 0, unknown: 1,
+          unattempted: recipientIds.length - notificationIds.length - 1,
+          code: 'book_notification_write_unknown',
+        });
+      }
       if (result.status === 'idempotency-conflict') {
         throw new BookNotificationEmissionError(
           'book_notification_idempotency_conflict',
+          { status: 'failed', delivered: created + replayed, failed: 1, unknown: 0,
+            unattempted: recipientIds.length - notificationIds.length - 1,
+            code: 'book_notification_idempotency_conflict' },
         );
       }
       if (result.status === 'created') created += 1;

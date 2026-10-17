@@ -1,12 +1,14 @@
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../../listening-authoring/rtdb.ts';
-import { isReplacementPlanExpired } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
-import type {
-  ReplacementCurrentPlanPointer,
-  ReplacementPlanOperationReceipt,
-  ReplacementPlanReadResult,
-  ReplacementPlanRecord,
-  ReplacementPlanReviewRecord,
-  ReplacementTokenRecord,
+import { isReplacementPlanExpired, replacementReviewSelectionFingerprint } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
+import {
+  REPLACEMENT_PLAN_CAPACITY_BYTES,
+  type ReplacementCurrentRevisions,
+  type ReplacementCurrentPlanPointer,
+  type ReplacementPlanOperationReceipt,
+  type ReplacementPlanReadResult,
+  type ReplacementPlanRecord,
+  type ReplacementPlanReviewRecord,
+  type ReplacementTokenRecord,
 } from '../../../../../src/services/book-source-delivery/replacementPlan.types.ts';
 import {
   REPLACEMENT_PLAN_MAX_IDEMPOTENCY_RECORDS,
@@ -38,13 +40,55 @@ interface ReplacementPlanRoot {
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const clone = <T>(value: T): T => structuredClone(value);
+const normalizePlan = (value: unknown): unknown => {
+  if (!record(value)) return value;
+  const normalized = clone(value);
+  normalized.contexts ??= [];
+  normalized.adapters ??= [];
+  normalized.selectedContextKeys ??= [];
+  if (record(normalized.sourceSetDelta)) normalized.sourceSetDelta.mappings ??= [];
+  return normalized;
+};
+const normalizeReview = (value: unknown): unknown => record(value)
+  ? { ...clone(value), selections: value.selections ?? [] } : value;
 const rootFrom = (value: unknown): ReplacementPlanRoot => {
   if (value === null || value === undefined) return {};
   if (!record(value)) throw new Error('invalid_replacement_plan_root');
-  return clone(value) as ReplacementPlanRoot;
+  const root = clone(value) as ReplacementPlanRoot;
+  for (const plans of Object.values(root.plans ?? {})) {
+    for (const [key, plan] of Object.entries(plans)) plans[key] = normalizePlan(plan) as ReplacementPlanRecord;
+  }
+  for (const owner of Object.values(root.reviews ?? {})) {
+    for (const reviews of Object.values(owner)) {
+      for (const [key, review] of Object.entries(reviews)) reviews[key] = normalizeReview(review) as ReplacementPlanReviewRecord;
+    }
+  }
+  return root;
 };
 const safeId = (value: unknown): value is string => typeof value === 'string' && ID.test(value) && !value.includes('/') && !value.includes('\\');
 const safeOperationId = (value: unknown): value is string => safeId(value) && value.length <= 128;
+const safeRevision = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+const validVector = (value: unknown): value is Readonly<Record<string, number>> =>
+  record(value) && Object.keys(value).length > 0 && Object.keys(value).length <= 128
+  && Object.entries(value).every(([key, revision]) => safeId(key) && safeRevision(revision));
+const validCurrentRevisions = (value: unknown): value is ReplacementCurrentRevisions =>
+  record(value)
+  && safeRevision(value.bookRevision)
+  && safeRevision(value.publicationRevision)
+  && safeRevision(value.sourceSetRevision)
+  && validVector(value.sourceVersionRevisions);
+const validCapacity = (value: unknown): boolean => {
+  if (!record(value) || !record(value.current)) return false;
+  const current = value.current;
+  const fields = ['trackedAccountBytes', 'pendingUploadBytes', 'replacementUploadBytes', 'temporaryBytes'];
+  if (Object.keys(current).length !== fields.length || !fields.every((field) => safeRevision(current[field]))) return false;
+  if (!safeRevision(value.additionalBytes) || !safeRevision(value.projected)
+    || value.limit !== REPLACEMENT_PLAN_CAPACITY_BYTES || typeof value.available !== 'boolean') return false;
+  const total = fields.reduce((sum, field) => sum + (current[field] as number), 0);
+  return Number.isSafeInteger(total)
+    && value.projected === total + value.additionalBytes
+    && value.available === value.projected <= REPLACEMENT_PLAN_CAPACITY_BYTES;
+};
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -63,12 +107,32 @@ const validPlan = (value: unknown, ownerId: string, bookId: string, planId?: str
   && safeId(value.ownerId) && value.ownerId === ownerId
   && safeId(value.bookId) && value.bookId === bookId
   && safeId(value.planId) && (!planId || value.planId === planId)
+  && validCurrentRevisions({
+    bookRevision: value.bookRevision,
+    publicationRevision: value.publicationRevision,
+    sourceSetRevision: value.sourceSetRevision,
+    sourceVersionRevisions: value.sourceVersionRevisions,
+  })
+  && safeRevision(value.targetSourceSetRevision)
+  && safeRevision(value.sourceSetRevision)
+  && value.targetSourceSetRevision > value.sourceSetRevision
+  && record(value.sourceSetDelta)
+  && record(value.sourceSetDelta.old)
+  && record(value.sourceSetDelta.next)
+  && Array.isArray(value.sourceSetDelta.mappings)
+  && safeId(value.impactSnapshotId)
   && typeof value.planFingerprint === 'string' && HASH.test(value.planFingerprint)
   && typeof value.deltaFingerprint === 'string' && HASH.test(value.deltaFingerprint)
   && typeof value.impactSnapshotFingerprint === 'string' && HASH.test(value.impactSnapshotFingerprint)
+  && validVector(value.impactSnapshotRevisionVector)
+  && typeof value.impactSnapshotExpiresAt === 'string' && Number.isFinite(nowOr(value.impactSnapshotExpiresAt))
+  && typeof value.createdAt === 'string' && Number.isFinite(nowOr(value.createdAt))
+  && typeof value.expiresAt === 'string' && Number.isFinite(nowOr(value.expiresAt))
   && Array.isArray(value.contexts)
+  && Array.isArray(value.adapters)
   && Array.isArray(value.selectedContextKeys)
   && value.selectedContextKeys.length === 0
+  && validCapacity(value.capacity)
   && !Object.hasOwn(value, 'token');
 const validPointer = (value: unknown, ownerId: string, bookId: string): value is ReplacementCurrentPlanPointer =>
   record(value)
@@ -89,6 +153,12 @@ const validReview = (value: unknown, ownerId: string, bookId: string, planId: st
   && typeof value.deltaFingerprint === 'string' && HASH.test(value.deltaFingerprint)
   && typeof value.snapshotFingerprint === 'string' && HASH.test(value.snapshotFingerprint)
   && record(value.revisionVector)
+  && Array.isArray(value.selections)
+  && value.selections.every((selection) => record(selection) && safeId(selection.contextKey)
+    && safeId(selection.placementId) && typeof selection.choice === 'string')
+  && new Set(value.selections.map((selection) => `${selection.contextKey}\u0000${selection.placementId}`)).size === value.selections.length
+  && typeof value.reason === 'string' && value.reason.length <= 500
+  && typeof value.selectionFingerprint === 'string' && HASH.test(value.selectionFingerprint)
   && ['reviewed', 'canceled'].includes(String(value.state));
 const validToken = (value: unknown, ownerId: string, bookId: string, planId: string, reviewId: string): value is ReplacementTokenRecord =>
   record(value)
@@ -104,6 +174,7 @@ const validToken = (value: unknown, ownerId: string, bookId: string, planId: str
   && typeof value.snapshotFingerprint === 'string' && HASH.test(value.snapshotFingerprint)
   && record(value.revisionVector)
   && typeof value.adapterFingerprint === 'string' && HASH.test(value.adapterFingerprint)
+  && typeof value.selectionFingerprint === 'string' && HASH.test(value.selectionFingerprint)
   && typeof value.issuedAt === 'string' && typeof value.expiresAt === 'string';
 const pointerFor = (plan: ReplacementPlanRecord, status: ReplacementCurrentPlanPointer['status'], updatedAt: string): ReplacementCurrentPlanPointer => ({
   planId: plan.planId,
@@ -169,7 +240,7 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
       }
       const active = root.current?.[plan.ownerId]?.[plan.bookId];
       const activePlan = active ? planAt(root, plan.ownerId, active.planId) : null;
-      if (activePlan && active.status === 'current' && active.planFingerprint === plan.planFingerprint
+      if (active && activePlan && active.status === 'current' && active.planFingerprint === plan.planFingerprint
         && !isReplacementPlanExpired(activePlan, input.now)) {
         const receipt = receiptFor(input.operationId, fingerprint, 'created', input.now, activePlan.planId);
         root.operations ??= {};
@@ -200,7 +271,7 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
         delete root.operations![plan.ownerId]![plan.bookId]![key];
       });
       if (await this.rtdb.writeIfMatch(REPLACEMENT_PLAN_ROOT, root, current.etag)) {
-        if (activePlan && active.status === 'current') {
+        if (active && activePlan && active.status === 'current') {
           await this.invalidateTokens({ ownerId: plan.ownerId, bookId: plan.bookId, planId: activePlan.planId, reason: 'replanned', now: input.now });
         }
         return { status: 'created' as const, plan: clone(plan), receipt: receiptFor(input.operationId, fingerprint, 'created', input.now, plan.planId) };
@@ -211,7 +282,7 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
 
   async readPlan(input: { readonly ownerId: string; readonly bookId: string; readonly planId: string }): Promise<ReplacementPlanRecord | null> {
     if (!safeId(input.ownerId) || !safeId(input.bookId) || !safeId(input.planId)) return null;
-    const value = await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/plans/${input.ownerId}/${input.planId}`);
+    const value = normalizePlan(await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/plans/${input.ownerId}/${input.planId}`));
     return validPlan(value, input.ownerId, input.bookId, input.planId) ? clone(value) : null;
   }
 
@@ -219,7 +290,7 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
     if (!safeId(input.ownerId) || !safeId(input.bookId) || !Number.isFinite(nowOr(input.now))) return { status: 'denied' };
     const pointerValue = await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/current/${input.ownerId}/${input.bookId}`);
     if (!validPointer(pointerValue, input.ownerId, input.bookId)) return { status: 'missing' };
-    const planValue = await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/plans/${input.ownerId}/${pointerValue.planId}`);
+    const planValue = normalizePlan(await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/plans/${input.ownerId}/${pointerValue.planId}`));
     if (!validPlan(planValue, input.ownerId, input.bookId, pointerValue.planId)
       || planValue.planFingerprint !== pointerValue.planFingerprint) return { status: 'stale', planId: pointerValue.planId };
     if (pointerValue.status !== 'current') return { status: 'stale', planId: pointerValue.planId };
@@ -231,7 +302,8 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
   async saveReview(input: { readonly review: ReplacementPlanReviewRecord; readonly operationId: string; readonly now: string }) {
     const review = input.review;
     if (!validReview(review, review.ownerId, review.bookId, review.planId) || !safeOperationId(input.operationId)) throw new Error('invalid_replacement_plan_review');
-    const fingerprint = operationFingerprint('review', { planId: review.planId, planFingerprint: review.planFingerprint });
+    if (await replacementReviewSelectionFingerprint(review) !== review.selectionFingerprint) throw new Error('invalid_replacement_plan_selection');
+    const fingerprint = operationFingerprint('review', { planId: review.planId, planFingerprint: review.planFingerprint, selectionFingerprint: review.selectionFingerprint });
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<unknown>(REPLACEMENT_PLAN_ROOT);
       const root = rootFrom(current.data);
@@ -252,6 +324,11 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
       root.reviews[review.ownerId]![review.planId] ??= {};
       if (root.reviews[review.ownerId]![review.planId]![review.reviewId]) throw new Error('replacement_plan_review_id_collision');
       root.reviews[review.ownerId]![review.planId]![review.reviewId] = clone(review);
+      for (const token of Object.values(root.tokens?.[review.ownerId]?.[review.planId] ?? {})) {
+        if (!token.invalidatedAt) {
+          Object.assign(token, { invalidatedAt: input.now, invalidationReason: 'replanned' });
+        }
+      }
       root.operations ??= {};
       root.operations[review.ownerId] ??= {};
       root.operations[review.ownerId]![review.bookId] ??= {};
@@ -264,7 +341,7 @@ export class FirebaseRestReplacementPlanRepository implements ReplacementPlanRep
 
   async readReview(input: { readonly ownerId: string; readonly bookId: string; readonly planId: string; readonly reviewId: string }): Promise<ReplacementPlanReviewRecord | null> {
     if (!safeId(input.ownerId) || !safeId(input.bookId) || !safeId(input.planId) || !safeId(input.reviewId)) return null;
-    const value = await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/reviews/${input.ownerId}/${input.planId}/${input.reviewId}`);
+    const value = normalizeReview(await this.rtdb.readValue(`${REPLACEMENT_PLAN_ROOT}/reviews/${input.ownerId}/${input.planId}/${input.reviewId}`));
     return validReview(value, input.ownerId, input.bookId, input.planId) && value.reviewId === input.reviewId ? clone(value) : null;
   }
 

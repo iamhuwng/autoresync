@@ -1,4 +1,5 @@
 import type { BookUpdateActionRecord } from '../../../../src/services/book-delivery/bookUpdateAction.types.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import {
   bookUpdatePlanRequiresNotification,
   type BookUpdateNotificationEmissionPort,
@@ -22,15 +23,16 @@ export type BookUpdateFinalizationResult =
   | { readonly status: 'notification-pending'; readonly action: BookUpdateActionRecord; readonly code: string }
   | { readonly status: 'blocked'; readonly code: string };
 
-const validatePlans = (
+const validatePlans = async (
   action: BookUpdateActionRecord,
   plans: readonly BookUpdateNotificationPlan[],
-): readonly BookUpdateNotificationPlan[] | null => {
+): Promise<readonly BookUpdateNotificationPlan[] | null> => {
   if (!Array.isArray(plans) || plans.length > MAX_RECIPIENTS) return null;
   const seen = new Set<string>();
   const valid: BookUpdateNotificationPlan[] = [];
   for (const plan of plans) {
-    const contextKey = `homework:${plan.homeworkId}`;
+    if (!plan || typeof plan !== 'object') return null;
+    const contextKey = await bookImpactContextKey({ contextKind: 'homework', contextId: plan.homeworkId, recipientId: plan.recipientId });
     const selection = action.selections.find((candidate) => (
       candidate.contextKey === contextKey && candidate.choice === plan.choice
     ));
@@ -94,7 +96,7 @@ export const createBookUpdateFinalizer = (options: {
     let plans: readonly BookUpdateNotificationPlan[];
     try {
       const resolved = await options.plans.resolve(action);
-      const validated = validatePlans(action, resolved);
+      const validated = await validatePlans(action, resolved);
       if (!validated) return { status: 'notification-pending', action, code: 'notification-plan-invalid' };
       plans = validated;
     } catch {

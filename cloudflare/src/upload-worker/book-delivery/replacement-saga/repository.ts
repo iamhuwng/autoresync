@@ -32,11 +32,28 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 );
 
 const clone = <T>(value: T): T => structuredClone(value);
+const normalizeSaga = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+  const normalized = clone(value);
+  if (isRecord(normalized.audit) && normalized.audit.itemCount === 0) normalized.contexts ??= {};
+  const delta = normalized.sourceSetDelta;
+  if (isRecord(delta) && isRecord(delta.old) && isRecord(delta.next)
+    && Array.isArray(delta.old.sources) && Array.isArray(delta.next.sources)
+    && delta.old.sources.every((old) => isRecord(old) && delta.next.sources.some((next) => isRecord(next) && next.sourceVersionId === old.sourceVersionId))) {
+    normalized.sourceVersionIds ??= [];
+    if (isRecord(normalized.retiredByteHandoff)) normalized.retiredByteHandoff.sourceVersionIds ??= [];
+  }
+  return normalized;
+};
 
 const rootFrom = (value: unknown): ReplacementSagaRoot => {
   if (value === null || value === undefined) return {};
   if (!isRecord(value)) throw new Error('invalid_replacement_saga_root');
-  return clone(value) as ReplacementSagaRoot;
+  const root = clone(value) as ReplacementSagaRoot;
+  for (const records of Object.values(root.records ?? {})) {
+    for (const [key, saga] of Object.entries(records)) records[key] = normalizeSaga(saga) as ReplacementSagaRecord;
+  }
+  return root;
 };
 
 const validIdentity = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
@@ -48,7 +65,7 @@ const legalAggregateTransition = (from: ReplacementSagaState, to: ReplacementSag
   || (from === 'staging' && (to === 'staged' || to === 'compensating'))
   || (from === 'staged' && (to === 'visible' || to === 'compensating'))
   || (from === 'visible' && to === 'contexts-pending')
-  || (from === 'contexts-pending' && to === 'awaiting-retired-byte-deletion')
+  || (from === 'contexts-pending' && (to === 'awaiting-retired-byte-deletion' || to === 'completed'))
   || (from === 'compensating' && to === 'compensated')
 );
 
@@ -69,6 +86,8 @@ const validSaga = (value: unknown, ownerId: string, sagaId: string): value is Re
     || !validHash(value.deltaFingerprint)
     || !validHash(value.snapshotFingerprint)
     || !validHash(value.adapterFingerprint)
+    || !validHash(value.selectionFingerprint)
+    || typeof value.reason !== 'string'
     || !isRecord(value.contexts)
     || typeof stateRevision !== 'number'
     || !Number.isSafeInteger(stateRevision)
@@ -133,6 +152,8 @@ const validTransitionRecord = (
   && next.deltaFingerprint === current.deltaFingerprint
   && next.snapshotFingerprint === current.snapshotFingerprint
   && next.adapterFingerprint === current.adapterFingerprint
+  && next.selectionFingerprint === current.selectionFingerprint
+  && next.reason === current.reason
   && same(next.revisionVector, current.revisionVector)
   && same(next.sourceSetDelta, current.sourceSetDelta)
   && same(next.sourceVersionIds, current.sourceVersionIds)
@@ -153,6 +174,12 @@ const validTransitionRecord = (
       && isSingleContextAdvance(next, current))
     || (legalAggregateTransition(current.state, next.state)
       && same(next.contexts, current.contexts)
+      && (next.state !== 'completed' || (allContextsRetired(next)
+        && next.retiredByteHandoff !== null
+        && same(next.retiredByteHandoff.sourceVersionIds, next.sourceVersionIds)
+        && (next.sourceVersionIds.length === 0
+          ? next.retiredByteHandoff.status === 'not-required'
+          : next.retiredByteHandoff.status === 'retained')))
       && (current.state !== 'contexts-pending'
         || next.state !== 'awaiting-retired-byte-deletion'
         || (allContextsRetired(next) && next.retiredByteHandoff !== null))
@@ -267,7 +294,7 @@ export class FirebaseRestReplacementSagaLedger implements ReplacementSagaLedger 
 
   async read(input: { readonly ownerId: string; readonly sagaId: string }) {
     if (!validIdentity(input.ownerId) || !validIdentity(input.sagaId)) return null;
-    const value = await this.rtdb.readValue(`${REPLACEMENT_SAGA_ROOT}/records/${input.ownerId}/${input.sagaId}`);
+    const value = normalizeSaga(await this.rtdb.readValue(`${REPLACEMENT_SAGA_ROOT}/records/${input.ownerId}/${input.sagaId}`));
     return validSaga(value, input.ownerId, input.sagaId) ? clone(value) : null;
   }
 

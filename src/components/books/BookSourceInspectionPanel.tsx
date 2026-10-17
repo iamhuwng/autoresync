@@ -132,6 +132,10 @@ const BookSourceInspectionPanel = ({
       if (!mountedRef.current || runRef.current !== run || controller.signal.aborted) return;
       setClaim(nextClaim);
       setPhase('complete');
+      // The parent switches to the upload panel as soon as it receives this
+      // selection. Keep the verified claim alive across that intentional
+      // inspector unmount; the workflow still checks exact File identity.
+      claimHandedOffRef.current = true;
       onClaimChange({ file: nextFile, claim: nextClaim });
       onActionRef.current?.('book_source_pdf_inspection_completed', {
         exactByteSize: nextClaim.exactByteSize,

@@ -12,8 +12,8 @@ import type { BookDeliveryRecoveryContext } from './bookDelivery.recovery';
 
 const operationPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/u;
-const contexts = new Set<BookDeliveryContextKind>(['solo', 'preview', 'homework', 'course', 'class']);
-const supportedAdapterContexts = new Set<BookDeliveryContextKind>(['solo', 'preview', 'homework']);
+const contexts = new Set<BookDeliveryContextKind>(['solo', 'public', 'preview', 'homework', 'course', 'class']);
+const supportedAdapterContexts = new Set<BookDeliveryContextKind>(['solo', 'public', 'preview', 'homework']);
 
 const clone = <T>(value: T): T => structuredClone(value);
 const fingerprint = (value: unknown): string => JSON.stringify(value, Object.keys(value as object).sort());

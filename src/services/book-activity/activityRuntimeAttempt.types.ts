@@ -8,6 +8,7 @@ export type BookRuntimeScheduleOperationKind = BookRuntimeCommandKind | 'documen
 export type BookRuntimeScore =
   | Extract<ActivityScoreResult, { status: 'scored' }>
   | { status: 'review_required' };
+export type BookRuntimeFeedbackPolicy = 'immediate' | 'after_completion' | 'after_deadline' | 'never' | 'manual';
 
 export interface BookRuntimeScheduleTarget {
   readonly placementId: string;
@@ -31,6 +32,15 @@ export interface BookRuntimeScheduleAuthority {
 
 export interface BookRuntimeAttemptPolicy {
   readonly maxAttempts: number | null;
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+}
+
+export interface BookRuntimeTerminalLateFact {
+  readonly effectiveDeadline: BookScheduleWindowDecision['deadline'];
+  readonly policyRevision: number;
+  readonly authorityRevision: number;
+  readonly evaluatedAt: string;
+  readonly late: boolean;
 }
 
 export interface BookRuntimeActivitySubmissionBoundary {
@@ -98,6 +108,8 @@ export interface BookRuntimeAttemptRecord extends BookRuntimeActivitySubmissionB
   readonly pageGroupKeys: readonly string[];
   readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
   readonly feedbackRelease: 'pending';
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
   readonly response: unknown;
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -121,6 +133,8 @@ export interface BookRuntimeResultRecord extends BookRuntimeActivitySubmissionBo
   readonly pageGroupKeys: readonly string[];
   readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
   readonly feedbackRelease: 'pending';
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
   readonly score?: BookRuntimeScore;
   readonly status: 'pending_review' | 'submitted';
   readonly createdByOperationId: string;
@@ -145,6 +159,8 @@ export interface BookRuntimeCompletionRecord extends BookRuntimeActivitySubmissi
   readonly attemptNumber: number;
   readonly pageGroupKeys: readonly string[];
   readonly sourceProvenance: readonly BookRuntimeSourceProvenance[];
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
   readonly status: 'completed';
   readonly createdByOperationId: string;
   readonly createdAt: string;
@@ -166,6 +182,8 @@ export interface BookRuntimeAttemptIndexRecord extends BookRuntimeActivitySubmis
   readonly acknowledgedDraftRevision: number;
   readonly attemptNumber: number;
   readonly pageGroupKeys: readonly string[];
+  readonly feedbackPolicy?: BookRuntimeFeedbackPolicy;
+  readonly terminalLate?: BookRuntimeTerminalLateFact;
   readonly createdByOperationId: string;
   readonly createdAt: string;
 }
@@ -196,3 +214,11 @@ export interface BookRuntimeCommandResult {
   readonly index?: BookRuntimeAttemptIndexRecord;
   readonly receipt: BookRuntimeOperationReceipt;
 }
+
+export type BookRuntimeTerminalStatus =
+  | { readonly status: 'absent' }
+  | {
+    readonly status: 'present';
+    readonly attemptId: string;
+    readonly resultStatus: 'pending_review' | 'submitted';
+  };

@@ -1566,8 +1566,13 @@ const TeacherLobbyPage = () => {
   const handleDeleteDraft = useCallback(async (draft) => {
     const draftTitle = draft.metadata?.title || 'Untitled Draft';
     if (!window.confirm(`Delete draft "${draftTitle}"? This cannot be undone.`)) return;
-    await deleteDraft(draft.id);
-  }, [deleteDraft]);
+    trackAction('deleteDraft', { draftId: draft.id, draftKind: draft.draftKind });
+    if (await deleteDraft(draft.id)) {
+      toast.success(`Deleted draft "${draftTitle}".`);
+    } else {
+      toast.error('Could not delete draft. Refresh Drafts and try again.');
+    }
+  }, [deleteDraft, trackAction]);
 
   const handleStartTest = useCallback((testId) => {
     session.startSession(testId, 'test');
@@ -2494,10 +2499,17 @@ const TeacherLobbyPage = () => {
     });
 
     try {
-      await Promise.all(selectedDrafts.map((draft) => deleteDraft(draft.id)));
+      const results = await Promise.all(selectedDrafts.map((draft) => deleteDraft(draft.id)));
+      const deletedCount = results.filter(Boolean).length;
       setSelectedMaterialIds([]);
       await refreshDrafts();
-      toast.success(`Deleted ${selectedDrafts.length} drafts.`);
+      if (deletedCount === selectedDrafts.length) {
+        toast.success(`Deleted ${deletedCount} draft${deletedCount === 1 ? '' : 's'}.`);
+      } else if (deletedCount === 0) {
+        toast.error('Could not delete selected drafts. Refresh Drafts and try again.');
+      } else {
+        toast.warning(`Deleted ${deletedCount} of ${selectedDrafts.length} selected drafts. Refresh Drafts before retrying.`);
+      }
     } catch (error) {
       console.error('Failed to delete selected drafts:', error);
       toast.error('Failed to delete selected drafts.');

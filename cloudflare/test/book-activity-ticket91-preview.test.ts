@@ -23,6 +23,8 @@ const request: BookIntegritySignalRequest = {
   },
   policyId: 'ticket91-accountable',
   policyRevision: 1,
+  captureSlotId: 'book-integrity-slot-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  captureAttemptNumber: 1,
   clientSessionId: 'ticket91-browser-session',
   sequence: 1,
   signal: 'paste',

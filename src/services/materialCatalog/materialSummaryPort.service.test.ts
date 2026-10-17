@@ -145,6 +145,9 @@ describe('materialSummaryPort.service', () => {
   });
 
   it('rejects unsafe canonical payload fields', () => {
+    const bookActivity = summary({ producerId: 'book-activity', materialKind: 'interactive-activity', surfaceFamily: 'activity' });
+    expect(() => assertMaterialSummary(bookActivity)).not.toThrow();
+    expect(() => assertMaterialSummary({ ...bookActivity, surfaceFamily: 'unknown-family' })).toThrow(MaterialSummaryContractError);
     expect(() => assertMaterialSummary({
       ...summary(),
       answerKey: { q1: 'A' },

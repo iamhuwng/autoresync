@@ -5,6 +5,7 @@ import type { ActivityAuthoringService } from '../../services/book-activity/acti
 import { ActivityAuthoringHttpError } from '../../services/book-activity/activityStorage.service';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
+import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../../services/book-assembly/componentPdfActivation.service';
 import { createBookTeacherAssemblyDocumentRoute } from '../../services/book-delivery/bookTeacherAssemblyDocument.types';
 import BookAssemblyWorkspace from './BookAssemblyWorkspace';
 
@@ -43,11 +44,16 @@ vi.mock('../book-runtime/BookPdfViewerHost', () => ({
   ),
 }));
 
+const sourceVersion = (sourceKey: string, sourceVersionId: string, physicalPageCount: number, verifiedUsable: boolean) => ({
+  sourceKey, sourceVersionId, bookId: 'book-1', physicalPageCount, verifiedUsable,
+  checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+  purpose: 'book-source' as const, studentSafeStatus: 'unreviewed' as const,
+});
 const sourceVersions = [
-  { sourceVersionId: 'source-full', bookId: 'book-1', physicalPageCount: 40, verifiedUsable: true },
-  { sourceVersionId: 'source-part-a', bookId: 'book-1', physicalPageCount: 20, verifiedUsable: true },
-  { sourceVersionId: 'source-part-b', bookId: 'book-1', physicalPageCount: 22, verifiedUsable: true },
-  { sourceVersionId: 'source-invalid', bookId: 'book-1', physicalPageCount: 10, verifiedUsable: false },
+  sourceVersion('full', 'source-full', 40, true),
+  sourceVersion('source-source-part-a', 'source-part-a', 20, true),
+  sourceVersion('source-source-part-b', 'source-part-b', 22, true),
+  sourceVersion('source-invalid', 'source-invalid', 10, false),
 ] as const;
 
 const candidate = (revision = 1): BookAssemblyCandidateRecord => ({
@@ -267,6 +273,117 @@ const renderWorkspace = (overrides: Partial<React.ComponentProps<typeof BookAsse
 beforeEach(() => vi.clearAllMocks());
 
 describe('BookAssemblyWorkspace', () => {
+  it('uses the single A0 activation command for a prepared Component-PDF document', async () => {
+    const user = userEvent.setup();
+    const current = componentReadyCandidate();
+    const repo = repository();
+    repo.loadCurrent = vi.fn(async (_bookId, unitKey) => ({
+      candidate: { ...current, candidateId: unitKey === 'unit-a' ? 'assembly-a' : 'assembly-b', unitKey },
+      savedActivityKeysByUnit: { [unitKey]: unitKey === 'unit-a' ? ['activity-a'] : ['activity-b'] },
+    }));
+    const activateComponentPdf = vi.fn()
+      .mockRejectedValueOnce(new Error('response_lost_after_commit'));
+    const rendered = renderWorkspace({
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+      repository: repo,
+      componentPdfActivationClient: { activateComponentPdf },
+      componentStudentDocumentSourceVersionId: 'student-v1',
+    });
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(1));
+    const firstOperationId = activateComponentPdf.mock.calls[0]![0].operationId;
+    const firstActivatedAt = activateComponentPdf.mock.calls[0]![0].activatedAt;
+    expect(firstOperationId).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-5[a-f0-9]{3}-a[a-f0-9]{3}-[a-f0-9]{12}$/u);
+    const receipt = createComponentPdfActivationReceipt({
+      operationId: firstOperationId, ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 2, expectedSourceSetRevision: 3,
+      sourceSet: current.manifest!.sourceSet,
+      unitCandidates: [
+        { unitKey: 'unit-a', candidateId: 'assembly-a', candidateRevision: 1, manifestFingerprint: fingerprintComponentPdfActivationValue(current.manifest) },
+        { unitKey: 'unit-b', candidateId: 'assembly-b', candidateRevision: 1, manifestFingerprint: fingerprintComponentPdfActivationValue(current.manifest) },
+      ],
+      studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: 4, descriptorFingerprint: 'c'.repeat(64) },
+      activities: [], activatedAt: firstActivatedAt,
+    });
+    activateComponentPdf.mockResolvedValue(receipt);
+    rendered.rerender(<BookAssemblyWorkspace {...rendered.props}
+      bookRevision={3}
+      sourceSetRevision={4}
+      componentPdfActivationRecovery={receipt} />);
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(2));
+    expect(activateComponentPdf.mock.calls[1]![0].operationId).toBe(firstOperationId);
+    expect(activateComponentPdf.mock.calls[1]![0].activatedAt).toBe(firstActivatedAt);
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(repo.loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a');
+  });
+
+  it.each([
+    ['stale revisions', { bookRevision: 2, sourceSetRevision: 3 }],
+    ['another Book', { bookId: 'book-2' }],
+    ['a changed manifest', { changedManifest: true }],
+    ['an invalid fingerprint', { inputFingerprint: 'fnv1a64:0000000000000000' }],
+    ['an unavailable activation client', { clientUnavailable: true }],
+  ])('fails closed for Component-PDF activation recovery with %s', async (_label, change) => {
+    const user = userEvent.setup();
+    const current = componentReadyCandidate();
+    const repo = repository();
+    repo.loadCurrent = vi.fn();
+    const activateComponentPdf = vi.fn();
+    const attachSourceSet = vi.fn();
+    const manifestFingerprint = fingerprintComponentPdfActivationValue(current.manifest);
+    const validRecovery = createComponentPdfActivationReceipt({
+      operationId: 'activation-recovery',
+      ownerId: 'teacher-1',
+      bookId: 'book-1',
+      expectedBookRevision: 2,
+      expectedSourceSetRevision: 3,
+      sourceSet: current.manifest!.sourceSet,
+      unitCandidates: ['unit-a', 'unit-b'].map((recoveryUnitKey) => ({
+        unitKey: recoveryUnitKey,
+        candidateId: `assembly-${recoveryUnitKey}`,
+        candidateRevision: 1,
+        manifestFingerprint,
+      })),
+      studentDocument: {
+        sourceVersionId: 'student-v1',
+        descriptorRevision: 4,
+        descriptorFingerprint: 'c'.repeat(64),
+      },
+      activities: [],
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    });
+    const recovery = {
+      ...validRecovery,
+      ...change,
+    };
+    const changedCandidate = change.changedManifest
+      ? { ...current, manifest: { ...current.manifest!, units: current.manifest!.units.map((unit, index) => index === 0
+        ? { ...unit, pageGroups: unit.pageGroups.map((group) => ({ ...group, pages: [2], defaultPhysicalPageNumber: 2 })) }
+        : unit) } }
+      : current;
+
+    renderWorkspace({
+      bookRevision: 3,
+      sourceSetRevision: 4,
+      initialCandidate: changedCandidate,
+      initialSourceSet: current.manifest!.sourceSet,
+      repository: repo,
+      componentPdfActivationClient: change.clientUnavailable ? null : { activateComponentPdf },
+      componentPdfActivationRecovery: recovery,
+      sourceSetAttachmentClient: { attachSourceSet } as never,
+    });
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    expect(await screen.findByText('component_pdf_activation_recovery_invalid')).toBeInTheDocument();
+    expect(activateComponentPdf).not.toHaveBeenCalled();
+    expect(attachSourceSet).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(repo.loadCurrent).not.toHaveBeenCalled();
+  });
+
   it('switches the guided interface between Full PDF and Component PDFs', async () => {
     const user = userEvent.setup();
     renderWorkspace({ guided: true });
@@ -351,7 +468,7 @@ describe('BookAssemblyWorkspace', () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     await user.click(screen.getByRole('button', { name: 'unit: unit-1' }));
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Current candidate changed');
+    expect(await screen.findByRole('alert')).toHaveTextContent('This book changed; review again.');
 
     await user.click(screen.getByRole('button', { name: 'Reload current' }));
     await waitFor(() => expect(repo.load).toHaveBeenCalledWith('book-1', 'unit-1', 'candidate-1'));
@@ -453,6 +570,12 @@ describe('BookAssemblyWorkspace', () => {
 
     expect(screen.getByText('1 of 2 placed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Unit content' })).toBeEnabled();
+    const firstUnit = (screen.getByRole('combobox', { name: 'Unit for PDF 1' }) as HTMLSelectElement).value;
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit for PDF 2' }), firstUnit);
+    expect(screen.getByText('2 of 2 placed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add structure' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Unit for PDF 2' })).toHaveValue(firstUnit);
+    expect(screen.getByRole('combobox', { name: 'Unit for PDF 2' }).querySelectorAll('option')).toHaveLength(2);
   });
 
   it('targets the newly added component Unit when copying authoring instructions', async () => {
@@ -541,6 +664,105 @@ describe('BookAssemblyWorkspace', () => {
       'teacher_materials_book_assembly_component_unit_selected',
       expect.objectContaining({ sourceVersionId: 'source-part-b', unitKey: 'unit-b' }),
     );
+  });
+
+  it.each([false, true])('saves missing Units and reconciles the live selected draft (changed=%s)', async (changed) => {
+    const user = userEvent.setup();
+    const existing = { ...componentReadyCandidate(), unitKey: 'unit-a', bookRevision: 0, sourceSetRevision: 0 };
+    const live = changed ? { ...existing, revision: 2, manifest: { ...existing.manifest!,
+      units: existing.manifest!.units.map((unit) => unit.unitKey === 'unit-a' ? { ...unit,
+        pageGroups: unit.pageGroups.map((group) => ({ ...group, pages: [2], defaultPhysicalPageNumber: 2 })),
+      } : unit),
+    } } : existing;
+    const repo = { ...repository(), discoverDrafts: vi.fn(async () => [{ candidate: live, savedActivityKeysByUnit: {} }]) };
+    vi.mocked(repo.create).mockImplementation(async (input) => ({
+      status: 'created',
+      candidate: { ...existing, candidateId: `candidate-${input.unitKey}`, unitKey: input.unitKey, lifecycle: 'draft', revision: 1 },
+      receipt: { operationId: input.operationId, fingerprint: 'created', status: 'created', createdAt: existing.updatedAt },
+    }));
+    vi.mocked(repo.replace).mockImplementation(async (input) => ({
+      status: 'replaced',
+      candidate: { ...existing, manifest: input.manifest, candidateId: input.candidateId, unitKey: input.unitKey, lifecycle: 'validated', revision: input.expectedCandidateRevision + 1 },
+      receipt: { operationId: input.operationId, fingerprint: 'replaced', status: 'replaced', createdAt: existing.updatedAt },
+    }));
+    vi.mocked(repo.validate).mockImplementation(async (input) => ({
+      status: 'validated',
+      candidate: { ...existing, candidateId: input.candidateId, unitKey: input.unitKey, lifecycle: 'validated', revision: input.expectedCandidateRevision + 1 },
+      receipt: { operationId: input.operationId, fingerprint: 'validated', status: 'validated', createdAt: existing.updatedAt },
+    }));
+    renderWorkspace({
+      bookRevision: 0,
+      sourceSetRevision: 0,
+      strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+      repository: repo,
+      initialCandidate: existing,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({
+      bookId: 'book-1', unitKey: 'unit-b', expectedBookRevision: 0, expectedSourceSetRevision: 0,
+    })));
+    if (changed) {
+      expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
+        candidateId: live.candidateId, expectedCandidateRevision: 2, unitKey: 'unit-a',
+      }));
+    } else {
+      expect(repo.replace).not.toHaveBeenCalled();
+    }
+    expect(repo.validate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Assembly draft saved.'));
+  });
+
+  it('blocks setup and duplicate persistence while current draft discovery is pending', async () => {
+    const user = userEvent.setup();
+    const current = { ...componentReadyCandidate(), unitKey: 'unit-a', bookRevision: 0, sourceSetRevision: 0 };
+    let resolveDiscovery!: (value: { candidate: BookAssemblyCandidateRecord; savedActivityKeysByUnit: {} }[]) => void;
+    const repo = { ...repository(), discoverDrafts: vi.fn(() => new Promise<{ candidate: BookAssemblyCandidateRecord; savedActivityKeysByUnit: {} }[]>((resolve) => { resolveDiscovery = resolve; })) };
+    const activateComponentPdf = vi.fn();
+    renderWorkspace({ guided: true, guidedUiVariant: 'mockup', guidedStep: 'review',
+      bookRevision: 0, sourceSetRevision: 0, strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]], repository: repo, initialCandidate: current,
+      componentPdfActivationClient: { activateComponentPdf },
+      componentPdfPreparation: { componentReservationIds: ['component-a', 'component-b'], studentDocumentReservationId: 'combined' },
+    });
+    const setup = screen.getByRole('button', { name: 'Prepare Book preview after saving Activities' });
+    expect(setup).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(setup).toBeDisabled();
+    fireEvent.click(setup);
+    fireEvent.click(screen.getByRole('button', { name: 'Saving…' }));
+    expect(repo.discoverDrafts).toHaveBeenCalledTimes(1);
+    expect(activateComponentPdf).not.toHaveBeenCalled();
+    resolveDiscovery([{ candidate: current, savedActivityKeysByUnit: {} },
+      { candidate: { ...current, unitKey: 'unit-b' }, savedActivityKeysByUnit: {} }]);
+    await waitFor(() => expect(setup).toBeEnabled());
+    expect(repo.replace).not.toHaveBeenCalled();
+  });
+
+  it('does not report a first Component-PDF draft saved when a Unit validation rejects', async () => {
+    const user = userEvent.setup();
+    const existing = { ...componentReadyCandidate(), unitKey: 'unit-a', bookRevision: 0, sourceSetRevision: 0 };
+    const repo = { ...repository(), discoverDrafts: vi.fn(async () => [{ candidate: existing, savedActivityKeysByUnit: {} }]) };
+    vi.mocked(repo.create).mockImplementation(async (input) => ({
+      status: 'created',
+      candidate: { ...existing, candidateId: `candidate-${input.unitKey}`, unitKey: input.unitKey, lifecycle: 'draft', revision: 1 },
+      receipt: { operationId: input.operationId, fingerprint: 'created', status: 'created', createdAt: existing.updatedAt },
+    }));
+    vi.mocked(repo.validate).mockImplementation(async (input) => ({
+      status: 'invalid',
+      candidate: { ...existing, candidateId: input.candidateId, unitKey: input.unitKey, lifecycle: 'draft', revision: 1 },
+      receipt: { operationId: input.operationId, fingerprint: 'invalid', status: 'invalid', createdAt: existing.updatedAt },
+    }));
+    renderWorkspace({ bookRevision: 0, sourceSetRevision: 0, strategyOverride: 'component_pdfs',
+      sourceVersions: [sourceVersions[1], sourceVersions[2]], repository: repo, initialCandidate: existing });
+
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(repo.validate).toHaveBeenCalledWith(expect.objectContaining({ unitKey: 'unit-b' })));
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(mocks.success).not.toHaveBeenCalledWith('Assembly draft saved.');
   });
 
   it('rejects invalid persisted Source Versions before 13A mutation', async () => {
@@ -794,6 +1016,7 @@ describe('BookAssemblyWorkspace', () => {
         outline: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1 }],
         sourceSet: { strategy: 'full_pdf', sources: [{ sourceKey: 'full', sourceVersionId: 'source-full', lifecycle: 'verified-usable', sourceOrder: 1, localPageScope: { kind: 'all', pages: [] } }] },
         documentRequests: [{ sourceKey: 'full', sourceVersionId: 'source-full', opaqueRouteKey: 'full', localPageScope: { kind: 'all', pages: [] } }],
+        pageGroups: [{ pageGroupKey: 'unit-1', combinedPhysicalPages: [2] }],
         activities: [{ placementId: 'candidate-1:activity-1', activityId: 'activity-1', nodeKey: 'unit-1', order: 1, contextMode: 'required', sourceContext: { available: true, description: 'full page 2', pageGroupKeys: ['unit-1'], sourcePageScopes: [{ sourceKey: 'full', pages: [2] }] } }],
         actionFlags: { canAutosave: false, canSubmit: false, canReview: false },
       },
@@ -1098,4 +1321,58 @@ describe('BookAssemblyWorkspace', () => {
       expect.objectContaining({ issueCount: 1 }),
     );
   });
+
+  it('keeps row choices local and advances the baseline only after persistence succeeds', async () => {
+    const user = userEvent.setup();
+    const onDirtyChange = vi.fn();
+    const repo = repository();
+    const base = candidate();
+    const unit = base.manifest!.units[0];
+    const current = { ...base, manifest: { ...base.manifest!, units: [{ ...unit,
+      activitySlots: [
+        { activityKey: 'activity-1', order: 1, contextRequirement: 'optional' as const, pageGroupKeys: ['pages-1'] },
+        { activityKey: 'activity-2', order: 2, contextRequirement: 'optional' as const, pageGroupKeys: ['pages-2'] },
+      ],
+      pageGroups: [
+        { pageGroupKey: 'pages-1', sourceKey: 'full', pages: [1], activityKeys: ['activity-1'], mode: 'activity' as const },
+        { pageGroupKey: 'pages-2', sourceKey: 'full', pages: [2], activityKeys: ['activity-2'], mode: 'activity' as const },
+      ],
+    }] } };
+    renderWorkspace({ initialCandidate: current, repository: repo, onDirtyChange });
+
+    for (const [activityKey, page] of [['activity-1', '4'], ['activity-2', '3']] as const) {
+      await user.clear(screen.getByLabelText('Activity key'));
+      await user.type(screen.getByLabelText('Activity key'), activityKey);
+      await user.clear(screen.getByLabelText('One-based physical pages'));
+      await user.type(screen.getByLabelText('One-based physical pages'), page);
+      await user.clear(screen.getByLabelText('Default physical page'));
+      await user.type(screen.getByLabelText('Default physical page'), page);
+      await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+    }
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Keep current' })).toHaveLength(2));
+    await user.click(screen.getAllByRole('button', { name: 'Keep current' })[0]);
+    expect(screen.getAllByRole('button', { name: 'Use proposed' })).toHaveLength(1);
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(repo.replace).not.toHaveBeenCalled();
+
+    await user.click(screen.getAllByRole('button', { name: 'Save draft' })[0]);
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getByRole('button', { name: 'Use proposed' }));
+    expect(screen.getAllByRole('button', { name: 'Save draft' })[0]).toBeEnabled();
+    expect(screen.getByRole('region', { name: 'Candidate reconciliation' })).toHaveTextContent('0 unresolved');
+    vi.mocked(repo.replace)
+      .mockResolvedValueOnce({ status: 'conflict', conflict: { expectedRevision: 1, currentRevision: 2 } })
+      .mockResolvedValueOnce({ status: 'replaced', candidate: { ...current, revision: 2 } });
+    await user.click(screen.getAllByRole('button', { name: 'Save draft' })[0]);
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    await user.click(screen.getAllByRole('button', { name: 'Save draft' })[0]);
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(2));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
 });

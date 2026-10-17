@@ -1,8 +1,11 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PersonalTimerStorage } from '../../hooks/book-runtime/usePersonalTimer';
 import { PersonalTimer } from './PersonalTimer';
+
+const trackAction = vi.hoisted(() => vi.fn());
+vi.mock('../../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction }) }));
 
 const createStore = (): PersonalTimerStorage => {
   const values = new Map<string, unknown>();
@@ -29,5 +32,16 @@ describe('PersonalTimer', () => {
     expect(screen.getByTestId('personal-timer-show')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show personal timer' }));
     expect(screen.getByRole('button', { name: 'Start timer' })).toBeInTheDocument();
+  });
+
+  it('tracks compact countdown disclosure through registered visibility actions', async () => {
+    const user = userEvent.setup();
+    trackAction.mockClear();
+    render(<PersonalTimer timerKey="compact" compact countdownMs={60_000} storage={createStore()} channelFactory={() => null} />);
+    const disclosure = screen.getByLabelText('Personal countdown timer');
+    await user.click(disclosure);
+    await waitFor(() => expect(trackAction).toHaveBeenCalledWith('bookRuntimeTimerShown', { timerKey: 'compact' }));
+    await user.click(disclosure);
+    await waitFor(() => expect(trackAction).toHaveBeenCalledWith('bookRuntimeTimerHidden', { timerKey: 'compact' }));
   });
 });

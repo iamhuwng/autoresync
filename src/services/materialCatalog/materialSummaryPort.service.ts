@@ -18,6 +18,7 @@ export type MaterialSummarySurfaceFamily =
   | 'assessment'
   | 'passage'
   | 'book'
+  | 'activity'
   | 'draft'
   | 'resource';
 
@@ -179,6 +180,7 @@ const MATERIAL_SUMMARY_SURFACE_FAMILIES = new Set<MaterialSummarySurfaceFamily>(
   'assessment',
   'passage',
   'book',
+  'activity',
   'draft',
   'resource',
 ]);

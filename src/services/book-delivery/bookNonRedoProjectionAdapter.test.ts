@@ -37,7 +37,7 @@ describe('#112 projection adapter CAS/replay', () => {
     const input = {
       operationId: 'action-1:homework:placement-1:display-only', actionId: 'action-1',
       operation: {
-        kind: 'display-only' as const, contextKey: 'homework:homework-1', contextKind: 'homework' as const,
+        kind: 'display-only' as const, contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', recipientId: 'student-1', contextKind: 'homework' as const,
         lifecycle: 'completed' as const, placementId: 'placement-1', activityId: 'activity-1',
         oldActivityVersionId: 'activity-v1', newActivityVersionId: 'activity-v2',
         choice: 'apply-without-redo' as const, displayFingerprint: 'a'.repeat(64),

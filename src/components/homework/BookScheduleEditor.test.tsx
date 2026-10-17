@@ -162,6 +162,64 @@ describe('BookScheduleEditor', () => {
     expect(screen.getByLabelText('Due Date')).toHaveFocus();
   });
 
+  it('shows timezone/offset and requires DST disambiguation before confirmation', () => {
+    const onChange = vi.fn();
+    const view = render(
+      <BookScheduleEditor
+        value={{ availableFrom: '', dueDate: '2026-03-08T02:30', scheduleRules: [] }}
+        onChange={onChange}
+        outline={outline}
+        activities={activities}
+        timeZone="America/New_York"
+      />,
+    );
+    expect(screen.getAllByRole('alert').some((node) => /does not exist/u.test(node.textContent ?? ''))).toBe(true);
+
+    view.rerender(
+      <BookScheduleEditor
+        value={{ availableFrom: '', dueDate: '2026-11-01T01:30', scheduleRules: [] }}
+        onChange={onChange}
+        outline={outline}
+        activities={activities}
+        timeZone="America/New_York"
+      />,
+    );
+    expect(screen.getByRole('group', { name: /choose UTC offset/iu })).toHaveTextContent('America/New_York');
+    fireEvent.click(screen.getByRole('button', { name: 'UTC-05:00' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dueDate: '2026-11-01T01:30-05:00' }));
+
+    view.rerender(
+      <BookScheduleEditor
+        value={{ availableFrom: '', dueDate: '2026-11-01T01:30-05:00', scheduleRules: [] }}
+        onChange={onChange}
+        outline={outline}
+        activities={activities}
+        timeZone="America/New_York"
+      />,
+    );
+    expect(screen.getByText('America/New_York (UTC-05:00)')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: '2026-11-01T01:45' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ dueDate: '2026-11-01T01:45-05:00' }));
+  });
+
+  it('does not classify an unresolved ambiguous nested deadline in the host timezone', () => {
+    const onIntent = vi.fn();
+    render(
+      <BookScheduleEditor
+        value={{ availableFrom: '', dueDate: '2026-11-02T12:00-05:00', scheduleRules: [] }}
+        onChange={vi.fn()}
+        outline={outline}
+        activities={activities}
+        timeZone="America/New_York"
+        onIntent={onIntent}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Deadline override for Unit 1'), {
+      target: { value: '2026-11-01T01:30' },
+    });
+    expect(onIntent).not.toHaveBeenCalled();
+  });
+
   it('keeps native 44px targets and responsive mobile/zoom containment', () => {
     expect(styles).toMatch(/min-height:\s*44px/);
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*?flex-direction:\s*column/);

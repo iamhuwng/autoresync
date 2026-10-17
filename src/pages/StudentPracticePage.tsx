@@ -19,7 +19,7 @@
  * - Settings cascade: material > module > course > defaults
  */
 
-import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
@@ -313,6 +313,17 @@ const BookPlacementLaunchPage: React.FC<{
     const [projection, setProjection] = useState<import('../services/book-delivery/bookDelivery.types').BookRuntimeDeliveryProjection | null>(null);
     const [loading, setLoading] = useState(launch.kind !== 'invalid');
     const [error, setError] = useState<string | null>(launch.kind === 'invalid' ? 'The Book launch link is invalid.' : null);
+    const requestGeneration = useRef(0);
+    const launchRequest = useRef<{
+        launchIdentity: string;
+        promise: ReturnType<typeof resolveBookPlacementLaunch>;
+    } | null>(null);
+    const launchIdentity = JSON.stringify(launch);
+    const refreshState = useRef<{
+        launchIdentity: string;
+        attempted: boolean;
+        inFlight: Promise<void> | null;
+    }>({ launchIdentity, attempted: false, inFlight: null });
 
     const returnToEntry = useCallback((source: 'launch-state' | 'runtime' = 'launch-state') => {
         if (source === 'launch-state') {
@@ -321,7 +332,8 @@ const BookPlacementLaunchPage: React.FC<{
                 reason: launch.kind === 'invalid' ? launch.reason : 'user_requested',
                 destination: launch.kind === 'class'
                     ? 'class-detail'
-                    : launch.kind === 'homework' ? 'homework' : 'courses',
+                    : launch.kind === 'homework' ? 'homework'
+                        : launch.kind === 'solo' ? 'library' : 'courses',
                 outcome: 'returned',
             });
         }
@@ -339,6 +351,13 @@ const BookPlacementLaunchPage: React.FC<{
             });
             return;
         }
+        if (launch.kind === 'solo') {
+            navigateTo('STUDENT_LIBRARY', undefined, {
+                force: true,
+                reason: 'book_runtime_return_solo',
+            });
+            return;
+        }
         navigateTo('STUDENT_COURSES', undefined, {
             force: true,
             reason: 'book_runtime_return_course',
@@ -353,15 +372,19 @@ const BookPlacementLaunchPage: React.FC<{
             return;
         }
 
-        let mounted = true;
+        const generation = ++requestGeneration.current;
         setLoading(true);
         setError(null);
         setProjection(null);
-        void resolveBookPlacementLaunch({
-            launch: launch as ValidBookPlacementLaunch,
-            studentId: user.uid,
-        }).then((result) => {
-            if (!mounted) return;
+        const request = launchRequest.current?.launchIdentity === launchIdentity
+            ? launchRequest.current.promise
+            : resolveBookPlacementLaunch({
+                launch: launch as ValidBookPlacementLaunch,
+                studentId: user.uid,
+            });
+        launchRequest.current = { launchIdentity, promise: request };
+        void request.then((result) => {
+            if (generation !== requestGeneration.current) return;
             if (result.status !== 'resolved') {
                 trackAction('bookRuntimeLaunchBlocked', {
                     surface: launch.surface,
@@ -376,7 +399,9 @@ const BookPlacementLaunchPage: React.FC<{
                             classCourseMaterialId: launch.classCourseMaterialId,
                             bindingId: launch.bindingId,
                             }
-                            : { homeworkId: launch.homeworkId }),
+                            : launch.kind === 'homework'
+                                ? { homeworkId: launch.homeworkId }
+                                : {}),
                     outcome: 'blocked',
                 });
                 setError('This Book launch is no longer available for your account.');
@@ -394,7 +419,7 @@ const BookPlacementLaunchPage: React.FC<{
             setProjection(result.projection);
             setLoading(false);
         }).catch((reason: unknown) => {
-            if (!mounted) return;
+            if (generation !== requestGeneration.current) return;
             trackAction('bookRuntimeLaunchBlocked', {
                 surface: launch.surface,
                 reason: reason instanceof Error ? reason.name : 'unknown',
@@ -402,11 +427,61 @@ const BookPlacementLaunchPage: React.FC<{
             });
             setError('This Book launch could not be resolved.');
             setLoading(false);
+        }).finally(() => {
+            if (launchRequest.current?.promise === request) launchRequest.current = null;
         });
         return () => {
-            mounted = false;
+            requestGeneration.current += 1;
         };
-    }, [launch, trackAction, user?.uid]);
+    }, [launch, launchIdentity, trackAction, user?.uid]);
+
+    const refreshProjection = useCallback((reason: 'not-found' | 'stale-binding'): Promise<void> | undefined => {
+        if (launch.kind === 'invalid' || !user?.uid || !projection) return;
+        if (refreshState.current.launchIdentity !== launchIdentity) {
+            refreshState.current = { launchIdentity, attempted: false, inFlight: null };
+        }
+        if (refreshState.current.inFlight) return refreshState.current.inFlight;
+        if (refreshState.current.attempted) return;
+        refreshState.current.attempted = true;
+        const generation = requestGeneration.current;
+        const expected = {
+            contextId: projection.context.contextId,
+            kind: projection.context.kind,
+            recipientId: projection.recipientId,
+        };
+        const refresh = resolveBookPlacementLaunch({
+            launch: launch as ValidBookPlacementLaunch,
+            studentId: user.uid,
+        }).then((result) => {
+            if (generation !== requestGeneration.current) return;
+            if (result.status !== 'resolved'
+                || result.projection.context.contextId !== expected.contextId
+                || result.projection.context.kind !== expected.kind
+                || result.projection.recipientId !== expected.recipientId) {
+                setError('This Book launch is no longer available for your account.');
+                return;
+            }
+            trackAction('bookRuntimeProjectionRefreshed', {
+                surface: launch.surface,
+                reason,
+                bindingId: result.projection.bindingId,
+                bindingRevision: result.projection.bindingRevision,
+                outcome: 'success',
+            });
+            setProjection(result.projection);
+        }).catch(() => {
+            if (generation === requestGeneration.current) {
+                setError('This Book launch could not be refreshed.');
+            }
+        }).finally(() => {
+            if (refreshState.current.launchIdentity === launchIdentity
+                && refreshState.current.inFlight === refresh) {
+                refreshState.current.inFlight = null;
+            }
+        });
+        refreshState.current.inFlight = refresh;
+        return refresh;
+    }, [launch, launchIdentity, projection, trackAction, user?.uid]);
 
     if (loading) {
         return <BookPlacementLaunchState title="Loading Book" message="Resolving your published Book access." onReturn={returnToEntry} />;
@@ -418,6 +493,7 @@ const BookPlacementLaunchPage: React.FC<{
         <BookPlacementRuntimeHost
             onAction={(action, metadata) => trackAction(action, metadata)}
             onReturn={() => returnToEntry('runtime')}
+            onProjectionExpired={refreshProjection}
             projection={projection}
         />
     );
@@ -1152,7 +1228,10 @@ const StudentPracticePageContent: React.FC = () => {
 export const StudentPracticePage: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
     const location = useLocation();
-    const bookLaunch = parseBookPlacementLaunchQuery(location.search);
+    const bookLaunch = useMemo(
+        () => parseBookPlacementLaunchQuery(location.search),
+        [location.search],
+    );
     if (isExplicitBookPlacementLaunch(bookLaunch)) {
         return (
             <TestErrorBoundary sessionCode={materialId}>

@@ -4,8 +4,19 @@ import { validateBookAssemblyManifestCandidate } from './manifestCandidate.servi
 
 const authority = (verifiedUsable = true): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => ({
+    sourceKey: sourceVersionId === 'full-v1' ? 'full' : sourceVersionId.replace(/-v1$/u, ''),
     sourceVersionId,
     bookId: 'book-1',
+    checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+    purpose: 'book-source' as const,
+    studentSafeStatus: 'ready' as const,
+    studentSafeDecision: {
+      decidedBy: 'teacher-1',
+      decidedAt: '2026-01-01T00:00:00.000Z',
+      sourceVersionId,
+      sha256Hex: 'a'.repeat(64),
+      reasonCode: 'teacher-reviewed' as const,
+    },
     physicalPageCount: 10,
     verifiedUsable,
   }),

@@ -43,19 +43,30 @@ describe('SourceUploadRtdbRepository', () => {
     expect(replacement.operations['reservation-2']).toMatchObject({ sourceKey: 'unit-1', kind: 'replacement' });
   });
 
-  it('persists the owner-attested count and rejects a changed-count replay', async () => {
+  it('keeps browser page counts out of reservations and commits the trusted count', async () => {
     const memory = createMemoryTransaction();
     const repository = createRepository(memory.transaction);
-    const reserved = await repository.reserve(reservation({ ownerAttestedPhysicalPageCount: 7 }));
+    const reserved = await repository.reserve(reservation());
 
-    expect(reserved.operations['reservation-1']).toMatchObject({
-      ownerAttestedPhysicalPageCount: 7,
-    });
+    expect(reserved.operations['reservation-1']).not.toHaveProperty('ownerAttestedPhysicalPageCount');
     expect(reserved.operations['reservation-1']).not.toHaveProperty('physicalPageCount');
-    await expect(repository.reserve(reservation({
+    const completed = await repository.completeVerified({
+      accountId: 'account-1',
       expectedRevision: reserved.revision,
-      ownerAttestedPhysicalPageCount: 8,
-    }))).rejects.toThrow('reservation identity is immutable');
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+      physicalPageCount: 7,
+    });
+    expect(completed.operations['reservation-1']).toMatchObject({ physicalPageCount: 7 });
+    await expect(repository.completeVerified({
+      accountId: 'account-1',
+      expectedRevision: completed.revision,
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+      physicalPageCount: 8,
+    })).rejects.toThrow('verified completion identity is immutable');
   });
 
   it('persists bounded provider scan progress without advancing the domain revision', async () => {
@@ -173,6 +184,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: otherActiveBook.revision,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
@@ -406,20 +418,27 @@ describe('SourceUploadRtdbRepository', () => {
     expect(reserved.capacity.trackedAccountBytes).toBe(80);
     await expect(repository.completeVerified({
       accountId: 'account-1', expectedRevision: 1, reservationId: 'reservation-1', verifiedAt: '2026-07-23T00:01:00.000Z',
-      verifiedStorage: storage({ byteSize: 9 }),
+      verifiedStorage: storage({ byteSize: 9 }), physicalPageCount: 4,
     })).rejects.toThrow('trusted completion does not match');
     const completed = await repository.completeVerified({
-      accountId: 'account-1', expectedRevision: 1, reservationId: 'reservation-1', verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(),
+      accountId: 'account-1', expectedRevision: 1, reservationId: 'reservation-1', verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(), physicalPageCount: 4,
     });
     expect(completed.capacity.trackedAccountBytes).toBe(90);
     expect(completed.operations['reservation-1']).toMatchObject({ status: 'verified_completed', verifiedStorage: storage() });
+    await expect(repository.requestCleanup({
+      accountId: 'account-1', expectedRevision: completed.revision, reservationId: 'reservation-1', ownerId: 'teacher-1',
+      reason: 'cancel_requested', requestedAt: '2026-07-23T00:01:01.000Z',
+    })).rejects.toThrow('verified upload cannot enter cleanup');
     expect(completed.assemblyBooks).toEqual({
       'book-1': {
-        'unit-1': {
+        'source-1': {
           ownerId: 'teacher-1',
           bookId: 'book-1',
           sourceKey: 'unit-1',
           sourceVersionId: 'source-1',
+          checksum: storage().checksum,
+          purpose: 'book-source',
+          studentSafeStatus: 'unreviewed',
           physicalPageCount: 4,
           verifiedUsable: true,
         },
@@ -429,6 +448,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 2,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage({ privateBucketId: 'other-bucket' }),
     })).rejects.toThrow('verified completion identity is immutable');
@@ -442,6 +462,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 1,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
@@ -451,14 +472,18 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: completed.revision,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
-    expect(repaired.assemblyBooks?.['book-1']?.['unit-1']).toEqual({
+    expect(repaired.assemblyBooks?.['book-1']?.['source-1']).toEqual({
       ownerId: 'teacher-1',
       bookId: 'book-1',
       sourceKey: 'unit-1',
       sourceVersionId: 'source-1',
+      checksum: storage().checksum,
+      purpose: 'book-source',
+      studentSafeStatus: 'unreviewed',
       physicalPageCount: 4,
       verifiedUsable: true,
     });
@@ -492,20 +517,41 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: initial.revision,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
+    const readyAuditId = `source-1-${committedInitial.revision}-private_ready`;
+    expect(committedInitial.lifecycleAuditEvents).toMatchObject({
+      [readyAuditId]: {
+        eventId: readyAuditId,
+        transition: 'private_ready',
+        revision: committedInitial.revision,
+        reservationId: 'reservation-1',
+        sourceVersionId: 'source-1',
+      },
+    });
+    expect(Object.keys(committedInitial.lifecycleAuditEvents ?? {})).toHaveLength(1);
+    const replay = await repository.completeVerified({
+      accountId: 'account-1', expectedRevision: committedInitial.revision, reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(), physicalPageCount: 4,
+    });
+    expect(replay).toBe(committedInitial);
+    expect(replay.lifecycleAuditEvents).toEqual(committedInitial.lifecycleAuditEvents);
+    expect(Object.keys(replay.lifecycleAuditEvents ?? {})).toHaveLength(1);
     const replacement = await repository.reserve(reservation({
       expectedRevision: committedInitial.revision,
       reservationId: 'reservation-2',
       sourceVersionId: 'source-2',
       providerObjectKey: 'private/book-1/source-2.pdf',
       kind: 'replacement',
-      ownerAttestedPhysicalPageCount: 9,
     }));
     expect(replacement.operations['reservation-1']?.sourceVersionId).toBe('source-1');
-    expect(replacement.operations['reservation-1']?.ownerAttestedPhysicalPageCount).toBe(4);
-    expect(replacement.assemblyBooks?.['book-1']?.['unit-1']).toMatchObject({
+    expect(replacement.operations['reservation-1']?.physicalPageCount).toBe(4);
+    expect(replacement.operations['reservation-2']).toMatchObject({
+      replacesSourceVersionId: 'source-1',
+    });
+    expect(replacement.assemblyBooks?.['book-1']?.['source-1']).toMatchObject({
       sourceVersionId: 'source-1',
       physicalPageCount: 4,
       verifiedUsable: true,
@@ -518,6 +564,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: replacement.revision,
       reservationId: 'reservation-2',
+      physicalPageCount: 9,
       verifiedAt: '2026-07-23T00:02:00.000Z',
       verifiedStorage: storage({
         sourceVersionId: 'source-2',
@@ -526,12 +573,326 @@ describe('SourceUploadRtdbRepository', () => {
         providerFileVersionId: 'version-2',
       }),
     });
+    const replacementAuditId = `source-2-${committedReplacement.revision}-private_replaced`;
+    expect(committedReplacement.lifecycleAuditEvents).toMatchObject({
+      [replacementAuditId]: {
+        eventId: replacementAuditId,
+        transition: 'private_replaced',
+        revision: committedReplacement.revision,
+        reservationId: 'reservation-2',
+        sourceVersionId: 'source-2',
+        replacesSourceVersionId: 'source-1',
+      },
+    });
+    expect(Object.keys(committedReplacement.lifecycleAuditEvents ?? {})).toHaveLength(2);
     expect(committedReplacement.operations['reservation-1']?.sourceVersionId).toBe('source-1');
-    expect(committedReplacement.assemblyBooks?.['book-1']?.['unit-1']).toMatchObject({
+    expect(committedReplacement.assemblyBooks?.['book-1']?.['source-2']).toMatchObject({
       sourceVersionId: 'source-2',
       physicalPageCount: 9,
       verifiedUsable: true,
     });
+  });
+
+  it('fails closed on stale CAS, malformed audit, and conflicting audit state', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const reserved = await repository.reserve(reservation());
+    const completion = {
+      accountId: 'account-1',
+      reservationId: 'reservation-1',
+      verifiedAt: '2026-07-23T00:01:00.000Z',
+      verifiedStorage: storage(),
+      physicalPageCount: 4,
+    } as const;
+
+    await expect(repository.completeVerified({
+      ...completion,
+      expectedRevision: reserved.revision - 1,
+    })).rejects.toThrow('compare-and-set conflict');
+
+    memory.setState({
+      ...reserved,
+      lifecycleAuditEvents: {
+        corrupt: {
+          eventId: 'corrupt',
+          transition: 'private_ready',
+          revision: 0,
+          occurredAt: '2026-07-23T00:01:00.000Z',
+          reservationId: 'reservation-1',
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          sourceKey: 'unit-1',
+          sourceVersionId: 'source-1',
+        },
+      },
+    });
+    await expect(repository.completeVerified({ ...completion, expectedRevision: reserved.revision }))
+      .rejects.toThrow('invalid lifecycle audit event');
+
+    const conflictingAuditId = `source-1-${reserved.revision + 1}-private_ready`;
+    memory.setState({
+      ...reserved,
+      lifecycleAuditEvents: {
+        [conflictingAuditId]: {
+          eventId: conflictingAuditId,
+          transition: 'private_ready',
+          revision: reserved.revision + 1,
+          occurredAt: '2026-07-23T00:00:59.000Z',
+          reservationId: 'reservation-1',
+          ownerId: 'teacher-1',
+          bookId: 'book-1',
+          sourceKey: 'unit-1',
+          sourceVersionId: 'source-1',
+        },
+      },
+    });
+    await expect(repository.completeVerified({ ...completion, expectedRevision: reserved.revision }))
+      .rejects.toThrow('lifecycle audit identity is immutable');
+  });
+
+  it('binds trusted safety decisions to the owner, version, and checksum', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const reserved = await repository.reserve(reservation());
+    const completed = await repository.completeVerified({
+      accountId: 'account-1', expectedRevision: reserved.revision, reservationId: 'reservation-1',
+      physicalPageCount: 4,
+      verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(),
+    });
+    const ready = await repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: completed.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-1', studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:02:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed',
+      },
+    });
+    expect(ready.operations['reservation-1']).toMatchObject({
+      purpose: 'book-source', studentSafeStatus: 'ready',
+      studentSafeDecision: { sourceVersionId: 'source-1', sha256Hex: 'a'.repeat(64) },
+    });
+    expect(ready.assemblyBooks?.['book-1']?.['source-1']).toMatchObject({
+      purpose: 'book-source', studentSafeStatus: 'ready',
+    });
+    const replay = await repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: ready.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-1', studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:03:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed',
+      },
+    });
+    expect(replay).toBe(ready);
+    await expect(repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: ready.revision, reservationId: 'reservation-1',
+      bookId: 'book-1/ancestor', actorId: 'teacher-1', studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:03:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed',
+      },
+    })).rejects.toThrow('bookId');
+    await expect(repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: ready.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-1', studentSafeStatus: 'rejected',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:03:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'b'.repeat(64), reasonCode: 'invalid-document',
+      },
+    })).rejects.toThrow('hash-mismatched');
+    await expect(repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: ready.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-1', studentSafeStatus: 'rejected',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:03:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'invalid-document',
+      },
+    })).rejects.toThrow('immutable');
+    await expect(repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: ready.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-2', studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:04:00.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed',
+      },
+    })).rejects.toThrow('decision actor is invalid');
+  });
+
+  it('retires one verified version without losing its safe history or its sibling', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const reserved = await repository.reserve(reservation());
+    const initial = await repository.completeVerified({
+      accountId: 'account-1', expectedRevision: reserved.revision, reservationId: 'reservation-1',
+      physicalPageCount: 4,
+      verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(),
+    });
+    const replacement = await repository.reserve(reservation({
+      expectedRevision: initial.revision, reservationId: 'reservation-2', sourceVersionId: 'source-2',
+      providerObjectKey: 'private/book-1/source-2.pdf', kind: 'replacement',
+    }));
+    const completed = await createRepository(memory.transaction, () => new Date('2026-07-23T00:02:00.000Z')).completeVerified({
+      accountId: 'account-1', expectedRevision: replacement.revision, reservationId: 'reservation-2',
+      physicalPageCount: 9,
+      verifiedAt: '2026-07-23T00:02:00.000Z', verifiedStorage: storage({
+        sourceVersionId: 'source-2', providerObjectKey: 'private/book-1/source-2.pdf',
+        providerFileId: 'file-2', providerFileVersionId: 'version-2',
+      }),
+    });
+    const decided = await repository.decideStudentSafeSource({
+      accountId: 'account-1', expectedRevision: completed.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', actorId: 'teacher-1', studentSafeStatus: 'ready',
+      studentSafeDecision: {
+        decidedBy: 'teacher-1', decidedAt: '2026-07-23T00:02:30.000Z', sourceVersionId: 'source-1',
+        sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed',
+      },
+    });
+    await repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1', expectedRevision: decided.revision,
+      continuation: { token: 'stale-cursor', updatedAt: '2026-07-23T00:02:01.000Z' },
+    });
+
+    const guard = retirementGuard();
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: decided.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-1',
+      retirementGuard: { ...guard, sourceVersionIds: ['source-1'] },
+      fencedAt: '2026-07-23T00:02:59.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('source remains referenced or guard is stale');
+    await expect(repository.retireVerifiedSource(retireInput({
+      expectedRevision: decided.revision, verifiedStorage: storage(),
+      retiredAt: '2026-07-23T00:03:00.000Z', deletionId: 'deletion-1', retirementGuard: guard,
+    }))).rejects.toThrow('retirement fence is required');
+    const fenced = await repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: decided.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+      fencedAt: '2026-07-23T00:02:59.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    });
+    expect(fenced.operations['reservation-1']).toMatchObject({ status: 'retirement_pending', retiredDeletionId: 'deletion-1' });
+    expect(Object.values(fenced.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retirement_pending')).toHaveLength(1);
+    const fencedReplay = await repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+      fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    });
+    expect(fencedReplay).toBe(fenced);
+    for (const identity of [
+      { sourceKey: 'unit-2', ownerId: 'teacher-1' },
+      { sourceKey: 'unit-1', ownerId: 'teacher-2' },
+    ]) {
+      await expect(repository.fenceVerifiedSource({
+        accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+        bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: identity.sourceKey, ownerId: identity.ownerId,
+        verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+        fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+      })).rejects.toThrow('retirement fence identity conflicts');
+      expect(memory.getState()).toBe(fenced);
+    }
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-other', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage({ sourceVersionId: 'source-other' }), deletionId: 'deletion-1', retirementGuard: guard,
+      fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('retirement fence identity conflicts');
+    expect(memory.getState()).toBe(fenced);
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+      fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: ['source-1'], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('still actively referenced');
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-2',
+      retirementGuard: { ...guard, deletionId: 'deletion-2' },
+      fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('retirement fence identity conflicts');
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: decided.revision, reservationId: 'reservation-1',
+      bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+      fencedAt: '2026-07-23T00:03:01.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('compare-and-set conflict');
+    for (const identity of [
+      { sourceKey: 'unit-2', ownerId: 'teacher-1' },
+      { sourceKey: 'unit-1', ownerId: 'teacher-2' },
+    ]) {
+      await expect(repository.retireVerifiedSource(retireInput({
+        expectedRevision: fenced.revision, verifiedStorage: storage(),
+        sourceKey: identity.sourceKey, ownerId: identity.ownerId,
+        retiredAt: '2026-07-23T00:03:00.000Z', deletionId: 'deletion-1', retirementGuard: guard,
+      }))).rejects.toThrow('retirement fence identity conflicts');
+      expect(memory.getState()).toBe(fenced);
+    }
+    const retired = await repository.retireVerifiedSource(retireInput({
+      expectedRevision: fenced.revision, verifiedStorage: storage(),
+      retiredAt: '2026-07-23T00:03:00.000Z', deletionId: 'deletion-1', retirementGuard: guard,
+    }));
+    expect(retired.capacity.trackedAccountBytes).toBe(10);
+    expect(retired.capacity.providerReconciliationContinuation).toBeUndefined();
+    expect(retired.assemblyBooks?.['book-1']?.['source-1']).toBeUndefined();
+    expect(retired.assemblyBooks?.['book-1']?.['source-2']).toMatchObject({ sourceVersionId: 'source-2' });
+    expect(retired.operations['reservation-1']).toMatchObject({
+      status: 'retired', sourceVersionId: 'source-1', checksum: storage().checksum,
+      purpose: 'book-source', studentSafeStatus: 'ready',
+      studentSafeDecision: { sourceVersionId: 'source-1', sha256Hex: 'a'.repeat(64) },
+      byteSize: 10, ownerAttestedPhysicalPageCount: 4,
+      retiredAt: '2026-07-23T00:03:00.000Z', retirementProof: 'exact_version_deleted', retiredDeletionId: 'deletion-1',
+    });
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retirement_pending')).toHaveLength(1);
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retired')).toHaveLength(1);
+    expect(retired.operations['reservation-1']).not.toHaveProperty('providerObjectKey');
+    expect(retired.operations['reservation-1']).not.toHaveProperty('verifiedStorage');
+    await expect(repository.requestCleanup({
+      accountId: 'account-1', expectedRevision: retired.revision, reservationId: 'reservation-1', ownerId: 'teacher-1',
+      reason: 'cancel_requested', requestedAt: '2026-07-23T00:03:01.000Z',
+    })).rejects.toThrow('verified upload cannot enter cleanup');
+    await expect(repository.retireVerifiedSource(retireInput({
+      expectedRevision: retired.revision, verifiedStorage: storage(), deletionId: 'deletion-1',
+      retiredAt: '2026-07-23T00:03:00.000Z', retirementGuard: guard,
+    }))).resolves.toBe(retired);
+    expect(retired.capacity.trackedAccountBytes).toBe(10);
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retirement_pending')).toHaveLength(1);
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retired')).toHaveLength(1);
+    await expect(repository.retireVerifiedSource(retireInput({
+      expectedRevision: retired.revision, verifiedStorage: storage(), deletionId: 'deletion-2',
+      retiredAt: '2026-07-23T00:03:00.000Z', retirementGuard: { ...guard, deletionId: 'deletion-2' },
+    }))).rejects.toThrow('replay identity conflicts');
+    await expect(repository.retireVerifiedSource(retireInput({
+      expectedRevision: completed.revision, verifiedStorage: storage(), deletionId: 'deletion-1',
+      retiredAt: '2026-07-23T00:03:00.000Z', retirementGuard: guard,
+    }))).rejects.toThrow('compare-and-set conflict');
+    await expect(repository.retireVerifiedSource(retireInput({
+      expectedRevision: retired.revision, reservationId: 'reservation-2', sourceVersionId: 'source-2',
+      verifiedStorage: storage(), deletionId: 'deletion-2',
+    }))).rejects.toThrow('retirement fence is required');
+    await expect(repository.fenceVerifiedSource({
+      accountId: 'account-1', expectedRevision: retired.revision, reservationId: 'reservation-2',
+      bookId: 'book-1', sourceVersionId: 'source-2', sourceKey: 'unit-1', ownerId: 'teacher-1',
+      verifiedStorage: storage({ sourceVersionId: 'source-2', providerObjectKey: 'private/book-1/source-2.pdf', providerFileId: 'file-2', providerFileVersionId: 'version-2' }),
+      deletionId: 'deletion-2', retirementGuard: retirementGuard({ sourceVersionId: 'source-2', deletionId: 'deletion-2' }),
+      fencedAt: '2026-07-23T00:03:02.000Z', currentSourceVersionIds: ['source-2'], remainingActiveSourceVersionIds: [],
+    })).rejects.toThrow('source remains referenced');
+
+    const corrupted = { ...retired, operations: {
+      ...retired.operations,
+      'reservation-1': { ...retired.operations['reservation-1'], retirementGuard: undefined },
+    } };
+    expect(() => validateBookSourceUploadAccountState(corrupted)).toThrow('requires retirement guard');
+    for (const operation of [
+      { ...fenced.operations['reservation-1'], retirementGuard: undefined },
+      { ...fenced.operations['reservation-1'], retirementGuard: { ...guard, deletionId: 'deletion-2' } },
+      { ...fenced.operations['reservation-1'], retiredDeletionId: undefined },
+      { ...fenced.operations['reservation-1'], retiredDeletionId: 'deletion-2' },
+    ]) {
+      expect(() => validateBookSourceUploadAccountState({
+        ...fenced,
+        operations: { ...fenced.operations, 'reservation-1': operation },
+      })).toThrow(/retirement-pending/u);
+    }
   });
 
   it('derives provider totals only from canonical verified operations', async () => {
@@ -542,6 +903,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 1,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
@@ -599,6 +961,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 1,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:04:59.999Z',
       verifiedStorage: storage(),
     })).rejects.toThrow('within the reservation window');
@@ -621,6 +984,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 1,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:05:00.000Z',
       verifiedStorage: storage(),
     })).rejects.toThrow('within the reservation window');
@@ -637,6 +1001,7 @@ describe('SourceUploadRtdbRepository', () => {
         accountId: 'account-1',
         expectedRevision: 1,
         reservationId: 'reservation-1',
+        physicalPageCount: 4,
         verifiedAt,
         verifiedStorage: storage(),
       })).rejects.toThrow('within the reservation window');
@@ -654,6 +1019,7 @@ describe('SourceUploadRtdbRepository', () => {
       accountId: 'account-1',
       expectedRevision: 1,
       reservationId: 'reservation-1',
+      physicalPageCount: 4,
       verifiedAt: '2026-07-23T00:01:00.000Z',
       verifiedStorage: storage(),
     });
@@ -796,7 +1162,7 @@ function reservation(overrides: Partial<Parameters<SourceUploadRtdbRepository['r
   const value = {
     accountId: 'account-1', expectedRevision: 0, reservationId: 'reservation-1', bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1', storageLocationId: 'location-1',
     providerKind: 'b2', privateBucketId: 'bucket-1', providerObjectKey: 'private/book-1/source-1.pdf', kind: 'initial' as const, byteSize: 10, originalFilename: '  lesson.PDF ',
-    ownerAttestedPhysicalPageCount: 4,
+    purpose: 'book-source' as const, studentSafeStatus: 'unreviewed' as const,
     expectedChecksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) }, createdAt: '2026-07-23T00:00:00.000Z', expiresAt: '2026-07-23T00:05:00.000Z', ...overrides,
   };
   return value;
@@ -807,6 +1173,29 @@ function storage(overrides: Record<string, unknown> = {}) {
     bookId: 'book-1', sourceVersionId: 'source-1', storageLocationId: 'location-1', providerKind: 'b2', privateBucketId: 'bucket-1', providerObjectKey: 'private/book-1/source-1.pdf',
     providerFileId: 'file-1', providerFileVersionId: 'version-1', checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) }, byteSize: 10, ...overrides,
   };
+}
+
+function retireInput(
+  overrides: Partial<Parameters<SourceUploadRtdbRepository['retireVerifiedSource']>[0]> = {},
+) {
+  return {
+    accountId: 'account-1', expectedRevision: 0, reservationId: 'reservation-1', bookId: 'book-1',
+    sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1', verifiedStorage: storage(),
+    deletionId: 'deletion-1', proof: 'exact_version_deleted' as const,
+    retiredAt: '2026-07-23T00:03:00.000Z', currentSourceVersionIds: [] as readonly string[],
+    remainingActiveSourceVersionIds: [] as readonly string[], ...overrides,
+  };
+}
+
+function retirementGuard(
+  overrides: Partial<NonNullable<Parameters<SourceUploadRtdbRepository['fenceVerifiedSource']>[0]>['retirementGuard']> = {},
+) {
+  return {
+    bookId: 'book-1', sourceVersionId: 'source-1', deletionId: 'deletion-1',
+    publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1',
+    sourceSetRevision: 2, inputFingerprint: 'b'.repeat(64), sourceVersionIds: ['source-2'],
+    ...overrides,
+  } as const;
 }
 
 function createMemoryTransaction(

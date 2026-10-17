@@ -5,10 +5,13 @@ import type {
     BookHomeworkSagaCommand,
     BookHomeworkSagaState,
 } from './book-homework/bookHomeworkSaga.types';
+import type { BookHomeworkAssignmentPreviewSource } from './book-homework/bookHomeworkAssignmentIntent';
+import type { BookHomeworkSelectionTarget } from '../types/homework.types';
 
 const WORKER_BASE_URL = import.meta.env.VITE_BACKUP_WORKER_URL || '';
 const HOMEWORK_ASSIGNMENTS_PATH = '/api/homework/assignments';
 const BOOK_HOMEWORK_ASSIGNMENTS_PATH = '/book-homework/assignments';
+const BOOK_HOMEWORK_PREVIEW_SOURCE_PATH = '/book-homework/preview-source';
 const BOOK_ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const BOOK_OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const BOOK_STATUSES = new Set([
@@ -20,12 +23,28 @@ const BOOK_STATUSES = new Set([
     'failed_retryable',
     'failed_terminal',
 ]);
+type BookHomeworkWorkerCommandStatus = BookHomeworkSagaState | 'committed_projection_pending';
 
 const isBookState = (value: unknown): value is BookHomeworkSagaState => (
     typeof value === 'string' && BOOK_STATUSES.has(value)
 );
+const isBookCommandStatus = (value: unknown): value is BookHomeworkWorkerCommandStatus => (
+    isBookState(value) || value === 'committed_projection_pending'
+);
 
 const isSafeInteger = (value: unknown): value is number => Number.isSafeInteger(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+    !!value && typeof value === 'object' && !Array.isArray(value)
+);
+const isSafeId = (value: unknown): value is string => (
+    typeof value === 'string' && BOOK_ROUTE_ID.test(value)
+);
+const isPositiveSafeInteger = (value: unknown): value is number => (
+    isSafeInteger(value) && value > 0
+);
+const isTimestamp = (value: unknown): value is string => (
+    typeof value === 'string' && Number.isFinite(Date.parse(value))
+);
 
 export class HomeworkAssignmentWorkerError extends Error {
     readonly reasonCode?: string;
@@ -46,7 +65,7 @@ export type WorkerHomeworkAssignmentInput = CreateHomeworkInput & {
 export type BookHomeworkWorkerCommandInput = Omit<BookHomeworkSagaCommand, 'ownerId' | 'createdAt'>;
 
 export interface BookHomeworkWorkerCommandResult {
-    readonly status: BookHomeworkSagaState;
+    readonly status: BookHomeworkWorkerCommandStatus;
     readonly assignmentId: string;
     readonly operationId: string;
     readonly state: BookHomeworkSagaState;
@@ -61,6 +80,15 @@ export interface BookHomeworkWorkerRequestOptions {
     readonly fetchImpl?: typeof fetch;
     readonly getIdToken?: (forceRefresh?: boolean) => Promise<string>;
     readonly signal?: AbortSignal;
+}
+
+export interface BookHomeworkPreviewSourceRequest {
+    readonly bookId: string;
+    readonly target?: BookHomeworkSelectionTarget;
+    readonly unitKey?: string;
+    readonly classId: string;
+    readonly selectedRecipientIds: readonly string[];
+    readonly title: string;
 }
 
 const toMillis = (value: Date | number | string | undefined): number | string | undefined => {
@@ -213,8 +241,10 @@ const parseBookResponse = (
     const result = body as Record<string, unknown>;
     if (typeof result.assignmentId !== 'string' || result.assignmentId !== expectedAssignmentId
         || typeof result.operationId !== 'string'
-        || !isBookState(result.status)
+        || !isBookCommandStatus(result.status)
         || !isBookState(result.state)
+        || (result.status === 'committed_projection_pending'
+            && (responseStatus !== 202 || result.state !== 'committed' || result.visibility !== 'committed'))
         || (result.visibility !== 'hidden' && result.visibility !== 'committed')
         || !isSafeInteger(result.recipientCount)
         || !isSafeInteger(result.committedRecipientCount)
@@ -285,4 +315,193 @@ export async function createBookHomeworkAssignmentViaWorker(
     }
 
     return parseBookResponse(responseBody, response.status, input.assignmentId);
+}
+
+const assertPreviewSourceResponse = (
+    value: unknown,
+    input: BookHomeworkPreviewSourceRequest,
+): BookHomeworkAssignmentPreviewSource => {
+    const invalid = (): never => {
+        throw new HomeworkAssignmentWorkerError(
+            'Book Homework preview source response was invalid.',
+            502,
+            'INVALID_ASSIGNMENT_REQUEST',
+        );
+    };
+    const body = isRecord(value) ? value : invalid();
+    const requestedTarget = input.target ?? {
+        kind: 'unit' as const,
+        bookId: input.bookId,
+        nodeKey: input.unitKey ?? '',
+    };
+    if (!isRecord(body.delivery) || !isRecord(body.identity)
+        || !isSafeId(body.classId)
+        || body.classId !== input.classId
+        || !Array.isArray(body.selectedRecipientIds)
+        || body.selectedRecipientIds.length < 1
+        || body.selectedRecipientIds.length > 30
+        || !body.selectedRecipientIds.every(isSafeId)
+        || new Set(body.selectedRecipientIds).size !== body.selectedRecipientIds.length
+        || !isRecord(body.initialTarget)
+        || JSON.stringify(body.initialTarget) !== JSON.stringify(requestedTarget)
+        || !isRecord(body.studentDocument)
+        || !isRecord(body.targetPreview)) invalid();
+
+    const delivery = body.delivery as Record<string, unknown>;
+    const identity = body.identity as Record<string, unknown>;
+    const book = delivery.book as Record<string, unknown>;
+    const context = delivery.context as Record<string, unknown>;
+    const sourceSet = delivery.sourceSet as Record<string, unknown>;
+    const scope = delivery.scope as Record<string, unknown>;
+    const provenance = delivery.provenance as Record<string, unknown>;
+    const sources = sourceSet.sources as unknown[];
+    const selectedRecipientIds = body.selectedRecipientIds as string[];
+    if (delivery.schemaVersion !== 1
+        || delivery.projectionKind !== 'book-runtime-delivery'
+        || !isSafeId(delivery.bindingId)
+        || !isPositiveSafeInteger(delivery.bindingRevision)
+        || !isSafeId(delivery.recipientId)
+        || !isRecord(context)
+        || !isSafeId(context.contextId)
+        || context.kind !== 'homework'
+        || context.entitlementBasis !== 'assignment'
+        || !isRecord(book)
+        || book.bookId !== input.bookId
+        || book.bookMode !== 'pdf'
+        || !isPositiveSafeInteger(book.bookRevision)
+        || !isSafeId(book.manifestVersionId)
+        || !isSafeId(book.publicationId)
+        || !isPositiveSafeInteger(book.publicationRevision)
+        || book.publicationStatus !== 'published'
+        || !isRecord(sourceSet)
+        || !['full_pdf', 'component_pdfs'].includes(String(sourceSet.strategy))
+        || !Array.isArray(sourceSet.sources)
+        || sourceSet.sources.length < 1
+        || !isRecord(scope)
+        || !Array.isArray(scope.nodeKeys)
+        || !Array.isArray(scope.placementIds)
+        || !Array.isArray(delivery.outline)
+        || !delivery.outline.every(isRecord)
+        || !Array.isArray(delivery.documentRequests)
+        || !delivery.documentRequests.every(isRecord)
+        || !Array.isArray(delivery.activities)
+        || !delivery.activities.every(isRecord)
+        || !isRecord(delivery.actionFlags)
+        || typeof delivery.actionFlags.canAutosave !== 'boolean'
+        || typeof delivery.actionFlags.canSubmit !== 'boolean'
+        || typeof delivery.actionFlags.canReview !== 'boolean'
+        || !isRecord(provenance)
+        || provenance.publicationId !== book.publicationId
+        || provenance.publicationRevision !== book.publicationRevision
+        || provenance.bindingId !== delivery.bindingId
+        || provenance.bindingRevision !== delivery.bindingRevision
+        || !isSafeId(identity.ownerId)
+        || !isSafeId(identity.manifestVersionId)
+        || identity.manifestVersionId !== book.manifestVersionId
+        || !isSafeId(identity.createdByCommandId)
+        || !isTimestamp(identity.createdAt)
+        || !isPositiveSafeInteger(identity.bindingRevision)
+        || identity.bindingRevision !== delivery.bindingRevision
+        || !selectedRecipientIds.includes(String(delivery.recipientId))) invalid();
+
+    if (!sources.every((entry) => isRecord(entry)
+        && isSafeId(entry.sourceKey)
+        && isSafeId(entry.sourceVersionId)
+        && entry.lifecycle === 'verified-usable'
+        && isRecord(entry.localPageScope)
+        && (entry.localPageScope.kind === 'all' || entry.localPageScope.kind === 'pages')
+        && Array.isArray(entry.localPageScope.pages))) invalid();
+    const document = body.studentDocument as Record<string, unknown>;
+    const preview = body.targetPreview as Record<string, unknown>;
+    if (!isSafeId(document.sourceVersionId)
+        || !Number.isSafeInteger(document.descriptorRevision) || Number(document.descriptorRevision) < 0
+        || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex)
+        || typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0
+        || !Array.isArray(preview.rows) || preview.rows.length === 0
+        || !preview.rows.every(isRecord)
+        || !Number.isSafeInteger(preview.includedCount) || Number(preview.includedCount) < 1
+        || !Number.isSafeInteger(preview.excludedCount) || Number(preview.excludedCount) < 0
+        || !isRecord(preview.excludedReasonCounts)) invalid();
+    if (sourceSet.strategy === 'component_pdfs'
+        && (Number(document.descriptorRevision) < 1
+            || document.sha256Hex === '0'.repeat(64)
+            || !Array.isArray(document.components)
+            || document.components.length < 2)) invalid();
+
+    if (body.bookTitle !== undefined && typeof body.bookTitle !== 'string') invalid();
+    if (body.presentation !== undefined && !isRecord(body.presentation)) invalid();
+    if (body.initialSchedule !== undefined && !isRecord(body.initialSchedule)) invalid();
+    if (body.excludedActivities !== undefined
+        && (!Array.isArray(body.excludedActivities) || !body.excludedActivities.every(isRecord))) invalid();
+    if (body.studentExtensions !== undefined
+        && (!Array.isArray(body.studentExtensions) || !body.studentExtensions.every(isRecord))) invalid();
+    if (body.priorResultAccess !== undefined && typeof body.priorResultAccess !== 'boolean') invalid();
+    if (body.soloAccess !== undefined && typeof body.soloAccess !== 'boolean') invalid();
+    return body as unknown as BookHomeworkAssignmentPreviewSource;
+};
+
+export async function createBookHomeworkPreviewSource(
+    input: BookHomeworkPreviewSourceRequest,
+    options: BookHomeworkWorkerRequestOptions = {},
+): Promise<BookHomeworkAssignmentPreviewSource> {
+    const hasTarget = isRecord(input.target);
+    const hasLegacyUnit = isSafeId(input.unitKey);
+    if (!BOOK_ROUTE_ID.test(input.bookId)
+        || hasTarget === hasLegacyUnit
+        || (hasTarget && input.target?.bookId !== input.bookId)
+        || !BOOK_ROUTE_ID.test(input.classId)
+        || !Array.isArray(input.selectedRecipientIds)
+        || input.selectedRecipientIds.length < 1
+        || input.selectedRecipientIds.length > 30
+        || !input.selectedRecipientIds.every((id) => BOOK_ROUTE_ID.test(id))
+        || new Set(input.selectedRecipientIds).size !== input.selectedRecipientIds.length
+        || typeof input.title !== 'string'
+        || input.title.trim().length === 0) {
+        throw new HomeworkAssignmentWorkerError(
+            'Invalid Book Homework preview source request.',
+            400,
+            'INVALID_ASSIGNMENT_REQUEST',
+        );
+    }
+
+    const origin = exactBookOrigin(options.workerOrigin ?? resolveBookHomeworkWorkerOrigin());
+    const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    const getIdToken = options.getIdToken ?? getCurrentIdTokenForBook;
+    let token = await getIdToken(false);
+    let response: Response | undefined;
+    let responseBody: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        response = await fetchImpl(`${origin}${BOOK_HOMEWORK_PREVIEW_SOURCE_PATH}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(input),
+            signal: options.signal,
+        });
+        responseBody = await response.json().catch(() => ({}));
+        if (response.status !== 401 || attempt === 1) break;
+        token = await getIdToken(true);
+    }
+
+    if (!response) {
+        throw new HomeworkAssignmentWorkerError(
+            'Book Homework preview source Worker did not return a response.',
+            503,
+            'INVALID_ASSIGNMENT_REQUEST',
+        );
+    }
+    if (!response.ok) {
+        const body = responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)
+            ? responseBody as Record<string, unknown>
+            : {};
+        throw new HomeworkAssignmentWorkerError(
+            String(body.message ?? body.error ?? body.code ?? 'Book Homework preview source failed.'),
+            response.status,
+            typeof body.code === 'string' ? body.code : undefined,
+        );
+    }
+
+    return assertPreviewSourceResponse(responseBody, input);
 }

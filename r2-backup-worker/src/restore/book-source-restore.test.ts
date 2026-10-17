@@ -67,7 +67,7 @@ const makeVerifiedSourceInventory = () => createBookMetadataBackupInventory({
         providerObjectKey: 'private/book-1/source-1.pdf',
         providerFileId: 'file-1',
         providerFileVersionId: 'version-1',
-        checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+        checksum: { algorithm: 'sha-256', value: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0' },
         byteSize: 10,
       };
       return {
@@ -98,14 +98,46 @@ const makeVerifiedSourceInventory = () => createBookMetadataBackupInventory({
                 privateBucketId: 'bucket-1',
                 providerObjectKey: 'private/book-1/source-1.pdf',
                 kind: 'initial',
+                purpose: 'book-source',
+                studentSafeStatus: 'ready',
+                studentSafeDecision: {
+                  decidedBy: 'teacher-1',
+                  decidedAt: '2026-08-11T00:01:00.000Z',
+                  sourceVersionId: 'source-1',
+                  sha256Hex: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0',
+                  reasonCode: 'teacher-reviewed',
+                },
                 byteSize: 10,
+                physicalPageCount: 1,
                 originalFilename: 'lesson.pdf',
-                expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+                expectedChecksum: { algorithm: 'sha-256', value: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0' },
                 createdAt: '2026-08-11T00:00:00.000Z',
                 expiresAt: '2026-08-11T00:05:00.000Z',
                 status: 'verified_completed',
                 verifiedStorage: storage,
                 completedAt: '2026-08-11T00:01:00.000Z',
+              },
+            },
+            assemblyBooks: {
+              'book-1': {
+                'source-1': {
+                  ownerId: 'teacher-1',
+                  bookId: 'book-1',
+                  sourceKey: 'unit-1',
+                  sourceVersionId: 'source-1',
+                  checksum: { algorithm: 'sha-256', value: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0' },
+                  purpose: 'book-source',
+                  studentSafeStatus: 'ready',
+                  studentSafeDecision: {
+                    decidedBy: 'teacher-1',
+                    decidedAt: '2026-08-11T00:01:00.000Z',
+                    sourceVersionId: 'source-1',
+                    sha256Hex: '2c6533bd811c8e33efd515ff60d93ecf68ab222548ef0cf3b096192589f219f0',
+                    reasonCode: 'teacher-reviewed',
+                  },
+                  physicalPageCount: 1,
+                  verifiedUsable: true,
+                },
               },
             },
           },
@@ -281,6 +313,28 @@ describe('Book metadata backup/restore inventory', () => {
     });
     expect(recoveryPlan.orderedWrites.map((write) => write.path)).not.toContain('book_delivery/current');
     expect(recoveryPlan.orderedWrites.map((write) => write.path)).not.toContain('book_delivery/records');
+  });
+
+  it('rejects a mismatched student-safe decision or a student-document authority', () => {
+    const inventory = makeVerifiedSourceInventory();
+    const root = inventory.roots.find((candidate) => candidate.path === 'book_source_upload_accounts')!;
+    const account = root.data['account-1'] as { operations: Record<string, Record<string, unknown>> };
+    const operation = account.operations['reservation-1']!;
+
+    for (const mutation of [
+      { purpose: 'student-document' },
+      { studentSafeDecision: { ...(operation.studentSafeDecision as Record<string, unknown>), sourceVersionId: 'other-source' } },
+      { studentSafeDecision: { ...(operation.studentSafeDecision as Record<string, unknown>), sha256Hex: 'b'.repeat(64) } },
+    ]) {
+      const candidate = JSON.parse(JSON.stringify(inventory)) as typeof inventory;
+      const candidateRoot = candidate.roots.find((entry) => entry.path === 'book_source_upload_accounts')!;
+      const candidateAccount = candidateRoot.data['account-1'] as { operations: Record<string, Record<string, unknown>> };
+      Object.assign(candidateAccount.operations['reservation-1'], mutation);
+      candidateRoot.contentFingerprint = fingerprintBookMetadata(candidateRoot.data);
+      expect(validateBookMetadataBackupInventory(candidate, {
+        sourceVersionAvailability: { 'source-1': true },
+      }).valid).toBe(false);
+    }
   });
 
   it('captures and fences shared notifications but never includes them in restore writes', async () => {

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAuth } from 'firebase/auth';
 import {
-  createBookHomeworkAssignmentViaWorker,
-  HomeworkAssignmentWorkerError,
+    createBookHomeworkAssignmentViaWorker,
+  createBookHomeworkPreviewSource as createPreview,
+    HomeworkAssignmentWorkerError,
   createHomeworkAssignmentViaWorker,
 } from './homeworkAssignmentClient';
 
@@ -71,6 +72,55 @@ const bookResponse = {
   committedRecipientCount: 1,
   revision: 5,
 };
+
+const previewRequest = {
+  bookId: 'book-1',
+  unitKey: 'unit-1',
+  classId: 'class-1',
+  selectedRecipientIds: ['student-1', 'student-2'],
+  title: 'Book preview',
+} as const;
+
+const previewSourceResponse = () => ({
+  delivery: {
+    schemaVersion: 1,
+    projectionKind: 'book-runtime-delivery',
+    bindingId: 'binding-1',
+    bindingRevision: 1,
+    recipientId: 'student-1',
+    context: { contextId: 'context-1', kind: 'homework', entitlementBasis: 'assignment' },
+    book: {
+      bookId: 'book-1', bookMode: 'pdf', bookRevision: 1,
+      manifestVersionId: 'manifest-1', publicationId: 'publication-1',
+      publicationRevision: 1, publicationStatus: 'published',
+    },
+    scope: { kind: 'subtree', nodeKeys: ['unit-1'], placementIds: [] },
+    outline: [{ nodeKey: 'unit-1' }],
+    sourceSet: {
+      strategy: 'full_pdf',
+      sources: [{ sourceKey: 'pdf-1', sourceVersionId: 'pdf-version-1', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }],
+    },
+    documentRequests: [{ sourceKey: 'pdf-1' }],
+    activities: [{ placementId: 'placement-1' }],
+    actionFlags: { canAutosave: true, canSubmit: true, canReview: false },
+    provenance: { publicationId: 'publication-1', publicationRevision: 1, bindingId: 'binding-1', bindingRevision: 1 },
+  },
+  identity: {
+    manifestVersionId: 'manifest-1', ownerId: 'teacher-1', createdByCommandId: 'command-1',
+    createdAt: '2026-06-17T00:00:00.000Z', bindingRevision: 1,
+  },
+  initialTarget: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1' },
+  studentDocument: { sourceVersionId: 'pdf-version-1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
+  targetPreview: {
+    fingerprint: 'preview-fingerprint',
+    rows: [{ placementId: 'placement-1', activityId: 'activity-1', nodeKey: 'unit-1', state: 'included' }],
+    includedCount: 1,
+    excludedCount: 0,
+    excludedReasonCounts: {},
+  },
+  classId: 'class-1',
+  selectedRecipientIds: ['student-1', 'student-2'],
+});
 
 describe('homeworkAssignmentClient', () => {
   beforeEach(() => {
@@ -154,6 +204,50 @@ describe('homeworkAssignmentClient', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual(bookCommand);
   });
 
+  it('accepts a 202 committed projection pending response without dropping its contract fields', async () => {
+    const pendingResponse = { ...bookResponse, status: 'committed_projection_pending' };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(pendingResponse), {
+      status: 202,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, {
+      workerOrigin: 'https://book-worker.example.test',
+    })).resolves.toEqual(pendingResponse);
+  });
+
+  it('rejects a pending response whose state is not committed', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ...bookResponse,
+      status: 'committed_projection_pending',
+      state: 'fanout_pending',
+    }), { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, {
+      workerOrigin: 'https://book-worker.example.test',
+    })).rejects.toMatchObject({
+      status: 202,
+      reasonCode: 'INVALID_ASSIGNMENT_REQUEST',
+    });
+  });
+
+  it('rejects pending status unless it is the exact committed 202 contract', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ...bookResponse,
+      status: 'committed_projection_pending',
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, {
+      workerOrigin: 'https://book-worker.example.test',
+    })).rejects.toMatchObject({
+      status: 200,
+      reasonCode: 'INVALID_ASSIGNMENT_REQUEST',
+    });
+  });
+
   it('refreshes token once after an unauthorized canonical response', async () => {
     const getIdToken = vi.fn()
       .mockResolvedValueOnce('stale-token')
@@ -206,5 +300,38 @@ describe('homeworkAssignmentClient', () => {
       status: 200,
       reasonCode: 'INVALID_ASSIGNMENT_REQUEST',
     });
+  });
+
+  it('accepts a valid preview source response', async () => {
+    const fetchMock = vi.fn();
+    const body = previewSourceResponse();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    const options = { workerOrigin: ['https:', '', 'book-worker.example.test'].join('/'), fetchImpl: fetchMock };
+    const result = await createPreview(previewRequest, options);
+    expect(result).toBeDefined();
+  });
+
+  it('rejects mismatched and malformed preview source responses', async () => {
+    const body = previewSourceResponse();
+    body.delivery.book.bookId = 'book-2';
+    const fetchMock = vi.fn();
+    const options = { workerOrigin: ['https:', '', 'book-worker.example.test'].join('/'), fetchImpl: fetchMock };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+
+    const synthetic = previewSourceResponse() as any;
+    synthetic.delivery.sourceSet.strategy = 'component_pdfs';
+    synthetic.delivery.sourceSet.sources.push({
+      sourceKey: 'pdf-2', sourceVersionId: 'pdf-version-2', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] },
+    });
+    synthetic.studentDocument.descriptorRevision = 0;
+    synthetic.studentDocument.sha256Hex = '0'.repeat(64);
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(synthetic), { status: 200 }));
+    await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+
+    const malformed = previewSourceResponse();
+    malformed.delivery.sourceSet.sources = {} as never;
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(malformed), { status: 200 }));
+    await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
   });
 });

@@ -20,6 +20,8 @@ const current = (complete = false): BookHomeworkProgressProjection => ({
       bindingId: 'binding-1', placementId: 'placement-1', activityId: 'activity-1',
       activityVersion: 1, activityVersionId: 'activity-v1', order: 1, contextMode: 'required',
       submitted: true, gradingState: 'scored',
+      terminalLate: { effectiveDeadline: { source: 'open-access', at: null }, policyRevision: 1, authorityRevision: 1, evaluatedAt: '2026-01-01T00:00:00.000Z', late: false },
+      feedbackPolicy: 'immediate',
       score: { earnedScore: 8, maximumScore: 10, displayScore: '8/10' }, terminalId: 'attempt-1:completion',
     }]
     : [
@@ -27,12 +29,16 @@ const current = (complete = false): BookHomeworkProgressProjection => ({
         bindingId: 'binding-1', placementId: 'placement-1', activityId: 'activity-1',
         activityVersion: 1, activityVersionId: 'activity-v1', order: 1, contextMode: 'required',
         submitted: true, gradingState: 'scored',
+        terminalLate: { effectiveDeadline: { source: 'open-access', at: null }, policyRevision: 1, authorityRevision: 1, evaluatedAt: '2026-01-01T00:00:00.000Z', late: false },
+        feedbackPolicy: 'immediate',
         score: { earnedScore: 8, maximumScore: 10, displayScore: '8/10' }, terminalId: 'attempt-1:completion',
       },
       {
         bindingId: 'binding-2', placementId: 'placement-2', activityId: 'activity-2',
         activityVersion: 1, activityVersionId: 'activity-v1', order: 2, contextMode: 'required',
         submitted: true, gradingState: 'review_required', terminalId: 'attempt-2:completion',
+        terminalLate: { effectiveDeadline: { source: 'open-access', at: null }, policyRevision: 1, authorityRevision: 1, evaluatedAt: '2026-01-01T00:00:00.000Z', late: false },
+        feedbackPolicy: 'immediate',
       },
       {
         bindingId: 'binding-3', placementId: 'placement-3', activityId: 'activity-3',

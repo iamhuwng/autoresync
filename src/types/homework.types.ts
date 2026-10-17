@@ -270,6 +270,28 @@ export type BookHomeworkExclusionReason =
     | 'outside-selected-target'
     | 'duplicate-placement';
 
+export interface BookHomeworkStudentDocumentPin {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly sha256Hex: string;
+}
+
+export interface BookHomeworkTargetPreviewRow {
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly nodeKey: string;
+    readonly state: 'included' | 'excluded';
+    readonly reason?: BookHomeworkExclusionReason;
+}
+
+export interface BookHomeworkTargetPreviewReceipt {
+    readonly fingerprint: string;
+    readonly rows: readonly BookHomeworkTargetPreviewRow[];
+    readonly includedCount: number;
+    readonly excludedCount: number;
+    readonly excludedReasonCounts: Readonly<Partial<Record<BookHomeworkExclusionReason, number>>>;
+}
+
 interface BookHomeworkActivityBindingBase {
     readonly bindingId: string;
     readonly placementId: string;
@@ -328,6 +350,8 @@ export interface BookHomeworkManifest {
         readonly entitlementBasis: 'assignment';
     };
     readonly selectedTarget: BookHomeworkSelectionTarget;
+    readonly studentDocument?: BookHomeworkStudentDocumentPin;
+    readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
     readonly outline: readonly BookHomeworkStructuralOutlineNode[];
     readonly scheduleRules: readonly BookHomeworkScheduleRule[];
     readonly bindings: readonly BookHomeworkActivityBinding[];
@@ -346,6 +370,8 @@ export interface BookHomeworkStudentSafeProjection {
     readonly book: Pick<BookHomeworkManifest['book'], 'bookId' | 'bookRevision' | 'publicationId' | 'publicationRevision'>;
     readonly context: Pick<BookHomeworkManifest['context'], 'contextId' | 'recipientId' | 'kind'>;
     readonly selectedTarget: BookHomeworkSelectionTarget;
+    readonly studentDocument?: BookHomeworkStudentDocumentPin;
+    readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
     readonly outline: readonly BookHomeworkStructuralOutlineNode[];
     readonly scheduleRules: readonly BookHomeworkScheduleRule[];
     readonly bindings: readonly BookHomeworkActivityBinding[];

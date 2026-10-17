@@ -3,6 +3,7 @@ import type {
   ReplacementCurrentRevisions,
   ReplacementConfirmationHandoff,
   ReplacementCurrentPlanPointer,
+  ReplacementPlanBuildInput,
   ReplacementPlanClientCreateRequest,
   ReplacementPlanOperationReceipt,
   ReplacementPlanReadResult,
@@ -54,7 +55,26 @@ export interface ReplacementPlanSourceSetAuthority {
     readonly ownerId: string;
     readonly bookId: string;
     readonly requested: ReplacementPlanClientCreateRequest['sourceSetDelta'];
-  }): Promise<{ readonly old: ReplacementTrustedSourceSet; readonly next: ReplacementTrustedSourceSet } | null>;
+  }): Promise<{
+    readonly old: ReplacementTrustedSourceSet;
+    readonly next: ReplacementTrustedSourceSet;
+    /** Server-derived target; browser input is intent only. */
+    readonly targetSourceSetRevision: number;
+  } | null>;
+}
+
+export interface ReplacementPlanCapacityAuthority {
+  read(input: {
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly currentRevisions: ReplacementCurrentRevisions;
+    readonly sourceSetDelta: {
+      readonly old: ReplacementTrustedSourceSet;
+      readonly next: ReplacementTrustedSourceSet;
+      readonly mappings: ReplacementPlanClientCreateRequest['sourceSetDelta']['mappings'];
+    };
+    readonly now: string;
+  }): Promise<ReplacementPlanBuildInput['capacity'] | null>;
 }
 
 export interface ReplacementPlanRevisionAuthority {
@@ -75,6 +95,8 @@ export interface ReplacementPlanRouteDependencies {
   readonly snapshots: ReplacementPlanSnapshotReader;
   readonly sourceSets: ReplacementPlanSourceSetAuthority;
   readonly revisions: ReplacementPlanRevisionAuthority;
+  /** Required at runtime for plan creation; absent means fail closed. */
+  readonly capacity: ReplacementPlanCapacityAuthority;
   readonly enabled?: boolean;
   readonly now?: () => Date;
   readonly newId?: () => string;

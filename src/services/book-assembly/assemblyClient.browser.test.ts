@@ -31,6 +31,42 @@ const ok = (body: unknown): Response => new Response(JSON.stringify(body), {
 });
 
 describe('PRD0062 ticket 13A browser client boundary', () => {
+  it('binds the one A0 activation command to the Book route without owner authority input', async () => {
+    const receipt = { schemaVersion: 1, operationId: op('30'), inputFingerprint: 'fnv1a64:0000000000000000' };
+    const fetchImpl = vi.fn(async () => ok({ status: 'activated', receipt }));
+    const client = createBookAssemblyClient({ baseUrl: 'https://assembly.example', getIdToken: async () => 'token', fetchImpl });
+    await expect(client.activateComponentPdf({
+      operationId: op('30'), bookId: 'book-1', expectedBookRevision: 3, expectedSourceSetRevision: 5,
+      sourceSet: manifest.sourceSet, manifest, studentDocumentSourceVersionId: 'student-v1',
+      activatedAt: '2026-09-20T00:00:00.000Z',
+    })).resolves.toEqual(receipt);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://assembly.example/book-assembly/books/book-1/component-pdf-activation');
+    expect(init.method).toBe('POST');
+    expect(String(init.body)).not.toContain('ownerId');
+    expect(JSON.parse(String(init.body))).not.toHaveProperty('bookId');
+    expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe(op('30'));
+  });
+
+  it('accepts exactly one trusted descriptor authority form', async () => {
+    const fetchImpl = vi.fn(async () => ok({ status: 'activated', receipt: { operationId: op('31') } }));
+    const client = createBookAssemblyClient({ baseUrl: 'https://assembly.example', getIdToken: async () => 'token', fetchImpl });
+    const base = { operationId: op('31'), bookId: 'book-1', expectedBookRevision: 3, expectedSourceSetRevision: 5,
+      sourceSet: manifest.sourceSet, manifest, activatedAt: '2026-09-20T00:00:00.000Z' };
+    await expect(client.activateComponentPdf({ ...base, preparation: {
+      componentReservationIds: ['reservation-1', 'reservation-2'], studentDocumentReservationId: 'reservation-3',
+    } })).resolves.toMatchObject({ operationId: op('31') });
+    expect(JSON.parse(String((fetchImpl.mock.calls[0]![1] as RequestInit).body))).not.toHaveProperty('studentDocumentSourceVersionId');
+    expect(() => client.activateComponentPdf(base)).toThrow(expect.objectContaining({ code: 'component_pdf_activation_authority_invalid', status: 422 }));
+    expect(() => client.activateComponentPdf({ ...base, studentDocumentSourceVersionId: 'student-v1', preparation: {
+      componentReservationIds: ['reservation-1', 'reservation-2'], studentDocumentReservationId: 'reservation-3',
+    } })).toThrow(expect.objectContaining({ code: 'component_pdf_activation_authority_invalid', status: 422 }));
+    expect(() => client.activateComponentPdf({ ...base, preparation: {
+      componentReservationIds: ['reservation-1'], studentDocumentReservationId: 'reservation-3',
+    } })).toThrow(expect.objectContaining({ code: 'component_pdf_activation_authority_invalid', status: 422 }));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('binds every command to Book/Unit scope and sends metadata-only candidate commands', async () => {
     const fetchImpl = vi.fn(async () => ok({
       status: 'created',
@@ -117,6 +153,32 @@ describe('PRD0062 ticket 13A browser client boundary', () => {
     expect(discardInit.method).toBe('DELETE');
     expect(String(discardInit.body)).toContain('expectedCurrentCandidateId');
     expect(String(discardInit.body)).not.toContain('unitKey');
+  });
+
+  it('loads owner draft discovery with verified saved slots before activation', async () => {
+    const drafts = [{ candidate: { candidateId: 'candidate-first', ownerId: 'teacher-1', bookId: 'book-1',
+      bookRevision: 0, sourceSetRevision: 0, unitKey: 'unit-1', revision: 2, lifecycle: 'validated', updatedAt: 'now',
+      manifest: { bookId: 'book-1', sourceSet: { sourceStrategy: 'component_pdfs' },
+        units: [{ unitKey: 'unit-1', activitySlots: [{ activityKey: 'activity-1' }] }] } },
+      savedActivityKeysByUnit: { 'unit-1': ['activity-1'] } }];
+    const fetchImpl = vi.fn(async () => ok({ status: 'loaded', drafts }));
+    const client = createBookAssemblyClient({ baseUrl: 'https://assembly.example',
+      getIdToken: async () => 'token', fetchImpl });
+    await expect(client.discoverDrafts('book-1')).resolves.toEqual(drafts);
+    expect(fetchImpl).toHaveBeenCalledWith('https://assembly.example/book-assembly/books/book-1/drafts',
+      expect.objectContaining({ method: 'GET', credentials: 'omit', redirect: 'error' }));
+    for (const changed of [
+      { ...drafts[0], candidate: { ...drafts[0].candidate, bookId: 'other-book' } },
+      { ...drafts[0], candidate: { ...drafts[0].candidate, revision: 0 } },
+      { ...drafts[0], candidate: { ...drafts[0].candidate, lifecycle: 'draft' } },
+      { ...drafts[0], candidate: { ...drafts[0].candidate, unitKey: 'unknown-unit' } },
+      { ...drafts[0], savedActivityKeysByUnit: null },
+      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': ['forged-slot'] } },
+      { ...drafts[0], savedActivityKeysByUnit: { 'unit-1': [null] } },
+    ]) {
+      fetchImpl.mockImplementation(async () => ok({ status: 'loaded', drafts: [changed] }));
+      await expect(client.discoverDrafts('book-1')).rejects.toMatchObject({ code: 'invalid_response', status: 502 });
+    }
   });
 
   it('loads the current owner-scoped Unit candidate without a browser-supplied candidate id', async () => {

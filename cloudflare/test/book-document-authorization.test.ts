@@ -5,6 +5,7 @@ import {
   authorizeBookDocumentRequest,
   createBookDocumentAuthorizationHost,
 } from '../src/upload-worker/book-delivery/documentAuthorization';
+import { createBookDocumentWorker } from '../src/upload-worker/book-delivery/document-worker';
 
 const operation = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -133,6 +134,49 @@ describe('Ticket #51 Book document authorization', () => {
       },
     });
     if (!result.ok) return;
+  });
+
+  it('requires the combined student document for component bindings and denies closed or revoked authority', async () => {
+    const repository = await readyRepository();
+    const resolved = await repository.resolveCurrent('teacher-1', 'solo-1');
+    expect(resolved).not.toBeNull();
+    const componentRepository = {
+      resolveCurrent: async () => ({
+        ...resolved!,
+        record: {
+          ...resolved!.record,
+          binding: {
+            ...resolved!.record.binding,
+            sourceSet: { ...resolved!.record.binding.sourceSet, strategy: 'component_pdfs' as const },
+          },
+        },
+      }),
+    } as any;
+    const base = {
+      repository: componentRepository,
+      uid: 'teacher-1', recipientId: 'teacher-1', contextId: 'solo-1',
+      profile: { role: 'student', status: 'active' },
+    } as const;
+    const document = {
+      sourceVersionId: 'student-v1', descriptorRevision: 2, descriptorFingerprint: 'a'.repeat(64),
+    };
+    const authority = () => ({
+      ...liveAuthority(), studentDocument: document,
+      sourceVersionIds: ['student-v1'],
+      sourceLocations: [{ ...liveAuthority().sourceLocations[0]!, sourceVersionId: 'student-v1' }],
+    });
+    await expect(authorizeBookDocumentRequest({
+      ...base, readCurrentAuthority: async () => liveAuthority(),
+    })).resolves.toMatchObject({ ok: false });
+    await expect(authorizeBookDocumentRequest({
+      ...base, readCurrentAuthority: async () => authority(),
+    })).resolves.toMatchObject({ ok: true, decision: { sourceVersionIds: ['student-v1'] } });
+    await expect(authorizeBookDocumentRequest({
+      ...base, readCurrentAuthority: async () => ({ ...authority(), scheduleOpen: false }),
+    })).resolves.toMatchObject({ ok: false });
+    await expect(authorizeBookDocumentRequest({
+      ...base, readCurrentAuthority: async () => ({ ...authority(), revokedSourceVersionIds: ['student-v1'] }),
+    })).resolves.toMatchObject({ ok: false });
   });
 
   it('fails closed for wrong identity, inactive profile, future-live, and stale state', async () => {
@@ -270,6 +314,105 @@ describe('Ticket #51 Book document authorization', () => {
     })).resolves.toMatchObject({ ok: false, code: 'stale-binding' });
   });
 
+  it('rejects a persisted cross-owner binding before current authority access', async () => {
+    const repository = await readyRepository();
+    const resolved = await repository.resolveCurrent('teacher-1', 'solo-1');
+    if (!resolved) throw new Error('Expected ready delivery binding.');
+    const persisted = {
+      record: {
+        ...resolved.record,
+        binding: {
+          ...resolved.record.binding,
+          recipient: { ...resolved.record.binding.recipient, recipientId: 'student-2' },
+          issuer: { ...resolved.record.binding.issuer, ownerId: 'teacher-2' },
+          context: {
+            ...resolved.record.binding.context,
+            recipientId: 'student-2',
+            ownerId: 'teacher-2',
+          },
+        },
+      },
+      pointer: {
+        ...resolved.pointer,
+        recipientId: 'student-2',
+      },
+    };
+    const readCurrentAuthority = vi.fn(async () => liveAuthority());
+    const crossOwnerRepository = {
+      ...repository,
+      resolveCurrent: vi.fn(async () => persisted),
+    };
+
+    await expect(authorizeBookDocumentRequest({
+      repository: crossOwnerRepository,
+      uid: 'teacher-1',
+      recipientId: 'teacher-1',
+      contextId: 'solo-1',
+      profile: { role: 'student', status: 'active' },
+      readCurrentAuthority,
+    })).resolves.toEqual({ ok: false, code: 'stale-binding' });
+    expect(readCurrentAuthority).not.toHaveBeenCalled();
+  });
+
+  it('does not call the provider after persisted denial at the document worker boundary', async () => {
+    const repository = await readyRepository();
+    const resolved = await repository.resolveCurrent('teacher-1', 'solo-1');
+    if (!resolved) throw new Error('Expected ready delivery binding.');
+    const persisted = {
+      record: {
+        ...resolved.record,
+        binding: {
+          ...resolved.record.binding,
+          recipient: { ...resolved.record.binding.recipient, recipientId: 'student-2' },
+          issuer: { ...resolved.record.binding.issuer, ownerId: 'teacher-2' },
+          context: {
+            ...resolved.record.binding.context,
+            recipientId: 'student-2',
+            ownerId: 'teacher-2',
+          },
+        },
+      },
+      pointer: {
+        ...resolved.pointer,
+        recipientId: 'student-2',
+      },
+    };
+    const readCurrentAuthority = vi.fn(async () => liveAuthority());
+    const authorize = vi.fn(async () => {
+      const result = await authorizeBookDocumentRequest({
+        repository: { ...repository, resolveCurrent: vi.fn(async () => persisted) },
+        uid: 'teacher-1',
+        recipientId: 'teacher-1',
+        contextId: 'solo-1',
+        profile: { role: 'student', status: 'active' },
+        readCurrentAuthority,
+      });
+      if (result.ok || result.code !== 'stale-binding') {
+        throw new Error('Expected persisted binding denial.');
+      }
+      return { ok: false as const, status: 403 as const, code: result.code };
+    });
+    const provider = {
+      readObjectMetadata: vi.fn(async () => {
+        throw new Error('provider-secret');
+      }),
+      readBounded: vi.fn(async () => {
+        throw new Error('provider-secret');
+      }),
+    };
+
+    const response = await createBookDocumentWorker({ authorize, provider }).fetch(
+      new Request('https://worker.test/v1/book-delivery/document/opaque-route-1'),
+      {},
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe('{"code":"stale-binding"}');
+    expect(provider.readObjectMetadata).not.toHaveBeenCalled();
+    expect(provider.readBounded).not.toHaveBeenCalled();
+    expect(readCurrentAuthority).not.toHaveBeenCalled();
+  });
+
   it('verifies Bearer auth before profile or repository access and denies query tokens', async () => {
     const repository = await readyRepository();
     const resolveCurrent = vi.spyOn(repository, 'resolveCurrent');
@@ -334,6 +477,67 @@ describe('Ticket #51 Book document authorization', () => {
     expect(resolveCurrent).toHaveBeenCalledTimes(1);
   });
 
+  it('denies parent, ancestor, sibling, copied, guessed, and wrong-recipient routes before provider access', async () => {
+    const repository = await readyRepository();
+    const resolveCurrent = vi.spyOn(repository, 'resolveCurrent');
+    const readCurrentAuthority = vi.fn(async () => liveAuthority());
+    const host = createBookDocumentAuthorizationHost({
+      repository,
+      verifier,
+      resolveRouteKey: async (routeKey) => routeKey === 'wrong-recipient-route'
+        ? { recipientId: 'student-2', contextId: 'solo-1' }
+        : null,
+      readCurrentAuthority,
+    });
+    for (const [path, status] of [
+      ['/v1/book-delivery/document/parent/opaque-route-1', 404],
+      ['/v1/book-delivery/document/opaque-route-1/child', 404],
+      ['/v1/book-delivery/document/sibling-route', 404],
+      ['/v1/book-delivery/document/copied-route', 404],
+      ['/v1/book-delivery/document/guessed-route', 404],
+      ['/v1/book-delivery/document/wrong-recipient-route', 403],
+    ] as const) {
+      const response = await host.fetch(
+        new Request(`https://worker.test${path}`, {
+          headers: { authorization: 'Bearer student-token' },
+        }),
+        { ...env },
+      );
+      expect(response.status).toBe(status);
+    }
+    expect(resolveCurrent).not.toHaveBeenCalled();
+    expect(readCurrentAuthority).not.toHaveBeenCalled();
+  });
+
+  it('denies an active teacher profile before provider access while allowing an active student', async () => {
+    const repository = await readyRepository();
+    const readCurrentAuthority = vi.fn(async () => liveAuthority());
+    const host = createBookDocumentAuthorizationHost({
+      repository,
+      verifier,
+      resolveRouteKey: async () => ({ recipientId: 'teacher-1', contextId: 'solo-1' }),
+      readCurrentAuthority,
+    });
+    const request = () => new Request(
+      'https://worker.test/v1/book-delivery/document/opaque-route-1',
+      { headers: { authorization: 'Bearer student-token' } },
+    );
+    const teacher = await host.fetch(request(), {
+      ...env,
+      readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
+    });
+    expect(teacher.status).toBe(403);
+    expect(await teacher.json()).toEqual({ code: 'inactive-profile' });
+    expect(readCurrentAuthority).not.toHaveBeenCalled();
+
+    const student = await host.fetch(request(), {
+      ...env,
+      readDatabaseValue: async () => ({ role: 'student', status: 'active' }),
+    });
+    expect(student.status).toBe(200);
+    expect(readCurrentAuthority).toHaveBeenCalledTimes(1);
+  });
+
   it('re-runs current authority for HEAD, range-shaped, refresh, and resume requests', async () => {
     const repository = await readyRepository();
     const resolveCurrent = vi.spyOn(repository, 'resolveCurrent');
@@ -372,13 +576,14 @@ describe('Ticket #51 Book document authorization', () => {
 
   it('does not expose provider identity or token content on denial or host failure', async () => {
     const repository = await readyRepository();
+    const readCurrentAuthority = vi.fn(async () => {
+      throw new Error('secret-provider-file-id private/book-source-1.pdf Bearer student-token');
+    });
     const host = createBookDocumentAuthorizationHost({
       repository,
       verifier,
       resolveRouteKey: async () => ({ recipientId: 'teacher-1', contextId: 'solo-1' }),
-      readCurrentAuthority: async () => {
-        throw new Error('secret-provider-file-id private/book-source-1.pdf Bearer student-token');
-      },
+      readCurrentAuthority,
     });
     const response = await host.fetch(
       new Request('https://worker.test/v1/book-delivery/document/opaque-route-1', {
@@ -391,5 +596,6 @@ describe('Ticket #51 Book document authorization', () => {
     expect(body).toBe('{"code":"authorization_unavailable"}');
     expect(body).not.toContain('secret-provider-file-id');
     expect(body).not.toContain('student-token');
+    expect(readCurrentAuthority).toHaveBeenCalledTimes(1);
   });
 });

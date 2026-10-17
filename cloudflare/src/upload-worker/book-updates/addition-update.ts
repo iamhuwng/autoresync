@@ -2,6 +2,7 @@ import {
   advanceBookUpdateAction,
   type BookUpdateActionRepository,
 } from './update-action.ts';
+import { bookImpactContextKey } from '../../../../src/services/book-delivery/bookImpactDiscovery.types.ts';
 import {
   createBookUpdateFinalizer,
   type BookUpdateFinalizationResult,
@@ -206,7 +207,7 @@ const validDeadlineWindow = (
     && Date.parse(replacementAt) >= Date.parse(effectiveAt);
 };
 
-const validatePlan = (action: BookUpdateActionRecord, plan: BookAdditionStudentPlan): boolean => {
+const validatePlan = async (action: BookUpdateActionRecord, plan: BookAdditionStudentPlan): Promise<boolean> => {
   const raw = plan as unknown as Record<string, unknown>;
   if (Object.prototype.hasOwnProperty.call(raw, 'optional')
     || Object.prototype.hasOwnProperty.call(raw, 'applicabilityPolicy')
@@ -220,7 +221,7 @@ const validatePlan = (action: BookUpdateActionRecord, plan: BookAdditionStudentP
     || plan.contextKind !== 'homework'
     || !validId(plan.contextKey)
     || !validId(plan.contextId)
-    || plan.contextKey !== `homework:${plan.contextId}`
+    || plan.contextKey !== await bookImpactContextKey({ ...plan, recipientId: plan.studentId })
     || !validId(plan.studentId)
     || typeof plan.reason !== 'string'
     || plan.reason.trim() !== plan.reason
@@ -512,7 +513,7 @@ export const createBookAdditionUpdateExecutor = (options: BookAdditionUpdateExec
     if (resolved.students.length === 0
       || new Set(planKeys).size !== planKeys.length
       || new Set(selectedKeys).size !== selectedKeys.length
-      || resolved.students.some((plan) => !validatePlan(action!, plan))
+      || (await Promise.all(resolved.students.map((plan) => validatePlan(action!, plan)))).some((valid) => !valid)
       || action.selections.some((selection) => !resolved.students.some((plan) => (
         plan.contextKey === selection.contextKey
         && plan.additions.some((addition) => addition.placement.placementId === selection.placementId)

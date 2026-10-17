@@ -2,6 +2,7 @@ import type {
   BookImpactClassification,
   BookImpactEffect,
 } from './bookImpactClassification.service';
+import { sha256Hex } from '../../utils/sha256';
 
 /**
  * 39B is a read-only producer for the 39C snapshot seam.  These constants are
@@ -31,6 +32,15 @@ export type BookImpactDiscoveryContextKind =
   | 'course'
   | 'class'
   | 'public-reference';
+
+/** Homework authority is per recipient; contextId remains the assignment ID. */
+export const bookImpactContextKey = async (input: {
+  readonly contextKind: BookImpactDiscoveryContextKind;
+  readonly contextId: string;
+  readonly recipientId: string;
+}): Promise<string> => input.contextKind === 'homework'
+  ? `homework:${await sha256Hex(JSON.stringify([input.contextId, input.recipientId]))}`
+  : `${input.contextKind}:${input.contextId}`;
 export type BookImpactDiscoveryContextStatus = 'active' | 'closed' | 'archived';
 export type BookImpactDiscoveryLifecycle =
   | 'not-started'

@@ -16,9 +16,10 @@ const full = (sourceVersionId = 'source-v1'): SourceSetCandidate => ({
 
 const component = (): SourceSetCandidate => ({
   sourceStrategy: 'component_pdfs',
-  sources: [{
-    sourceKey: 'unit-1', sourceVersionId: 'source-v2', sourceOrder: 1, ownerNodeKey: 'unit-1',
-  }],
+  sources: [
+    { sourceKey: 'unit-1', sourceVersionId: 'source-v2', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+    { sourceKey: 'unit-2', sourceVersionId: 'source-v3', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+  ],
 });
 
 const book = (overrides: Partial<MaterialBookSourceAttachmentBook> = {}): MaterialBookSourceAttachmentBook => ({
@@ -41,9 +42,27 @@ const book = (overrides: Partial<MaterialBookSourceAttachmentBook> = {}): Materi
   ...overrides,
 });
 
-const projection = (sourceVersionId: string, verifiedUsable = true) => ({
+const projection = (
+  sourceVersionId: string,
+  verifiedUsable = true,
+  purpose: 'book-source' | 'student-document' = 'book-source',
+  studentSafeStatus: 'unreviewed' | 'review-required' | 'ready' | 'rejected' = 'ready',
+) => ({
+  sourceKey: sourceVersionId === 'source-v1' ? 'full' : sourceVersionId === 'source-v2' ? 'unit-1' : 'unit-2',
   sourceVersionId,
   bookId: 'book-1',
+  checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+  purpose,
+  studentSafeStatus,
+  ...(studentSafeStatus === 'unreviewed' ? {} : {
+    studentSafeDecision: {
+      decidedBy: 'teacher-1',
+      decidedAt: '2026-01-01T00:00:00.000Z',
+      sourceVersionId,
+      sha256Hex: 'a'.repeat(64),
+      reasonCode: 'teacher-reviewed' as const,
+    },
+  }),
   physicalPageCount: 12,
   verifiedUsable,
 });
@@ -82,12 +101,34 @@ const repository = (overrides: Partial<MaterialBookSourceAttachmentScope> = {}) 
   sourceVersionProjections: {
     'source-v1': projection('source-v1'),
     'source-v2': projection('source-v2'),
+    'source-v3': projection('source-v3'),
   },
   operations: {},
   ...overrides,
 });
 
 describe('Material Book source attachment', () => {
+  it('replays the exact component activation after a lost response and conflicts changed input', async () => {
+    const store = repository();
+    const service = createMaterialBookSourceAttachmentService(store);
+    const command: AttachMaterialBookSourceInput = {
+      ...input(component()),
+      operationId: 'component-activation-0000000000000001',
+      activation: {
+        unitCandidates: [{ unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 1, manifestFingerprint: 'a'.repeat(64) }],
+        studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: 1, descriptorFingerprint: 'b'.repeat(64) },
+        activities: [],
+        activatedAt: '2026-09-22T00:00:00.000Z',
+      },
+    };
+    const committed = await service.replace(command);
+    expect(committed).toMatchObject({ status: 'attached', bookRevision: 1, sourceSetRevision: 1 });
+    await expect(service.replace(command)).resolves.toEqual({ ...committed, status: 'replayed' });
+    await expect(service.replace({ ...command, activation: { ...command.activation!, activatedAt: '2026-09-22T00:00:01.000Z' } }))
+      .resolves.toMatchObject({ status: 'conflict', reason: 'idempotency-conflict' });
+    expect(store.scope.book).toMatchObject({ bookRevision: 1, sourceSetRevision: 1, setupActivations: [{ operationId: command.operationId }] });
+  });
+
   it('attaches an exact trusted Source Set and increments both revisions atomically', async () => {
     const store = repository();
     const result = await createMaterialBookSourceAttachmentService(store).attach(input());
@@ -108,7 +149,7 @@ describe('Material Book source attachment', () => {
     }));
   });
 
-  it('replaces the current Source Set and increments from the current revisions', async () => {
+  it('rejects component replacement without the trusted activation payload', async () => {
     const store = repository({ book: book({ sourceSet: full(), bookRevision: 4, sourceSetRevision: 3 }) });
     const result = await createMaterialBookSourceAttachmentService(store).replace({
       ...input(component()),
@@ -117,24 +158,18 @@ describe('Material Book source attachment', () => {
       expectedSourceSetRevision: 3,
     });
 
-    expect(result.status).toBe('replaced');
-    expect(result.bookRevision).toBe(5);
-    expect(result.sourceSetRevision).toBe(4);
-    expect(store.scope.book).toEqual(expect.objectContaining({
-      status: 'ready',
-      sourceSet: component(),
-    }));
+    expect(result).toMatchObject({ status: 'forbidden', reason: 'activation-required' });
+    expect(store.scope.book).toEqual(book({ sourceSet: full(), bookRevision: 4, sourceSetRevision: 3 }));
   });
 
-  it('replays the same operation/fingerprint without requiring current revisions', async () => {
+  it('treats changed expected revisions as an idempotency conflict', async () => {
     const store = repository();
     const service = createMaterialBookSourceAttachmentService(store);
     const first = await service.attach(input());
     const replay = await service.attach({ ...input(), expectedBookRevision: 99, expectedSourceSetRevision: 99 });
 
-    expect(replay.status).toBe('replayed');
-    expect(replay.fingerprint).toBe(first.fingerprint);
-    expect(replay.receipt).toEqual(first.receipt);
+    expect(first.status).toBe('attached');
+    expect(replay).toMatchObject({ status: 'conflict', reason: 'idempotency-conflict' });
     expect(store.scope.book).toEqual(expect.objectContaining({
       status: 'ready',
       bookRevision: 1,
@@ -166,7 +201,7 @@ describe('Material Book source attachment', () => {
     const store = repository();
     const service = createMaterialBookSourceAttachmentService(store);
     await service.attach(input());
-    const result = await service.attach({ ...input(component()), expectedBookRevision: 1, expectedSourceSetRevision: 1 });
+    const result = await service.attach({ ...input(), ownerId: 'teacher-2', expectedBookRevision: 1, expectedSourceSetRevision: 1 });
 
     expect(result.status).toBe('conflict');
     expect(result.reason).toBe('idempotency-conflict');
@@ -209,5 +244,92 @@ describe('Material Book source attachment', () => {
     const providerResult = await createMaterialBookSourceAttachmentService(providerBearing).attach(input());
     expect(providerResult.status).toBe('conflict');
     expect(providerResult.reason).toBe('invalid-source-projection');
+  });
+
+  it('rejects a student-document projection from private Book attachment', async () => {
+    const store = repository({
+      sourceVersionProjections: {
+        'source-v1': projection('source-v1', true, 'student-document'),
+      },
+    });
+    const result = await createMaterialBookSourceAttachmentService(store).attach(input());
+    expect(result).toMatchObject({ status: 'conflict', reason: 'unverified-source' });
+    expect(store.scope.book?.sourceSet).toBeNull();
+  });
+
+  it('rejects a candidate source key that differs from trusted projection authority', async () => {
+    const source = full();
+    const result = await createMaterialBookSourceAttachmentService(repository()).attach({
+      ...input(),
+      sourceSet: {
+        ...source,
+        sources: [{ ...source.sources[0], sourceKey: 'alias' }],
+      },
+    });
+
+    expect(result).toMatchObject({ status: 'conflict', reason: 'source-identity-mismatch' });
+  });
+
+  it.each([
+    ['missing checksum', (value: Record<string, unknown>) => {
+      const { checksum: _checksum, ...withoutChecksum } = value;
+      return withoutChecksum;
+    }],
+    ['decision checksum mismatch', (value: Record<string, unknown>) => ({
+      ...value,
+      studentSafeDecision: {
+        ...(value.studentSafeDecision as Record<string, unknown>),
+        sha256Hex: 'b'.repeat(64),
+      },
+    })],
+  ] as const)('rejects %s in a trusted projection', async (_label, mutate) => {
+    const source = projection('source-v1') as Record<string, unknown>;
+    const store = repository({
+      sourceVersionProjections: { 'source-v1': mutate(source) },
+    });
+    const result = await createMaterialBookSourceAttachmentService(store).attach(input());
+    expect(result).toMatchObject({ status: 'conflict', reason: 'invalid-source-projection' });
+    expect(store.scope.book?.sourceSet).toBeNull();
+  });
+
+  it.each([
+    ['one component', [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' }]],
+    ['twenty-one components', Array.from({ length: 21 }, (_, index) => ({
+      sourceKey: `source-${index + 1}`,
+      sourceVersionId: `version-${index + 1}`,
+      sourceOrder: index + 1,
+      ownerNodeKey: 'unit-1',
+    }))],
+    ['a gap', [
+      { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 3, ownerNodeKey: 'unit-1' },
+    ]],
+    ['duplicate source key', [
+      { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'a', sourceVersionId: 'b-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+    ]],
+    ['duplicate source version', [
+      { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'b', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+    ]],
+    ['reordered orders', [
+      { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+    ]],
+    ['full PDF with zero sources', []],
+    ['full PDF with two sources', [
+      { sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 1 },
+      { sourceKey: 'b', sourceVersionId: 'b-v1', sourceOrder: 2 },
+    ]],
+    ['full PDF with non-one order', [{ sourceKey: 'a', sourceVersionId: 'a-v1', sourceOrder: 2 }]],
+  ] as const)('rejects %s Source Set at the attachment seam', async (_label, sources) => {
+    const sourceStrategy = _label.startsWith('full PDF') ? 'full_pdf' : 'component_pdfs';
+    const store = repository();
+    const result = await createMaterialBookSourceAttachmentService(store).attach(input({
+      sourceStrategy,
+      sources,
+    } as never));
+    expect(result).toMatchObject({ status: 'invalid', reason: 'invalid-input' });
+    expect(store.scope.book?.sourceSet).toBeNull();
   });
 });

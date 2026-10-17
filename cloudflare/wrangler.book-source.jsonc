@@ -24,19 +24,50 @@
     "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY": "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
     "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
     "BOOK_ASSEMBLY_SERVICE_IDENTITY": "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_RUNTIME_SERVICE_IDENTITY": "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com",
     "BOOK_ASSEMBLY_ROUTES_ENABLED": "enabled",
-    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831",
     "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
-    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_FULL_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_RUNTIME_ROUTES_ENABLED": "enabled",
+    "BOOK_DELIVERY_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "enabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "enabled",
     "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED": "enabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "enabled",
+    "BOOK_RESULT_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_RESULT_READ_SERVICE_IDENTITY": "book-result-read-runtime@temp-a1437.iam.gserviceaccount.com",
+    "BOOK_RESULT_PROJECTION_ENABLED": "enabled",
+    "BOOK_INTEGRITY_ROUTES_ENABLED": "enabled",
+    "BOOK_NOTIFICATIONS_ROUTES_ENABLED": "enabled",
+    "BOOK_UPDATES_ROUTES_ENABLED": "enabled",
+    "BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED": "enabled",
     "BOOK_ROLLOUT_ENVIRONMENT": "staging",
-    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"staging\",\"revision\":\"prd0062-release-upload-20260901t064719z\",\"issuedAt\":\"2026-09-01T06:47:19Z\",\"expiresAt\":\"2026-09-01T18:47:19Z\",\"actions\":{\"create\":\"deny\",\"upload\":\"allow\",\"publish\":\"deny\",\"assign-place\":\"deny\",\"launch-delivery\":\"deny\",\"mutation\":\"allow\"}}",
+    "BOOK_ROLLOUT_CONFIG_JSON": "{\"schemaVersion\":\"v1\",\"environment\":\"staging\",\"revision\":\"prd0062-book-release-20261005\",\"issuedAt\":\"2026-10-05T11:22:38Z\",\"expiresAt\":\"2026-10-06T11:22:38Z\",\"actions\":{\"create\":\"allow\",\"upload\":\"allow\",\"publish\":\"allow\",\"assign-place\":\"allow\",\"launch-delivery\":\"allow\",\"mutation\":\"allow\"}}",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",
+    "BOOK_SOURCE_B2_PROVIDER_STATE": "enabled",
     "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
     "BOOK_SOURCE_B2_REGION": "us-west-004",
     "BOOK_SOURCE_B2_STORAGE_LOCATION_ID": "b2_book_primary",
     "BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME": "bookpdf",
     "BOOK_SOURCE_B2_OBJECT_KEY_PREFIX": "book-source/prd0062-preview-20260729/"
+  },
+  "secrets": {
+    "required": [
+      "FIREBASE_WEB_API_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_RESULT_READ_GOOGLE_SA_KEY"
+    ]
   }
 
   // Deployment-only bindings. Never commit secret values.
@@ -45,6 +76,9 @@
   // BOOK_DELIVERY_GOOGLE_SA_KEY
   // BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY
   // BOOK_ASSEMBLY_GOOGLE_SA_KEY
+  // BOOK_HOMEWORK_GOOGLE_SA_KEY
+  // BOOK_RUNTIME_GOOGLE_SA_KEY
+  // BOOK_RESULT_READ_GOOGLE_SA_KEY
   // BOOK_SOURCE_B2_PRIVATE_BUCKET_ID
   // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID
   // BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY

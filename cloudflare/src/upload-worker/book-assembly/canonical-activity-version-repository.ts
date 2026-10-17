@@ -140,8 +140,18 @@ const bookOperationPath = (bookId: string, operationId: string): string => {
  */
 const hydrateCanonicalActivityShapeFromRtdb = (value: unknown): unknown => {
   if (!isRecord(value)) return value;
+  const interactions = Array.isArray(value.interactions)
+    ? value.interactions.map((entry) => {
+      if (!isRecord(entry) || (entry.family !== 'long-response' && entry.family !== 'text-entry')
+        || !isRecord(entry.itemIdentities)
+        || entry.itemIdentities.family !== entry.family
+        || Object.hasOwn(entry.itemIdentities, 'itemIds')) return entry;
+      return { ...entry, itemIdentities: { ...entry.itemIdentities, itemIds: [] } };
+    })
+    : value.interactions;
   return {
     ...value,
+    ...(Array.isArray(interactions) ? { interactions } : {}),
     ...(!Object.hasOwn(value, 'taskProfile') ? { taskProfile: null } : {}),
     ...(!Object.hasOwn(value, 'stimulus') ? { stimulus: null } : {}),
     ...(!Object.hasOwn(value, 'assetRefs') ? { assetRefs: [] } : {}),

@@ -80,8 +80,8 @@ const action = (state: BookUpdateActionRecord['state'] = 'accepted'): BookUpdate
   snapshotId: 'snapshot-1', snapshotFingerprint: 'a'.repeat(64), idempotencyKey: 'redo-key-0001',
   requestFingerprint: 'b'.repeat(64), reason: 'Replace the activity',
   selections: [
-    { contextKey: 'homework:1', placementId: 'placement-1', choice: 'apply-with-redo' },
-    { contextKey: 'homework:1', placementId: 'placement-2', choice: 'apply-with-redo' },
+    { contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', placementId: 'placement-1', choice: 'apply-with-redo' },
+    { contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', placementId: 'placement-2', choice: 'apply-with-redo' },
   ],
   state,
   stateRevision: state === 'accepted' ? 0 : 1,
@@ -92,7 +92,7 @@ const action = (state: BookUpdateActionRecord['state'] = 'accepted'): BookUpdate
   audit: {
     actorId: 'owner-1', acceptedAt: NOW, reason: 'Replace the activity', bookId: 'book-1',
     oldActivityVersionId: 'old-version-1', newActivityVersionId: 'new-version-1',
-    selectedContextKeys: ['homework:1'], classifications: ['redo-required'], affectedCount: 1,
+    selectedContextKeys: ['homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e'], classifications: ['redo-required'], affectedCount: 1,
     checkpointCount: 1, regradeCount: 0, notificationCount: 1, terminalStatus: null, terminalAt: null,
   },
   recovery: { restoreBehavior: 'resume-or-compensate', replaySideEffects: 'none', recoveryLedgerRoot: 'book_update_action_recovery' },
@@ -101,7 +101,7 @@ const action = (state: BookUpdateActionRecord['state'] = 'accepted'): BookUpdate
 const plan = (): BookRedoStudentPlan => {
   const current = binding();
   const next = binding({
-    bindingId: 'redo:action-1:homework:1:student-1',
+    bindingId: 'redo:action-1:homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e:student-1',
     revision: 4,
     createdAt: NOW,
     placements: current.placements.map((placement) => ({
@@ -113,18 +113,18 @@ const plan = (): BookRedoStudentPlan => {
   return {
     schemaVersion: 1,
     actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1',
-    contextKey: 'homework:1', contextId: 'homework-1', contextKind: 'homework', studentId: 'student-1',
+    contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', contextKind: 'homework', studentId: 'student-1',
     currentBinding: current, nextBinding: next,
     activities: [
       {
-        contextKey: 'homework:1', contextId: 'homework-1', contextKind: 'homework',
+        contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', contextKind: 'homework',
         placementId: 'placement-1', activityId: 'activity-1', oldActivityVersionId: 'old-version-1',
         oldSourceVersionIds: ['source-version-1'], lifecycle: 'in-progress', priorAnswer: { answer: 'old' },
         priorResult: { status: 'graded', score: { earnedScore: 1, maximumScore: 2, displayScore: '1/2' } },
         feedbackRelease: 'hidden', changed: true, required: true, newActivityVersion: 2,
       },
       {
-        contextKey: 'homework:1', contextId: 'homework-1', contextKind: 'homework',
+        contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', contextKind: 'homework',
         placementId: 'placement-2', activityId: 'activity-2', oldActivityVersionId: 'old-version-2',
         oldSourceVersionIds: ['source-version-1'], lifecycle: 'not-started', priorAnswer: null,
         feedbackRelease: 'hidden', changed: true, required: true, newActivityVersion: 2,
@@ -176,7 +176,7 @@ const harness = (overrides: {
   const currentPlan = plan();
   let bindingState = currentPlan.currentBinding;
   const currentProjection: BookRedoCurrentProjection = {
-    actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+    actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
     bindingId: currentPlan.currentBinding.bindingId, bindingRevision: currentPlan.currentBinding.revision,
     activities: [
       {
@@ -189,7 +189,7 @@ const harness = (overrides: {
       },
     ],
     completion: {
-      schemaVersion: 1, actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      schemaVersion: 1, actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
       bindingId: currentPlan.currentBinding.bindingId, bindingRevision: currentPlan.currentBinding.revision,
       requiredPlacementIds: ['placement-1', 'placement-2'], completedPlacementIds: [], requiredCount: 2, completedCount: 0, status: 'in-progress', activities: [],
     },
@@ -316,7 +316,7 @@ describe('book redo update executor', () => {
     await expect(checkpointStorage.read({ ownerId: 'owner-1', checkpointId: 'checkpoint/1' })).resolves.toBeNull();
     const receiptStorage = new FirebaseRestBookRedoPhaseReceiptRepository(storageOptions);
     await expect(receiptStorage.read({
-      ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
     })).resolves.toBeNull();
     expect(storageFetches).toBe(0);
 
@@ -334,10 +334,10 @@ describe('book redo update executor', () => {
     };
     const checkpoints = createBookRedoCheckpointApplier({ repository: checkpointRepository });
     const checkpointInput: BookRedoCheckpointInput = {
-      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
       oldBindingId: 'binding-old', oldBindingRevision: 3, reason: 'Replace the activity', createdAt: NOW,
       activities: [{
-        contextKey: 'homework:1', placementId: 'placement-1', activityId: 'activity-1', oldActivityVersionId: 'old-version-1',
+        contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', placementId: 'placement-1', activityId: 'activity-1', oldActivityVersionId: 'old-version-1',
         oldSourceVersionIds: ['source-version-1'], lifecycle: 'in-progress', priorAnswer: { answer: 'old' },
         feedbackRelease: 'hidden', changed: true,
       }],
@@ -373,7 +373,7 @@ describe('book redo update executor', () => {
     const receipt = await recordBookRedoPhaseSuccess({
       repository: receiptRepository,
       identity: {
-        ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+        ownerId: 'owner/1', actionId: 'action-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
       },
       phase: 'checkpoint', fingerprint: 'safe-fingerprint', at: NOW,
     });
@@ -394,8 +394,8 @@ describe('book redo update executor', () => {
       },
     });
     await expect(currentAdapter.apply({
-      operationId: 'action-1:redo:homework:1:homework-1:student-1:redo-exclusion',
-      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      operationId: 'action-1:redo:homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e:homework-1:student-1:redo-exclusion',
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
       bindingId: 'redo/action-1', bindingRevision: 4,
       previousBindingId: 'binding-old', previousBindingRevision: 3,
       selectedPlacementIds: ['placement-1'], nextActivityVersionIds: { 'placement-1': 'new-version-1' },
@@ -406,7 +406,7 @@ describe('book redo update executor', () => {
 
   it('sets new action provenance and preserves it across safe replay', async () => {
     let projection: BookRedoCurrentProjection = {
-      actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+      actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
       bindingId: 'binding-old', bindingRevision: 3,
       activities: [{
         placementId: 'placement-1', activityVersionId: 'old-version-1', required: true, completionStatus: 'in-progress',
@@ -414,7 +414,7 @@ describe('book redo update executor', () => {
         earnedScore: null, maximumScore: null, correctionNote: null, feedbackRelease: 'hidden',
       }],
       completion: {
-        schemaVersion: 1, actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
+        schemaVersion: 1, actionId: 'previous-action', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
         bindingId: 'binding-old', bindingRevision: 3,
         requiredPlacementIds: ['placement-1'], completedPlacementIds: [], requiredCount: 1, completedCount: 0, status: 'in-progress', activities: [],
       },
@@ -429,9 +429,9 @@ describe('book redo update executor', () => {
       },
     });
     const input = {
-      operationId: 'action-1:redo:homework:1:homework-1:student-1:redo-exclusion',
-      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:1', contextId: 'homework-1', studentId: 'student-1',
-      bindingId: 'redo:action-1:homework:1:student-1', bindingRevision: 4,
+      operationId: 'action-1:redo:homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e:homework-1:student-1:redo-exclusion',
+      actionId: 'action-1', ownerId: 'owner-1', bookId: 'book-1', contextKey: 'homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e', contextId: 'homework-1', studentId: 'student-1',
+      bindingId: 'redo:action-1:homework:7947ea864317ec5af2c2195775b17c0525807744905c5ee66fbbc6d90305352e:student-1', bindingRevision: 4,
       previousBindingId: 'binding-old', previousBindingRevision: 3,
       selectedPlacementIds: ['placement-1'], nextActivityVersionIds: { 'placement-1': 'new-version-1' },
     } as const;

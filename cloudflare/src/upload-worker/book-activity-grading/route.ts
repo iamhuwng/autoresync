@@ -2,6 +2,10 @@ import type { CanonicalBookRouteDescriptor } from '../book-routes/types.ts';
 
 const MAX_COMMAND_BYTES = 128 * 1024;
 const MAX_RESPONSE_BYTES = 256 * 1024;
+export const BOOK_EVALUATION_HISTORY_QUERY_KEYS = Object.freeze([
+  'view', 'contextKind', 'contextId', 'placementId', 'activityId',
+  'activityVersionId', 'attemptId', 'terminalId',
+]);
 
 /**
  * Contributor descriptors only. Ticket #59 owns canonical manifest assembly.
@@ -16,7 +20,7 @@ export const bookActivityEvaluationRouteDescriptors: readonly CanonicalBookRoute
     handler: 'bookActivityEvaluation.command',
     firebaseAuth: 'firebase-id-token',
     rateClass: 'book-control',
-    gateEnv: 'BOOK_ACTIVITY_EVALUATION_COMMANDS_ENABLED',
+    gateEnv: 'BOOK_EVALUATION_HISTORY_ROUTES_ENABLED',
     gateDefault: 'disabled',
     requestBodyBytes: MAX_COMMAND_BYTES,
     responseLimitBytes: MAX_RESPONSE_BYTES,
@@ -29,6 +33,7 @@ export const bookActivityEvaluationRouteDescriptors: readonly CanonicalBookRoute
     id: 'book.evaluation-history.read',
     methods: ['GET'],
     pathTemplate: '/book-evaluation/history/:bookId/:studentId',
+    allowedQueryKeys: BOOK_EVALUATION_HISTORY_QUERY_KEYS,
     owner: '#89',
     domain: 'evaluation-history',
     handler: 'bookActivityEvaluation.history',

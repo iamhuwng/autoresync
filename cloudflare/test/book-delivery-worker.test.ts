@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InMemoryBookAssemblyPublicationRepository } from '../../src/services/book-assembly/publicationRepository';
 import { bookAssemblyActivityVersionScopeKey } from '../../src/services/book-assembly/publicationTransaction.service';
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
@@ -20,7 +20,7 @@ const operation = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(1
 
 const env = {
   BOOK_DELIVERY_SERVICE_IDENTITY: 'book-delivery@example.iam.gserviceaccount.com',
-  readDatabaseValue: async () => ({ role: 'teacher' }),
+  readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }),
 } as any;
 
 const request = (value: unknown) => new Request('https://worker.test/book-delivery/create', {
@@ -73,6 +73,37 @@ const makeComponentPlacementScope = () => {
 };
 
 describe('Book Delivery Worker contract', () => {
+  it('requires the strict active owner authority profile and permits an active owner super-admin', async () => {
+    const deniedProfiles: readonly unknown[] = [
+      undefined,
+      null,
+      [],
+      { role: 'teacher' },
+      { role: 'student', status: 'active' },
+      { role: 'teacher', status: 'inactive' },
+      { role: 'teacher', status: 'blocked' },
+      { role: 'teacher', status: 'suspended' },
+      { role: 'teacher', status: 'active', disabled: true },
+      { role: 'teacher', status: 'active', forceReauth: true },
+      { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-07-25T00:00:00.000Z' },
+      { role: 'teacher', status: 'ACTIVE' },
+    ];
+    for (const profile of deniedProfiles) {
+      const { handlers } = setup();
+      await expect(handlers.create({
+        env: { ...env, readDatabaseValue: async () => profile },
+        uid: 'teacher-1',
+        request: request({ intent: makeBookDeliveryIssuanceIntent(), operationId: operation(30) }),
+      })).resolves.toEqual({ body: { status: 'forbidden' }, init: { status: 403 } });
+    }
+
+    const { handlers } = setup();
+    await expect(handlers.create({
+      env: { ...env, readDatabaseValue: async () => ({ role: 'super_admin', status: 'active' }) },
+      uid: 'teacher-1',
+      request: request({ intent: makeBookDeliveryIssuanceIntent(), operationId: operation(31) }),
+    })).resolves.toMatchObject({ init: { status: 200 }, body: { status: 'created' } });
+  });
   it('owns every 08B fragment operation and no #72 scope path', () => {
     expect([...fragment08B.owner.generatedRuleLocations].sort()).toEqual(
       fragment08B.operations.map((operation) => `${operation.path}/${operation.rule}`).sort(),
@@ -296,6 +327,41 @@ describe('Book Delivery Worker contract', () => {
       },
     });
     expect(JSON.stringify(created.body)).not.toContain('component-b');
+  });
+
+  it('resolves a component binding to one source-free student document request', async () => {
+    const repository = new InMemoryBookDeliveryRepository();
+    const publicationRepository = new InMemoryBookAssemblyPublicationRepository({
+      'book-pdf-1': makeComponentPlacementScope(),
+    });
+    const expectedEtag = `"${'a'.repeat(64)}"`;
+    const resolveStudentDocument = vi.fn(async () => ({ expectedByteLength: 578, expectedEtag, physicalPageCount: 4,
+      pageGroups: [{ pageGroupKey: 'group-1', combinedPhysicalPages: [1] }] }));
+    const handlers = createBookDeliveryWorkerHandlers({
+      repository: repository as any, publicationRepository, resolveStudentDocument,
+      allocateBindingId: () => `bd_${'d'.repeat(40)}`,
+      now: () => '2026-07-25T00:00:00.000Z',
+    });
+    const created = await handlers.create({
+      env, uid: 'teacher-1',
+      request: request({ intent: makeBookDeliveryIssuanceIntent(), operationId: operation(71) }),
+    });
+    expect(created.init.status).toBe(200);
+    const activated = await handlers.activate({
+      env, uid: 'teacher-1',
+      request: request({ bindingId: `bd_${'d'.repeat(40)}`, expectedRecordRevision: 0, operationId: operation(72) }),
+    });
+    expect(activated.init.status).toBe(200);
+    const resolved = await handlers.resolve({ env, uid: 'teacher-1', recipientId: 'teacher-1', contextId: 'preview-1' });
+    expect(resolved.init.status).toBe(200);
+    expect(resolved.body).toMatchObject({ documentRequests: [{
+      opaqueRouteKey: `bd_${'d'.repeat(40)}-1-student-document`, expectedByteLength: 578,
+      expectedEtag,
+    }] });
+    expect((resolved.body as any).documentRequests).toHaveLength(1);
+    expect((resolved.body as any).pageGroups).toEqual([{ pageGroupKey: 'group-1', combinedPhysicalPages: [1] }]);
+    expect(JSON.stringify(resolved.body)).not.toMatch(/component-a|source-a-v1|component-b|source-b-v1|providerObjectKey|checksum/iu);
+    expect(resolveStudentDocument).toHaveBeenCalledTimes(1);
   });
 
   it('derives stable collision-resistant IDs from operation identity and replays safely', async () => {

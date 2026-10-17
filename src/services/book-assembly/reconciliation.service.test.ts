@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import type { BookAssemblyManifestCandidate, BookSourceVersionAuthority } from '../../types/bookAssembly.types';
+import type {
+  BookAssemblyManifestCandidate,
+  BookSourceVersionAuthority,
+  TrustedBookSourceVersionProjection,
+} from '../../types/bookAssembly.types';
 import { analyzeBookAssemblyReconciliation } from './reconciliation.service';
 
+const trustedProjection = (sourceVersionId: string): TrustedBookSourceVersionProjection => ({
+  sourceKey: 'source',
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'ready',
+  studentSafeDecision: {
+    decidedBy: 'teacher-1',
+    decidedAt: '2026-01-01T00:00:00.000Z',
+    sourceVersionId,
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+  physicalPageCount: 10,
+  verifiedUsable: true,
+});
 const authority = (): BookSourceVersionAuthority => ({
   getSourceVersion: (sourceVersionId) => sourceVersionId === 'source-1'
-    ? { sourceVersionId, bookId: 'book-1', physicalPageCount: 10, verifiedUsable: true }
+    ? trustedProjection(sourceVersionId)
     : undefined,
 });
 
@@ -129,18 +150,17 @@ describe('analyzeBookAssemblyReconciliation', () => {
     expect(result.repairedManifest).toBeNull();
   });
 
-  it('never selects presentation or accepts unsupported declarations', () => {
+  it('uses canonical Activity validation instead of a private declaration vocabulary', () => {
     const result = analyzeBookAssemblyReconciliation({
       manifest: manifest(),
       sourceVersionAuthority: authority(),
-      activityDeclarations: {
+      activities: {
         'activity-1': {
-          activityKey: 'activity-1',
-          family: 'invented',
-          variant: 'auto',
-          profile: null,
-          presentationMode: 'structured',
-          contextRequirement: 'required',
+          schemaVersion: 1, title: 'Activity', taskProfile: null,
+          presentationMode: 'unsupported', contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+          instructions: [{ text: 'Choose.' }], interaction: { family: 'invented', variant: 'auto' },
+          answerRule: { defaultPoints: 1, normalization: 'exact' }, stimulus: null, assetRefs: [],
+          interactions: [], scoring: { mode: 'auto-where-possible' },
         },
       },
     });
@@ -148,8 +168,62 @@ describe('analyzeBookAssemblyReconciliation', () => {
     expect(result.releaseBlocking).toBe(true);
     expect(result.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'unsupported-activity-declaration' }),
-      expect.objectContaining({ code: 'presentation-context-contradiction', repair: 'teacher-choice' }),
+      expect.objectContaining({ code: 'presentation-context-contradiction', repair: 'none' }),
     ]));
+  });
+
+  it('classifies stable-key changes and keeps cross-Unit/source decisions explicit', () => {
+    const current = manifest();
+    const proposed: BookAssemblyManifestCandidate = {
+      ...current,
+      sourceSet: { sourceStrategy: 'full_pdf', sources: [{ sourceKey: 'source', sourceVersionId: 'source-2', sourceOrder: 1 }] },
+      nodes: [{ ...current.nodes[0], order: 2 }],
+      units: [{ ...current.units[0], activitySlots: [{ ...current.units[0].activitySlots[0], pageGroupKeys: [] }] }],
+    };
+    const result = analyzeBookAssemblyReconciliation({
+      manifest: proposed,
+      currentManifest: current,
+      sourceVersionAuthority: { getSourceVersion: (id) => trustedProjection(id) },
+      currentLabels: { 'unit-1': 'Old unit' },
+      proposedLabels: { 'unit-1': 'New unit' },
+    });
+
+    expect(result.changes.filter((change) => change.changeClass !== 'unresolved').map((change) => change.changeClass)).toEqual([
+      'page-mapping-changed', 'renamed', 'reordered', 'source-replaced',
+    ]);
+    expect(result.changes.filter((change) => change.resolution === 'teacher-choice').map((change) => change.changeClass))
+      .toEqual(['page-mapping-changed', 'source-replaced']);
+    expect(result.releaseBlocking).toBe(true);
+
+    const pageMappingId = result.changes.find((change) => change.changeClass === 'page-mapping-changed')!.id;
+    const sourceId = result.changes.find((change) => change.changeClass === 'source-replaced')!.id;
+    const oneResolved = analyzeBookAssemblyReconciliation({
+      manifest: proposed,
+      currentManifest: current,
+      sourceVersionAuthority: { getSourceVersion: (id) => trustedProjection(id) },
+      resolvedChangeIds: new Set([pageMappingId]),
+    });
+    expect(oneResolved.changes.find((change) => change.id === pageMappingId)?.resolution).toBe('automatic');
+    expect(oneResolved.changes.find((change) => change.id === sourceId)?.resolution).toBe('teacher-choice');
+    expect(oneResolved.releaseBlocking).toBe(true);
+
+    const bothResolved = analyzeBookAssemblyReconciliation({
+      manifest: proposed,
+      currentManifest: current,
+      sourceVersionAuthority: { getSourceVersion: (id) => trustedProjection(id) },
+      resolvedChangeIds: new Set([pageMappingId, sourceId]),
+    });
+    expect(bothResolved.changes.filter((change) => change.resolution === 'teacher-choice')).toHaveLength(0);
+    expect(bothResolved.releaseBlocking).toBe(false);
+
+    const changedAgain = analyzeBookAssemblyReconciliation({
+      manifest: { ...proposed, sourceSet: { sourceStrategy: 'full_pdf', sources: [{ sourceKey: 'source', sourceVersionId: 'source-3', sourceOrder: 1 }] } },
+      currentManifest: current,
+      sourceVersionAuthority: { getSourceVersion: (id) => trustedProjection(id) },
+      resolvedChangeIds: new Set([sourceId]),
+    });
+    expect(changedAgain.changes.find((change) => change.changeClass === 'source-replaced')?.resolution).toBe('teacher-choice');
+    expect(changedAgain.releaseBlocking).toBe(true);
   });
 
   it('is idempotent and produces stable issue order', () => {

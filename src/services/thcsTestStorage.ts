@@ -37,11 +37,11 @@ export const saveThcsTestToFirebase = async (
         const testId = test.id;
         const testRef = ref(database, `tests/${testId}`);
 
-        // Ensure testType is always set
-        const testData = {
+        // THCS records are JSON data; omit unset optional fields before RTDB validation.
+        const testData = JSON.parse(JSON.stringify({
             ...test,
             testType: 'THCS-THPT' as const,
-        };
+        })) as THCSTest;
 
         // Task 9.3: Detect re-publish vs first-time publish
         const existingSnapshot = await get(testRef);
@@ -170,7 +170,7 @@ export const updateThcsTestInFirebase = async (
             isPublic: updates.isPublic,
         });
 
-        const nextData = { ...currentData, ...updatedData };
+        const nextData = JSON.parse(JSON.stringify({ ...currentData, ...updatedData })) as THCSTest;
         await update(ref(database), {
             [`tests/${testId}`]: nextData,
             ...buildMaterialSummaryUpdatePayload(
@@ -374,12 +374,12 @@ export const publishTestUpdate = async (
 
     // Overwrite test data while preserving _changelog
     const preservedChangelog = { ...existingChangelog, [`v_${timestamp}`]: entry };
-    const nextData = {
+    const nextData = JSON.parse(JSON.stringify({
         ...newData,
         publishedAt: currentData.publishedAt,
         updatedAt: timestamp,
         _changelog: preservedChangelog,
-    };
+    }));
     await update(ref(database), {
         [`tests/${testId}`]: nextData,
         ...buildMaterialSummaryUpdatePayload(

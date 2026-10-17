@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BOOK_SOURCE_MAX_PDF_BYTES, STUDENT_DOCUMENT_MAX_PDF_BYTES } from '../../types/bookSource.types';
 import {
   inspectSourcePdf,
   invalidateSourcePdfInspectionClaim,
@@ -31,6 +32,43 @@ const file = () => new File([bytes], '  source  book.PDF ', {
 });
 
 describe('sourcePdfInspection.browser', () => {
+  it.each(['book-source', 'student-document'] as const)('enforces the %s byte limit before reading', async (purpose) => {
+    const selected = file();
+    Object.defineProperty(selected, 'size', { value: (purpose === 'student-document' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES) + 1 });
+    const readArrayBuffer = vi.fn(async () => bytes.buffer);
+    await expect(inspectSourcePdf(selected, { purpose, __testDependencies: dependencies({ readArrayBuffer }) })).rejects.toMatchObject({ code: 'file_too_large' });
+    expect(readArrayBuffer).not.toHaveBeenCalled();
+  });
+  it('retains exact claim identity only after successful equal reinspection', async () => {
+    const selected = file();
+    const readArrayBuffer = vi.fn(async () => bytes.buffer);
+    const options = { __testDependencies: dependencies({ readArrayBuffer }) };
+    const original = await inspectSourcePdf(selected, options);
+    expect(await inspectSourcePdf(selected, options)).toBe(original);
+    expect(readArrayBuffer).toHaveBeenCalledTimes(2);
+    expect(isSourcePdfInspectionClaimForFile({ ...original }, selected)).toBe(false);
+    const changed = await inspectSourcePdf(selected, {
+      __testDependencies: dependencies({ digestSha256: async () => new Uint8Array(32).buffer }),
+    });
+    expect(changed).not.toBe(original);
+    expect(isSourcePdfInspectionClaimForFile(original, selected)).toBe(false);
+    invalidateSourcePdfInspectionClaim(selected);
+    expect(await inspectSourcePdf(selected, options)).not.toBe(original);
+  });
+
+  it('does not resurrect a claim explicitly invalidated during reinspection', async () => {
+    const selected = file();
+    const original = await inspectSourcePdf(selected, { __testDependencies: dependencies() });
+    let resolveRead!: (value: ArrayBuffer) => void;
+    const pending = inspectSourcePdf(selected, { __testDependencies: dependencies({
+      readArrayBuffer: () => new Promise((resolve) => { resolveRead = resolve; }),
+    }) });
+    expect(isSourcePdfInspectionClaimForFile(original, selected)).toBe(false);
+    invalidateSourcePdfInspectionClaim(selected);
+    resolveRead(bytes.buffer);
+    await expect(pending).rejects.toMatchObject({ code: 'aborted' });
+    expect(isSourcePdfInspectionClaimForFile(original, selected)).toBe(false);
+  });
   it('returns normalized immutable metadata and binds it to the exact File', async () => {
     const selected = file();
     const destroy = vi.fn(async () => undefined);

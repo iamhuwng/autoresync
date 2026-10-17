@@ -93,7 +93,9 @@ const parse = async (result: Awaited<ReturnType<ReturnType<typeof createBookRunt
 
 const scheduleAuthority = (
   authorityRevision = 1,
-  operation: 'autosave' | 'state' = 'autosave',
+  operation: 'autosave' | 'state' | 'submit' = 'autosave',
+  evaluatedAt = '2026-07-27T00:00:00.000Z',
+  lateSubmissionAllowed = false,
 ): BookRuntimeScheduleAuthority => ({
   ...createBookRuntimeScheduleAuthority(resolveBookScheduleWindow({
     assignmentId: 'context-1',
@@ -114,12 +116,12 @@ const scheduleAuthority = (
     },
     outline: binding().outline,
     studentExtensions: {},
-    lateSubmissionAllowed: false,
+    lateSubmissionAllowed,
     maxAttempts: 2,
     attemptsUsed: 0,
     policyRevision: 1,
     authorityRevision,
-    evaluatedAt: '2026-07-27T00:00:00.000Z',
+    evaluatedAt,
   })),
 });
 
@@ -262,6 +264,17 @@ describe('Ticket 28A runtime Worker boundary', () => {
       status: 403,
       body: { code: 'runtime_recipient_forbidden' },
     });
+    await expect(parse(await createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+    }).command({
+      request: request(body()),
+      env,
+      uid: 'teacher-1',
+    }))).resolves.toMatchObject({
+      status: 403,
+      body: { code: 'runtime_recipient_forbidden' },
+    });
     expect(repository.snapshot()).toMatchObject({ drafts: {}, attempts: {}, operations: {} });
   });
 
@@ -380,6 +393,105 @@ describe('Ticket 28A runtime Worker boundary', () => {
       attempts: {},
       operations: {},
     });
+  });
+
+  it('denies a Class lock acquired after initial authorization before repository mutation', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const classBinding: BookDeliveryBinding = {
+      ...binding(),
+      context: {
+        kind: 'class',
+        contextId: 'class-class-1-copy-copy-1-material-material-1-placement-placement-1',
+        recipientId: 'student-1', ownerId: 'teacher-1', entitlementBasis: 'membership',
+        classLocator: {
+          classId: 'class-1', copyId: 'copy-1', classPlacementId: 'placement-1', courseMaterialId: 'material-1',
+        },
+      },
+    };
+    let locked = false;
+    const schedulePolicy = {
+      authorize: vi.fn(() => ({ outcome: 'allowed' as const })),
+      revalidate: vi.fn(() => (locked
+        ? { outcome: 'denied' as const, code: 'runtime_class_membership_denied' }
+        : { outcome: 'allowed' as const })),
+    };
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => classBinding,
+      resolveActivity: async () => {
+        locked = true;
+        return normalizedActivity();
+      },
+      schedulePolicy,
+    });
+
+    await expect(parse(await handlers.command({ request: request(body()), env, uid: 'student-1' })))
+      .resolves.toEqual({ status: 403, body: { code: 'runtime_class_membership_denied' } });
+    expect(schedulePolicy.authorize).toHaveBeenCalledTimes(1);
+    expect(schedulePolicy.revalidate).toHaveBeenCalledTimes(1);
+    expect(repository.snapshot()).toMatchObject({ drafts: {}, attempts: {}, operations: {} });
+  });
+
+  it('keeps a committed submit for replay when result projection fails', async () => {
+    const repository = new InMemoryBookRuntimeRepository();
+    const projectBookResult = vi.fn()
+      .mockRejectedValueOnce(new Error('projection unavailable'))
+      .mockResolvedValue(undefined);
+    let currentAuthorityRevision = 1;
+    const schedulePolicy = {
+      authorize: vi.fn((input: { readonly operation: 'autosave' | 'state' | 'submit' }) => ({
+        outcome: 'allowed' as const,
+        authority: scheduleAuthority(1, input.operation, '2026-07-29T00:00:00.000Z', true),
+      })),
+      revalidate: vi.fn((input: { readonly operation: 'autosave' | 'state' | 'submit' }) => ({
+        outcome: 'allowed' as const,
+        authority: scheduleAuthority(currentAuthorityRevision, input.operation, '2026-07-29T00:00:00.000Z', true),
+      })),
+    };
+    const handlers = createBookRuntimeWorkerHandlers({
+      repository,
+      resolveBinding: async () => binding(),
+      resolveActivity: async () => normalizedActivity(),
+      resolveAttemptPolicy: async () => ({ maxAttempts: 2, feedbackPolicy: 'after_completion' }),
+      projectBookResult,
+      schedulePolicy,
+      now: () => '2026-07-29T00:00:00.000Z',
+      allocateAttemptId: () => 'attempt-1',
+    });
+    const submit = body({
+      commandKind: 'submit',
+      response: [{ interactionId: 'interaction-1', answer: 'draft' }],
+    });
+
+    await expect(parse(await handlers.command({ request: request(submit), env, uid: 'student-1' })))
+      .resolves.toMatchObject({ status: 500, body: { code: 'book_runtime_command_failed' } });
+    expect(repository.snapshot()).toMatchObject({
+      attempts: {
+        'attempt-1': {
+          attemptId: 'attempt-1',
+          feedbackPolicy: 'after_completion',
+          terminalLate: {
+            effectiveDeadline: { source: 'assignment', at: '2026-07-28T00:00:00.000Z' },
+            policyRevision: 1,
+            authorityRevision: 1,
+            evaluatedAt: '2026-07-29T00:00:00.000Z',
+            late: true,
+          },
+        },
+      },
+    });
+    expect(repository.snapshot().results?.['attempt-1:result']).toMatchObject({
+      feedbackPolicy: 'after_completion',
+      terminalLate: repository.snapshot().attempts?.['attempt-1']?.terminalLate,
+    });
+
+    currentAuthorityRevision = 2;
+    await expect(parse(await handlers.command({ request: request(submit), env, uid: 'student-1' })))
+      .resolves.toMatchObject({ status: 200, body: { status: 'replayed' } });
+    expect(schedulePolicy.revalidate).toHaveBeenCalledTimes(1);
+    expect(repository.snapshot().attempts?.['attempt-1']?.terminalLate?.authorityRevision).toBe(1);
+    expect(projectBookResult).toHaveBeenCalledTimes(2);
+    expect(Object.keys(repository.snapshot().attempts ?? {})).toEqual(['attempt-1']);
   });
 
   it('fails closed before schedule or mutation when the Interaction is not in the Activity', async () => {

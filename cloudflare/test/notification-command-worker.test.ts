@@ -210,7 +210,7 @@ describe('Ticket 38B1 trusted notification command seam', () => {
     }
   });
 
-  it('uses conditional Firebase persistence and replays without a second write', async () => {
+  it.each([undefined, false, true])('conditionally creates once and preserves collision read=%s and time', async (read) => {
     const stored = {
       id: operationId,
       type: 'info',
@@ -220,15 +220,12 @@ describe('Ticket 38B1 trusted notification command seam', () => {
       metadata: Object.fromEntries(
         Object.entries(body().notification.metadata).reverse(),
       ),
-      read: true,
+      read,
       createdAt: 1_722_220_000_000,
     };
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response('null', {
-        status: 200,
-        headers: { etag: '"null"' },
-      }))
       .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 412 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(stored), {
         status: 200,
         headers: { etag: '"existing"' },
@@ -248,11 +245,45 @@ describe('Ticket 38B1 trusted notification command seam', () => {
       now: 1_722_220_000_000,
     };
     await expect(repository.create(input)).resolves.toMatchObject({ status: 'created' });
-    await expect(repository.create(input)).resolves.toMatchObject({ status: 'replayed' });
+    await expect(repository.create({ ...input, now: input.now + 1000 })).resolves.toMatchObject({ status: 'replayed' });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({
+    expect(fetchImpl.mock.calls[0]?.[1]).toMatchObject({
       method: 'PUT',
-      headers: expect.objectContaining({ 'if-match': '"null"' }),
+      headers: expect.objectContaining({ 'if-match': 'null_etag' }),
     });
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ method: 'PUT',
+      headers: expect.objectContaining({ 'if-match': 'null_etag' }) });
+    expect(fetchImpl.mock.calls[2]?.[1]).toMatchObject({ method: 'GET' });
+  });
+
+  it('bounds conflicting, disappearing, and unreadable collisions to one create and one read', async () => {
+    const input = { operationId, recipientId: 'student-1', notification: body().notification, now: 1000 };
+    for (const existing of [JSON.stringify({ id: operationId, ...input.notification,
+      title: 'Different', createdAt: 1000 }), 'null', 'read-failure']) {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(new Response('', { status: 412 }));
+      if (existing === 'read-failure') fetchImpl.mockRejectedValueOnce(new Error('transport-failure'));
+      else fetchImpl.mockResolvedValueOnce(new Response(existing, { status: 200 }));
+      const repository = new FirebaseRestNotificationCommandRepository({ env: {
+        FIREBASE_DB_URL: 'https://example.firebaseio.com',
+        NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notification@example.iam.gserviceaccount.com',
+      }, fetchImpl, getAccessToken: async () => 'token' });
+      if (existing === 'null') await expect(repository.create(input)).rejects.toThrow('collision_unknown');
+      else if (existing === 'read-failure') await expect(repository.create(input)).rejects.toThrow('transport-failure');
+      else await expect(repository.create(input)).resolves.toMatchObject({ status: 'idempotency-conflict' });
+      expect(fetchImpl.mock.calls.map((call) => call[1]?.method)).toEqual(['PUT', 'GET']);
+    }
+  });
+
+  it('never retries an uncertain write or accepts an unsafe keyed operation', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('response-lost'));
+    const repository = new FirebaseRestNotificationCommandRepository({ env: {
+      FIREBASE_DB_URL: 'https://example.firebaseio.com',
+      NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'notification@example.iam.gserviceaccount.com',
+    }, fetchImpl, getAccessToken: async () => 'token' });
+    const input = { operationId, recipientId: 'student-1', notification: body().notification, now: 1000 };
+    await expect(repository.create({ ...input, operationId: '../other' })).rejects.toThrow('invalid_notification_operation');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await expect(repository.create(input)).rejects.toThrow('response-lost');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

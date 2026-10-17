@@ -1,15 +1,18 @@
 import {
+  canonicalReplacementAdapterFacts,
   createReplacementPlan,
+  replacementReviewSelectionFingerprint,
 } from '../../../../../src/services/book-source-delivery/replacementPlan.service.ts';
 import type {
   ReplacementCurrentRevisions,
-  ReplacementPlanClientCreateRequest,
   ReplacementSnapshotRevisionVector,
   ReplacementPlanRecord,
   ReplacementPlanReviewRecord,
 } from '../../../../../src/services/book-source-delivery/replacementPlan.types.ts';
 import type { ReplacementSourceSetDeltaInput } from '../../../../../src/services/book-assembly/replacementSourceSetDelta.types.ts';
 import { persistReplacementConfirmationToken, createReplacementConfirmationToken } from './token.ts';
+import { validateReplacementUpdateSelections } from '../../book-updates/update-action.ts';
+import type { BookUpdateActionSelection } from '../../../../../src/services/book-delivery/bookUpdateAction.types.ts';
 import type {
   ReplacementPlanCancelResponse,
   ReplacementPlanCurrentResponse,
@@ -86,11 +89,6 @@ const now = (input: ReplacementPlanRouteInput): string | null => {
     return null;
   }
 };
-const digest = async (value: unknown): Promise<string> => {
-  const bytes = new TextEncoder().encode(JSON.stringify(value));
-  const result = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(result)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-};
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -102,13 +100,10 @@ const stable = (value: unknown): string => {
 
 type ReplacementPlanRouteRequest = Record<string, unknown> & {
   readonly sourceSetDelta: ReplacementSourceSetDeltaInput;
-  readonly currentRevisions: ReplacementCurrentRevisions;
-  readonly targetSourceSetRevision: number;
-  readonly capacity: ReplacementPlanClientCreateRequest['capacity'];
-  readonly now: string;
+  readonly expectedCurrentRevisions: ReplacementCurrentRevisions;
   readonly ttlMs?: number;
-  readonly snapshotFingerprint: string;
-  readonly snapshotRevisionVector: ReplacementSnapshotRevisionVector;
+  readonly expectedSnapshotFingerprint: string;
+  readonly expectedSnapshotRevisionVector: ReplacementSnapshotRevisionVector;
 };
 
 const failure = (error: unknown): { readonly status: number; readonly code: string } => {
@@ -120,13 +115,12 @@ const failure = (error: unknown): { readonly status: number; readonly code: stri
 };
 
 const planRequest = (body: Record<string, unknown>): body is ReplacementPlanRouteRequest =>
-  allowedKeys(body, ['sourceSetDelta', 'currentRevisions', 'targetSourceSetRevision', 'capacity', 'now', 'ttlMs', 'snapshotFingerprint', 'snapshotRevisionVector'])
+  allowedKeys(body, ['sourceSetDelta', 'expectedCurrentRevisions', 'ttlMs', 'expectedSnapshotFingerprint', 'expectedSnapshotRevisionVector'])
   && record(body.sourceSetDelta)
-  && record(body.currentRevisions)
-  && record(body.capacity)
-  && safeHash(body.snapshotFingerprint)
-  && record(body.snapshotRevisionVector)
-  && record(body.snapshotRevisionVector.values);
+  && record(body.expectedCurrentRevisions)
+  && safeHash(body.expectedSnapshotFingerprint)
+  && record(body.expectedSnapshotRevisionVector)
+  && record(body.expectedSnapshotRevisionVector.values);
 
 const planFactsCurrent = async (
   input: ReplacementPlanRouteInput,
@@ -140,7 +134,7 @@ const planFactsCurrent = async (
   });
   if (!facts) return false;
   return stable(facts.revisionVector.values) === stable(plan.impactSnapshotRevisionVector)
-    && facts.adapterFingerprint === await digest(plan.adapters)
+    && facts.adapterFingerprint === (await canonicalReplacementAdapterFacts(plan.adapters)).fingerprint
     && stable(facts.currentRevisions) === stable({
       bookRevision: plan.bookRevision,
       publicationRevision: plan.publicationRevision,
@@ -191,7 +185,7 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
       const snapshotResult = await input.dependencies.snapshots.readCurrent({
         actorId: input.uid,
         bookId: matched.bookId,
-        expectedFingerprint: body.snapshotFingerprint,
+        expectedFingerprint: body.expectedSnapshotFingerprint,
         now: currentTime,
       });
       if (snapshotResult.status !== 'ready') {
@@ -204,9 +198,9 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
         snapshotId: snapshotResult.snapshot.snapshotId,
         snapshotFingerprint: snapshotResult.snapshot.inputFingerprint,
       });
-      if (!facts || stable(facts.revisionVector.values) !== stable(body.snapshotRevisionVector.values)
-        || stable(facts.currentRevisions) !== stable(body.currentRevisions)
-        || facts.adapterFingerprint !== await digest(snapshotResult.snapshot.adapters)) {
+      if (!facts || stable(facts.revisionVector.values) !== stable(body.expectedSnapshotRevisionVector.values)
+        || stable(facts.currentRevisions) !== stable(body.expectedCurrentRevisions)
+        || facts.adapterFingerprint !== (await canonicalReplacementAdapterFacts(snapshotResult.snapshot.adapters)).fingerprint) {
         return json({ code: 'replacement_plan_revision_facts_stale' }, 409);
       }
       const trusted = await input.dependencies.sourceSets.resolve({
@@ -215,6 +209,23 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
         requested: body.sourceSetDelta,
       });
       if (!trusted) return json({ code: 'replacement_plan_source_set_unavailable' }, 409);
+      if (!Number.isSafeInteger(trusted.targetSourceSetRevision)
+        || trusted.targetSourceSetRevision <= facts.currentRevisions.sourceSetRevision) {
+        return json({ code: 'replacement_plan_authority_unavailable' }, 503);
+      }
+      if (!input.dependencies.capacity) return json({ code: 'replacement_plan_authority_unavailable' }, 503);
+      const trustedCapacity = await input.dependencies.capacity.read({
+        ownerId: input.uid,
+        bookId: matched.bookId,
+        currentRevisions: facts.currentRevisions,
+        sourceSetDelta: {
+          old: trusted.old,
+          next: trusted.next,
+          mappings: body.sourceSetDelta.mappings,
+        },
+        now: currentTime,
+      });
+      if (!trustedCapacity) return json({ code: 'replacement_plan_authority_unavailable' }, 503);
       const built = await createReplacementPlan({
         ownerId: input.uid,
         bookId: matched.bookId,
@@ -224,8 +235,8 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
           mappings: body.sourceSetDelta.mappings,
         },
         currentRevisions: facts.currentRevisions,
-        targetSourceSetRevision: body.targetSourceSetRevision,
-        capacity: body.capacity,
+        targetSourceSetRevision: trusted.targetSourceSetRevision,
+        capacity: trustedCapacity,
         now: currentTime,
         ...(body.ttlMs === undefined ? {} : { ttlMs: body.ttlMs }),
         impactSnapshot: {
@@ -240,7 +251,7 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
       return json({ status: saved.status, plan: saved.plan, receipt: saved.receipt }, 200);
     }
 
-    if (!allowedKeys(body, ['planId', 'planFingerprint'])
+    if (!allowedKeys(body, matched.operation === 'review' ? ['planId', 'planFingerprint', 'selections', 'reason'] : ['planId', 'planFingerprint'])
       || !safeId(body.planId) || !safeHash(body.planFingerprint)) return json({ code: 'replacement_plan_request_invalid' }, 400);
     const current = await input.dependencies.repository.readCurrent({
       ownerId: input.uid,
@@ -267,6 +278,28 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
       const response: ReplacementPlanCancelResponse = { status: canceled.status, receipt: canceled.receipt };
       return json(response, 200);
     }
+    const snapshotResult = await input.dependencies.snapshots.readCurrent({
+      actorId: input.uid, bookId: matched.bookId,
+      expectedFingerprint: current.plan.impactSnapshotFingerprint, now: currentTime,
+    });
+    if (snapshotResult.status !== 'ready'
+      || snapshotResult.snapshot.snapshotId !== current.plan.impactSnapshotId
+      || snapshotResult.snapshot.actorId !== input.uid || snapshotResult.snapshot.ownerId !== input.uid
+      || snapshotResult.snapshot.bookId !== matched.bookId
+      || !Number.isFinite(Date.parse(snapshotResult.snapshot.expiresAt))
+      || Date.parse(snapshotResult.snapshot.expiresAt) <= Date.parse(currentTime)
+      || snapshotResult.snapshot.inputFingerprint !== current.plan.impactSnapshotFingerprint) return json({ code: 'replacement_plan_stale' }, 409);
+    const requested = body.selections ?? [];
+    if (!Array.isArray(requested) || (body.reason !== undefined && typeof body.reason !== 'string')) return json({ code: 'replacement_plan_request_invalid' }, 400);
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    const selections = validateReplacementUpdateSelections({
+      actorId: input.uid, bookId: matched.bookId, snapshotId: current.plan.impactSnapshotId,
+      snapshotFingerprint: current.plan.impactSnapshotFingerprint, idempotencyKey: operationIdValue,
+      reason, selections: requested as BookUpdateActionSelection[],
+    }, snapshotResult.snapshot, currentTime);
+    if (!selections || selections.some((selection) => !current.plan.contexts.some((context) => context.contextKey === selection.contextKey)) || reason.length > 500
+      || (selections.some((selection) => !['review-only', 'retain-current', 'retain-historical'].includes(selection.choice)) && !reason)) return json({ code: 'replacement_plan_request_invalid' }, 400);
+    const selectionFingerprint = await replacementReviewSelectionFingerprint({ selections, reason });
     const review: ReplacementPlanReviewRecord = Object.freeze({
       schemaVersion: 1,
       reviewId: input.dependencies.newId?.() ?? crypto.randomUUID(),
@@ -277,12 +310,13 @@ export const handleReplacementPlanRoute = async (input: ReplacementPlanRouteInpu
       deltaFingerprint: current.plan.deltaFingerprint,
       snapshotFingerprint: current.plan.impactSnapshotFingerprint,
       revisionVector: current.plan.impactSnapshotRevisionVector,
+      selections, reason, selectionFingerprint,
       reviewedAt: currentTime,
       expiresAt: current.plan.expiresAt,
       state: 'reviewed',
     });
     const savedReview = await input.dependencies.repository.saveReview({ review, operationId: operationIdValue, now: currentTime });
-    const adapterFingerprint = await digest(current.plan.adapters);
+    const adapterFingerprint = (await canonicalReplacementAdapterFacts(current.plan.adapters)).fingerprint;
     const generated = await createReplacementConfirmationToken({
       ownerId: input.uid,
       bookId: matched.bookId,

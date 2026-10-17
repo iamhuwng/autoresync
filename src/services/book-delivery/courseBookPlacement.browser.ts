@@ -337,7 +337,7 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
     'schemaVersion', 'projectionKind', 'bindingId', 'bindingRevision', 'recipientId',
     'context', 'book', 'scope', 'outline', 'sourceSet', 'documentRequests',
     'activities', 'actionFlags', 'provenance',
-  ]) || value.schemaVersion !== 1 || value.projectionKind !== 'book-runtime-delivery'
+  ], ['pageGroups']) || value.schemaVersion !== 1 || value.projectionKind !== 'book-runtime-delivery'
     || typeof value.bindingId !== 'string' || !ID.test(value.bindingId)
     || typeof value.bindingRevision !== 'number' || !Number.isSafeInteger(value.bindingRevision)
     || value.bindingRevision < 1
@@ -361,6 +361,17 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
     fail('invalid_response', 502);
   }
   assertScope(value.scope);
+  if (value.pageGroups !== undefined) {
+    if (!Array.isArray(value.pageGroups)) fail('invalid_response', 502);
+    value.pageGroups.forEach((group) => {
+      if (!isRecord(group) || !exactKeys(group, ['pageGroupKey', 'combinedPhysicalPages'])
+        || typeof group.pageGroupKey !== 'string' || !ID.test(group.pageGroupKey)
+        || !Array.isArray(group.combinedPhysicalPages)
+        || group.combinedPhysicalPages.some((page) => !Number.isSafeInteger(page) || (page as number) < 1)) {
+        fail('invalid_response', 502);
+      }
+    });
+  }
   const sourceSet = value.sourceSet;
   if (!Array.isArray(value.outline) || !isRecord(sourceSet)
     || !exactKeys(sourceSet, ['strategy', 'sources']) || !Array.isArray(sourceSet.sources)
@@ -390,17 +401,40 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
     sourceKeys.push(source.sourceKey);
   });
   if (!uniqueStrings(sourceKeys) || !Array.isArray(value.documentRequests)
-    || value.documentRequests.length !== sourceKeys.length) {
+    || (sourceSet.strategy === 'component_pdfs'
+      ? sourceKeys.length !== 0 || value.documentRequests.length !== 1
+      : value.documentRequests.length !== sourceKeys.length)) {
     fail('invalid_response', 502);
   }
   value.documentRequests.forEach((request) => {
-    if (!isRecord(request) || !exactKeys(request, ['sourceKey', 'sourceVersionId', 'opaqueRouteKey', 'localPageScope'])
+    if (sourceSet.strategy === 'component_pdfs') {
+      if (!isRecord(request) || !exactKeys(request, ['opaqueRouteKey', 'expectedByteLength'], ['expectedEtag'])
+        || typeof request.opaqueRouteKey !== 'string' || !OPAQUE_ROUTE_KEY.test(request.opaqueRouteKey)
+        || !Number.isSafeInteger(request.expectedByteLength) || (request.expectedByteLength as number) < 1
+        || (request.expectedEtag !== undefined && (typeof request.expectedEtag !== 'string'
+          || !/^"[A-Fa-f0-9]{64}"$/u.test(request.expectedEtag)))) fail('invalid_response', 502);
+      return;
+    }
+    if (!isRecord(request) || !exactKeys(request, ['sourceKey', 'sourceVersionId', 'opaqueRouteKey', 'localPageScope'],
+      ['expectedByteLength', 'expectedEtag', 'physicalPageNumber'])
       || typeof request.sourceKey !== 'string' || !sourceKeys.includes(request.sourceKey)
       || typeof request.sourceVersionId !== 'string' || !ID.test(request.sourceVersionId)
       || typeof request.opaqueRouteKey !== 'string' || !OPAQUE_ROUTE_KEY.test(request.opaqueRouteKey)) {
       fail('invalid_response', 502);
     }
     assertSourcePageScope(request.localPageScope);
+    if (request.expectedByteLength !== undefined
+      && (!Number.isSafeInteger(request.expectedByteLength) || (request.expectedByteLength as number) < 1)) {
+      fail('invalid_response', 502);
+    }
+    if (request.expectedEtag !== undefined
+      && (typeof request.expectedEtag !== 'string' || !/^"[A-Fa-f0-9]{64}"$/u.test(request.expectedEtag))) {
+      fail('invalid_response', 502);
+    }
+    if (request.physicalPageNumber !== undefined
+      && (!Number.isSafeInteger(request.physicalPageNumber) || (request.physicalPageNumber as number) < 1)) {
+      fail('invalid_response', 502);
+    }
   });
   if (!Array.isArray(value.activities) || value.activities.length < 1) fail('invalid_response', 502);
   value.activities.forEach((activity) => {
@@ -424,6 +458,9 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
       || !Array.isArray(activity.sourceContext.pageGroupKeys)
       || !activity.sourceContext.pageGroupKeys.every((key) => typeof key === 'string' && ID.test(key))
       || !Array.isArray(activity.sourceContext.sourcePageScopes)) {
+      fail('invalid_response', 502);
+    }
+    if (sourceSet.strategy === 'component_pdfs' && activity.sourceContext.sourcePageScopes.length !== 0) {
       fail('invalid_response', 502);
     }
     activity.sourceContext.sourcePageScopes.forEach((scope) => {

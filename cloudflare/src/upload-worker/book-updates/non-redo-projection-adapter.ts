@@ -29,7 +29,7 @@ export const createBookNonRedoProjectionAdapter = (
     const existing = await repository.readOperation(input.operationId);
     if (existing) {
       return existing.actionId === input.actionId
-        && existing.contextId === input.operation.contextKey.split(':').slice(1).join(':')
+        && existing.contextId === input.operation.contextId
         && existing.placementId === input.operation.placementId
         && existing.activityVersionId === input.operation.newActivityVersionId
         ? { status: 'replayed' as const }
@@ -40,7 +40,7 @@ export const createBookNonRedoProjectionAdapter = (
       placementId: input.operation.placementId,
     });
     if (!current
-      || current.contextId !== input.operation.contextKey.split(':').slice(1).join(':')
+      || current.contextId !== input.operation.contextId
       || current.placementId !== input.operation.placementId
       || current.activityId !== input.operation.activityId
       || current.activityVersionId !== input.operation.oldActivityVersionId) {

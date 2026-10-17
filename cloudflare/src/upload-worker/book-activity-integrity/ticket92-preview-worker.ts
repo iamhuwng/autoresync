@@ -51,10 +51,14 @@ const policy = createDefaultBookIntegrityPolicy('accountable', {
   policyRevision: 1,
 });
 
+const captureSlotId = 'book-integrity-slot-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
 const authority: BookIntegrityAttemptAuthority = {
   ...target,
   recipientId: 'student-1',
   accountableAttemptId: 'active-attempt-1',
+  captureSlotId,
+  captureAttemptNumber: 1,
   attemptNumber: 1,
   active: true,
   frozenPolicy: policy,
@@ -69,6 +73,8 @@ const request = (
   target,
   policyId: policy.policyId,
   policyRevision: policy.policyRevision,
+  captureSlotId,
+  captureAttemptNumber: 1,
   clientSessionId,
   sequence,
   signal,
@@ -80,6 +86,7 @@ const terminal: BookIntegrityTerminalAttempt = {
   resultId: 'active-attempt-1:result',
   completionId: 'active-attempt-1:completion',
   attemptNumber: 1,
+  captureSlotId,
   submittedAt: '2026-08-02T00:00:10.000Z',
   recipientId: 'student-1',
   ownerId: 'teacher-1',
@@ -128,7 +135,7 @@ const createProofState = async () => {
   const scope = Object.values(snapshot.scopes)[0] as unknown as BookIntegritySignalScope;
   const reportRepository = new InMemoryBookIntegrityReportRepository({
     scopes: {
-      [`book_activity_integrity/scopes/${authority.recipientId}/${target.contextId}/${target.placementId}/${target.activityId}/${authority.accountableAttemptId}`]: scope,
+      [`book_activity_integrity/scopes/${authority.recipientId}/${target.contextId}/${target.placementId}/${target.activityId}/${authority.captureSlotId}`]: scope,
     },
   });
   const reportService = createTrustedBookIntegrityReportService({

@@ -1,4 +1,5 @@
 import { createPublicKey, generateKeyPairSync } from 'node:crypto';
+import { jsPDF } from 'jspdf';
 import generatedDatabaseRulesSource from '../../database.rules.json?raw';
 import bindingFragmentSource from '../src/upload-worker/book-rules/fragments/118C.json?raw';
 import { exportJWK, generateKeyPair, importSPKI, jwtVerify, SignJWT } from 'jose';
@@ -22,7 +23,19 @@ const unitKey = 'unit-1';
 const activityKey = 'slot-1';
 const sourceKey = 'full';
 const sourceVersionId = 'source-v1';
-const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:7be1fce11aa2a739ec10ddab540b6af682db6e8ea9659916b1c9eb878ef690b5';
+const sourceSafety = (version = sourceVersionId, purpose = 'book-source') => ({
+  purpose,
+  studentSafeStatus: 'ready',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  studentSafeDecision: {
+    decidedBy: ownerId,
+    decidedAt: '2026-08-01T00:00:00.000Z',
+    sourceVersionId: version,
+    sha256Hex: 'a'.repeat(64),
+    reasonCode: 'teacher-reviewed',
+  },
+});
+const previewRegistryVersion = 'activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831';
 const operation = (suffix: string): string => `123e4567-e89b-42d3-a456-426614174${suffix}`;
 
 const activity: EditableActivity = {
@@ -84,6 +97,7 @@ const firebase = (tree: Record<string, unknown>, jwk: JsonWebKey, options: {
   readonly serviceIdentities: readonly string[];
   readonly bindingPath: string;
   readonly bindingWriteFailures: { remaining: number };
+  readonly externalFetch?: typeof fetch;
 }) => {
   const revisions = new Map<string, number>();
   const requests: Array<{
@@ -96,6 +110,8 @@ const firebase = (tree: Record<string, unknown>, jwk: JsonWebKey, options: {
   const etag = (path: string) => `\"${revisions.get(path) ?? 0}\"`;
   const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
+    if (!['www.googleapis.com', 'identitytoolkit.googleapis.com', 'firebase.test'].includes(url.hostname)
+      && options.externalFetch) return options.externalFetch(input, init);
     if (url.hostname === 'www.googleapis.com') return Response.json({ keys: [jwk] });
     if (url.hostname === 'identitytoolkit.googleapis.com') {
       const customToken = JSON.parse(String(init?.body ?? '{}')) as { token?: unknown };
@@ -124,7 +140,9 @@ const firebase = (tree: Record<string, unknown>, jwk: JsonWebKey, options: {
       dataWasNull: readTree(tree, path) === null,
     });
     if (method === 'GET') {
-      return new Response(JSON.stringify(readTree(tree, path)), { status: 200, headers: { etag: etag(path) } });
+      const value = readTree(tree, path);
+      return new Response(JSON.stringify(url.searchParams.get('shallow') === 'true' && value
+        ? Object.fromEntries(Object.keys(value).map((key) => [key, true])) : value), { status: 200, headers: { etag: etag(path) } });
     }
     if (method === 'PUT') {
       if (headers.get('if-match') !== etag(path)) return new Response('', { status: 412 });
@@ -181,14 +199,14 @@ describe('production-normal #59 workflow', () => {
     const authoringIdentity = 'book-authoring@example.test';
     const accountId = 'account-1';
     const bindingPath = `${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/${ownerId}/books/${bookId}/units/${unitKey}/activities/${activityKey}`;
-    const sourcePath = BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(accountId, bookId, sourceKey);
-    const siblingAuthorityPath = 'book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling';
+    const sourcePath = BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(accountId, bookId, sourceVersionId);
+    const siblingAuthorityPath = 'book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling-v1';
     const unrelatedEnrollmentPath = 'course_enrollments/legacy-enrollment-1';
     const unrelatedReleasePath = 'course_book_authority/releases/course-1/module-1/student-1';
     const tree: Record<string, unknown> = {};
     writeTree(tree, `users/${ownerId}`, { role: 'teacher', status: 'active' });
     writeTree(tree, MATERIAL_BOOK_PATH(bookId), materialBook);
-    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true });
+    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true, ...sourceSafety() });
     // These are protected, unrelated roots from the generated #102 rules. The
     // production composition must never replace or validate them as its own.
     writeTree(tree, unrelatedEnrollmentPath, {
@@ -197,7 +215,7 @@ describe('production-normal #59 workflow', () => {
     writeTree(tree, unrelatedReleasePath, { released: true, revision: 4 });
     writeTree(tree, siblingAuthorityPath, {
       ownerId: 'teacher-2', bookId: 'book-2', sourceKey: 'source-sibling', sourceVersionId: 'source-sibling-v1',
-      physicalPageCount: 8, verifiedUsable: true,
+      physicalPageCount: 8, verifiedUsable: true, ...sourceSafety('source-sibling-v1'),
     });
     const unrelatedAuthoritiesBefore = clone({
       enrollment: readTree(tree, unrelatedEnrollmentPath), release: readTree(tree, unrelatedReleasePath),
@@ -257,7 +275,7 @@ describe('production-normal #59 workflow', () => {
     expect(wrongSourceCreate.response.status).toBe(404);
     expect(wrongSourceCreate.body).toEqual({ status: 'not-found' });
     expect(readTree(tree, `book_assembly/books/${bookId}/units/${unitKey}`)).toBeNull();
-    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true });
+    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true, ...sourceSafety() });
 
     const created = await fetchRoute(candidateCreatePath, {
       operationId: operation('002'), bookId, unitKey, expectedBookRevision: 1, expectedSourceSetRevision: 1, manifest,
@@ -276,8 +294,9 @@ describe('production-normal #59 workflow', () => {
       operationId: operation('004'), expectedRevision: 0, bookId, targetActivityId: 'ba_626f6f6b2d31_736c6f742d31',
       unitActivityBinding: { unitKey, activityKey }, content: activity,
     });
-    expect(staged.response.status).toBe(200);
+    expect(staged.response.status, JSON.stringify(staged.body)).toBe(200);
     const activityCandidateId = String(staged.body.candidateId);
+    expect(activityCandidateId).not.toBe(candidateId);
     const authoringValidated = await fetchRoute('/book-activity-authoring/validate', {
       operationId: operation('005'), candidateId: activityCandidateId, expectedRevision: 1,
       unitActivityBinding: { unitKey, activityKey },
@@ -329,7 +348,7 @@ describe('production-normal #59 workflow', () => {
 
     const previewPath = `${candidatePath}/preview`;
     const preview = await fetchRoute(previewPath, { expectedCandidateRevision: 2 });
-    expect(preview.response.status).toBe(200);
+    expect(preview.response.status, JSON.stringify(preview.body)).toBe(200);
     expect(preview.body).toMatchObject({ preview: { registryVersion: previewRegistryVersion, candidateId, candidateRevision: 2 } });
     const stalePreview = await fetchRoute(previewPath, { expectedCandidateRevision: 1 });
     expect(stalePreview.response.status).toBe(409);
@@ -339,7 +358,7 @@ describe('production-normal #59 workflow', () => {
     const wrongSourcePreview = await fetchRoute(previewPath, { expectedCandidateRevision: 2 });
     expect(wrongSourcePreview.response.status).toBe(403);
     expect(wrongSourcePreview.body).toEqual({ code: 'preview_forbidden' });
-    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true });
+    writeTree(tree, sourcePath, { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true, ...sourceSafety() });
 
     const approved = await fetchRoute(`${candidatePath}/approve`, { expectedCandidateRevision: 2 });
     expect(approved.response.status).toBe(200);
@@ -353,13 +372,36 @@ describe('production-normal #59 workflow', () => {
       expectedCurrentPublicationId: null, expectedBookRevision: 1, expectedSourceSetRevision: 1,
       previewApproval: { approvalId: approval.approvalId, approvalRevision: approval.approvalRevision, approvedAt: approval.approvedAt, expiresAt: approval.expiresAt },
     };
-    const published = await fetchRoute(publicationPath, publicationRequest);
+    const publicationOperationId = operation('007');
+    const publish = async (body = publicationRequest) => {
+      const publicationHttpRequest = request(publicationPath, body);
+      publicationHttpRequest.headers.set('Idempotency-Key', publicationOperationId);
+      const response = await worker.fetch(publicationHttpRequest, env);
+      return { response, body: await payload(response) };
+    };
+    bindingWriteFailures.remaining = 1;
+    const interruptedPublication = await publish();
+    expect(interruptedPublication.response.status).toBe(503);
+    const publicationScopePath = `book_assembly_publications/books/${bookId}`;
+    const committedPublication = clone(readTree(tree, publicationScopePath));
+    const published = await publish();
     expect(published.response.status).toBe(200);
-    expect(published.body).toMatchObject({ result: { status: 'published' } });
+    expect(published.body).toMatchObject({ operationId: publicationOperationId, result: { status: 'replayed' } });
+    expect(readTree(tree, publicationScopePath)).toEqual(committedPublication);
     expect(readTree(tree, bindingPath)).toMatchObject({
       activityId: saved.body.activityId, candidateId: activityCandidateId, candidateRevision: 3,
       activityVersion: 1,
     });
+    const exactReplay = await publish();
+    expect(exactReplay.response.status).toBe(200);
+    expect(exactReplay.body).toEqual(published.body);
+    expect(readTree(tree, publicationScopePath)).toEqual(committedPublication);
+    const changedReplayRequest = request(publicationPath, { ...publicationRequest, expectedSourceSetRevision: 2 });
+    changedReplayRequest.headers.set('Idempotency-Key', publicationOperationId);
+    const changedReplay = await worker.fetch(changedReplayRequest, env);
+    expect(changedReplay.status).toBe(409);
+    expect(await payload(changedReplay)).toEqual({ code: 'idempotency_conflict' });
+    expect(readTree(tree, publicationScopePath)).toEqual(committedPublication);
 
     // Both failures are evaluated before a durable publication mutation.
     const candidateScopePath = `book_assembly/books/${bookId}/units/${unitKey}/candidates/${candidateId}`;
@@ -459,7 +501,7 @@ if (rtdbEmulatorHost) {
       const authoringIdentity = 'book-authoring@example.test';
       const accountId = 'account-1';
       const bindingPath = `${BOOK_ASSEMBLY_ACTIVITY_BINDING_ROOT}/${ownerId}/books/${bookId}/units/${unitKey}/activities/${activityKey}`;
-      const sourcePath = BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(accountId, bookId, sourceKey);
+      const sourcePath = BOOK_SOURCE_ASSEMBLY_PROJECTION_SOURCE_PATH(accountId, bookId, sourceVersionId);
       const seed = async (path: string, value: unknown): Promise<void> => {
         await rtdbRules!.withSecurityRulesDisabled(async (context) => { await context.database().ref(path).set(value); });
       };
@@ -470,15 +512,15 @@ if (rtdbEmulatorHost) {
         await context.database().ref().update({
           [`users/${ownerId}`]: { role: 'teacher', status: 'active' },
           [`${MATERIAL_BOOK_PATH(bookId)}`]: materialBook,
-          [sourcePath]: { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true },
+          [sourcePath]: { ownerId, bookId, sourceKey, sourceVersionId, physicalPageCount: 1, verifiedUsable: true, ...sourceSafety() },
           'course_enrollments/legacy-enrollment-1': { enrollmentId: 'legacy-enrollment-1', courseId: 'course-1', studentId: 'student-1', status: 'active', revision: 7 },
           'course_book_authority/releases/course-1/module-1/student-1': { released: true, revision: 4 },
-          'book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling': { ownerId: 'teacher-2', bookId: 'book-2', sourceKey: 'source-sibling', sourceVersionId: 'source-sibling-v1', physicalPageCount: 8, verifiedUsable: true },
+          'book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling-v1': { ownerId: 'teacher-2', bookId: 'book-2', sourceKey: 'source-sibling', sourceVersionId: 'source-sibling-v1', physicalPageCount: 8, verifiedUsable: true, ...sourceSafety('source-sibling-v1') },
         });
       });
       const preservedAuthorities = await Promise.all([
         read('course_enrollments/legacy-enrollment-1'), read('course_book_authority/releases/course-1/module-1/student-1'),
-        read('book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling'),
+        read('book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling-v1'),
       ]);
 
       // These checks execute database.rules.json, rather than mirroring it in
@@ -654,7 +696,7 @@ if (rtdbEmulatorHost) {
         expect((await invoke('/book-assembly/full-pdf-publications', publicationRequest)).response.status).toBe(422);
         expect(await Promise.all([
           read('course_enrollments/legacy-enrollment-1'), read('course_book_authority/releases/course-1/module-1/student-1'),
-          read('book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling'),
+          read('book_source_upload_accounts/account-1/assemblyBooks/book-2/source-sibling-v1'),
         ])).toEqual(preservedAuthorities);
       } finally {
         globalThis.fetch = realFetch;

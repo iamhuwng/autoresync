@@ -3,6 +3,7 @@ import {
   InMemoryBookResultReadRepository,
   FirebaseBookResultReadRepository,
   bookResultAttemptsPath,
+  bookResultDetailPath,
   bookResultGroupsPath,
 } from '../src/upload-worker/book-results/repository.ts';
 import { createBookResultReadWorkerHandlers } from '../src/upload-worker/book-results/worker.ts';
@@ -12,10 +13,9 @@ import {
   bookResultGroupKey,
   type BookResultAttemptSummary,
   type BookResultDetail,
-  type BookResultReadProjection,
+  type BookResultGroupSummary,
 } from '../src/upload-worker/book-results/types.ts';
 import {
-  groupBookResultAttempts,
   validateBookResultAttemptDetail,
   validateBookResultGroupSummary,
 } from '../../src/services/book-activity/results/bookResultProjection.service.ts';
@@ -93,7 +93,14 @@ const detail = (overrides: Partial<BookResultDetail> = {}): BookResultDetail => 
   ...overrides,
 });
 
-const projection = (overrides: Partial<BookResultAttemptSummary> = {}): BookResultReadProjection => {
+type ProjectionFixture = {
+  readonly schemaVersion: 1;
+  readonly bookId: string;
+  readonly summary: BookResultAttemptSummary;
+  readonly detail: BookResultDetail;
+};
+
+const projection = (overrides: Partial<BookResultAttemptSummary> = {}): ProjectionFixture => {
   const current = summary(overrides);
   return {
     schemaVersion: 1,
@@ -103,43 +110,83 @@ const projection = (overrides: Partial<BookResultAttemptSummary> = {}): BookResu
   };
 };
 
-const request = () => new Request('https://worker.test/v1/book-evaluation/results/book-1/student-1');
-
-const memoryRtdb = () => {
-  const rows = new Map<string, unknown>();
-  return {
-    write: async (path: string, value: unknown) => {
-      rows.set(path, structuredClone(value));
-    },
-    read: async (path: string) => {
-      const direct = rows.get(path);
-      if (direct !== undefined) return structuredClone(direct);
-      const prefix = `${path}/`;
-      const descendants = [...rows.entries()]
-        .filter(([candidate]) => candidate.startsWith(prefix));
-      if (descendants.length === 0) return null;
-      const root: Record<string, unknown> = {};
-      for (const [candidate, value] of descendants) {
-        const parts = candidate.slice(prefix.length).split('/');
-        let cursor = root;
-        parts.forEach((part, index) => {
-          if (index === parts.length - 1) {
-            cursor[part] = structuredClone(value);
-          } else {
-            cursor[part] ??= {};
-            cursor = cursor[part] as Record<string, unknown>;
-          }
+const readRepository = (projections: readonly ProjectionFixture[]): InMemoryBookResultReadRepository => {
+  const grouped = new Map<string, BookResultAttemptSummary[]>();
+  projections.forEach(({ summary: row }) => {
+    const key = `${row.bookId}|${row.homeworkId ?? ''}|${bookResultGroupKey(row.studentId, row.activityId)}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), row]);
+  });
+  const groups = Object.fromEntries([...grouped.entries()].map(([key, rows]) => {
+    const ordered = [...rows].sort((left, right) => (
+      left.attemptNumber - right.attemptNumber || left.submittedAt.localeCompare(right.submittedAt)
+    ));
+    const latest = ordered[ordered.length - 1]!;
+    const contexts = new Map<string, BookResultGroupSummary['contexts'][number]>();
+    ordered.forEach((row) => {
+      const contextKey = `${row.deliveryContextId}|${row.deliveryId}`;
+      const current = contexts.get(contextKey);
+      contexts.set(contextKey, current
+        ? { ...current, attemptCount: current.attemptCount + 1 }
+        : {
+          contextId: row.deliveryContextId,
+          deliveryId: row.deliveryId,
+          surface: row.surface,
+          attemptCount: 1,
         });
-      }
-      return root;
-    },
-    rows,
-  };
+    });
+    return [key, {
+      schemaVersion: 1,
+      groupKey: bookResultGroupKey(latest.studentId, latest.activityId),
+      studentId: latest.studentId,
+      recipientId: latest.recipientId,
+      activityId: latest.activityId,
+      homeworkId: latest.homeworkId ?? undefined,
+      bookId: latest.bookId,
+      attemptCount: ordered.length,
+      latestAttemptId: latest.attemptId,
+      latestResultId: latest.resultId,
+      latestAttemptNumber: latest.attemptNumber,
+      latestSubmittedAt: latest.submittedAt,
+      latestCreatedAt: latest.createdAt,
+      latestEvaluationStatus: latest.evaluationStatus,
+      latestFeedbackRelease: latest.feedback.release,
+      contexts: [...contexts.values()],
+    } satisfies BookResultGroupSummary];
+  }));
+  return new InMemoryBookResultReadRepository({
+    groups,
+    attempts: Object.fromEntries(projections.map(({ summary: row }) => [row.resultId, row])),
+    details: Object.fromEntries(projections.map(({ detail: row }) => [row.resultId, row])),
+  });
 };
 
+const request = () => new Request('https://worker.test/v1/book-evaluation/results/book-1/student-1');
+
 describe('Ticket #77 Book result read model', () => {
+  it.each(['course', 'class'] as const)('isolates exact %s results and preserves teacher ownership and student release', async (contextKind) => {
+    const contextId = `${contextKind}:placement-1`;
+    const row = projection({ surface: contextKind, contextId, deliveryContextId: contextId,
+      ownerId: 'teacher-1', evaluation: { status: 'graded', earnedScore: 3, maximumScore: 5, displayScore: '3.00 / 5.00' } });
+    const repository = readRepository([row]);
+    let current = true;
+    const handlers = createBookResultReadWorkerHandlers({ repository,
+      resolveViewerRole: ({ uid }) => uid.startsWith('teacher') ? 'teacher' : 'student',
+      resolveHomeworkAuthorities: async () => ({}),
+      resolveContextAuthority: async () => current ? { contextKind, contextId, studentId: 'student-1', bookId: 'book-1', ownerId: 'teacher-1' } : null,
+    });
+    const input = { request: request(), env: {}, bookId: 'book-1', studentId: 'student-1', contextKind, contextId, resultId: row.detail.resultId };
+    expect(bookResultGroupsPath(input)).toContain(`/contexts/${contextKind}/${contextId}/`);
+    const student = await handlers.resultDetail({ ...input, uid: 'student-1' });
+    expect(student).toMatchObject({ body: { detail: { studentFeedbackRelease: 'withheld', evaluation: { status: 'graded' } } } });
+    expect((student.body as { detail: BookResultDetail }).detail.evaluation.earnedScore).toBeUndefined();
+    expect(await handlers.resultDetail({ ...input, uid: 'teacher-1' })).toMatchObject({ body: { detail: { evaluation: { earnedScore: 3 } } } });
+    for (const uid of ['student-other', 'teacher-other']) expect(await handlers.resultDetail({ ...input, uid })).toMatchObject({ init: { status: 403 } });
+    expect(await handlers.resultDetail({ ...input, uid: 'student-1', contextId: 'crossed-context' })).toMatchObject({ init: { status: 403 } });
+    current = false;
+    expect(await handlers.resultDetail({ ...input, uid: 'student-1' })).toMatchObject({ init: { status: 403 } });
+  });
   it('publishes contributor descriptors without mutating the canonical manifest', () => {
-    expect(bookResultReadRouteDescriptors).toHaveLength(6);
+    expect(bookResultReadRouteDescriptors).toHaveLength(10);
     expect(bookResultReadRouteDescriptors.map((route) => route.handler)).toEqual([
       'bookResultRead.resultSummary',
       'bookResultRead.groupedAttempt',
@@ -147,6 +194,10 @@ describe('Ticket #77 Book result read model', () => {
       'bookResultRead.resultSummary',
       'bookResultRead.groupedAttempt',
       'bookResultRead.resultDetail',
+      'bookResultRead.resultSummary',
+      'bookResultRead.groupedAttempt',
+      'bookResultRead.resultDetail',
+      'bookResultRead.releaseFeedback',
     ]);
     for (const route of bookResultReadRouteDescriptors) {
       expect(route.domain).toBe('evaluation-history');
@@ -163,35 +214,6 @@ describe('Ticket #77 Book result read model', () => {
       && !route.pathTemplate.includes('?'))).toBe(true);
   });
 
-  it('persists grouped summaries, ordered attempt summaries, and detail idempotently', async () => {
-    const repository = new InMemoryBookResultReadRepository();
-    const projected = projection();
-    const { bookId: summaryBookId, ...pureSummary } = projected.summary;
-    const { bookId: detailBookId, ...pureDetail } = projected.detail;
-    expect(summaryBookId).toBe(detailBookId);
-    const canonicalGroup = groupBookResultAttempts([{
-      schemaVersion: projected.schemaVersion,
-      summary: pureSummary,
-      detail: pureDetail,
-    }])[0]!;
-    await repository.persistProjection?.({ projection: projected });
-    await repository.persistProjection?.({ projection: projected });
-    const groups = await repository.listGroupSummaries({ bookId: 'book-1', studentId: 'student-1' });
-    expect(groups).toHaveLength(1);
-    expect(groups[0]?.groupKey).toBe(canonicalGroup.groupKey);
-    expect(canonicalGroup.groupKey).toBe(bookResultGroupKey('student-1', 'activity-1'));
-    expect(groups[0]?.attemptCount).toBe(1);
-    const attempts = await repository.listAttemptSummaries({
-      bookId: 'book-1',
-      studentId: 'student-1',
-      groupKey: canonicalGroup.groupKey,
-    });
-    expect(attempts.map((entry) => entry.attemptNumber)).toEqual([1]);
-    const read = await repository.readResultDetail({ bookId: 'book-1', studentId: 'student-1', resultId: 'result-1' });
-    expect(read?.response).toEqual({ answer: 'submitted' });
-    expect(repository.queryMetrics()).toMatchObject({ groups: 1, attempts: 1, details: 1, persists: 2 });
-  });
-
   it('accepts canonical group keys produced from maximum-length projection identities', async () => {
     const studentId = `s${'x'.repeat(159)}`;
     const activityId = `a${'y'.repeat(159)}`;
@@ -205,19 +227,15 @@ describe('Ticket #77 Book result read model', () => {
   });
 
   it('keeps identical student-plus-activity groups isolated between books', async () => {
-    const repository = new InMemoryBookResultReadRepository();
-    await repository.persistProjection?.({ projection: projection() });
-    await repository.persistProjection?.({
-      projection: {
-        ...projection({
-          bookId: 'book-2',
-          resultId: 'result-book-2',
-          attemptId: 'attempt-book-2',
-          completionId: 'completion-book-2',
-        }),
+    const repository = readRepository([
+      projection(),
+      projection({
         bookId: 'book-2',
-      },
-    });
+        resultId: 'result-book-2',
+        attemptId: 'attempt-book-2',
+        completionId: 'completion-book-2',
+      }),
+    ]);
 
     const firstBook = await repository.listGroupSummaries({
       bookId: 'book-1',
@@ -256,7 +274,6 @@ describe('Ticket #77 Book result read model', () => {
           return path === groupsPath ? {} : null;
         },
       },
-      getAccessToken: async () => 'token',
     });
     await repository.listGroupSummaries({ bookId: 'book-1', studentId: 'student-1' });
     expect(reads).toEqual([{
@@ -285,6 +302,10 @@ describe('Ticket #77 Book result read model', () => {
     expect(requestUrl.searchParams.get('limitToLast')).toBe('25');
   });
 
+  it('encodes canonical result IDs exactly once at the Firebase transport boundary', () => {
+    expect(bookResultDetailPath('attempt-1:result')).toBe('book_result_read_models/details/attempt-1:result');
+  });
+
   it('uses a server-side attempt cap and rejects an over-cap indexed response', async () => {
     const groupKey = bookResultGroupKey('student-1', 'activity-1');
     const reads: { path: string; query: unknown }[] = [];
@@ -305,7 +326,6 @@ describe('Ticket #77 Book result read model', () => {
           return rows;
         },
       },
-      getAccessToken: async () => 'token',
     });
 
     await expect(repository.listAttemptSummaries({
@@ -319,83 +339,8 @@ describe('Ticket #77 Book result read model', () => {
     }]);
   });
 
-  it('dual-projects Homework attempts into the student aggregate and scoped Homework index', async () => {
-    const database = memoryRtdb();
-    const repository = new FirebaseBookResultReadRepository({
-      env: {
-        FIREBASE_DB_URL: 'https://database.example.test',
-        readDatabaseValue: database.read,
-        writeDatabaseValue: database.write,
-      },
-      getAccessToken: async () => 'token',
-    });
-    await repository.persistProjection({
-      projection: projection({
-        resultId: 'result-solo',
-        attemptId: 'attempt-solo',
-        completionId: 'completion-solo',
-      }),
-    });
-    await repository.persistProjection({
-      projection: projection({
-        resultId: 'result-homework',
-        attemptId: 'attempt-homework',
-        completionId: 'completion-homework',
-        attemptNumber: 2,
-        surface: 'homework',
-        contextId: 'homework-1',
-        deliveryContextId: 'homework-1',
-        ownerId: 'teacher-1',
-        homeworkId: 'homework-1',
-      }),
-    });
-
-    const groupKey = bookResultGroupKey('student-1', 'activity-1');
-    const studentAttempts = await repository.listAttemptSummaries({
-      bookId: 'book-1',
-      studentId: 'student-1',
-      groupKey,
-    });
-    const homeworkAttempts = await repository.listAttemptSummaries({
-      bookId: 'book-1',
-      studentId: 'student-1',
-      homeworkId: 'homework-1',
-      groupKey,
-    });
-    const studentGroups = await repository.listGroupSummaries({
-      bookId: 'book-1',
-      studentId: 'student-1',
-    });
-    const homeworkGroups = await repository.listGroupSummaries({
-      bookId: 'book-1',
-      studentId: 'student-1',
-      homeworkId: 'homework-1',
-    });
-
-    expect(studentAttempts.map((entry) => entry.attemptId))
-      .toEqual(['attempt-solo', 'attempt-homework']);
-    expect(homeworkAttempts.map((entry) => entry.attemptId))
-      .toEqual(['attempt-homework']);
-    expect(studentGroups[0]).toMatchObject({ attemptCount: 2 });
-    expect(homeworkGroups[0]).toMatchObject({ attemptCount: 1, homeworkId: 'homework-1' });
-    const studentScope = {
-      bookId: 'book-1',
-      studentId: 'student-1',
-      groupKey,
-    };
-    expect(bookResultAttemptsPath(studentScope))
-      .not.toContain(bookResultGroupsPath(studentScope));
-    const summaryRows = await database.read(bookResultGroupsPath(studentScope));
-    expect(Object.values(summaryRows as Record<string, unknown>).every((row) =>
-      row !== null
-      && typeof row === 'object'
-      && !Object.prototype.hasOwnProperty.call(row, 'attempts'))).toBe(true);
-    expect([...database.rows.keys()].some((path) => path === '' || path === '/')).toBe(false);
-  });
-
   it('allows a student only their own result and strips withheld feedback/sensitive detail fields', async () => {
-    const repository = new InMemoryBookResultReadRepository();
-    await repository.persistProjection?.({ projection: projection() });
+    const repository = readRepository([projection()]);
     const handlers = createBookResultReadWorkerHandlers({
       repository,
       resolveViewerRole: vi.fn(() => 'student'),
@@ -430,6 +375,15 @@ describe('Ticket #77 Book result read model', () => {
     expect(validateBookResultGroupSummary(groupBody)).toMatchObject({ valid: true, errors: [] });
     expect(JSON.stringify(groupBody)).not.toMatch(/"bookId"/u);
 
+    const summary = await handlers.resultSummary({
+      request: request(),
+      env: {},
+      uid: 'student-1',
+      bookId: 'book-1',
+      studentId: 'student-1',
+    });
+    expect(summary).toMatchObject({ init: { status: 200 }, body: { groups: expect.any(Array) } });
+
     const denied = await handlers.resultSummary({
       request: request(), env: {}, uid: 'student-2', bookId: 'book-1', studentId: 'student-1',
     });
@@ -437,9 +391,7 @@ describe('Ticket #77 Book result read model', () => {
   });
 
   it('release-gates student evaluation fields while retaining an owning teacher view', async () => {
-    const repository = new InMemoryBookResultReadRepository();
-    await repository.persistProjection?.({
-      projection: projection({
+    const projected = projection({
         surface: 'homework',
         contextId: 'homework-1',
         deliveryContextId: 'homework-1',
@@ -454,11 +406,12 @@ describe('Ticket #77 Book result read model', () => {
           evaluatedAt: '2026-07-31T00:00:03.000Z',
         },
         feedback: { release: 'pending', available: false },
-      }),
-    });
+      });
+    const repository = readRepository([projected]);
     const authority = {
       'homework-1': {
         homeworkId: 'homework-1',
+        bookId: 'book-1',
         ownerId: 'teacher-1',
         status: 'current' as const,
         studentIds: ['student-1'],
@@ -499,7 +452,86 @@ describe('Ticket #77 Book result read model', () => {
     expect((student.body as { detail: BookResultDetail }).detail.evaluation)
       .not.toHaveProperty('displayScore');
     expect((student.body as { detail: BookResultDetail }).detail.feedback)
-      .toEqual({ release: 'pending', available: false });
+      .toEqual({ release: 'withheld', available: false });
+  });
+
+  it('keeps Public results private and ungraded even when stored grading fields are present', async () => {
+    const repository = readRepository([projection({ surface: 'public', ownerId: 'teacher-1',
+      evaluationStatus: 'graded', evaluation: { status: 'graded',
+        score: { earnedScore: 1, maximumScore: 1, displayScore: '1 / 1' }, revision: 3 },
+      feedback: { release: 'released', available: true }, studentFeedbackRelease: 'released' })]);
+    const input = { request: request(), env: {}, uid: 'student-1', bookId: 'book-1',
+      studentId: 'student-1', resultId: 'result-1', contextKind: 'public' as const, contextId: 'context-1' };
+    const handlers = createBookResultReadWorkerHandlers({ repository, resolveViewerRole: () => 'student',
+      resolveHomeworkAuthorities: async () => ({}), resolveContextAuthority: async () => ({
+        contextKind: 'public', contextId: 'context-1', bookId: 'book-1', studentId: 'student-1', ownerId: 'teacher-1' }) });
+    const result = await handlers.resultDetail(input);
+    expect(result.init.status).toBe(200);
+    const visible = (result.body as { detail: BookResultDetail }).detail;
+    expect(visible.evaluationStatus).toBe('submitted');
+    expect(visible.evaluation).toEqual({ status: 'submitted' });
+    expect(visible.feedback).toEqual({ release: 'not-applicable', available: false });
+    expect(visible).not.toHaveProperty('studentFeedbackRelease');
+    const storedGroups = await repository.listGroupSummaries({ bookId: 'book-1', studentId: 'student-1' });
+    const summaryHandlers = createBookResultReadWorkerHandlers({ repository: {
+      listGroupSummaries: async () => storedGroups.map((group) => ({ ...group,
+        score: 99, correction: 'private correction', feedback: { text: 'private feedback' },
+        contexts: group.contexts.map((row) => ({ ...row, earnedScore: 99 })) })),
+      listAttemptSummaries: async () => [], readResultDetail: async () => null,
+    }, resolveViewerRole: () => 'student', resolveHomeworkAuthorities: async () => ({}),
+    resolveContextAuthority: async () => ({ contextKind: 'public', contextId: 'context-1',
+      bookId: 'book-1', studentId: 'student-1', ownerId: 'teacher-1' }) });
+    const publicGroups = await summaryHandlers.resultSummary(input);
+    expect(publicGroups.init.status).toBe(200);
+    const group = (publicGroups.body as { groups: BookResultGroupSummary[] }).groups[0];
+    expect(group.latestEvaluationStatus).toBe('submitted');
+    expect(group.latestFeedbackRelease).toBe('not-applicable');
+    expect(group).not.toHaveProperty('score');
+    expect(group).not.toHaveProperty('correction');
+    expect(group).not.toHaveProperty('feedback');
+    expect(group.contexts[0]).not.toHaveProperty('earnedScore');
+    const teacher = createBookResultReadWorkerHandlers({ repository, resolveViewerRole: () => 'teacher',
+      resolveHomeworkAuthorities: async () => ({}) });
+    await expect(teacher.resultDetail({ ...input, uid: 'teacher-1' })).resolves.toMatchObject({ init: { status: 403 } });
+  });
+
+  it('rejects a student result whose homework identity differs from the requested scope', async () => {
+    const repository = {
+      listGroupSummaries: async () => [],
+      listAttemptSummaries: async () => [],
+      readResultDetail: async () => detail({
+        surface: 'homework',
+        contextId: 'homework-1',
+        deliveryContextId: 'homework-1',
+        homeworkId: 'homework-1',
+      }),
+    };
+    const handlers = createBookResultReadWorkerHandlers({
+      repository,
+      resolveViewerRole: vi.fn(() => 'student'),
+      resolveHomeworkAuthorities: vi.fn(async () => ({
+        'homework-2': {
+          homeworkId: 'homework-2',
+          bookId: 'book-1',
+          ownerId: 'teacher-1',
+          status: 'current' as const,
+          studentIds: ['student-1'],
+        },
+      })),
+    });
+
+    const result = await handlers.resultDetail({
+      request: request(),
+      env: {},
+      uid: 'student-1',
+      bookId: 'book-1',
+      studentId: 'student-1',
+      homeworkId: 'homework-2',
+      contextKind: 'homework',
+      resultId: 'result-1',
+    });
+
+    expect(result).toMatchObject({ init: { status: 403 }, body: { code: 'book_result_visibility_unresolved' } });
   });
 
   it('denies private Solo to teachers and unresolved/non-current Homework authority', async () => {
@@ -507,6 +539,7 @@ describe('Ticket #77 Book result read model', () => {
     const resolveHomeworkAuthorities = vi.fn(async ({ homeworkIds }: { homeworkIds: readonly string[] }) => (
       Object.fromEntries(homeworkIds.map((id) => [id, {
         homeworkId: id,
+        bookId: 'book-1',
         ownerId: 'teacher-1',
         status: id === 'hw-current' ? 'current' : 'unresolved',
         studentIds: ['student-1'],

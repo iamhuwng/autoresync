@@ -116,9 +116,31 @@ const ids = (target: Parameters<typeof createBookHomeworkManifest>[0]['target'])
   createdByCommandId: 'command-1',
   createdAt: '2026-07-28T00:00:00.000Z',
   bindingRevision: 1,
+  studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
 });
 
 describe('Book Homework manifest builder', () => {
+  it('rejects omitted or synthetic receipts for a canonical component delivery', () => {
+    const canonicalDelivery = {
+      ...delivery,
+      documentRequests: delivery.sourceSet.sources.map((source) => ({ sourceKey: source.sourceKey })),
+    };
+    const base = {
+      resolution: { delivery: canonicalDelivery }, target: { kind: 'book' as const, bookId: 'book-1' },
+      manifestVersionId: 'manifest-v1', ownerId: 'teacher-1', createdByCommandId: 'command-1',
+      createdAt: '2026-07-28T00:00:00.000Z', bindingRevision: 1,
+      studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
+    };
+    expect(() => createBookHomeworkManifest(base)).toThrow(/trusted document and target-preview receipts/u);
+    expect(() => createBookHomeworkManifest({
+      ...base,
+      studentDocument: { sourceVersionId: 'synthetic', descriptorRevision: 0, sha256Hex: '0'.repeat(64) },
+      targetPreview: {
+        fingerprint: 'synthetic', rows: [], includedCount: 0, excludedCount: 0, excludedReasonCounts: {},
+      },
+    })).toThrow();
+  });
+
   it('freezes whole-Book scope, orders structure deterministically, and pins source context', () => {
     const manifest = ids({ kind: 'book', bookId: 'book-1' });
 
@@ -158,6 +180,7 @@ describe('Book Homework manifest builder', () => {
       target: { kind: 'activity', bookId: 'book-1', activityId: 'activity-a' },
       manifestVersionId: 'manifest-v1', ownerId: 'teacher-1', createdByCommandId: 'command-1',
       createdAt: '2026-07-28T00:00:00.000Z', bindingRevision: 1,
+      studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
     })).toThrow(/exactly one Placement/u);
   });
 
@@ -197,6 +220,7 @@ describe('Book Homework manifest builder', () => {
         manifestVersionId: `manifest-${target.kind}`,
         ownerId: 'teacher-1', createdByCommandId: `command-${target.kind}`,
         createdAt: '2026-07-28T00:00:00.000Z', bindingRevision: 1,
+        studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
       });
       expect(manifest.outline.some((node) => node.nodeKey === target.nodeKey)).toBe(true);
       expect(manifest.bindings.length).toBeGreaterThan(0);
@@ -212,6 +236,7 @@ describe('Book Homework manifest builder', () => {
       createdByCommandId: 'command-1',
       createdAt: '2026-07-28T00:00:00.000Z',
       bindingRevision: 1,
+      studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
       excludedActivities: [{
         placementId: 'placement-unpublished',
         activityId: 'activity-unpublished',

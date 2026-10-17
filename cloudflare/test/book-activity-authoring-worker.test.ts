@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBookActivityAuthoringWorkerHandlers } from '../src/upload-worker/book-activity-authoring/worker.ts';
+import { createBookRouter } from '../src/upload-worker/book-router.ts';
 import {
   FirebaseRestBookActivityAuthoringRepository,
   type BookActivityAuthoringRoot,
@@ -73,17 +74,30 @@ const worker = (options: {
   assemblyActivityKeys?: readonly string[] | null;
   assemblyActivityContracts?: readonly { activityKey: string; contextRequirement: 'required' | 'optional' | 'none' }[] | null;
   assemblyActivityPageRefs?: readonly string[] | null;
+  draftContext?: () => Promise<{
+    seal: { bookId: string; unitKey: string; activityKey: string; candidateId: string;
+      candidateRevision: number; manifestFingerprint: string };
+    contract: { activityKey: string; contextRequirement: 'required' | 'optional' | 'none' };
+    mappedBookPageRefs: readonly string[];
+  } | null>;
   resolveOwnedPdfBookId?: (input: { env: Record<string, unknown>; ownerId: string; claimedBookId: string }) => Promise<string | undefined>;
+  isCandidateActivated?: (input: { candidateId: string; candidateRevision: number }) => Promise<boolean>;
 } = {}) => {
   const state: Record<string, BookActivityAuthoringRoot> = options.state ?? {};
+  const readPaths: string[] = [];
   let crashBeforeCommit = options.crashBeforeCommit ?? false;
   const repository = {
     readValue: async (path: string) => {
-      if (path.startsWith('users/')) return options.profile ?? { role: 'teacher' };
+      readPaths.push(path);
+      if (path.startsWith('users/')) return options.profile === undefined
+        ? { role: 'teacher', status: 'active' } : options.profile;
       if (path === 'material_catalog/books/book-1') return options.bookMetadata ?? bookMetadata;
       return null;
     },
-    readOwnerRoot: async (ownerId: string) => structuredClone(state[ownerId] ?? {}),
+    readOwnerRoot: async (ownerId: string) => {
+      readPaths.push(`book_activity_authoring/owners/${ownerId}`);
+      return structuredClone(state[ownerId] ?? {});
+    },
     transaction: async <T,>(ownerId: string, mutate: (root: BookActivityAuthoringRoot) => {
       outcome: T; next?: BookActivityAuthoringRoot; write: boolean;
     }, transactionOptions: { beforeWrite?: (next: BookActivityAuthoringRoot) => Promise<void> } = {}) => {
@@ -112,6 +126,13 @@ const worker = (options: {
     readAssemblyActivityPageRefs: options.assemblyActivityPageRefs === undefined
       ? undefined
       : async () => options.assemblyActivityPageRefs,
+    readAssemblyDraftActivityContext: options.draftContext === undefined ? undefined : options.draftContext,
+    isCandidateActivated: options.isCandidateActivated === undefined
+      ? undefined
+      : async (input) => options.isCandidateActivated!({
+        candidateId: input.candidateId,
+        candidateRevision: input.candidateRevision,
+      }),
   });
   return {
     handlers: {
@@ -122,12 +143,72 @@ const worker = (options: {
       loadCandidate: rawHandlers.loadCandidate,
     },
     state,
+    readPaths,
     crashNextCommit: () => { crashBeforeCommit = true; },
   };
 };
 
 describe('Book Activity authoring Worker boundary', () => {
   afterEach(() => vi.restoreAllMocks());
+  it('seals a bound Activity to one validated Assembly manifest across stage, validation and save', async () => {
+    const binding = { unitKey: 'unit-1', activityKey: 'slot-1' };
+    const seal = {
+      bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1', candidateId: 'assembly-1',
+      candidateRevision: 2, manifestFingerprint: 'fnv1a64:aaaaaaaaaaaaaaaa',
+    };
+    let currentSeal = seal;
+    const current = worker({
+      draftContext: async () => ({ seal: currentSeal,
+        contract: { activityKey: 'slot-1', contextRequirement: 'none' },
+        mappedBookPageRefs: ['source:component-a:page:1'] }),
+      bindingRepositoryFactory: () => ({ read: async () => null, bindCandidate: async () => 'created',
+        recordPublication: async () => 'updated' }),
+    });
+    const stageInput = { operationId: operation('301'), expectedRevision: 0,
+      targetActivityId: 'ba_626f6f6b2d31_736c6f742d31', unitActivityBinding: binding, content: activity };
+    const staged = await current.handlers.stage({ request: request(stageInput), env: {}, uid: 'teacher-1' });
+    expect(staged.body).toMatchObject({ status: 'staged' });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    expect(current.state['teacher-1'].candidates?.[candidateId]).toMatchObject({ assemblyDraft: seal });
+    currentSeal = { ...seal, manifestFingerprint: 'fnv1a64:bbbbbbbbbbbbbbbb' };
+    await expect(current.handlers.validate({ request: request({ operationId: operation('302'),
+      candidateId, expectedRevision: 1, unitActivityBinding: binding }), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_draft_changed' } });
+    await expect(current.handlers.stage({ request: request(stageInput), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_draft_changed' } });
+    currentSeal = seal;
+    const validated = await current.handlers.validate({ request: request({ operationId: operation('303'),
+      candidateId, expectedRevision: 1, unitActivityBinding: binding }), env: {}, uid: 'teacher-1' });
+    expect(validated.body).toMatchObject({ status: 'validated' });
+    currentSeal = { ...seal, manifestFingerprint: 'fnv1a64:bbbbbbbbbbbbbbbb' };
+    await expect(current.handlers.saveDraft({ request: request({ operationId: operation('305'),
+      candidateId, expectedRevision: 2, unitActivityBinding: binding }), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_draft_changed' } });
+    expect(current.state['teacher-1'].activities ?? {}).toEqual({});
+    currentSeal = seal;
+    const saved = await current.handlers.saveDraft({ request: request({ operationId: operation('304'),
+      candidateId, expectedRevision: 2, unitActivityBinding: binding }), env: {}, uid: 'teacher-1' });
+    expect(saved.body).toMatchObject({ status: 'saved' });
+  });
+  it('rejects mutation of an exact Material-activation-pinned Activity candidate', async () => {
+    const staged = worker({ createRecordId: () => '123e4567-e89b-42d3-a456-426614174998' });
+    const created = await staged.handlers.stage({
+      request: request({ operationId: operation('001'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+    expect(created).toMatchObject({ body: { status: 'staged', candidateId: 'candidate-123e4567-e89b-42d3-a456-426614174998' } });
+    const pinned = worker({
+      state: staged.state,
+      isCandidateActivated: async ({ candidateId, candidateRevision }) =>
+        candidateId === 'candidate-123e4567-e89b-42d3-a456-426614174998' && candidateRevision === 1,
+    });
+    const response = await pinned.handlers.validate({
+      request: request({ operationId: operation('002'), candidateId: 'candidate-123e4567-e89b-42d3-a456-426614174998', expectedRevision: 1 }),
+      env: {}, uid: 'teacher-1',
+    });
+    expect(response).toMatchObject({ init: { status: 409 }, body: { code: 'activated_activity_candidate_immutable' } });
+    expect(pinned.state).toEqual(staged.state);
+  });
   it('denies every mutation when the deployment-owned mutation gate is disabled', async () => {
     const current = worker({ rolloutGate: denyMutationGate });
     const response = await current.handlers.stage({
@@ -138,6 +219,73 @@ describe('Book Activity authoring Worker boundary', () => {
       init: { status: 503 },
       body: { code: 'book_activity_rollout_unavailable', decision: { operation: 'mutation', allowed: false } },
     });
+    expect(current.state).toEqual({});
+  });
+
+  it.each([
+    ['teacher', { role: 'teacher', status: 'active' }],
+    ['super_admin', { role: 'super_admin', status: 'active' }],
+    ['teacher with null revocation', { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: null }],
+  ])('allows an active %s through the authoring authority boundary', async (_label, profile) => {
+    const current = worker({ profile });
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('010'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+
+    expect(response).toMatchObject({ init: { status: 200 }, body: { status: 'staged' } });
+    expect(current.readPaths).toEqual([
+      'users/teacher-1', 'material_catalog/books/book-1',
+      'users/teacher-1', 'material_catalog/books/book-1',
+    ]);
+  });
+
+  it.each([
+    ['missing status', { role: 'teacher' }],
+    ['unknown status', { role: 'teacher', status: 'unknown' }],
+    ['pending status', { role: 'teacher', status: 'pending' }],
+    ['disabled', { role: 'teacher', status: 'active', disabled: true }],
+    ['force reauth', { role: 'teacher', status: 'active', forceReauth: true }],
+    ['revoked authority', { role: 'teacher', status: 'active', privilegedAuthorityRevokedAt: '2026-09-15T00:00:00.000Z' }],
+    ['wrong role', { role: 'student', status: 'active' }],
+    ['malformed profile', null],
+    ['malformed status', { role: 'teacher', status: {} }],
+  ])('denies %s before Book, candidate, source, or provider reads', async (_label, profile) => {
+    const current = worker({ profile });
+    const response = await current.handlers.stage({
+      request: request({ operationId: operation('011'), expectedRevision: 0, content: activity }),
+      env: {}, uid: 'teacher-1',
+    });
+
+    expect(response).toMatchObject({ init: { status: 403 }, body: { code: 'authoring_forbidden' } });
+    expect(current.readPaths).toEqual(['users/teacher-1']);
+    expect(current.state).toEqual({});
+  });
+
+  it('denies the registered authoring route before Book or repository reads', async () => {
+    const current = worker({ profile: { role: 'teacher', status: 'pending' } });
+    const router = createBookRouter({
+      manifest: [{
+        id: 'test-book-activity-authoring-stage', methods: ['POST'],
+        pathTemplate: '/book-activity-authoring/stage', owner: 'book-activity-authoring',
+        domain: 'activity-authoring', handler: 'bookActivityAuthoring.stage',
+        firebaseAuth: 'firebase-id-token-teacher', rateClass: 'book-control',
+        requestBodyBytes: 256 * 1024, responseLimitBytes: 256 * 1024, source: 'contributor',
+      }],
+      handlers: { 'bookActivityAuthoring.stage': current.handlers.stage },
+      firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'teacher-1' }) },
+    });
+
+    const response = await router.fetch(new Request('https://worker.test/book-activity-authoring/stage', {
+      method: 'POST',
+      headers: {
+        Origin: 'http://localhost:5173', Authorization: 'Bearer teacher-token', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bookId: 'book-1', operationId: operation('012'), expectedRevision: 0, content: activity }),
+    }), { BOOK_ROUTE_RATE_LIMITER: { limit: async () => ({ success: true }) } });
+
+    expect(response.status).toBe(403);
+    expect(current.readPaths).toEqual(['users/teacher-1']);
     expect(current.state).toEqual({});
   });
 

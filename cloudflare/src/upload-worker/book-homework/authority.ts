@@ -9,6 +9,7 @@ import type {
   BookHomeworkAuthorityRecord,
   BookHomeworkAuthoritySchedule,
   BookHomeworkActivityPolicySnapshot,
+  BookHomeworkManualFeedbackRelease,
   BookHomeworkOperationRecord,
   BookHomeworkSagaState,
   BookHomeworkStudentExtension,
@@ -20,10 +21,12 @@ import {
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
 const OPERATION = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
+const MANUAL_FEEDBACK_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
 const STATES: readonly BookHomeworkSagaState[] = ['prepared', 'committed', 'compensating'];
 const MAX_OPERATIONS = 64;
 const MAX_EXTENSIONS = 512;
 const MAX_ACTIVITY_POLICIES = 128;
+const MAX_MANUAL_FEEDBACK_RELEASES = 512;
 
 export class BookHomeworkAuthorityError extends Error {
   constructor(
@@ -70,6 +73,10 @@ const exactKeys = (
 
 const assertId = (value: unknown, label: string): asserts value is string => {
   if (typeof value !== 'string' || !ID.test(value)) fail(`${label} is not a bounded identifier.`);
+};
+
+const assertManualFeedbackId = (value: unknown, label: string): asserts value is string => {
+  if (typeof value !== 'string' || !MANUAL_FEEDBACK_ID.test(value)) fail(`${label} is not a bounded identifier.`);
 };
 
 export const assertIso = (value: unknown, label: string): asserts value is string => {
@@ -135,6 +142,38 @@ const assertExtension = (value: unknown): asserts value is BookHomeworkStudentEx
   assertIso(value.updatedAt, 'student extension updatedAt');
 };
 
+const assertManualFeedbackRelease = (
+  value: unknown,
+  attemptId: string,
+  ownerId: string,
+): asserts value is BookHomeworkManualFeedbackRelease => {
+  if (!isRecord(value)) fail('Manual feedback release is not an object.');
+  exactKeys(value, [
+    'schemaVersion', 'attemptId', 'resultId', 'recipientId', 'contextId', 'bindingId',
+    'bindingRevision', 'placementId', 'activityId', 'activityVersionId', 'activityVersion',
+    'releasedBy', 'releasedAt', 'commandId',
+  ]);
+  assertManualFeedbackId(value.attemptId, 'manual feedback attemptId');
+  assertManualFeedbackId(value.resultId, 'manual feedback resultId');
+  assertId(value.recipientId, 'manual feedback recipientId');
+  assertId(value.contextId, 'manual feedback contextId');
+  assertManualFeedbackId(value.bindingId, 'manual feedback bindingId');
+  assertId(value.placementId, 'manual feedback placementId');
+  assertId(value.activityId, 'manual feedback activityId');
+  assertId(value.activityVersionId, 'manual feedback activityVersionId');
+  assertId(value.releasedBy, 'manual feedback releasedBy');
+  assertId(value.commandId, 'manual feedback commandId');
+  if (value.schemaVersion !== 1
+    || value.attemptId !== attemptId
+    || value.resultId !== `${value.attemptId}:result`
+    || value.releasedBy !== ownerId
+    || !Number.isSafeInteger(value.bindingRevision) || value.bindingRevision <= 0
+    || !Number.isSafeInteger(value.activityVersion) || value.activityVersion <= 0) {
+    fail('Manual feedback release identity is invalid.');
+  }
+  assertIso(value.releasedAt, 'manual feedback releasedAt');
+};
+
 const assertActivityPolicy = (
   value: unknown,
   placementId: string,
@@ -143,7 +182,7 @@ const assertActivityPolicy = (
   exactKeys(value, [
     'schemaVersion', 'policyId', 'policyRevision', 'placementId', 'activityId',
     'activityVersionId', 'activityVersion', 'lateSubmissionAllowed', 'maxAttempts',
-  ]);
+  ], ['feedbackRelease']);
   if (value.schemaVersion !== 1) fail('Book Homework Activity policy schema is unsupported.');
   assertId(value.policyId, 'Activity policy policyId');
   assertId(value.placementId, 'Activity policy placementId');
@@ -153,6 +192,8 @@ const assertActivityPolicy = (
     || !Number.isSafeInteger(value.policyRevision) || value.policyRevision <= 0
     || !Number.isSafeInteger(value.activityVersion) || value.activityVersion <= 0
     || typeof value.lateSubmissionAllowed !== 'boolean'
+    || (value.feedbackRelease !== undefined
+      && !['immediate', 'after_completion', 'after_deadline', 'never', 'manual'].includes(String(value.feedbackRelease)))
     || (value.maxAttempts !== null
       && (!Number.isSafeInteger(value.maxAttempts)
         || value.maxAttempts <= 0
@@ -178,7 +219,7 @@ const assertOperation = (value: unknown): asserts value is BookHomeworkOperation
   }
 };
 
-const assertRecordMaps = (record: Record<string, unknown>): void => {
+const assertRecordMaps = (record: Record<string, unknown>, ownerId: string): void => {
   if (record.activityPolicies !== undefined) {
     if (!isRecord(record.activityPolicies)
       || Object.keys(record.activityPolicies).length === 0
@@ -188,6 +229,20 @@ const assertRecordMaps = (record: Record<string, unknown>): void => {
     Object.entries(record.activityPolicies).forEach(([placementId, policy]) => {
       assertId(placementId, 'Activity policy placementId');
       assertActivityPolicy(policy, placementId);
+    });
+  }
+
+  if (record.manualFeedbackReleases !== undefined) {
+    if (!isRecord(record.manualFeedbackReleases)
+      || Object.keys(record.manualFeedbackReleases).length > MAX_MANUAL_FEEDBACK_RELEASES) {
+      fail('Manual feedback releases are invalid.');
+    }
+    Object.entries(record.manualFeedbackReleases).forEach(([resultId, release]) => {
+      assertManualFeedbackId(resultId, 'manual feedback release key');
+      if (!isRecord(release)) fail('Manual feedback release is not an object.');
+      assertManualFeedbackId(release.attemptId, 'manual feedback attemptId');
+      assertManualFeedbackRelease(release, release.attemptId, ownerId);
+      if (release.resultId !== resultId) fail('Manual feedback release key does not match its result ID.');
     });
   }
   const extensions = record.studentExtensions;
@@ -220,7 +275,7 @@ export const assertValidBookHomeworkAuthorityRecord = (
   exactKeys(value, [
     'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest', 'schedule',
     'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt',
-  ], ['activityPolicies', 'operations']);
+  ], ['activityPolicies', 'frozenPolicy', 'manualFeedbackReleases', 'operations']);
   assertId(value.assignmentId, 'assignmentId');
   assertId(value.ownerId, 'ownerId');
   if (value.assignmentKind !== 'book_activity_bundle' || value.schemaVersion !== BOOK_HOMEWORK_AUTHORITY_SCHEMA_VERSION) {
@@ -237,7 +292,23 @@ export const assertValidBookHomeworkAuthorityRecord = (
   }
   if (value.bookManifest.ownerId !== value.ownerId) fail('Manifest owner does not match authority owner.');
   assertValidBookHomeworkSchedule(value.schedule, value.bookManifest.outline);
-  assertRecordMaps(value);
+  assertRecordMaps(value, value.ownerId);
+  Object.values(value.manualFeedbackReleases ?? {}).forEach((release) => {
+    if (release.recipientId !== value.bookManifest.context.recipientId
+      || release.contextId !== value.bookManifest.context.contextId) {
+      fail('Manual feedback release context does not match the authority.');
+    }
+  });
+  if (value.frozenPolicy !== undefined) {
+    if (!isRecord(value.frozenPolicy)) fail('Book Homework frozen policy is invalid.');
+    exactKeys(value.frozenPolicy, ['intent', 'integrityDefault', 'integrityOverride', 'integrityEffective']);
+    if (!['accountable', 'practice'].includes(String(value.frozenPolicy.intent))
+      || typeof value.frozenPolicy.integrityDefault !== 'boolean'
+      || typeof value.frozenPolicy.integrityOverride !== 'boolean'
+      || typeof value.frozenPolicy.integrityEffective !== 'boolean') {
+      fail('Book Homework frozen policy is invalid.');
+    }
+  }
   if (value.activityPolicies) {
     const required = value.bookManifest.bindings.filter((binding) => binding.state === 'required');
     const policies = Object.values(value.activityPolicies);
@@ -297,5 +368,11 @@ const canonicalize = (value: unknown): unknown => {
 };
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonicalize(value)) ?? 'undefined';
+
+export const operationFingerprint = async (value: unknown): Promise<string> => {
+  const bytes = new TextEncoder().encode(fingerprint(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+};
 
 export const cloneAuthorityRecord = (record: BookHomeworkAuthorityRecord): BookHomeworkAuthorityRecord => clone(record);

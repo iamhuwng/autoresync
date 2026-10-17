@@ -63,7 +63,7 @@ const request = (body: unknown) => new Request(
     headers: {
       Authorization: 'Bearer test-token',
       'Content-Type': 'application/json',
-      'Idempotency-Key': operationId,
+      'Idempotency-Key': (body as { operationId: string }).operationId,
       Origin: 'https://kahut1.web.app',
     },
     body: JSON.stringify(body),
@@ -82,6 +82,58 @@ const env = {
 };
 
 describe('homework submission notification production worker', () => {
+  it('notifies the class owner for a pending class-code join and rejects forged recipients', async () => {
+    const classId = 'CLASS1';
+    const classOperationId = operationIdFor(`class-join-pending:teacher:${classId}:${studentId}:${teacherId}`);
+    const classCommand = {
+      ...command(),
+      operationId: classOperationId,
+      producerFamily: 'class',
+      recipientId: teacherId,
+      authority: { kind: 'class', recordId: classId },
+      notification: {
+        type: 'info',
+        title: '👋 New Student Request',
+        message: 'Student One wants to join your class "Class One". Review in class management.',
+        link: `/teacher/classes/${classId}`,
+      },
+    };
+    const repository = new InMemoryNotificationCommandRepository();
+    const worker = createHomeworkSubmissionNotificationWorker({
+      firebaseVerifier: verifier(studentId),
+      repositoryFactory: () => repository,
+      readDatabaseValue: async (_env, path) => {
+        expect(path).toBe(`classes/${classId}`);
+        return {
+          id: classId,
+          name: 'Class One',
+          status: 'active',
+          createdBy: teacherId,
+          students: { [studentId]: { uid: studentId, name: 'Student One', status: 'pending_approval' } },
+        };
+      },
+    });
+
+    expect((await worker.fetch(request(classCommand), env)).status).toBe(200);
+    expect(Object.keys(repository.snapshot())).toEqual([`notifications/${teacherId}/${classOperationId}`]);
+    expect((await worker.fetch(request({ ...classCommand, recipientId: 'teacher-2' }), env)).status).toBe(403);
+    const studentOperationId = operationIdFor(`class-join-pending:student:${classId}:${studentId}:${studentId}`);
+    const studentCommand = {
+      ...classCommand,
+      operationId: studentOperationId,
+      recipientId: studentId,
+      notification: {
+        type: 'info',
+        title: '🏫 Joined Class — Pending Approval',
+        message: "You've requested to join Class One. Waiting for teacher approval.",
+        link: '/student/dashboard',
+      },
+    };
+    expect((await worker.fetch(request(studentCommand), env)).status).toBe(200);
+    expect((await worker.fetch(request({ ...studentCommand, notification: { ...studentCommand.notification, message: 'Forged' } }), env)).status).toBe(403);
+    expect(Object.keys(repository.snapshot())).toHaveLength(2);
+  });
+
   it('creates exactly one teacher notification from canonical homework result authority', async () => {
     const repository = new InMemoryNotificationCommandRepository();
     const readDatabaseValue = vi.fn(async (_env: Readonly<Record<string, unknown>>, path: string) => {

@@ -13,7 +13,7 @@ const plan: ReplacementPlanRecord = {
   capacity: { current: { trackedAccountBytes: 1, pendingUploadBytes: 0, replacementUploadBytes: 0, temporaryBytes: 0 }, additionalBytes: 1, projected: 2, limit: 9_000_000_000, available: true },
   reviewState: 'unreviewed', createdAt: '2026-08-11T00:00:00.000Z', expiresAt: '2026-08-11T01:00:00.000Z', planFingerprint: 'c'.repeat(64),
 };
-const review: ReplacementPlanReviewRecord = {
+const review: ReplacementPlanReviewRecord = { selections: [], reason: '', selectionFingerprint: '5de334620db8d3c681fd827bbb546e41d58c0eaa30894ab522d559889c15a0fe',
   schemaVersion: 1, reviewId: 'review-1', planId: 'plan-1', ownerId: 'teacher-1', bookId: 'book-1', planFingerprint: plan.planFingerprint,
   deltaFingerprint: plan.deltaFingerprint, snapshotFingerprint: plan.impactSnapshotFingerprint, revisionVector: { book: 1 },
   reviewedAt: '2026-08-11T00:01:00.000Z', expiresAt: plan.expiresAt, state: 'reviewed',

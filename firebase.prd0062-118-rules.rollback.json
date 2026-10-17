@@ -566,7 +566,7 @@
                     },
                     "by_visibility": {
                         "$visibility": {
-                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".read": "auth != null && (($visibility === 'public' && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'student')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                             ".indexOn": [
                                 "updatedAt"
                             ],
@@ -776,7 +776,7 @@
                     },
                     "by_visibility_family": {
                         "$visibility": {
-                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".read": "auth != null && (($visibility === 'public' && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'student')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                             "$surfaceFamily": {
                                 ".indexOn": [
                                     "updatedAt"
@@ -1072,7 +1072,7 @@
                     },
                     "by_visibility_family_type": {
                         "$visibility": {
-                            ".read": "auth != null && (($visibility === 'public' && root.child('users').child(auth.uid).child('role').val() === 'teacher') || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+                            ".read": "auth != null && (($visibility === 'public' && (root.child('users').child(auth.uid).child('role').val() === 'teacher' || root.child('users').child(auth.uid).child('role').val() === 'student')) || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
                             "$surfaceFamily": {
                                 "$testTypeId": {
                                     ".indexOn": [

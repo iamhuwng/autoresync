@@ -1,8 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { useSearchParams } from 'react-router-dom';
 import BookMode2EditorShell from '../components/books/BookMode2EditorShell';
 import { toast } from '../components/modern';
 import { createComponentPdfPublicationCommand } from '../services/book-assembly/componentPdfPublication.command';
+import { createComponentPdfStagingService } from '../services/book-assembly/componentPdfStaging.service';
+import { activateComponentPdf, createComponentPdfActivationReceipt } from '../services/book-assembly/componentPdfActivation.service';
 import { createFullPdfPublicationCommand } from '../services/book-assembly/fullPdfPublication.command';
 import { createCanonicalBookAssemblyPublicationService } from '../services/book-assembly/canonicalPublication.service';
 import { InMemoryCanonicalActivityVersionRepository } from '../services/book-assembly/canonicalPublicationRepository';
@@ -25,15 +28,33 @@ import type {
 import type { BookAssemblyPreviewClient } from '../services/book-assembly/assemblyPublication.client';
 import { planSourceStrategyMigration } from '../services/book-assembly/sourceStrategyMigration.service';
 import type { ActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
+import { createActivityAuthoringService } from '../services/book-activity/activityAuthoring.service';
+import { createActivityAuthoringRepository } from '../services/book-activity/activityAuthoring.repository';
+import { createActivityAuthoringTransport } from '../services/book-activity/activityStorage.service';
+import { createBookAssemblyClient } from '../services/book-assembly/assemblyClient.browser';
+import { createBookAssemblyPreviewClient } from '../services/book-assembly/assemblyPublication.client';
+import { createSourceUploadClient, createSourceUploadSessionStatePort } from '../services/book-source-delivery/sourceUpload.client';
+import { createSourceUploadBrowserWorkflow } from '../services/book-source-delivery/sourceUpload.browserWorkflow';
 import {
   createCandidateUnitPreview,
   createPreviewApproval,
+  wholeActivationApprovalFingerprint,
   type CandidateUnitPreviewProjection,
 } from '../services/book-assembly/unitPreview.service';
+import { createComponentStudentDocument } from '../services/book-assembly/componentStudentDocument.types';
+import { createBookDeliveryBinding } from '../services/book-delivery/bookDelivery.entitlementFactory';
+import { InMemoryBookDeliveryRepository } from '../services/book-delivery/bookDelivery.entitlementRepository';
+import { createBookDeliveryProjectionResolver } from '../services/book-delivery/bookDelivery.service';
+import type { BookRuntimeDeliveryProjection } from '../services/book-delivery/bookDelivery.types';
 import type { SourceUploadBrowserWorkflow } from '../services/book-source-delivery/sourceUpload.browserWorkflow';
+import { composeComponentPdfs } from '../services/book-source-delivery/componentPdfComposition.browser';
+import type { ComponentPdfCompositionResult } from '../services/book-source-delivery/componentPdfComposition.types';
+import { inspectSourcePdf, type SourcePdfInspectionClaim } from '../services/book-source-delivery/sourcePdfInspection.browser';
 import type { BookAssemblyManifestCandidate, TrustedBookSourceVersionProjection } from '../types/bookAssembly.types';
 import type { NormalizedActivity } from '../types/bookActivity.types';
 import { materialCatalogIds, type MaterialBookMetadata } from '../types/materialCatalog.types';
+import { createBookDraft, createMaterialBooksRepository } from '../services/materialCatalog/materialBooks.service';
+import { DEFAULT_MATERIAL_TEST_TYPES } from '../services/materialCatalog/testTypeConfig.service';
 import { useAuth } from '../hooks/useAuth';
 import {
   createBookTeacherAssemblyDocumentRoute,
@@ -41,13 +62,37 @@ import {
 } from '../services/book-delivery/bookTeacherAssemblyDocument.types';
 
 const NOW = '2026-07-27T00:00:00.000Z';
+const VERTICAL_SLICE_TOKEN = 'vs-publication-01';
 const BOOK_ID = 'prd0062-ticket56-book';
 const OWNER_ID = 'teacher-1';
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+};
 const sourceVersions: readonly TrustedBookSourceVersionProjection[] = [
-  { bookId: BOOK_ID, physicalPageCount: 48, sourceVersionId: 'source-full-ready', verifiedUsable: true },
-  { bookId: BOOK_ID, physicalPageCount: 16, sourceVersionId: 'source-component-a', verifiedUsable: true },
-  { bookId: BOOK_ID, physicalPageCount: 18, sourceVersionId: 'source-component-b', verifiedUsable: true },
-  { bookId: BOOK_ID, physicalPageCount: 9, sourceVersionId: 'source-not-ready', verifiedUsable: false },
+  {
+    sourceKey: 'full', bookId: BOOK_ID, physicalPageCount: 48, sourceVersionId: 'source-full-ready', purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: '0455eb575ccd4618001e2989d8a1700c1347d4a663de33ac29438be10a1c807a' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-full-ready', sha256Hex: '0455eb575ccd4618001e2989d8a1700c1347d4a663de33ac29438be10a1c807a', reasonCode: 'teacher-reviewed' }, verifiedUsable: true,
+  },
+  {
+    sourceKey: 'component-a', bookId: BOOK_ID, physicalPageCount: 16, sourceVersionId: 'source-component-a', purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: 'cfc1e2c9c47979b85047e7ce94c75978aa9d9d892c244a3fd08f8452d9be8262' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-component-a', sha256Hex: 'cfc1e2c9c47979b85047e7ce94c75978aa9d9d892c244a3fd08f8452d9be8262', reasonCode: 'teacher-reviewed' }, verifiedUsable: true,
+  },
+  {
+    sourceKey: 'component-b', bookId: BOOK_ID, physicalPageCount: 18, sourceVersionId: 'source-component-b', purpose: 'book-source', studentSafeStatus: 'ready',
+    checksum: { algorithm: 'sha-256', value: 'bd43d001e37ef45b75ef47da55584edd297bc4b70005e30ef6c416e340f8f343' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-component-b', sha256Hex: 'bd43d001e37ef45b75ef47da55584edd297bc4b70005e30ef6c416e340f8f343', reasonCode: 'teacher-reviewed' }, verifiedUsable: true,
+  },
+  {
+    sourceKey: 'not-ready', bookId: BOOK_ID, physicalPageCount: 9, sourceVersionId: 'source-not-ready', purpose: 'book-source', studentSafeStatus: 'review-required',
+    checksum: { algorithm: 'sha-256', value: 'ab8d38bf1555d5f5df08341762175206ec776c2861fc0ed68759cf3d13cacd77' },
+    studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: '2026-08-11T00:02:00.000Z', sourceVersionId: 'source-not-ready', sha256Hex: 'ab8d38bf1555d5f5df08341762175206ec776c2861fc0ed68759cf3d13cacd77', reasonCode: 'teacher-reviewed' }, verifiedUsable: false,
+  },
 ];
 
 const smokeBook: MaterialBookMetadata = {
@@ -246,13 +291,14 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
     sourceStrategy: 'component_pdfs',
     sources: [
       { sourceKey: 'component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a' },
-      { sourceKey: 'component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-a' },
+      { sourceKey: 'component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-b' },
     ],
   },
   nodes: [
     { nodeKey: 'section-component-a', parentNodeKey: null, nodeType: 'section', order: 1 },
     { nodeKey: 'unit-component-a', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 1 },
-    { nodeKey: 'unit-later-incomplete', parentNodeKey: 'section-component-a', nodeType: 'unit', order: 2 },
+    { nodeKey: 'section-component-b', parentNodeKey: null, nodeType: 'section', order: 2 },
+    { nodeKey: 'unit-component-b', parentNodeKey: 'section-component-b', nodeType: 'unit', order: 1 },
   ],
   units: [
     {
@@ -264,12 +310,6 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
           contextRequirement: 'required',
           pageGroupKeys: ['pages-ticket66-a'],
         },
-        {
-          activityKey: 'activity-ticket66-b',
-          order: 2,
-          contextRequirement: 'required',
-          pageGroupKeys: ['pages-ticket66-b'],
-        },
       ],
       pageGroups: [
         {
@@ -280,17 +320,25 @@ const ticket66Manifest: BookAssemblyManifestCandidate = {
           activityKeys: ['activity-ticket66-a'],
           mode: 'activity',
         },
-        {
-          pageGroupKey: 'pages-ticket66-b',
-          sourceKey: 'component-b',
-          pages: [1],
-          defaultPhysicalPageNumber: 1,
-          activityKeys: ['activity-ticket66-b'],
-          mode: 'activity',
-        },
       ],
     },
-    { unitKey: 'unit-later-incomplete', activitySlots: [], pageGroups: [] },
+    {
+      unitKey: 'unit-component-b',
+      activitySlots: [{
+        activityKey: 'activity-ticket66-b',
+        order: 1,
+        contextRequirement: 'required',
+        pageGroupKeys: ['pages-ticket66-b'],
+      }],
+      pageGroups: [{
+        pageGroupKey: 'pages-ticket66-b',
+        sourceKey: 'component-b',
+        pages: [1],
+        defaultPhysicalPageNumber: 1,
+        activityKeys: ['activity-ticket66-b'],
+        mode: 'activity',
+      }],
+    },
   ],
 };
 
@@ -363,6 +411,161 @@ const ticket70ComponentManifest: BookAssemblyManifestCandidate = {
       pages: [2],
     }],
   }],
+};
+
+type VerticalSliceFixture = {
+  readonly token: string;
+  readonly projection: BookRuntimeDeliveryProjection;
+  readonly diagnostics: Record<string, unknown>;
+};
+
+type VerticalSliceTeacherSelection = {
+  readonly candidate: BookAssemblyCandidateRecord;
+  readonly components: readonly {
+    sourceKey: string; sourceVersionId: string; sourceOrder: number; ownerNodeKey: string;
+    file: File;
+    claim: SourcePdfInspectionClaim;
+  }[];
+  readonly composition: { byteSize: number; sha256Hex: string; physicalPageCount: number; fingerprint: string;
+    file: File; mapping: readonly { sourceKey: string; startPage: number; endPage: number; pageCount: number }[] };
+};
+
+const buildVerticalSliceFixture = async (selection: VerticalSliceTeacherSelection): Promise<VerticalSliceFixture> => {
+  const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
+  const uploadedBytes = new Map<string, Uint8Array>();
+  const rows = [...selection.components.map((component, index) => ({ reservationId: `reservation-${index + 1}`,
+    sourceVersionId: component.sourceVersionId, sourceKey: component.sourceKey, pages: component.claim.physicalPageCount,
+    hash: component.claim.sha256Hex, purpose: 'book-source' as const })),
+    { reservationId: 'reservation-document', sourceVersionId: 'student-ticket66-v1', sourceKey: 'student-document',
+      pages: selection.composition.physicalPageCount, hash: selection.composition.sha256Hex, purpose: 'student-document' as const }];
+  const completed = (row: typeof rows[number]) => ({ reservationId: row.reservationId, bookId: BOOK_ID,
+    sourceVersionId: row.sourceVersionId, sourceKey: row.sourceKey, kind: 'initial' as const,
+    checksum: { algorithm: 'sha-256' as const, value: row.hash }, purpose: row.purpose,
+    studentSafeStatus: 'unreviewed' as const, status: 'verified_completed' as const, completedAt: NOW,
+    physicalPageCount: row.pages });
+  const sourceUpload = {
+    begin: async (input: { sourceKey: string; purpose: 'book-source' | 'student-document' }) => {
+      const row = rows.find((item) => item.sourceKey === input.sourceKey)!;
+      return { status: 'reserved' as const, reservationId: row.reservationId, sourceVersionId: row.sourceVersionId,
+        uploadUrl: 'https://fixture.invalid/upload', expiresAt: NOW, requiredHeaders: {}, purpose: input.purpose,
+        studentSafeStatus: 'unreviewed' as const };
+    },
+    complete: async (input: { reservationId: string }) => {
+      const row = rows.find((candidate) => candidate.reservationId === input.reservationId)!;
+      if (uploadedBytes.get(row.sourceKey)?.byteLength !== (row.sourceKey === 'student-document'
+        ? selection.composition.byteSize : selection.components.find((component) => component.sourceKey === row.sourceKey)!.claim.exactByteSize)) {
+        throw new Error('vertical_slice_upload_bytes_missing');
+      }
+      return completed(row);
+    },
+    decideStudentSafeSource: async () => ({ ...completed(rows.at(-1)!), studentSafeStatus: 'ready' as const,
+      studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: NOW, sourceVersionId: rows.at(-1)!.sourceVersionId,
+        sha256Hex: selection.composition.sha256Hex, reasonCode: 'teacher-reviewed' as const } }),
+  };
+  const claim = (name: string, pages: number, hash: string, exactByteSize = 42) => ({ schemaVersion: 1 as const,
+    trust: 'browser-supplied-untrusted' as const, state: 'complete' as const, displayFilename: name,
+    exactByteSize, sha256Hex: hash, physicalPageCount: pages, pdfType: 'application/pdf' as const,
+    readability: 'readable' as const });
+  const staged = await createComponentPdfStagingService({ sourceUpload, publicationRepository: repository }).stage({
+    bookId: BOOK_ID, actorId: OWNER_ID, operationId: '00000000-0000-4000-8000-000000000166',
+    claim: claim('combined.pdf', selection.composition.physicalPageCount, selection.composition.sha256Hex,
+      selection.composition.byteSize), sourceSetRevision: 5,
+    currentPointer: { publicationId: 'none', publicationRevision: 0, manifestVersionId: 'none', bookRevision: 6,
+      sourceSetRevision: 4, inputFingerprint: 'none', updatedAt: NOW, updatedByCommandId: 'none' },
+    compositionFingerprint: selection.composition.fingerprint, components: selection.components.map((component) => ({
+      sourceKey: component.sourceKey, sourceOrder: component.sourceOrder, ownerNodeKey: component.ownerNodeKey,
+      claim: component.claim, upload: async () => { uploadedBytes.set(component.sourceKey, new Uint8Array(await component.file.arrayBuffer())); } })),
+    upload: async () => { uploadedBytes.set('student-document', new Uint8Array(await selection.composition.file.arrayBuffer())); }, now: NOW,
+  });
+  const manifest: BookAssemblyManifestCandidate = { ...selection.candidate.manifest!, sourceSet: staged.verifiedSourceSet };
+  const activities = { 'activity-ticket66-a': ticket66Activity('a'), 'activity-ticket66-b': ticket66Activity('b') };
+  const activatedCandidates = new Map<string, BookAssemblyCandidateRecord>();
+  const activation = await activateComponentPdf({ operationId: 'ticket66-activation-v1', ownerId: OWNER_ID,
+    bookId: BOOK_ID, expectedBookRevision: 6, expectedSourceSetRevision: 4, sourceSet: staged.verifiedSourceSet,
+    manifest, studentDocumentSourceVersionId: staged.descriptor.sourceVersionId, activatedAt: NOW }, {
+    readStudentDocument: async (_bookId, id) => (await repository.readScope(BOOK_ID)).studentDocuments?.[id] ?? null,
+    stageUnitCandidate: async (input) => { const activated = { candidateId: input.candidateId, ownerId: input.ownerId,
+      bookId: input.bookId, bookRevision: input.bookRevision, sourceSetRevision: input.sourceSetRevision,
+      unitKey: input.unitKey, revision: 1, lifecycle: 'validated', manifest: input.manifest,
+      validation: { valid: true, errors: [] }, updatedAt: input.activatedAt } satisfies BookAssemblyCandidateRecord;
+      activatedCandidates.set(input.unitKey, activated); return activated; },
+    readActivity: async ({ activityKey }) => ({ activityId: activityKey === 'activity-ticket66-a' ? 'activity-choice' : 'activity-source',
+      activityCandidateId: `${activityKey}-candidate`, activityCandidateRevision: 1, lifecycle: 'saved' as const,
+      payload: activities[activityKey as keyof typeof activities] }),
+    activateMaterialBook: async (input) => createComponentPdfActivationReceipt(input),
+  });
+  const authority: BookAssemblyBookAuthority = { bookId: BOOK_ID, ownerId: OWNER_ID, bookMode: 'pdf',
+    bookRevision: activation.bookRevision, sourceSetRevision: activation.sourceSetRevision, sourceSet: activation.sourceSet,
+    setupActivations: [activation], sourceVersionAuthority: { getSourceVersion: (id) => {
+      const row = rows.slice(0, -1).find((item) => item.sourceVersionId === id); return row ? { sourceKey: row.sourceKey,
+        sourceVersionId: row.sourceVersionId, bookId: BOOK_ID, checksum: { algorithm: 'sha-256', value: row.hash },
+        purpose: 'book-source', studentSafeStatus: 'ready', physicalPageCount: row.pages, verifiedUsable: true,
+        studentSafeDecision: { decidedBy: OWNER_ID, decidedAt: NOW, sourceVersionId: row.sourceVersionId,
+          sha256Hex: row.hash, reasonCode: 'teacher-reviewed' as const } } : undefined;
+    } } };
+  const whole = { ownerId: OWNER_ID, bookId: BOOK_ID, bookRevision: activation.bookRevision,
+    sourceSetRevision: activation.sourceSetRevision, sourceSet: activation.sourceSet, activationReceipt: activation,
+    units: activation.unitCandidates.map((unit) => ({ ...unit, manifest })), studentDocument: staged.descriptor,
+    registryVersion: 'ticket66-local-fixture-v1', activities: activation.activities };
+  const approvals = new Map(activation.unitCandidates.map((unit, index) => {
+    const activityKeys = manifest.units.find((item) => item.unitKey === unit.unitKey)!.activitySlots.map((slot) => slot.activityKey);
+    const unitActivities = Object.fromEntries(activityKeys.map((key) => [key, activities[key as keyof typeof activities]]));
+    return [unit.unitKey, createPreviewApproval({ approvalId: `ticket66-approval-${index + 1}`, approvalRevision: 1, actorId: OWNER_ID,
+      approvedAt: '2026-07-26T00:00:00.000Z', expiresAt: '2026-07-28T00:00:00.000Z',
+      preview: createCandidateUnitPreview({ candidate: activatedCandidates.get(unit.unitKey)!, sourceVersions: sourceVersions.slice(1, 3),
+        sourceIsPreviewReady: () => true, activitiesByKey: unitActivities, registryVersion: whole.registryVersion,
+        studentDocument: { descriptor: staged.descriptor, request: { opaqueRouteKey: VERTICAL_SLICE_TOKEN,
+          expectedByteLength: selection.composition.byteSize } } }), canonicalActivitiesByKey: unitActivities,
+      wholeActivationFingerprint: wholeActivationApprovalFingerprint(whole) })];
+  }));
+  const activityVersions = new InMemoryCanonicalActivityVersionRepository();
+  const receipt = await createComponentPdfPublicationCommand({ readAuthority: async () => authority,
+    readWholeActivationApprovalInput: async () => whole, readCandidate: async (_bookId, unitKey) => activatedCandidates.get(unitKey) ?? null,
+    readActivities: async ({ activityKeys }) => Object.fromEntries(activityKeys.map((activityKey) => [activityKey, {
+      activityKey, ownerId: OWNER_ID, revision: 1, lifecycle: 'draft' as const,
+      activity: activities[activityKey as keyof typeof activities] }])), readPreviewApproval: async ({ unitKey }) => approvals.get(unitKey) ?? null,
+    sourceIsPreviewReady: async () => true, publish: createCanonicalBookAssemblyPublicationService(repository, activityVersions).publish,
+    allocateOperationId: () => '00000000-0000-4000-8000-000000000167',
+    allocateId: (kind, key) => `${kind}:${key}:ticket66`, now: () => NOW,
+  })({ ownerId: OWNER_ID, bookId: BOOK_ID, expectedCurrentPublicationId: null,
+    expectedBookRevision: activation.bookRevision, expectedSourceSetRevision: activation.sourceSetRevision,
+    unitApprovals: activation.unitCandidates.map((unit, index) => ({ unitKey: unit.unitKey, candidateId: unit.candidateId,
+      candidateRevision: unit.candidateRevision, approvalId: `ticket66-approval-${index + 1}`, approvalRevision: 1,
+      approvedAt: '2026-07-26T00:00:00.000Z', expiresAt: '2026-07-28T00:00:00.000Z' })) });
+  const scope = await repository.readScope(BOOK_ID);
+  const version = scope.versions?.[receipt.manifestVersionId]!;
+  const publicationPlacements = Object.values(scope.placements ?? {});
+  const delivery = new InMemoryBookDeliveryRepository();
+  const binding = createBookDeliveryBinding({ bindingId: 'binding--vs--delivery', revision: 1, status: 'draft',
+    recipient: { recipientId: 'student-fixture', recipientKind: 'student' }, issuer: { ownerId: OWNER_ID, authorityBoundary: 'book-owner' },
+    context: { kind: 'homework', contextId: 'homework-fixture', recipientId: 'student-fixture', ownerId: OWNER_ID, entitlementBasis: 'assignment' },
+    publication: { bookId: BOOK_ID, bookMode: 'pdf', bookRevision: version.bookRevision, manifestVersionId: receipt.manifestVersionId,
+      publicationId: receipt.publicationId, publicationRevision: receipt.publicationRevision, publicationStatus: 'published', ownerId: OWNER_ID,
+      scope: { kind: 'placements', nodeKeys: [], placementIds: publicationPlacements.map((item) => item.placementId) },
+      outline: manifest.nodes, sourceSet: { strategy: 'component_pdfs', sources: staged.verifiedSourceSet.sources.map((source) => ({
+        ...source, lifecycle: 'verified-usable' as const, localPageScope: { kind: 'all' as const, pages: [] } })) },
+      placements: publicationPlacements.map((item, index) => ({ placementId: item.placementId, activityId: item.activityId,
+        activityVersionId: item.activityVersionId, activityVersion: 1, nodeKey: item.nodeKey, order: index + 1,
+        contextMode: 'required' as const, pageGroupKeys: item.pageGroupKeys,
+        sourcePageScopes: item.sourcePages.map((page) => ({ sourceKey: page.sourceKey, pages: [page.physicalPageNumber] })) })),
+      schedulePolicy: { policyId: 'schedule-vs-01', policyRevision: 1, basis: 'immutable-reference' } }, createdAt: NOW });
+  await delivery.createDraft({ binding, operationId: '00000000-0000-4000-8000-000000000168', now: NOW });
+  await delivery.activate({ bindingId: binding.bindingId, expectedRecordRevision: 0,
+    operationId: '00000000-0000-4000-8000-000000000169', now: NOW });
+  const projection = await createBookDeliveryProjectionResolver({ repository: delivery,
+    resolveStudentDocument: async () => ({ expectedByteLength: staged.descriptor.byteSize, expectedEtag: `"${staged.descriptor.sha256Hex}"`,
+      physicalPageCount: staged.descriptor.physicalPageCount, pageGroups: manifest.units.flatMap((unit) => unit.pageGroups.map((group) => ({
+        pageGroupKey: group.pageGroupKey, combinedPhysicalPages: group.pages.map((page) =>
+          staged.descriptor.components.find((component) => component.sourceKey === group.sourceKey)!.combinedStartPage + page - 1) }))) })
+  }).resolve({ recipientId: 'student-fixture', contextId: 'homework-fixture', actor: { uid: 'student-fixture' } });
+  return { token: VERTICAL_SLICE_TOKEN, projection, diagnostics: { bookId: BOOK_ID, activationId: activation.operationId,
+    activationFingerprint: activation.inputFingerprint, candidateIds: activation.unitCandidates.map((unit) => unit.candidateId),
+    studentDocumentId: staged.descriptor.sourceVersionId, publicationId: receipt.publicationId,
+    manifestVersionId: receipt.manifestVersionId, descriptor: staged.descriptor, immutableReadback: version,
+    currentReadback: scope.current, artifactBase64: bytesToBase64(uploadedBytes.get('student-document')!),
+    selection: { sourceSet: selection.candidate.manifest!.sourceSet,
+      components: selection.components.map(({ file: _file, ...component }) => component),
+      composition: { ...selection.composition, file: undefined } } } };
 };
 
 const createCandidate = (
@@ -520,7 +723,134 @@ const decodePublicationSummary = (
   }
 };
 
-export default function BookAssemblyWorkspaceSmokePage() {
+const firstComponentOrigin = 'http://localhost:8791';
+let firstComponentTransportInstalled = false;
+
+// Only external Auth/B2 transport is substituted; configured clients still call default Worker routes.
+const installFirstComponentTransport = () => {
+  if (firstComponentTransportInstalled || !firstComponentOrigin) return;
+  firstComponentTransportInstalled = true;
+  const externalFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+    if (url.hostname === 'identitytoolkit.googleapis.com' || url.hostname === 'securetoken.googleapis.com') {
+      const response = await externalFetch(`${firstComponentOrigin}/__first-component/auth-response`);
+      const auth = await response.json();
+      const payload = url.pathname.includes('accounts:lookup')
+        ? { users: [{ localId: 'teacher-1', email: 'teacher@example.test', emailVerified: true }] }
+        : url.hostname === 'securetoken.googleapis.com'
+          ? { access_token: auth.idToken, id_token: auth.idToken, refresh_token: auth.refreshToken, expires_in: auth.expiresIn, user_id: 'teacher-1', project_id: 'first-component-fixture' }
+          : auth;
+      return new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } });
+    }
+    if (url.hostname === 's3.us-west-004.backblazeb2.com') {
+      const response = await externalFetch(`${firstComponentOrigin}${url.pathname}${url.search}`, init);
+      // The fixture replaces external transport; retain its logical provider URL
+      // for the normal direct-upload response binding check.
+      Object.defineProperty(response, 'url', { value: url.href });
+      return response;
+    }
+    if (url.pathname.startsWith('/v1/book-delivery/teacher-assembly/')) {
+      const response = await externalFetch(`${firstComponentOrigin}${url.pathname}${url.search}`, init);
+      Object.defineProperty(response, 'url', { value: url.href });
+      return response;
+    }
+    return externalFetch(input, init);
+  };
+};
+
+function FirstComponentAuthoringSmoke() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [book, setBook] = useState<MaterialBookMetadata | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const requestedBookId = searchParams.get('bookId');
+  const clients = useMemo(() => {
+    const fixtureFetch: typeof fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const response = await fetch(`${firstComponentOrigin}${url.pathname}${url.search}`, init);
+      return new Response(await response.arrayBuffer(), { status: response.status, headers: response.headers });
+    };
+    const options = { baseUrl: 'https://first-component-worker.test', fetchImpl: fixtureFetch,
+      getIdToken: async () => getAuth().currentUser?.getIdToken() ?? '' };
+    const assembly = createBookAssemblyClient(options);
+    const source = createSourceUploadClient({ ...options, reconciliationBaseUrl: options.baseUrl });
+    const workflows = new Map<string, SourceUploadBrowserWorkflow>();
+    return { assembly, source, preview: createBookAssemblyPreviewClient(options),
+      activity: createActivityAuthoringService(createActivityAuthoringRepository(createActivityAuthoringTransport(options)), { bookId: requestedBookId ?? '' }),
+      uploadForSource: (sourceKey: string) => {
+        if (!workflows.has(sourceKey)) workflows.set(sourceKey, createSourceUploadBrowserWorkflow({ control: source,
+          state: createSourceUploadSessionStatePort({ scopeKey: sourceKey }), allowedB2Origins: ['https://s3.us-west-004.backblazeb2.com'] }));
+        return workflows.get(sourceKey)!;
+      },
+    };
+  }, [requestedBookId]);
+
+  useEffect(() => {
+    if (!firstComponentOrigin) {
+      setError('The first-component fixture Worker URL is missing.');
+      return;
+    }
+    installFirstComponentTransport();
+    let active = true;
+    const storage = async (method: string, payload: Record<string, unknown>) => {
+      const response = await fetch(`${firstComponentOrigin}/__first-component/storage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method, ...payload }),
+      });
+      if (!response.ok) throw new Error(`fixture_storage_${response.status}`);
+      return response.json() as Promise<unknown>;
+    };
+    const repository = createMaterialBooksRepository({
+      read: (path) => storage('read', { path }),
+      write: async (path, value) => { await storage('write', { path, value }); },
+      remove: async (path) => { await storage('remove', { path }); },
+      update: async (payload) => { await storage('update', { payload }); },
+    });
+    void (async () => {
+      const tokenResponse = await fetch(`${firstComponentOrigin}/__first-component/auth-token`);
+      if (!tokenResponse.ok) throw new Error(`fixture_auth_${tokenResponse.status}`);
+      const { token } = await tokenResponse.json() as { token: string };
+      await signInWithCustomToken(getAuth(), token);
+      const actorId = getAuth().currentUser?.uid;
+      if (!actorId) throw new Error('fixture_auth_unavailable');
+      const next = requestedBookId
+        ? await repository.readBook(requestedBookId)
+        : await createBookDraft({
+            bookId: materialCatalogIds.bookId(`fc-${crypto.randomUUID().slice(0, 8)}`),
+            bookMode: 'pdf',
+            ownerId: actorId,
+            title: 'First component PDF authoring proof',
+            testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+            visibility: 'private',
+          }, repository, { actorId, actorRole: 'teacher', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES });
+      if (!next) throw new Error('fixture_book_missing');
+      if (!active) return;
+      setBook(next);
+      if (!requestedBookId) setSearchParams({ fixture: 'first-component-authoring', bookId: next.bookId }, { replace: true });
+    })().catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Fixture setup failed.');
+    });
+    return () => { active = false; };
+  }, [requestedBookId, setSearchParams]);
+
+  if (error) return <main role="alert">{error}</main>;
+  if (!book) return <main aria-busy="true">Creating first Component-PDF Book…</main>;
+  return <main>
+    <output data-testid="first-component-book-id" hidden>{book.bookId}</output>
+    <output data-testid="first-component-initial-authority" hidden>{JSON.stringify({
+      bookRevision: book.bookRevision, sourceSetRevision: book.sourceSetRevision,
+      sourceSet: book.sourceSet ?? null, setupActivations: book.setupActivations ?? null,
+    })}</output>
+    <BookMode2EditorShell access="owner" book={book} presentation="page-compat" experience="guided-creation"
+      assemblyRepository={clients.assembly} assemblyMigrationClient={clients.assembly}
+      componentPdfActivationClient={clients.assembly} sourceSetAttachmentClient={clients.source}
+      assemblySourceVersionReader={clients.source} assemblyPreviewClient={clients.preview}
+      activityAuthoring={clients.activity} uploadWorkflowForSource={clients.uploadForSource} />
+  </main>;
+}
+
+function FixtureBookAssemblyWorkspaceSmokePage() {
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const fixture = searchParams.get('fixture') ?? 'ticket56';
@@ -533,6 +863,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
   const ticket63Fixture = fixture === 'ticket63-preview';
   const ticket65Fixture = fixture === 'ticket65-full-pdf';
   const ticket66Fixture = fixture === 'ticket66-component-pdf';
+  const ticket66D1Preview = ticket66Fixture && searchParams.get('d1Preview') === '1';
   const pdfUploadFixture = fixture === 'pdf-upload';
   const ticket70Fixture = fixture === 'ticket70-full' || fixture === 'ticket70-component';
   const ticket70OriginalSourceVersionIds = fixture === 'ticket70-full'
@@ -574,6 +905,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
     decodePublicationSummary(searchParams.get('publication')));
   const [previewApproval, setPreviewApproval] = useState<string | null>(null);
   const [publicationMessage, setPublicationMessage] = useState<string | null>(null);
+  const [verticalSliceState, setVerticalSliceState] = useState<{
+    token: string;
+    projection: BookRuntimeDeliveryProjection;
+    diagnostics: Record<string, unknown>;
+  } | null>(null);
+  const [verticalSliceComposition, setVerticalSliceComposition] = useState<{
+    files: readonly File[];
+    claims: readonly SourcePdfInspectionClaim[];
+    result: ComponentPdfCompositionResult;
+  } | null>(null);
+  const [verticalSliceCompositionBusy, setVerticalSliceCompositionBusy] = useState(false);
   const forceConflictRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   const [stagedActivities, setStagedActivities] = useState<Array<{ activityKey?: string; evidenceRefs?: string[] }>>([]);
@@ -582,7 +924,40 @@ export default function BookAssemblyWorkspaceSmokePage() {
   ticket70CandidateRef.current = candidate;
   ticket70StagedCandidateRef.current = ticket70StagedCandidate;
   const candidateRuntimePreview = useMemo<CandidateUnitPreviewProjection | null>(() => {
-    if (!ticket63Fixture || !candidate) return null;
+    if (!candidate) return null;
+    if (ticket66Fixture) return createCandidateUnitPreview({
+      candidate: ticket66D1Preview ? {
+        ...candidate,
+        manifest: candidate.manifest ? {
+          ...candidate.manifest,
+          units: [{
+            ...candidate.manifest.units[0]!,
+            activitySlots: candidate.manifest.units.flatMap((unit) => unit.activitySlots),
+            pageGroups: candidate.manifest.units.flatMap((unit) => unit.pageGroups),
+          }],
+        } : null,
+      } : candidate,
+      sourceVersions,
+      sourceIsPreviewReady: () => true,
+      activitiesByKey: {
+        'activity-ticket66-a': ticket66Activity('a'),
+        'activity-ticket66-b': ticket66Activity('b'),
+      },
+      registryVersion: 'ticket66-local-fixture-v1',
+      studentDocument: {
+        descriptor: createComponentStudentDocument({
+          sourceVersionId: 'student-ticket66-v1', descriptorRevision: 1,
+          sha256Hex: 'd'.repeat(64), byteSize: 123, physicalPageCount: 34,
+          compositionFingerprint: 'ticket66-composition-v1',
+          components: [
+            { sourceKey: 'component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a', localPageCount: 16, combinedStartPage: 1, combinedEndPage: 16 },
+            { sourceKey: 'component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-b', localPageCount: 18, combinedStartPage: 17, combinedEndPage: 34 },
+          ],
+        }),
+        request: { opaqueRouteKey: 'ticket66-combined-document', expectedByteLength: 123 },
+      },
+    });
+    if (!ticket63Fixture) return null;
     return {
       bookId: BOOK_ID,
       bookRevision: candidate.bookRevision,
@@ -621,7 +996,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
         },
       }],
     };
-  }, [candidate, ticket63Fixture]);
+  }, [candidate, ticket63Fixture, ticket66D1Preview, ticket66Fixture]);
 
   const persistCandidate = useCallback((next: BookAssemblyCandidateRecord) => {
     setCandidate(next);
@@ -634,21 +1009,41 @@ export default function BookAssemblyWorkspaceSmokePage() {
 
   const smokeAssemblyPreviewClient = useMemo<BookAssemblyPreviewClient | null>(() => {
     if (!ticket65Fixture && !ticket66Fixture) return null;
-    const activitiesByKey = ticket65Fixture
+    const activitiesByKey: Readonly<Record<string, NormalizedActivity>> = ticket65Fixture
       ? { 'activity-ticket65': ticket65Activity }
       : {
           'activity-ticket66-a': ticket66Activity('a'),
           'activity-ticket66-b': ticket66Activity('b'),
         };
     const registryVersion = ticket65Fixture ? 'ticket65-local-fixture-v1' : 'ticket66-local-fixture-v1';
-    const preview = () => {
+    const qualification = candidate ? {
+      wholeActivationFingerprint: 'fnv1a64:ticket66-whole-activation',
+      units: candidate.manifest?.units.map((unit) => ({
+        unitKey: unit.unitKey,
+        candidateId: candidate.candidateId,
+        candidateRevision: candidate.revision,
+      })) ?? [],
+    } : undefined;
+    const preview = (unitKey = candidate?.unitKey) => {
       if (!candidate) throw new Error('The fixture candidate is unavailable.');
       return createCandidateUnitPreview({
-        candidate,
+        candidate: { ...candidate, unitKey: unitKey ?? candidate.unitKey },
         sourceVersions,
         sourceIsPreviewReady: () => true,
         activitiesByKey,
         registryVersion,
+        ...(ticket66Fixture ? { studentDocument: {
+          descriptor: createComponentStudentDocument({
+            sourceVersionId: 'student-ticket66-v1', descriptorRevision: 1,
+            sha256Hex: 'd'.repeat(64), byteSize: 123, physicalPageCount: 34,
+            compositionFingerprint: 'ticket66-composition-v1',
+            components: [
+              { sourceKey: 'component-a', sourceVersionId: 'source-component-a', sourceOrder: 1, ownerNodeKey: 'section-component-a', localPageCount: 16, combinedStartPage: 1, combinedEndPage: 16 },
+              { sourceKey: 'component-b', sourceVersionId: 'source-component-b', sourceOrder: 2, ownerNodeKey: 'section-component-b', localPageCount: 18, combinedStartPage: 17, combinedEndPage: 34 },
+            ],
+          }),
+          request: { opaqueRouteKey: 'ticket66-combined-document', expectedByteLength: 123 },
+        } } : {}),
       });
     };
     const flowPrefix = ticket65Fixture ? 'ticket65' : 'ticket66';
@@ -660,25 +1055,33 @@ export default function BookAssemblyWorkspaceSmokePage() {
       result: { mode, candidateId, fixture: true },
     });
     return {
-      preview: async () => ({ preview: preview() }),
-      approve: async () => ({
-        approval: createPreviewApproval({
-          approvalId: `${ticket65Fixture ? 'ticket65' : 'ticket66'}-flow-preview-approval`,
+      readCurrentPublication: async () => null,
+      preview: async (input) => ({ preview: preview(input.unitKey), ...(qualification ? { qualification } : {}) }),
+      approve: async (input) => {
+        const selectedPreview = preview(input.unitKey);
+        const selectedActivities = Object.fromEntries(selectedPreview.activities.map(({ activityKey }) => (
+          [activityKey, activitiesByKey[activityKey]!]
+        )));
+        return { approval: createPreviewApproval({
+          approvalId: `${ticket65Fixture ? 'ticket65' : 'ticket66'}-flow-preview-approval:${input.unitKey}`,
           approvalRevision: 1,
           actorId: OWNER_ID,
           approvedAt: '2026-07-27T00:00:00.000Z',
           expiresAt: '2026-08-27T00:00:00.000Z',
-          preview: preview(),
-          canonicalActivitiesByKey: activitiesByKey,
+          preview: selectedPreview,
+          canonicalActivitiesByKey: selectedActivities,
+          ...(qualification ? { wholeActivationFingerprint: qualification.wholeActivationFingerprint } : {}),
         }),
-      }),
+        };
+      },
       publishFull: async (input) => {
         const result = receipt('full', input.candidateId);
         setPublicationMessage('Mock full-PDF publication completed.');
         return result;
       },
       publishComponent: async (input) => {
-        const result = receipt('component', input.candidateId);
+        const result = receipt('component', input.unitApprovals[0]?.candidateId ?? 'missing-candidate');
+        setPublicationSummary((current) => ({ ...current, publicationId: result.publicationId, versionCount: 1 }));
         setPublicationMessage('Mock component-PDF publication completed.');
         return result;
       },
@@ -801,10 +1204,12 @@ export default function BookAssemblyWorkspaceSmokePage() {
         status: 'verified_completed' as const,
         reservationId: 'pdf-upload-fixture-reservation',
         sourceVersionId: `source-uploaded-${input.sourceKey}`,
+        checksum: { algorithm: 'sha-256' as const, value: input.claim.sha256Hex },
       },
     });
     return {
       load: async () => null,
+      prepareReplacement: async () => undefined,
       start: verified,
       retryBytes: verified,
       retryCompletion: async () => {
@@ -1040,7 +1445,31 @@ export default function BookAssemblyWorkspaceSmokePage() {
     }
   };
   const publishComponentPdfUnit = async () => {
-    if (!ticket66Fixture || !candidate || !candidate.manifest || !previewApproval) return;
+    if (!ticket66Fixture || !candidate || !candidate.manifest || !previewApproval || !verticalSliceComposition) return;
+    if (ticket66Fixture) {
+      try {
+        const components = [...candidate.manifest.sourceSet.sources]
+          .sort((left, right) => left.sourceOrder - right.sourceOrder)
+          .map((source, index) => {
+            return { sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId, sourceOrder: source.sourceOrder,
+              ownerNodeKey: source.ownerNodeKey!, file: verticalSliceComposition.files[index]!,
+              claim: verticalSliceComposition.claims[index]! };
+          });
+        const result = verticalSliceComposition.result;
+        const fixtureState = await buildVerticalSliceFixture({ candidate, components, composition: { byteSize: result.file.size,
+          sha256Hex: result.sha256Hex, physicalPageCount: result.mapping.reduce((total, entry) => total + entry.pageCount, 0),
+          fingerprint: `composition-${result.sha256Hex}`, file: result.file,
+          mapping: result.mapping.map((entry, index) => ({ sourceKey: components[index]!.sourceKey,
+            startPage: entry.startPage, endPage: entry.endPage, pageCount: entry.pageCount })) } });
+        setVerticalSliceState(fixtureState);
+        setPublicationMessage(`Published component-PDF Unit ${fixtureState.projection.book.publicationId}.`);
+        toast.success('Component-PDF Book published.');
+      } catch (error) {
+        setPublicationMessage(error instanceof Error ? error.message : 'Component-PDF publication failed.');
+        toast.error('Component-PDF publication failed.');
+      }
+      return;
+    }
     const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>({
       [BOOK_ID]: publicationScope,
     });
@@ -1078,6 +1507,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
     const activityVersions = new InMemoryCanonicalActivityVersionRepository();
     const command = createComponentPdfPublicationCommand({
       readAuthority: async () => authority,
+      readWholeActivationApprovalInput: async () => null,
       readCandidate: async () => candidate,
       readLineage: async () => ({}),
       readActivities: async () => Object.fromEntries(
@@ -1102,18 +1532,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
       const receipt = await command({
         ownerId: OWNER_ID,
         bookId: BOOK_ID,
-        unitKey: 'unit-component-a',
-        candidateId: candidate.candidateId,
-        expectedCandidateRevision: candidate.revision,
         expectedCurrentPublicationId: publicationSummary.publicationId,
         expectedBookRevision: 7,
         expectedSourceSetRevision: 4,
-        previewApproval: {
+        unitApprovals: [{
+          unitKey: 'unit-component-a', candidateId: candidate.candidateId,
+          candidateRevision: candidate.revision,
           approvalId: previewApproval,
           approvalRevision: 1,
           approvedAt: '2026-07-26T00:00:00.000Z',
           expiresAt: '2026-07-28T00:00:00.000Z',
-        },
+        }],
       });
       const nextScope = await repository.readScope(BOOK_ID);
       const canonicalRecords = await Promise.all(
@@ -1280,6 +1709,31 @@ export default function BookAssemblyWorkspaceSmokePage() {
         <section aria-label="Ticket 66 publication state">
           <h2>Component-PDF publication fixture</h2>
           <p>Trusted command layer allocates operation and publication IDs before adapter execution.</p>
+          <label>
+            Select vertical slice component PDFs
+            <input
+              accept="application/pdf"
+              aria-label="Select vertical slice component PDFs"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                setVerticalSliceComposition(null);
+                if (files.length !== 2) return;
+                setVerticalSliceCompositionBusy(true);
+                void Promise.all(files.map((file) => inspectSourcePdf(file)))
+                  .then(async (claims) => ({ claims, result: await composeComponentPdfs(files, { outputFilename: 'vertical-slice-combined.pdf' }) }))
+                  .then(({ claims, result }) => setVerticalSliceComposition({ files, claims, result }))
+                  .catch((error: unknown) => setPublicationMessage(error instanceof Error ? error.message : 'Composition failed.'))
+                  .finally(() => setVerticalSliceCompositionBusy(false));
+              }}
+              type="file"
+            />
+          </label>
+          <p data-testid="ticket66-browser-composition-state">
+            {verticalSliceCompositionBusy ? 'Combining selected PDFs…' : verticalSliceComposition
+              ? `Browser composition ready: ${verticalSliceComposition.result.file.size} bytes, ${verticalSliceComposition.result.mapping.length} components.`
+              : 'Select exactly two component PDFs.'}
+          </p>
           <p data-testid="ticket66-component-order">
             Component order: {(publicationSummary.publicationId
               ? publicationSummary.componentOrder
@@ -1326,6 +1780,13 @@ export default function BookAssemblyWorkspaceSmokePage() {
             Later Unit published: {publicationSummary.laterUnitPublished ? 'yes' : 'no'}
           </p>
           <p data-testid="ticket66-publication-message">{publicationMessage ?? 'No publication attempted.'}</p>
+          {verticalSliceState && (
+            <output
+              data-testid="ticket66-vertical-slice-state"
+              data-value={JSON.stringify(verticalSliceState)}
+              hidden
+            />
+          )}
           <button
             type="button"
             onClick={() => {
@@ -1336,7 +1797,7 @@ export default function BookAssemblyWorkspaceSmokePage() {
           >
             Preview component PDF Unit
           </button>
-          <button type="button" disabled={!previewApproval} onClick={() => void publishComponentPdfUnit()}>
+          <button type="button" disabled={!previewApproval || !verticalSliceComposition} onClick={() => void publishComponentPdfUnit()}>
             Publish component PDF Unit
           </button>
         </section>
@@ -1346,7 +1807,15 @@ export default function BookAssemblyWorkspaceSmokePage() {
         activityAuthoring={activityAuthoring}
         assemblyBookRevision={7}
         assemblyInitialCandidate={candidate}
-        assemblyCandidateRuntimePreview={candidateRuntimePreview}
+        assemblyInitialSavedActivityKeysByUnit={ticket65Fixture
+          ? { 'unit-fixture': ['activity-ticket65'] }
+          : ticket66Fixture
+            ? { 'unit-component-a': ['activity-ticket66-a'], 'unit-component-b': ['activity-ticket66-b'] }
+            : undefined}
+        sourceSetAttachmentClient={null}
+        assemblyCandidateRuntimePreview={ticket66Fixture && !ticket66D1Preview
+          ? null
+          : candidateRuntimePreview}
         assemblyPreviewClient={smokeAssemblyPreviewClient}
         assemblyPreviewDocuments={previewDocuments}
         assemblyRepository={repository}
@@ -1356,9 +1825,17 @@ export default function BookAssemblyWorkspaceSmokePage() {
         book={{ ...smokeBook, title: fixtureTitle }}
         onDirtyChange={setDirty}
         presentation="page-compat"
-        experience="guided-creation"
+        experience={ticket66D1Preview ? 'focused-editing' : 'guided-creation'}
+        editingSection={ticket66D1Preview ? 'preview' : undefined}
         uploadWorkflow={pdfUploadWorkflow}
       />
     </main>
   );
+}
+
+export default function BookAssemblyWorkspaceSmokePage() {
+  const [searchParams] = useSearchParams();
+  return searchParams.get('fixture') === 'first-component-authoring'
+    ? <FirstComponentAuthoringSmoke />
+    : <FixtureBookAssemblyWorkspaceSmokePage />;
 }

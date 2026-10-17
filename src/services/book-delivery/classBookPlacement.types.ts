@@ -9,6 +9,13 @@
 export const CLASS_BOOK_SCHEMA_VERSION = 1 as const;
 export const CLASS_BOOK_CONTEXT_SURFACE = 'class-course' as const;
 
+export interface ClassBookRuntimeLocator {
+  readonly classId: string;
+  readonly copyId: string;
+  readonly classPlacementId: string;
+  readonly courseMaterialId: string;
+}
+
 export type ClassBookPlacementStatus = 'active' | 'superseded' | 'revoked';
 export type ClassBookCopyStatus = 'active' | 'revoked';
 export type ClassBookLockState = 'unlocked' | 'locked';
@@ -62,7 +69,7 @@ export interface ClassBookClassAuthority {
   readonly classId: string;
   readonly ownerId: string;
   readonly status: 'active' | 'paused' | 'archived' | 'deleted';
-  readonly authorityRevision: number;
+  readonly authorityRevision?: number;
 }
 
 export interface ClassBookMembershipAuthority {

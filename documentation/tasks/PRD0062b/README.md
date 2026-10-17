@@ -18,7 +18,7 @@ Root Components 01–08 retain the recovered `9e6e7b2d2532c9efcae1db2c742e0d4aaf
 
 ## Authority order
 
-1. Current user-approved canonical PRD, `approval-record-2026-07-17-student-safe-full-pdf-streaming.md`, and `canonical-task-overrides.json`. The 2026-07-17 decision supersedes the 2026-07-14 one-page Source Delivery correction.
+1. The dated Gate 0 component-combination decision, `approval-record-2026-09-14-component-combination-gate-0.md`, current user-approved canonical PRD, `approval-record-2026-07-17-student-safe-full-pdf-streaming.md`, and `canonical-task-overrides.json`. The 2026-09-14 decision governs component composition; the 2026-07-17 decision remains the full-document transport authority and supersedes the 2026-07-14 one-page Source Delivery correction.
 2. Approved Amendment from Git object 043a6d9b1f96a76f200ea753ca353e0376be65a7 where it does not conflict with the current decision.
 3. Recovered `9e6e7b2d2532c9efcae1db2c742e0d4aafe1ecdd` task hierarchy and wording where no approved override exists.
 4. PRD0062b reconciliation ledger for recorded reorder, regroup, deferral, supersession and additive hardening.
@@ -41,8 +41,16 @@ Current source and fresh proof beat historical taskboxes or milestone claims.
 - tasks-book-activity-07-cross-feature-delivery-results.md
 - tasks-book-activity-08-pilot-hardening-release.md
 
+## Gate 0 component-combination decision — 2026-09-14
+
+See [the dated decision/provenance record](approval-record-2026-09-14-component-combination-gate-0.md).
+It records the component Source Version, single student-document, pinning,
+archive-anchor, corrected-count, and stale C07 wording decisions without
+changing active taskboxes or reactivating the dormant status.
+
 ## Evidence and provenance
 
+- approval-record-2026-09-14-component-combination-gate-0.md
 - approval-record-2026-07-13.md
 - approval-record-2026-07-14-source-delivery-foundation.md
 - approval-record-2026-07-14-conversation-decision-reconciliation.md

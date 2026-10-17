@@ -41,6 +41,10 @@ const fullDelivery: BookRuntimeDeliveryProjection = {
     opaqueRouteKey: 'preview-full-route',
     localPageScope: { kind: 'all', pages: [] },
   }],
+  pageGroups: [
+    { pageGroupKey: 'unit-1', combinedPhysicalPages: [1, 2, 3] },
+    { pageGroupKey: 'unit-2', combinedPhysicalPages: [4, 5, 6] },
+  ],
   activities: [
     {
       placementId: 'placement-1',

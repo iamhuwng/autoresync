@@ -193,7 +193,11 @@ const canonical = (): BookHomeworkSagaCanonicalState => {
       policyRevision: 3,
       fingerprint: 'policy-terminal-fingerprint',
       activityPolicies: {
-        [PLACEMENT_ID]: { lateSubmissionAllowed: false, maxAttempts: 2 },
+        [PLACEMENT_ID]: {
+          lateSubmissionAllowed: false,
+          maxAttempts: 2,
+          feedbackRelease: 'immediate',
+        },
       },
     },
   };
@@ -382,7 +386,7 @@ describe('Book Homework saga to first terminal runtime submission', () => {
         expect(placementId).toBe(PLACEMENT_ID);
         expect(activityId).toBe(ACTIVITY_ID);
         expect(activityVersion).toBe(ACTIVITY_VERSION);
-        return { maxAttempts: 2 };
+        return { maxAttempts: 2, feedbackPolicy: 'immediate' };
       },
       schedulePolicy: fixture.enforcement.policy,
       requireCanonicalDraftForSubmit: true,

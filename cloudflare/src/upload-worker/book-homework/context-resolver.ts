@@ -51,7 +51,12 @@ export interface BookHomeworkContextResolverDependencies {
   readonly roots: Pick<BookHomeworkSagaRepository, 'read'>;
   readonly authorities: Pick<BookHomeworkAuthorityRepository, 'read'>;
   readonly deliveries: Pick<BookDeliveryRepository, 'resolveCurrent'>;
-  readonly publications: Pick<BookAssemblyPublicationRepository, 'readScope'>;
+  readonly publications: {
+    readScope(
+      bookId: string,
+      ownerId: string,
+    ): ReturnType<BookAssemblyPublicationRepository['readScope']>;
+  };
   readonly exactActivityVersions: ExactPublishedActivityVersionReader;
 }
 
@@ -200,7 +205,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       || manifestBinding.activityVersionId !== deliveryPlacement.activityVersionId
       || manifestBinding.activityVersion !== deliveryPlacement.activityVersion) return null;
 
-    const scope = await this.dependencies.publications.readScope(book.bookId);
+    const scope = await this.dependencies.publications.readScope(book.bookId, ownerId);
     const manifest = exactManifest(scope, authority);
     if (!manifest) return null;
     const storedPlacement: BookAssemblyPlacementRecord | undefined = scope.placements?.[deliveryPlacement.placementId];

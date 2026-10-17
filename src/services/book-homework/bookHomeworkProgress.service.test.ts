@@ -6,6 +6,7 @@ import type {
 import {
   deriveBookHomeworkProgress,
   validateBookHomeworkProgressProjection,
+  validateBookHomeworkTerminalFact,
   type BookHomeworkTerminalFact,
 } from './bookHomeworkProgress.service';
 
@@ -102,6 +103,14 @@ const factFor = (
   submissionScope: 'activity',
   requiredInteractionIds: [`interaction-${binding.placementId}`],
   submittedInteractionIds: [`interaction-${binding.placementId}`],
+  terminalLate: {
+    effectiveDeadline: { source: 'assignment', nodeKey: 'unit-1', at: '2026-08-01T00:00:00.000Z' },
+    policyRevision: 1,
+    authorityRevision: 1,
+    evaluatedAt: '2026-07-31T00:00:00.000Z',
+    late: false,
+  },
+  feedbackPolicy: 'immediate',
   result: {
     status: 'submitted',
     score: { status: 'scored', earnedScore: 1, maximumScore: 1, displayScore: '1/1' },
@@ -138,6 +147,10 @@ describe('Book Homework progress aggregation', () => {
       requiredCount: 3,
       status: 'in_progress',
     });
+    expect(derive(manifest, [factFor(a)]).activities[0]).toMatchObject({
+      terminalLate: { effectiveDeadline: { source: 'assignment', at: '2026-08-01T00:00:00.000Z' }, late: false },
+      feedbackPolicy: 'immediate',
+    });
 
     const complete = derive(manifest, [factFor(a), factFor(b), factFor(c)]);
     expect(complete.completion).toMatchObject({ submittedCount: 3, requiredCount: 3, status: 'completed', isComplete: true });
@@ -159,6 +172,16 @@ describe('Book Homework progress aggregation', () => {
     expect(progress.activities.find((activity) => activity.placementId === 'placement-b')).toMatchObject({
       gradingState: 'review_required',
     });
+  });
+
+  it('rejects malformed terminal late provenance instead of normalizing it', () => {
+    const [activity] = baseBindings;
+    if (activity.state !== 'required') throw new Error('Fixture binding missing.');
+    const fact = factFor(activity);
+    expect(validateBookHomeworkTerminalFact({
+      ...fact,
+      terminalLate: { ...fact.terminalLate!, authorityRevision: 0 },
+    }).valid).toBe(false);
   });
 
   it('rejects pending-review results that also carry a scored payload', () => {

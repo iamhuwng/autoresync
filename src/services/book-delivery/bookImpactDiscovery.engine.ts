@@ -770,10 +770,12 @@ const discover = async (
     }
     if (!valid) return blocked(query, policy, 'malformed');
     const context = record as BookImpactContextInput;
-    if (contextIds.has(context.contextId) || bindingIds.has(context.bindingId)) {
+    const contextIdentity = policy.contextKind === 'homework'
+      ? `${context.contextId}\u0000${context.recipientId}` : context.contextId;
+    if (contextIds.has(contextIdentity) || bindingIds.has(context.bindingId)) {
       return blocked(query, policy, 'ambiguous');
     }
-    contextIds.add(context.contextId);
+    contextIds.add(contextIdentity);
     bindingIds.add(context.bindingId);
     if (context.status === 'active') contexts.push(context);
   }
@@ -789,7 +791,7 @@ const discover = async (
     replacementScopes: replacementScopes(contexts),
   };
   const impacts = contexts.map(toSummary).sort((left, right) => (
-    left.contextId.localeCompare(right.contextId)
+    left.contextId.localeCompare(right.contextId) || left.recipientId.localeCompare(right.recipientId)
   ));
   const resultForContextKind = <TContextKind extends BookImpactDiscoveryContextKind>(
     contextKind: TContextKind,

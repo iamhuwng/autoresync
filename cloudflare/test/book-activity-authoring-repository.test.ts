@@ -192,4 +192,57 @@ describe('Book Activity authoring Firebase repository', () => {
 
     await expect(repository.readOwnerRoot('owner-1')).resolves.toEqual(wireRoot);
   });
+
+  it.each(['text-entry', 'long-response'] as const)(
+    'restores RTDB-erased empty identity lists for saved %s Activities', async (family) => {
+      const content = {
+        schemaVersion: 1,
+        title: 'Source-assisted response',
+        taskProfile: null,
+        presentationMode: 'source-assisted',
+        contextRequirement: { mode: 'required', acceptedKinds: ['book-pages'] },
+        instructions: [{ text: 'Answer using the source.' }],
+        interaction: { family, variant: family === 'long-response' ? 'essay' : 'short-text' },
+        answerRule: { defaultPoints: 2, normalization: 'exact' },
+        stimulus: null,
+        assetRefs: [],
+        interactions: [family === 'long-response'
+          ? { prompt: 'Explain.', rubric: { criteria: ['Evidence'] }, sourceAssisted: {
+            questionLabel: '1', sourceExerciseLabel: 'Exercise 1', accessiblePrompt: 'Explain using the source.', responseShape: 'long-response',
+          } }
+          : { prompt: 'Enter the answer.', acceptedAnswers: ['answer'], sourceAssisted: {
+            questionLabel: '1', sourceExerciseLabel: 'Exercise 1', accessiblePrompt: 'Enter the source answer.', responseShape: 'short-text',
+          } }],
+        scoring: { mode: family === 'long-response' ? 'review-required' : 'auto-where-possible' },
+      } as const;
+      const validationContext = { mappedBookPageRefs: ['source:component-a:page:1'] };
+      const normalized = normalizeActivity(content, undefined, undefined, validationContext);
+      const wireDraft = structuredClone(normalized) as unknown as Record<string, unknown>;
+      const wireInteractions = wireDraft.interactions as Array<Record<string, unknown>>;
+      wireInteractions[0]!.itemIdentities = { family };
+      const activityId = `activity-${family}`;
+      const wireRoot = {
+        activities: {
+          [activityId]: {
+            activityId, ownerId: 'owner-1', revision: 1, lifecycle: 'draft',
+            editableDraft: content, draft: wireDraft, updatedAt: 1_700_000_000_000,
+          },
+        },
+      };
+      const repository = new FirebaseRestBookActivityAuthoringRepository({
+        env: {
+          FIREBASE_DB_URL: 'https://firebase.test',
+          BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY: 'authoring@test.example',
+        },
+        getAccessToken: async () => 'test-token',
+        fetchImpl: async () => new Response(JSON.stringify(wireRoot), {
+          status: 200,
+          headers: { etag: '"v1"' },
+        }),
+      });
+
+      const root = await repository.readOwnerRoot('owner-1');
+      expect(root.activities?.[activityId]).toMatchObject({ draft: normalized });
+    },
+  );
 });

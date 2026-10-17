@@ -50,6 +50,7 @@ export interface MatchedBookRoute {
 
 const APPROVED_ORIGINS = new Set([
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ]);
@@ -105,11 +106,15 @@ const jsonResponse = (
 
 const isBookPath = (pathname: string): boolean => BOOK_PATH.test(pathname);
 
-const hasQueryOrFragment = (request: Request): boolean => {
-  const target = request.url;
-  const query = target.indexOf('?');
-  const fragment = target.indexOf('#');
-  return query >= 0 || fragment >= 0;
+const hasAllowedQuery = (request: Request, descriptor: CanonicalBookRouteDescriptor): boolean => {
+  if (request.url.includes('#')) return false;
+  if (!request.url.includes('?')) return true;
+  if (!descriptor.allowedQueryKeys) return false;
+  const query = new URL(request.url).searchParams;
+  const keys = [...query.keys()];
+  return keys.length > 0 && keys.every((key) => (
+    descriptor.allowedQueryKeys!.includes(key) && query.getAll(key).length === 1
+  ));
 };
 
 const decodeParam = (value: string): string | null => {
@@ -127,11 +132,12 @@ export const matchCanonicalBookRoute = (
   manifest: readonly CanonicalBookRouteDescriptor[],
 ): MatchedBookRoute | null => {
   const url = new URL(request.url);
-  if (!isBookPath(url.pathname) || hasQueryOrFragment(request)) return null;
+  if (!isBookPath(url.pathname)) return null;
   if (url.pathname.length < 2 || url.pathname.endsWith('/') || url.pathname.includes('//')) return null;
 
   const actual = url.pathname.slice(1).split('/');
   for (const descriptor of manifest) {
+    if (!hasAllowedQuery(request, descriptor)) continue;
     const template = descriptor.pathTemplate;
     if (!template.startsWith('/') || template.endsWith('/') || template.includes('//')) continue;
     const expected = template.slice(1).split('/');
@@ -165,7 +171,7 @@ const routeForPath = (
   manifest: readonly CanonicalBookRouteDescriptor[],
 ): readonly CanonicalBookRouteDescriptor[] => {
   const url = new URL(request.url);
-  if (!isBookPath(url.pathname) || hasQueryOrFragment(request)) return [];
+  if (!isBookPath(url.pathname)) return [];
   return manifest.filter((descriptor) => {
     const matched = matchCanonicalBookRoute(
       new Request(request.url, { method: 'GET' }),
@@ -418,9 +424,9 @@ const handleResult = async (
   return new Response(serialized, { ...init, headers });
 };
 
-export type BookRouter = ((request: Request, env: BookRouterEnv) => Promise<Response | null>) & {
-  fetch: (request: Request, env: BookRouterEnv) => Promise<Response | null>;
-  route: (request: Request, env: BookRouterEnv) => Promise<Response | null>;
+export type BookRouter = ((request: Request, env: BookRouterEnv, executionContext?: ExecutionContext) => Promise<Response | null>) & {
+  fetch: (request: Request, env: BookRouterEnv, executionContext?: ExecutionContext) => Promise<Response | null>;
+  route: (request: Request, env: BookRouterEnv, executionContext?: ExecutionContext) => Promise<Response | null>;
 };
 
 export const createBookRouter = (options: BookRouterOptions = {}): BookRouter => {
@@ -432,7 +438,11 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
       ? (descriptor: CanonicalBookRouteDescriptor) => options.handlers?.[descriptor.handler]
       : defaultHandlerResolver);
 
-  const route = async (request: Request, env: BookRouterEnv): Promise<Response | null> => {
+  const route = async (
+    request: Request,
+    env: BookRouterEnv,
+    executionContext?: ExecutionContext,
+  ): Promise<Response | null> => {
     const url = new URL(request.url);
     if (!isBookPath(url.pathname)) return null;
     const corsFailure = failCors(request);
@@ -482,7 +492,14 @@ export const createBookRouter = (options: BookRouterOptions = {}): BookRouter =>
     const handler = resolveHandler(descriptor);
     if (!handler) return jsonResponse(request, { code: 'book_route_unavailable' }, 501, methods);
     try {
-      return await handleResult(await handler({ request, env, uid, params, descriptor }), request, descriptor);
+      return await handleResult(await handler({
+        request,
+        env,
+        uid,
+        params,
+        descriptor,
+        ...(executionContext === undefined ? {} : { executionContext }),
+      }), request, descriptor);
     } catch (error) {
       return jsonResponse(request, { code: 'book_route_failed' }, 500, methods);
     }
@@ -498,6 +515,7 @@ export const routeBookRequest = async (
   request: Request,
   env: BookRouterEnv,
   options: BookRouterOptions = {},
-): Promise<Response | null> => createBookRouter(options)(request, env);
+  executionContext?: ExecutionContext,
+): Promise<Response | null> => createBookRouter(options)(request, env, executionContext);
 
 export default createBookRouter;

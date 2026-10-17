@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
+import { importSPKI, jwtVerify } from 'jose';
 import type {
   ActivitySubmission,
   NormalizedActivity,
@@ -27,6 +29,7 @@ import {
 import {
   bookActivityEvaluationRouteDescriptors,
 } from '../src/upload-worker/book-activity-grading/route';
+import previewWorker from '../src/upload-worker/book-activity-grading/ticket89-preview-worker';
 
 const TIME = '2026-08-01T14:00:00.000Z';
 
@@ -292,7 +295,7 @@ describe('trusted Book Activity evaluation command', () => {
     });
     expect(JSON.stringify(result)).not.toMatch(/visibility|releasePolicy|feedbackRelease/u);
     const scope = repository.snapshot().scopes[bookActivityEvaluationScopePath(target())]!;
-    expect(scope.current).toEqual(scope.history?.r000001);
+    expect(scope.current).toEqual({ revision: 1, revisionKey: 'r000001', operationId: 'evaluation-operation-1' });
     expect(scope.aggregateScores?.r000001).toMatchObject({ earnedScore: 1, maximumScore: 1 });
   });
 
@@ -308,7 +311,7 @@ describe('trusted Book Activity evaluation command', () => {
       status: 'accepted',
       revision: { facts: { status: 'scored', earnedScore: score, maximumScore: score } },
     });
-    expect(repository.snapshot().scopes[bookActivityEvaluationScopePath(target())]!.current?.scorerVersion)
+    expect(repository.snapshot().scopes[bookActivityEvaluationScopePath(target())]!.history?.r000001.scorerVersion)
       .toBe(ACTIVITY_EVALUATION_SCORER_VERSION);
   });
 
@@ -416,7 +419,7 @@ describe('trusted Book Activity evaluation command', () => {
     const malformed = new InMemoryBookActivityEvaluationRepository(snapshot);
     await expect(readImmutableBookActivityEvaluationHistory(malformed, {
       target: target(),
-    })).rejects.toThrow(/evaluation_(?:current|history)_invalid/u);
+    })).rejects.toThrow(/evaluation_(?:current_invalid|history_(?:readback_)?invalid)/u);
   });
 
   it.each([
@@ -664,6 +667,94 @@ describe('trusted Book Activity evaluation command', () => {
 });
 
 describe('ticket #89 route contribution', () => {
+  it('retains the disclosed transport preview through the tuple-aware token seam', async () => {
+    const response = await previewWorker.fetch(new Request('https://preview.test/proof'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ pass: true, productionRepository: { kind: 'firebase-rest-atomic-append' } });
+  });
+  it('uses default signed target tokens for operation reads, bounded history, response-loss replay and another attempt', async () => {
+    const identity = 'evaluation@example.test';
+    const keyPair = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const verificationKey = await importSPKI(keyPair.publicKey.export({ type: 'spki', format: 'pem' }).toString(), 'RS256');
+    const tokens = new Map<string, Record<string, unknown>>();
+    const rows = new Map<string, unknown>();
+    const requests: { path: string; method: string; token: string }[] = [];
+    let loseResponse = true;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'identitytoolkit.googleapis.com') {
+        const { payload } = await jwtVerify(JSON.parse(String(init?.body)).token, verificationKey, {
+          issuer: identity,
+          audience: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+        });
+        expect(payload.uid).toBe(identity);
+        expect(url.searchParams.get('key')).toBe('evaluation-web-key');
+        const idToken = `evaluation-id-${tokens.size + 1}`;
+        tokens.set(idToken, payload.claims as Record<string, unknown>);
+        return Response.json({ idToken, expiresIn: '3600' });
+      }
+      expect(url.hostname).toBe('evaluation.firebaseio.test');
+      expect(new Headers(init?.headers).has('Authorization')).toBe(false);
+      const token = url.searchParams.get('auth')!;
+      const claims = tokens.get(token);
+      const path = decodeURIComponent(url.pathname).slice(1, -'.json'.length);
+      const payload = init?.method === 'PATCH' ? JSON.parse(String(init.body)) : null;
+      const parts = (payload ? Object.keys(payload)[0] : path).split('/');
+      expect(claims).toEqual({
+        book_activity_evaluation_service: true,
+        book_activity_evaluation_recipientId: parts[2], book_activity_evaluation_contextId: parts[3],
+        book_activity_evaluation_placementId: parts[4], book_activity_evaluation_activityId: parts[5],
+        book_activity_evaluation_attemptId: parts[6],
+      });
+      requests.push({ path, method: init?.method ?? 'GET', token });
+      if (init?.method === 'PATCH') {
+        expect(new Headers(init.headers).has('If-Match')).toBe(false);
+        for (const [updatePath, value] of Object.entries(payload)) {
+          const segments = updatePath.split('/');
+          const root = segments.slice(0, 7).join('/');
+          const scope = (rows.get(root) ?? {}) as Record<string, any>;
+          if (segments.length === 8) scope[segments[7]] = value;
+          else (scope[segments[7]] ??= {})[segments[8]] = value;
+          rows.set(root, scope);
+        }
+        if (loseResponse) { loseResponse = false; throw new Error('simulated_response_loss'); }
+        return Response.json(null);
+      }
+      if (parts.at(-1) === 'history') {
+        expect(url.searchParams.get('orderBy')).toBe('"$key"');
+        expect(url.searchParams.get('limitToLast')).toBe('1');
+        return Response.json((rows.get(parts.slice(0, -1).join('/')) as { history: unknown } | undefined)?.history ?? null);
+      }
+      return new Response(JSON.stringify(rows.get(path) ?? null), { headers: { etag: '"evaluation-etag"' } });
+    };
+    const repository = new FirebaseRestBookActivityEvaluationRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://evaluation.firebaseio.test', FIREBASE_PROJECT_ID: 'evaluation-project',
+        FIREBASE_WEB_API_KEY: 'evaluation-web-key', BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY: identity,
+        BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY: JSON.stringify({
+          client_email: identity, private_key: keyPair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+        }),
+      }, fetchImpl,
+    });
+    const producer = harness();
+    await producer.service.applyEvaluationCommand(objectiveCommand(), scorer);
+    const scope = producer.repository.snapshot().scopes[bookActivityEvaluationScopePath(target())]!;
+    const revision = scope.history!.r000001;
+    const operation = scope.operations![revision.operationId]!;
+    await expect(repository.readOperation({ target: target(), operationId: operation.operationId })).resolves.toBeNull();
+    await expect(repository.appendRevision({ revision, operation })).resolves.toEqual({ status: 'replayed', revision });
+    await expect(repository.appendRevision({ revision, operation })).resolves.toEqual({ status: 'replayed', revision });
+    await expect(repository.listHistory({ target: target(), limit: 1 })).resolves.toEqual([revision]);
+    await expect(repository.readOperation({ target: { ...target(), attemptId: 'attempt-other' }, operationId: operation.operationId })).resolves.toBeNull();
+    expect(tokens.size).toBe(2);
+    expect(new Set(requests.filter((row) => row.path.includes(target().attemptId)).map((row) => row.token)).size).toBe(1);
+    expect(requests.filter((row) => row.method === 'PATCH')).toHaveLength(1);
+    const requestCount = requests.length;
+    await expect(repository.listHistory({ target: target(), limit: 0 })).rejects.toThrow('evaluation_history_query_unbounded');
+    await expect(repository.readOperation({ target: { ...target(), contextId: 'parent/child' }, operationId: operation.operationId }))
+      .rejects.toThrow('evaluation_context_path_invalid');
+    expect(requests).toHaveLength(requestCount);
+  });
   it('contributes only the fixed command and history seams, disabled by default', () => {
     expect(bookActivityEvaluationRouteDescriptors).toHaveLength(2);
     expect(bookActivityEvaluationRouteDescriptors.map((route) => route.pathTemplate)).toEqual([
@@ -684,7 +775,7 @@ describe('ticket #89 route contribution', () => {
   it('requires a stable scoped repository identity and matching service-account email', () => {
     expect(() => new FirebaseRestBookActivityEvaluationRepository({
       env: { FIREBASE_DB_URL: 'https://example.firebaseio.test' },
-      getAccessToken: async () => 'token',
+      getFirebaseIdToken: async () => 'token',
     })).toThrow('missing_evaluation_service_identity');
     expect(() => new FirebaseRestBookActivityEvaluationRepository({
       env: {
@@ -695,5 +786,14 @@ describe('ticket #89 route contribution', () => {
         }),
       },
     })).toThrow('evaluation_service_identity_mismatch');
+    expect(() => new FirebaseRestBookActivityEvaluationRepository({
+      env: { BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY: 'evaluation@example.test' },
+    })).toThrow('missing_evaluation_google_sa_key');
+    expect(() => new FirebaseRestBookActivityEvaluationRepository({
+      env: {
+        BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY: 'evaluation@example.test',
+        BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'evaluation@example.test', private_key: 'test-key' }),
+      },
+    })).toThrow('invalid_book_firebase_service_account');
   });
 });

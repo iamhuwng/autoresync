@@ -75,6 +75,7 @@ const book = () => ({
   updatedAt: BOOK_REVISION,
   createdBy: 'teacher-target',
   updatedBy: 'teacher-target',
+  setupActivations: [{ operationId: 'activation-1', marker: 'exact' }],
 });
 
 const ref = (refId = 'existing-ref') => ({
@@ -422,6 +423,10 @@ describeEmulator('canonical fork inactive-fragment RTDB negatives', () => {
 
     expect(Object.keys(patch)).toHaveLength(13);
     await assertSucceeds(service.database().ref().update(patch));
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      expect((await context.database().ref('material_catalog/books/target-book/setupActivations').once('value')).val())
+        .toEqual([{ operationId: 'activation-1', marker: 'exact' }]);
+    });
   });
 
   it('allows source-derived canonical and student-safe products', async () => {

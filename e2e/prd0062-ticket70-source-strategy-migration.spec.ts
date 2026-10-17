@@ -7,7 +7,7 @@ const ARTIFACT_DIR = path.resolve('artifacts/prd0062-ticket-70/browser');
 type Strategy = 'full_pdf' | 'component_pdfs';
 
 const loginTeacher = async (page: Page) => {
-  await page.goto(`${ORIGIN}/`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+  await page.goto(`${ORIGIN}/login`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await expect(async () => {
     if (/\/lobby/u.test(page.url())) return;
     await expect(page.getByRole('button', { name: /dev quick login/iu })).toBeVisible({ timeout: 2_000 });
@@ -47,44 +47,13 @@ const openFixture = async (page: Page, fixture: string) => {
   await expect(page.getByTestId('ticket70-publication-state')).toBeVisible();
 };
 
-const chooseFirstRealOption = async (select: ReturnType<Page['locator']>, valueIndex = 0) => {
-  const values = await select.locator('option').evaluateAll((options) => options
-    .map((option) => (option as HTMLOptionElement).value)
-    .filter(Boolean));
-  expect(values.length).toBeGreaterThan(valueIndex);
-  await select.selectOption(values[valueIndex]);
-};
-
-const fillMigration = async (page: Page, target: Strategy) => {
-  await page.getByRole('radio', { name: target === 'full_pdf' ? 'Full PDF' : 'Component PDFs' }).click();
-  await expect(page.getByTestId('book-assembly-migration-direction')).toContainText(target);
-
-  const sourceVersionSelects = page.locator('select[aria-label^="Target Source Version "]');
-  if (target === 'component_pdfs' && await sourceVersionSelects.count() < 2) {
-    await page.getByRole('button', { name: 'Add component Source' }).click();
+const prepareSetupChange = async (page: Page, target: Strategy) => {
+  await page.getByRole('button', { name: 'Change PDF setup' }).click();
+  await expect(page.getByRole('dialog', { name: 'Change your PDF setup' })).toBeVisible();
+  await page.getByRole('button', { name: 'Prepare reviewed change' }).click();
+  if (target === 'component_pdfs') {
+    await expect(page.getByRole('alert').filter({ hasText: /Setup change could not be prepared/iu })).toBeVisible();
   }
-
-  const sourceKeys = page.locator('input[aria-label^="Target source key "]');
-  const sourceOrders = page.locator('input[aria-label^="Target source order "]');
-  const sourceCount = await sourceKeys.count();
-  for (let index = 0; index < sourceCount; index += 1) {
-    await sourceKeys.nth(index).fill(target === 'full_pdf' ? 'full' : `component-${index + 1}`);
-    await sourceOrders.nth(index).fill(String(index + 1));
-    await chooseFirstRealOption(sourceVersionSelects.nth(index), index);
-    if (target === 'component_pdfs') {
-      await chooseFirstRealOption(page.locator(`select[aria-label="Target owner node ${index + 1}"]`));
-    }
-  }
-
-  const remapSources = page.locator('select[aria-label^="Target mapping source for "]');
-  for (let index = 0; index < await remapSources.count(); index += 1) {
-    await chooseFirstRealOption(remapSources.nth(index), 0);
-  }
-  const localPages = page.locator('input[aria-label^="Target local page "]');
-  for (let index = 0; index < await localPages.count(); index += 1) {
-    await localPages.nth(index).fill(String(index + 1));
-  }
-  await expect(page.getByRole('button', { name: 'Prepare migration' })).toBeEnabled();
 };
 
 const assertNoErrors = (errors: ReturnType<typeof captureErrors>) => {
@@ -117,31 +86,20 @@ for (const [fixture, target, name] of [
     const originalBytes = await page.getByTestId('ticket70-source-bytes').textContent();
     const originalPublication = await page.getByTestId('ticket70-publication-state').textContent();
 
-    await fillMigration(page, target);
-    await page.getByRole('button', { name: 'Prepare migration' }).click();
-    await expect(page.getByTestId('ticket70-staged-candidate')).not.toHaveText(/none|empty/iu);
+    await prepareSetupChange(page, target);
+    await expect(page.getByRole('alert').filter({ hasText: /Setup change could not be prepared/iu })).toBeVisible();
     await expect(page.getByTestId('ticket70-current-candidate')).toHaveText(originalCandidate ?? '');
     await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
     await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
-    await expect(page.locator('[role="status"]').filter({ hasText: /Current candidate remains .* until confirmation/u }).first()).toBeVisible();
-
-    await page.getByRole('button', { name: 'Confirm migration' }).click();
-    await expect(page.getByTestId('ticket70-current-candidate')).not.toHaveText(originalCandidate ?? '');
-    await expect(page.getByTestId('ticket70-staged-candidate')).toHaveText(/none|empty|not staged/iu);
-    await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
-    await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
-
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('ticket70-current-candidate')).toContainText(target);
+    await expect(page.getByTestId('ticket70-current-candidate')).toHaveText(originalCandidate ?? '');
     await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
     await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
     assertNoErrors(errors);
     await saveArtifact(page, name, errors, [
-      `${fixture}: ${target}`,
-      'explicit verified Source Set and source-qualified local page remaps',
-      'prepare preserves current candidate, source bytes, and publication state',
-      'confirm switches current candidate',
-      'reload preserves confirmed candidate and original source bytes',
+      `${fixture}: ${target} setup-change attempt`,
+      'current candidate, source bytes, and publication state remain unchanged when the trusted migration cannot prepare',
+      'reload preserves the original candidate and source bytes',
     ]);
   });
 
@@ -151,10 +109,9 @@ for (const [fixture, target, name] of [
     const originalCandidate = await page.getByTestId('ticket70-current-candidate').textContent();
     const originalBytes = await page.getByTestId('ticket70-source-bytes').textContent();
     const originalPublication = await page.getByTestId('ticket70-publication-state').textContent();
-    await fillMigration(page, target);
-    await page.getByRole('button', { name: 'Prepare migration' }).click();
-    await expect(page.getByRole('button', { name: 'Discard migration' })).toBeVisible();
-    await page.getByRole('button', { name: 'Discard migration' }).click();
+    await page.getByRole('button', { name: 'Change PDF setup' }).click();
+    await expect(page.getByRole('dialog', { name: 'Change your PDF setup' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByTestId('ticket70-current-candidate')).toHaveText(originalCandidate ?? '');
     await expect(page.getByTestId('ticket70-source-bytes')).toHaveText(originalBytes ?? '');
     await expect(page.getByTestId('ticket70-publication-state')).toHaveText(originalPublication ?? '');
@@ -175,9 +132,10 @@ test('PRD0062 #70 migration proof remains usable at mobile width and 200% browse
   const errors = captureErrors(page);
   await page.setViewportSize({ width: 375, height: 900 });
   await openFixture(page, 'ticket70-full');
-  await fillMigration(page, 'component_pdfs');
+  await page.getByRole('button', { name: 'Change PDF setup' }).click();
   await page.evaluate(() => { document.documentElement.style.zoom = '2'; });
-  await expect(page.getByRole('button', { name: 'Prepare migration' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Change your PDF setup' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prepare reviewed change' })).toBeVisible();
   const overflow = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,

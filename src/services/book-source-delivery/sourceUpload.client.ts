@@ -1,4 +1,11 @@
-import type { BookSourceUploadKind } from '../../types/bookSource.types';
+import type {
+  BookSourceChecksum,
+  BookSourcePurpose,
+  BookSourceStudentSafeDecision,
+  BookSourceStudentSafeReasonCode,
+  BookSourceStudentSafeStatus,
+  BookSourceUploadKind,
+} from '../../types/bookSource.types';
 import type {
   SourceSetCandidate,
   TrustedBookSourceVersionProjection,
@@ -13,14 +20,14 @@ export interface BeginSourceUploadCommand {
   readonly operationId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly purpose: BookSourcePurpose;
   readonly inspection: SourceUploadInspectionClaim;
 }
 
 export interface CompleteSourceUploadCommand {
   readonly bookId: string;
   readonly reservationId: string;
-  readonly providerFileId: string;
-  readonly providerFileVersionId: string;
+  readonly operationId: string;
 }
 
 export interface BeginSourceUploadResult {
@@ -38,9 +45,25 @@ export interface CompleteSourceUploadResult {
   readonly status: 'verified_completed' | 'replayed';
   readonly reservationId: string;
   readonly sourceVersionId: string;
-  /** Present when verified completion also advanced the canonical Book authority. */
-  readonly bookRevision?: number;
-  readonly sourceSetRevision?: number;
+  readonly checksum: BookSourceChecksum;
+}
+
+export interface DecideStudentSafeSourceCommand {
+  readonly bookId: string;
+  readonly reservationId: string;
+  readonly operationId: string;
+  readonly studentSafeStatus: Exclude<BookSourceStudentSafeStatus, 'unreviewed'>;
+  readonly reasonCode: BookSourceStudentSafeReasonCode;
+}
+
+export interface DecideStudentSafeSourceResult {
+  readonly status: 'verified_completed';
+  readonly reservationId: string;
+  readonly sourceVersionId: string;
+  readonly checksum: BookSourceChecksum;
+  readonly purpose: BookSourcePurpose;
+  readonly studentSafeStatus: Exclude<BookSourceStudentSafeStatus, 'unreviewed'>;
+  readonly studentSafeDecision: BookSourceStudentSafeDecision;
 }
 
 export interface AttachSourceSetCommand {
@@ -63,9 +86,6 @@ export interface CancelSourceUploadCommand {
   readonly reservationId: string;
   readonly providerFileId?: string;
   readonly providerFileVersionId?: string;
-  /** Present only after trusted completion has advanced the canonical Book authority. */
-  readonly bookRevision?: number;
-  readonly sourceSetRevision?: number;
 }
 
 export interface SourceUploadLifecycleStatus {
@@ -84,6 +104,7 @@ interface SourceUploadSafeOperationBase {
   readonly operationId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
+  readonly purpose?: BookSourcePurpose;
   readonly displayFilename: string;
   readonly exactByteSize: number;
   readonly sha256Hex: string;
@@ -107,8 +128,6 @@ export interface SourceUploadBoundOperationState extends SourceUploadSafeOperati
     | 'verified';
   readonly providerFileId?: string;
   readonly providerFileVersionId?: string;
-  readonly bookRevision?: number;
-  readonly sourceSetRevision?: number;
 }
 
 export type SourceUploadSafeOperationState =
@@ -232,27 +251,151 @@ const request = async (
 const safeId = (value: unknown): value is string =>
   nonEmpty(value) && /^[A-Za-z0-9._:-]{1,512}$/u.test(value);
 
+const sourceSetCandidate = (value: unknown): SourceSetCandidate | null => {
+  const candidate = record(value);
+  if (!candidate
+    || !exactKeys(candidate, ['sourceStrategy', 'sources'])
+    || !Array.isArray(candidate.sources)
+    || (candidate.sourceStrategy === 'full_pdf' && candidate.sources.length !== 1)
+    || (candidate.sourceStrategy === 'component_pdfs'
+      && (candidate.sources.length < 2 || candidate.sources.length > 20))) return null;
+  if (candidate.sourceStrategy !== 'full_pdf' && candidate.sourceStrategy !== 'component_pdfs') return null;
+
+  const sourceKeys = new Set<string>();
+  const sourceVersions = new Set<string>();
+  const sources = candidate.sources.map((entry, index) => {
+    const source = record(entry);
+    const keys = candidate.sourceStrategy === 'full_pdf'
+      ? ['sourceKey', 'sourceOrder', 'sourceVersionId']
+      : ['ownerNodeKey', 'sourceKey', 'sourceOrder', 'sourceVersionId'];
+    if (!source
+      || !exactKeys(source, keys)
+      || !safeId(source.sourceKey)
+      || !safeId(source.sourceVersionId)
+      || !Number.isSafeInteger(source.sourceOrder)
+      || source.sourceOrder !== index + 1
+      || sourceKeys.has(source.sourceKey)
+      || sourceVersions.has(source.sourceVersionId)
+      || (candidate.sourceStrategy === 'component_pdfs' && !safeId(source.ownerNodeKey))) return null;
+    sourceKeys.add(source.sourceKey);
+    sourceVersions.add(source.sourceVersionId);
+    return candidate.sourceStrategy === 'full_pdf'
+      ? { sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId, sourceOrder: source.sourceOrder }
+      : {
+        ownerNodeKey: source.ownerNodeKey,
+        sourceKey: source.sourceKey,
+        sourceVersionId: source.sourceVersionId,
+        sourceOrder: source.sourceOrder,
+      };
+  });
+  if (sources.some((source) => source === null)) return null;
+  return {
+    sourceStrategy: candidate.sourceStrategy,
+    sources: sources as unknown as SourceSetCandidate['sources'],
+  } as SourceSetCandidate;
+};
+
+const safeProjectionId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u.test(value);
+
+const projectionPurposes = ['book-source', 'student-document'] as const;
+const projectionStatuses = ['unreviewed', 'review-required', 'ready', 'rejected'] as const;
+const projectionReasonCodes = [
+  'teacher-reviewed',
+  'teacher-only-content',
+  'invalid-document',
+  'superseded',
+] as const;
+const projectionHash = /^[a-f0-9]{64}$/iu;
+const projectionIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+
+const exactKeys = (value: Record<string, unknown>, expected: readonly string[]): boolean => {
+  const actual = Object.keys(value).sort();
+  return actual.length === expected.length
+    && actual.every((key, index) => key === [...expected].sort()[index]);
+};
+
 const sourceVersionProjection = (
   value: unknown,
   bookId: string,
 ): SourceUploadSourceVersionProjection => {
   const candidate = record(value);
+  const checksum = record(candidate?.checksum);
+  const hasDecision = candidate?.studentSafeDecision !== undefined;
+  const projectionKeys = [
+    'bookId',
+    'checksum',
+    'physicalPageCount',
+    'purpose',
+    'sourceKey',
+    'sourceVersionId',
+    'studentSafeStatus',
+    'verifiedUsable',
+    ...(hasDecision ? ['studentSafeDecision'] : []),
+  ];
   if (!candidate
-    || Object.keys(candidate).sort().join(',') !== 'bookId,physicalPageCount,sourceKey,sourceVersionId,verifiedUsable'
+    || !exactKeys(candidate, projectionKeys)
     || candidate.bookId !== bookId
-    || !safeId(candidate.sourceKey)
-    || !safeId(candidate.sourceVersionId)
+    || !checksum
+    || !exactKeys(checksum, ['algorithm', 'value'])
+    || checksum.algorithm !== 'sha-256'
+    || typeof checksum.value !== 'string'
+    || !/^[a-f0-9]{64}$/u.test(checksum.value)
+    || !safeProjectionId(candidate.bookId)
+    || !safeProjectionId(candidate.sourceKey)
+    || !safeProjectionId(candidate.sourceVersionId)
     || !Number.isSafeInteger(candidate.physicalPageCount)
     || (candidate.physicalPageCount as number) <= 0
-    || typeof candidate.verifiedUsable !== 'boolean') {
+    || !projectionPurposes.includes(candidate.purpose as typeof projectionPurposes[number])
+    || !projectionStatuses.includes(candidate.studentSafeStatus as typeof projectionStatuses[number])
+    || typeof candidate.verifiedUsable !== 'boolean'
+    || (candidate.studentSafeStatus === 'unreviewed' ? hasDecision : !hasDecision)) {
     throw new SourceUploadClientError('invalid_response', 502);
+  }
+  let studentSafeDecision: SourceUploadSourceVersionProjection['studentSafeDecision'];
+  if (hasDecision) {
+    const decision = record(candidate.studentSafeDecision);
+    if (!decision
+      || !exactKeys(decision, [
+        'decidedBy',
+        'decidedAt',
+        'sourceVersionId',
+        'sha256Hex',
+        'reasonCode',
+      ])
+      || !safeProjectionId(decision.decidedBy)
+      || typeof decision.decidedAt !== 'string'
+      || !projectionIso.test(decision.decidedAt)
+      || !Number.isFinite(Date.parse(decision.decidedAt))
+      || decision.sourceVersionId !== candidate.sourceVersionId
+      || !safeProjectionId(decision.sourceVersionId)
+      || typeof decision.sha256Hex !== 'string'
+      || !projectionHash.test(decision.sha256Hex)
+      || decision.sha256Hex !== checksum.value
+      || !projectionReasonCodes.includes(decision.reasonCode as typeof projectionReasonCodes[number])) {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
+    studentSafeDecision = Object.freeze({
+      decidedBy: decision.decidedBy,
+      decidedAt: decision.decidedAt,
+      sourceVersionId: decision.sourceVersionId,
+      sha256Hex: decision.sha256Hex.toLowerCase(),
+      reasonCode: decision.reasonCode,
+    }) as SourceUploadSourceVersionProjection['studentSafeDecision'];
   }
   return Object.freeze({
     sourceKey: candidate.sourceKey,
     sourceVersionId: candidate.sourceVersionId,
     bookId: candidate.bookId,
+    checksum: Object.freeze({
+      algorithm: 'sha-256',
+      value: checksum.value,
+    }) as BookSourceChecksum,
     physicalPageCount: candidate.physicalPageCount as number,
     verifiedUsable: candidate.verifiedUsable,
+    purpose: candidate.purpose as SourceUploadSourceVersionProjection['purpose'],
+    studentSafeStatus: candidate.studentSafeStatus as SourceUploadSourceVersionProjection['studentSafeStatus'],
+    ...(studentSafeDecision === undefined ? {} : { studentSafeDecision }),
   });
 };
 
@@ -297,14 +440,13 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     'sourceVersionId',
     'sourceKey',
     'kind',
+    'purpose',
     'displayFilename',
     'exactByteSize',
     'sha256Hex',
     'phase',
     'providerFileId',
     'providerFileVersionId',
-    'bookRevision',
-    'sourceSetRevision',
   ]);
   if (
     !Object.keys(candidate).every((key) => allowedKeys.has(key))
@@ -312,6 +454,9 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     || !safeId(candidate.operationId)
     || !safeId(candidate.sourceKey)
     || (candidate.kind !== 'initial' && candidate.kind !== 'replacement')
+    || (candidate.purpose !== undefined
+      && candidate.purpose !== 'book-source'
+      && candidate.purpose !== 'student-document')
     || !nonEmpty(candidate.displayFilename)
     || !Number.isSafeInteger(candidate.exactByteSize)
     || (candidate.exactByteSize as number) < 1
@@ -328,8 +473,6 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
       || candidate.sourceVersionId !== undefined
       || candidate.providerFileId !== undefined
       || candidate.providerFileVersionId !== undefined
-      || candidate.bookRevision !== undefined
-      || candidate.sourceSetRevision !== undefined
     ) {
       return null;
     }
@@ -339,6 +482,7 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
       operationId: candidate.operationId,
       sourceKey: candidate.sourceKey,
       kind: candidate.kind,
+      ...(candidate.purpose === undefined ? {} : { purpose: candidate.purpose }),
       displayFilename: candidate.displayFilename,
       exactByteSize: candidate.exactByteSize as number,
       sha256Hex: candidate.sha256Hex,
@@ -348,21 +492,12 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
   if (!safeId(candidate.reservationId) || !safeId(candidate.sourceVersionId)) {
     return null;
   }
-  const hasBookRevision = candidate.bookRevision !== undefined;
-  const hasSourceSetRevision = candidate.sourceSetRevision !== undefined;
-  if (hasBookRevision !== hasSourceSetRevision
-    || (hasBookRevision
-      && (!safeRevision(candidate.bookRevision) || !safeRevision(candidate.sourceSetRevision)))
-    || (hasBookRevision && candidate.phase !== 'verified')) {
-    return null;
-  }
-  const identityRequired = candidate.phase === 'completion_pending';
   const hasProviderFileId = candidate.providerFileId !== undefined;
   const hasProviderVersionId = candidate.providerFileVersionId !== undefined;
   if (
     hasProviderFileId !== hasProviderVersionId
     || (
-      (identityRequired || hasProviderFileId)
+      hasProviderFileId
       && (!safeId(candidate.providerFileId) || !safeId(candidate.providerFileVersionId))
     )
   ) {
@@ -376,6 +511,7 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
     sourceVersionId: candidate.sourceVersionId,
     sourceKey: candidate.sourceKey,
     kind: candidate.kind,
+    ...(candidate.purpose === undefined ? {} : { purpose: candidate.purpose }),
     displayFilename: candidate.displayFilename,
     exactByteSize: candidate.exactByteSize,
     sha256Hex: candidate.sha256Hex,
@@ -384,12 +520,6 @@ const safeState = (value: unknown, bookId: string): SourceUploadSafeOperationSta
       ? {
           providerFileId: candidate.providerFileId,
           providerFileVersionId: candidate.providerFileVersionId,
-        }
-      : {}),
-    ...(hasBookRevision
-      ? {
-          bookRevision: candidate.bookRevision,
-          sourceSetRevision: candidate.sourceSetRevision,
         }
       : {}),
   } as SourceUploadSafeOperationState);
@@ -474,6 +604,7 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
         operationId: command.operationId,
         sourceKey: command.sourceKey,
         kind: command.kind,
+        purpose: command.purpose,
         inspection: command.inspection,
       },
       command.operationId,
@@ -490,24 +621,10 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
     ) {
       throw new SourceUploadClientError('invalid_response', 502);
     }
-    const hasBookRevision = body.bookRevision !== undefined;
-    const hasSourceSetRevision = body.sourceSetRevision !== undefined;
-    if (hasBookRevision !== hasSourceSetRevision
-      || (hasBookRevision
-        && (!safeRevision(body.bookRevision) || !safeRevision(body.sourceSetRevision)))) {
-      throw new SourceUploadClientError('invalid_response', 502);
-    }
-    const authorityRevisions = hasBookRevision
-      ? {
-          bookRevision: body.bookRevision as number,
-          sourceSetRevision: body.sourceSetRevision as number,
-        }
-      : undefined;
     return {
       status: body.status,
       reservationId: body.reservationId,
       sourceVersionId: body.sourceVersionId,
-      ...authorityRevisions,
       upload: {
         url: upload.url as string,
         expiresAt: upload.expiresAt as string,
@@ -520,15 +637,21 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
     const body = await request(
       options,
       `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/upload/${encodeURIComponent(command.reservationId)}/complete`,
-      {
-        providerFileId: command.providerFileId,
-        providerFileVersionId: command.providerFileVersionId,
-      },
+      { operationId: command.operationId },
+      command.operationId,
     );
+    const checksum = record(body.checksum);
     if (
+      !exactKeys(body, ['checksum', 'reservationId', 'sourceVersionId', 'status'])
+      ||
       (body.status !== 'verified_completed' && body.status !== 'replayed')
       || body.reservationId !== command.reservationId
       || !nonEmpty(body.sourceVersionId)
+      || !checksum
+      || !exactKeys(checksum, ['algorithm', 'value'])
+      || checksum.algorithm !== 'sha-256'
+      || typeof checksum.value !== 'string'
+      || !projectionHash.test(checksum.value)
     ) {
       throw new SourceUploadClientError('invalid_response', 502);
     }
@@ -536,6 +659,72 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       status: body.status,
       reservationId: command.reservationId,
       sourceVersionId: body.sourceVersionId,
+      checksum: {
+        algorithm: 'sha-256',
+        value: checksum.value.toLowerCase(),
+      },
+    };
+  },
+
+  async decideStudentSafeSource(
+    command: DecideStudentSafeSourceCommand,
+  ): Promise<DecideStudentSafeSourceResult> {
+    const body = await request(
+      options,
+      `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/upload/${encodeURIComponent(command.reservationId)}/student-safe/decide`,
+      {
+        operationId: command.operationId,
+        studentSafeStatus: command.studentSafeStatus,
+        reasonCode: command.reasonCode,
+      },
+      command.operationId,
+    );
+    const decision = record(body.studentSafeDecision);
+    const checksum = record(body.checksum);
+    if (
+      body.status !== 'verified_completed'
+      || body.reservationId !== command.reservationId
+      || !safeId(body.sourceVersionId)
+      || !checksum
+      || !exactKeys(checksum, ['algorithm', 'value'])
+      || checksum.algorithm !== 'sha-256'
+      || typeof checksum.value !== 'string'
+      || !projectionHash.test(checksum.value)
+      || !projectionPurposes.includes(body.purpose as BookSourcePurpose)
+      || body.studentSafeStatus !== command.studentSafeStatus
+      || !['review-required', 'ready', 'rejected'].includes(String(body.studentSafeStatus))
+      || !decision
+      || !exactKeys(decision, ['decidedBy', 'decidedAt', 'sourceVersionId', 'sha256Hex', 'reasonCode'])
+      || !safeProjectionId(decision.decidedBy)
+      || typeof decision.decidedAt !== 'string'
+      || !projectionIso.test(decision.decidedAt)
+      || !Number.isFinite(Date.parse(decision.decidedAt))
+      || decision.sourceVersionId !== body.sourceVersionId
+      || decision.reasonCode !== command.reasonCode
+      || typeof decision.sha256Hex !== 'string'
+      || !projectionHash.test(decision.sha256Hex)
+      || decision.sha256Hex.toLowerCase() !== checksum.value.toLowerCase()
+      || !projectionReasonCodes.includes(decision.reasonCode as typeof projectionReasonCodes[number])
+    ) {
+      throw new SourceUploadClientError('invalid_response', 502);
+    }
+    return {
+      status: 'verified_completed',
+      reservationId: command.reservationId,
+      sourceVersionId: body.sourceVersionId,
+      checksum: {
+        algorithm: 'sha-256',
+        value: checksum.value.toLowerCase(),
+      },
+      purpose: body.purpose as BookSourcePurpose,
+      studentSafeStatus: body.studentSafeStatus as DecideStudentSafeSourceResult['studentSafeStatus'],
+      studentSafeDecision: {
+        decidedBy: decision.decidedBy,
+        decidedAt: decision.decidedAt,
+        sourceVersionId: decision.sourceVersionId,
+        sha256Hex: decision.sha256Hex.toLowerCase(),
+        reasonCode: decision.reasonCode as BookSourceStudentSafeReasonCode,
+      },
     };
   },
 
@@ -551,17 +740,18 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       },
       command.operationId,
     );
+    const sourceSet = sourceSetCandidate(body.sourceSet);
     if (!['attached', 'replaced', 'replayed'].includes(String(body.status))
       || !safeRevision(body.bookRevision)
       || !safeRevision(body.sourceSetRevision)
-      || !record(body.sourceSet)) {
+      || !sourceSet) {
       throw new SourceUploadClientError('invalid_response', 502);
     }
     return {
       status: body.status as AttachSourceSetResult['status'],
       bookRevision: body.bookRevision as number,
       sourceSetRevision: body.sourceSetRevision as number,
-      sourceSet: body.sourceSet as SourceSetCandidate,
+      sourceSet,
     };
   },
 
@@ -612,7 +802,11 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
     if (Object.keys(body).length !== 1 || !Array.isArray(body.sources) || body.sources.length > 128) {
       throw new SourceUploadClientError('invalid_response', 502);
     }
-    return Object.freeze(body.sources.map((source) => sourceVersionProjection(source, bookId)));
+    return Object.freeze(body.sources
+      .map((source) => sourceVersionProjection(source, bookId))
+      .filter((source) => source.purpose === 'book-source'
+        && source.studentSafeStatus !== 'rejected'
+        && source.verifiedUsable));
   },
 
   async reconcile(command: Pick<CancelSourceUploadCommand, 'bookId' | 'reservationId'>): Promise<SourceUploadLifecycleStatus> {

@@ -35,6 +35,9 @@ export interface BookPdfViewerProps {
   readonly initialPage?: number;
   readonly initialZoom?: number;
   readonly onRetry?: () => void;
+  readonly allowedPages?: readonly number[];
+  readonly onPageChange?: (page: number) => void;
+  readonly onPageReady?: (page: number) => void;
 }
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -67,10 +70,12 @@ const transportErrorMessage = (error: unknown): { readonly message: string; read
     };
   }
 
+  if (error instanceof Error && error.name === 'InvalidPDFException') {
+    return { code: 'pdf_document_invalid', message: 'The PDF document is invalid or damaged.' };
+  }
   return {
-    message: error instanceof Error
-      ? error.message
-      : 'PDF viewer could not load this document.',
+    code: 'pdf_viewer_failed',
+    message: 'PDF viewer could not load this document.',
   };
 };
 
@@ -186,8 +191,13 @@ export const BookPdfViewer = ({
   initialPage = 1,
   initialZoom = DEFAULT_CUSTOM_ZOOM,
   onRetry,
+  allowedPages,
+  onPageChange,
+  onPageReady,
 }: BookPdfViewerProps) => {
   const titleId = useId();
+  const onPageReadyRef = useRef(onPageReady);
+  onPageReadyRef.current = onPageReady;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const loadingTaskRef = useRef<PdfDocumentLoadingTask | null>(null);
@@ -390,6 +400,7 @@ export const BookPdfViewer = ({
         if (destroyed) return;
         page.cleanup();
         setRenderState('ready');
+        onPageReadyRef.current?.(pageNumber);
         setRenderMessage(`Page ${pageNumber} of ${loadStatus.pageCount} rendered at ${formatZoomLabel(zoomMode, customZoom)}.`);
       } catch (error) {
         if (destroyed) return;
@@ -410,8 +421,19 @@ export const BookPdfViewer = ({
   }, [customZoom, layoutTick, loadStatus, pageNumber, zoomMode]);
 
   const pageCount = loadStatus.state === 'ready' ? loadStatus.pageCount : 0;
-  const canGoPrev = loadStatus.state === 'ready' && pageNumber > 1;
-  const canGoNext = loadStatus.state === 'ready' && pageNumber < pageCount;
+  const previousPage = allowedPages ? [...allowedPages].filter((page) => page < pageNumber).sort((a, b) => b - a)[0] : pageNumber - 1;
+  const nextPage = allowedPages ? [...allowedPages].filter((page) => page > pageNumber && page <= pageCount).sort((a, b) => a - b)[0] : pageNumber + 1;
+  const canGoPrev = loadStatus.state === 'ready' && previousPage >= 1;
+  const canGoNext = loadStatus.state === 'ready' && nextPage <= pageCount;
+  const requestPage = (page: number) => {
+    if (!Number.isSafeInteger(page) || page < 1 || page > pageCount || allowedPages && !allowedPages.includes(page)) {
+      setPageDraft(String(pageNumber));
+      return;
+    }
+    if (onPageChange) onPageChange(page);
+    else setPageNumber(page);
+    setPageDraft(String(onPageChange ? pageNumber : page));
+  };
   const zoomLabel = formatZoomLabel(zoomMode, customZoom);
   const statusText = useMemo(() => {
     if (loadStatus.state === 'loading') return loadStatus.message;
@@ -423,14 +445,12 @@ export const BookPdfViewer = ({
 
   const commitPageDraft = () => {
     if (loadStatus.state !== 'ready') return;
-    const requested = Number.parseInt(pageDraft, 10);
+    const requested = Number(pageDraft);
     if (!Number.isFinite(requested)) {
       setPageDraft(String(pageNumber));
       return;
     }
-    const next = clamp(requested, 1, pageCount);
-    setPageNumber(next);
-    setPageDraft(String(next));
+    requestPage(onPageChange ? requested : clamp(requested, 1, pageCount));
   };
 
   const pageLabel = loadStatus.state === 'ready'
@@ -455,10 +475,10 @@ export const BookPdfViewer = ({
       </header>
 
       <div className="book-pdf-viewer__toolbar" aria-label="PDF viewer controls">
-        <button type="button" onClick={() => setPageNumber((value) => clamp(value - 1, 1, pageCount))} disabled={!canGoPrev}>
+        <button type="button" onClick={() => requestPage(previousPage)} disabled={!canGoPrev}>
           Previous page
         </button>
-        <button type="button" onClick={() => setPageNumber((value) => clamp(value + 1, 1, pageCount))} disabled={!canGoNext}>
+        <button type="button" onClick={() => requestPage(nextPage)} disabled={!canGoNext}>
           Next page
         </button>
         <label className="book-pdf-viewer__page-input">
@@ -526,7 +546,7 @@ export const BookPdfViewer = ({
           </div>
         ) : null}
         {loadStatus.state === 'error' ? (
-          <div className="book-pdf-viewer__state" role="alert">
+          <div className="book-pdf-viewer__state" data-error-code={loadStatus.code} role="alert">
             <p>{loadStatus.message}</p>
             {onRetry ? (
               <button type="button" onClick={onRetry}>Retry</button>

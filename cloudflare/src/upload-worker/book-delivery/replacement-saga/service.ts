@@ -54,8 +54,9 @@ const transitionTable: Readonly<Record<ReplacementSagaState, readonly Replacemen
   staging: ['staged', 'compensating'],
   staged: ['visible', 'compensating'],
   visible: ['contexts-pending'],
-  'contexts-pending': ['awaiting-retired-byte-deletion'],
+  'contexts-pending': ['awaiting-retired-byte-deletion', 'completed'],
   'awaiting-retired-byte-deletion': [],
+  completed: [],
   compensating: ['compensated'],
   compensated: [],
 };
@@ -126,16 +127,24 @@ const nextItem = (saga: ReplacementSagaRecord, contextKey: string, at: string): 
 const validationCode = (code: ReplacementTokenValidationFailure): string => `token-${code}`;
 
 const sourceVersionIds = (plan: ReplacementPlanRecord): readonly string[] => (
-  [...new Set(plan.sourceSetDelta.old.sources.map((source) => source.sourceVersionId))].sort()
+  [...new Set(plan.sourceSetDelta.old.sources.map((source) => source.sourceVersionId))]
+    .filter((sourceVersionId) => !plan.sourceSetDelta.next.sources.some((source) => source.sourceVersionId === sourceVersionId))
+    .sort()
 );
 
 const newSourceVersionIds = (plan: ReplacementPlanRecord): readonly string[] => (
   [...new Set(plan.sourceSetDelta.next.sources.map((source) => source.sourceVersionId))].sort()
 );
 
-const contextItems = (plan: ReplacementPlanRecord, sagaId: string): Readonly<Record<string, ReplacementSagaContextItem>> => {
+const contextItems = (plan: ReplacementPlanRecord, review: ReplacementPlanReviewRecord, sagaId: string): Readonly<Record<string, ReplacementSagaContextItem>> => {
   const result: Record<string, ReplacementSagaContextItem> = {};
+  const selected = new Set(review.selections
+    .filter((selection) => !['review-only', 'retain-current', 'retain-historical'].includes(selection.choice))
+    .map((selection) => selection.contextKey));
+  if ([...selected].some((key) => !plan.contexts.some((context) => context.contextKey === key))) throw new Error('unknown_replacement_context');
   for (const context of plan.contexts) {
+    if (!selected.has(context.contextKey)) continue;
+    if (context.classification === 'reordered' || context.classification === 'unchanged') continue;
     if (result[context.contextKey]) throw new Error('duplicate_replacement_saga_context');
     result[context.contextKey] = {
       contextKey: context.contextKey,
@@ -144,6 +153,7 @@ const contextItems = (plan: ReplacementPlanRecord, sagaId: string): Readonly<Rec
       lifecycle: context.lifecycle,
       status: context.status,
       sourceScopes: clone(context.sourceScopes),
+      selections: clone(review.selections.filter((selection) => selection.contextKey === context.contextKey)),
       state: 'pending',
       stateRevision: 0,
       operationId: `${sagaId}:context:${context.contextKey}`,
@@ -213,9 +223,9 @@ const createSagaRecord = async (
   sagaId: string,
   now: string,
 ): Promise<ReplacementSagaRecord> => {
-  const oldSourceVersionIds = sourceVersionIds(facts.plan);
+  const oldSourceVersionIds = [...new Set(facts.plan.sourceSetDelta.old.sources.map((source) => source.sourceVersionId))].sort();
   const nextSourceVersionIds = newSourceVersionIds(facts.plan);
-  const items = contextItems(facts.plan, sagaId);
+  const items = contextItems(facts.plan, facts.review, sagaId);
   return {
     schemaVersion: 1,
     sagaId,
@@ -230,9 +240,11 @@ const createSagaRecord = async (
     deltaFingerprint: facts.plan.deltaFingerprint,
     snapshotFingerprint: facts.plan.impactSnapshotFingerprint,
     adapterFingerprint,
+    selectionFingerprint: facts.review.selectionFingerprint,
+    reason: facts.review.reason,
     revisionVector: clone(facts.plan.impactSnapshotRevisionVector),
     sourceSetDelta: clone(facts.plan.sourceSetDelta),
-    sourceVersionIds: oldSourceVersionIds,
+    sourceVersionIds: sourceVersionIds(facts.plan),
     targetSourceSetRevision: facts.plan.targetSourceSetRevision,
     contexts: items,
     state: 'accepted',
@@ -243,7 +255,9 @@ const createSagaRecord = async (
     visibility: null,
     retiredByteHandoff: null,
     audit: {
-      itemCount: Object.keys(items).length,
+      // Count every impacted context, including reviewed omissions. An omitted
+      // context may retain predecessor access and therefore blocks byte delete.
+      itemCount: facts.plan.contexts.length,
       retiredItemCount: 0,
       oldSourceVersionIds,
       newSourceVersionIds: nextSourceVersionIds,
@@ -278,7 +292,6 @@ export const createReplacementSagaService = (dependencies: ReplacementSagaDepend
       planId: input.planId,
       reviewId: input.reviewId,
       idempotencyKey: input.idempotencyKey,
-      tokenHash,
     }));
     let existing: ReplacementSagaRecord | null;
     try {
@@ -288,7 +301,7 @@ export const createReplacementSagaService = (dependencies: ReplacementSagaDepend
     }
     if (existing) {
       if (existing.requestFingerprint !== requestFingerprint) return { status: 'blocked', code: 'replay-conflict' };
-      if (existing.state === 'accepted' || existing.state === 'staging' || existing.state === 'staged') {
+      if (existing.tokenHash !== tokenHash || existing.state === 'accepted' || existing.state === 'staging' || existing.state === 'staged') {
         const now = safeNow(dependencies);
         if (!now) return { status: 'blocked', code: 'clock-unavailable' };
         let validation: Awaited<ReturnType<typeof validateFacts>>;
@@ -355,7 +368,7 @@ const resumeSaga = async (
   replay: boolean,
 ): Promise<ReplacementSagaExecutionResult> => {
   let saga = initial;
-  if (saga.state === 'awaiting-retired-byte-deletion' || saga.state === 'compensated') {
+  if (saga.state === 'awaiting-retired-byte-deletion' || saga.state === 'completed' || saga.state === 'compensated') {
     return { status: replay ? 'replayed' : saga.state, saga } as ReplacementSagaExecutionResult;
   }
   if (saga.state === 'accepted') {
@@ -416,6 +429,16 @@ const resumeSaga = async (
       saga = saved.saga;
     }
     if (Object.values(saga.contexts).some((item) => item.state !== 'retired-revoked')) return pending('context-revocation-pending', saga);
+    const retirementRequested = Object.values(saga.contexts).some((item) => item.selections.some((selection) => selection.choice === 'invalidate-context'));
+    const hasUnselectedContexts = saga.audit.itemCount > Object.keys(saga.contexts).length;
+    if (saga.sourceVersionIds.length === 0 || !retirementRequested || hasUnselectedContexts) {
+      const at = safeNow(dependencies);
+      if (!at) return pending('clock-unavailable', saga);
+      const complete = await casState(saga, 'completed', dependencies, at, {
+        retiredByteHandoff: { status: saga.sourceVersionIds.length === 0 ? 'not-required' : 'retained', sourceVersionIds: saga.sourceVersionIds, queuedAt: at },
+      });
+      return complete ? { status: 'completed', saga: complete } : pending('completion-cas-conflict', saga);
+    }
     if (!saga.retiredByteHandoff) {
       try {
         const handoff = await dependencies.retiredBytes.enqueueExactDeletion({

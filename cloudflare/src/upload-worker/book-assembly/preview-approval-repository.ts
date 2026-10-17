@@ -117,8 +117,8 @@ export const assertBookAssemblyPreviewApprovalRecord = (
   const record = exact(value, [
     'approvalId', 'approvalRevision', 'actorId', 'bookId', 'bookRevision', 'unitKey',
     'candidateId', 'candidateRevision', 'sourceSetRevision', 'registryVersion',
-    'inputFingerprint', 'canonicalActivityFingerprintsByKey', 'approvedAt', 'expiresAt',
-  ]);
+    'inputFingerprint', 'approvedAt', 'expiresAt',
+  ], ['canonicalActivityFingerprintsByKey', 'wholeActivationFingerprint']);
   const approvedAt = timestamp(record.approvedAt, 'invalid_book_assembly_preview_approval_time');
   const expiresAt = timestamp(record.expiresAt, 'invalid_book_assembly_preview_approval_time');
   if (Date.parse(expiresAt) <= Date.parse(approvedAt)) {
@@ -136,7 +136,14 @@ export const assertBookAssemblyPreviewApprovalRecord = (
     sourceSetRevision: revision(record.sourceSetRevision, 'invalid_book_assembly_preview_approval_source_set_revision'),
     registryVersion: id(record.registryVersion, 'invalid_book_assembly_preview_approval_registry_version'),
     inputFingerprint: fingerprint(record.inputFingerprint, 'invalid_book_assembly_preview_approval_input_fingerprint'),
-    canonicalActivityFingerprintsByKey: canonicalFingerprints(record.canonicalActivityFingerprintsByKey),
+    // RTDB removes empty maps from reference-only approvals.
+    canonicalActivityFingerprintsByKey: canonicalFingerprints(record.canonicalActivityFingerprintsByKey ?? {}),
+    ...(record.wholeActivationFingerprint === undefined ? {} : {
+      wholeActivationFingerprint: fingerprint(
+        record.wholeActivationFingerprint,
+        'invalid_book_assembly_preview_approval_whole_activation_fingerprint',
+      ),
+    }),
     approvedAt,
     expiresAt,
   };

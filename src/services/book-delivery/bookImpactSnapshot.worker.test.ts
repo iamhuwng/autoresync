@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { bookImpactContextKey } from './bookImpactDiscovery.types';
 import type {
   BookImpactDiscoveryAdapterDeclaration,
   BookImpactDiscoveryContextKind,
@@ -120,6 +121,27 @@ const command = {
 };
 
 describe('#108 authoritative impact snapshots', () => {
+  it('keeps qualified keys bounded and unambiguous for delimiter-containing and long identities', async () => {
+    const key = (contextId: string, recipientId: string) => bookImpactContextKey({ contextKind: 'homework', contextId, recipientId });
+    expect(await key('assignment:a', 'b')).not.toBe(await key('assignment', 'a:b'));
+    expect(await key('a'.repeat(128), 'b'.repeat(128))).toMatch(/^homework:[a-f0-9]{64}$/u);
+    expect(await key('assignment', 'student-1')).toBe(await key('assignment', 'student-1'));
+  });
+  it('qualifies Homework selections by recipient while retaining assignment identity', async () => {
+    const providers = kinds.map(provider);
+    const homework = providers.find((entry) => entry.declaration.contextKind === 'homework')!;
+    const first = { ...impact('homework', 1), contextId: 'assignment-1' };
+    const second = { ...first, recipientId: 'student-2', bindingId: 'binding-homework-2' };
+    vi.mocked(homework.discover).mockResolvedValue({
+      ...await homework.discover({ actorId: command.actorId, evaluatedAt }), impacts: [first, second],
+    } as BookImpactDiscoveryResult);
+    const result = await createBookImpactSnapshotService({ providers, repository: new MemoryRepository() }).create(command);
+    expect(result.status).toBe('created');
+    if (result.status === 'blocked') throw new Error(result.code);
+    expect(result.snapshot.contexts.filter((entry) => entry.impact.contextKind === 'homework')
+      .map((entry) => [entry.contextKey, entry.impact.contextId, entry.recipientScope.recipientId]))
+      .toEqual([['homework:dc1bf270eda14d021152a451b1a7d81ead19dac288751fa271bbe135f64872f0', 'assignment-1', 'student-1'], ['homework:eac5f6b13ab2f34e8590efc4235716cd08b5126db842e3c7c5029d6d7f2b870d', 'assignment-1', 'student-2']]);
+  });
   it('consumes every registered context kind once and persists a deterministic unselected snapshot', async () => {
     const providers = kinds.map(provider);
     const repository = new MemoryRepository();

@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book PDF Runtime — Existing Runtime Preview</title>
+  <style>
+    :root {
+      --sv-bg-page: #f8f9fa;
+      --sv-bg-shell: #f1f4f6;
+      --sv-bg-surface: #ffffff;
+      --sv-bg-surface-muted: #eaeff1;
+      --sv-text-primary: #2b3437;
+      --sv-text-secondary: #586064;
+      --sv-accent: #4d44e3;
+      --sv-accent-soft: #e2dfff;
+      --sv-outline-soft: #abb3b7;
+      --sv-radius-soft: 8px;
+      --sv-radius-panel: 12px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: var(--sv-bg-page); }
+
+    /* Production BookRuntimeShell.css, kept verbatim for CSS-parity review. */
+    .book-runtime-shell {
+      --runtime-bg: var(--sv-bg-page, #f8f9fa);
+      --runtime-shell: var(--sv-bg-shell, #f1f4f6);
+      --runtime-surface: var(--sv-bg-surface, #ffffff);
+      --runtime-muted: var(--sv-bg-surface-muted, #eaeff1);
+      --runtime-text: var(--sv-text-primary, #2b3437);
+      --runtime-body: var(--sv-text-secondary, #586064);
+      --runtime-accent: var(--sv-accent, #4d44e3);
+      --runtime-accent-soft: var(--sv-accent-soft, #e2dfff);
+      --runtime-outline: var(--sv-outline-soft, #abb3b7);
+      display: grid; gap: 20px; min-width: 0; color: var(--runtime-text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .book-runtime-shell button {
+      min-height: 44px; border: 1px solid var(--runtime-outline); border-radius: 8px;
+      background: var(--runtime-surface); color: var(--runtime-text); cursor: pointer;
+      font: inherit; padding: 8px 12px;
+    }
+    .book-runtime-shell button:hover:not(:disabled),
+    .book-runtime-shell button.is-active { border-color: var(--runtime-accent); color: var(--runtime-accent); }
+    .book-runtime-shell button:focus-visible { outline: 3px solid var(--runtime-accent); outline-offset: 2px; }
+    .book-runtime-shell button:disabled { cursor: not-allowed; opacity: 0.55; }
+    .book-runtime-shell__header,
+    .book-runtime-shell__panel-heading {
+      display: flex; align-items: start; justify-content: space-between; gap: 16px;
+    }
+    .book-runtime-shell__header h1,
+    .book-runtime-shell__panel-heading h2,
+    .book-runtime-shell__header p,
+    .book-runtime-shell__panel-heading p { margin: 0; }
+    .book-runtime-shell__header h1 { font-size: clamp(1.5rem, 2.6vw, 2.25rem); letter-spacing: -0.03em; }
+    .book-runtime-shell__panel-heading h2 { font-size: 1.125rem; line-height: 1.25; }
+    .book-runtime-shell__eyebrow {
+      color: var(--runtime-body); font-size: 0.6875rem; font-weight: 800;
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+    .book-runtime-shell__context,
+    .book-runtime-shell__viewer-safety { color: var(--runtime-body); font-size: 0.8125rem; }
+    .book-runtime-shell__header-status {
+      display: flex; flex-wrap: wrap; justify-content: end; gap: 8px;
+      color: var(--runtime-body); font-size: 0.75rem;
+    }
+    .book-runtime-shell__header-tools {
+      display: flex; align-items: flex-start; justify-content: flex-end;
+      flex-wrap: wrap; gap: 12px; min-width: 0;
+    }
+    .book-runtime-shell__personal-timer { min-width: 0; max-width: min(100%, 360px); }
+    .book-runtime-shell__header-status span,
+    .book-runtime-shell__activity-position {
+      padding: 8px 10px; border-radius: 999px; background: var(--runtime-muted);
+    }
+    .book-runtime-shell__persistence {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0;
+      padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--runtime-outline) 32%, transparent);
+      border-radius: 8px; background: var(--runtime-muted); color: var(--runtime-body); font-size: 0.8125rem;
+    }
+    .book-runtime-shell__persistence--conflict,
+    .book-runtime-shell__persistence--error,
+    .book-runtime-shell__persistence--unsafe-to-leave {
+      border-color: #b44545; background: #fff0f0; color: #7b2020;
+    }
+    .book-runtime-shell__persistence--offline,
+    .book-runtime-shell__persistence--retrying {
+      border-color: #9a6b18; background: #fff8e8; color: #6e4d11;
+    }
+    .book-runtime-shell__persistence-actions {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto;
+    }
+    .book-runtime-shell__persistence-actions button { min-height: 36px; padding: 6px 10px; }
+    .book-runtime-shell__outline {
+      display: grid; gap: 10px; min-width: 0; padding: 14px;
+      border: 1px solid color-mix(in srgb, var(--runtime-outline) 28%, transparent);
+      border-radius: 12px; background: var(--runtime-surface);
+    }
+    .book-runtime-shell__outline ol {
+      display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none;
+    }
+    .book-runtime-shell__outline li {
+      display: flex; align-items: baseline; gap: 8px; min-height: 44px; padding: 10px 12px;
+      border: 1px solid var(--runtime-outline); border-radius: 8px; color: var(--runtime-body);
+    }
+    .book-runtime-shell__outline li[aria-current="page"] {
+      border-color: var(--runtime-accent); background: var(--runtime-accent-soft); color: var(--runtime-text);
+    }
+    .book-runtime-shell__outline small { font-size: 0.6875rem; text-transform: uppercase; }
+    .book-runtime-shell__workspace {
+      display: grid; grid-template-columns: minmax(56px, 0.22fr) minmax(0, 1.35fr) minmax(280px, 0.9fr);
+      gap: 16px; min-width: 0; align-items: start;
+    }
+    .book-runtime-shell__page-navigator,
+    .book-runtime-shell__activity-pane,
+    .book-runtime-shell__viewer-pane {
+      min-width: 0; background: var(--runtime-surface);
+      border: 1px solid color-mix(in srgb, var(--runtime-outline) 28%, transparent); border-radius: 12px;
+    }
+    .book-runtime-shell__page-navigator { position: sticky; top: 16px; padding: 14px; }
+    .book-runtime-shell__activity-pane,
+    .book-runtime-shell__viewer-pane { display: grid; gap: 16px; padding: 20px; }
+    .book-runtime-shell__panel-heading {
+      align-items: center; padding-bottom: 12px;
+      border-bottom: 1px solid color-mix(in srgb, var(--runtime-outline) 22%, transparent);
+    }
+    .book-runtime-shell__icon-button { min-width: 44px; padding: 8px; }
+    .book-runtime-shell__group-list,
+    .book-runtime-shell__mobile-activity-list { display: grid; gap: 8px; }
+    .book-runtime-shell__group-list button {
+      display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    }
+    .book-runtime-shell__group-number {
+      display: grid; place-items: center; min-width: 28px; height: 28px;
+      border-radius: 50%; background: var(--runtime-muted); font-weight: 800;
+    }
+    .book-runtime-shell__group-label {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__page-navigator { padding: 8px; }
+    .book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__group-list button {
+      justify-content: center; padding: 8px;
+    }
+    .book-runtime-shell[data-navigator-collapsed="true"] .book-runtime-shell__group-label { display: none; }
+    .book-runtime-shell__mobile-tabs,
+    .book-runtime-shell__mobile-activity-list { display: none; }
+    .book-runtime-shell__activity-pane :where([aria-label="Activity instructions"], [aria-label="Activity interactions"]) {
+      display: grid; gap: 12px;
+    }
+    .book-runtime-shell__reference-state,
+    .book-runtime-shell__pending-state {
+      margin: 0; padding: 12px; border-left: 3px solid var(--runtime-accent);
+      background: var(--runtime-accent-soft); color: var(--runtime-body); font-size: 0.8125rem;
+    }
+    .book-runtime-shell__pending-state { border-left-color: #9a6b18; background: #fff8e8; }
+    .book-runtime-shell__activity-navigation {
+      position: sticky; bottom: 12px; display: flex; justify-content: space-between; gap: 12px;
+      padding-top: 12px; background: color-mix(in srgb, var(--runtime-surface) 94%, transparent);
+    }
+    .book-runtime-shell__viewer-content {
+      min-height: 360px; padding: 16px; overflow: auto;
+      border: 1px solid color-mix(in srgb, var(--runtime-outline) 36%, transparent);
+      border-radius: 8px; background: var(--runtime-bg);
+    }
+    .book-runtime-shell__viewer-safety { margin: 0; }
+    .book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__page-navigator,
+    .book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__activity-pane { display: none; }
+    .book-runtime-shell[data-desktop-view="pdf-focus"] .book-runtime-shell__workspace { grid-template-columns: minmax(0, 1fr); }
+
+    /* Production BookPdfViewer.css, kept verbatim for CSS-parity review. */
+    .book-pdf-viewer {
+      display: grid; gap: 16px; color: var(--sv-text-primary, #2b3437);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .book-pdf-viewer__header {
+      display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px;
+    }
+    .book-pdf-viewer__eyebrow {
+      margin: 0 0 4px; color: var(--sv-text-secondary, #586064); font-size: 0.75rem;
+      font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .book-pdf-viewer__header h2,
+    .book-pdf-viewer__status,
+    .book-pdf-viewer__toolbar,
+    .book-pdf-viewer__state p { margin: 0; }
+    .book-pdf-viewer__meta {
+      display: flex; flex-wrap: wrap; gap: 8px; color: var(--sv-text-secondary, #586064); font-size: 0.875rem;
+    }
+    .book-pdf-viewer__toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .book-pdf-viewer__toolbar button,
+    .book-pdf-viewer__toolbar input {
+      min-height: 44px; border: 1px solid var(--sv-outline-soft, #abb3b7);
+      border-radius: var(--sv-radius-soft, 8px); background: var(--sv-bg-surface, #fff); color: var(--sv-text-primary, #2b3437);
+    }
+    .book-pdf-viewer__toolbar button { min-width: 44px; padding: 0 12px; }
+    .book-pdf-viewer__toolbar button:focus-visible,
+    .book-pdf-viewer__toolbar input:focus-visible,
+    .book-pdf-viewer__state button:focus-visible { outline: 3px solid var(--sv-accent, #4d44e3); outline-offset: 2px; }
+    .book-pdf-viewer__page-input { display: inline-flex; gap: 6px; align-items: center; }
+    .book-pdf-viewer__page-input input { width: 84px; }
+    .book-pdf-viewer__zoom {
+      padding: 8px 12px; border-radius: 999px; background: var(--sv-accent-soft, #e2dfff);
+      color: var(--sv-accent, #4d44e3); font-weight: 600;
+    }
+    .book-pdf-viewer__canvas-host {
+      display: grid; place-items: center; min-height: 420px; padding: 16px; overflow: auto;
+      border: 1px solid var(--sv-outline-soft, #abb3b7); border-radius: var(--sv-radius-panel, 12px);
+      background: var(--sv-bg-surface, #fff);
+    }
+    .book-pdf-viewer__canvas { max-width: 100%; height: auto; }
+    .book-pdf-viewer__state { display: grid; gap: 12px; justify-items: center; text-align: center; }
+    .book-pdf-viewer__status { color: var(--sv-text-secondary, #586064); }
+
+    /* Production activity renderer CSS used by the smoke fixture. */
+    .book-choice {
+      min-inline-size: 0; max-inline-size: 100%; margin: 0; padding: 1rem;
+      border: 1px solid var(--sv-outline-soft, #abb3b7); border-radius: var(--sv-radius-soft, 8px);
+      color: var(--sv-text-primary, #2b3437); background: var(--sv-bg-surface, #ffffff); overflow-wrap: anywhere;
+    }
+    .book-choice legend { max-inline-size: 100%; padding-inline: 0.25rem; font-weight: 700; }
+    .book-choice__source { color: var(--sv-text-secondary, #586064); font-size: 0.875rem; }
+    .book-choice__option {
+      display: flex; align-items: center; gap: 0.75rem; min-block-size: 2.75rem; padding-block: 0.25rem; cursor: pointer;
+    }
+    .book-choice__option input { flex: 0 0 auto; inline-size: 1.25rem; block-size: 1.25rem; accent-color: var(--sv-accent, #4d44e3); }
+    .book-choice__option span { min-inline-size: 0; }
+    .book-text-entry {
+      display: grid; gap: 0.5rem; min-inline-size: 0; max-inline-size: 100%;
+      color: var(--sv-text-primary, #2b3437); overflow-wrap: anywhere;
+    }
+    .book-text-entry label { font-weight: 700; }
+    .book-text-entry input, .book-text-entry textarea {
+      box-sizing: border-box; inline-size: 100%; min-inline-size: 0; min-block-size: 2.75rem; max-inline-size: 100%;
+      border: 1px solid var(--sv-outline-soft, #abb3b7); border-radius: var(--sv-radius-soft, 8px);
+      padding: 0.75rem; color: var(--sv-text-primary, #2b3437); background: var(--sv-bg-surface, #ffffff); font: inherit;
+    }
+    .book-text-entry textarea { min-block-size: 7rem; resize: vertical; }
+    .book-text-entry__source { color: var(--sv-text-secondary, #586064); font-size: 0.875rem; }
+    .book-long-response {
+      display: grid; gap: 0.625rem; min-inline-size: 0; max-inline-size: 100%;
+      color: var(--sv-text-primary, #2b3437); overflow-wrap: anywhere;
+    }
+    .book-long-response label { font-weight: 700; }
+    .book-long-response__input {
+      box-sizing: border-box; inline-size: 100%; min-inline-size: 0; min-block-size: 12rem;
+      max-inline-size: 100%; resize: vertical; border: 1px solid var(--sv-outline-soft, #abb3b7);
+      border-radius: var(--sv-radius-soft, 8px); padding: 0.75rem; color: var(--sv-text-primary, #2b3437);
+      background: var(--sv-bg-surface, #ffffff); font: inherit; line-height: 1.5;
+    }
+    .book-long-response__source,
+    .book-long-response__counter { color: var(--sv-text-secondary, #586064); font-size: 0.875rem; }
+
+    /* Production PersonalTimer.css used by the shell smoke fixture. */
+    .personal-timer {
+      min-width: min(100%, 320px); padding: 12px;
+      border: 1px solid color-mix(in srgb, var(--sv-outline-soft, #abb3b7) 32%, transparent);
+      border-radius: 10px; background: var(--sv-bg-surface, #ffffff); color: var(--sv-text-primary, #2b3437);
+    }
+    .personal-timer__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .personal-timer__heading h2,
+    .personal-timer__heading p,
+    .personal-timer__elapsed,
+    .personal-timer__state,
+    .personal-timer__policy { margin: 0; }
+    .personal-timer__eyebrow {
+      color: var(--sv-text-secondary, #586064); font-size: 0.625rem; font-weight: 800;
+      letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .personal-timer__heading h2 { font-size: 0.9375rem; line-height: 1.25; }
+    .personal-timer__heading p:last-child,
+    .personal-timer__policy,
+    .personal-timer__state { color: var(--sv-text-secondary, #586064); font-size: 0.6875rem; line-height: 1.4; }
+    .personal-timer__dial { flex: 0 0 auto; }
+    .personal-timer__track, .personal-timer__progress { stroke-width: 6; }
+    .personal-timer__track { stroke: var(--sv-bg-surface-muted, #eaeff1); }
+    .personal-timer__progress { stroke: var(--sv-accent, #4d44e3); }
+    .personal-timer__elapsed {
+      margin-top: -50px; position: relative; text-align: center; font-variant-numeric: tabular-nums;
+      font-size: 1.125rem; font-weight: 700; line-height: 1; pointer-events: none;
+    }
+    .personal-timer__state { margin-top: 30px; text-align: center; }
+    .personal-timer__controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .personal-timer__controls button {
+      min-width: 44px; min-height: 44px; border: 1px solid var(--sv-outline-soft, #abb3b7);
+      border-radius: 8px; background: var(--sv-bg-surface, #ffffff); color: var(--sv-text-primary, #2b3437);
+      cursor: pointer; font: inherit; padding: 8px 12px;
+    }
+    .personal-timer__controls button:hover:not(:disabled) { border-color: var(--sv-accent, #4d44e3); color: var(--sv-accent, #4d44e3); }
+
+    .prototype-lab {
+      margin-top: 20px; padding: 12px; border: 1px solid color-mix(in srgb, var(--sv-outline-soft) 45%, transparent);
+      border-radius: 10px; background: var(--sv-bg-surface); color: var(--sv-text-secondary);
+      font: 0.75rem/1.4 Inter, sans-serif;
+    }
+    .prototype-lab summary { cursor: pointer; }
+    .prototype-lab__controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .prototype-lab button { min-height: 36px; border: 1px solid var(--sv-outline-soft); border-radius: 8px; background: var(--sv-bg-surface); color: var(--sv-text-primary); padding: 6px 10px; }
+
+    @media (max-width: 1024px) {
+      .book-runtime-shell__workspace { grid-template-columns: minmax(56px, 0.2fr) minmax(0, 1.4fr); }
+      .book-runtime-shell__viewer-pane { grid-column: 2; }
+    }
+    @media (max-width: 768px) {
+      body { padding: 12px; }
+      .book-runtime-shell { gap: 14px; }
+      .book-runtime-shell__header { display: block; }
+      .book-runtime-shell__header-tools { justify-content: flex-start; margin-top: 12px; }
+      .book-runtime-shell__header-status { justify-content: start; }
+      .book-runtime-shell__mobile-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .book-runtime-shell__mobile-tabs button { border-radius: 8px; }
+      .book-runtime-shell__mobile-tabs button.is-active { background: var(--runtime-accent-soft); }
+      .book-runtime-shell__workspace { display: block; }
+      .book-runtime-shell__page-navigator { display: none; }
+      .book-runtime-shell__activity-pane, .book-runtime-shell__viewer-pane { display: none; padding: 16px; }
+      .book-runtime-shell[data-mobile-tab="activity"] .book-runtime-shell__activity-pane,
+      .book-runtime-shell[data-mobile-tab="page"] .book-runtime-shell__viewer-pane { display: grid; }
+      .book-runtime-shell__mobile-activity-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+      .book-runtime-shell__activity-navigation { position: static; }
+      .book-runtime-shell__viewer-content { min-height: 280px; padding: 12px; }
+      .personal-timer { min-width: 0; }
+      .personal-timer__controls button { flex: 1 1 44px; }
+    }
+    @media (max-width: 720px) { .book-pdf-viewer__canvas-host { min-height: 320px; padding: 12px; } }
+    @media (prefers-reduced-motion: reduce) {
+      .book-runtime-shell *, .book-runtime-shell *::before, .book-runtime-shell *::after {
+        scroll-behavior: auto !important; transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="book-runtime-shell" id="runtimeShell" data-desktop-view="split" data-mobile-tab="page" data-navigator-collapsed="false" data-testid="book-runtime-shell">
+    <header class="book-runtime-shell__header">
+      <div>
+        <p class="book-runtime-shell__eyebrow">Published unit</p>
+        <h1>book-runtime-fixture</h1>
+        <p class="book-runtime-shell__context" id="runtimeContext">group-1 · homework · publication-fixture-v2</p>
+      </div>
+      <div class="book-runtime-shell__header-tools">
+        <div class="book-runtime-shell__personal-timer">
+          <section class="personal-timer" aria-labelledby="personal-timer-title" data-testid="personal-timer">
+            <div class="personal-timer__heading">
+              <div>
+                <p class="personal-timer__eyebrow">Optional focus aid</p>
+                <h2 id="personal-timer-title">Personal timer</h2>
+                <p id="personal-timer-description">Personal only. Unrelated to assignment deadlines and results.</p>
+              </div>
+              <svg aria-labelledby="personal-timer-title personal-timer-description" class="personal-timer__dial" height="84" role="img" viewBox="0 0 84 84" width="84">
+                <circle class="personal-timer__track" cx="42" cy="42" fill="none" r="34"></circle>
+                <circle class="personal-timer__progress" cx="42" cy="42" fill="none" r="34" stroke-dasharray="213.63" stroke-dashoffset="213.63" transform="rotate(-90 42 42)"></circle>
+              </svg>
+            </div>
+            <p class="personal-timer__elapsed" id="timer" aria-live="polite" data-testid="personal-timer-elapsed">00:00</p>
+            <p class="personal-timer__state" id="timerState" role="status">Not running</p>
+            <div class="personal-timer__controls">
+              <button id="timerStart" type="button">Start timer</button>
+              <button id="timerReset" type="button">Reset</button>
+              <button id="timerHide" type="button">Hide</button>
+            </div>
+            <p class="personal-timer__policy">Backgrounding or reloading pauses it; elapsed time stays local to this Student session.</p>
+          </section>
+        </div>
+        <div class="book-runtime-shell__header-status" aria-label="Book runtime status">
+          <span>3 activities</span>
+          <span>Local response state</span>
+        </div>
+      </div>
+    </header>
+
+    <section aria-label="Activity save status" class="book-runtime-shell__persistence book-runtime-shell__persistence--saved" data-status="saved" data-testid="book-runtime-persistence" id="persistence" role="status">
+      <span id="saveMessage">All responses saved · just now</span>
+      <div class="book-runtime-shell__persistence-actions" id="persistenceActions"></div>
+    </section>
+
+    <nav aria-label="Book outline" class="book-runtime-shell__outline" data-testid="book-runtime-outline">
+      <p class="book-runtime-shell__eyebrow">Book outline</p>
+      <ol>
+        <li aria-current="page"><span>Practice group 1</span><small>unit</small></li>
+        <li><span>Practice group 2</span><small>unit</small></li>
+      </ol>
+    </nav>
+
+    <div class="book-runtime-shell__mobile-tabs" role="tablist" aria-label="Book runtime panels">
+      <button aria-controls="book-runtime-page-panel" aria-selected="true" class="is-active" data-tab="page" role="tab" type="button">Book Page</button>
+      <button aria-controls="book-runtime-activity-panel" aria-selected="false" data-tab="activity" role="tab" type="button">Activity</button>
+    </div>
+
+    <div class="book-runtime-shell__workspace">
+      <aside class="book-runtime-shell__page-navigator" aria-label="Book page groups">
+        <div class="book-runtime-shell__panel-heading">
+          <span id="pageGroupsTitle">Page Groups</span>
+          <button aria-label="Collapse page navigator" class="book-runtime-shell__icon-button" id="collapseBtn" type="button">←</button>
+        </div>
+        <nav class="book-runtime-shell__group-list" id="pageGroups"></nav>
+      </aside>
+
+      <section aria-labelledby="book-runtime-activity-title" class="book-runtime-shell__activity-pane" id="book-runtime-activity-panel" role="tabpanel" tabindex="-1">
+        <div class="book-runtime-shell__panel-heading">
+          <div><p class="book-runtime-shell__eyebrow">Activity</p><h2 id="book-runtime-activity-title"></h2></div>
+          <span class="book-runtime-shell__activity-position" id="activityPosition"></span>
+        </div>
+        <nav aria-label="Activities in this Page Group" class="book-runtime-shell__mobile-activity-list" id="activityList"></nav>
+        <p class="book-runtime-shell__reference-state" id="referenceState" hidden></p>
+        <div id="activityContent"></div>
+        <nav aria-label="Activity navigation" class="book-runtime-shell__activity-navigation">
+          <button id="previousBtn" type="button">Previous Activity</button>
+          <button id="nextBtn" type="button">Next Activity</button>
+        </nav>
+      </section>
+
+      <aside aria-labelledby="book-runtime-viewer-title" class="book-runtime-shell__viewer-pane" id="book-runtime-page-panel" role="tabpanel">
+        <div class="book-runtime-shell__panel-heading">
+          <div><p class="book-runtime-shell__eyebrow">Book Page</p><h2 id="book-runtime-viewer-title">Reference PDF</h2></div>
+          <label>Page <select aria-label="Combined book page" id="pageSelect"></select></label>
+          <button id="focusBtn" type="button">Focus PDF</button>
+        </div>
+        <div class="book-runtime-shell__viewer-content" data-testid="book-runtime-viewer">
+          <section aria-labelledby="pdf-viewer-title" class="book-pdf-viewer">
+            <header class="book-pdf-viewer__header">
+              <div><p class="book-pdf-viewer__eyebrow">PDF viewer</p><h2 id="pdf-viewer-title">Reference PDF</h2></div>
+              <div aria-label="PDF source metadata" class="book-pdf-viewer__meta"><span>source-full-ready</span><span>2,480,000 bytes</span></div>
+            </header>
+            <div aria-label="PDF viewer controls" class="book-pdf-viewer__toolbar">
+              <button id="pdfPrevBtn" type="button">Previous page</button>
+              <button id="pdfNextBtn" type="button">Next page</button>
+              <label class="book-pdf-viewer__page-input"><span>Page</span><input aria-label="Page number" id="pdfPageInput" inputmode="numeric" min="1" type="number"></label>
+              <button data-zoom="fit-width" type="button">Fit width</button>
+              <button data-zoom="fit-page" type="button">Fit page</button>
+              <button data-zoom="out" type="button">Zoom out</button>
+              <button data-zoom="in" type="button">Zoom in</button>
+              <span aria-label="Zoom level" class="book-pdf-viewer__zoom" id="zoomLabel">Fit width</span>
+            </div>
+            <div class="book-pdf-viewer__canvas-host" data-render-state="ready">
+              <canvas aria-label="Page 4 of 40" class="book-pdf-viewer__canvas" height="570" id="pdfCanvas" width="440"></canvas>
+            </div>
+            <p aria-live="polite" class="book-pdf-viewer__status" id="pdfStatus">Page 4 of 40 rendered at Fit width.</p>
+          </section>
+        </div>
+        <p class="book-runtime-shell__viewer-safety">Reference-only viewer. No answer, Delivery, or publication writes occur here.</p>
+      </aside>
+    </div>
+  </main>
+
+  <details class="prototype-lab">
+    <summary>Prototype state lab · preview recovery and persistence states</summary>
+    <div class="prototype-lab__controls">
+      <button data-state="saved" type="button">Saved</button>
+      <button data-state="offline" type="button">Offline</button>
+      <button data-state="conflict" type="button">Conflict</button>
+      <button data-state="error" type="button">Error</button>
+    </div>
+  </details>
+
+  <script>
+    (() => {
+      const groups = [
+        { key: 'page-group-choice', pages: [1], activities: [0] },
+        { key: 'page-group-source', pages: [2, 3], activities: [1] },
+        { key: 'page-group-long', pages: [4, 5, 6], activities: [2] }
+      ];
+      const activities = [
+        { label: 'Main claim', type: 'choice', instruction: 'Select one answer.', prompt: 'Which statement is supported?', options: ['Statement A', 'Statement B'] },
+        { label: 'Source detail', type: 'text', instruction: 'Use the Book Page reference while answering.', prompt: 'Enter the missing phrase.', source: 'Book Page 3 · Exercise 1.' },
+        { label: 'Written response', type: 'long', instruction: 'Draft a response. A teacher reviews this Activity.', prompt: 'Explain the author’s main claim.', source: 'Book Page 6 · Writing prompt.' }
+      ];
+      const answers = {};
+      const state = { group: 0, activity: 0, page: 1, pdfPage: 1, focused: false, collapsed: false, zoomMode: 'fit-width', zoom: 1, save: 'saved', timerSeconds: 0, timerRunning: false };
+      const $ = (selector) => document.querySelector(selector);
+      const shell = $('#runtimeShell');
+      const activeGroup = () => groups[state.group];
+      const groupForActivity = (activityIndex) => groups.findIndex((group) => group.activities.includes(activityIndex));
+
+      function renderGroups() {
+        $('#pageGroups').innerHTML = groups.map((group, index) => `<button ${index === state.group ? 'aria-current="page"' : ''} aria-label="Page Group ${index + 1}" class="${index === state.group ? 'is-active' : ''}" data-group="${index}" type="button"><span class="book-runtime-shell__group-number">${index + 1}</span><span class="book-runtime-shell__group-label">${group.key}</span></button>`).join('');
+        $('#pageGroups').querySelectorAll('[data-group]').forEach((button) => button.addEventListener('click', () => selectGroup(Number(button.dataset.group))));
+      }
+
+      function renderActivity() {
+        const activity = activities[state.activity];
+        $('#book-runtime-activity-title').textContent = activity.label;
+        $('#runtimeContext').textContent = `${state.activity === 2 ? 'group-2' : 'group-1'} · homework · publication-fixture-v2`;
+        $('#activityPosition').textContent = `${state.activity + 1} / ${activities.length}`;
+        $('#activityList').innerHTML = activeGroup().activities.map((index) => `<button ${index === state.activity ? 'aria-current="page"' : ''} class="${index === state.activity ? 'is-active' : ''}" data-activity="${index}" type="button">${activities[index].label}</button>`).join('');
+        $('#activityList').querySelectorAll('[data-activity]').forEach((button) => button.addEventListener('click', () => selectActivity(Number(button.dataset.activity))));
+        const response = answers[state.activity] || '';
+        const interaction = activity.type === 'choice'
+          ? `<fieldset aria-disabled="false" aria-label="${activity.prompt}" aria-readonly="false" class="book-choice"><legend>${activity.prompt}</legend><p>Select 1 option.</p>${activity.options.map((option, index) => `<label class="book-choice__option" for="choice-${index}"><input id="choice-${index}" name="choice-1" type="radio" value="${index}" ${response === String(index) ? 'checked' : ''}><span>${option}</span></label>`).join('')}</fieldset>`
+          : activity.type === 'long'
+            ? `<section aria-describedby="long-response-source-1 long-response-counter-1" aria-label="${activity.prompt}" aria-readonly="false" class="book-long-response"><aside aria-label="Source correspondence" class="book-long-response__source" id="long-response-source-1"><p>${activity.source}</p></aside><label for="long-response-input-1">${activity.prompt}</label><textarea aria-describedby="long-response-source-1 long-response-counter-1" aria-readonly="false" class="book-long-response__input" id="long-response-input-1" maxlength="20000" rows="8">${response}</textarea><p aria-live="polite" class="book-long-response__counter" id="long-response-counter-1">${response.length.toLocaleString()} / 20,000 characters · 0 / 4,000 words</p></section>`
+            : `<section aria-describedby="text-entry-source-1" aria-label="${activity.prompt}" aria-readonly="false" class="book-text-entry"><aside aria-label="Source correspondence" class="book-text-entry__source" id="text-entry-source-1"><p>Source correspondence</p><p>${activity.source}</p><p>Enter the missing phrase for question 1.1.</p><p>Question 1.1</p><p>Exercise 1</p></aside><label for="text-entry-input-1">${activity.prompt}</label><input aria-describedby="text-entry-source-1" aria-readonly="false" id="text-entry-input-1" maxlength="4000" name="source-1" type="text" value="${response}"></section>`;
+        $('#activityContent').innerHTML = `<section aria-label="Activity instructions"><p>${activity.instruction}</p></section><section aria-label="Activity interactions">${interaction}</section>`;
+        const referenceState = $('#referenceState');
+        referenceState.hidden = !activity.source;
+        referenceState.textContent = activity.source ? `Reference context: ${activity.source}` : '';
+        $('#activityContent').querySelectorAll('input, textarea').forEach((input) => input.addEventListener('change', () => saveResponse(input.value)));
+        $('#previousBtn').disabled = state.activity === 0;
+        $('#nextBtn').disabled = state.activity === activities.length - 1;
+      }
+
+      function drawPdf() {
+        const canvas = $('#pdfCanvas');
+        const context = canvas.getContext('2d');
+        const page = state.pdfPage;
+        const zoomLabel = state.zoomMode === 'fit-width' ? 'Fit width' : state.zoomMode === 'fit-page' ? 'Fit page' : `${Math.round(state.zoom * 100)}%`;
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#8a9293'; context.font = '10px Inter, sans-serif'; context.textAlign = 'right'; context.fillText(`PAGE ${page} OF 40`, 402, 34);
+        context.fillStyle = '#30393c'; context.textAlign = 'left'; context.font = 'bold 18px Inter, sans-serif'; context.fillText('Growing up: a changing experience', 38, 86);
+        context.font = '13px Georgia, serif';
+        ['Growing up is not a single event. It is a gradual process', 'shaped by family, school, community, and the choices a', 'person begins to make for themselves.', '', 'During this period, support remains important, but', 'responsibility starts to move in a new direction. The balance', 'is different for every learner and every family.'].forEach((line, index) => context.fillText(line, 38, 132 + index * 23));
+        context.fillStyle = '#d9ddde'; context.fillRect(38, 316, 280, 1);
+        context.fillStyle = '#30393c'; context.font = '13px Georgia, serif'; context.fillText('Authorized student-safe PDF page rendered by', 38, 362); context.fillText('the Book PDF viewer.', 38, 385);
+        context.fillStyle = '#737c7f'; context.font = '10px Inter, sans-serif'; context.fillText('Reference-only page · source-full-ready', 38, 530);
+        canvas.style.transform = `scale(${state.zoom})`; canvas.style.transformOrigin = 'top center'; canvas.setAttribute('aria-label', `Page ${page} of 40`);
+        $('#pdfPageInput').value = page; $('#pdfPageInput').max = 40; $('#pdfPrevBtn').disabled = page === 1; $('#pdfNextBtn').disabled = page === 40; $('#zoomLabel').textContent = zoomLabel; $('#pdfStatus').textContent = `Page ${page} of 40 rendered at ${zoomLabel}.`;
+      }
+
+      function renderPage() {
+        const group = activeGroup();
+        $('#pageSelect').innerHTML = group.pages.map((page) => `<option value="${page}" ${page === state.page ? 'selected' : ''}>${page}</option>`).join('');
+        drawPdf();
+      }
+
+      function renderSaveState() {
+        const messages = { saved: 'All responses saved · just now', offline: 'Offline · local response retained', conflict: 'A newer saved version exists', error: 'Could not save this response' };
+        const status = $('#persistence');
+        status.className = `book-runtime-shell__persistence book-runtime-shell__persistence--${state.save}`;
+        status.dataset.status = state.save;
+        status.setAttribute('role', ['conflict', 'error'].includes(state.save) ? 'alert' : 'status');
+        $('#saveMessage').textContent = messages[state.save];
+        $('#persistenceActions').innerHTML = ['offline', 'conflict', 'error'].includes(state.save) ? '<button id="retryBtn" type="button">Retry</button><button id="discardBtn" type="button">Discard local</button>' : '';
+        $('#retryBtn')?.addEventListener('click', () => { state.save = 'saved'; renderSaveState(); });
+        $('#discardBtn')?.addEventListener('click', () => { state.save = 'saved'; renderSaveState(); });
+      }
+
+      function render() { renderGroups(); renderActivity(); renderPage(); renderSaveState(); }
+      function selectGroup(index) { state.group = index; state.activity = activeGroup().activities[0]; state.page = activeGroup().pages[0]; state.pdfPage = state.page; render(); }
+      function selectActivity(index) { state.activity = index; state.group = groupForActivity(index); state.page = activeGroup().pages[0]; state.pdfPage = state.page; render(); $('#book-runtime-activity-panel').focus(); }
+      function saveResponse(value) { answers[state.activity] = value; state.save = 'saved'; renderSaveState(); }
+
+      $('#previousBtn').addEventListener('click', () => selectActivity(Math.max(0, state.activity - 1)));
+      $('#nextBtn').addEventListener('click', () => selectActivity(Math.min(activities.length - 1, state.activity + 1)));
+      $('#pageSelect').addEventListener('change', (event) => { state.page = Number(event.target.value); state.pdfPage = state.page; renderPage(); renderActivity(); });
+      $('#pdfPageInput').addEventListener('change', (event) => { state.pdfPage = Math.min(40, Math.max(1, Number(event.target.value) || state.pdfPage)); drawPdf(); });
+      $('#pdfPrevBtn').addEventListener('click', () => { state.pdfPage = Math.max(1, state.pdfPage - 1); drawPdf(); });
+      $('#pdfNextBtn').addEventListener('click', () => { state.pdfPage = Math.min(40, state.pdfPage + 1); drawPdf(); });
+      document.querySelectorAll('[data-zoom]').forEach((button) => button.addEventListener('click', () => { const action = button.dataset.zoom; if (action === 'fit-width' || action === 'fit-page') { state.zoomMode = action; state.zoom = 1; } else { state.zoomMode = 'custom'; state.zoom = Math.min(3, Math.max(.5, Number((state.zoom + (action === 'in' ? .1 : -.1)).toFixed(2)))); } drawPdf(); }));
+      $('#focusBtn').addEventListener('click', () => { state.focused = !state.focused; shell.dataset.desktopView = state.focused ? 'pdf-focus' : 'split'; $('#focusBtn').textContent = state.focused ? 'Restore split view' : 'Focus PDF'; });
+      $('#collapseBtn').addEventListener('click', () => { state.collapsed = !state.collapsed; shell.dataset.navigatorCollapsed = String(state.collapsed); $('#collapseBtn').textContent = state.collapsed ? '→' : '←'; $('#collapseBtn').setAttribute('aria-label', state.collapsed ? 'Expand page navigator' : 'Collapse page navigator'); $('#pageGroupsTitle').hidden = state.collapsed; });
+      document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => { const tab = button.dataset.tab; shell.dataset.mobileTab = tab; document.querySelectorAll('[data-tab]').forEach((candidate) => { const active = candidate.dataset.tab === tab; candidate.classList.toggle('is-active', active); candidate.setAttribute('aria-selected', String(active)); }); }));
+      document.querySelectorAll('[data-state]').forEach((button) => button.addEventListener('click', () => { state.save = button.dataset.state; renderSaveState(); }));
+      $('#timerStart').addEventListener('click', () => { state.timerRunning = !state.timerRunning; $('#timerStart').textContent = state.timerRunning ? 'Pause' : state.timerSeconds ? 'Resume' : 'Start timer'; $('#timerState').textContent = state.timerRunning ? 'Running' : state.timerSeconds ? 'Paused' : 'Not running'; });
+      $('#timerReset').addEventListener('click', () => { state.timerSeconds = 0; state.timerRunning = false; updateTimer(); $('#timerStart').textContent = 'Start timer'; $('#timerState').textContent = 'Not running'; });
+      $('#timerHide').addEventListener('click', () => { $('.personal-timer').hidden = true; });
+      function updateTimer() { const minutes = Math.floor(state.timerSeconds / 60); const seconds = state.timerSeconds % 60; $('#timer').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
+      window.setInterval(() => { if (state.timerRunning) { state.timerSeconds += 1; updateTimer(); } }, 1000);
+      render();
+    })();
+  </script>
+</body>
+</html>

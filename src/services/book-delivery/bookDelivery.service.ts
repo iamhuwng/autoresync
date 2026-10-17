@@ -4,12 +4,13 @@ import type {
   BookDeliveryContextKind,
   BookDeliveryPlacement,
   BookRuntimeDeliveryProjection,
+  BookRuntimePageGroupContext,
 } from './bookDelivery.types';
 import type { BookDeliveryRepository } from './bookDelivery.entitlement';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const ROUTE_KEY_SAFE = /[^A-Za-z0-9._~-]/gu;
-const runnableContexts = new Set<BookDeliveryContextKind>(['solo', 'preview', 'homework']);
+const runnableContexts = new Set<BookDeliveryContextKind>(['solo', 'public', 'preview', 'homework']);
 
 export interface BookDeliveryActor {
   readonly uid: string;
@@ -39,11 +40,12 @@ const assertId = (value: string): void => {
   if (!ID.test(value)) throw new BookDeliveryProjectionError('invalid-book-delivery-request');
 };
 
-const routeKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => (
-  `${binding.bindingId}-${binding.revision}-${sourceKey}-${sourceVersionId}`
-    .replace(ROUTE_KEY_SAFE, '_')
-    .slice(0, 160)
-);
+const routeKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => {
+  const raw = binding.sourceSet.strategy === 'component_pdfs' && sourceKey === 'student-document'
+    ? `${binding.bindingId}-${binding.revision}-student-document`
+    : `${binding.bindingId}-${binding.revision}-${sourceKey}-${sourceVersionId}`;
+  return raw.replace(ROUTE_KEY_SAFE, '_').slice(0, 160);
+};
 
 const contextDescription = (
   sourceSet: BookDeliveryBinding['sourceSet'],
@@ -63,8 +65,8 @@ const contextDescription = (
 };
 
 const actionFlags = (kind: BookDeliveryContextKind): BookRuntimeDeliveryProjection['actionFlags'] => ({
-  canAutosave: kind === 'solo' || kind === 'preview' || kind === 'homework',
-  canSubmit: kind === 'solo' || kind === 'homework',
+  canAutosave: kind === 'public' || kind === 'solo' || kind === 'preview' || kind === 'homework',
+  canSubmit: kind === 'public' || kind === 'solo' || kind === 'homework',
   canReview: kind === 'preview',
 });
 
@@ -77,6 +79,13 @@ export const createBookDeliveryProjectionResolver = (options: {
     sourceKey: string,
     sourceVersionId: string,
   ) => string;
+  /** Supplied only by the trusted A0-qualified document authority. */
+  readonly resolveStudentDocument?: (binding: BookDeliveryBinding) => Promise<{
+    readonly expectedByteLength: number;
+    readonly expectedEtag: string;
+    readonly physicalPageCount: number;
+    readonly pageGroups: readonly BookRuntimePageGroupContext[];
+  } | null>;
 }) => {
   const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? routeKey;
   const allowedContexts = new Set<BookDeliveryContextKind>([
@@ -108,7 +117,28 @@ export const createBookDeliveryProjectionResolver = (options: {
       if (!allowedContexts.has(binding.context.kind)) {
         throw new BookDeliveryProjectionError('book-delivery-unsupported-context', 422);
       }
-      const documentRequests = binding.sourceSet.sources.map((source) => ({
+      const combined = binding.sourceSet.strategy === 'component_pdfs'
+        ? await options.resolveStudentDocument?.(binding)
+        : undefined;
+      if (binding.sourceSet.strategy === 'component_pdfs'
+        && (!combined || !Number.isSafeInteger(combined.expectedByteLength)
+          || combined.expectedByteLength < 1
+          || !/^"[A-Fa-f0-9]{64}"$/u.test(combined.expectedEtag)
+          || !Number.isSafeInteger(combined.physicalPageCount)
+          || combined.physicalPageCount < 1
+          || combined.pageGroups.length === 0
+          || new Set(combined.pageGroups.map((group) => group.pageGroupKey)).size !== combined.pageGroups.length
+          || combined.pageGroups.some((group) => !ID.test(group.pageGroupKey)
+            || group.combinedPhysicalPages.length === 0
+            || group.combinedPhysicalPages.some((page) => !Number.isSafeInteger(page)
+              || page < 1 || page > combined.physicalPageCount)))) {
+        throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+      }
+      const documentRequests = combined ? [{
+        opaqueRouteKey: makeOpaqueRouteKey(binding, 'student-document', 'student-document'),
+        expectedByteLength: combined.expectedByteLength,
+        expectedEtag: combined.expectedEtag,
+      }] : binding.sourceSet.sources.map((source) => ({
         sourceKey: source.sourceKey,
         sourceVersionId: source.sourceVersionId,
         opaqueRouteKey: makeOpaqueRouteKey(binding, source.sourceKey, source.sourceVersionId),
@@ -128,8 +158,9 @@ export const createBookDeliveryProjectionResolver = (options: {
         book: binding.book,
         scope: binding.scope,
         outline: binding.outline,
-        sourceSet: binding.sourceSet,
+        sourceSet: combined ? { strategy: 'component_pdfs' as const, sources: [] } : binding.sourceSet,
         documentRequests,
+        pageGroups: combined ? combined.pageGroups : [],
         activities: binding.placements.map((placement) => ({
           placementId: placement.placementId,
           activityId: placement.activityId,
@@ -139,10 +170,12 @@ export const createBookDeliveryProjectionResolver = (options: {
           order: placement.order,
           contextMode: placement.contextMode,
           sourceContext: {
-            available: placement.sourcePageScopes.length > 0,
-            description: contextDescription(binding.sourceSet, placement),
+            available: combined
+              ? placement.pageGroupKeys.length > 0 && placement.pageGroupKeys.every((key) => combined.pageGroups.some((group) => group.pageGroupKey === key))
+              : placement.sourcePageScopes.length > 0,
+            description: combined ? 'Combined student document.' : contextDescription(binding.sourceSet, placement),
             pageGroupKeys: placement.pageGroupKeys,
-            sourcePageScopes: placement.sourcePageScopes,
+            sourcePageScopes: combined ? [] : placement.sourcePageScopes,
           },
         })),
         actionFlags: actionFlags(binding.context.kind),

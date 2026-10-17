@@ -204,6 +204,24 @@ const REFERENCE_FIELDS = new Set([
   'unitId',
 ]);
 
+const trustedBookSourceSafety = (operation: {
+  readonly sourceVersionId: string;
+  readonly purpose?: unknown;
+  readonly studentSafeStatus?: unknown;
+  readonly studentSafeDecision?: {
+    readonly sourceVersionId?: unknown;
+    readonly sha256Hex?: unknown;
+  };
+  readonly expectedChecksum?: { readonly value?: unknown };
+}): boolean => (
+  operation.purpose === 'book-source'
+  && operation.studentSafeStatus === 'ready'
+  && operation.studentSafeDecision?.sourceVersionId === operation.sourceVersionId
+  && typeof operation.studentSafeDecision.sha256Hex === 'string'
+  && typeof operation.expectedChecksum?.value === 'string'
+  && operation.studentSafeDecision.sha256Hex.toLowerCase() === operation.expectedChecksum.value.toLowerCase()
+);
+
 export interface BookMetadataInventoryCapture {
   readonly path: string;
   readonly present: boolean;
@@ -771,12 +789,25 @@ export function validateBookMetadataBackupInventory(
   if (seenPaths.size !== roots.length) addDiagnostic(diagnostics, 'duplicate-root', '$.roots', 'Root paths must be unique.');
 
   const sourceStatuses = new Map<string, string>();
+  const sourceOperations = new Map<string, {
+    readonly sourceVersionId: string;
+    readonly purpose?: unknown;
+    readonly studentSafeStatus?: unknown;
+    readonly studentSafeDecision?: {
+      readonly sourceVersionId?: unknown;
+      readonly sha256Hex?: unknown;
+    };
+    readonly expectedChecksum?: { readonly value?: unknown };
+  }>();
   if (sourceRoot?.present && isPlainRecord(sourceRoot.data)) {
     for (const [accountId, account] of Object.entries(sourceRoot.data)) {
       if (!safeIdentifier(accountId)) addDiagnostic(diagnostics, 'invalid-owner', `$.roots[${sourceRoot.order}].data.${accountId}`, 'Source upload account ID is invalid.');
       try {
         const state = validateBookSourceUploadAccountState(account);
-        for (const operation of Object.values(state.operations)) sourceStatuses.set(operation.sourceVersionId, operation.status);
+        for (const operation of Object.values(state.operations)) {
+          sourceStatuses.set(operation.sourceVersionId, operation.status);
+          sourceOperations.set(operation.sourceVersionId, operation);
+        }
       } catch (error) {
         addDiagnostic(diagnostics, 'invalid-source-state', `$.roots[${sourceRoot.order}].data.${accountId}`, error instanceof Error ? error.message : 'Source upload account state is invalid.');
       }
@@ -804,6 +835,16 @@ export function validateBookMetadataBackupInventory(
   const missingSourceVersionIds = new Set<string>();
   for (const sourceVersionId of refs) {
     if (sourceStatuses.get(sourceVersionId) !== 'verified_completed') missingSourceVersionIds.add(sourceVersionId);
+    const operation = sourceOperations.get(sourceVersionId);
+    if (operation && !trustedBookSourceSafety(operation)) {
+      addDiagnostic(
+        diagnostics,
+        'source-safety-mismatch',
+        `sourceVersionIds/${sourceVersionId}`,
+        'Recovery requires a trusted book-source with ready student-safe status and a decision bound to its source version and checksum.',
+      );
+      missingSourceVersionIds.add(sourceVersionId);
+    }
   }
   for (const reference of references) {
     if (reference.field === 'sourceVersionId') continue;

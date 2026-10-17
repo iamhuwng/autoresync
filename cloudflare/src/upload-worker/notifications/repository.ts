@@ -8,8 +8,8 @@ import {
 } from '../listening-authoring/rtdb.ts';
 import type { NotificationCommand } from './command-schema.ts';
 
-const MAX_RETRIES = 5;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export interface NotificationCommandRepositoryEnv extends RepositoryEnv {
   NOTIFICATION_COMMAND_SERVICE_IDENTITY?: string;
@@ -70,8 +70,8 @@ const validStored = (value: unknown, operationId: string): value is StoredNotifi
     && typeof candidate.type === 'string'
     && typeof candidate.title === 'string'
     && typeof candidate.message === 'string'
-    && typeof candidate.read === 'boolean'
-    && typeof candidate.createdAt === 'number';
+    && (candidate.read === undefined || typeof candidate.read === 'boolean')
+    && typeof candidate.createdAt === 'number' && Number.isFinite(candidate.createdAt);
 };
 
 export class InMemoryNotificationCommandRepository implements NotificationCommandRepository {
@@ -109,7 +109,6 @@ export class FirebaseRestNotificationCommandRepository implements NotificationCo
     env: NotificationCommandRepositoryEnv;
     fetchImpl?: typeof fetch;
     getAccessToken?: () => Promise<string>;
-    maxRetries?: number;
   }) {
     const identity = options.env.NOTIFICATION_COMMAND_SERVICE_IDENTITY?.trim();
     if (!identity) throw new Error('missing_notification_command_service_identity');
@@ -138,28 +137,25 @@ export class FirebaseRestNotificationCommandRepository implements NotificationCo
 
   async create(input: NotificationCommandWrite): Promise<NotificationCommandWriteResult> {
     if (!ID.test(input.recipientId)) throw new Error('invalid_notification_recipient');
+    if (!UUID.test(input.operationId)) throw new Error('invalid_notification_operation');
     const path = pathFor(input.recipientId, input.operationId);
-    for (let attempt = 0; attempt < (this.options.maxRetries ?? MAX_RETRIES); attempt += 1) {
-      const current = await this.rtdb.readWithEtag<unknown>(path);
-      if (current.data !== null) {
-        return {
-          status: validStored(current.data, input.operationId)
-            && semantic(current.data) === semantic(input.notification)
-            ? 'replayed'
-            : 'idempotency-conflict',
-          notificationId: input.operationId,
-        };
-      }
-      const next: StoredNotification = {
-        id: input.operationId,
-        ...clone(input.notification),
-        read: false,
-        createdAt: input.now,
-      };
-      if (await this.rtdb.writeIfMatch(path, next, current.etag)) {
-        return { status: 'created', notificationId: input.operationId };
-      }
+    const next: StoredNotification = {
+      id: input.operationId,
+      ...clone(input.notification),
+      read: false,
+      createdAt: input.now,
+    };
+    if (await this.rtdb.writeIfMatch(path, next, 'null_etag')) {
+      return { status: 'created', notificationId: input.operationId };
     }
-    throw new Error('notification_command_cas_retries_exhausted');
+    const current = await this.rtdb.readValue(path);
+    if (current === null) throw new Error('notification_command_collision_unknown');
+    return {
+      status: validStored(current, input.operationId)
+        && semantic(current) === semantic(input.notification)
+        ? 'replayed'
+        : 'idempotency-conflict',
+      notificationId: input.operationId,
+    };
   }
 }

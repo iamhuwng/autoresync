@@ -31,6 +31,7 @@ Current production frontend:
 Firebase project: temp-a1437
 Hosting target: kahut1
 Hosting URL: https://kahut1.web.app
+Custom domain: https://hocthem.net
 ```
 
 Current upload/listening Worker:
@@ -69,6 +70,10 @@ See `documentation/architecture/firebase-hosting-worker-endpoint-policy.md` for 
 ## Current Upload Authority
 
 `src/services/r2Storage.ts` is the shared upload service for active audio, image, avatar, book-cover, course-announcement, and editor upload flows.
+
+Image upload methods return only after the Worker has moved the object from `temp/images/` to durable `images/`. Callers persist the returned URL directly. Avatar, book-cover, and announcement intents already write to permanent prefixes; Listening audio keeps its separate upload-session lifecycle.
+
+On 2026-09-29, `r2-upload-signer` version `2f197f52-4cc8-4832-8b07-3f3cce193f5f` became active at 100% to allow the `https://hocthem.net` origin. Firebase Hosting version `baea5acc15ab043d` deployed the shared durable-image service asset. On 2026-09-30, a later Hosting release built from the then-live source baseline deployed the Reading V2, Listening question-image, and legacy diagram picker migrations. Both `https://kahut1.web.app` and `https://hocthem.net` served `index-BNNU63mU.js` after that release. Hosted browser uploads completed through authorize, upload, and move for Writing charts, Listening question images, Reading V2 image blocks, and Reading V2 diagrams.
 
 Listening authoring uploads audio through `r2StorageService.uploadAudioReplacement(...)`. Listening save/publish preserves the R2 temp-to-permanent lifecycle through `src/services/listeningTestStorage.ts`.
 

@@ -32,6 +32,8 @@ export interface FullPdfPublicationRequest {
   readonly expectedBookRevision: number;
   readonly expectedSourceSetRevision: number;
   readonly previewApproval: BookAssemblyPreviewApprovalReference;
+  /** Stable request fingerprint supplied by the route for durable replay. */
+  readonly operationFingerprint?: string;
 }
 
 export interface FullPdfPublicationCommandReceipt {
@@ -52,6 +54,8 @@ export interface FullPdfPublicationPorts {
   readonly readLineage?: (
     bookId: string,
     unitKey: string,
+    authority?: BookAssemblyBookAuthority,
+    candidate?: BookAssemblyCandidateRecord,
   ) => Promise<Readonly<Record<string, FullPdfActivityLineage>>>;
   readonly readActivities: (
     input: {
@@ -59,6 +63,8 @@ export interface FullPdfPublicationPorts {
       readonly bookId: string;
       readonly unitKey: string;
       readonly activityKeys: readonly string[];
+      readonly authority?: BookAssemblyBookAuthority;
+      readonly candidate?: BookAssemblyCandidateRecord;
     },
   ) => Promise<Readonly<Record<string, FullPdfValidatedActivityPayload>>>;
   readonly readPreviewApproval: (
@@ -69,7 +75,7 @@ export interface FullPdfPublicationPorts {
     },
   ) => Promise<(BookAssemblyPreviewApprovalRecord & { readonly revoked?: boolean }) | null>;
   readonly sourceIsPreviewReady: (
-    input: { readonly bookId: string; readonly sourceVersionId: string },
+    input: { readonly bookId: string; readonly sourceVersionId: string; readonly authority?: BookAssemblyBookAuthority },
   ) => Promise<boolean>;
   readonly publish: (input: CanonicalPublishBookAssemblyInput) => Promise<BookAssemblyPublicationResult>;
   readonly allocateOperationId: () => string;
@@ -133,6 +139,7 @@ const resolveCurrentPreviewApproval = async (input: {
       await input.ports.sourceIsPreviewReady({
         bookId: input.request.bookId,
         sourceVersionId: source.sourceVersionId,
+        authority: input.authority,
       }) ? source.sourceVersionId : null
     )))).filter((sourceVersionId): sourceVersionId is string => sourceVersionId !== null),
   );
@@ -188,10 +195,9 @@ export const createFullPdfPublicationCommand = (
   assertRevision(request.expectedBookRevision, 'invalid_expected_book_revision');
   assertRevision(request.expectedSourceSetRevision, 'invalid_expected_source_set_revision');
 
-  const [authority, candidate, lineage] = await Promise.all([
+  const [authority, candidate] = await Promise.all([
     ports.readAuthority(request.bookId),
     ports.readCandidate(request.bookId, request.unitKey, request.candidateId),
-    ports.readLineage?.(request.bookId, request.unitKey) ?? Promise.resolve({}),
   ]);
   if (!authority || !candidate) {
     throw new FullPdfPublicationCommandError('full_pdf_publication_not_found', 404);
@@ -206,6 +212,9 @@ export const createFullPdfPublicationCommand = (
     || authority.sourceSetRevision !== request.expectedSourceSetRevision) {
     throw new FullPdfPublicationCommandError('full_pdf_revision_conflict', 422);
   }
+  const lineage = ports.readLineage
+    ? await ports.readLineage(request.bookId, request.unitKey, authority, candidate)
+    : {};
   const activityKeys = candidate.manifest?.units
     .find((unit) => unit.unitKey === request.unitKey)?.activitySlots
     .map((slot) => slot.activityKey) ?? [];
@@ -214,6 +223,8 @@ export const createFullPdfPublicationCommand = (
     bookId: request.bookId,
     unitKey: request.unitKey,
     activityKeys,
+    authority,
+    candidate,
   });
   if (activityKeys.some((activityKey) => activitiesByKey[activityKey] === undefined)) {
     throw new FullPdfPublicationCommandError('full_pdf_activity_payload_missing', 422);
@@ -260,13 +271,14 @@ export const createFullPdfPublicationCommand = (
       publicationRevision: plan.studentSafeProjection.publicationRevision,
       plan,
       canonicalActivityVersions,
+      operationFingerprint: request.operationFingerprint,
       now,
     });
     return {
       operationId,
-      manifestVersionId,
-      publicationId: plan.studentSafeProjection.publicationId,
-      publicationRevision: plan.studentSafeProjection.publicationRevision,
+      manifestVersionId: result.pointer?.manifestVersionId ?? manifestVersionId,
+      publicationId: result.pointer?.publicationId ?? plan.studentSafeProjection.publicationId,
+      publicationRevision: result.pointer?.publicationRevision ?? plan.studentSafeProjection.publicationRevision,
       result,
     };
   } catch (error) {

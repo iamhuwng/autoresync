@@ -26,7 +26,7 @@ export interface CourseBookCommandPorts<Projection = unknown> {
   readonly readValue: (path: string, query?: { readonly orderBy: string; readonly equalTo?: string }) => Promise<unknown>;
   readonly placements: {
     read(courseMaterialId: string): Promise<CourseBookPlacement | null>;
-    create(placement: CourseBookPlacement): Promise<'created' | 'replayed' | 'conflict'>;
+    create(placement: CourseBookPlacement, operationId: string): Promise<'created' | 'replayed' | 'conflict'>;
     revoke(input: { courseMaterialId: string; actorUid: string; operationId: string }): Promise<'revoked' | 'replayed' | 'conflict'>;
   };
   readonly publications: {
@@ -113,7 +113,7 @@ export const createCourseBookPlacementCommand = <Projection>(ports: CourseBookCo
         actorUid: input.actorUid, courseId: input.courseId, moduleId: input.moduleId,
         courseMaterialId: input.courseMaterialId, selection: input.selection, courseOwnerId: input.actorUid,
       });
-      const result = await ports.placements.create(placement);
+      const result = await ports.placements.create(placement, input.operationId);
       if (result === 'conflict') throw new CourseBookCommandError('course_book_placement_conflict', 409);
       return { status: result, placement };
     },

@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { storage } from '../../core/platform/storage';
 import type { ActivityRendererRegistry } from '../../services/book-activity/runtime/activityRendererRegistry';
 import type { ActivityResponseValidationState } from '../../services/book-activity/runtime/activityRenderer.types';
 import type {
   BookRuntimeDeliveryDocumentRequest,
   BookRuntimeProjection,
+  BookRuntimePageGroupContext,
+  BookRuntimeStudentDocumentRequest,
 } from '../../services/book-delivery/bookDelivery.types';
-import {
-  createBookDeliveryComponentProjection,
-} from '../../services/book-delivery/bookDeliveryComponentProjection.service';
-import type { BookDeliveryComponentProjection } from '../../services/book-delivery/bookDeliveryComponentProjection.types';
 import {
   useBookRuntimeNavigation,
   type BookRuntimeDesktopView,
   type BookRuntimeMobileTab,
-  type BookRuntimeNavigationComponent,
   type BookRuntimeNavigationReason,
   type BookRuntimeNavigationState,
 } from '../../hooks/book-runtime/useBookRuntimeNavigation';
@@ -34,6 +32,7 @@ import './BookRuntimeShell.css';
 
 export interface BookRuntimeShellActivity {
   readonly activityId: string;
+  readonly activityVersionId?: string;
   /** Validated student-safe Activity projection supplied by the launch boundary. */
   readonly projection: unknown;
   readonly label?: string;
@@ -42,12 +41,12 @@ export interface BookRuntimeShellActivity {
 export interface BookRuntimeViewerRenderInput {
   readonly activeActivityId: string;
   readonly pageGroupKey: string;
-  readonly componentId: string;
-  readonly componentOrder: number;
-  readonly componentCount: number;
-  readonly physicalPageNumber: number;
-  readonly request: BookRuntimeDeliveryDocumentRequest | null;
+  readonly combinedPhysicalPage: number;
+  readonly request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest;
   readonly view: BookRuntimeDesktopView;
+  readonly allowedPages?: readonly number[];
+  readonly onPageChange?: (page: number) => void;
+  readonly onPageReady?: (page: number) => void;
 }
 
 export interface BookRuntimeViewerAdapter {
@@ -57,26 +56,45 @@ export interface BookRuntimeViewerAdapter {
     readonly message: string;
   };
   readonly render: (input: BookRuntimeViewerRenderInput) => ReactNode;
+  readonly reportsPageReady?: boolean;
+}
+
+export interface BookRuntimeActivitySummary {
+  readonly answered: readonly string[];
+  readonly status: string;
+  readonly dirty: boolean;
+  readonly submitted: boolean;
+  readonly reviewRequired: boolean;
+  readonly captureActive: boolean;
 }
 
 export type BookRuntimeAction =
   | 'bookRuntimeReturn'
   | 'bookRuntimePageGroupSelected'
-  | 'bookRuntimeComponentSelected'
-  | 'bookRuntimeComponentPageChanged'
+  | 'bookRuntimeCombinedPageSelected'
   | 'bookRuntimeActivitySelected'
   | 'bookRuntimeActivityNavigated'
   | 'bookRuntimePdfFocused'
   | 'bookRuntimeSplitRestored'
   | 'bookRuntimeNavigatorToggled'
   | 'bookRuntimeTabSwitched'
-  | 'bookRuntimeResponseChanged';
+  | 'bookRuntimeResponseChanged'
+  | 'bookRuntimeMetricRecorded'
+  | 'bookRuntimeSubmitActivity'
+  | 'bookRuntimeAutosaveRetry' | 'bookRuntimeAutosaveReload' | 'bookRuntimeAutosaveDiscard'
+  | 'bookRuntimeQuestionFocused' | 'bookRuntimeQuestionFlagged' | 'bookRuntimeSplitResized' | 'bookRuntimeSubmitCancelled';
 
 export interface BookRuntimeIntegrityCaptureSeam {
   readonly client: BookIntegrityCaptureClient;
   readonly frozenPoliciesByPlacementId: Readonly<Record<string, BookIntegrityFrozenPolicy>>;
+  readonly captureSlotsByPlacementId?: Readonly<Record<string, {
+    readonly captureSlotId: string;
+    readonly captureAttemptNumber: number;
+  }>>;
+  readonly enabledByPlacementId?: Readonly<Record<string, boolean>>;
   readonly enabled: boolean;
   readonly active: boolean;
+  readonly activeByPlacementId?: Readonly<Record<string, boolean>>;
   readonly onWarning: (warning: BookIntegrityWarning) => void;
 }
 
@@ -107,6 +125,9 @@ export interface BookRuntimeShellProps {
   readonly onNavigationError?: (error: unknown, reason: BookRuntimeNavigationReason) => void;
   readonly onAction?: (action: BookRuntimeAction, metadata?: Record<string, unknown>) => void;
   readonly personalTimer?: ReactNode;
+  readonly onReturn?: () => void;
+  readonly activitySummaries?: Readonly<Record<string, BookRuntimeActivitySummary>>;
+  readonly renderActivity?: (activity: ResolvedRuntimeActivity, questionTools: (interactionId: string, index: number) => ReactNode) => ReactNode;
   /**
    * Dedicated Book-only integrity seam. The shell derives the exact active
    * placement target; the host supplies only frozen trusted policy snapshots.
@@ -123,16 +144,17 @@ export interface BookRuntimeShellProps {
   };
 }
 
-interface ResolvedRuntimeActivity extends BookRuntimeShellActivity {
-  readonly pageGroupKey: string;
-  readonly componentIds: readonly string[];
+export interface ResolvedRuntimeActivity extends BookRuntimeShellActivity {
+  readonly runtimeKey: string;
+  readonly pageGroupKeys: readonly string[];
   readonly label: string;
   readonly placement: BookRuntimeProjection['activities'][number];
 }
 
 interface ActivityResolution {
   readonly activities: readonly ResolvedRuntimeActivity[];
-  readonly componentProjection: BookDeliveryComponentProjection | null;
+  readonly pageGroups: readonly BookRuntimePageGroupContext[];
+  readonly request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest | null;
   readonly error: string | null;
 }
 
@@ -140,26 +162,21 @@ const resolveActivities = (
   deliveryProjection: BookRuntimeProjection,
   activities: readonly BookRuntimeShellActivity[],
 ): ActivityResolution => {
-  let componentProjection: BookDeliveryComponentProjection;
-  try {
-    componentProjection = createBookDeliveryComponentProjection(deliveryProjection);
-  } catch {
-    return {
-      activities: [],
-      componentProjection: null,
-      error: 'Book Delivery component projection is unavailable or stale.',
-    };
-  }
-  const byId = new Map<string, BookRuntimeShellActivity>();
+  const candidateRequest = deliveryProjection.documentRequests[0];
+  const source = deliveryProjection.sourceSet.sources[0];
+  const request = deliveryProjection.documentRequests.length === 1 && candidateRequest
+    && (!('sourceKey' in candidateRequest)
+      ? deliveryProjection.sourceSet.strategy === 'component_pdfs'
+      : deliveryProjection.sourceSet.strategy === 'full_pdf'
+        && deliveryProjection.sourceSet.sources.length === 1
+        && source?.sourceKey === candidateRequest.sourceKey
+        && source.sourceVersionId === candidateRequest.sourceVersionId)
+    ? candidateRequest : null;
+  const pageGroups = Array.isArray(deliveryProjection.pageGroups) ? deliveryProjection.pageGroups : [];
+  if (!request || pageGroups.length === 0) return { activities: [], pageGroups, request, error: 'Book document context is unavailable or stale.' };
+  const byId = new Map<string, BookRuntimeShellActivity[]>();
   for (const activity of activities) {
-    if (byId.has(activity.activityId)) {
-      return {
-        activities: [],
-        componentProjection: null,
-        error: 'Book Activity projection contains a duplicate Activity ID.',
-      };
-    }
-    byId.set(activity.activityId, activity);
+    byId.set(activity.activityId, [...(byId.get(activity.activityId) ?? []), activity]);
   }
 
   const placements = [...deliveryProjection.activities].sort(
@@ -168,38 +185,56 @@ const resolveActivities = (
   if (placements.length === 0) {
     return {
       activities: [],
-      componentProjection: null,
+      pageGroups,
+      request,
       error: 'Book Delivery projection contains no Activities.',
     };
   }
-  const componentIdForSource = new Map(
-    componentProjection.components.map((component) => [component.sourceKey, component.componentId]),
-  );
-  const defaultComponentId = componentProjection.components[0]?.componentId ?? 'full-pdf';
   const resolved = placements.map((placement): ResolvedRuntimeActivity | null => {
-    const activity = byId.get(placement.activityId);
+    const candidates = byId.get(placement.activityId) ?? [];
+    const activity = candidates.find((candidate) => {
+      if (deliveryProjection.projectionKind === 'book-runtime-candidate-preview') return true;
+      if (!('activityVersionId' in placement) || typeof placement.activityVersionId !== 'string'
+        || !placement.activityVersionId || !Number.isSafeInteger(placement.activityVersion)) return false;
+      const value = candidate.projection;
+      const content = typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+      const versionId = candidate.activityVersionId ?? content.activityVersionId;
+      return versionId === placement.activityVersionId
+        && (content.activityVersionId === undefined || content.activityVersionId === placement.activityVersionId)
+        && (content.activityVersion === undefined || content.activityVersion === placement.activityVersion);
+    });
     if (!activity) return null;
-    const componentIds = placement.sourceContext.sourcePageScopes
-      .map((scope) => componentIdForSource.get(scope.sourceKey))
-      .filter((componentId): componentId is string => componentId !== undefined);
+    const declaredPageGroupKeys = placement.sourceContext.pageGroupKeys.filter((pageGroupKey) => (
+      pageGroups.some((pageGroup) => pageGroup.pageGroupKey === pageGroupKey)
+    ));
+    const pageGroupKeys = declaredPageGroupKeys.length > 0
+      ? declaredPageGroupKeys
+      : placement.contextMode === 'none'
+        ? pageGroups.map((pageGroup) => pageGroup.pageGroupKey)
+        : [];
+    if (pageGroupKeys.length === 0) return null;
     return {
       ...activity,
-      pageGroupKey: placement.nodeKey,
-      componentIds: Object.freeze(componentIds.length > 0 ? componentIds : [defaultComponentId]),
-      label: activity.label?.trim() || placement.activityId,
+      runtimeKey: JSON.stringify([placement.placementId, placement.activityId,
+        'activityVersionId' in placement ? placement.activityVersionId : null]),
+      pageGroupKeys: Object.freeze(pageGroupKeys),
+      label: (activity.label?.trim() && activity.label !== placement.activityId ? activity.label.trim() : '')
+        || (activity.projection && typeof activity.projection === 'object' && 'title' in activity.projection && typeof activity.projection.title === 'string' ? activity.projection.title.trim() : '') || 'Activity',
       placement,
     };
   });
-  if (resolved.some((activity) => activity === null) || byId.size !== placements.length) {
+  if (resolved.some((activity) => activity === null)) {
     return {
       activities: [],
-      componentProjection: null,
+      pageGroups,
+      request,
       error: 'Book Delivery projection and Activity projections do not match.',
     };
   }
   return {
     activities: resolved as ResolvedRuntimeActivity[],
-    componentProjection,
+    pageGroups,
+    request,
     error: null,
   };
 };
@@ -210,33 +245,6 @@ const ShellFailure = ({ message }: { message: string }) => (
     <p>{message}</p>
   </section>
 );
-
-const statusMessage = (
-  activity: ResolvedRuntimeActivity,
-  responses: Readonly<Record<string, unknown>>,
-): string | null => {
-  const projection = activity.projection as { scoring?: { mode?: unknown }; interactions?: unknown } | null;
-  const hasResponse = Array.isArray(projection?.interactions) && projection.interactions.some((interaction) => (
-    interaction !== null &&
-    typeof interaction === 'object' &&
-    'interactionId' in interaction &&
-    typeof interaction.interactionId === 'string' &&
-    Object.hasOwn(responses, interaction.interactionId) &&
-    (() => {
-      const response = responses[interaction.interactionId];
-      if (response === null || response === undefined) return false;
-      if (typeof response === 'string') return response.trim().length > 0;
-      if (typeof response === 'object' && 'text' in response && typeof response.text === 'string') {
-        return response.text.trim().length > 0;
-      }
-      return true;
-    })()
-  ));
-  if (projection?.scoring?.mode === 'review-required' && hasResponse) {
-    return 'Pending review — objective scoring is unavailable for this Activity.';
-  }
-  return null;
-};
 
 const BookRuntimeIntegrityBoundary = ({
   children,
@@ -265,486 +273,200 @@ export const BookRuntimeShell = (props: BookRuntimeShellProps) => {
     [props.activities, props.deliveryProjection],
   );
   if (resolution.error) return <ShellFailure message={resolution.error} />;
+  const scopeKey = JSON.stringify([
+    props.deliveryProjection.projectionKind === 'book-runtime-delivery' ? props.deliveryProjection.recipientId
+      : [props.deliveryProjection.candidateId, props.deliveryProjection.candidateRevision],
+    props.deliveryProjection.context.contextId, resolution.activities.map((activity) => activity.runtimeKey),
+  ]);
   return (
-    <BookRuntimeShellReady
+    <BookRuntimeShellReady key={scopeKey}
       {...props}
       activities={resolution.activities}
-      componentProjection={resolution.componentProjection!}
+      pageGroups={resolution.pageGroups}
+      request={resolution.request!}
     />
   );
 };
 
 interface BookRuntimeShellReadyProps extends Omit<BookRuntimeShellProps, 'activities'> {
   readonly activities: readonly ResolvedRuntimeActivity[];
-  readonly componentProjection: BookDeliveryComponentProjection;
+  readonly pageGroups: readonly BookRuntimePageGroupContext[];
+  readonly request: BookRuntimeDeliveryDocumentRequest | BookRuntimeStudentDocumentRequest;
 }
 
-const BookRuntimeShellReady = ({
-  deliveryProjection,
-  display,
-  activities,
-  componentProjection,
-  registry,
-  viewer,
-  responses,
-  validationByInteractionId = {},
-  onResponseChange,
-  responseMode,
-  initialNavigation,
-  onFlushBeforeNavigate,
-  onNavigationStateChange,
-  onNavigationError,
-  onAction,
-  personalTimer,
-  integrityCapture,
-  persistence,
-}: BookRuntimeShellReadyProps) => {
-  const navigationActivities = useMemo(
-    () => activities.map(({ activityId, pageGroupKey, componentIds, placement }) => {
-      const componentPageById = Object.fromEntries(placement.sourceContext.sourcePageScopes.flatMap((scope) => {
-        const componentId = componentProjection.components.find((component) => component.sourceKey === scope.sourceKey)?.componentId
-          ?? (componentProjection.fullPdfRequest?.sourceKey === scope.sourceKey ? 'full-pdf' : null);
-        const page = scope.pages.find((candidate) => Number.isSafeInteger(candidate) && candidate > 0);
-        return componentId && page ? [[componentId, page]] : [];
-      }));
-      return { activityId, pageGroupKey, componentIds, componentPageById };
-    }),
-    [activities, componentProjection],
-  );
-  const navigationComponents = useMemo<readonly BookRuntimeNavigationComponent[]>(
-    () => componentProjection.components.map(({ componentId, sourceOrder, activityIds, localPageScope }) => ({
-      componentId,
-      sourceOrder,
-      activityIds,
-      localPageScope,
-    })),
-    [componentProjection],
-  );
-  const navigation = useBookRuntimeNavigation({
-    activities: navigationActivities,
-    components: navigationComponents,
-    initialState: initialNavigation,
-    onFlushBeforeNavigate,
-    onNavigate: onNavigationStateChange,
-    onNavigationError,
-  });
-  const activeActivity = activities.find(
-    (activity) => activity.activityId === navigation.state.activityId,
-  ) ?? activities[0];
-  const activityPanelRef = useRef<HTMLElement | null>(null);
-  const previousActivityIdRef = useRef(activeActivity.activityId);
-
-  useEffect(() => {
-    if (previousActivityIdRef.current === activeActivity.activityId) return;
-    previousActivityIdRef.current = activeActivity.activityId;
-    activityPanelRef.current?.focus();
-  }, [activeActivity.activityId]);
-
-  const pageGroups = navigation.pageGroups;
-  const activeComponent = componentProjection.components.find(
-    (component) => component.componentId === navigation.state.componentId,
-  );
-  const request = activeComponent?.documentRequest
-    ?? componentProjection.fullPdfRequest
-    ?? (activeActivity.placement.sourceContext.sourcePageScopes[0]
-      ? deliveryProjection.documentRequests.find(
-        (candidate) => candidate.sourceKey === activeActivity.placement.sourceContext.sourcePageScopes[0]?.sourceKey,
-      ) ?? null
-      : deliveryProjection.documentRequests[0] ?? null);
-  const activeComponentOrder = activeComponent?.sourceOrder ?? 1;
-  const activeComponentPage = navigation.state.componentPageById[navigation.state.componentId] ?? 1;
-  const activeComponentPageScope = activeComponent?.localPageScope;
-  const activeGroupActivities = activities.filter(
-    (activity) => activity.pageGroupKey === activeActivity.pageGroupKey,
-  );
-  const status = statusMessage(activeActivity, responses);
-  const isSourceReferenceOnly = activeActivity.placement.contextMode === 'required'
-    || activeActivity.placement.sourceContext.available;
-  const isViewerLoading = viewer.status?.state === 'loading';
-  const isViewerError = viewer.status?.state === 'error';
-  const isCandidatePreview = deliveryProjection.projectionKind === 'book-runtime-candidate-preview';
-  const bookTitle = display?.bookTitle?.trim() || deliveryProjection.book.bookId;
-  const unitTitle = display?.unitTitle?.trim()
-    || (isCandidatePreview ? deliveryProjection.unitKey : activeActivity.placement.nodeKey);
-  const contextLabel = display?.contextLabel?.trim()
-    || (isCandidatePreview
-      ? 'Unpublished candidate · answers are temporary'
-      : `${deliveryProjection.context.kind} · ${deliveryProjection.book.publicationId}`);
-
-  const handleResponseChange = (interactionId: string, response: unknown) => {
-    onAction?.('bookRuntimeResponseChanged', { interactionId });
-    onResponseChange(interactionId, response);
+const BookRuntimeShellReady = ({ deliveryProjection, display, activities, pageGroups, request, registry, viewer, responses,
+  validationByInteractionId = {}, onResponseChange, responseMode, initialNavigation, onFlushBeforeNavigate,
+  onNavigationStateChange, onNavigationError, onAction, personalTimer, integrityCapture, persistence,
+  renderActivity, activitySummaries = {}, onReturn }: BookRuntimeShellReadyProps) => {
+  const navigationActivities = useMemo(() => activities.map((activity) => ({ runtimeKey: activity.runtimeKey!, activityId: activity.activityId, pageGroupKeys: activity.pageGroupKeys! })), [activities]);
+  const navigation = useBookRuntimeNavigation({ activities: navigationActivities, pageGroups, initialState: initialNavigation,
+    onFlushBeforeNavigate, onNavigate: onNavigationStateChange, onNavigationError });
+  const allowedPages = useMemo(() => [...new Set(pageGroups.flatMap((group) => group.combinedPhysicalPages))].sort((a, b) => a - b), [pageGroups]);
+  const documentKey = JSON.stringify([deliveryProjection.context.contextId, request]);
+  const [successfulPage, setSuccessfulPage] = useState<{ key: string; page: number } | null>(null);
+  const displayedPage = viewer.reportsPageReady ? successfulPage?.key === documentKey ? successfulPage.page : null : navigation.state.combinedPhysicalPage;
+  const mappedActivities = useMemo(() => activities.filter((activity) => pageGroups.some((group) => group.combinedPhysicalPages.includes(displayedPage ?? -1) && activity.pageGroupKeys.includes(group.pageGroupKey))), [activities, displayedPage, pageGroups]);
+  const mappedKeys = useMemo(() => mappedActivities.map((item) => item.runtimeKey), [mappedActivities]);
+  const [visited, setVisited] = useState<readonly string[]>([]);
+  useEffect(() => setVisited((current) => mappedKeys.every((key) => current.includes(key)) ? current : [...new Set([...current, ...mappedKeys])]), [mappedKeys]);
+  const retainedKeys = new Set([...visited, ...mappedKeys]);
+  const [focusedRuntimeKey, setFocusedRuntimeKey] = useState(navigation.state.runtimeKey);
+  const [focusedQuestion, setFocusedQuestion] = useState<string | null>(null);
+  const activeActivity = mappedActivities.find((activity) => activity.runtimeKey === focusedRuntimeKey)
+    ?? mappedActivities.find((activity) => activity.runtimeKey === navigation.state.runtimeKey) ?? activities[0];
+  const activityPanelRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [splitRatio, setSplitRatio] = useState(46);
+  const ratioRef = useRef(splitRatio);
+  ratioRef.current = splitRatio;
+  const resize = (requested: number) => {
+    const width = workspaceRef.current?.getBoundingClientRect().width || 1200;
+    const minimum = Math.max(30, 320 / width * 100);
+    const maximum = Math.min(70, 100 - 320 / width * 100);
+    setSplitRatio(Math.max(minimum, Math.min(maximum, requested)));
   };
-
-  const shell = (
-    <div
-      className="book-runtime-shell"
-      data-desktop-view={navigation.state.desktopView}
-      data-mobile-tab={navigation.state.mobileTab}
-      data-navigator-collapsed={navigation.state.navigatorCollapsed}
-      data-testid="book-runtime-shell"
-    >
-      <header className="book-runtime-shell__header">
-        <div>
-          <p className="book-runtime-shell__eyebrow">{isCandidatePreview ? 'Student preview' : 'Published unit'}</p>
-          <h1>{bookTitle}</h1>
-          <p className="book-runtime-shell__context">
-            {unitTitle} · {contextLabel}
-          </p>
-        </div>
-        <div className="book-runtime-shell__header-tools">
-          {personalTimer ? <div className="book-runtime-shell__personal-timer">{personalTimer}</div> : null}
-          <div className="book-runtime-shell__header-status" aria-label="Book runtime status">
-            <span>{deliveryProjection.activities.length} activities</span>
-            <span>{deliveryProjection.actionFlags.canSubmit ? 'Local response state' : 'Reference-only'}</span>
-          </div>
-        </div>
-      </header>
-
-      {persistence ? (
-        <section
-          aria-label="Activity save status"
-          className={`book-runtime-shell__persistence book-runtime-shell__persistence--${persistence.status}`}
-          data-dirty={persistence.isDirty}
-          data-status={persistence.status}
-          data-testid="book-runtime-persistence"
-          role={['conflict', 'error', 'unsafe-to-leave'].includes(persistence.status) ? 'alert' : 'status'}
-        >
-          <span>{persistence.message || persistence.status}</span>
-          {persistence.conflict ? <span>Local response retained.</span> : null}
-          {['conflict', 'error', 'offline', 'retrying', 'unsafe-to-leave'].includes(persistence.status) ? (
-            <div className="book-runtime-shell__persistence-actions">
-              <button onClick={() => void persistence.onRetry()} type="button">Retry</button>
-              {persistence.conflict ? (
-                <button onClick={() => void persistence.onReload()} type="button">Reload current</button>
-              ) : null}
-              <button onClick={() => void persistence.onDiscardLocal()} type="button">Discard local</button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {(deliveryProjection.outline ?? []).length > 0 ? (
-        <nav aria-label="Book outline" className="book-runtime-shell__outline" data-testid="book-runtime-outline">
-          <p className="book-runtime-shell__eyebrow">Book outline</p>
-          <ol>
-            {[...(deliveryProjection.outline ?? [])]
-              .sort((left, right) => left.order - right.order || left.nodeKey.localeCompare(right.nodeKey))
-              .map((node) => (
-                <li
-                  aria-current={isCandidatePreview && node.nodeKey === deliveryProjection.unitKey ? 'page' : undefined}
-                  key={node.nodeKey}
-                >
-                  <span>{node.titleSnapshot?.trim() || node.nodeKey}</span>
-                  <small>{node.nodeType}</small>
-                </li>
-              ))}
-          </ol>
-        </nav>
-      ) : null}
-
-      <div className="book-runtime-shell__mobile-tabs" role="tablist" aria-label="Book runtime panels">
-        <button
-          aria-controls="book-runtime-page-panel"
-          aria-selected={navigation.state.mobileTab === 'page'}
-          className={navigation.state.mobileTab === 'page' ? 'is-active' : ''}
-          onClick={() => {
-            onAction?.('bookRuntimeTabSwitched', { tab: 'page' });
-            navigation.setMobileTab('page');
-          }}
-          role="tab"
-          type="button"
-        >
-          Book Page
-        </button>
-        <button
-          aria-controls="book-runtime-activity-panel"
-          aria-selected={navigation.state.mobileTab === 'activity'}
-          className={navigation.state.mobileTab === 'activity' ? 'is-active' : ''}
-          onClick={() => {
-            onAction?.('bookRuntimeTabSwitched', { tab: 'activity' });
-            navigation.setMobileTab('activity');
-          }}
-          role="tab"
-          type="button"
-        >
-          Activity
-        </button>
+  const candidatePreview = deliveryProjection.projectionKind === 'book-runtime-candidate-preview';
+  const identity = candidatePreview ? `${deliveryProjection.candidateId}:${deliveryProjection.candidateRevision}`
+    : `${deliveryProjection.recipientId}:${deliveryProjection.context.contextId}:${deliveryProjection.book.bookId}`;
+  const flagsKey = `book-runtime-review-flags:${identity}:${activities.map((item) => item.placement.placementId + (('activityVersionId' in item.placement) ? ':' + item.placement.activityVersionId : '')).join('|')}`;
+  const [flagsState, setFlagsState] = useState<{ key: string; values: Record<string, boolean>; loaded: boolean }>({ key: flagsKey, values: {}, loaded: false });
+  useEffect(() => {
+    let current = true;
+    void storage.get(flagsKey).then((value) => {
+      const values = value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).filter(([, flag]) => flag === true)) : {};
+      if (current) setFlagsState({ key: flagsKey, values, loaded: true });
+    }).catch(() => { if (current) setFlagsState({ key: flagsKey, values: {}, loaded: true }); });
+    return () => { current = false; };
+  }, [flagsKey]);
+  const flags = flagsState.key === flagsKey ? flagsState.values : {};
+  useEffect(() => { if (flagsState.loaded && flagsState.key === flagsKey) void storage.set(flagsKey, flagsState.values).catch(() => undefined); }, [flagsKey, flagsState]);
+  const questions = mappedActivities.flatMap((activity) => {
+    const resolution = registry.resolve(activity.projection, { mode: 'read-only', sourceContext: activity.placement.sourceContext, surface: 'student-runtime' });
+    return resolution.supported ? resolution.projection.interactions.map((interaction, index) => ({ activity,
+      interactionId: interaction.interactionId, label: interaction.sourceAssisted?.questionLabel || String(index + 1),
+      key: `${activity.runtimeKey}:${interaction.interactionId}` })) : [];
+  });
+  const isAnswered = (activity: ResolvedRuntimeActivity, id: string) => {
+    if (activitySummaries[activity.runtimeKey]) return activitySummaries[activity.runtimeKey].answered.includes(id);
+    const resolution = registry.resolve(activity.projection, { mode: 'read-only', sourceContext: activity.placement.sourceContext, surface: 'student-runtime' });
+    if (!resolution.supported) return false;
+    const codec = resolution.registration.codec;
+    const decoded = codec.decode(responses[id] ?? codec.createEmpty());
+    if (!decoded.valid || !codec.validate(decoded.value).valid) return false;
+    const review = codec.toReviewProjection(decoded.value);
+    return review.text.trim().length > 0 || Boolean(review.items?.length);
+  };
+  const focusQuestion = (runtimeKey: string, interactionId: string) => {
+    const focused = activities.find((activity) => activity.runtimeKey === runtimeKey);
+    if (!focused) return;
+    setFocusedRuntimeKey(runtimeKey);
+    setFocusedQuestion(`${runtimeKey}:${interactionId}`);
+    if (navigation.state.mobileTab !== 'activity' || navigation.state.desktopView === 'pdf-focus') navigation.focusActivity();
+    requestAnimationFrame(() => {
+      const card = [...(activityPanelRef.current?.querySelectorAll<HTMLElement>('[data-book-activity]') ?? [])].find((node) => node.dataset.bookActivity === runtimeKey);
+      const question = [...(card?.querySelectorAll<HTMLElement>('[data-book-interaction]') ?? [])].find((node) => node.dataset.bookInteraction === interactionId);
+      question?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+      (question?.querySelector<HTMLElement>('input, textarea, select') ?? question)?.focus();
+    });
+    onAction?.('bookRuntimeQuestionFocused', { activityId: focused.activityId, runtimeKey, interactionId });
+  };
+  const questionTools = (activity: ResolvedRuntimeActivity) => (id: string, index: number) => {
+    const key = `${activity.runtimeKey}:${id}`;
+    return <div className="book-runtime-shell__question-tools"><span>Question {questions.find((item) => item.key === key)?.label ?? index + 1}</span>
+      <button type="button" aria-label={`Flag question ${index + 1}`} aria-pressed={Boolean(flags[key])} disabled={!flagsState.loaded || flagsState.key !== flagsKey}
+        onClick={() => { setFlagsState((current) => ({ ...current, values: { ...current.values, [key]: !current.values[key] } }));
+          onAction?.('bookRuntimeQuestionFlagged', { activityId: activity.activityId, interactionId: id, flagged: !flags[key] }); }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V3h14l-3 5 3 5H5" fill={flags[key] ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" /></svg>
+        <span>{flags[key] ? 'Flagged' : 'Flag'}</span>
+      </button></div>;
+  };
+  const onPageReady = useCallback((page: number) => { if (page === navigation.state.combinedPhysicalPage) setSuccessfulPage({ key: documentKey, page }); }, [documentKey, navigation.state.combinedPhysicalPage]);
+  const referenceOnly = displayedPage !== null && mappedActivities.length === 0;
+  const onlyBook = navigation.state.desktopView === 'pdf-focus';
+  const bookTitle = display?.bookTitle?.trim() || 'Book study';
+  const unitTitle = display?.unitTitle?.trim() || deliveryProjection.outline?.find((node) => node.nodeKey === activeActivity.placement.nodeKey)?.titleSnapshot?.trim() || 'Activity workspace';
+  const contextLabel = display?.contextLabel?.trim() || (candidatePreview ? 'Student preview' : `${deliveryProjection.context.kind === 'homework' ? 'Book Homework' : 'Book study'}`);
+  const deadline = 'scheduleWindow' in activeActivity.placement ? activeActivity.placement.scheduleWindow?.deadline.at : undefined;
+  const shell = <div className="book-runtime-shell" data-testid="book-runtime-shell" data-desktop-view={navigation.state.desktopView}
+    data-mobile-tab={referenceOnly ? 'page' : navigation.state.mobileTab} data-reference-only={referenceOnly} style={{ '--book-split': `${splitRatio}%` } as CSSProperties}>
+    <header className="book-runtime-shell__header">
+      {onReturn && <button className="book-runtime-shell__return" type="button" aria-label="Return" onClick={onReturn}>← <span>{deliveryProjection.context.kind === 'homework' ? 'Homework' : 'Return'}</span></button>}
+      <div className="book-runtime-shell__title"><h1>{bookTitle} · {unitTitle}</h1><p>{contextLabel}{deadline ? ` · Due ${new Date(deadline).toLocaleString()}` : ''}</p></div>
+      <div className="book-runtime-shell__header-tools">
+        <span className="book-runtime-shell__save-chip" role="status">{Object.values(activitySummaries).some((item) => item.dirty) ? 'Saving work…' : Object.values(activitySummaries).length ? 'Draft status in each Activity' : candidatePreview ? 'Read-only preview' : 'Loading work…'}</span>
+        {personalTimer}
+        <button className="book-runtime-shell__only-book" type="button" aria-pressed={onlyBook} onClick={() => {
+          onAction?.(onlyBook ? 'bookRuntimeSplitRestored' : 'bookRuntimePdfFocused'); navigation.setDesktopView(onlyBook ? 'split' : 'pdf-focus');
+        }}>{onlyBook ? 'Restore Activities' : 'Only book'}</button>
       </div>
-
-      {componentProjection.components.length > 0 ? (
-        <section
-          aria-label="Authorized components"
-          className="book-runtime-shell__component-selector"
-          data-testid="book-runtime-component-selector"
-        >
-          <div className="book-runtime-shell__panel-heading">
-            <div>
-              <p className="book-runtime-shell__eyebrow">Book components</p>
-              <h2>Authorized source order</h2>
-            </div>
-            <span className="book-runtime-shell__activity-position">
-              Component {activeComponentOrder} / {componentProjection.components.length}
-            </span>
-          </div>
-          <nav aria-label="Authorized Book components" className="book-runtime-shell__component-list">
-            {componentProjection.components.map((component) => (
-              <button
-                aria-current={navigation.state.componentId === component.componentId ? 'page' : undefined}
-                className={navigation.state.componentId === component.componentId ? 'is-active' : ''}
-                data-component-id={component.componentId}
-                disabled={navigation.isTransitioning}
-                key={component.componentId}
-                onClick={() => {
-                  onAction?.('bookRuntimeComponentSelected', {
-                    componentId: component.componentId,
-                    sourceOrder: component.sourceOrder,
-                  });
-                  navigation.selectComponent(component.componentId);
-                }}
-                type="button"
-              >
-                <span className="book-runtime-shell__group-number">{component.sourceOrder}</span>
-                <span>Component {component.sourceOrder}</span>
-              </button>
-            ))}
-          </nav>
-          <label className="book-runtime-shell__component-page">
-            Page in Component {activeComponentOrder}
-            <input
-              aria-label={`Page in Component ${activeComponentOrder}`}
-              max={activeComponentPageScope?.kind === 'pages'
-                ? Math.max(...activeComponentPageScope.pages)
-                : undefined}
-              min={1}
-              onChange={(event) => {
-                const page = Number(event.currentTarget.value);
-                if (
-                  !Number.isSafeInteger(page)
-                  || page < 1
-                  || (activeComponentPageScope?.kind === 'pages' && !activeComponentPageScope.pages.includes(page))
-                ) return;
-                navigation.setComponentPage(navigation.state.componentId, page);
-                onAction?.('bookRuntimeComponentPageChanged', {
-                  componentId: navigation.state.componentId,
-                  page,
-                });
-                onNavigationStateChange?.({
-                  ...navigation.state,
-                  componentPageById: {
-                    ...navigation.state.componentPageById,
-                    [navigation.state.componentId]: page,
-                  },
-                }, 'component-page-selected');
-              }}
-              type="number"
-              value={activeComponentPage}
-            />
-          </label>
-        </section>
-      ) : null}
-
-      <div className="book-runtime-shell__workspace">
-        <aside className="book-runtime-shell__page-navigator" aria-label="Book page groups">
-          <div className="book-runtime-shell__panel-heading">
-            {!navigation.state.navigatorCollapsed ? <span>Page Groups</span> : null}
-            <button
-              aria-label={navigation.state.navigatorCollapsed ? 'Expand page navigator' : 'Collapse page navigator'}
-              className="book-runtime-shell__icon-button"
-              onClick={() => {
-                const collapsed = !navigation.state.navigatorCollapsed;
-                onAction?.('bookRuntimeNavigatorToggled', { collapsed });
-                navigation.setNavigatorCollapsed(collapsed);
-              }}
-              type="button"
-            >
-              {navigation.state.navigatorCollapsed ? '→' : '←'}
-            </button>
-          </div>
-          <nav className="book-runtime-shell__group-list">
-            {pageGroups.map((pageGroupKey, index) => (
-              <button
-                aria-current={activeActivity.pageGroupKey === pageGroupKey ? 'page' : undefined}
-                aria-label={`Page Group ${index + 1}`}
-                className={activeActivity.pageGroupKey === pageGroupKey ? 'is-active' : ''}
-                disabled={navigation.isTransitioning}
-                key={pageGroupKey}
-                onClick={() => {
-                  onAction?.('bookRuntimePageGroupSelected', { pageGroupKey });
-                  navigation.selectPageGroup(pageGroupKey);
-                }}
-                type="button"
-              >
-                <span className="book-runtime-shell__group-number">{index + 1}</span>
-                <span className="book-runtime-shell__group-label">{pageGroupKey}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <section
-          aria-labelledby="book-runtime-activity-title"
-          className="book-runtime-shell__activity-pane"
-          id="book-runtime-activity-panel"
-          ref={activityPanelRef}
-          role="tabpanel"
-          tabIndex={-1}
-        >
-          <div className="book-runtime-shell__panel-heading">
-            <div>
-              <p className="book-runtime-shell__eyebrow">Activity</p>
-              <h2 id="book-runtime-activity-title">{activeActivity.label}</h2>
-            </div>
-            <span className="book-runtime-shell__activity-position">
-              {activities.findIndex((activity) => activity.activityId === activeActivity.activityId) + 1} / {activities.length}
-            </span>
-          </div>
-
-          <nav className="book-runtime-shell__mobile-activity-list" aria-label="Activities in this Page Group">
-            {activeGroupActivities.map((activity) => (
-              <button
-                aria-current={activity.activityId === activeActivity.activityId ? 'page' : undefined}
-                className={activity.activityId === activeActivity.activityId ? 'is-active' : ''}
-                disabled={navigation.isTransitioning}
-                key={activity.activityId}
-                onClick={() => {
-                  onAction?.('bookRuntimeActivitySelected', { activityId: activity.activityId });
-                  navigation.selectActivity(activity.activityId);
-                }}
-                type="button"
-              >
-                {activity.label}
-              </button>
-            ))}
-          </nav>
-
-          {isSourceReferenceOnly ? (
-            <p className="book-runtime-shell__reference-state">
-              Reference context: {activeActivity.placement.sourceContext.description}
-            </p>
-          ) : null}
-          {status ? <p className="book-runtime-shell__pending-state" role="status">{status}</p> : null}
-
-          <ActivityRendererHost
-            context={{
-              mode: responseMode ?? (deliveryProjection.actionFlags.canAutosave ? 'editable' : 'read-only'),
-              sourceContext: activeActivity.placement.sourceContext,
-              surface: 'student-runtime',
-            }}
-            onResponseChange={handleResponseChange}
-            projection={activeActivity.projection}
-            registry={registry}
-            responses={responses}
-            validationByInteractionId={validationByInteractionId}
-          />
-
-          <nav className="book-runtime-shell__activity-navigation" aria-label="Activity navigation">
-            <button
-              disabled={navigation.isTransitioning || activeActivity.activityId === activities[0]?.activityId}
-              onClick={() => {
-                onAction?.('bookRuntimeActivityNavigated', { direction: 'previous' });
-                navigation.previousActivity();
-              }}
-              type="button"
-            >
-              Previous Activity
-            </button>
-            <button
-              disabled={navigation.isTransitioning || activeActivity.activityId === activities.at(-1)?.activityId}
-              onClick={() => {
-                onAction?.('bookRuntimeActivityNavigated', { direction: 'next' });
-                navigation.nextActivity();
-              }}
-              type="button"
-            >
-              Next Activity
-            </button>
-          </nav>
-        </section>
-
-        <aside
-          aria-labelledby="book-runtime-viewer-title"
-          className="book-runtime-shell__viewer-pane"
-          id="book-runtime-page-panel"
-          role="tabpanel"
-        >
-          <div className="book-runtime-shell__panel-heading">
-            <div>
-              <p className="book-runtime-shell__eyebrow">Book Page</p>
-              <h2 id="book-runtime-viewer-title">{viewer.title}</h2>
-            </div>
-            {navigation.state.desktopView === 'pdf-focus' ? (
-              <button
-                onClick={() => {
-                  onAction?.('bookRuntimeSplitRestored');
-                  navigation.restoreSplitView();
-                }}
-                type="button"
-              >
-                Restore split view
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  onAction?.('bookRuntimePdfFocused');
-                  navigation.setDesktopView('pdf-focus');
-                }}
-                type="button"
-              >
-                Focus PDF
-              </button>
-            )}
-          </div>
-          {isViewerLoading ? <p role="status">{viewer.status?.message}</p> : null}
-          {isViewerError ? <p role="alert">{viewer.status?.message}</p> : null}
-          <div className="book-runtime-shell__viewer-content" data-testid="book-runtime-viewer">
-            {viewer.render({
-              activeActivityId: activeActivity.activityId,
-              pageGroupKey: activeActivity.pageGroupKey,
-              componentId: navigation.state.componentId,
-              componentOrder: activeComponentOrder,
-              componentCount: componentProjection.components.length || 1,
-              physicalPageNumber: activeComponentPage,
-              request,
-              view: navigation.state.desktopView,
-            })}
-          </div>
-          <p className="book-runtime-shell__viewer-safety">
-            Reference-only viewer. No answer, Delivery, or publication writes occur here.
-          </p>
-        </aside>
-      </div>
+    </header>
+    <nav className="book-runtime-shell__mobile-tabs" role="tablist" aria-label="Book runtime panels">
+      {(['page', 'activity'] as const).map((tab) => <button key={tab} type="button" role="tab" disabled={referenceOnly && tab === 'activity'} aria-controls={`book-runtime-${tab}-panel`} aria-selected={(referenceOnly ? 'page' : navigation.state.mobileTab) === tab}
+        onClick={() => { onAction?.('bookRuntimeTabSwitched', { tab }); navigation.setMobileTab(tab); }}>{tab === 'page' ? 'Book Page' : 'Activity'}</button>)}
+    </nav>
+    <div className="book-runtime-shell__workspace" ref={workspaceRef}>
+      <section className="book-runtime-shell__viewer-pane" aria-label="Book page viewer" id="book-runtime-page-panel" role="tabpanel">
+        <div className="book-runtime-shell__viewer-content" data-testid="book-runtime-viewer">{viewer.render({ activeActivityId: activeActivity.activityId,
+          pageGroupKey: navigation.state.pageGroupKey, combinedPhysicalPage: navigation.state.combinedPhysicalPage, request,
+          view: navigation.state.desktopView, allowedPages, onPageReady,
+          onPageChange: (page) => { onAction?.('bookRuntimeCombinedPageSelected', { combinedPhysicalPage: page }); navigation.selectCombinedPhysicalPage(page); } })}</div>
+        {viewer.status?.state === 'loading' && <p role="status">{viewer.status.message}</p>}{viewer.status?.state === 'error' && <p role="alert">{viewer.status.message}</p>}
+      </section>
+      <div className="book-runtime-shell__splitter" role="separator" aria-label="Resize Book and Activity panels" aria-orientation="vertical" tabIndex={0}
+        aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(splitRatio)}
+        onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); }}
+        onPointerMove={(event) => { if (!(event.buttons & 1)) return; const bounds = workspaceRef.current?.getBoundingClientRect(); if (bounds) resize((event.clientX - bounds.left) / bounds.width * 100); }}
+        onPointerUp={() => onAction?.('bookRuntimeSplitResized', { percent: Math.round(ratioRef.current) })}
+        onKeyDown={(event) => { if (['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) { event.preventDefault(); resize(event.key === 'Home' ? 46 : ratioRef.current + (event.key === 'ArrowLeft' ? -2 : 2)); onAction?.('bookRuntimeSplitResized'); } }} />
+      <section className="book-runtime-shell__activity-pane" id="book-runtime-activity-panel" aria-label="Mapped Activities" role="tabpanel" ref={activityPanelRef}
+        onFocusCapture={(event) => { const card = (event.target as HTMLElement).closest<HTMLElement>('[data-book-activity]');
+          const question = (event.target as HTMLElement).closest<HTMLElement>('[data-book-interaction]');
+          if (card?.dataset.bookActivity) setFocusedRuntimeKey(card.dataset.bookActivity);
+          if (card?.dataset.bookActivity && question?.dataset.bookInteraction) setFocusedQuestion(`${card.dataset.bookActivity}:${question.dataset.bookInteraction}`);
+        }}>
+        <header className="book-runtime-shell__activity-page-head"><p className="book-runtime-shell__eyebrow">Page {displayedPage ?? navigation.state.combinedPhysicalPage} · {mappedActivities.length} mapped Activities</p>
+          <h2>Work beside the Book</h2><p>Your answers stay here. Each Activity saves and submits independently.</p></header>
+        {displayedPage === null && <p role="status">Preparing the Book page…</p>}
+        {activities.filter((activity) => retainedKeys.has(activity.runtimeKey)).map((activity) => <article className="book-runtime-shell__activity-card" key={activity.runtimeKey}
+          hidden={!mappedKeys.includes(activity.runtimeKey)} data-book-activity={activity.runtimeKey} data-submitted={activitySummaries[activity.runtimeKey]?.submitted}>
+          <header className="book-runtime-shell__card-title"><h3>{activity.label}</h3><span>{activitySummaries[activity.runtimeKey]?.reviewRequired ? 'Submitted for review' : activitySummaries[activity.runtimeKey]?.submitted ? 'Submitted' : 'Open'}</span></header>
+          {activity.placement.sourceContext.available && <p className="book-runtime-shell__source-cue">{activity.placement.contextMode === 'required' ? 'Source required' : 'Source context'} · {activity.placement.sourceContext.description}</p>}
+          {renderActivity ? renderActivity(activity, questionTools(activity)) : <ActivityRendererHost registry={registry} projection={activity.projection}
+            context={{ mode: candidatePreview ? 'read-only' : responseMode ?? (deliveryProjection.actionFlags.canAutosave ? 'editable' : 'read-only'), sourceContext: activity.placement.sourceContext, surface: 'student-runtime' }}
+            responses={responses} validationByInteractionId={validationByInteractionId} questionTools={questionTools(activity)}
+            onResponseChange={(id, value) => { onAction?.('bookRuntimeResponseChanged', { interactionId: id }); onResponseChange(id, value); }} />}
+        </article>)}
+        {persistence && <div className="book-runtime-shell__persistence" role="status" data-testid="book-runtime-persistence" data-status={persistence.status} data-dirty={persistence.isDirty}>{persistence.message}</div>}
+      </section>
+      {(onlyBook || referenceOnly) && <button type="button" className="book-runtime-shell__restore" aria-label="Restore Activity panel" disabled={referenceOnly} onClick={() => { onAction?.('bookRuntimeSplitRestored'); navigation.restoreSplitView(); }}>↤ <span>Activities</span></button>}
     </div>
-  );
-  if (!integrityCapture || deliveryProjection.projectionKind !== 'book-runtime-delivery') return shell;
-  if (!('activityVersion' in activeActivity.placement)) return shell;
-  const frozenPolicy = integrityCapture.frozenPoliciesByPlacementId[
-    activeActivity.placement.placementId
-  ];
-  if (!frozenPolicy) return shell;
-  return (
-    <BookRuntimeIntegrityBoundary
-      options={{
-        client: integrityCapture.client,
-        target: {
-          bookId: deliveryProjection.book.bookId,
-          bindingId: deliveryProjection.bindingId,
-          bindingRevision: deliveryProjection.bindingRevision,
-          contextKind: 'homework',
-          contextId: deliveryProjection.context.contextId,
-          placementId: activeActivity.placement.placementId,
-          activityId: activeActivity.placement.activityId,
-          activityVersion: activeActivity.placement.activityVersion,
-        },
-        frozenPolicy,
-        enabled: integrityCapture.enabled,
-        active: integrityCapture.active,
-        onWarning: integrityCapture.onWarning,
-      }}
-    >
-      {shell}
-    </BookRuntimeIntegrityBoundary>
-  );
+    <footer className="book-runtime-shell__footer">
+      <details className="book-runtime-shell__outline"><summary>Pages</summary><nav aria-label="Book page groups">
+        {pageGroups.map((group, index) => <button type="button" key={group.pageGroupKey} aria-current={navigation.state.pageGroupKey === group.pageGroupKey ? 'page' : undefined}
+          disabled={navigation.isTransitioning} onClick={() => { onAction?.('bookRuntimePageGroupSelected', { pageGroupKey: group.pageGroupKey }); navigation.selectPageGroup(group.pageGroupKey); }}>Page Group {index + 1} · {group.combinedPhysicalPages.join(', ')}</button>)}
+        {(deliveryProjection.outline ?? []).map((node) => <p key={node.nodeKey}>{node.titleSnapshot || 'Book section'}</p>)}</nav></details>
+      <nav className="book-runtime-shell__question-navigator" aria-label="Activity and question navigator">{questions.map((question) => <button type="button" key={question.key}
+        aria-label={`${question.activity.label}, question ${question.label}${isAnswered(question.activity, question.interactionId) ? ', answered' : ', unanswered'}${flags[question.key] ? ', flagged' : ''}${activitySummaries[question.activity.runtimeKey]?.submitted ? ', submitted' : ''}`}
+        aria-current={focusedQuestion === question.key ? 'true' : undefined} data-answered={isAnswered(question.activity, question.interactionId)} data-flagged={Boolean(flags[question.key])} data-submitted={activitySummaries[question.activity.runtimeKey]?.submitted}
+        onClick={() => focusQuestion(question.activity.runtimeKey, question.interactionId)}>{question.label}{flags[question.key] ? ' ⚑' : ''}{activitySummaries[question.activity.runtimeKey]?.submitted ? ' ✓' : ''}</button>)}</nav>
+      {referenceOnly ? <p>Reference-only page · no answer work here</p> : <p className="book-runtime-shell__footer-summary">{questions.filter((question) => isAnswered(question.activity, question.interactionId)).length} / {questions.length} answered · {questions.filter((question) => flags[question.key]).length} flagged</p>}
+    </footer>
+  </div>;
+  if (!integrityCapture || deliveryProjection.projectionKind !== 'book-runtime-delivery' || !('activityVersion' in activeActivity.placement)) return shell;
+  const focusedPlacement = activeActivity.placement;
+  const placement = integrityCapture.frozenPoliciesByPlacementId[focusedPlacement.placementId] && integrityCapture.captureSlotsByPlacementId?.[focusedPlacement.placementId]
+    ? focusedPlacement : activities.find((activity) => integrityCapture.frozenPoliciesByPlacementId[activity.placement.placementId] && integrityCapture.captureSlotsByPlacementId?.[activity.placement.placementId])?.placement;
+  if (!placement || !('activityVersion' in placement)) return shell;
+  const frozenPolicy = integrityCapture.frozenPoliciesByPlacementId[placement.placementId];
+  const captureSlot = integrityCapture.captureSlotsByPlacementId?.[placement.placementId];
+  if (!frozenPolicy || !captureSlot) return shell;
+  return <BookRuntimeIntegrityBoundary options={{ client: integrityCapture.client,
+    target: { bookId: deliveryProjection.book.bookId, bindingId: deliveryProjection.bindingId, bindingRevision: deliveryProjection.bindingRevision,
+      contextKind: 'homework', contextId: deliveryProjection.context.contextId, placementId: placement.placementId, activityId: placement.activityId, activityVersion: Number(placement.activityVersion) },
+    frozenPolicy, captureSlotId: captureSlot.captureSlotId, captureAttemptNumber: captureSlot.captureAttemptNumber,
+    enabled: placement === focusedPlacement && integrityCapture.enabled && (integrityCapture.enabledByPlacementId?.[placement.placementId] ?? true),
+    active: integrityCapture.active && mappedKeys.includes(activeActivity.runtimeKey) && (integrityCapture.activeByPlacementId?.[placement.placementId] ?? true), onWarning: integrityCapture.onWarning }}>{shell}</BookRuntimeIntegrityBoundary>;
 };
 
 export default BookRuntimeShell;

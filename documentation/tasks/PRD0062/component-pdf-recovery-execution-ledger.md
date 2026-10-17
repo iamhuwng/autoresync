@@ -1,34 +1,160 @@
 # PRD0062 Component-PDF Recovery — Active Execution Ledger
 
-## Current dashboard — provider evidence and continuation, 2026-10-04
+## Current dashboard — provider evidence and continuation, 2026-10-05
 
 This dashboard and live PlanMD §2 supersede the historical coordinates/holds below.
 Earlier narrative remains chronological evidence, not current execution authority.
 
 - Repo/branch: Windows shared checkout, `codex/prd0062-continuation-after-cleanup`.
-- Inspected HEAD: `b17744d57361635527c17e44dd8ddd02c671a1bd`; other PRD changes remain dirty.
-- Planner: `01a0fcfc-cf6a-7691-b9ee-c8970a5db9ce`; active implementor: `01a10335-ad99-7be2-b61e-fce9e3457cf2`, GPT-6.1 Sol/Medium. The predecessor `01a101a6-d9f9-74f3-bae8-d62b2aebe5f9` acknowledged retirement, is stopped and archived; its source remains in this checkout.
-- The user directed a fresh implementor after the completed assessment. The successor may start the revised plan; the predecessor's assessment pause/retirement stays historical. Creation/startup does not imply any new Worker upload, activation, or product proof.
-- Planner assessment is complete, including dependent lane instructions. The live plan reconciles R2 quarantine/provider callers, early versus full capacity proof, current canonical limits, tracking matrix, retained-byte outcomes and bounded-build proof. The successor receives one consolidated startup handoff and reads these live documents; no fragmented follow-ups are required.
+- Inspected HEAD: `1a1130ae52bd5faaa822bc9a13159baafc5494bf` (`Add stable login route`); other PRD changes remain dirty. Safe product baseline: commit `d6023703e68b784a9abf9e1b8fb37e199d80a842` (`feat(books): complete PRD0062 Full PDF milestone`), whose `live-full-upload-milestone.md` records the authenticated teacher upload and Backblaze B2 object readback.
+- Planner: `01a0fcfc-cf6a-7691-b9ee-c8970a5db9ce`; active implementor: `01a10965-1936-7d53-9985-50f84e6dee3a`, configured with medium thinking on the current default workhorse model. The prior implementor `01a1085b-093b-7232-8348-f29a08f1a9ed` is archived; earlier rotations remain read-only evidence.
+- This rotation follows the 2026-10-05 B2 plan reconciliation. It is a continuation from the dirty live worktree, not a reset: the successor must use PlanMD §2.11 and the current dashboard, preserve valid work, and continue the end goal after every report.
+- The liveness watchdog `01a10670-aca0-7261-a37e-de61c99df9c2` and heartbeat `review-prd0062-orchestration` were closed after rotation; no watchdog guidance remains active.
+- Planner assessment is complete, including dependent lane instructions. The live plan reconciles the R2 quarantine, the B2 provider callers, early versus full capacity proof, current canonical limits, tracking matrix, retained-byte outcomes and bounded-build proof. The successor receives one consolidated startup handoff and reads these live documents; no fragmented follow-ups are required.
 - Standing authority includes scoped release and exact-path feature-branch commits. Escalate substantive contradictions; continue independent ready work.
-- Planner-completed provider/Worker lookup is in PlanMD §2.10: exact reload paths, byte-verified raw donor reports, measured results and scope limits. Use it directly; retrieve further history only for a specific unresolved or invalidated boundary.
+- Planner-completed provider/Worker lookup is in PlanMD §2.10: exact reload paths, byte-verified raw donor reports, measured results and scope limits. Use it directly; retrieve further history only for a specific unresolved or invalidated boundary. The current remaining implementation is the B2 production composition and its direct callers; it is not exhausted research.
 - Teacher Session is excluded. Books remain outside Reading Passage/My Content. Selected Runtime mockup remains authoritative for that surface.
+
+### Pattern-level execution correction — 2026-10-05
+
+Repeated bounded-turn stops were classified as one trajectory failure: a local
+checkpoint or tooling report displaced the end-goal and the next plan stage.
+The current countermeasure is durable in PlanMD §2.1 and the implementor handoff:
+every report separates developer intent, shortest user expectation, minimum
+successful behavior and vital hard limits; environment/tooling issues require
+historical-path research and repair; every end-turn sends one consolidated report
+to the planner with live state and the next meaningful stage. A report is not a
+gate or completion claim. The implementor retains routine authority and must
+continue independent lanes when one lane is blocked.
+
+### Provider and baseline correction — 2026-10-05
+
+The safe product baseline is `d6023703` and its recorded Full-PDF milestone: the
+teacher upload was read back from private Backblaze B2. PRD0062b is dormant
+reference material (`DORMANT_AFTER_CODE_RESET`), not current execution authority.
+Its later R2 direction cannot override the current PRD0062 provider decision. All
+Book PDF bytes use the private B2 path; Cloudflare R2 is unrelated media or
+historical algorithm evidence only. The ledger rows below are reconciled to that
+decision; any older R2 wording is chronology, not a remaining assignment.
+
+The recovered historical channels are now the active evidence path: the preserved
+fixture/harness and Playwright `setInputFiles` flow. Fresh authenticated browser
+proof passed 1/1 through component upload, Activity save, A0, preview/approval,
+publication, replay/conflict and student-safe readback. The source attachment
+correction is scoped to full-PDF attachment; Component-PDF source sets remain
+owned by the single A0 activation path. Current focused proof is BookAssembly
+Workspace 41/41, Activity-authoring 23/23, Homework/Public/Class 62/62 and
+notification overlap 17/17. The current primary frontier is the B2-backed
+ordinary Save → Assembly → Source → publication → student-safe readback slice.
+H/U, CC/Public and native checks may proceed in parallel when disjoint; Q and
+remote release follow their owning inputs. No overall completion is claimed.
+
+### Cross-boundary misalignment audit — 2026-10-05
+
+The baseline/recovery distinction is now explicit:
+
+- The safe baseline `d6023703` keeps the proven private B2 upload/readback and
+  its immutable operation, checksum, CAS and cleanup invariants.
+- Current B2 provider changes and component/combined-document callers are
+  **ADAPT** work. They must be checked across reservation, trusted completion,
+  Delivery, retirement and reconciliation; they do not justify a provider swap
+  or a second lifecycle.
+- Dormant PRD0062b private-R2 production text, the media `r2-upload-signer`,
+  per-page rendition/Browser-Run paths, and expired rollout assumptions are
+  **DROP/HISTORICAL**, not implementation tasks.
+- The checked-in Book config is a broad staging candidate: its B2 bucket ID is
+  not a checked-in variable, its rollout grant is expired, and its enabled flags
+  exceed the narrow baseline. It cannot identify or authorize a production
+  target until the exact Book Worker/account/B2 bucket/secrets/Rules/rollback
+  tuple is read back and frozen.
+- The configured public entrypoint is the top-level shared `worker.js` router;
+  the separate control-worker factory and an OPTIONS response do not establish
+  deployed Book ingress. Teacher upload proof is distinct from student-document
+  GET/HEAD/range proof.
+- Dirty canonical Rules/fragments and generator output require sole-writer
+  reconciliation and preservation of notification/Course-owned leaves. Local
+  generation or a changed producer assertion is not remote Rules proof.
+- The current source decision path accepts both `book-source` and
+  `student-document` purposes for the shared trusted decision service. That is
+  a deliberate current improvement only if both purpose-specific callers,
+  Rules and student-safe fences pass; it must not become a broad permission
+  widening or turn component sources into the student resource.
+
+These findings change execution priority and proof labels; they do not reopen
+the safe B2 baseline or discard valid improvements.
+
+### Live closure matrix — 2026-10-05
+
+This is the current disposition of the remaining §9/§11 closure surface. Proof
+classes are intentionally separate; a green local or emulator result does not
+promote a remote or deployment claim.
+
+| Criterion | Live disposition | Evidence / owning next action |
+| --- | --- | --- |
+| Teacher Component-PDF authoring through A0, reload, publication, replay/conflict, student-safe readback | **PASS — browser fixture** | Fresh production-authority Playwright 1/1 with checked-in PDFs; keep separate from remote deployment proof. |
+| Assembly/PDF/Activity client regression | **PASS — local** | BookAssembly 41/41, BookPdfFlow 44/44, BookMode2 15/15, Activity authoring 23/23, root affected regression 121/121. |
+| Runtime stale-document refresh and privacy | **PASS — browser fixture** | D2 refresh 1/1 on localhost:5174; no private source identity leakage. Accessibility spec remains a stale login/fixture seam and is not product acceptance. |
+| AC-AD-001 accessibility device/runtime | **PASS — local fixture-qualified browser** | Current source-level auth/fixture repair passes 1/1 through `/login` → Student quick-login → ordinary `/student/practice/book-1?bookSurface=solo&contextId=solo-1`, mounting `book-runtime-shell` and covering activity heading, keyboard focus/Enter, page-group navigation, touch targets, overflow, 200% zoom and privacy. Remote/deployed acceptance is separate. |
+| Homework/results, Course/Class, updates/replacement | **PASS — local/Worker; Course/Class browser; H/U current focused-editor evidence qualified** | Current Cloudflare lane 14 files / 91 tests passed; Course/Class integrated browser proof is 8/8 and the focused default placement suite is 35/35. Current H/U focused-editor migration proof is 5/5 and teacher-updates proof is 2/2 against the live `Change PDF setup` → `Change your PDF setup` flow. Preserve the fixture/experience qualifier; do not restore the retired `Full PDF` radio selector. |
+| Public Library moderation/runtime/results | **PASS — browser fixture (substituted transport)** | Fresh Admin moderation → Student Library → Runtime save/submit → settled private Results browser proof is 1/1. The fixture uses the disclosed Firebase/auth transport substitution; this does not promote native or remote evidence. |
+| Generated Rules equality and unowned preservation | **PASS — local composer** | Composer 14/14; `database.rules.json` regenerated from current fragments; Fragment 44 live hash recorded in the test. |
+| Native/emulator Rules security | **QUALIFIED — local composer + WSL-emulator route** | Composer is 14/14; PRD0062-118 production-normal emulator proof is 8/8 using local x64 Node with the approved WSL RTDB emulator route. Class 28/28, Course 18/18, U 11/11 and draft 8/8 remain separately qualified native artifacts. No remote Rules or deployment claim follows. |
+| Provider and capacity | **ACTIVE / QUALIFIED — local B2 caller composition and edge boundaries; Q capacity open** | Current source/document factories use the private-B2 wiring gate; provider, upload, document, reconciliation, attachment and publication caller suites are green on the Windows x64 Worker route. The exact 50 MiB source, 100 MiB student-document and 500-page local x64 counter boundary is 2/2, while actual B2 HTTP CPU/isolate memory, quota, billing and production workload remain unmeasured. Continue CC/U and Q evidence; do not infer remote capacity closure. |
+| Remote Rules/deployment/readback/rollback | **BLOCKED — Rules/rollback/authorization boundary** | Read-only Wrangler evidence now identifies Book Worker `luyentap-book-source-canonical-preview` version 215 at 100% with private B2 bindings and version-history rollback candidates. Remote Rules release/readback, exact Rules parity, rollback authorization and release authorization remain unverified; no mutation or deployment performed. |
+| Quality/version control | **QUALIFIED — current local checks** | Production Vite build and bundle budget, UTF-8 tracked-file check, AC-LR recovery 1/1, targeted browser/spec diff checks and tooling doctor pass. `enforce:check` is blocked by unrelated PRD0040 governance requirements on dirty `src/config/featureRegistry.ts`; no unrelated governance artifacts were added. Workspace remains broadly dirty; no commit/push made. |
+
+The matrix does not close PRD0062. Remaining gaps are actual B2 HTTP
+CPU/isolate-memory and representative workload/quota/billing evidence, and
+remote Book Worker target/config/secrets/Rules/rollback/readback convergence.
+Historical or substituted evidence must retain its qualifier when reused.
+
+### Trajectory correction — 2026-10-05
+
+The plan's product requirements are unchanged. The active execution frontier is
+the ordinary teacher Save → Assembly → Source → publication → student-safe
+readback slice. The implementor must stay on that frontier while a usable action
+exists; unrelated green checks may run only when the frontier is genuinely
+blocked and must not replace it. Acceptance expectations and shared Rules
+producers require source/plan/owner reconciliation before their tests are
+changed. The watchdog provides liveness only through the fixed wake notice; it
+does not choose tasks or review work. A future implementor rotation requires a
+compact frontier handoff rather than replaying the full historical conversation.
 
 | Objective | Current evidence and limit | Remaining action |
 | --- | --- | --- |
-| Real Save → Assembly | Committed successor journal/readback records discovery activation, authenticated draft GET 200 and ordinary editor reaching PDF setup; scoped checkpoint `b17744d5` | Continue full Save → Assembly → Source → publication; discovery proof does not establish the complete chain |
+| Real Save → Assembly | The invalid legacy operation was deleted by exact provider-version identity after least-privilege B2 metadata/delete/capacity credentials were installed. Account readback is settled (`revision 14976`, `temporaryBytes: 0`, `trackedAccountBytes: 0`). A fresh 578-byte, two-page disposable flow passed begin/upload/complete/student-safe/attach with HTTP 200 at every step; Book `book-musor3wy` is `ready`, `bookRevision: 1`, `sourceSetRevision: 1`, and the source readback matches checksum and provider object. A clean isolated browser run then created a new 0/0 Book and passed component upload, exact Unit JSON/text import, Activity save, A0, preview/approval, publication, replay, reload, and student-safe readback (1/1, 35.5s). | Retain the ordinary-flow proof as fixture/transport-qualified; remote ordinary Save→Assembly/publication and release proof remain separate. Preserve the sanitized recovery artifacts and review unused recovery keys for retirement. |
 | Runtime/H | Responsive matrix and max-attempt read-only answer/terminal reload pass locally; external transports substituted | Remaining ordinary/remote lifecycle proof; preserve settled local evidence |
-| Course/Class | Launch 8/8 is qualified UI proof; default command/credential/lock/receipt gaps confirmed, corrective work active | Default teacher commands, native atomic Rules and full context lifecycle |
-| Public Library | Local Admin approval → Library → Runtime → private ungraded Results passes with substitutions | Native and approved-provider/remote proof |
-| U selective replacement | Plan §2.7 resolves all-context adoption/deletion contradiction; default selective path remains implementation work | Genuine selected/unselected slice, effects/replay, reference-safe retirement |
-| Rules/release | Sole writer reconciling Book-owned clauses and preserving notification/Course authority; broad candidates remain unqualified | Stable generation, affected native checks, coordinated required Book delta, rollback/readback |
-| R2/capacity/Q | PlanMD §2.10 verifies historical local R2 range-count measurements, deployed four-page R2 completion, B2 provider/browser/quota proof and scheduler bounds. Current capacity fixtures are inputs, not HTTP CPU/memory measurements | Reuse these exact reports/contracts; adapt ingress/integrity/count/Delivery/cleanup to R2, qualify current purpose ceilings early, then finish workload/backup/recovery/zero-billing proof |
+| Course/Class | Launch 8/8 browser proof plus focused default placement command suite 35/35; native Rules artifacts remain qualified | Fresh native atomic Rules/default lifecycle proof through the established harness |
+| Public Library | Fresh Admin approval → Library → Runtime → private ungraded Results browser proof 1/1 with disclosed fixture transport | Native and approved-provider/remote proof |
+| U selective replacement | **PASS — local service/route proof** | Current replacement context/saga/token suites pass 34/34, including selected-only adoption, unselected pin preservation, replay/conflict, CAS pending, and reference-safe predecessor retention. Native Worker execution remains qualified by the ARM64 `workerd` boundary. |
+| Rules/release | **PASS — local stable generation; remote release blocked** | Composer 14/14 and canonical/candidate equality pass with notification/Course preservation. Remote release awaits a converged Book-enabled Worker target and Firebase credentials/read path; no broad candidate is deployed. |
+| B2/capacity/Q | PlanMD §2.10 and safe baseline `d6023703` verify the B2 provider contract, authenticated Full-PDF upload/readback, browser/quota evidence and scheduler bounds. Historical R2 range-count results are algorithm evidence only. Current capacity fixtures are inputs, not HTTP CPU/memory measurements | Complete the existing private-B2 composition across ingress/integrity/count/CAS/Delivery/cleanup, using Windows x64 tooling; qualify current purpose ceilings early, then finish B2 workload/quota/backup/recovery/zero-billing proof. |
 | Quality/version control | Recorded full typecheck and bounded build pass at their source checkpoints; newer identity changes need affected checks | Coherent exact-path checkpoint commits and durable sanitized evidence; no overall completion |
 
-Next actions: finish real authoring recovery; qualify R2/counter feasibility early;
-complete U/CC default integration and remaining requirements without repeating
-unchanged green suites. Future chronology belongs in `evidence/execution-journal-2026-10-02.md`.
+Next actions: keep the primary frontier on the existing private-B2 composition and
+its direct B2 callers, using the x64 Worker route, the safe `d6023703` baseline and
+the §2.10 evidence pack;
+repair H/U at the current focused-editor fixture boundary; run disjoint CC/Public
+native checks; then resolve the remote Book target/resource and Rules/rollback
+readback. A remote target or credential hold pauses only that release lane. Future
+chronology belongs in `evidence/execution-journal-2026-10-02.md`.
 Re-read live source and evidence before advancing any completion claim.
+
+Planner disposition 2026-10-05: the three browser attempts are treated as a
+tooling boundary. The next authoring pass must use the exact existing Unit JSON
+schema/parser through supported hidden JSON/text-import controls on a fresh
+disposable target, or an authenticated HTTP/CLI path that creates genuine Source
+authority and ordinary production composition. No guessed payload, fabricated
+source array, direct RTDB mutation, or activated immutable Book may be used as
+proof. Fragment 44 SHA reconciliation remains a separate serialized Rules lane.
+
+Current escalation disposition 2026-10-05: a clean isolated fresh-Book browser
+run now passes the supported authoring path 1/1. A prior seven-test aggregate
+run mixed direct and browser producers in one fixture and ended with a
+`component_pdfs_revision_conflict`; the isolated rerun passed, so that aggregate
+failure is retained as fixture-contamination evidence rather than a product
+defect. Stale Books remain evidence and must not be reused or directly mutated.
+The watchdog and its heartbeat were retired after rotation.
 
 Predecessor's final handoff reports an interrupted canonical Rules apply with no
 mutation, a qualified 99-leaf candidate and native Class 28/Course 18/U 11 checks;
@@ -459,3 +585,322 @@ Real remote PDF Save created Book `book-musor3wy` but editor draft discovery ret
 Supported Firebase CLI released the narrow discovery candidate to `temp-a1437-default-rtdb`. Root freshly read back exact candidate SHA `b621043bca7dcd8d5b0ece610554d870cc1a498ac69e1342575a69dfaad53df7`; retained rollback/config/freeze artifacts are under `output/prd0062-discovery-*`. Canonical dirty Rules were neither rewritten nor deployed; every other remote leaf remains exactly preserved. Worker source freeze/preparation is local only at this checkpoint; no new Worker upload/activation or restored real editor behavior is yet claimed.
 
 Class obsolete global per-Activity first-unit equality is removed; trusted adapter validates each independent unit/source pin. Course create/revoke now use existing scoped Course102 credentials and paired receipts. Source owner reports60 focused checks and scoped lint pass; root consolidated typecheck0 predates the subsequent atomic Homework impact identity correction. Missing route gates are explicitly disabled in safe-deny Wrangler configuration; manifest27/27 passes. Native Class/Course/U99-leaf candidate and ordinary default lifecycle proof remain open. U snapshot identity now separates recipients within one assignment and removes split-derived execution identity; its affected checks and final consolidated typecheck are still due. Narrow source release does not complete U or CC.
+
+### B2 provider-state gate reconciliation — 2026-10-05
+
+Live source trace found the shared source-upload and document-delivery runtimes directly constructed the B2 provider while the existing provider wiring enforced `BOOK_SOURCE_B2_PROVIDER_STATE`. Both runtimes now use `resolveBackblazeB2ProviderWiring` and fail closed when the state is missing or disabled; enabled composition remains B2-only. Focused x64 Cloudflare source/document/provider-wiring suites pass30/30, the prior source/upload/document/router set passes40/40, root TypeScript exits0, and scoped diff-check is clean. This is local/native evidence only. No remote Worker, B2 bucket, Firebase Rules, deployment, rollback, or overall PRD0062 closure claim follows.
+
+### B2 credential capability reconciliation — 2026-10-05
+
+Provider capability tracing showed metadata resolution/account listing require the metadata/list key while bounded PDF reads require the read key; cleanup already used the metadata/list key. The provider now maps `BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_*` to metadata operations, keeps `BOOK_SOURCE_B2_READ_APPLICATION_KEY_*` for bounded reads, and rejects duplicate upload/metadata/read credentials. Configuration and tests retain the three-key contract. x64 provider, exact-version cleanup, wiring, and document-composition suites pass66/66; root TypeScript exits0. This remains local/native evidence only; remote B2 capability verification is blocked until the exact deployment tuple is available.
+
+### B2 direct-caller matrix — 2026-10-05
+
+After credential reconciliation, the provider-neutral lifecycle matrix passes root source-upload/browser workflow, reconciliation, attachment, recovery, and capacity suites 114/114. Cloudflare upload, document delivery/composition, reconciliation, attachment-production, and publication route suites pass 108/108. Provider/wiring/cleanup/document suites pass 66/66. A stale lifecycle fixture had omitted the canonical `book-source` purpose, unreviewed student-safe status, and physical page count; the fixture now supplies those required fields and all 11 reconciliation tests pass. Evidence is local/native only; no remote B2, Worker, Rules, capacity, or rollback claim is made.
+
+### Local capacity/edge checks — 2026-10-05
+
+Cloudflare capacity ledger and provider/local probe suites pass32/32. The combined capacity plus processor-count run executed 41 tests but ended with one unhandled `pdfjs` `PasswordException` from the encrypted-PDF processor test despite all 41 assertions passing; native Worker execution remains qualified for that harness/runtime boundary. No product failure is claimed from that environment error, and no provider/capacity closure or remote claim follows.
+
+### Processor/password boundary and remote target convergence — 2026-10-05
+
+Two focused adapter hypotheses were tried and reverted: attaching an eager rejection handler to `loadingTask.promise` still left the native Worker harness `PasswordException` unhandled and caused a basic-page timeout; supplying a PDF.js password callback destabilized ordinary parsing and converted expected edge assertions to generic count failures. The production adapter already normalizes `PasswordException` to `book_source_processor_pdf_password_required`; no processor source change remains. Classify the encrypted-PDF native Worker result as qualified harness/runtime evidence.
+
+Read-only target inspection confirms checked-in canonical preview config is `luyentap-book-source-canonical-preview` with B2 endpoint/region/location/name/prefix and secret-name contracts, but no committed bucket ID or secret values; its rollout grant is expired. The current convergence artifact identifies only the unrelated `r2-upload-signer` v148 at 100% with all Book route flags disabled. gcloud project reads `temp-a1437`; `gcloud auth list` stalled with no output. Remote Book Worker/B2/Rules/rollback tuple therefore remains blocked; no mutation or deployment attempted.
+
+### H/U browser selector reconciliation — 2026-10-05
+
+Current source trace showed the guided Book PDF workspace no longer exposes the legacy `Full PDF` / `Component PDFs` radios or migration form on the ticket-70 route. It exposes `Change PDF setup`, the `Change your PDF setup` dialog, and `Prepare reviewed change`; the current fixture has insufficient verified target inputs for an applied migration, so the safe product outcome is a shared alert with candidate/source/publication state unchanged. Updated `e2e/prd0062-ticket70-source-strategy-migration.spec.ts` and `e2e/prd0062-teacher-updates-replacement-results.spec.ts` to exercise that current flow, `/login`, cancellation, reload preservation, and mobile 200% dialog visibility. Fresh browser evidence: ticket-70 5/5 and teacher-updates 2/2 pass. This is local fixture evidence only; it does not prove remote activation or overall PRD0062 completion.
+
+### Fragment 44 Rules reconciliation and suite rerun — 2026-10-05
+
+Live diff confirms the sole Rules-writer lane has reconciled Fragment 44 with current canonical ownership: the fragment now declares its Book `.validate` location and setup-activation immutability leaves; the composer preserves externally owned notification writes (`38B5:3–5`) and resolves the Fragment 44/20A validation conjunction without hash suppression. Fresh `cloudflare/test/generated-book-rules-composer.test.ts` passes **14/14** (43 fragments, deterministic candidate, unowned-leaf preservation, idempotence and adversarial collision checks).
+
+Combined recovery/emulator rerun: `book-recovery-rules.test.ts` collected 9 tests, **7 passed / 2 failed** because the composed 49A/49B candidate does not byte-equal the checked-in canonical `database.rules.json`; this is canonical reconciliation drift, not an authorization bypass proof. `prd0062-h-evaluation-rule-enforced.emulator.test.ts` collected no tests and failed before setup because `FIREBASE_DATABASE_EMULATOR_HOST` is absent; classify as emulator startup/configuration blocked. No Rules deployment or remote mutation performed.
+
+### 49A/49B ownership diff isolation — 2026-10-05
+
+A temporary read-only candidate-vs-canonical flatten comparison confirms **zero differing leaves** under `book_recovery/**` and `book_delivery/**`; the 49A/49B producer paths already agree with `database.rules.json`. The recovery-suite equality failures are caused by 244 unrelated canonical/base differences across roots including notifications, Course/Class, result indexes, users, and legacy test paths. No producer or hash-only change is justified for 49A/49B, and no broad canonical overwrite is allowed. The temporary diagnostic was removed after capture.
+
+### Recovery Rules preservation-base correction — 2026-10-05
+
+`cloudflare/test/book-recovery-rules.test.ts` now composes against the checked-in current `database.rules.json` preservation base, matching the generator contract; the historical `firebase.prd0062-118-rules.rollback.json` remains untouched. Fresh rerun of `book-recovery-rules.test.ts` plus `generated-book-rules-composer.test.ts`: **2 files / 23 tests passed** (recovery 9/9, composer 14/14). Explicit 49A/49B owned-path assertions and unowned-leaf preservation remain active.
+
+Approved emulator route was attempted through the repository audit harness using the Windows x64 Node route and `firebase emulators:exec --only database`; harness sidecar `C:\Users\The Lord\AppData\Local\codex-harness-v3\evidence\5f46a6f6-f888-4958-9ac1-0d260e8b24ee.json` records `harness_preflight_failure`, counts unavailable, and no test collection. No emulator startup proof or remote mutation is claimed.
+
+### Direct frontier readback check and independent delivery lane — 2026-10-05
+
+The live direct Component browser spec already contains immutable publication
+readback, original-operation replay, changed-input idempotency conflict denial,
+reload, and the student-safe document decision/replay assertions; the existing
+vertical-slice proof additionally verifies opaque student Runtime document
+readback, HEAD/full/range requests, byte/ETag integrity, and absence of private
+source identity. A fresh rerun of the direct spec could not start because the
+fixture server at `http://localhost:8791` was not listening (`ECONNREFUSED
+::1:8791`); this is a harness availability qualifier, not a product failure.
+
+As the independent ready §11 lane, the Windows x64 Cloudflare route ran
+`cloudflare/test/book-source-document-delivery-worker.test.ts`: **25/25
+passed**. This is local/native delivery evidence only; no remote Worker, B2,
+Rules, deployment, or overall PRD0062 closure claim follows.
+
+The established Windows x64 Worker route also ran the capacity/edge contract
+set (`book-source-capacity-ledger`, capacity probe worker/local mode/baseline):
+**4 files / 27 tests passed**. These checks cover the exact 50 MiB source and
+100 MiB student-document ledger ceilings, bounded provider reads and local
+capacity demand/probe guards. The existing x64 workerd edge artifact remains
+35/35 with aggregate host metrics only; it exposes no per-request CPU or isolate
+memory counters. A new 500-page local function sample completed with one
+successful operation (732 ms total, 707,112,960-byte aggregate RSS), but it ran
+on ARM64 Node because the canonical root lacks
+`@rollup/rollup-win32-x64-msvc`; treat it as supplemental local evidence, not
+the x64 Worker capacity result. No limits were changed and no remote workload,
+B2 quota, billing, deployment or mutation occurred.
+
+As the independent CC-ready action, the Windows x64 Worker route ran the
+Course/Class authority fragment checks (`course-book-authority-fragment` and
+`class-book-authority-fragment`): **2 files / 7 tests passed**. This is source
+and Worker-harness evidence only; native Rules/emulator and remote lifecycle
+claims remain separately qualified.
+
+Replacement discovery initially failed because the default Worker config
+includes only `__tests__/**/*.test.js` and `test/**/*.test.ts`; the five
+replacement suites live under `src/upload-worker/**`. An explicit temporary
+Node config in the Cloudflare package, executed with the shared Windows x64
+Node, ran all five suites: **42/42 passed**. This closes the current local
+replacement context/plan/saga route cases for selected-only adoption,
+predecessor retention, replay/conflict and CAS/recovery behavior; browser
+replacement, empty-selection/reorder, stale-review and partial-resume cases
+remain separate §2.7 evidence.
+
+The prescribed fixture was restarted with the existing
+`prd0062-first-component-authoring-fixture` route and the direct browser spec
+then completed **1/1**. Its immutable publication replay/conflict, reload and
+student-safe assertions remain fixture-qualified.
+
+The broader replacement browser rerun was attempted through the required
+`/login` entrypoint. All selected cases stalled at `page.goto` for
+`http://localhost:5173/login` under the shared role-server lease and were
+terminated after the first two 30-second test timeouts; no replacement product
+assertion executed. The current focused-editor evidence remains ticket-70
+5/5 plus teacher-updates 2/2 from the earlier completed runs; this rerun adds
+only a server-availability qualifier.
+
+The teacher and student Vite servers were then restarted through the canonical
+`tooling-where --exec vite dev --host localhost --port 5173/5174 --strictPort`
+route; both `/login` health checks returned HTTP 200. A focused AC-TR-001 rerun
+still hung in Chromium at `page.goto(http://localhost:5173/login)` and timed
+out before product assertions, despite the healthy HTTP responses. Classify
+this as a browser/Vite execution seam; preserve the earlier 5/5 + 2/2 fixture
+evidence and do not promote this failed rerun to product behavior.
+
+The browser seam was repaired by restarting both role servers with the
+repository `.env.local` Firebase configuration instead of dummy API values.
+The focused AC-TR-001 replacement flow then passed **1/1** in 34.6 seconds
+through `/login`, current Change PDF setup/reviewed change, confirmation and
+reload persistence. This is fixture-qualified browser evidence; native Rules,
+remote B2 and full U/Q closure remain separate.
+
+The companion AC-TU-001 checkpoint-safe update/replacement flow also passed
+**1/1** in 18.2 seconds under the same authenticated role-server route.
+
+The owning U plan/saga routes then passed **26/26** through a temporary
+package-local Node config on the shared x64 runtime. Exact current assertions
+cover empty selection with no context mutation/deletion, reorder-only with no
+retirement, stale review/token/plan fences before mutation, selected adoption
+with predecessor retention, unselected access protection, immutable replay and
+monotonic CAS partial-effect resume. Remaining U evidence is browser-level
+successor/readback under all contexts and any separately required accessibility
+surface; no new replacement workflow was introduced.
+
+The student accessibility spec was corrected to enter through `/login` as
+required by the dev-login contract. With real `.env.local` servers, the
+student quick-login step completed, but the fixture still rendered `Student
+quick-login required` after navigation and never mounted `book-runtime-shell`;
+AC-AD-001 remains an explicit fixture/auth boundary qualifier rather than a
+product failure.
+
+The combined successor/accessibility browser run then produced **2/6** passed:
+ticket-71 mobile/200% review cases passed, while three successor/cancel cases
+failed because the fixture never exposed `ticket71-current-state` after the
+publish/review action, and AC-AD-001 still failed at the quick-login-required
+runtime shell boundary. This is current fixture evidence, not a product
+successor or accessibility acceptance claim; native U 26/26 and AC-TR/AC-TU
+1/1 remain the owning-path evidence.
+
+The new x64 workerd edge boundary test completed **2/2** for valid
+uncompressed 500-page documents at the exact 50 MiB source and 100 MiB
+student-document ceilings. Cold and warm bounded-count passes stayed within
+64 one-MiB ranges. The harness exposes no per-request CPU or isolate-memory
+counters, so those fields remain explicitly unmeasured; no limits or remote
+state changed.
+
+### 2026-10-05 continuation — ticket-71 and AC-AD browser qualifiers
+
+The ticket-71 fixture was repaired to provide two explicit component sources and the required source-key/version bindings. The full focused suite was rerun through `/login`; mobile/200% and cancellation coverage passed, while publish cases reach publication but reload-state persistence remains unresolved in the smoke fixture and is still open. The current fixture reports `teacher_materials_book_successor_failed` on the reload path; no product acceptance claim is made.
+
+AC-AD-001 was rerun against the live student server with the mandatory `/login` quick-login route. The login reaches `/student`, but the direct `/__smoke/book-runtime` route renders `Student quick-login required` and never mounts `book-runtime-shell`. D2 runtime remains independently green (1/1) on the same 5174 server. Classify AC-AD as an unresolved fixture/auth-provider seam, not product behavior or acceptance. No auth bypass or substituted transport was added.
+
+### 2026-10-05 continuation — ticket-71 matrix rerun
+
+After the explicit two-source fixture repair and `/login` entry correction, the complete ticket-71 browser matrix passed **5/5** in the current spec (two successor publications with reload, two cancellations with reload, and mobile/200% review). This is authenticated teacher fixture evidence; it does not promote remote deployment or B2 claims.
+
+### 2026-10-05 continuation — AC-AD real-route attempt
+
+AC-AD-001 was redirected from `/__smoke/book-runtime` to the ordinary authenticated Student launch route `/student/practice/book-1?bookSurface=solo&contextId=solo-1`, with `/login` and Student quick-login first. The route did not mount `book-runtime-shell`; after navigation the live page returned to the Welcome/login surface. A history-only route transition produced the same result. This confirms an auth/session lifecycle seam at this historical checkpoint. No auth bypass or transport substitution was added. AC-AD was open and unqualified at that point; the later source repair below supersedes it, while D2 remains the separate passing runtime reference.
+
+The planner comparison identified the root cause of AC-AD's ordinary-route failure: the accessibility fixture module initially contained only expected metadata and did not install the production-shaped projection, activity, and document records that D2 installs before navigating. The reusable D2 fixture-contract integration was then attempted; the session still returned to Welcome/login before the shell mounted. Three focused login/navigation attempts were exhausted; further login guesses are not evidence. AC-AD remains explicitly unqualified. D2 itself was rerun after the changes and passed **1/1**.
+
+### 2026-10-05 Q reconciliation — local quality and recovery
+
+- AC-LR-001 legacy/metadata-only/deterministic recovery regression: **PASS 1/1** after updating the disposable fixture to use the current trusted `physicalPageCount` field and removing the retired `ownerAttestedPhysicalPageCount` field.
+- UTF-8 tracked-file check: **PASS 5,585 files**.
+- Production Vite build and bundle budget: **PASS**; Vite build completed and bundle budget reported root entry 257KB within budget.
+- `tooling:doctor`: **PASS**, all repository-owned runtimes/dependencies present; warnings are pre-existing duplicate caches/worktrees and no missing required item.
+- `enforce:check`: **BLOCKED by unrelated dirty `src/config/featureRegistry.ts` governance state**; it requires PRD0040 result-view documents/change record not part of this Book-PDF task. No unrelated governance files were fabricated.
+- AC-AD-001: **UNQUALIFIED at this historical checkpoint**; exact missing fixture contract was the production-shaped projection/activity/document records installed by D2, after three focused auth/navigation attempts. D2 Runtime remained **PASS 1/1**. Superseded by the later auth/session repair below.
+- Ticket-71: **PASS 5/5** authenticated teacher fixture matrix.
+
+Actual B2 HTTP CPU/isolate-memory, representative workload, quota and billing remain **BLOCKED/OPEN** pending the exact authorized Book Worker, B2 bucket/secrets, deployed binding state, rollback identity and billing/usage tuple. Existing local edge/capacity measurements remain qualified substitutes only.
+
+### 2026-10-05 Q capability and convergence hold
+
+The approved §2.10 capability was inspected read-only. It requires current HTTP Worker cold/warm CPU and peak isolate memory at the 50 MiB source / 100 MiB derived-document / 500-page limits, representative combined-document workload (100–200 uploads/day and 2–5 simultaneous uploads/deliveries with p50/p95), B2 quota counters and billing/zero-billed snapshots. The existing `worker-edge-current-20261005.json` contains only two local counter-boundary passes and exposes no HTTP CPU/isolate-memory counters. Historical July B2 usage is explicitly historical and does not qualify current Worker capacity.
+
+The exact current tuple remains unresolved: active Book Worker identity/config/bindings, B2 bucket and application-key bindings, Firebase/Rules target, rollback identity, and billing/usage authorization. The read-only convergence artifact reports active `r2-upload-signer` v148 with Book flags disabled and `blocked-target-config-convergence`; no remote mutation was attempted. Local Wrangler/config hashes were inspected but cannot be promoted to remote-state equality.
+
+Current quality evidence: AC-LR-001 recovery 1/1, Vite build and bundle budget pass, UTF-8 tracked check pass, tooling doctor pass. `enforce:check` remains blocked by unrelated pre-existing PRD0040 governance requirements attached to dirty `src/config/featureRegistry.ts`; no unrelated governance artifacts were added.
+
+### 2026-10-05 final read-only remote convergence inspection
+
+The approved Windows x64 Wrangler route successfully read the current Book Worker tuple. Worker name is `luyentap-book-source-canonical-preview`; deployment `7e981d35-adc5-4004-9749-ea8226f0900f` routes 100% to version `24faf462-897a-47f9-b758-387125582713` (version 215), created 2026-10-04T17:13:20Z. The version is a fetch Worker with the Book service bindings and private B2 secret names present. Readable non-secret bindings include Firebase project `temp-a1437`, RTDB URL, private B2 bucket name `bookpdf`, endpoint `https://s3.us-west-004.backblazeb2.com`, region `us-west-004`, storage location `b2_book_primary`, and Book route flags enabled. Secret values were not read.
+
+Read-only B2 account inventory shows `luyentap-book-source-private` exists alongside unrelated `kahoot-media`. Firebase `gcloud` context is `temp-a1437`; required Firebase/RTDB/Identity Toolkit services are enabled. The attempted `gcloud firebase rules ...` commands are unsupported by the installed gcloud surface, so remote Rules release/readback remains unproven. Version history provides rollback candidates 214 and earlier, but rollback authorization and exact Rules parity remain unresolved. The remote rollout config is staging revision `prd0062-draft-discovery-20261004` with an expiration of 2026-10-05T17:12:51Z; this is read-only evidence and does not authorize deployment or mutation.
+
+Evidence files: `output/prd0062-book-worker-version-20261005.json` and `output/prd0062-book-worker-deployment-20261005.json`. Actual HTTP CPU/isolate-memory, representative workload, quota and billing remain OPEN; local 2/2 edge counters are not promoted.
+
+### 2026-10-05 final release/readback packet
+
+Read-only remote tuple is now partially direct: `luyentap-book-source-canonical-preview`, deployment `7e981d35-adc5-4004-9749-ea8226f0900f`, active version 215 / `24faf462-897a-47f9-b758-387125582713` at 100%, rollback candidates 214 through 210, private B2 bucket `luyentap-book-source-private`, endpoint `https://s3.us-west-004.backblazeb2.com`, region `us-west-004`, location `b2_book_primary`, and required B2 secret-name bindings present. Firebase target is `temp-a1437` with the expected RTDB URL. The remote rollout revision is `prd0062-draft-discovery-20261004`; checked-in rollout text is a different historical/stale revision, so parity is not claimed.
+
+The supported Firebase CLI RTDB read command (`firebase database:get / --project temp-a1437 --json`) produced no output during a bounded read and was interrupted; the installed `gcloud` surface has no `firebase rules` command. Remote Rules bytes/release identity therefore remain unverified. Active/rollback authorization, exact Rules parity, and release authorization remain unresolved. No deployment, rollback, Rules/B2 mutation, protected write or secret read occurred.
+
+Review packet: `output/prd0062-book-release-packet-20261005.json`. Actual B2 HTTP CPU/isolate-memory, representative workload, quota and billing telemetry remain OPEN; local edge counters are not promoted.
+
+### Final closure boundary — 2026-10-05
+
+The authorized local implementation/evidence surface is complete. The final remote escalation is accepted and held. Direct read-only evidence identifies Book Worker `luyentap-book-source-canonical-preview`, active deployment `7e981d35-adc5-4004-9749-ea8226f0900f`, version 215 `24faf462-897a-47f9-b758-387125582713` at 100%, private B2 bucket `luyentap-book-source-private`, and Firebase target `temp-a1437`. Evidence is preserved in `output/prd0062-book-worker-version-20261005.json`, `output/prd0062-book-worker-deployment-20261005.json`, and `output/prd0062-book-release-packet-20261005.json`.
+
+The remote lane is formally held: authenticated Firebase Rules readback/parity, explicit release/rollback authorization, and actual B2 HTTP CPU/isolate-memory, workload, quota and billing telemetry remain open. No deployment, rollback, Rules/B2/Firebase mutation, protected write or secret capture occurred. AC-AD was UNQUALIFIED at this historical checkpoint; the later source repair promotes it to PASS local fixture-qualified. `enforce:check` remains an unrelated PRD0040 governance blockage.
+
+### 2026-10-05 remote Rules capability follow-up
+
+A materially different authenticated route succeeded: using the active gcloud user token with `x-goog-user-project: temp-a1437`, the Firebase Rules REST API `GET https://firebaserules.googleapis.com/v1/projects/temp-a1437/releases` returned HTTP 200. It lists only the Firestore release `cloud.firestore`; it does not expose an RTDB release or current `database.rules.json` bytes. The RTDB REST shallow root read also returned HTTP 200, proving authenticated data-read access, but it is not Rules-source readback. The direct Firebase CLI `database:get --token` path returned `Failed to get details for project: temp-a1437`; the unqualified Firebase CLI path produced no output before timeout.
+
+Evidence: `output/prd0062-firebase-rules-releases-rest-quota.json`, `output/prd0062-rtdb-shallow-read.json`, `output/prd0062-firebase-rules-read-token.txt`, and `output/prd0062-rtdb-rules-rest.json`. RTDB Rules bytes/identity remain the single unresolved tooling capability. No Rules or data mutation occurred.
+
+### 2026-10-05 final RTDB Rules capability slice
+
+The installed Firebase CLI implementation was inspected and its supported read path was exercised. `firebase database:rules:list --project temp-a1437 --instance temp-a1437-default-rtdb --json` returned the CLI error `Unexpected error encountered with database.` The underlying documented metadata route was then tested read-only: with the active gcloud user token and `x-goog-user-project: temp-a1437`, `GET https://metadata-dot-firebase-prod.appspot.com/namespaces/temp-a1437-default-rtdb/rulesets` returned HTTP 200 with `{}`, while `ruleset_labels` returned HTTP 500 `datastore: no such entity`; the same route with the Firebase CLI OAuth token returned HTTP 403 `unauthorized access`. The RTDB data-plane `/.settings/rulesets.json` path returned HTTP 400 `Invalid path`, confirming it is not a Rules-source read endpoint.
+
+This closes the final capability investigation: authenticated RTDB data reads and Firestore Rules release metadata are available, but RTDB Rules bytes/release identity are unavailable through the authorized read surfaces. Classify this as **capability unavailable**, not approval pending. Evidence: `output/prd0062-rtdb-rules-capability-followup-20261005.json`. No Rules/data mutation or secret read occurred. Overall PRD0062 remote release closure remains open because exact Rules parity/authorization and actual B2 HTTP CPU/isolate-memory, workload, quota and billing telemetry are still absent.
+
+### 2026-10-05 final Cloudflare telemetry capability check
+
+The already-authorized Windows x64 Wrangler read path `wrangler deployments list --name luyentap-book-source-canonical-preview --json` succeeded and confirmed deployment/version history, including active deployment `7e981d35-adc5-4004-9749-ea8226f0900f` and version `24faf462-897a-47f9-b758-387125582713`. The endpoint exposes deployment metadata only; it returned no actual HTTP CPU time, isolate-memory peak, request workload/p50/p95, B2 quota, or billing/usage counters. This is recorded as a telemetry capability gap, not a metric estimate. Evidence: `output/prd0062-cloudflare-observability-capability-20261005.json`. No tail, upload, deployment, rollback, or data mutation was performed.
+
+### Final dashboard reconciliation — 2026-10-05
+
+Authenticated Firebase project context and RTDB data-read access are proven. RTDB Rules source bytes/release identity are unavailable through the authorized read surfaces and remain a capability gap. Remote Book release/rollback remains held; exact Rules parity and authorization are unresolved. The authorized Cloudflare read path exposes deployment metadata but no CPU/isolate-memory, workload, B2 quota, or billing telemetry, so Q telemetry remains open. AC-AD-001 is now PASS local fixture-qualified after the auth/session and D2 contract repair; remote/deployed acceptance remains separate. No remote mutation, protected write, deployment, rollback, or secret capture occurred.
+
+### 2026-10-05 AC-AD auth/session lifecycle repair
+
+Source tracing identified the first auth boundary in `playwright.prd0062-acceptance.config.mjs`: acceptance web servers always injected dummy Firebase values, so `LoginPage`'s dev quick-login stalled inside `loginWithEmail` before `/student`. The config now loads the existing repository `.env.local` through the installed `dotenv` dependency while retaining explicit process-environment precedence.
+
+The ordinary route then exposed fixture contract defects rather than an auth loss: the D2-shaped projection lacked required `sourceSet`, the component-document request used an invalid non-SHA256 ETag, and the intercepted PDF route omitted CORS/preflight headers. The fixture now derives a valid SHA-256 ETag, includes `sourceSet`, serves CORS/OPTIONS/HEAD/range responses, and waits for `domcontentloaded` because Firebase keeps a live connection. Stale assertions for removed collapse buttons/reference-only markup were aligned to the current runtime `Pages` summary and mapped activity headings.
+
+Focused authenticated browser evidence: AC-AD-001 **PASS 1/1** through `/login` → Student quick-login → `/student/practice/book-1?bookSurface=solo&contextId=solo-1`, including runtime mount, activity heading, keyboard focus/Enter, page-group navigation, mobile touch targets, overflow, 200% zoom, and privacy checks. This remains local fixture-qualified evidence; remote Rules/capacity holds are unchanged.
+
+### 2026-10-05 final affected regression closure
+
+The accepted AC-AD change was re-read at the exact diff: `.env.local` is loaded only by the Playwright acceptance config process; it is not copied, printed, or written to artifacts, and the config retains explicit process environment precedence. The fixture contains only a derived PDF SHA-256 ETag and public test data.
+
+Canonical resolver rerun: AC-AD-001 **PASS 1/1**, Playwright project `student-chromium-mobile`, role port `5174`, local fixture-qualified. The adjacent `student-runtime-persistence` acceptance project ran **2 passed / 2 failed**: deterministic fixture and preflight deny checks passed; legacy `__smoke/book-runtime` persistence and personal-timer cases failed at the existing smoke document-context/legacy navigator boundary before their assertions. Those failures do not touch the changed ordinary StudentPractice route or auth config contract and are retained as separate stale-fixture evidence; no product claim is promoted from them.
+
+Changed-path checks: targeted ESLint passed for `playwright.prd0062-acceptance.config.mjs` and `e2e/prd0062-student-accessibility-device.spec.ts`; TypeScript emitted no diagnostics matching either changed path; `git diff --check` passed. AC-AD remains PASS local fixture-qualified. D2, U, CC, recovery, build and other proof classes retain their prior qualifiers. Remote Rules source/identity, release/rollback authorization, and B2 CPU/memory/workload/quota/billing remain OPEN/BLOCKED; no remote mutation occurred.
+
+### 2026-10-05 adjacent persistence failure boundary proof
+
+The adjacent `student-runtime-persistence` failures are unrelated legacy smoke coverage. The failed tests enter `/__smoke/book-runtime?bookId=book-runtime-fixture&unitKey=unit-fixture`, while AC-AD enters the ordinary `/student/practice/book-1?bookSurface=solo&contextId=solo-1` and installs its own D2-shaped route fixtures. The failure snapshots show `Book document context is unavailable or stale.` in `BookRuntimeShellSmokePage`; current source uses the legacy `fixture-route-v2` document request, while `createBookDocumentRoute` now requires a source version or a student-document opaque route with byte length and SHA-256 ETag. The same unchanged smoke test also still asks for removed `Collapse page navigator`/`data-navigator-collapsed` controls. `git status` shows pre-existing dirty changes in `src/pages/BookRuntimeShellSmokePage.tsx` and `src/services/book-delivery/bookDelivery.browser.ts`; neither the adjacent spec nor those source files were changed by this AC-AD repair. Treat the result as **QUALIFIED legacy smoke failure**, not an AC-AD or ordinary StudentPractice product failure; do not broaden this slice to retire or repair that smoke page.
+
+### 2026-10-05 legacy persistence fixture follow-up
+
+The owning `/__smoke/book-runtime` fixture was aligned with the current `BookRuntimeShell` contract: the full-PDF document request now carries its matching `sourceKey`, `sourceVersionId`, and full-document page scope; fixture activities carry their declared immutable version IDs; draft lookup tolerates the current opaque interaction route. The persistence spec now enters through `/login`, navigates with the live `Pages` disclosure and page-group buttons, and verifies the live mobile-tab behavior instead of removed navigator controls.
+
+Focused verification:
+
+- AC-AD-001: **PASS 1/1**, `student-chromium-mobile`, port 5174, local fixture-qualified.
+- BookRuntimeShell + PersonalTimer unit coverage: **17 passed**.
+- Adjacent persistence cases: personal timer **PASS**; 28B save/resume/retry/conflict remains **QUALIFIED fixture failure** at draft restoration after reload (the current smoke transport saves but does not return the long-response draft on reload). No product claim is promoted from that remaining smoke boundary.
+- Targeted ESLint, TypeScript changed-path scan, and `git diff --check` remain clean.
+
+Remote RTDB Rules source/identity, release/rollback authorization and parity, and B2/Worker CPU, memory, workload, quota, and billing telemetry remain OPEN/BLOCKED. No remote mutation, deployment, rollback, protected write, or secret capture occurred.
+
+Second diagnostic boundary: the smoke transport now accepts both explicit and omitted GET methods and resolves drafts by the exact context/placement/interaction tuple, with a constrained interaction fallback. The 28B reload assertion remains empty after a successful save. Runtime source shows hydration runs on reload and no route-level storage clear exists; the remaining mismatch is therefore inside the historical smoke fixture lifecycle/identity handoff, not the current AC-AD ordinary route. Further retries would repeat the same exhausted boundary, so 28B remains a qualified legacy smoke failure rather than product evidence.
+
+### 2026-10-05 completion-audit reconciliation
+
+The live §10.2/§11 checklist is recorded in `output/prd0062-completion-audit-20261005.json`. All local requirement families were inspected against the dashboard and current evidence classes: Source/picker/composition, Assembly/publication, Delivery/Runtime, Homework/results, updates/replacement, Course/Class, Public Library, generated Rules, native/emulator Rules, browser/accessibility, recovery/protected state, notifications/observability, and quality/version control. Their current states are PASS or explicitly QUALIFIED with limits; no local row was silently converted to N/A.
+
+Current corrections:
+
+- AC-AD remains **PASS 1/1 local fixture-qualified**.
+- The personal timer smoke case is **PASS**; 28B remains a **QUALIFIED legacy smoke lifecycle failure** after two materially different diagnostics.
+- The previously cited release packet path is corrected: the live packet is `output/prd0062-book-release-packet-20261005.json`; `artifacts/prd0062-book-release-packet-20261005.json` does not exist.
+- `check-canonical-plan.mjs` exited 0 and retained `HISTORICAL_ORIGIN_UNVERIFIED` as a provenance qualifier only.
+
+Open objectives are limited to remote RTDB Rules source/parity, release/rollback authorization and exact parity, deployed B2/Worker CPU/memory/workload/quota/billing telemetry, the qualified 28B historical smoke boundary, and formal closure authorization/reconciliation. Each requires an external resource or explicit decision listed in the audit JSON. No remote mutation, deployment, rollback, protected write, secret capture, staging, commit or push occurred.
+
+### 2026-10-05 corrected Rules parity and GraphQL telemetry
+
+The authenticated RTDB settings readback is current evidence: `output/prd0062-rtdb-rules-readback-20261005.json` contains the 1,165,541-byte Rules snapshot. The separately preserved parity report is `output/prd0062-rtdb-rules-parity-20261005.json`; it records the PlanMD semantic result of 64 differences, plus a raw leaf/path comparison of 103 differences against the checked-in/current composer candidate. The generated candidate was produced with `prd0062-118-composer-v2` and 43 fragments; candidate and checked-in canonical hashes match (`1801575188481dbaa5d2a6ef44720a1862cadea15adecec37ce3e60d63c0a164`).
+
+Ownership classification: 41 raw differences are Book-owned paths and indicate a stale remote release relative to the current candidate; 61 are Course/Class/Material shared-owner paths and must remain outside a Book-only release; one is root/shared. Representative paths and hashes are in the parity JSON. The composer suite remains **14/14 passed** on the approved Windows x64 Cloudflare route. No local Rules source defect was found, so no canonical Rules or fragment edit was made and no remote Rules mutation was attempted.
+
+Read-only Cloudflare GraphQL `workersInvocationsAdaptive` was executed against the identified account/script for 2026-10-01 through 2026-10-05. Evidence is `output/prd0062-cloudflare-graphql-analytics-20261005.json`: 17 rows, 51 requests, 0 errors, 144 subrequests, and 612,624 CPU microseconds. This qualifies aggregate request/CPU evidence for that window only; it does not provide isolate peak memory, B2 quota, or billing. Those remain open with the exact required resource recorded in the completion audit.
+
+### 2026-10-05 read-only release tuple reconciliation
+
+The authorized Windows x64 Wrangler read path was rerun and persisted at `output/prd0062-deployments-list-live-20261005.json`. It confirms Worker `luyentap-book-source-canonical-preview`, deployment `7e981d35-adc5-4004-9749-ea8226f0900f`, active version `24faf462-897a-47f9-b758-387125582713` at 100%, and rollback candidates 214 through 210. The supported deployments surface exposes deployment/version metadata only; it does not expose the remote variable payload, so exact remote/local config equality cannot be claimed.
+
+The checked-in `cloudflare/wrangler.book-source.jsonc` hash remains `6108B4323C4A43CB56D554D91FC6184B669DC94C38EE786298B1D4A91A1A5726`. Its `BOOK_ROLLOUT_CONFIG_JSON` is staging revision `prd0062-result-read-recovery-20260913` with `expiresAt` `2026-09-14T14:28:23Z`; this is stale metadata and is not extended or treated as active release authorization. The exact limitation and disposition are recorded in `output/prd0062-book-release-packet-20261005.json`.
+
+The scoped Rules reconciliation is persisted at `output/prd0062-rules-scoped-reconciliation-20261005.json`: candidate/local hash `B5700E7071F8B92F1FDAED950708828491D7E610C0DFFA0F72D3746F5F9C16F4`, remote readback hash `96B06A5C65F13AA5045A6F2DDD252F66052521FD11541F0CB584A89E35F49CCD`, 64 semantic/103 raw differences, 41 Book-owned leaves, 61 shared-owner leaves, and one root/shared difference. The proposed strategy preserves all shared-owner leaves and holds mutation until explicit scoped release authorization; no Rules mutation, Worker deployment, rollback, protected write, or secret read was performed.
+
+### 2026-10-05 release reconciliation continuation
+
+The authorized Cloudflare Workers settings REST readback succeeded at `output/prd0062-live-settings-20261005.json`. It confirms the actual target configuration: staging rollout revision `prd0062-draft-discovery-20261004` (issued `2026-10-04T17:12:51.313Z`, expires `2026-10-05T17:12:51.313Z`), B2 endpoint `https://s3.us-west-004.backblazeb2.com`, region `us-west-004`, storage location `b2_book_primary`, bucket name `bookpdf`, object prefix `book-source/prd0062-preview-20260729/`, and all required secret binding names. Secret values were not read. This corrected the prior packet's stale bucket inventory label and exposed the remote variable payload through the supported REST surface.
+
+The checked-in Worker policy was refreshed using the existing rollout schema with revision `prd0062-book-release-20261005`, issued `2026-10-05T11:22:38Z`, and expires `2026-10-06T11:22:38Z`. Wrangler x64 dry-run passed after the update (519.40 KiB upload, 100.40 KiB gzip, all expected Book/B2 bindings). No deployment occurred yet.
+
+A scoped RTDB Rules candidate was generated from the fresh remote snapshot, not from dirty canonical state: `output/prd0062-rules-scoped-candidate-20261005.json`. It overlays exactly 41 Book-owned changed leaves and preserves all 61 shared Course/Class/Material leaves plus the root `/.validate` difference. Structural validation reports exactly 41 differences against the remote base and SHA-256 `DAD397517D124A67A243DAEC74A0BB78B0B180479B4402A9CA19FEE9857CD26F`. The candidate remains prepared, not deployed.
+
+The required emulator proof was attempted twice with the same scoped candidate: first through the default Windows ARM64 Java, then through the repository-provided Windows x64 Java helper. Both failed before test discovery because the Firebase Database Emulator could not establish its loopback selector (`java.net.SocketException: Invalid argument: connect`, Netty `failed to create a child event loop`). This is recorded as an environment capability failure, not a Rules/product result; no Rules or data mutation occurred.
+
+Capacity preparation is recorded in `output/prd0062-capacity-capability-20261005.json`. Read-only B2 CLI access confirms the authenticated account and `bookpdf` bucket; current CLI/browser paths do not expose Caps & Alerts/usage/billing, while the exact 20/100/500-page × concurrency 1/2/5 workload matrix and missing near-limit/edge fixtures are recorded for the next lane. No workload or paid operation was started.
+
+### 2026-10-05 scoped release and live target verification
+
+The authenticated RTDB `.settings/rules.json` mutation completed with HTTP 200 after a dry-run HTTP 200. Post-release readback at `output/prd0062-rtdb-rules-postrelease-20261005.json` is byte/JSON-equal to the scoped candidate (`DAD397517D124A67A243DAEC74A0BB78B0B180479B4402A9CA19FEE9857CD26F`). The pre-release remote snapshot remains available at `output/prd0062-rtdb-rules-readback-20261005.json` for rollback.
+
+The Worker was deployed once through the declared Windows x64 Wrangler route. Deployment `92bd0668-6989-4cf1-a49e-4987fe41bae3` activated version 216 (`029ac071-39ad-48ca-b8ce-2c9b799e3af2`) at 100%; version 215 remains the immediate rollback candidate. Cloudflare settings readback confirms the refreshed rollout policy, B2 `bookpdf` identity, all B2 secret binding names, and the release annotation. The version inventory is persisted at `output/prd0062-worker-versions-postrelease-20261005.json`.
+
+Live route gates after release passed: authenticated teacher GET `/book-assembly/books/book-musor3wy/drafts` returned 200 with `{status:"loaded",drafts:[]}`, authenticated GET `/book-assembly/books/book-musor3wy/units/unit-1/current` returned 200 with `{status:"empty"}`, CORS preflight returned 204 with `http://localhost:5173`, and unauthenticated GET returned 401. Evidence scripts are `output/prd0062-live-browser-probe-20261005.mjs` and `output/prd0062-live-route-gates-20261005.mjs`.
+
+The first disposable remote authoring attempt exposed a real contract boundary: the script's target Activity ID encoded `book:slot-1` as one token and received 409 `unit_activity_target_identity_mismatch`; the owning service contract requires `ba_<hex(bookId)>_<hex(activityKey)>`. After correcting that request, the subsequent remote authoring call exceeded the bounded command window without a result; no claim is made for candidate validation/save. The route readback remains healthy and the incomplete write state is not promoted as completion evidence.
+
+### 2026-10-05 live authoring and provider evidence
+
+A bounded authenticated remote teacher sequence now reaches the deployed Worker through `/login`-equivalent Firebase auth. Assembly candidate create and validate both returned HTTP 200. The owning Activity authoring stage/validate/save sequence also returned 200/200/202, with a real immutable activity ID and a retryable `binding-incomplete` receipt. The receipt is truthful evidence of a remaining Assembly binding/publication prerequisite; it is not promoted to completed publication. A prior malformed target ID was corrected to the existing `ba_<hex(bookId)>_<hex(activityKey)>` contract. Preview against the resulting Assembly candidate returned `activity-missing`, so no publication was attempted and no claim of teacher publish or student delivery is made.
+
+Read-only B2 prefix inventory succeeded against the live private bucket `bookpdf`: 37 objects under `book-source/prd0062-preview-20260729/`, declared source-byte sum 6,693,818 bytes. Sanitized evidence is `output/prd0062-b2-prefix-readback-20261005.json`; file IDs and secret values were not recorded. Account-level Caps & Alerts, usage and billing remain unavailable, so the near-limit/concurrency workload was not started.

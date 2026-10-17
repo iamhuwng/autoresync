@@ -12,6 +12,7 @@ import type {
   ClassBookProgressRecord,
   ClassBookResultRecord,
 } from '../../../../src/services/book-delivery/classBookResults.service.ts';
+import type { ClassBookCommandReceipt } from './command-types.ts';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const equal = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
@@ -33,7 +34,7 @@ export const classBookDurablePaths = {
   },
   binding: (bindingId: string): string => `book_delivery/bindings/class-course/${pathId(bindingId)}`,
   lock: (classId: string, classPlacementId: string): string =>
-    `class_book_authority/locks/${pathId(classId)}/${pathId(classPlacementId)}`,
+    `classes/${pathId(classId)}/book_locks/${pathId(classPlacementId)}`,
   progress: (key: string): string => `class_book_authority/progress/${pathId(key.replaceAll('/', '_'))}`,
   result: (key: string): string => `class_book_authority/results/${pathId(key.replaceAll('/', '_'))}`,
   operation: (operation: string): string => `class_book_authority/operations/${operationId(operation)}`,
@@ -77,6 +78,34 @@ export class FirebaseClassBookPlacementRepository {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? clone(value as ClassBookCopyIdentity)
       : null;
+  }
+
+  async readCommandReceipt(operation: string): Promise<ClassBookCommandReceipt | null> {
+    const value = await this.rtdb.readValue(classBookDurablePaths.operation(operation));
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? clone(value as ClassBookCommandReceipt) : null;
+  }
+
+  /** Rules validate the receipt and every resulting state leg as one revision transition. */
+  async commitCommand(receipt: ClassBookCommandReceipt): Promise<void> {
+    const updates: { path: string; value: unknown }[] = [
+      { path: classBookDurablePaths.operation(receipt.operationId), value: clone(receipt) },
+    ];
+    if (receipt.kind === 'copy') {
+      const copy = receipt.outcome as ClassBookCopyIdentity;
+      updates.push({ path: classBookDurablePaths.copy(copy.classId, copy.copyId), value: clone(copy) });
+    } else if (receipt.kind === 'lock') {
+      const lock = receipt.outcome as ClassBookLockAuthority;
+      updates.push({ path: classBookDurablePaths.lock(lock.classId, lock.classPlacementId), value: clone(lock) });
+    } else {
+      const placement = receipt.outcome as ClassBookPlacement;
+      const contextId = `class-${placement.classId}-copy-${placement.copyId}-material-${placement.courseMaterialId}`;
+      updates.push(
+        { path: classBookDurablePaths.placementCurrent(contextId), value: clone(placement) },
+        { path: classBookDurablePaths.placementVersion(contextId, placement.placementRevision), value: clone(placement) },
+      );
+    }
+    await this.atomicPatch(updates);
   }
 
   async readCurrent(contextId: string): Promise<ClassBookPlacement | null> {

@@ -2,13 +2,16 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ClassBookPlacementPanel } from './ClassBookPlacementPanel';
 
+const mockTrackAction = vi.hoisted(() => vi.fn());
+
 vi.mock('../../hooks/useFeatureTracking', () => ({
-  useFeatureTracking: () => ({ trackAction: vi.fn() }),
+  useFeatureTracking: () => ({ trackAction: mockTrackAction }),
 }));
 
 const props = {
   classId: 'class-1',
   copyId: 'copy-1',
+  classPlacementId: 'class-placement-1',
   courseMaterialId: 'class-material-1',
   bookTitle: 'Book one',
   selectedActivityCount: 1,
@@ -32,8 +35,12 @@ describe('#103 Class Book placement UI composition', () => {
     expect(onPlace).toHaveBeenCalledWith({
       classId: 'class-1',
       copyId: 'copy-1',
+      classPlacementId: 'class-placement-1',
       courseMaterialId: 'class-material-1',
       confirmedSourceExposure: true,
+    });
+    expect(mockTrackAction).toHaveBeenCalledWith('placeClassBook', {
+      classId: 'class-1', copyId: 'copy-1', classPlacementId: 'class-placement-1', courseMaterialId: 'class-material-1',
     });
     expect(screen.getByRole('alert').textContent).toContain('complete published PDF');
   });

@@ -10,6 +10,7 @@ import type {
 } from '../replacement-plans/contract.ts';
 import type { ReplacementSourceSetDelta } from '../../../../../src/services/book-assembly/replacementSourceSetDelta.types.ts';
 import type { RecoveryEffectContext } from '../../../../../src/services/recoveryEffectGuard.ts';
+import type { BookUpdateActionSelection } from '../../../../../src/services/book-delivery/bookUpdateAction.types.ts';
 
 export const REPLACEMENT_SAGA_ROOT = 'book_replacement_sagas';
 export const REPLACEMENT_SAGA_SCHEMA_VERSION = 1 as const;
@@ -23,6 +24,7 @@ export type ReplacementSagaState =
   | 'visible'
   | 'contexts-pending'
   | 'awaiting-retired-byte-deletion'
+  | 'completed'
   | 'compensating'
   | 'compensated';
 
@@ -39,6 +41,7 @@ export interface ReplacementSagaContextItem {
     readonly pageCount: number;
     readonly placementCount: number;
   }[];
+  readonly selections: readonly BookUpdateActionSelection[];
   readonly state: ReplacementSagaItemState;
   readonly stateRevision: number;
   readonly operationId: string;
@@ -66,6 +69,8 @@ export interface ReplacementSagaRecord {
   readonly deltaFingerprint: string;
   readonly snapshotFingerprint: string;
   readonly adapterFingerprint: string;
+  readonly selectionFingerprint: string;
+  readonly reason: string;
   readonly revisionVector: Readonly<Record<string, number>>;
   readonly sourceSetDelta: ReplacementSourceSetDelta;
   readonly sourceVersionIds: readonly string[];
@@ -81,7 +86,7 @@ export interface ReplacementSagaRecord {
     readonly visibleAt: string;
   } | null;
   readonly retiredByteHandoff: {
-    readonly status: 'queued' | 'replayed';
+    readonly status: 'queued' | 'replayed' | 'retained' | 'not-required';
     readonly sourceVersionIds: readonly string[];
     readonly queuedAt: string;
   } | null;
@@ -110,7 +115,7 @@ export interface ReplacementSagaExecutionInput {
 }
 
 export type ReplacementSagaExecutionResult =
-  | { readonly status: 'awaiting-retired-byte-deletion' | 'compensated' | 'replayed'; readonly saga: ReplacementSagaRecord }
+  | { readonly status: 'awaiting-retired-byte-deletion' | 'completed' | 'compensated' | 'replayed'; readonly saga: ReplacementSagaRecord }
   | { readonly status: 'pending'; readonly code: string; readonly saga: ReplacementSagaRecord }
   | { readonly status: 'blocked'; readonly code: string };
 

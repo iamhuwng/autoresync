@@ -3,6 +3,8 @@ import type {
   BookRuntimeAttemptRecord,
   BookRuntimeCompletionRecord,
   BookRuntimeResultRecord,
+  BookRuntimeTerminalLateFact,
+  BookRuntimeFeedbackPolicy,
 } from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import type { BookHomeworkAuthorityRecord } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
@@ -80,6 +82,8 @@ type StoredBookHomeworkTerminalFact = BookHomeworkTerminalFact & {
   readonly completionId: string;
   readonly attemptNumber: number;
   readonly createdAt: string;
+  readonly terminalLate: BookRuntimeTerminalLateFact;
+  readonly feedbackPolicy: BookRuntimeFeedbackPolicy;
 };
 
 export type BookHomeworkCompletionProjection = BookHomeworkProgressProjection;
@@ -389,6 +393,35 @@ const canonicalScore = (value: unknown): unknown => {
   return output;
 };
 
+const assertTerminalSnapshot: (
+  value: unknown,
+  label: string,
+) => asserts value is { readonly terminalLate: BookRuntimeTerminalLateFact; readonly feedbackPolicy: BookRuntimeFeedbackPolicy } = (value, label) => {
+  if (!isRecord(value)
+    || !['immediate', 'after_completion', 'after_deadline', 'never', 'manual'].includes(value.feedbackPolicy as string)) {
+    throw new BookHomeworkCompletionRepositoryError(`homework_completion_${label}_invalid`);
+  }
+  const terminalLate = value.terminalLate;
+  if (!isRecord(terminalLate)) throw new BookHomeworkCompletionRepositoryError(`homework_completion_${label}_invalid`);
+  const effectiveDeadline = terminalLate.effectiveDeadline;
+  if (!isRecord(effectiveDeadline)
+    || !['effectiveDeadline', 'policyRevision', 'authorityRevision', 'evaluatedAt', 'late'].every((key) => key in terminalLate)
+    || Object.keys(terminalLate).some((key) => !['effectiveDeadline', 'policyRevision', 'authorityRevision', 'evaluatedAt', 'late'].includes(key))
+    || !['source', 'at'].every((key) => key in effectiveDeadline)
+    || Object.keys(effectiveDeadline).some((key) => !['source', 'at', 'nodeKey'].includes(key))
+    || !['open-access', 'assignment', 'ancestor', 'student-extension'].includes(effectiveDeadline.source as string)
+    || (effectiveDeadline.at !== null && typeof effectiveDeadline.at !== 'string')
+    || (effectiveDeadline.nodeKey !== undefined && (typeof effectiveDeadline.nodeKey !== 'string' || !ID.test(effectiveDeadline.nodeKey)))
+    || typeof terminalLate.policyRevision !== 'number' || !Number.isSafeInteger(terminalLate.policyRevision) || terminalLate.policyRevision <= 0
+    || typeof terminalLate.authorityRevision !== 'number' || !Number.isSafeInteger(terminalLate.authorityRevision) || terminalLate.authorityRevision <= 0
+    || typeof terminalLate.evaluatedAt !== 'string'
+    || typeof terminalLate.late !== 'boolean') {
+    throw new BookHomeworkCompletionRepositoryError(`homework_completion_${label}_invalid`);
+  }
+  if (effectiveDeadline.at !== null) assertIso(effectiveDeadline.at, `${label}_deadline`);
+  assertIso(terminalLate.evaluatedAt, `${label}_evaluated_at`);
+};
+
 const terminalFromInput = (
   input: BookHomeworkCompletionProjectInput,
   manifest: BookHomeworkManifest,
@@ -438,6 +471,11 @@ const terminalFromInput = (
       || record.contextId !== expected.contextId) {
       throw new BookHomeworkCompletionRepositoryError('homework_completion_terminal_context_mismatch');
     }
+  }
+  records.forEach((record) => assertTerminalSnapshot(record, 'terminal_snapshot'));
+  if (records.some((record) => record.feedbackPolicy !== attempt.feedbackPolicy
+    || !equal(record.terminalLate, attempt.terminalLate))) {
+    throw new BookHomeworkCompletionRepositoryError('homework_completion_terminal_snapshot_mismatch');
   }
   assertId(attempt.attemptId, 'attempt_id');
   assertId(result.resultId, 'result_id');
@@ -545,6 +583,8 @@ const terminalFromInput = (
       status: result.status,
       ...(score === undefined ? {} : { score: canonicalScore(score) }),
     },
+    terminalLate: clone(attempt.terminalLate),
+    feedbackPolicy: attempt.feedbackPolicy,
   } as StoredBookHomeworkTerminalFact;
 };
 
@@ -561,6 +601,8 @@ const parseFact = (
   try { assertTerminalFact(value); }
   catch { throw new BookHomeworkCompletionRepositoryError('homework_completion_fact_invalid'); }
   const fact = value as StoredBookHomeworkTerminalFact;
+  try { assertTerminalSnapshot(fact, 'fact_snapshot'); }
+  catch { throw new BookHomeworkCompletionRepositoryError('homework_completion_fact_invalid'); }
   if (fact.attemptId !== undefined && fact.resultId !== undefined
     && fact.resultId !== `${fact.attemptId}:result`) {
     throw new BookHomeworkCompletionRepositoryError('homework_completion_fact_sequence_invalid');
@@ -600,11 +642,14 @@ const parseScope = (
   const projection = value.projection === undefined
     ? undefined
     : (() => {
+      // The projection is a materialized read cache. Terminal facts are the
+      // canonical input, so a stale cache must be discarded and rebuilt by
+      // resolveCurrentProjection instead of hiding otherwise valid progress.
       try { assertProgressProjection(value.projection); }
-      catch { throw new BookHomeworkCompletionRepositoryError('homework_completion_projection_invalid'); }
+      catch { return undefined; }
       const parsed = value.projection as unknown as BookHomeworkCompletionProjection;
       if (parsed.recipientId !== recipientId || parsed.contextId !== contextId) {
-        throw new BookHomeworkCompletionRepositoryError('homework_completion_projection_context_mismatch');
+        return undefined;
       }
       return clone(parsed);
     })();

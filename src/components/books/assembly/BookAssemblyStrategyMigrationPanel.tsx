@@ -3,6 +3,7 @@ import { toast } from '../../modern';
 import type {
   BookAssemblyManifestCandidate,
   BookSourceStrategy,
+  SourceSetCandidate,
   TrustedBookSourceVersionProjection,
 } from '../../../types/bookAssembly.types';
 import type { BookAssemblyCandidateRecord, BookAssemblyMutationResult } from '../../../services/book-assembly/unitAssembly.types';
@@ -79,7 +80,7 @@ const BookAssemblyStrategyMigrationPanel = ({
 }: BookAssemblyStrategyMigrationPanelProps) => {
   const currentManifest = currentCandidate.manifest;
   const [targetSources, setTargetSources] = useState<MigrationSourceDraft[]>(() => initialSources(targetStrategy));
-  const [remaps, setRemaps] = useState<Record<string, RemapDraft>>(() => initialRemaps(currentManifest));
+  const [remaps, setRemaps] = useState<Record<string, RemapDraft>>(() => currentManifest ? initialRemaps(currentManifest) : {});
   const [stagedCandidate, setStagedCandidate] = useState<BookAssemblyCandidateRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -89,20 +90,24 @@ const BookAssemblyStrategyMigrationPanel = ({
       sourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
   }), [sourceVersions]);
 
-  const targetSourceSet = useMemo(() => ({
-    sourceStrategy: targetStrategy,
-    sources: targetSources.map((source) => ({
-      sourceKey: source.sourceKey,
-      sourceVersionId: source.sourceVersionId,
-      sourceOrder: source.sourceOrder,
-      ...(targetStrategy === 'component_pdfs' ? { ownerNodeKey: source.ownerNodeKey ?? '' } : {}),
-    })),
-  }), [targetSources, targetStrategy]);
+  const targetSourceSet = useMemo<SourceSetCandidate | null>(() => {
+    const [first, ...remaining] = targetSources;
+    if (!first) return null;
+    if (targetStrategy === 'full_pdf') {
+      if (remaining.length) return null;
+      return { sourceStrategy: 'full_pdf', sources: [{ sourceKey: first.sourceKey, sourceVersionId: first.sourceVersionId, sourceOrder: first.sourceOrder }] };
+    }
+    const component = (source: MigrationSourceDraft) => ({
+      sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId,
+      sourceOrder: source.sourceOrder, ownerNodeKey: source.ownerNodeKey ?? '',
+    });
+    return { sourceStrategy: 'component_pdfs', sources: [component(first), ...remaining.map(component)] };
+  }, [targetSources, targetStrategy]);
 
   const migrationRemaps = useMemo<readonly SourceStrategyMigrationRemap[]>(() => Object.entries(remaps).map(([pageGroupKey, remap]) => ({
     pageGroupKey,
     pages: remap.pages.map((page, index) => {
-      const currentGroup = currentManifest.units.flatMap((unit) => unit.pageGroups)
+      const currentGroup = currentManifest?.units.flatMap((unit) => unit.pageGroups)
         .find((group) => group.pageGroupKey === pageGroupKey);
       return {
         from: {
@@ -117,7 +122,7 @@ const BookAssemblyStrategyMigrationPanel = ({
     }),
   })), [currentManifest, remaps]);
 
-  const plan = useMemo(() => planSourceStrategyMigration({
+  const plan = useMemo(() => currentManifest && targetSourceSet ? planSourceStrategyMigration({
     bookId,
     bookMode: 'pdf',
     bookRevision,
@@ -136,7 +141,7 @@ const BookAssemblyStrategyMigrationPanel = ({
     },
     remaps: migrationRemaps,
     sourceVersionAuthority: sourceAuthority,
-  }), [bookId, bookRevision, currentCandidate, currentManifest, migrationRemaps, sourceAuthority, sourceSetRevision, targetSourceSet]);
+  }) : null, [bookId, bookRevision, currentCandidate, currentManifest, migrationRemaps, sourceAuthority, sourceSetRevision, targetSourceSet]);
 
   const emit = (action: string, metadata: Record<string, unknown> = {}) => {
     onAction?.(action, metadata);
@@ -155,7 +160,7 @@ const BookAssemblyStrategyMigrationPanel = ({
   };
 
   const prepare = async () => {
-    if (!migrationClient || !plan.canApply) {
+    if (!migrationClient || !plan?.canApply) {
       setErrorMessage('Complete every explicit Source Set and local-page remap before preparing migration.');
       emit('teacher_materials_book_assembly_strategy_migration_failed', { code: 'plan-invalid' });
       toast.warning('Migration needs explicit source-qualified remaps before it can be prepared.');
@@ -260,6 +265,12 @@ const BookAssemblyStrategyMigrationPanel = ({
     }
   };
 
+  if (!currentManifest) {
+    return <section role="alert"><h2>Migration unavailable</h2><p>The current candidate has no manifest to migrate.</p></section>;
+  }
+  if (!plan) {
+    return <section role="alert"><h2>Migration unavailable</h2><p>The current candidate migration plan could not be prepared.</p></section>;
+  }
   const groups = currentManifest.units.flatMap((unit) => unit.pageGroups);
   const structuralNodes = currentManifest.nodes.filter((node) => ['section', 'chapter', 'unit', 'test'].includes(node.nodeType));
 

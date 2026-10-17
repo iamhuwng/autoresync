@@ -81,7 +81,7 @@ const assertSelection = (selection: ClassBookSelection, activities: readonly Cla
   });
 };
 
-const assertActivities = (activities: readonly ClassBookActivitySelection[], pins: ClassBookPlacementPins): void => {
+const assertActivities = (activities: readonly ClassBookActivitySelection[]): void => {
   if (!Array.isArray(activities) || activities.length === 0) {
     throw new ClassBookPlacementError('class_book_activities_invalid');
   }
@@ -102,11 +102,6 @@ const assertActivities = (activities: readonly ClassBookActivitySelection[], pin
       activity.pageGroupId,
     ]) assertClassBookSafeId(value, 'class_book_activity_identity_invalid');
     assertTitle(activity.title, 'class_book_activity_title_invalid');
-    if (activity.unitStableKey !== pins.unitStableKey
-      || activity.unitVersionId !== pins.unitVersionId
-      || activity.sourceVersionId !== pins.sourceVersionId) {
-      throw new ClassBookPlacementError('class_book_activity_pin_mismatch');
-    }
   });
 };
 
@@ -122,7 +117,7 @@ const assertSourcePlacement = (source: ClassBookSourcePlacement): void => {
   assertClassBookRevision(source.placementRevision, 'class_book_source_revision_invalid');
   if (source.status !== 'active') throw new ClassBookPlacementError('class_book_source_not_active');
   assertPins(source.pins);
-  assertActivities(source.activities, source.pins);
+  assertActivities(source.activities);
   assertSelection(source.selection, source.activities);
   if (source.selection.kind === 'placements'
     && (source.selection.placementIds.length !== source.activities.length
