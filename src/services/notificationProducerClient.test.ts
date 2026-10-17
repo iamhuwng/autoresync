@@ -5,6 +5,8 @@ import {
     notificationOperationId,
 } from './notificationProducerClient';
 
+vi.mock('./firebase', () => ({ database: {} }));
+
 const notification = {
     producerFamily: 'course' as const,
     authorityRecordId: 'course-1',

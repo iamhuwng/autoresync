@@ -1,7 +1,8 @@
 import { getAnalytics } from "firebase/analytics";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import {
   app,
+  acceptanceEmulatorPorts,
   auth,
   database,
   googleProvider,
@@ -15,9 +16,13 @@ const firestore = initializeFirestore(app, {
   }),
 });
 
+if (acceptanceEmulatorPorts) {
+  connectFirestoreEmulator(firestore, 'localhost', acceptanceEmulatorPorts.FIRESTORE);
+}
+
 let analytics = null;
 
-if (!isTestEnvironment && typeof window !== "undefined") {
+if (!isTestEnvironment && !acceptanceEmulatorPorts && typeof window !== "undefined") {
   try {
     analytics = getAnalytics(app);
 

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createBookSourcePreviewCsp } from './src/services/book-source-delivery/sourceUpload.browserPolicy';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
+const acceptanceEnvDir = path.join(repoRoot, 'tmp', 'acceptance-empty-env');
 const sharedEnvDir = path.resolve(
   process.env.LUYENTAP_ENV_DIR || path.join(os.homedir(), '.luyentap', 'env'),
 );
@@ -17,9 +18,10 @@ const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDi
   : repoRoot;
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  const sharedEnvRoot = mode === 'acceptance' ? acceptanceEnvDir : sharedEnvDir;
   const bookEnv = {
-    ...loadEnv(mode, sharedEnvDir, 'VITE_BOOK_'),
-    ...loadEnv(mode, repoRoot, 'VITE_BOOK_'),
+    ...loadEnv(mode, sharedEnvRoot, 'VITE_BOOK_'),
+    ...loadEnv(mode, mode === 'acceptance' ? acceptanceEnvDir : repoRoot, 'VITE_BOOK_'),
     ...Object.fromEntries(
       Object.entries(process.env).filter(([key]) => key.startsWith('VITE_BOOK_')),
     ),
@@ -31,9 +33,8 @@ export default defineConfig(({ mode }) => {
   const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
 
   return {
-    cacheDir: process.env.LUYENTAP_VITE_CACHE_DIR || path.resolve(repoRoot, 'node_modules/.vite'),
     // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
-    envDir,
+    envDir: sharedEnvRoot,
     define: bookEnvDefinitions,
   // IMPORTANT: Fixed port for OAuth compatibility with Google Drive
   // The OAuth credentials in Google Cloud Console must include this exact origin
@@ -59,6 +60,17 @@ export default defineConfig(({ mode }) => {
   },
   plugins: [
     react(),
+    ...(mode === 'acceptance' ? [{
+      name: 'acceptance-network-boundary',
+      transformIndexHtml: () => [{
+        tag: 'meta',
+        attrs: {
+          'http-equiv': 'Content-Security-Policy',
+          content: "connect-src 'self' http://localhost:19099 http://localhost:19000 ws://localhost:19000 http://localhost:19080 http://localhost:19087; form-action 'none'; frame-src 'none'; object-src 'none'",
+        },
+        injectTo: 'head-prepend',
+      }],
+    }] : []),
     ...(enableBundleVisualizer
       ? [visualizer({
           filename: './dist/stats.html',

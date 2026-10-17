@@ -134,6 +134,12 @@ describe('Ticket 38B1 notification producer inventory', () => {
             const source = readFileSync(join(root, relativeFile), 'utf8');
             expect(source, relativeFile).not.toContain('notificationService');
             expect(source, relativeFile).toContain('notificationProducerClient');
+            if (relativeFile.endsWith('WritingPracticeView.tsx')) {
+                expect(source, relativeFile).toContain('notifyCommittedEvent');
+                expect(source, relativeFile).toContain("eventKind: 'writing-submitted'");
+                expect(source, relativeFile).toContain('submissionId: resultId');
+                continue;
+            }
             if (['feedbackService.ts', 'homeworkSubmissionService.ts', 'testResults.service.ts', 'THCSHomeworkAssignDialog.tsx'].some(name => relativeFile.endsWith(name))) {
                 expect(source, relativeFile).toContain('notifyCommittedEvent');
                 continue;

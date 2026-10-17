@@ -17,14 +17,6 @@ const requiredKeys = [
   'VITE_FIREBASE_APP_ID',
 ];
 
-const geminiKeys = [
-  'VITE_GEMINI_API_KEY_1',
-  'VITE_GEMINI_API_KEY_2',
-  'VITE_GEMINI_API_KEY_3',
-  'VITE_GEMINI_API_KEY_4',
-  'VITE_GEMINI_API_KEY_5',
-];
-
 const sharedEnvDir = path.resolve(
   process.env.LUYENTAP_ENV_DIR || path.join(os.homedir(), '.luyentap', 'env'),
 );
@@ -68,7 +60,7 @@ const getEffectiveValues = async (filePath, trackedKeys = []) => {
     for (const [key, value] of fileValues) values.set(key, value);
   }
 
-  for (const key of new Set([...requiredKeys, ...geminiKeys, ...trackedKeys])) {
+  for (const key of new Set([...requiredKeys, ...trackedKeys])) {
     if (process.env[key]) values.set(key, process.env[key]);
   }
 
@@ -77,8 +69,6 @@ const getEffectiveValues = async (filePath, trackedKeys = []) => {
 
 const validate = (values) => {
   const missing = requiredKeys.filter((key) => !values.get(key));
-  const hasGeminiKey = geminiKeys.some((key) => Boolean(values.get(key)));
-  if (!hasGeminiKey) missing.push('VITE_GEMINI_API_KEY_1..5 (at least one)');
   return missing;
 };
 
@@ -101,7 +91,7 @@ const printStatus = async () => {
   console.log(`LuyenTap shared env directory: ${sharedEnvDir}`);
   console.log(`Active env file: ${activeEnvFile || '(none; checking process environment only)'}`);
   console.log(`Configured required keys: ${requiredKeys.length - missing.filter((key) => key.startsWith('VITE_FIREBASE_')).length}/${requiredKeys.length} Firebase`);
-  console.log(`Gemini key configured: ${geminiKeys.some((key) => Boolean(values.get(key))) ? 'yes' : 'no'}`);
+  console.log('Provider keys are managed by the AI gateway.');
 
   if (templateMissing.length > 0) {
     console.warn('Current env template keys not configured (feature-specific functionality may be unavailable):');

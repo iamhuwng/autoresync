@@ -44,6 +44,7 @@ const entries = {
     owner: 'root package',
     path: path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js'),
     runtime: 'native Node unless a demonstrated compatibility boundary requires x64',
+    note: 'For local development use npm run dev or node scripts/local-dev.mjs <port>; this entry is for direct build tooling.',
   },
   vitest: {
     owner: 'root package',
@@ -160,6 +161,7 @@ function printEntry(name) {
   console.log(`  path: ${entry.path}`);
   console.log(`  exists: ${exists ? 'yes' : 'no'}`);
   console.log(`  runtime: ${entry.runtime}`);
+  if (entry.note) console.log(`  note: ${entry.note}`);
   try {
     console.log(`  invoke: ${commandFor(name, entry)}`);
   } catch (error) {

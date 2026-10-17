@@ -12,6 +12,7 @@ beforeAll(async () => {
     firestore: { rules: readFileSync(join(process.cwd(), 'firestore.rules'), 'utf8') },
   });
   await env.withSecurityRulesDisabled(async (context) => {
+    await context.database().ref('users/new-user').remove();
     await context.database().ref('users/admin/role').set('super_admin');
     await context.firestore().doc('settings/api_keys').set({ legacy: true });
   });

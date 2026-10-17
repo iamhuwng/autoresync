@@ -1,9 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { connectDatabaseEmulator, getDatabase, onValue, ref } from 'firebase/database';
+import { acceptanceFirebaseBoundary } from './acceptanceFirebaseBoundary.mjs';
 
 export const isTestEnvironment = import.meta.env.MODE === 'test';
 export const shouldLogFirebaseBootstrap = import.meta.env.DEV && !isTestEnvironment;
+// Acceptance builds may target disposable emulators while remaining production-like.
+export const acceptanceEmulatorPorts = acceptanceFirebaseBoundary(import.meta.env);
+export const isAcceptanceEmulatorBuild = acceptanceEmulatorPorts !== null;
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -46,7 +50,7 @@ export const database = getDatabase(app);
 
 const databaseEmulatorHost = import.meta.env.VITE_FIREBASE_DATABASE_EMULATOR_HOST;
 
-if (databaseEmulatorHost && (import.meta.env.DEV || isTestEnvironment)) {
+if (databaseEmulatorHost && (import.meta.env.DEV || isTestEnvironment || isAcceptanceEmulatorBuild)) {
   const [host, rawPort] = databaseEmulatorHost.split(':');
   const port = Number(rawPort);
 
@@ -77,6 +81,22 @@ if (shouldLogFirebaseBootstrap) {
 }
 
 export const auth = getAuth(app);
+
+const authEmulatorHost = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST;
+
+if (authEmulatorHost && (import.meta.env.DEV || isTestEnvironment || isAcceptanceEmulatorBuild)) {
+  const [host, rawPort] = authEmulatorHost.split(':');
+  const port = Number(rawPort);
+
+  if (host && Number.isInteger(port) && port > 0) {
+    // The acceptance flag is explicit so a production build cannot silently use an emulator.
+    connectAuthEmulator(auth, `http://${host}:${port}`, { disableWarnings: true });
+  } else {
+    throw new Error(
+      '[Firebase] Invalid VITE_FIREBASE_AUTH_EMULATOR_HOST. Expected host:port.'
+    );
+  }
+}
 export const googleProvider = new GoogleAuthProvider();
 
 googleProvider.setCustomParameters({

@@ -204,12 +204,6 @@ service cloud.firestore {
     }
 
     function isValidBookHomeworkAuthorityRecord(data, authorityId, assignmentId, ownerId) {
-      let policy = data.get('frozenPolicy', {});
-      let releases = data.get('manualFeedbackReleases', {});
-      let manifest = data.bookManifest;
-      let context = manifest.context;
-      let saga = data.saga;
-      let visibility = data.visibility;
       return isBookHomework(data)
         && data.keys().hasAll([
           'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
@@ -218,7 +212,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
           'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt',
-          'activityPolicies', 'frozenPolicy', 'manualFeedbackReleases', 'operations'
+          'activityPolicies', 'operations'
         ])
         && data.assignmentId == authorityId
         && data.assignmentKind == 'book_activity_bundle'
@@ -228,69 +222,49 @@ service cloud.firestore {
         && data.revision >= 1
         && data.createdAt is string
         && data.updatedAt is string
-        && (!('frozenPolicy' in data) || (
-          policy is map
-          && policy.keys().hasAll(['intent', 'integrityDefault', 'integrityOverride', 'integrityEffective'])
-          && policy.keys().hasOnly(['intent', 'integrityDefault', 'integrityOverride', 'integrityEffective'])
-          && policy.intent in ['accountable', 'practice']
-          && policy.integrityDefault is bool
-          && policy.integrityOverride is bool
-          && policy.integrityEffective is bool
-          && policy.integrityDefault == (policy.intent == 'accountable')
-          && (policy.integrityOverride
-            || policy.integrityEffective == policy.integrityDefault)
-        ))
-        && releases is map
-        && releases.size() <= 512
-        && manifest is map
-        && manifest.ownerId == ownerId
-        && context is map
-        && context.recipientId is string
-        && context.recipientId.matches('^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$')
-        && authorityId == assignmentId + '--' + context.recipientId + '--authority'
-        && context.contextId == assignmentId
-        && context.kind == 'homework'
-        && context.entitlementBasis == 'assignment'
-        && saga is map
-        && saga.sagaId == assignmentId
-        && saga.state in ['prepared', 'committed', 'compensating']
-        && visibility is map
-        && visibility.status == saga.state
-        && visibility.manifestVersionId == manifest.manifestVersionId
-        && visibility.pointerId == manifest.manifestVersionId
-        && visibility.revision is int
-        && visibility.revision >= 1
-        && visibility.revision <= data.revision;
+        && data.bookManifest is map
+        && data.bookManifest.ownerId == ownerId
+        && data.bookManifest.context is map
+        && data.bookManifest.context.recipientId is string
+        && data.bookManifest.context.recipientId.matches('^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$')
+        && authorityId == assignmentId + '--' + data.bookManifest.context.recipientId + '--authority'
+        && data.bookManifest.context.contextId == assignmentId
+        && data.bookManifest.context.kind == 'homework'
+        && data.bookManifest.context.entitlementBasis == 'assignment'
+        && data.saga is map
+        && data.saga.sagaId == assignmentId
+        && data.saga.state in ['prepared', 'committed', 'compensating']
+        && data.visibility is map
+        && data.visibility.status == data.saga.state
+        && data.visibility.manifestVersionId == data.bookManifest.manifestVersionId
+        && data.visibility.pointerId == data.bookManifest.manifestVersionId
+        && data.visibility.revision is int
+        && data.visibility.revision >= 1
+        && data.visibility.revision <= data.revision;
     }
 
     function isLegalBookHomeworkAuthorityUpdate() {
-      let next = request.resource.data;
-      let previous = resource.data;
-      let releaseChanges = next.get('manualFeedbackReleases', {}).diff(previous.get('manualFeedbackReleases', {}));
-      return next.revision == previous.revision + 1
-        && next.assignmentId == previous.assignmentId
-        && next.assignmentKind == previous.assignmentKind
-        && next.schemaVersion == previous.schemaVersion
-        && next.ownerId == previous.ownerId
-        && next.createdAt == previous.createdAt
-        && next.get('frozenPolicy', {}) == previous.get('frozenPolicy', {})
-        && releaseChanges.changedKeys().size() == 0
-        && releaseChanges.removedKeys().size() == 0
-        && next.bookManifest.context == previous.bookManifest.context
-        && next.bookManifest.ownerId == previous.bookManifest.ownerId
-        && next.saga.sagaId == previous.saga.sagaId
-        && next.visibility.manifestVersionId == previous.visibility.manifestVersionId
-        && next.visibility.pointerId == previous.visibility.pointerId
-        && next.saga.state == next.visibility.status
+      return request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.assignmentId == resource.data.assignmentId
+        && request.resource.data.assignmentKind == resource.data.assignmentKind
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.bookManifest.context == resource.data.bookManifest.context
+        && request.resource.data.bookManifest.ownerId == resource.data.bookManifest.ownerId
+        && request.resource.data.saga.sagaId == resource.data.saga.sagaId
+        && request.resource.data.visibility.manifestVersionId == resource.data.visibility.manifestVersionId
+        && request.resource.data.visibility.pointerId == resource.data.visibility.pointerId
+        && request.resource.data.saga.state == request.resource.data.visibility.status
         && (
-          next.saga.state == previous.saga.state
-          || (previous.saga.state == 'prepared'
-            && (next.saga.state == 'committed'
-              || next.saga.state == 'compensating'))
-          || (previous.saga.state == 'compensating'
-            && next.saga.state == 'committed')
-          || (previous.saga.state == 'committed'
-            && next.saga.state == 'compensating')
+          request.resource.data.saga.state == resource.data.saga.state
+          || (resource.data.saga.state == 'prepared'
+            && (request.resource.data.saga.state == 'committed'
+              || request.resource.data.saga.state == 'compensating'))
+          || (resource.data.saga.state == 'compensating'
+            && request.resource.data.saga.state == 'committed')
+          || (resource.data.saga.state == 'committed'
+            && request.resource.data.saga.state == 'compensating')
         );
     }
 
@@ -444,7 +418,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Provider credentials are managed by the authenticated Worker, never by browser clients.
+    // API Keys Configuration
     match /settings/api_keys {
       allow read, write: if false;
     }
@@ -641,6 +615,7 @@ service cloud.firestore {
         && resource.data.teacherId == request.auth.uid;
     }
 
+    // Optional post-commit proofs authenticate only their saved actor. No delivery state.
     match /homework_notification_proofs/{eventId} {
       allow get: if request.auth != null && (!exists(/databases/$(database)/documents/homework_notification_proofs/$(eventId)) || resource.data.actorUid == request.auth.uid);
       allow list, update, delete: if false;
@@ -879,7 +854,6 @@ service cloud.firestore {
             && source.context.selectedTeacherId is string
             && source.context.classId is string);
     }
-
     match /writing_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
