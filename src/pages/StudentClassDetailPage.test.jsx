@@ -4,34 +4,26 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StudentClassDetailPage from './StudentClassDetailPage';
 
 const {
-  mockNavigate,
   mockGetClass,
   mockSubscribeToClass,
   mockSubscribeToActiveSessions,
   mockSetPlayerData,
   mockGetStudentResults,
-  mockUpdate,
+  mockNavigateTo,
+  mockPrepareDelivery,
   mockUseAuth,
   mockUseStudentHomeworkList,
 } = vi.hoisted(() => ({
-  mockNavigate: vi.fn(),
   mockGetClass: vi.fn(),
   mockSubscribeToClass: vi.fn(),
   mockSubscribeToActiveSessions: vi.fn(),
   mockSetPlayerData: vi.fn(),
   mockGetStudentResults: vi.fn(),
-  mockUpdate: vi.fn(),
+  mockNavigateTo: vi.fn(),
+  mockPrepareDelivery: vi.fn(),
   mockUseAuth: vi.fn(),
   mockUseStudentHomeworkList: vi.fn(),
 }));
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
@@ -57,21 +49,33 @@ vi.mock('../services/sessionService', () => ({
   },
 }));
 
+vi.mock('../hooks/useNavigation', () => ({
+  useNavigation: () => ({ navigateTo: mockNavigateTo }),
+}));
+
+vi.mock('../services/book-delivery/classBookPlacement.browser', () => ({
+  createClassBookPlacementBrowserClient: () => ({
+    prepareDelivery: (...args) => mockPrepareDelivery(...args),
+  }),
+}));
+
+vi.mock('../services/book-delivery/bookPlacementLaunch.browser', () => ({
+  buildBookPlacementPracticeRouteParams: (materialId, launch) => ({
+    materialId: `${materialId}?bookSurface=${launch.surface}&classId=${launch.classId}&copyId=${launch.copyId}&classPlacementId=${launch.classPlacementId}&classCourseMaterialId=${launch.classCourseMaterialId}&bindingId=${launch.bindingId}`,
+  }),
+}));
+
 vi.mock('../hooks/useHomeworkSubmission', () => ({
   useStudentHomeworkList: (...args) => mockUseStudentHomeworkList(...args),
 }));
 
 vi.mock('firebase/database', () => ({
   ref: vi.fn((_, path) => path ?? '__root__'),
-  update: (...args) => mockUpdate(...args),
+  update: vi.fn(),
 }));
 
 vi.mock('../services/firebase', () => ({
   database: {},
-}));
-
-vi.mock('@mantine/core', () => ({
-  Loader: () => <div>loader</div>,
 }));
 
 vi.mock('../components/layout/StudentLayout', () => ({
@@ -99,6 +103,9 @@ vi.mock('../components/layout/studentLayoutStyles', () => ({
     filterTab: {},
     filterTabActive: {},
   },
+  mobileStyles: {
+    touchTarget: { minHeight: 44, minWidth: 44 },
+  },
 }));
 
 function renderPage() {
@@ -114,7 +121,12 @@ function renderPage() {
 describe('StudentClassDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUpdate.mockResolvedValue(undefined);
+    mockPrepareDelivery.mockResolvedValue({
+      projectionKind: 'book-runtime-delivery',
+      bindingId: 'binding-1',
+      recipientId: 'student-1',
+      context: { kind: 'class' },
+    });
     mockGetStudentResults.mockResolvedValue([]);
 
     mockUseAuth.mockReturnValue({
@@ -175,10 +187,18 @@ describe('StudentClassDetailPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View Results' }));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/result/result-1');
+    expect(mockNavigateTo).toHaveBeenCalledWith(
+      'RESULT_DETAIL',
+      { resultId: 'result-1' },
+      expect.objectContaining({ reason: 'class_result_viewed' }),
+    );
+    expect(screen.getByRole('button', { name: 'View Results' })).toHaveStyle({
+      minHeight: '44px',
+      minWidth: '44px',
+    });
   });
 
-  it('repairs completed assignments that are missing a canonical result id', async () => {
+  it('does not broaden result authority or write missing result links on mount', async () => {
     const classData = {
       name: 'Class 1',
       classCode: 'CLS001',
@@ -212,36 +232,95 @@ describe('StudentClassDetailPage', () => {
       callback(classData);
       return vi.fn();
     });
-    mockGetStudentResults.mockResolvedValue([
-      {
-        resultId: 'result-legacy',
-        testId: 'session-1',
-        sessionCode: 'session-1',
-        submittedAt: 1_700_000_000_000,
-      },
-    ]);
-
     renderPage();
 
     await waitFor(() => {
       expect(screen.getByText('Reading Quiz 1')).toBeInTheDocument();
     });
 
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        'classes/class-1/students/student-1/assignments/assignment-1',
-        expect.objectContaining({
-          resultId: 'result-legacy',
-        }),
-      );
+    expect(screen.getByRole('button', { name: 'Result Pending' })).toBeDisabled();
+    expect(mockGetStudentResults).not.toHaveBeenCalled();
+  });
+
+  it('launches a Class Book through the canonical immutable placement identity', async () => {
+    const classData = {
+      name: 'Class 1',
+      classCode: 'CLS001',
+      settings: { allowSelfStudy: false },
+      students: { 'student-1': { status: 'active', assignments: {} } },
+      assignments: {
+        'book-assignment-1': {
+          id: 'book-assignment-1',
+          status: 'available',
+          testTitle: 'Legacy title must not win',
+          bookPlacement: {
+            status: 'active',
+            classId: 'class-1',
+            copyId: 'copy-1',
+            classPlacementId: 'class-placement-1',
+            courseMaterialId: 'class-material-1',
+            title: 'Class Book Unit 1',
+            pins: { bookId: 'book-1' },
+          },
+        },
+      },
+    };
+    mockGetClass.mockResolvedValue(classData);
+    mockSubscribeToClass.mockImplementation((_classId, callback) => {
+      callback(classData);
+      return vi.fn();
     });
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'View Results' })).toBeInTheDocument();
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Book' }));
+
+    await waitFor(() => expect(mockPrepareDelivery).toHaveBeenCalledWith(expect.objectContaining({
+      classId: 'class-1',
+      copyId: 'copy-1',
+      classPlacementId: 'class-placement-1',
+      classCourseMaterialId: 'class-material-1',
+    })));
+    expect(mockNavigateTo).toHaveBeenCalledWith(
+      'STUDENT_PRACTICE',
+      expect.objectContaining({
+        materialId: expect.stringContaining('book-1?bookSurface=class&classId=class-1&copyId=copy-1&classPlacementId=class-placement-1&classCourseMaterialId=class-material-1&bindingId=binding-1'),
+      }),
+      expect.objectContaining({ force: true, reason: 'class_book_runtime_launch' }),
+    );
+  });
+
+  it('does not expose a Class Book launch for a non-active membership', async () => {
+    const classData = {
+      name: 'Class 1',
+      classCode: 'CLS001',
+      settings: { allowSelfStudy: false },
+      students: { 'student-1': { status: 'pending_approval', assignments: {} } },
+      assignments: {
+        'book-assignment-1': {
+          id: 'book-assignment-1',
+          status: 'available',
+          bookPlacement: {
+            status: 'active',
+            classId: 'class-1',
+            copyId: 'copy-1',
+            classPlacementId: 'class-placement-1',
+            courseMaterialId: 'class-material-1',
+            pins: { bookId: 'book-1' },
+          },
+        },
+      },
+    };
+    mockGetClass.mockResolvedValue(classData);
+    mockSubscribeToClass.mockImplementation((_classId, callback) => {
+      callback(classData);
+      return vi.fn();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Results' }));
+    renderPage();
 
-    expect(mockNavigate).toHaveBeenCalledWith('/result/result-legacy');
+    await waitFor(() => expect(screen.getByText('No Assignments Yet')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Open Book' })).not.toBeInTheDocument();
+    expect(mockPrepareDelivery).not.toHaveBeenCalled();
   });
 });

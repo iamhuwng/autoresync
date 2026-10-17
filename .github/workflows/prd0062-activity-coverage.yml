@@ -1,0 +1,49 @@
+name: PRD0062 Activity Coverage
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prd0062-activity-coverage.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'documentation/architecture/data/prd0062-activity-coverage.matrix.json'
+      - 'scripts/check-prd0062-activity-coverage.mjs'
+      - 'scripts/lib/prd0062-activity-coverage/**'
+      - 'scripts/__tests__/check-prd0062-activity-coverage.test.mjs'
+      - 'scripts/__tests__/fixtures/prd0062-activity-coverage/**'
+      - 'src/types/bookActivity.types.ts'
+      - 'src/services/book-activity/activitySchema.service.ts'
+      - 'src/services/book-activity/runtime/**'
+      - 'src/types/readingV2Taxonomy.ts'
+      - 'documentation/samples/IELTS-listening-question-type-display-design.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prd0062-activity-coverage.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'documentation/architecture/data/prd0062-activity-coverage.matrix.json'
+      - 'scripts/check-prd0062-activity-coverage.mjs'
+      - 'scripts/lib/prd0062-activity-coverage/**'
+      - 'scripts/__tests__/check-prd0062-activity-coverage.test.mjs'
+      - 'scripts/__tests__/fixtures/prd0062-activity-coverage/**'
+      - 'src/types/bookActivity.types.ts'
+      - 'src/services/book-activity/activitySchema.service.ts'
+      - 'src/services/book-activity/runtime/**'
+      - 'src/types/readingV2Taxonomy.ts'
+      - 'documentation/samples/IELTS-listening-question-type-display-design.md'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node --test scripts/__tests__/check-prd0062-activity-coverage.test.mjs
+      - run: node scripts/check-prd0062-activity-coverage.mjs

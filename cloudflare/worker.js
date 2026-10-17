@@ -21,8 +21,9 @@ import {
 import { handleListeningUploadSessionGrant } from './src/upload-worker/listening-upload-session-grant.ts';
 import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
-import { createListeningUploadSessionSweepHandler } from './src/upload-worker/listening-upload-session-sweep.ts';
 import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
+import { createBookRouter } from './src/upload-worker/book-router.ts';
+import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/book-assembly/production-composition.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -65,17 +66,74 @@ const authenticate = async (request, env, firebaseVerifier, responseHeaders = {}
   return { uid: authResult.uid };
 };
 
+const handleThcsGemma = async (request, env, uid, json) => {
+  if (!env.AI || !env.FIREBASE_DB_URL) return json({ error: 'ai_unavailable' }, { status: 503 });
+  if (Number(request.headers.get('Content-Length')) > 180_000) {
+    return json({ error: 'body_too_large' }, { status: 413 });
+  }
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > 180_000) {
+    return json({ error: 'body_too_large' }, { status: 413 });
+  }
+  let body;
+  try { body = JSON.parse(raw); } catch { return json({ error: 'invalid_request' }, { status: 400 }); }
+  if (typeof body?.prompt !== 'string' || !body.prompt.trim()
+      || typeof body.systemMessage !== 'string' || !body.systemMessage.trim()
+      || (body.temperature !== undefined && (typeof body.temperature !== 'number' || body.temperature < 0 || body.temperature > 1))) {
+    return json({ error: 'invalid_request' }, { status: 400 });
+  }
+
+  const token = request.headers.get('Authorization')?.slice('Bearer '.length) ?? '';
+  const profileUrl = `${env.FIREBASE_DB_URL.replace(/\/$/, '')}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(token)}`;
+  const profileResponse = await fetch(profileUrl);
+  if (!profileResponse.ok) return json({ error: 'profile_unavailable' }, { status: 503 });
+  const profile = await profileResponse.json();
+  if ((profile?.role !== 'teacher' && profile?.role !== 'super_admin')
+      || profile.forceReauth === true || profile.disabled === true
+      || ['blocked', 'inactive', 'suspended'].includes(profile.status)) {
+    return json({ error: 'teacher_required' }, { status: 403 });
+  }
+
+  try {
+    const result = await env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+      messages: [
+        { role: 'system', content: body.systemMessage },
+        { role: 'user', content: body.prompt },
+      ],
+      temperature: body.temperature ?? 0.1,
+      max_completion_tokens: 16_384,
+      chat_template_kwargs: { enable_thinking: false },
+    });
+    const choice = result?.choices?.[0];
+    const content = choice?.message?.content;
+    if (choice?.finish_reason !== 'stop' || typeof content !== 'string' || content.trim().length <= 10) {
+      return json({ error: 'ai_incomplete' }, { status: 502 });
+    }
+    return json({ text: content });
+  } catch {
+    return json({ error: 'ai_unavailable' }, { status: 503 });
+  }
+};
+
 export function createUploadWorker({
   firebaseVerifier = createFirebaseVerifier(),
   nonceGenerator = generateNonce,
   now = () => Date.now(),
   listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
-  listeningUploadSessionSweepHandler = createListeningUploadSessionSweepHandler(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
+  bookRouter,
+  bookRouteHandlers,
 } = {}) {
+  const canonicalBookRouter = bookRouter ?? createBookRouter({
+    firebaseVerifier,
+    routeHandlers: bookRouteHandlers ?? createProductionBookAssemblyRouteOptions(),
+  });
   return {
-    async fetch(request, env) {
+    async fetch(request, env, ctx) {
+      const bookResponse = await canonicalBookRouter.fetch(request, env, ctx);
+      if (bookResponse) return bookResponse;
+
       if (request.method === 'OPTIONS') {
         return handleCorsPreflight(request);
       }
@@ -112,6 +170,10 @@ export function createUploadWorker({
         if (auth.response) return auth.response;
         const { uid } = auth;
         await enforceRateLimit({ env, uid, request });
+
+        if (url.pathname === '/thcs/gemma' && request.method === 'POST') {
+          return handleThcsGemma(request, env, uid, json);
+        }
 
         if (url.pathname === '/move' && request.method === 'POST') {
           return respond(await handleGrantMove({
@@ -156,15 +218,6 @@ export function createUploadWorker({
 
         if (request.method === 'POST' && url.pathname === '/probeListeningUploadAsset') {
           return respond(await listeningUploadSessionHandlers.probeAsset({
-            request,
-            env,
-            uid,
-            now,
-          }));
-        }
-
-        if (request.method === 'POST' && url.pathname === '/cancelListeningUploadSession') {
-          return respond(await listeningUploadSessionHandlers.cancelSession({
             request,
             env,
             uid,
@@ -256,12 +309,6 @@ export function createUploadWorker({
         console.error('Worker request failed');
         return json({ error: 'Internal server error' }, { status: 500 });
       }
-    },
-    async scheduled(controller, env, ctx) {
-      ctx.waitUntil(listeningUploadSessionSweepHandler.scheduled({
-        env,
-        cron: controller.cron,
-      }));
     },
   };
 }

@@ -104,4 +104,4 @@ The teacher shell owns teacher permissions and container behavior. The shared bo
 - @doc/patterns/pattern-canonical-result-persistence-invariants
 - `documentation/architecture/result-view/surface-map.md`
 - `documentation/architecture/result-view/visibility-policy.md`
-- `documentation/architecture/result-view/verification-matrix.md`
+- `documentation/architecture/changelog/result-view-verification-matrix.md`

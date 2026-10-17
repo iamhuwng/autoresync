@@ -8,7 +8,6 @@ import {
     getLinkedCourses,
     getLinkedClasses,
     checkCourseExpirations,
-    sendExpirationWarning,
     extendCourseDuration,
     syncCourseWithOriginal
 } from './enrollmentManager';
@@ -17,15 +16,10 @@ import { ref, set, get, push, remove, update, query, orderByChild, equalTo } fro
 import { getCourse, getModulesByCourse, createModule, updateCourse } from './courseManager';
 import { getMaterialsByModule, linkMaterialToModule } from './materialLinkManager';
 import { getClass } from './classManager';
-import { createNotification } from './notificationService';
 
 // Mock dependencies
 vi.mock('./firebase', () => ({
     database: {}
-}));
-
-vi.mock('./notificationService', () => ({
-    createNotification: vi.fn()
 }));
 
 vi.mock('firebase/database', () => ({
@@ -272,27 +266,6 @@ describe('Expiration Management', () => {
         );
     });
 
-    it('sendExpirationWarning should notify teacher', async () => {
-        // Mock link
-        const mockLinks = { 'l1': { classId: 'c1', courseId: 'copy1' } };
-        // Mock class
-        const mockClassData = { name: 'Math 101', createdBy: 't1' };
-
-        (query as any).mockReturnValue('query');
-        (get as any)
-            .mockResolvedValueOnce({ exists: () => true, val: () => mockLinks }); // get Link
-
-        (getClass as any).mockResolvedValue(mockClassData);
-
-        await sendExpirationWarning('c1', 'copy1');
-
-        expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 't1',
-            type: 'warning',
-            message: expect.stringContaining('Math 101')
-        }));
-    });
-
     it('extendCourseDuration should update link and enrollments', async () => {
         const now = Date.now();
         const future = now + 100000;
@@ -352,4 +325,3 @@ describe('syncCourseWithOriginal', () => {
         }));
     });
 });
-

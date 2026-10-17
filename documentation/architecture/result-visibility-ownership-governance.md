@@ -1,15 +1,23 @@
 # Result Visibility Ownership Governance
 
+## Notification upgrade security amendment — 2026-10-01
+
+The active notification upgrade plan supersedes the teacher-index path and payload: supported discovery is `teacher_result_keys/{teacherId}/{resultId}: true`, replacing rich `test_results_by_teacher`. Earlier teacher-path references below identify the retired implementation; ownership policy still applies to the replacement. No fallback, mirror or dual read/write. The retired path stays unreadable to ordinary teachers while old versions address it. Candidate keys never authorize canonical bodies; labels, stale/forged keys and unproved legacy visibility never confer access. Shared services own the change; pages must not implement authorization filters.
+
+The approved selected-teacher solo Writing branch is the narrow exception to the generic solo index exclusion: explicit student selection plus protected class owner/active roster and sealed result binding may create its teacher key. Generic solo practice and unresolved guest imports remain outside that exception. A Firestore-only homework relationship cannot by itself resolve RTDB canonical ownership. Student-owned THCS homework uses the existing private branch: retain authentic homework/submission/material context, set ownershipResolved:false and null teacher visibility owner, and omit teacher/class/course/session disclosure fanout. The teacher reads the authentic Firestore homework submission; this does not grant access to private canonical bodies. Any later visibility upgrade still requires independently qualified authority; dormant product-receipt/capture gates are not required notification activations.
+
+Populate only source-proven teacher keys through existing admin maintenance/reindex. Preserve canonical academic records and student/admin access; unproved teacher history stays excluded. Deleted-source eligibility requires trustworthy historical ownership proof. Qualify coherent App/Worker/Rules, backup coverage, finite population and role behavior before opening replacement discovery. No global result maintenance or per-write protocol gate solely to drain retired-index writers. Cleanup retired rows after consumer retirement without maintaining a second index. Other visibility policy/read models retain their contracts.
+
 Canonical technical source of truth for PRD-0041 Phase 1.
 
 Companion docs:
 - `documentation/tasks/0041-prd-result-visibility-ownership-governance.md`
 - `documentation/tasks/tasks-0041-prd-result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
-- `documentation/architecture/homework-result-visibility-repair.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 - `documentation/rules/result-visibility-review-checklist.md`
-- `documentation/architecture/result-view-permission-matrix.md`
-- `documentation/architecture/result-view-fr-closure-matrix.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 - `documentation/architecture/ui-design-standards.md`
 
 ## Binding Rule
@@ -109,6 +117,8 @@ Additional deleted-source display fields may be added only in `src/types/results
 
 ## Reassignment and Access-Loss Rules
 
+Writing teacher operations whose authority spans Firestore and RTDB follow the [named product-access boundary](../tasks/notification-firestore-architecture-decision-2026-09-27.md#writing-product-access-boundary): current protected relationship checks in the existing trusted DO, not client-selected teacher fields or a permanent Firestore ACL. This does not change the generic solo view-only policy or authorize another family to reuse the homework authority receipt.
+
 - If assignment access is revoked mid-view, teacher history and detail surfaces must clear sensitive result data immediately and show an access-lost state inside the teacher shell.
 - If the same teacher is later reassigned, previously eligible teacher-owned and solo-practice rows become visible again through the normal shared visibility path.
 
@@ -167,3 +177,7 @@ Teacher-facing history and result detail pages opened from Teacher view must fol
 ## Stop Rule
 
 If any required field, lookup path, helper API, migration behavior, or test placement is undefined, stop and resolve it in these governance docs and `src/types/results.types.ts` before writing runtime code.
+
+## Canonical integration status — 2026-10-03
+
+The notification amendments above are integrated documentation from the completed owner release. Canonical integration and its local commit remain pending; local activation/verification limits are recorded in the [canonical integration checkpoint](../tasks/notification-system-upgrade-plan.md#canonical-integration-checkpoint--2026-10-03). No current remote-state or new release claim is made here.

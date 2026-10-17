@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-07-26",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-contract-repair.json",
+  "issueHash": "cfb4fd1c14040cd83bf8f4aa208950df51c2dd4433985eba0b2969191d07394e",
+  "issueCount": 112,
+  "openCount": 87,
+  "closedCount": 25,
+  "roadmapPhase": "runtime",
+  "selectedTicket": 40,
+  "closedPrerequisites": [25, 33, 34, 36, 37],
+  "transitivePrerequisiteChain": [25, 33, 34, 36, 37],
+  "downstreamLeverage": 46,
+  "acceptanceReadiness": {
+    "status": "executable",
+    "retainedProof": [
+      "long-response renderer and codec",
+      "local limits, exact text serialization, empty/large/restore/read-only/pending-review states",
+      "malformed, oversized, unknown-interaction, and unsupported fail-closed behavior",
+      "focused accessibility, source-assisted, mobile, component zoom, production registration, and rollback tests"
+    ],
+    "destinationOwnedProof": {
+      "ticket": 73,
+      "proof": [
+        "Student quick-login at localhost:5174",
+        "assembled BookRuntimeShell long-response drafting/restoration and pending-review fixtures",
+        "desktop/mobile navigation and browser-level 200% zoom",
+        "integrated no-objective-scoring and no-canonical-save-submit proof"
+      ]
+    },
+    "requiredAuthority": [
+      "ticket 22A renderer registry",
+      "ticket 26 supported coverage matrix",
+      "ticket 22B destination-owned shell proof"
+    ],
+    "unavailableAuthority": []
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 40,
+      "decision": "selected",
+      "reason": "Earliest unresolved runtime renderer producer after #39 closure; closed transitive chain, executable retained gates, and destination-first integrated-proof transfer to #73."
+    },
+    {
+      "ticket": 41,
+      "decision": "rejected",
+      "reason": "Eligible runtime peer; one-primary rule selects earlier #40."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 provisioning lane; current roadmap phase is Runtime."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Operations reconciliation lane; not the current Runtime producer priority."
+    },
+    {
+      "ticket": 51,
+      "decision": "rejected",
+      "reason": "Later document-route authorization lane; not the earliest Runtime renderer producer."
+    },
+    {
+      "ticket": 56,
+      "decision": "rejected",
+      "reason": "Higher-leverage Teacher Workflow root; current roadmap phase remains Runtime, so the earlier unresolved Runtime renderer producer is selected."
+    },
+    {
+      "ticket": 64,
+      "decision": "rejected",
+      "reason": "Graph-clear student binding lane after contract repair; Student Workflow follows completion of the current Runtime producer phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final phase; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final phase; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final phase; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final phase; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final phase; final acceptance and preserved #50A boundary remain unresolved."
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-08-02T22:13:13.4456076+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260802-post-ticket98-closed.json",
+  "graphHash": "aa67df5deb1a4b9688ac8ee57ce5ed85ac5e751b576d8912f18b3c311567c1cd",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 36,
+    "closedCount": 76,
+    "rawEdgeCount": 311,
+    "uniqueEdgeCount": 311,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Restrictive notification rules activation",
+  "selectedTicket": {
+    "number": 99,
+    "title": "PRD0062 38B5 — Activate restrictive notification rules after compatibility window",
+    "closedDirectPrerequisites": [
+      91,
+      98
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 21,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "Ticket #99 is the direct continuation of the completed notification migration. Its integrity-signal and migration prerequisites are closed, #98 recorded the required compatibility and rules-hash evidence, and later runtime, placement, public-content, and final-proof frontiers remain deferred."
+  },
+  "candidateDecisions": [
+    {
+      "number": 99,
+      "decision": "SELECTED",
+      "reason": "Next graph-clear trusted-notification implementation primary after closing #98; all direct and transitive prerequisites are closed."
+    },
+    {
+      "numbers": [
+        101,
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_LATER_RUNTIME",
+      "reason": "Impact/privacy, Course/Class placement, and public-content workflows remain later roadmap phases."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "Final integrated browser/regression proof owners remain after outstanding implementation producers."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}

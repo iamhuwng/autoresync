@@ -3,7 +3,6 @@
  * Word bank dropdown per blank.
  */
 import React from 'react';
-import { Select } from '@mantine/core';
 
 interface THCSClozeAnswerInputProps {
     wordBank: string[];
@@ -21,16 +20,15 @@ const THCSClozeAnswerInput: React.FC<THCSClozeAnswerInputProps> = ({ wordBank, s
             <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#2563eb', minWidth: 55 }}>
                 Blank {blankNumber}:
             </span>
-            <Select
-                data={wordBank.map(w => ({ value: w, label: w }))}
-                value={selectedWord || null}
-                onChange={(val) => onUpdate(val || '')}
-                placeholder="Select word"
-                size="xs"
-                style={{ flex: 1, maxWidth: 160 }}
-                styles={{ input: { fontSize: '0.75rem', height: 24, minHeight: 24 } }}
-                clearable
-            />
+            <select
+                aria-label={`Word for blank ${blankNumber}`}
+                value={selectedWord || ''}
+                onChange={(event) => onUpdate(event.target.value)}
+                style={{ flex: 1, maxWidth: 160, minWidth: 0, fontSize: '0.75rem', minHeight: 28, border: '1px solid #cbd5e1', borderRadius: 4 }}
+            >
+                <option value="">Select word</option>
+                {wordBank.map(word => <option key={word} value={word}>{word}</option>)}
+            </select>
             {!selectedWord && (
                 <span style={{ fontSize: '0.5625rem', color: '#dc2626', fontWeight: 600 }}>❌</span>
             )}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T17:24:00Z",
+  "status": "rolled_back_stop_no_retry",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-standards-freeze-replay-checkpoint-v2-2026-08-14.json",
+  "independentReview": {
+    "standards": "PASS",
+    "spec": "PASS"
+  },
+  "attempt": {
+    "remainingBudgetBefore": 1,
+    "remainingBudgetAfter": 0,
+    "requestPath": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "requestSha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "literalPostCount": 1,
+    "response": {
+      "httpStatus": 503,
+      "body": {
+        "code": "book_route_disabled"
+      }
+    }
+  },
+  "activationReadbackBeforeRequest": {
+    "firestoreRelease": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreRulesSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "rtdbRulesWireSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "workerDeploymentId": "9ee79afd-8345-42d1-9f15-e1851ad4cda6",
+    "workerVersionId": "ec8ef179-35e7-4547-ba16-a96b9192d67d",
+    "workerTrafficPercent": 100,
+    "workerVersionBinding": "BOOK_HOMEWORK_ROUTES_ENABLED=enabled",
+    "productionOptionsHttpStatus": 204
+  },
+  "classification": {
+    "observed": "The POST was rejected by the canonical router gate before command handling even though deployment and version metadata read back the activation version at 100% with the Homework route gate enabled.",
+    "code": "ROUTE_GATE_NOT_ACTIVE_AT_REQUEST_EDGE",
+    "inference": "An edge propagation interval is plausible because the request followed deployment readback immediately and OPTIONS does not enforce the route gate; no retry is permitted, so this inference is not promoted to a proven cause."
+  },
+  "durableReadbackAfterFailure": {
+    "saga": "unchanged committed/visible revision 7; one committed recipient; exact operation unchanged",
+    "authority": "exact recipient authority HTTP 200 and unchanged",
+    "delivery": "exact current binding present and active",
+    "compatibility": "exact homework_assignments document HTTP 404",
+    "commandMutationObserved": false
+  },
+  "rollbackReadback": {
+    "workerDeploymentId": "2dc05d3e-bb69-4f32-b063-8457b7c629a4",
+    "workerVersionId": "a921299b-853f-41ab-a8a5-ccda1f9bfae0",
+    "workerTrafficPercent": 100,
+    "rtdbRulesWireSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRelease": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "compatibilityHttpStatus": 404
+  },
+  "decision": "Stop. No replay, candidate change, rules change, browser handoff, or Milestone 2 work is authorized after the consumed same-command attempt."
+}

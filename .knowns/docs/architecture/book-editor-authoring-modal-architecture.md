@@ -29,6 +29,7 @@ Canonical repo source: `documentation/architecture/book-editor-authoring-modal-a
 - Book modal shell uses neutral frame colors plus violet/indigo accents; legacy teal/green Book-modal chrome is retired.
 - Body labels/chips/statuses use regular/medium weight; bold is reserved for actual hierarchy.
 - No whole-Book homework/start action, no new Mantine imports, no source-material mutation from Book refs.
+- PRD0062 Book Activity extends this existing Book product boundary; Assembly Workspace and Book Runtime work must not create an `ActivityBook` product or revive retired route-first/Assign-tab/whole-Book shortcuts.
 
 ## Retired
 
@@ -41,6 +42,7 @@ Canonical repo source: `documentation/architecture/book-editor-authoring-modal-a
 - visible text command dumps on every row;
 - full-text compact right-panel action rows;
 - paused-redesign and current-gap statements from pre-closure PRD0052 notes.
+- using `src/services/file-extractor/file.extractor.ts` or `src/parsers/pdfParser.js` as Book Activity import or source-delivery infrastructure.
 
 ## Verification Baseline
 

@@ -1056,6 +1056,10 @@ const ledgerPayloadFromAutoPayload = (payload: AutoPayload): ReadingV2AutoLedger
     questions: (material.questions ?? []).map((question) => ({
       number: optionalNumberFrom(question.number),
       questionNumber: optionalNumberFrom(question.questionNumber),
+      ...(typeof question.type === 'string' ? { type: question.type } : {}),
+      ...(ledgerLabelItemsFrom(question.labeledOptions)
+        ? { labeledOptions: ledgerLabelItemsFrom(question.labeledOptions) }
+        : {}),
     })),
   })),
 });
@@ -3283,6 +3287,7 @@ const finalizeAutoImportPayload = (input: {
   });
   const candidateWithLedger: ReadingV2ImportCandidate = {
     ...candidate,
+    sourceLedgerCategory: input.sourceLedger.category,
     sourceRawText: input.sourceLedger.normalizedText,
     importSourceArtifact: input.sourceArtifact,
     autoImportDiagnostics: diagnostics,

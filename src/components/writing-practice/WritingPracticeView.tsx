@@ -14,7 +14,7 @@
  *   - localStorage auto-save (not RTDB)
  *   - SubmitToTeacherModal instead of WritingSubmitModal
  *   - context.type = 'solo-practice' in submission
- *   - Unlimited submissions (no dedup)
+ *   - Unlimited submissions (one stable ID per pending attempt)
  *   - Optional timer from soloConfig
  *   - SoloResumeModal for session recovery (native, NO Mantine)
  *
@@ -30,12 +30,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getStudentClasses, getClass } from '../../services/classManager';
 import { getHomeworkById } from '../../services/homeworkManager';
 import { getUserById } from '../../services/userService';
-import { createSubmission, materializeSubmissionResult } from '../../services/writingSubmissionService';
-import { submitHomework } from '../../services/homeworkSubmissionService';
-import { notifyTeacherWritingSubmitted, notifyWritingSubmitted } from '../../services/notificationService';
+import { createSubmission, materializeSubmissionResult, readCommittedWritingSubmission } from '../../services/writingSubmissionService';
+import { getSubmissionById as getHomeworkSubmissionById, submitHomework } from '../../services/homeworkSubmissionService';
+import { toast } from '../modern/ToastNotification';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { notifyCommittedEvent } from '../../services/notificationProducerClient';
 import { studentResumeService } from '../../services/studentResume.service';
 import {
     readWritingProgress,
+    readPendingWritingSubmission,
+    writePendingWritingSubmission,
+    removePendingWritingSubmission,
     removeWritingProgress,
     type SavedWritingPracticeState,
     writeWritingProgress,
@@ -75,6 +81,7 @@ interface WritingPracticeViewProps {
 interface TeacherInfo {
     id: string;
     name: string;
+    classId?: string;
 }
 
 // ── localStorage helpers ───────────────────────────────────
@@ -120,6 +127,7 @@ export default function WritingPracticeView({
     autoResume = false,
 }: WritingPracticeViewProps) {
     const { user } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
     const navigate = useNavigate();
     const studentId = user?.uid || '';
     const studentName = user?.displayName || user?.email || 'Anonymous';
@@ -153,6 +161,10 @@ export default function WritingPracticeView({
     const [showResumeModal, setShowResumeModal] = useState(false);
     const [antiCheatConfig, setAntiCheatConfig] = useState<AntiCheatConfig | null>(null);
     const [persistenceReady, setPersistenceReady] = useState(false);
+    const [pendingSubmissionId, setPendingSubmissionId] = useState<string | null>(null);
+    const [recoveryBlocked, setRecoveryBlocked] = useState(false);
+    const pendingSubmissionRef = useRef<WritingSubmission | null>(null);
+    const submissionInFlightRef = useRef(false);
     const essaysRef = useRef<{ 1: string; 2: string }>(homeworkContext?.previousEssay || { 1: '', 2: '' });
     const activeTaskRef = useRef<1 | 2>(defaultTask);
     const pasteAttemptCountRef = useRef(0);
@@ -225,6 +237,7 @@ export default function WritingPracticeView({
     }, [homeworkContext?.startedAt, isHomework, setPasteAttemptCount, timerMinutes]);
 
     const resetPracticeSession = useCallback(() => {
+        if (pendingSubmissionRef.current) return;
         void removeWritingProgress({
             materialId,
             studentId,
@@ -283,6 +296,22 @@ export default function WritingPracticeView({
         let cancelled = false;
 
         void (async () => {
+            const pending = await readPendingWritingSubmission({ materialId, studentId, scopeContext: writingScopeContext });
+            if (cancelled) return;
+            if (pending) {
+                if (pending.testMeta.testId !== testData.id
+                    || pending.context.type !== (isHomework ? 'homework' : 'solo-practice')
+                    || (isHomework && (pending.context.homeworkId !== homeworkContext?.homeworkId
+                        || pending.context.homeworkSubmissionId !== homeworkContext?.submissionId))) {
+                    throw new Error('Saved Writing recovery does not match this page');
+                }
+                pendingSubmissionRef.current = pending;
+                setPendingSubmissionId(pending.id);
+                setEssays({ 1: pending.tasks.find(task => task.taskNumber === 1)?.essayText ?? '',
+                    2: pending.tasks.find(task => task.taskNumber === 2)?.essayText ?? '' });
+                setPersistenceReady(true);
+                return;
+            }
             const { progress } = await readWritingProgress({
                 materialId,
                 studentId,
@@ -308,7 +337,8 @@ export default function WritingPracticeView({
         })().catch((error) => {
             console.warn('[WritingPracticeView] Failed to load saved progress:', error);
             if (!cancelled) {
-                startedAtRef.current = homeworkContext?.startedAt ?? Date.now();
+                setRecoveryBlocked(true);
+                toast.error('Could not load Writing recovery. Reopen this attempt before submitting.');
                 setPersistenceReady(true);
             }
         });
@@ -320,9 +350,13 @@ export default function WritingPracticeView({
         applySavedProgress,
         autoResume,
         homeworkContext?.startedAt,
+        homeworkContext?.homeworkId,
+        homeworkContext?.submissionId,
+        isHomework,
         materialId,
         shouldForceResume,
         studentId,
+        testData.id,
         writingScopeContext,
     ]);
 
@@ -354,23 +388,25 @@ export default function WritingPracticeView({
                 }
 
                 const classes = await getStudentClasses(studentId);
-                const teacherIds = new Set<string>();
+                const teacherClassIds = new Map<string, string>();
 
                 // Collect unique teacher IDs from enrolled classes
                 for (const cls of classes) {
                     const fullClass = await getClass(cls.id);
-                    if (fullClass?.createdBy) {
-                        teacherIds.add(fullClass.createdBy);
+                    if (fullClass?.status === 'active' && fullClass.students?.[studentId]?.status === 'active'
+                        && fullClass.createdBy && !teacherClassIds.has(fullClass.createdBy)) {
+                        teacherClassIds.set(fullClass.createdBy, cls.id);
                     }
                 }
 
                 // Fetch actual teacher profiles for displayName
                 const teacherList: TeacherInfo[] = [];
-                for (const teacherId of teacherIds) {
+                for (const [teacherId, classId] of teacherClassIds) {
                     const profile = await getUserById(teacherId);
                     teacherList.push({
                         id: teacherId,
                         name: profile?.displayName || profile?.email || 'Teacher',
+                        classId,
                     });
                 }
 
@@ -387,7 +423,7 @@ export default function WritingPracticeView({
 
     // ── Timer (optional) ────────────────────────────────────
     useEffect(() => {
-        if (timerMinutes === null || timerMinutes <= 0 || submitted || showResumeModal) return;
+        if (!persistenceReady || pendingSubmissionId || recoveryBlocked || timerMinutes === null || timerMinutes <= 0 || submitted || showResumeModal) return;
 
         if ((timeRemainingRef.current ?? 0) <= 0) {
             if (!timerExpiredRef.current) {
@@ -426,7 +462,7 @@ export default function WritingPracticeView({
             });
         }, 1000);
         return () => clearInterval(interval);
-    }, [isHomework, showResumeModal, submitted, timerMinutes]);
+    }, [isHomework, pendingSubmissionId, persistenceReady, recoveryBlocked, showResumeModal, submitted, timerMinutes]);
 
     // ── beforeunload warning ────────────────────────────────
     useEffect(() => {
@@ -525,17 +561,28 @@ export default function WritingPracticeView({
     };
 
     const handleStartNew = () => {
+        trackAction('startNewWritingPractice');
         resetPracticeSession();
         setPersistenceReady(true);
     };
 
     // ── Submit flow ─────────────────────────────────────────
     const handleSubmit = useCallback(async (data: { teacherId: string | null; note: string }) => {
+        if (!persistenceReady || recoveryBlocked || submissionInFlightRef.current) return;
+        submissionInFlightRef.current = true;
+        trackAction(pendingSubmissionRef.current ? 'retryWritingSubmission' : 'submitWritingPractice');
         setSubmitting(true);
         setShowSubmitModal(false);
+        let accepted = false;
+        let sharingHeld = false;
 
         try {
-            const assignedTeacherId = isHomework
+            const pending = pendingSubmissionRef.current;
+            const committed = pending ? await readCommittedWritingSubmission(pending) : null;
+            accepted = Boolean(committed);
+            const assignedTeacherId = pending
+                ? pending.context.assigningTeacherId ?? pending.context.selectedTeacherId ?? null
+                : isHomework
                 ? homeworkContext?.teacherId || null
                 : data.teacherId;
             const homeworkSubmissionId = isHomework
@@ -547,7 +594,7 @@ export default function WritingPracticeView({
             }
 
             // Generate resultId
-            const resultId = push(ref(database)).key;
+            const resultId = pending?.id ?? push(ref(database)).key;
             if (!resultId) throw new Error('Failed to generate resultId');
 
             // Build submission tasks
@@ -573,10 +620,10 @@ export default function WritingPracticeView({
 
             // Late check for homework
             let isLate = false;
-            if (isHomework && homeworkDueDate) {
+            if (!committed && isHomework && homeworkDueDate) {
                 if (Date.now() > homeworkDueDate) {
                     if (!homeworkLateAllowed) {
-                        alert('The deadline has passed. Submissions are no longer accepted.');
+                        toast.warning('The deadline has passed. Submissions are no longer accepted.');
                         setSubmitting(false);
                         return;
                     }
@@ -585,7 +632,7 @@ export default function WritingPracticeView({
             }
 
             // Create Firestore submission
-            const submission: WritingSubmission = {
+            const submission: WritingSubmission = committed ?? pending ?? {
                 id: resultId,
                 studentId,
                 studentName,
@@ -601,6 +648,7 @@ export default function WritingPracticeView({
                         }
                         : {
                             selectedTeacherId: assignedTeacherId || undefined,
+                            classId: teachers.find(teacher => teacher.id === assignedTeacherId)?.classId,
                         }),
                 },
                 testMeta: {
@@ -618,41 +666,54 @@ export default function WritingPracticeView({
                 auditTrail: [],
             };
 
-            await createSubmission(submission);
-            const materializeResult = await materializeSubmissionResult(submission);
-            if (!materializeResult.success) {
-                throw new Error(materializeResult.error || 'Failed to save writing result');
+            if (!pending) {
+                await writePendingWritingSubmission({ materialId, studentId, scopeContext: writingScopeContext }, submission);
+                pendingSubmissionRef.current = submission;
+                setPendingSubmissionId(submission.id);
             }
+            if (!committed) {
+                const saved = await createSubmission(submission);
+                if (!saved.success) throw new Error(saved.error || 'Writing save is unconfirmed. Retry the same attempt.');
+            }
+            const verified = committed ?? await readCommittedWritingSubmission(submission);
+            if (!verified) throw new Error('Writing save is unconfirmed. Retry the same attempt.');
+            accepted = true;
+            const result = await materializeSubmissionResult(verified);
+            if (!result.success) throw new Error(result.error || 'Failed to save writing result');
 
             if (isHomework && homeworkSubmissionId) {
-                await submitHomework(
-                    homeworkSubmissionId,
-                    resultId,
-                    undefined,
-                    undefined,
-                    undefined,
-                    undefined,
-                    submission.totalElapsedTimeSeconds,
-                );
+                const readAttempt = async () => {
+                    const attempt = await getHomeworkSubmissionById(homeworkSubmissionId);
+                    if (!attempt || attempt.id !== homeworkSubmissionId || attempt.homeworkId !== homeworkContext!.homeworkId
+                        || attempt.studentId !== studentId) throw new Error('Homework attempt does not match this submission.');
+                    if ((attempt.status === 'submitted' || attempt.status === 'graded') && attempt.resultId !== resultId) {
+                        throw new Error('Homework was submitted with a different result.');
+                    }
+                    return attempt;
+                };
+                const attempt = await readAttempt();
+                if (attempt.status !== 'submitted' && attempt.status !== 'graded') {
+                    try {
+                        await submitHomework(homeworkSubmissionId, resultId, undefined, undefined, undefined, undefined,
+                            verified.totalElapsedTimeSeconds);
+                    } catch (error) {
+                        const savedAttempt = await readAttempt();
+                        if (savedAttempt.status !== 'submitted' && savedAttempt.status !== 'graded') throw error;
+                    }
+                }
+                void notifyCommittedEvent({ eventKind: 'homework-submitted', submissionId: homeworkSubmissionId })
+                    .catch(error => console.warn('[WritingPracticeView] Homework notification failed:', error));
+            } else {
+                void notifyCommittedEvent({ eventKind: 'writing-submitted', submissionId: resultId,
+                    occurredAt: verified.submittedAt, audience: 'student' }).catch(error => console.warn('[WritingPracticeView] Notification failed:', error));
+                sharingHeld = result.sharingStatus === 'held';
+                if (verified.context.selectedTeacherId && result.sharingStatus === 'shared') void notifyCommittedEvent({ eventKind: 'writing-submitted', submissionId: resultId,
+                    occurredAt: verified.submittedAt, audience: 'teacher' }).catch(error => console.warn('[WritingPracticeView] Teacher notification failed:', error));
             }
 
-            // Fire notification (non-blocking)
-            notifyWritingSubmitted(
-                studentId,
-                resultId,
-                testData.metadata.title,
-                isHomework ? 'homework' : 'solo-practice'
-            ).catch(err => console.warn('[WritingPracticeView] Notification failed:', err));
-
-            if (assignedTeacherId && (isHomework || data.teacherId)) {
-                notifyTeacherWritingSubmitted(
-                    assignedTeacherId,
-                    resultId,
-                    studentId,
-                    studentName,
-                    testData.metadata.title,
-                    isHomework ? 'homework' : 'solo-practice',
-                ).catch(err => console.warn('[WritingPracticeView] Teacher notification failed:', err));
+            if (isHomework) {
+                void notifyCommittedEvent({ eventKind: 'result-completed', resultId })
+                    .catch(error => console.warn('[WritingPracticeView] Notification failed:', error));
             }
 
             void removeWritingProgress({
@@ -661,6 +722,9 @@ export default function WritingPracticeView({
                 scopeContext: writingScopeContext,
             });
             void studentResumeService.clearResume();
+            await removePendingWritingSubmission({ materialId, studentId, scopeContext: writingScopeContext });
+            pendingSubmissionRef.current = null;
+            setPendingSubmissionId(null);
             setSubmitted(true);
 
             // Show brief confirmation, then navigate
@@ -673,7 +737,8 @@ export default function WritingPracticeView({
                 : '✅ Essay saved for self-review!';
 
             // Use a brief visible confirmation before navigating
-            alert(confirmMsg);
+            if (sharingHeld) toast.warning('Essay saved. Teacher sharing could not be verified.');
+            else toast.success(confirmMsg.replace('✅ ', ''));
 
             if (isHomework) {
                 console.log('✅ [WritingPracticeView] Homework submitted — redirecting to homework page');
@@ -684,8 +749,10 @@ export default function WritingPracticeView({
             }
         } catch (err) {
             console.error('[WritingPracticeView] Submit failed:', err);
-            alert(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
+            if (accepted) toast.warning('Essay saved. Result recovery is incomplete. Retry this attempt.');
+            else toast.error(err instanceof Error ? err.message : 'Save unconfirmed. Retry this attempt.');
         } finally {
+            submissionInFlightRef.current = false;
             setSubmitting(false);
         }
     }, [
@@ -698,21 +765,24 @@ export default function WritingPracticeView({
         materialId,
         navigate,
         pasteAttemptCount,
+        persistenceReady,
+        recoveryBlocked,
         studentId,
         studentName,
         teachers,
         testData,
+        trackAction,
         writingScopeContext,
     ]);
 
     useEffect(() => {
-        if (!autoSubmitOnTimeout || !isHomework || submitted || submitting) {
+        if (!persistenceReady || pendingSubmissionId || !autoSubmitOnTimeout || !isHomework || submitted || submitting) {
             return;
         }
 
         setAutoSubmitOnTimeout(false);
         void handleSubmit({ teacherId: homeworkContext?.teacherId || null, note: '' });
-    }, [autoSubmitOnTimeout, handleSubmit, homeworkContext?.teacherId, isHomework, submitted, submitting]);
+    }, [autoSubmitOnTimeout, handleSubmit, homeworkContext?.teacherId, isHomework, pendingSubmissionId, persistenceReady, submitted, submitting]);
 
     // ── Format timer ────────────────────────────────────────
     const formatTime = (seconds: number) => {
@@ -763,7 +833,7 @@ export default function WritingPracticeView({
         );
     }
 
-    if (isHomework && homeworkDueDate && !homeworkLateAllowed && Date.now() > homeworkDueDate) {
+    if (persistenceReady && !pendingSubmissionId && isHomework && homeworkDueDate && !homeworkLateAllowed && Date.now() > homeworkDueDate) {
         return (
             <div className="wpv-submitted-overlay">
                 <div style={{ fontSize: 64 }}>⏰</div>
@@ -844,10 +914,10 @@ export default function WritingPracticeView({
                 )}
                 <button
                     className="wpv-tab wpv-tab--submit"
-                    onClick={() => setShowSubmitModal(true)}
-                    disabled={submitting}
+                    onClick={() => pendingSubmissionId ? void handleSubmit({ teacherId: null, note: '' }) : setShowSubmitModal(true)}
+                    disabled={submitting || !persistenceReady || recoveryBlocked}
                 >
-                    {submitting ? 'Submitting...' : '📤 Submit'}
+                    {submitting ? 'Submitting...' : pendingSubmissionId ? 'Retry submission' : '📤 Submit'}
                 </button>
             </div>
 
@@ -860,7 +930,7 @@ export default function WritingPracticeView({
                 <WritingEditor
                     value={essays[activeTask]}
                     onChange={handleEssayChange}
-                    disabled={submitting}
+                    disabled={submitting || Boolean(pendingSubmissionId) || recoveryBlocked}
                     attachToTextarea={attachToTextarea}
                 />
             </div>

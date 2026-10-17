@@ -1,6 +1,5 @@
 import {
   LISTENING_AUTHORING_ROOT,
-  assertNoDeletedListeningTempAssets,
   cloneDraftRecord,
   cloneRecord,
   cloneVersionRecord,
@@ -28,7 +27,6 @@ import {
 import {
   cloneOperationRecord,
   createOperationScopeKey,
-  deriveAssetIds,
 } from '../../../../functions/src/listening-authoring/repository.operationRecords.ts';
 import { runLifecycleMutation } from '../../../../functions/src/listening-authoring/repository.lifecycleMutation.ts';
 import {
@@ -44,25 +42,12 @@ interface ListeningAuthoringRootState {
   revision_drafts?: Record<string, ListeningAuthoringDraftRecord>;
   versions?: Record<string, ListeningPublishedVersionRecord>;
   operations?: Record<string, ListeningAuthoringOperationRecord>;
-  temp_cleanup_lease?: {
-    leaseId?: string;
-    expiresAt?: number;
-  };
-  deleted_temp_assets?: Record<string, unknown>;
 }
 const DEFAULT_MAX_RETRIES = 5;
 const normalizeRoot = (value: unknown): ListeningAuthoringRootState =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? cloneRecord(value as ListeningAuthoringRootState)
     : {};
-const assertNoActiveTempCleanupLease = (
-  root: ListeningAuthoringRootState,
-  now: number,
-): void => {
-  if (Number(root.temp_cleanup_lease?.expiresAt) > now) {
-    throw new Error('listening_asset_cleanup_in_progress');
-  }
-};
 const operationLookup = (
   operations: Map<string, ListeningAuthoringOperationRecord>,
 ): Map<string, string> => {
@@ -139,8 +124,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   }
   async writeDraft(record: ListeningAuthoringDraftRecord): Promise<void> {
     await this.withRootTransaction((root) => {
-      assertNoDeletedListeningTempAssets(root, record.assetIds);
-      assertNoDeletedListeningTempAssets(root, deriveAssetIds(record.document));
       const maps = rootMaps(root);
       maps.drafts.set(record.draftId, normalizeDraftRecord(record));
       return { outcome: undefined, nextRoot: persistRootMaps(root, maps), shouldWrite: true };
@@ -162,8 +145,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         ...updateFn(cloneDraftRecord(current)),
         updatedAt: this.now(),
       });
-      assertNoDeletedListeningTempAssets(root, next.assetIds);
-      assertNoDeletedListeningTempAssets(root, deriveAssetIds(next.document));
       maps.drafts.set(draftId, next);
       return {
         outcome: { kind: 'updated' as const, conflictToken: next.conflictToken },
@@ -183,7 +164,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   }
   async saveDraftTransaction(input: SaveDraftTransactionInput): Promise<SaveDraftTransactionResult> {
     return this.withRootTransaction((root) => {
-      assertNoDeletedListeningTempAssets(root, deriveAssetIds(input.document));
       const maps = rootMaps(root);
       const outcome = runSaveDraftMutation(
         {
@@ -207,11 +187,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   ): Promise<PublishDraftTransactionResult> {
     return this.withRootTransaction((root) => {
       const maps = rootMaps(root);
-      const currentDraft = maps.drafts.get(input.draftId);
-      if (currentDraft) {
-        assertNoDeletedListeningTempAssets(root, currentDraft.assetIds);
-        assertNoDeletedListeningTempAssets(root, deriveAssetIds(currentDraft.document));
-      }
       const outcome = runPublishDraftMutation(
         {
           drafts: maps.drafts,
@@ -240,17 +215,17 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       const authoringCurrent = await this.rtdb.readWithEtag<ListeningAuthoringRootState | null>(
         LISTENING_AUTHORING_ROOT,
       );
-      const authoringRoot = normalizeRoot(authoringCurrent.data);
-      assertNoActiveTempCleanupLease(authoringRoot, this.now());
       const legacyCurrent = await this.rtdb.readWithEtag<LegacyListeningTestRecord | null>(
         `tests/${input.legacyTestId}`,
       );
+      const authoringRoot = normalizeRoot(authoringCurrent.data);
       const maps = rootMaps(authoringRoot);
       const legacyTests = new Map<string, LegacyListeningTestRecord>();
       if (legacyCurrent.data !== null) {
-        const normalized = normalizeLegacyListeningTest(legacyCurrent.data, input.legacyTestId);
-        assertNoDeletedListeningTempAssets(authoringRoot, deriveAssetIds(normalized));
-        legacyTests.set(input.legacyTestId, normalized);
+        legacyTests.set(
+          input.legacyTestId,
+          normalizeLegacyListeningTest(legacyCurrent.data, input.legacyTestId),
+        );
       }
       const outcome = runLegacyFirstEditMutation(
         {
@@ -284,13 +259,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   async lifecycleTransaction(input: LifecycleTransactionInput): Promise<LifecycleTransactionResult> {
     return this.withRootTransaction((root) => {
       const maps = rootMaps(root);
-      if (input.operationType === 'restore') {
-        const targetDraft = maps.drafts.get(input.targetId);
-        if (targetDraft) {
-          assertNoDeletedListeningTempAssets(root, targetDraft.assetIds);
-          assertNoDeletedListeningTempAssets(root, deriveAssetIds(targetDraft.document));
-        }
-      }
       const outcome = runLifecycleMutation(
         {
           drafts: maps.drafts,
@@ -315,8 +283,6 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     | { kind: 'exists'; record: ListeningPublishedVersionRecord }
   > {
     return this.withRootTransaction((root) => {
-      assertNoDeletedListeningTempAssets(root, input.assetIds);
-      assertNoDeletedListeningTempAssets(root, deriveAssetIds(input.document));
       const maps = rootMaps(root);
       const existing = maps.versions.get(input.versionId);
       if (existing) return { outcome: { kind: 'exists' as const, record: existing } };
@@ -365,9 +331,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       const current = await this.rtdb.readWithEtag<ListeningAuthoringRootState | null>(
         LISTENING_AUTHORING_ROOT,
       );
-      const root = normalizeRoot(current.data);
-      assertNoActiveTempCleanupLease(root, this.now());
-      const mutation = mutate(root);
+      const mutation = mutate(normalizeRoot(current.data));
       if (!mutation.shouldWrite) return mutation.outcome;
       const matched = await this.rtdb.writeIfMatch(
         LISTENING_AUTHORING_ROOT,

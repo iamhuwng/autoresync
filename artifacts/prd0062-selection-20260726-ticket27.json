@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-07-26",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-ticket27-preclosure.json",
+  "issueHash": "1d2d97b4f1c59df5dc03aba380852928406a80bcb6e55f63d106f8847e804302",
+  "issueCount": 112,
+  "openCount": 87,
+  "closedCount": 25,
+  "roadmapPhase": "runtime",
+  "selectedTicket": 41,
+  "closedPrerequisites": [25, 33, 34, 36, 37],
+  "transitivePrerequisiteChain": [25, 33, 34, 36, 37],
+  "downstreamLeverage": 46,
+  "acceptanceReadiness": {
+    "status": "executable-pending-owned-seam-inspection",
+    "retainedProof": [
+      "Book-owned Reading/Listening adapters for existing supported matrix rows",
+      "stable-public-export and dependency-direction enforcement",
+      "exact conversion, review-safe presentation, and fail-closed fixtures",
+      "media authorization-reference preservation",
+      "focused native Reading/Listening regressions and production build"
+    ],
+    "destinationOwnedProof": {
+      "ticket": 73,
+      "proof": [
+        "assembled BookRuntimeShell adapted fixtures",
+        "Delivery projection and authenticated transport integration",
+        "route/CSP integration and browser-level responsive proof"
+      ]
+    },
+    "requiredAuthority": [
+      "ticket 22A renderer registry",
+      "ticket 26 supported coverage matrix",
+      "documented stable Reading/Listening public exports"
+    ],
+    "unavailableAuthority": []
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 40,
+      "decision": "ineligible",
+      "reason": "Zero supported long-response matrix rows; #37 validator rejects its required registration. Ownership/acceptance blocker recorded."
+    },
+    {
+      "ticket": 41,
+      "decision": "selected",
+      "reason": "Independent Runtime producer with closed prerequisite chain, existing supported matrix authority, and a different blocker family from #40."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Private-B2 provisioning lane remains disabled and outside current Runtime producer priority."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Operations reconciliation lane follows Runtime producer work."
+    },
+    {
+      "ticket": 51,
+      "decision": "rejected",
+      "reason": "Later route authorization lane; #41 is the remaining current Runtime producer."
+    },
+    {
+      "ticket": 56,
+      "decision": "rejected",
+      "reason": "Teacher Workflow phase follows Runtime."
+    },
+    {
+      "ticket": 64,
+      "decision": "rejected",
+      "reason": "Student Workflow phase follows Runtime."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final phase and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final phase and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final phase and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final phase and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final phase and preserved #50A boundary remain unresolved."
+    }
+  ]
+}

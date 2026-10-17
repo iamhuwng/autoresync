@@ -1,0 +1,409 @@
+{
+  "artifactKind": "prd0062-126-bounded-activation-approval-packet",
+  "schemaVersion": 1,
+  "status": "approved-activation-executed-publication-blocked-rollback-active",
+  "approvalBoundary": {
+    "candidateApplicationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
+    "implementationCommit": "98778f1f47b36f06671e53ab6b9f49f9b5843be3",
+    "priorEvidenceCheckpointCommit": "35a83fbb234a7a831c53901cdcae0b033f74466a",
+    "remoteMutation": true,
+    "deployment": true,
+    "activation": true,
+    "push": false,
+    "pullRequest": false
+  },
+  "acceptedLineage": {
+    "104": "a10acf7e94436cc269206a98891cde8c11288899",
+    "post104": "54aceabadc802342788c39f76e611373fbfbc48a",
+    "125": "a4df415751965e05b12ec9148ceea0ea2b5237d8",
+    "118": "f710653948462bcd948d59a7db007bc2a870e987",
+    "127": {
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "parent": "f710653948462bcd948d59a7db007bc2a870e987",
+      "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0",
+      "primaryRerun": "29/29; schema+semantic through harness PASS",
+      "bytesUnmodified": true
+    },
+    "verifiedAncestry": {
+      "104IsAncestorOfParent": true,
+      "post104IsAncestorOfParent": true,
+      "125IsAncestorOfParent": true,
+      "118IsParent": true
+    }
+  },
+  "immutable118Identity": {
+    "sourceBuildCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "proof": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+    "fragmentManifest": {
+      "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json",
+      "sha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831"
+    },
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b"
+    },
+    "rollbackRules": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    },
+    "rulesTupleChanged": false
+  },
+  "configuration": {
+    "templatePath": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
+    "templateSha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8",
+    "identityPath": "documentation/tasks/PRD0062/evidence/126-activation-identity.json",
+    "identitySha256": "0309ab3fff79707606385dd6cb1ec559572894db73d9e8f7e4383ff61b978253",
+    "activationConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+    "activationConfigSha256": "9363894e003cfb8643b8f1fe08126b78776f77d3b70be2d5d515bfc79148525e",
+    "rollbackConfigPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
+    "rollbackConfigSha256": "134be28594853d0a839d97395ef4fddbbdb17d92854d4435a5ae7a58d9ac2b25",
+    "pathRegisterPath": "documentation/tasks/PRD0062/evidence/126-trusted-path-register.json",
+    "pathRegisterSha256": "c75fdeaa57e592c100373fc61aeac3049097eb2a22e253e6b84bdd9f4a7b93cf",
+    "scope": "exactly one existing teacher + one deterministic new Book + one deterministic new Book Homework assignment + one existing student",
+    "maxStudents": 30,
+    "unresolvedSlots": [],
+    "allowlist": {
+      "teacherEmail": "teacher@test.com",
+      "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+      "studentEmail": "student@test.com",
+      "studentIds": ["x3hDfjYVN7cJtSbwq0ChIjl1Bk62"],
+      "bookId": "book-vocab-u1-d43935c735245dc8",
+      "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+      "maxStudents": 30
+    },
+    "sourcePdf": {
+      "path": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
+      "sha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
+      "bytesCommitted": false
+    },
+    "activationRouteGates": {
+      "enabled": ["BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED", "BOOK_ASSEMBLY_ROUTES_ENABLED", "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED", "BOOK_SOURCE_UPLOAD_ROUTES_ENABLED", "BOOK_DELIVERY_ROUTES_ENABLED", "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED", "BOOK_HOMEWORK_ROUTES_ENABLED", "BOOK_HOMEWORK_READ_ROUTES_ENABLED", "BOOK_RUNTIME_ROUTES_ENABLED", "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED"],
+      "unrelatedRemainDisabled": true
+    },
+    "default": "current deployed rollback state has all route gates disabled and six action operations deny; the corrected activation artifact enables only the listed normal Book workflow gates and binds source control to https://kahut1.web.app",
+    "rollback": "restore the all-deny bookRolloutGateConfig, keep every route gate disabled, set scope enforcement disabled, and retain mandatory fail-closed enforcement/config-invalid denial"
+  },
+  "trustedPathProof": {
+    "canonicalRouter": "router gate and mandatory scope guard both run before handler; missing/disabled enforcement denies with 503; runtime command/launch defer exact Book identity to the trusted binding worker",
+    "composedFactory": "adapter gate and mandatory scope guard run before supplied handler; missing/disabled enforcement denies with 503",
+    "directAdapters": "authoring is fail-closed subject_missing until a trusted Book-bound seam exists; source host/control/reconciliation adapters require the mandatory scope callback; assembly, publication, delivery, homework, runtime command, and runtime launch invoke exact Book-aware checks before mutation/read side effect",
+    "updateReplacement": "future update/replacement handlers are absent by default, route gates disabled, supplied handlers wrapped",
+    "recovery": "source retry/reconcile and scheduled reconcile map to mutation scope enforcement before service; broad rollout recovery allow cannot bypass identities; source/delivery/replacement/runtime recovery side effects remain explicitly suppressed by existing recovery contexts and no active pilot route"
+  },
+  "observabilityRegistry": {
+    "scopeAudit": "book_pilot_scope decision payload; identities excluded",
+    "rolloutAudit": "book_rollout_gate decision payload; identities excluded",
+    "uiRegistry": "existing src/config/featureRegistry.ts retained; no new UI action or route invented"
+  },
+  "localVerification": {
+    "passed": [
+      "git diff --check after this amendment",
+      "JSON parse of the four #126 evidence artifacts after this amendment",
+      "JSONC parse of both #126 Wrangler artifacts with the repository-supported parser",
+      "git merge-base --is-ancestor checks for 104, post104, 125 after this amendment",
+      "source PDF SHA-256 matches the supplied evidence; source bytes are not committed",
+      "immutable #118 and accepted #127 hashes and bytes remain unchanged",
+      "integrated source hierarchy guard tests passed 4/4 and teacher assembly authority consumer tests passed 22/22 through Harness 3.5"
+    ],
+    "priorVerificationNotCarried": [
+      "root policy, guard/registry, source-control/reconciliation, activity-authoring, runtime, Ticket 05, and route suites retain their exact prior green results; they were not rerun because the final validator edits were type-narrowing only and did not touch those paths"
+    ],
+    "cloudflareHarness": {
+      "runner": "scripts/harness/run-tool.mjs -> committed run-x64.ps1",
+      "runtime": "Node v24.18.0 x64 under Windows ARM64 host; cloudflare lock SHA-256 67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+      "cwd": "C:/Users/The Lord/.codex/worktrees/22cc/luyentap-writing-import-rebased",
+      "config": "cloudflare/vitest.config.mjs",
+      "guardRegistry": {
+        "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-pilot-scope-guard.test.ts test/book-pilot-scope-registry.test.ts --reporter=verbose",
+        "discoveredFiles": 2,
+        "executedTests": 6,
+        "passed": 6,
+        "failed": 0,
+        "skips": 0
+      },
+      "sourceControlReconciliation": {
+        "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-source-control-host.test.ts test/book-source-control-worker.test.ts test/book-source-reconciliation-worker.test.ts --reporter=verbose",
+        "discoveredFiles": 3,
+        "executedTests": 17,
+        "passed": 17,
+        "failed": 0,
+        "skips": 0,
+        "coverage": "begin, complete, cancel, retry, reconcile, scheduled reconcile, absent-callback denial, exact pilot configuration"
+      },
+      "fullRoute": {
+        "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-pilot-scope.test.ts --reporter=verbose",
+        "discoveredFiles": 1,
+        "executedTests": 8,
+        "passed": 8,
+        "failed": 0,
+        "skips": 0,
+        "status": "pass",
+        "proof": "x64 harness collected and executed the complete bounded #126 route suite after the minimal current-domain Book assembly validator closure"
+      },
+      "rootPolicy": {
+        "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-rollout/bookPilotScope.policy.test.ts --reporter=verbose",
+        "cwd": "C:/Users/The Lord/.codex/worktrees/22cc/luyentap-writing-import-rebased",
+        "config": "vitest.config.ts",
+        "discoveredFiles": 1,
+        "executedTests": 3,
+        "passed": 3,
+        "failed": 0,
+        "skips": 0,
+        "rootLockSha256": "6993b1ac240626dcdec9e75ab4a6e25b28ac3fbcb63bf88dcf3a6c81e94511d3"
+      },
+      "targetedAssembly": {
+        "commands": [
+          "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-assembly/sourceSet.service.test.ts src/services/book-assembly/manifestCandidate.service.test.ts --reporter=verbose",
+          "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-assembly/unitPrompt.service.test.ts --reporter=verbose",
+          "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-assembly/mappingRevision.service.test.ts --reporter=verbose",
+          "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-assembly/sourceStrategyMigration.service.test.ts src/services/book-assembly/sourceStrategySuccessor.service.test.ts src/services/book-assembly/reconciliation.service.test.ts src/services/book-assembly/mappingRevision.service.test.ts src/services/book-assembly/fullPdfPublication.adapter.test.ts src/services/book-assembly/fullPdfPublication.command.test.ts src/services/book-assembly/componentPdfPublication.adapter.test.ts src/services/book-assembly/componentPdfPublication.command.test.ts --reporter=verbose"
+        ],
+        "focusedValidatorTests": {"discoveredFiles": 3, "executedTests": 11, "passed": 11, "failed": 0, "skips": 0, "postEdit": true},
+        "unitPrompt": {"discoveredFiles": 1, "executedTests": 3, "passed": 3, "failed": 0, "skips": 0},
+        "mappingRevision": {"discoveredFiles": 1, "executedTests": 4, "passed": 4, "failed": 0, "skips": 0},
+        "integrationGroup": {"discoveredFiles": 8, "executedTests": 38, "passed": 38, "failed": 0, "skips": 0},
+        "unitPublishTests": "no existing unitPublish.service.test.ts file discovered"
+      },
+      "postEditValidator": {
+        "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-assembly/manifestCandidate.service.test.ts src/services/book-assembly/sourceSet.service.test.ts src/services/book-assembly/sourcePageAuthority.service.test.ts",
+        "cwd": "C:/Users/The Lord/.codex/worktrees/22cc/luyentap-writing-import-rebased",
+        "config": "vitest.config.ts",
+        "runtime": "Node v24.18.0 x64 under Windows ARM64 host",
+        "discoveredFiles": 3,
+        "executedTests": 11,
+        "passed": 11,
+        "failed": 0,
+        "skips": 0,
+        "duration": "42.02s"
+      },
+      "postExactByteFixInspectionAndUpload": {
+        "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/services/book-source-delivery/sourcePdfInspection.browser.test.ts src/services/book-source-delivery/sourceUpload.browser.test.ts src/services/book-source-delivery/sourceUpload.browserWorkflow.test.ts",
+        "cwd": "C:/Users/The Lord/.codex/worktrees/22cc/luyentap-writing-import-rebased",
+        "config": "vitest.config.ts",
+        "runtime": "Node v24.18.0 x64 under Windows ARM64 host",
+        "status": "pass",
+        "discoveredFiles": 3,
+        "executedTests": 44,
+        "passed": 44,
+        "failed": 0,
+        "skips": 0,
+        "breakdown": "inspection 7/7; source upload 13/13; source upload workflow 24/24",
+        "classification": "post-exact-byte-fix proof; mismatch rejects file_changed before digest/PDF.js and leaves no claim"
+      },
+      "activityAuthoring": {
+        "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-activity-authoring-worker.test.ts --reporter=verbose",
+        "discoveredFiles": 1,
+        "executedTests": 19,
+        "passed": 19,
+        "failed": 0,
+        "skips": 0,
+        "classification": "positive fixtures supply the exact bounded pilot environment and server-authoritative Book metadata; missing/disabled/malformed/wrong-scope/legacy negatives remain fail-closed"
+      },
+      "runtime": {
+        "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-runtime-worker.test.ts test/book-runtime-route-integration.test.ts test/book-runtime-launch-production.test.ts --reporter=verbose",
+        "discoveredFiles": 3,
+        "executedTests": 21,
+        "passed": 21,
+        "failed": 0,
+        "skips": 0,
+        "additionalRequestedPath": "cloudflare/src/upload-worker/book-runtime-launch/worker.test.ts was not collected by either committed root or Cloudflare config; it was moved as a Git move to cloudflare/test/book-runtime-launch-worker.test.ts and executed separately: 1 file, 2/2 passed, zero skips",
+        "classification": "positive runtime and launch fixtures supply the exact bounded pilot environment and trusted binding Book; wrong-book/teacher/assignment/student/count/bypass negatives remain fail-closed"
+      },
+      "rootBuild": {
+        "command": "node scripts/harness/run-tool.mjs vite . build",
+        "runner": "scripts/harness/run-tool.mjs -> committed run-x64.ps1",
+        "runtime": "Node v24.18.0 x64 under Windows ARM64 host; root lock SHA-256 6993b1ac240626dcdec9e75ab4a6e25b28ac3fbcb63bf88dcf3a6c81e94511d3",
+        "transformedModules": 9501,
+        "status": "pass",
+        "duration": "3m14s",
+        "output": "Vite production build emitted the bundled PDF worker and Book shell chunks; bundle-budget check was not invoked because this was the supported vite build command"
+      }
+    },
+    "postAmendmentFocusedTests": {
+      "status": "engineering-proof-pass-with-repository-typecheck-baseline",
+      "passed": "root policy 3/3; guard+registry 6/6; source control/reconciliation 17/17; post-edit validator group 11/11; unitPrompt 3/3; mapping revision 4/4; assembly integration 38/38; activity authoring 19/19; runtime 21/21; moved launch-worker file: 1 file, 2/2 passed separately; full Book pilot route suite 8/8; post-exact-byte-fix inspection/source upload/workflow 44/44 (7/13/24); Ticket 05 panel 4/4; root Vite build 9501 modules",
+      "remaining": "Full x64 tsc exits 2 from pre-existing diagnostics outside the reconstructed validators: unchanged BookAssemblyStrategyMigrationPanel null-manifest consumer (TS2345/TS2322), unchanged mappingRevision assertion sites (TS2775), and unchanged unitActivityImport import (TS2459); post-edit validator files have zero filtered tsc diagnostics",
+      "zeroSkips": true
+    },
+    "restoredBookDependencyBlobs": [
+      {
+        "path": "src/services/book-assembly/manifestCandidate.service.ts",
+        "source": "598be0ab04f7fd98a335e9517e1b91f28e2ca660",
+        "gitBlobOid": "de5e6980a956ea6b9e249c2633231e9aa87f1ae0",
+        "currentState": "historical base verified, then extended with the current validateBookAssemblyManifestCandidate API and only the existing Book caller exports required by current tests"
+      },
+      {
+        "path": "src/services/book-assembly/sourcePageAuthority.service.ts",
+        "source": "598be0ab04f7fd98a335e9517e1b91f28e2ca660",
+        "gitBlobOid": "33059541856a9fa808abd6880c594d0f72e65eac",
+        "currentState": "historical blob was inspected as the source of the current resolver; final file is narrowed to resolveSourceQualifiedPage and current Book types only, with obsolete preview/compatibility exports removed"
+      },
+      {
+        "path": "src/services/book-assembly/sourceSet.service.ts",
+        "source": "current-domain reconstruction",
+        "history": "no historical Git blob found in inspected Git commits",
+        "currentState": "fixed validator for exact Book/source authority, full_pdf/component_pdfs ownership, usable sources, unique keys/versions/order, page bounds, and malformed values"
+      }
+    ],
+    "currentValidatorReconstruction": {
+      "manifestPath": "src/services/book-assembly/manifestCandidate.service.ts",
+      "sourceSetPath": "src/services/book-assembly/sourceSet.service.ts",
+      "contract": "current BookAssemblyManifestCandidate and SourceSetCandidate types only; fail closed; no legacy sourceSetCandidate or generalized framework",
+      "coverage": "exact Book and trusted source authority; verifiedUsable; strategy/count/owner/order/uniqueness; nodes/cycles/depth; units/slots/groups; reciprocal mappings; page/default bounds",
+      "focusedProof": "3 files, 11 tests, 11 passed, 0 failed, 0 skipped after final type-narrowing edits"
+    },
+    "opportunisticBookP1": {
+      "issue": "mapping-revision publication references omitted canonicalPayloadFingerprint",
+      "file": "src/services/book-assembly/mappingRevision.service.ts",
+      "test": "src/services/book-assembly/mappingRevision.service.test.ts > mapping revision publication plan > publishes through the common transaction while retaining immutable Activity records by reference",
+      "preFixAssertion": "expect(result.status).toBe('published');",
+      "preFixLine": 274,
+      "preFixObservedOutput": "AssertionError: expected 'published' to be 'invalid' // Object.is equality\nExpected: \"published\"\nReceived: \"invalid\"\n❯ src/services/book-assembly/mappingRevision.service.test.ts:274:27",
+      "causality": "mappingRevision.service.ts and publicationTransaction.service.ts were byte-identical to accepted #127 parent; plan creation passed the reconstructed manifest validator, then unchanged publicationTransaction.service.ts rejected the producer's activityVersionRefs because canonicalPayloadFingerprint was absent",
+      "baselineCollection": "the exact test could not collect at parent 66b63ba733e8532ed6e4c9aa284cef27d00a4fb9 because the current assembly validator dependency closure was absent there; unchanged producer/guard/test blobs prove the failure was current Book behavior, not a validator regression",
+      "fix": "copy predecessor activity.canonicalPayloadFingerprint into each activityVersionRef and fail closed with activity-reference-missing when the canonical datum is absent; no payloadFingerprint fallback or publication guard bypass",
+      "postFix": "exact mapping test 4/4; affected assembly integration group 38/38; route suite 8/8"
+    },
+      "targetedTypeCheck": {
+        "command": "C:\\Users\\The Lord\\Tools\\node-x64\\node.exe .\\node_modules\\typescript\\bin\\tsc --noEmit --pretty false",
+        "status": "full-project baseline failure; no diagnostics in final reconstructed validator files",
+        "exitCode": 2,
+        "initialFilteredOutputLines": 15,
+        "initialDiagnosticsBeforeValidatorTypeNarrowing": [
+          "src/components/books/assembly/BookAssemblyStrategyMigrationPanel.tsx:82 TS2345",
+          "src/components/books/assembly/BookAssemblyStrategyMigrationPanel.tsx:131 TS2322",
+          "src/services/book-assembly/manifestCandidate.service.ts:256 TS2345",
+          "src/services/book-assembly/manifestCandidate.service.ts:257 TS2345",
+          "src/services/book-assembly/mappingRevision.service.ts:331 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:332 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:427 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:428 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:429 TS2775",
+          "src/services/book-assembly/sourceSet.service.ts:98 TS18046",
+          "src/services/book-assembly/sourceSet.service.ts:100 TS2345",
+          "src/services/book-assembly/sourceSet.service.ts:103 TS2345",
+          "src/services/book-assembly/unitActivityImport.service.ts:1 TS2459"
+        ],
+        "postEditFilteredOutputLines": 10,
+        "postEditUnchangedBaselineDiagnostics": [
+          "src/components/books/assembly/BookAssemblyStrategyMigrationPanel.tsx:82 TS2345",
+          "src/components/books/assembly/BookAssemblyStrategyMigrationPanel.tsx:131 TS2322",
+          "src/services/book-assembly/mappingRevision.service.ts:331 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:332 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:427 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:428 TS2775",
+          "src/services/book-assembly/mappingRevision.service.ts:429 TS2775",
+          "src/services/book-assembly/unitActivityImport.service.ts:1 TS2459"
+        ],
+        "validatorDiagnosticsAfterFix": [],
+        "causality": "The two validator diagnostics were caused by the current #126 reconstructed files and were fixed with explicit typeof/Number.isSafeInteger narrowing. The remaining diagnostics are in unchanged consumers/files or unchanged assertion/import sites present at the accepted parent; no unchanged consumer was edited.",
+        "noNewOwnedErrors": true
+      }
+  },
+  "configurationReadiness": {
+    "status": "native-wsl-corrected-and-verified-rollback-active-awaiting-renewed-activation-approval",
+    "activationActions": "all six allow in activation companion only",
+    "rollbackActions": "all six deny",
+    "rollbackScopeEnforcement": "disabled so the mandatory guard denies with enforcement_disabled before side effects",
+    "readOnlyIamDiscovery": {
+      "project": "temp-a1437",
+      "activeOperatorAccountObserved": "iamhuwng@gmail.com",
+      "existingAccounts": [
+        "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com"
+      ],
+      "observedProjectRoles": {
+        "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com": ["roles/firebasedatabase.admin"],
+        "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com": ["roles/firebasedatabase.viewer", "roles/datastore.viewer"],
+        "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com": []
+      },
+      "createdAccounts": [
+        "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+        "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+        "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+      ],
+      "missingAccounts": [],
+      "mutationPerformed": true,
+      "leastPrivilegeDecision": "The three new identities have no project IAM data roles. Activity authoring, Homework, Delivery, Assembly publication, student runtime, and exact Activity reads use Firebase custom-token claims bounded by the accepted data rules; no broad source identity or Firebase admin role is reused."
+    },
+    "credentialStaging": {
+      "cloudflareWorker": "r2-upload-signer",
+      "completeCredentialVersionId": "634ccc29-3a95-4ab9-88ec-3ca1010484d1",
+      "deployed": true,
+      "activeRollbackVersion": "46937368-cfa0-4061-876c-fdc063f8ea58 at 100 percent",
+      "secretNames": [
+        "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+        "FIREBASE_WEB_API_KEY",
+        "BOOK_DELIVERY_GOOGLE_SA_KEY",
+        "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+        "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+        "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+        "BOOK_RUNTIME_GOOGLE_SA_KEY",
+        "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+        "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+        "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+        "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+        "BOOK_SOURCE_B2_READ_APPLICATION_KEY"
+      ],
+      "secretValuesPersistedLocally": false,
+      "keyLifecycle": "bounded keys were created only for the seven exact Google and Backblaze identities, inserted through encrypted deployment secrets, and local key files were securely removed"
+    },
+    "activationAttemptAndRollback": {
+      "approvedActivationVersion": "55a11425-f01f-47c0-ae69-3e1f885229af",
+      "result": "source begin failed closed with source_upload_invalid_deployment because the approved activation config omitted BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN",
+      "sideEffects": "the governed deterministic private Book exists as draft-empty; no source reservation or bytes and no assignment were created",
+      "rollbackVersion": "46937368-cfa0-4061-876c-fdc063f8ea58",
+      "rollbackStatus": "verified active at 100 percent with every relevant route disabled and all six actions denied",
+      "correctiveChange": "candidate commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 adds the exact production origin binding and a config-level regression test; no Reading V2 product code changed"
+    },
+    "approvedCorrectedActivationOutcome": {
+      "approvalPacketSha256": "f386107be420fec23b9a889df553b770828d47444d02a29b21223f4930777b78",
+      "activationVersion": "3e30f523-a11f-4133-af9d-ea4cd77bd3d1",
+      "activationStatus": "verified active at 100 percent for the exact approved corrected configuration before governed workflow execution",
+      "sourceUpload": {
+        "status": "verified_completed",
+        "bookId": "book-vocab-u1-d43935c735245dc8",
+        "sourceVersionId": "source-version-05dc3edf26be3f6b",
+        "privateBoundary": "accepted private Backblaze B2 Book source only; no public kahoot-media source route",
+        "physicalPageCountObservedByInspection": 4,
+        "assignmentCreated": false
+      },
+      "publicationPreflight": {
+        "status": 503,
+        "code": "book_full_pdf_publication_dependencies_unavailable",
+        "mutation": false,
+        "rootCause": "canonical #59 production composition lacks trusted Book/Source Version authority, durable preview approval, Activity projection, and source-readiness adapters; the accepted #118 rules expose no production-safe path to derive those authorities"
+      },
+      "rollbackVersion": "e465c35e-44e7-46af-9ba8-47038ed952b0",
+      "rollbackStatus": "verified active at 100 percent with every relevant route disabled and all six actions denied",
+      "retainedRemoteState": "the deterministic private draft Book and verified private Source Version remain; no Book Homework assignment or student account was created",
+      "decision": "stop before changing the immutable #118 tuple or reactivating; repair the upstream trusted authority contracts and regenerate an exact approval packet"
+    },
+    "dryRun": {
+      "status": "native-wsl-exact-dry-runs-pass-no-deployment",
+      "source": "mounted authoritative checkout at application commit 98778f1f47b36f06671e53ab6b9f49f9b5843be3 with the committed corrected configs",
+      "executionCopy": "/tmp/prd0062-126-origin-fix.KOW18d/repo",
+      "copyVerification": "6750 regular tracked source files matched the mounted checkout with aggregate SHA-256 4e710c8dc3150cb36c401ab76d3170a65e8098bbec89a375977c12f298a40b36 before dependency installation; gitlinks, dependencies, caches, logs, and build outputs were excluded",
+      "rootLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+      "cloudflareLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+      "runtime": "native WSL Node v22.22.0, npm 10.9.4, and Wrangler 4.103.0 installed from cloudflare/package-lock.json",
+      "activation": "wrangler deploy --dry-run with the exact activation config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
+      "rollback": "wrangler deploy --dry-run with the exact rollback config exited 0; 1618.25 KiB upload / 303.43 KiB gzip; no deployment occurred",
+      "focusedApplication": "Cloudflare scope, source-control, and reconciliation slice passed 32/32 across 6 files; the exact activation-origin regression passed",
+      "firestoreRules": "Homework Firestore rules emulator 10/10 passed under Java 21",
+      "bounded132": "isolated RTDB plus Firestore emulator suite 9/9 passed under Java 21",
+      "protectedState": "mounted checkout has no Linux dependencies, generated emulator logs, or build output; package manifests and locks are unchanged"
+    },
+    "blockers": [
+      "the approved corrected activation was executed and rolled back after the canonical full-PDF publication route failed closed before publication or assignment mutation",
+      "Component 02/03 and #59 trusted authority contracts require repair; any resulting #118 or configuration identity change requires a new exact packet and explicit activation approval",
+      "Book Source remains isolated from the public kahoot-media R2 binding. Accepted lineage already proves the private Backblaze B2 bookpdf source boundary; the activation must use only its deployment-only credentials and exact saved storage identity.",
+      "the time-bounded activation and rollback configurations expire at 2026-08-13T22:40:00.000Z and must be regenerated and rehashed if approval occurs after expiry"
+    ]
+  },
+  "unresolvedApproval": "The approval represented by this packet was consumed by the recorded corrected activation attempt and rollback. It does not authorize a rules/schema/configuration repair, another activation, #134, #135, push, PR, new student accounts, or scope expansion."
+}

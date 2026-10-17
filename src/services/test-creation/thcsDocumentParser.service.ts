@@ -22,7 +22,7 @@ import type { AICallFn } from './thcs-pass2-repair';
 import { executeCompromiseStep } from './thcs-compromise-step';
 import type { CompromiseResult } from './thcs-compromise-step';
 import { executeAnswerInference } from './thcs-answer-inference';
-import { createRetrySession } from './thcs-retry-manager';
+import { createRetrySession, THCS_GROQ_MODEL } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
 import { executeGeminiWithKeyRotation } from '../ai/gemini-key-rotation.service';
@@ -38,7 +38,7 @@ export interface ParseProgress {
 
 export interface ParseWarning {
     type: 'missing-answer' | 'skipped-content' | 'ambiguous-type' | 'no-sections' | 'images-detected' | 'multi-variant'
-    | 'confidence-mismatch' | 'skipped-section' | 'compromised-section';
+    | 'confidence-mismatch' | 'skipped-section' | 'compromised-section' | 'answer-key-restored';
     message: string;
     line?: number;
 }
@@ -262,6 +262,15 @@ function detectSections(lines: string[]): ParsedSection[] {
             }
         }
 
+        // A type tag immediately below a heading describes that section, not a new empty section.
+        if ((inlineTypeMatch || (typeTagMatch && !isMetadataTag)) && currentSection
+            && currentSection.startLine !== undefined
+            && lines.slice(currentSection.startLine + 1, i).every(previousLine => !previousLine.trim())) {
+            currentSection.detectedType = (inlineTypeMatch?.[1] || typeTagMatch![1]) as THCSQuestionType;
+            currentSection.typeConfidence = 99;
+            if (inlineTypeMatch) currentSection.instructionText = line.replace(PATTERNS.typeTagInline, '').trim();
+            continue;
+        }
         if (sectionMatch || (typeTagMatch && !isMetadataTag) || aiMarkerMatch || inlineTypeMatch) {
             if (currentSection && currentSection.startLine !== undefined) {
                 currentSection.endLine = i - 1;
@@ -809,19 +818,23 @@ export async function parseThcsText(
         // --- Stage 2: Parallel Assessment (FR-3) ─────────────────────
         onProgress?.({ stage: 'ai-polish', percent: 20, message: 'Analyzing text (AI + Code in parallel)...' });
 
-        // Create the AI callback for internal Pass 1 (Groq → Gemini fallback)
+        // Create the AI callback for internal Pass 1 (Groq → Cloudflare → Gemini)
         const callInternalAI = async (systemMessage: string, prompt: string): Promise<string | null> => {
             const groqResult = await callGroqDirectPlainText(prompt, systemMessage);
             if (groqResult) return groqResult;
-            // Groq failed — fall back to Gemini
-            console.warn('[Pass1] All Groq keys failed — falling back to Gemini');
+            const cloudflareResult = await callCloudflareDirectPlainText(prompt, systemMessage);
+            if (cloudflareResult) return cloudflareResult;
+            console.warn('[Pass1] Groq and Cloudflare could not process this input — falling back to Gemini');
             return callGeminiDirectPlainText(prompt, systemMessage);
         };
 
-        // Build the AI callback for crossfix loop (Groq → Gemini, typed as AICallFn)
+        // Build the AI callback for crossfix loop (Groq → Cloudflare → Gemini)
         const repairCallAI: AICallFn = async (system, prompt, step) => {
             if (step.provider === 'gemini') {
                 return callGeminiDirectPlainText(prompt, system, step.model);
+            }
+            if (step.provider === 'cloudflare') {
+                return callCloudflareDirectPlainText(prompt, system, step.temperature);
             }
             return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
         };
@@ -904,8 +917,10 @@ export async function parseThcsText(
         // 4b: Compromise unsupported types (BOTH paths — compromise handles types that crossfix doesn't)
         if (validationReport.unsupportedTypes.length > 0) {
             onProgress?.({ stage: 'parsing', percent: 45, message: 'Converting unsupported sections...' });
-            const compCallAI = async (system: string, prompt: string, _step: RetryStep): Promise<string | null> => {
-                return callGroqDirectPlainText(prompt, system);
+            const compCallAI = async (system: string, prompt: string, step: RetryStep): Promise<string | null> => {
+                if (step.provider === 'gemini') return callGeminiDirectPlainText(prompt, system, step.model);
+                if (step.provider === 'cloudflare') return callCloudflareDirectPlainText(prompt, system, step.temperature);
+                return callGroqDirectPlainText(prompt, system, step.model, step.temperature);
             };
 
             // Build per-section text slices so the AI only gets the relevant section,
@@ -967,6 +982,18 @@ export async function parseThcsText(
             return { success: false, error: 'Regex parsing succeeded but returned no data.' };
         }
         const parsedTest = parsedResult.data;
+        const sourceAnswerKey = extractAnswerKey(cleaned.split('\n'));
+        let restoredAnswers = 0;
+        for (const [questionNumber, answer] of Object.entries(sourceAnswerKey)) {
+            if (parsedTest.answerKey[Number(questionNumber)] !== answer) restoredAnswers++;
+            parsedTest.answerKey[Number(questionNumber)] = answer;
+        }
+        if (restoredAnswers > 0) {
+            warnings.push({
+                type: 'answer-key-restored',
+                message: `AI formatting lost or changed ${restoredAnswers} answer(s); restored them from the original answer key. Review converted questions.`,
+            });
+        }
         const repairStats = repairParsedSectionStructure(parsedTest.sections, cleaned);
         if (repairStats.mergedOrphanReadingSections > 0 || repairStats.backfilledQuestionTexts > 0) {
             console.log('[parseThcsText] Structural repair:', repairStats);
@@ -981,7 +1008,9 @@ export async function parseThcsText(
         // Apply answer key to questions (safety net)
         for (const section of parsedTest.sections) {
             for (const q of section.questions) {
-                if (parsedTest.answerKey[q.questionNumber] && !q.correctAnswer) {
+                if (sourceAnswerKey[q.questionNumber]) {
+                    q.correctAnswer = sourceAnswerKey[q.questionNumber];
+                } else if (parsedTest.answerKey[q.questionNumber] && !q.correctAnswer) {
                     q.correctAnswer = parsedTest.answerKey[q.questionNumber];
                 }
             }
@@ -1107,6 +1136,38 @@ export async function parseThcsText(
 
 // -- Plain-Text AI Helpers (for Pipeline V2) --
 
+async function callCloudflareDirectPlainText(
+    prompt: string,
+    systemMessage: string,
+    temperature = 0.1,
+): Promise<string | null> {
+    try {
+        const baseUrl = import.meta.env.VITE_THCS_GEMMA_WORKER_URL?.trim().replace(/\/+$/, '');
+        if (!baseUrl) return null;
+        const { getAuth } = await import('firebase/auth');
+        const user = getAuth().currentUser;
+        if (!user) return null;
+        const response = await fetch(`${baseUrl}/thcs/gemma`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${await user.getIdToken()}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt, systemMessage, temperature }),
+            signal: AbortSignal.timeout(90_000),
+        });
+        if (!response.ok) {
+            console.warn(`[callCloudflareDirectPlainText] Cloudflare unavailable (${response.status})`);
+            return null;
+        }
+        const result = await response.json() as { text?: unknown };
+        return typeof result.text === 'string' && result.text.trim().length > 10 ? result.text : null;
+    } catch (error) {
+        console.warn('[callCloudflareDirectPlainText] Failed:', error);
+        return null;
+    }
+}
+
 /**
  * Call Groq and return PLAIN TEXT response (no JSON parsing).
  * Used by Pass 1, Pass 2, and Compromise steps.
@@ -1114,25 +1175,15 @@ export async function parseThcsText(
 async function callGroqDirectPlainText(
     prompt: string,
     systemMessage = 'You are a text restructuring assistant for Vietnamese English tests.',
-    model = 'llama-3.3-70b-versatile',
+    model = THCS_GROQ_MODEL,
     temperature = 0.1,
 ): Promise<string | null> {
     try {
-        const { default: Groq } = await import('groq-sdk');
-        const { getEnv } = await import('../../config/env.config');
-        const { getDecryptedKeys } = await import('../api-keys.service');
-        const { benchKey, filterBenchedKeys, shouldBenchGeminiKeyError } = await import('../key-cooldown.service');
+        const { default: Groq } = await import('../ai/browser-provider-clients');
+        const { getActiveKeyIds } = await import('../api-keys.service');
+        const { benchKey, filterBenchedKeys } = await import('../key-cooldown.service');
 
-        // Load Firestore (admin-managed) keys FIRST — they're more likely to be fresh
-        const allKeys: string[] = [];
-        try {
-            const firestoreKeys = await getDecryptedKeys('groq');
-            for (const k of firestoreKeys) { if (k && !allKeys.includes(k)) allKeys.push(k); }
-        } catch (_) { /* ignore */ }
-        // Then fallback to .env keys
-        const env = getEnv();
-        const legacyKey = env.VITE_GROQ_API_KEY;
-        if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !allKeys.includes(legacyKey)) allKeys.push(legacyKey);
+        const allKeys = await getActiveKeyIds('groq');
 
         if (allKeys.length === 0) return null;
 
@@ -1144,33 +1195,62 @@ async function callGroqDirectPlainText(
         }
         console.log(`[callGroqDirectPlainText] Trying ${keys.length}/${allKeys.length} available key(s)...`);
 
+        const outputBudgets = [4096, 2048, 1024];
         for (let i = 0; i < keys.length; i++) {
-            try {
-                // maxRetries: 0 — disable SDK internal retries on 429. We handle key rotation ourselves.
-                const client = new Groq({ apiKey: keys[i], dangerouslyAllowBrowser: true, maxRetries: 0 });
-                const completion = await client.chat.completions.create({
-                    model,
-                    messages: [
-                        { role: 'system', content: systemMessage },
-                        { role: 'user', content: prompt },
-                    ],
-                    temperature,
-                    max_tokens: 8192,
-                });
-                const text = completion.choices[0]?.message?.content;
-                if (text && text.trim().length > 10) {
-                    console.log(`[callGroqDirectPlainText] ✅ Key ${i + 1} succeeded (${text.length} chars)`);
-                    return text;
+            // maxRetries: 0 — the parser handles output-size retries and key rotation.
+            const client = new Groq({ apiKey: keys[i] });
+            for (const maxTokens of outputBudgets) {
+                try {
+                    const completion = await client.chat.completions.create({
+                        model,
+                        messages: [
+                            { role: 'system', content: systemMessage },
+                            { role: 'user', content: prompt },
+                        ],
+                        temperature,
+                        max_tokens: maxTokens,
+                        reasoning_effort: 'none',
+                    });
+                    const text = completion.choices[0]?.message?.content;
+                    if (completion.choices[0]?.finish_reason === 'length') {
+                        console.warn('[callGroqDirectPlainText] Incomplete Groq response — falling back');
+                        return null;
+                    }
+                    if (text && text.trim().length > 10) {
+                        console.log(`[callGroqDirectPlainText] ✅ Key ${i + 1} succeeded (${text.length} chars)`);
+                        return text;
+                    }
+                    console.warn(`[callGroqDirectPlainText] Key ${i + 1} returned empty/short response (${text?.length ?? 0} chars)`);
+                    break;
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    if (msg.includes('model_not_found')) {
+                        console.warn(`[callGroqDirectPlainText] Model ${model} unavailable — skipping remaining keys`);
+                        return null;
+                    }
+                    const limit = Number(msg.match(/\bLimit:?\s*([\d,]+)/i)?.[1]?.replaceAll(',', ''));
+                    const requested = Number(msg.match(/\bRequested:?\s*([\d,]+)/i)?.[1]?.replaceAll(',', ''));
+                    if (/\b413\b/.test(msg) || (/input tokens per minute|\bITPM\b/i.test(msg) && requested > limit)) {
+                        console.warn(`[callGroqDirectPlainText] Groq input is too large${Number.isFinite(limit) && Number.isFinite(requested) ? ` (${requested} requested, ${limit} limit)` : ''} — falling back`);
+                        return null;
+                    }
+                    const oversized = /request too large|reduce your message size/i.test(msg)
+                        || (/tokens per minute|\btpm\b/i.test(msg)
+                            && Number.isFinite(limit) && Number.isFinite(requested) && requested > limit);
+                    if (oversized) {
+                        if (maxTokens === outputBudgets[outputBudgets.length - 1]) {
+                            console.warn('[callGroqDirectPlainText] Prompt exceeds Groq token budget — falling back');
+                            return null;
+                        }
+                        continue;
+                    }
+                    if (msg.includes('429') || msg.includes('rate limit')) {
+                        benchKey(keys[i]!, 'groq', msg);
+                    } else {
+                        console.warn(`[callGroqDirectPlainText] Key ${i + 1} failed:`, msg);
+                    }
+                    break;
                 }
-                console.warn(`[callGroqDirectPlainText] Key ${i + 1} returned empty/short response (${text?.length ?? 0} chars)`);
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                if (msg.includes('429') || msg.includes('rate limit')) {
-                    benchKey(keys[i]!, 'groq', msg);
-                    continue;
-                }
-                console.warn(`[callGroqDirectPlainText] Key ${i + 1} failed:`, msg);
-                continue;
             }
         }
         console.warn(`[callGroqDirectPlainText] ❌ All ${keys.length} keys exhausted — returning null`);

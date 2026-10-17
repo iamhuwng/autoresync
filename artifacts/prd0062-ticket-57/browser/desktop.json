@@ -1,0 +1,23 @@
+{
+  "project": "desktop",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket57-component",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "consoleErrors": [],
+  "pdfRequests": [],
+  "overflow": {
+    "clientWidth": 1440,
+    "scrollWidth": 1440
+  },
+  "proof": [
+    "teacher quick-login",
+    "full-PDF source/page mapping",
+    "component-PDF branch-scoped source/page mapping with repeated local page numbers",
+    "reload persistence",
+    "stale CAS conflict recovery",
+    "200% zoom and overflow safety",
+    "no PDF request from #57 mapping workspace"
+  ]
+}

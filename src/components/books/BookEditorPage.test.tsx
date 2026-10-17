@@ -13,6 +13,7 @@ import {
 const mocks = vi.hoisted(() => ({
   trackAction: vi.fn(),
   homeworkProps: [] as any[],
+  firebaseBook: null as MaterialBookMetadata | null,
 }));
 
 const NOW = '2026-06-01T00:00:00.000Z';
@@ -31,7 +32,11 @@ vi.mock('../../hooks/useFeatureTracking', () => ({
 }));
 
 vi.mock('firebase/database', () => ({
-  get: vi.fn(async () => ({ val: () => null })),
+  get: vi.fn(async (target: { path?: string }) => ({
+    val: () => target?.path?.includes('material_catalog/books/')
+      ? mocks.firebaseBook
+      : null,
+  })),
   ref: vi.fn((_database, path: string) => ({ path })),
   remove: vi.fn(),
   set: vi.fn(),
@@ -99,6 +104,7 @@ describe('BookEditorPage', () => {
   beforeEach(() => {
     mocks.trackAction.mockClear();
     mocks.homeworkProps.length = 0;
+    mocks.firebaseBook = makeBook();
   });
 
   it('renders from the route-backed Book editor URL and tracks openBook', async () => {
@@ -114,7 +120,7 @@ describe('BookEditorPage', () => {
     );
 
     expect(screen.getByTestId('teacher-header')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'IELTS Book' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'IELTS Book' })).toBeInTheDocument();
     expect(screen.getByText('book-123')).toBeInTheDocument();
 
     await waitFor(() => {
@@ -139,7 +145,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
     expect(screen.getAllByText(/Whole-Book assignment is not available in V1/).length).toBeGreaterThanOrEqual(1);
 
@@ -158,6 +164,7 @@ describe('BookEditorPage', () => {
   });
 
   it('shows a tabbed Content workspace with selected material inspector', async () => {
+    mocks.firebaseBook = makeBook({ status: 'ready' });
     const user = userEvent.setup();
     const nodes = [
       makeNode({
@@ -191,7 +198,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Selected material' })).toBeInTheDocument();
     expect(screen.getAllByText('Passage One').length).toBeGreaterThan(1);
     expect(screen.getByRole('button', { name: 'Assign selected' })).toBeInTheDocument();
@@ -232,7 +239,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Settings' }));
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }));
     const visibility = screen.getByLabelText('Visibility');
 
     expect(screen.queryByRole('option', { name: 'Public library' })).not.toBeInTheDocument();
@@ -250,6 +257,7 @@ describe('BookEditorPage', () => {
   });
 
   it('assigns a Reading Passage ref through normal Reading Passage homework props, not Book assignment props', async () => {
+    mocks.firebaseBook = makeBook({ status: 'ready' });
     const user = userEvent.setup();
     const nodes = [
       makeNode({
@@ -283,7 +291,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Assign selected' }));
+    await user.click(await screen.findByRole('button', { name: 'Assign selected' }));
 
     expect(screen.getByRole('dialog', { name: 'Create Homework Assignment' })).toHaveTextContent('Passage One');
     expect(mocks.homeworkProps.at(-1)).toMatchObject({
@@ -328,11 +336,14 @@ describe('BookEditorPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied');
 
     const staleRepository = {
-      readBook: vi.fn(async () => makeBook({ updatedAt: 'newer' })),
+      readBook: vi.fn()
+        .mockResolvedValueOnce(makeBook({ updatedAt: 'older' }))
+        .mockResolvedValue(makeBook({ updatedAt: 'newer' })),
       listBookNodes: vi.fn(async () => []),
       listBooksByIndex: vi.fn(async () => []),
       write: vi.fn(),
       remove: vi.fn(),
+      update: vi.fn(),
     };
 
     rerender(
@@ -346,7 +357,7 @@ describe('BookEditorPage', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Book changed in another tab');

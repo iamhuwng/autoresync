@@ -611,12 +611,15 @@ describe('readingV2ResultAdapter.service', () => {
     ).toThrow(/projection binding/i);
   });
 
-  it('builds an existing-shell saved result record with grouped Reading V2 review payload', () => {
+  it.each([
+    ['answer two', 9],
+    ['wrong', 5.5],
+  ])('builds a saved result for answer %s with IELTS band %s and grouped review', (secondAnswer, expectedBand) => {
     const taskType = 'sentence-completion';
     const attempt = captureReadingV2Attempt({
       attemptId: 'attempt-saved',
       studentId: 'student-1',
-      submitPayload: answerPayloadFor(taskType, ['answer one', 'wrong']),
+      submitPayload: answerPayloadFor(taskType, ['answer one', secondAnswer]),
       context: { mode: 'homework', homeworkId: 'homework-1' },
     });
     const result = scoreReadingV2Attempt({
@@ -642,6 +645,7 @@ describe('readingV2ResultAdapter.service', () => {
 
     expect(savedResult.deliveryEngine).toBe(READING_V2_ENGINE);
     expect(savedResult.testType).toBe('ielts-reading-v2');
+    expect(savedResult.bandScore).toBe(expectedBand);
     expect(savedResult.readingV2.reviewPayload.taskGroups[0].interactions).toHaveLength(2);
     expect(savedResult.readingV2.reviewPayload.taskGroups[0].stimulusContext[0]).toMatchObject({
       stimulusId: 'stimulus-sentence-completion',
@@ -857,10 +861,12 @@ describe('readingV2ResultAdapter.service', () => {
       'test_results/result-course-indexes',
       'test_results_by_session/reading-v2/result-course-indexes',
       'test_results_by_student/student-1/result-course-indexes',
-      'test_results_by_teacher/teacher-1/result-course-indexes',
+      'teacher_result_keys/teacher-1/result-course-indexes',
       'test_results_by_course/course-1/student-1/result-course-indexes',
       'test_results_by_class/class-1/student-1/result-course-indexes',
     ]));
+    expect(plan.operations.find((operation) => operation.path === 'teacher_result_keys/teacher-1/result-course-indexes')?.value)
+      .toBe(true);
     expect(plan.operations.every((operation) => !containsUndefined(operation.value))).toBe(true);
     expect(plan.operations.find((operation) => operation.path === 'reading_v2/review_indexes/result-course-indexes')?.value)
       .toMatchObject({ ownerId: 'teacher-1' });

@@ -8,6 +8,9 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
+import { toast } from '../components/modern/ToastNotification';
 import { getAllCourses, getCoursesByOwner } from '../services/courseManager';
 import { getClasses, enrollStudent } from '../services/classManager';
 import { removeAssignment } from '../services/assignmentManager';
@@ -36,6 +39,7 @@ const AdminUserManagementPage = () => {
   const { user, profile, logout } = useAuth();
   const { navigateTo } = useNavigation('admin');
   const location = useLocation();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.adminPanel);
 
   // Role checks
   const isSuperAdmin = profile?.role === 'super_admin';
@@ -177,26 +181,46 @@ const AdminUserManagementPage = () => {
   };
 
   const handleApproveRequest = async (id) => {
-    await studentRequestsHook.approveRequest(id, user.uid);
-    userManagement.setSuccessMessage('Request approved');
+    trackAction('approveStudentRequest', { requestId: id });
+    try {
+      await studentRequestsHook.approveRequest(id, user.uid);
+      toast.success('Request approved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not approve this request. Please try again.');
+    }
   };
 
   const handleDenyRequest = async (id) => {
     if (!confirm('Deny this request?')) return;
-    await studentRequestsHook.denyRequest(id, user.uid);
-    userManagement.setSuccessMessage('Request denied');
+    trackAction('denyStudentRequest', { requestId: id });
+    try {
+      await studentRequestsHook.denyRequest(id, user.uid);
+      toast.success('Request denied');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not deny this request. Please try again.');
+    }
   };
 
   const handleApproveType = async (id) => {
     if (!confirm('Approve this course type?')) return;
-    await courseTypesHook.approveType(id);
-    userManagement.setSuccessMessage('Course type approved');
+    trackAction('approveCourseType', { requestId: id });
+    try {
+      await courseTypesHook.approveType(id);
+      toast.success('Course type approved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not approve this course type. Please try again.');
+    }
   };
 
   const handleRejectType = async (id) => {
     if (!confirm('Reject this course type?')) return;
-    await courseTypesHook.rejectType(id);
-    userManagement.setSuccessMessage('Course type rejected');
+    trackAction('rejectCourseType', { requestId: id });
+    try {
+      await courseTypesHook.rejectType(id);
+      toast.success('Course type rejected');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not reject this course type. Please try again.');
+    }
   };
 
   const handleSaveUser = async () => {

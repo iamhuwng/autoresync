@@ -2,7 +2,40 @@
 
 ## Integration Safety Rules (24 rules - ZERO BYPASS)
 
-When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
+When your action matches a trigger below, pause editing and read every
+applicable linked instruction before continuing. Do NOT load unrelated files;
+this pause is an instruction lookup, not a request for user confirmation.
+
+For multi-topic rule files, read the relevant sections and their required
+dependencies. Preserve every applicable safeguard without loading unrelated workflows.
+
+## Pre-launch Evolution
+
+This repository has no production users or production data. Revisit this policy before the first production deployment.
+
+- Optimize for the smallest coherent design that represents the product today.
+- Remove obsolete code, schemas, APIs, configuration, aliases, and transitional paths directly.
+- Do not add backward-compatibility shims, legacy aliases, dual-read or dual-write paths, or data-preserving backfills unless the user explicitly asks for them.
+- Internal interfaces are not public compatibility contracts. Update their callers and tests atomically when they change.
+- Development and test data are disposable. Prefer recreating those databases over complicating the product to preserve local data.
+- Treat migration history as a replaceable development baseline, but keep the checked-in migration chain and setup workflow coherent. Do not rewrite an already-applied migration without also resetting affected development and test databases.
+- Preserve database invariants, transactional safety, migration idempotence, and deterministic setup. These are correctness properties, not backward-compatibility requirements.
+- Consolidate the migration baseline only as an explicit, coordinated change rather than as incidental work in a feature branch.
+
+## Implementor Escalation Protocol
+
+Resolve straightforward issues locally. While evidence still suggests a viable
+local fix, make at most three focused retries; a retry must test a materially
+new hypothesis, not repeat the same action.
+
+After one to three failed attempts with no optimistic next step, send the Astra
+main task one comprehensive state report containing the exact reproduction and
+current error, relevant source/data/deployment state, attempt chronology,
+tests/logs, touched files and configuration, deployed version, observed side
+effects, ruled-out causes, remaining uncertainty, and a request for a one-pass
+plan. Pause only the affected work until Astra replies, then work within that
+plan for up to three focused retries before reporting the complete state again.
+Continue independent authorized work while waiting.
 
 ## Live State Before Claims (MANDATORY)
 
@@ -26,22 +59,23 @@ Before adding or modifying user-facing create, save, update, publish, assign, en
 
 ## Temporary PRD / Task-List Process And Closure Gate (MANDATORY)
 
-Before PRD/task-list packet planning, implementation review, correction, handoff, staging, commit, or PASS/BLOCKED closure, read [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) when work involves:
-- next-patch prompts, handoffs, or task sequencing
-- taskboxes, findings, traceability, implementation logs, canonical/current-state docs, guardrails, or reviewer blockers
-- source-test-doc truth reconciliation, exact-path staging, RTK/PowerShell command proof, or Cloudflare/Wrangler/R2 remote proof
+Read [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) for packet/taskbox/findings/traceability reconciliation, exact-path staging, remote-state proof, or formal milestone/packet closure (including its commit or handoff).
+Ordinary implementation, review, or correction does not trigger this bridge unless it includes one of those operations.
 
 Temporary bridge: remove after Codex memory index contains `prd0055-authority-sync-closure-lessons` / `authority-sync`.
 
 ## Dev Login Shortcuts (MANDATORY)
 
 When testing authenticated teacher or student flows in this repo:
-- Prefer the built-in dev quick-login buttons on the login page before asking for credentials.
-- First click the subtle settings icon in the bottom-right corner of the login page to reveal the hidden dev quick-login buttons.
+- Always open the login route at `/login` first. Do not substitute `/`, a role route, or a deep link as the login entry point.
+- Prefer the built-in dev quick-login buttons on `/login` before asking for credentials.
+- First click the subtle settings icon in the bottom-right corner of `/login` to reveal the hidden dev quick-login buttons.
 - Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
 - If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
+
+For local browser verification, use `http://localhost:5173/login` for teacher flows and `http://localhost:5174/login` for student flows.
 
 ## Live Browser Testing URLs (MANDATORY)
 
@@ -58,14 +92,16 @@ When the task involves Google Cloud, Gemini, Vertex AI, Google AI Studio, Google
 - Start by checking active auth and project context with `gcloud auth list` and `gcloud config get-value project`.
 - For API-key problems, inspect restrictions and targets with `gcloud services api-keys list`, `describe`, and `get-key-string` before assuming the key value itself is bad.
 - For service availability problems, inspect enablement with `gcloud services list --enabled` before changing code or rotating secrets.
-- Load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` in sync when this rule evolves.
 
 ### Universal Integration Safety Rules
 
-When your action matches a trigger below, STOP and READ the linked file before writing code. Do NOT load all files - only the one that matches.
+When your action matches a trigger below, pause editing and read every
+applicable linked instruction before continuing. Do NOT load unrelated files;
+this pause is an instruction lookup, not a request for user confirmation.
 
 | When you are... | READ this file |
 |----------------|----------------|
+| Creating or changing a feature/workflow, or replacing its backend, when shared notifications, announcements, reporting, or admin monitoring may apply | [`rules/shared-feature-integration.md`](documentation/rules/shared-feature-integration.md) |
 | Writing `navigate()`, `<Link>`, redirect URLs, or notification links | [`rules/navigation.md`](documentation/rules/navigation.md) |
 | Writing `useEffect` with `setInterval`/`setTimeout` + state deps | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
 | Creating state initialized as `'pending'` or `'loading'` | [`rules/react-patterns.md`](documentation/rules/react-patterns.md) |
@@ -78,7 +114,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Writing a service that writes to DB on data events | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Building, testing, deploying, dry-running, or debugging Cloudflare Workers, Wrangler, workerd, R2 uploads, signed URLs, Worker bindings, or backup Workers | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | PRD says "replace ALL", "every", or "replaces existing" | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
-| Writing ANY `import` or touching UI code that already imports `@mantine/*` - `@mantine/*` is **banned** and encountered usage must be replaced | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
+| Writing an `@mantine/*` import or touching UI code that already imports `@mantine/*` - `@mantine/*` is **banned** and encountered usage must be replaced | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md#rule-15--no-mantine-import-ban-and-encountered-use-replacement) |
 | Writing data to a path where existing code reads | [`rules/codebase-hygiene.md`](documentation/rules/codebase-hygiene.md) |
 | Changing teacher shell, Teacher Lobby, teacher result/history/detail pages, or teacher UI that still uses Mantine | [`architecture/ui-design-standards.md`](documentation/architecture/ui-design-standards.md) |
 | Changing `TeacherHeader` placement or teacher page shell spacing | [`architecture/teacher-lobby-authoring-and-navigation.md`](documentation/architecture/teacher-lobby-authoring-and-navigation.md) |
@@ -87,7 +123,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 | Adding or modifying create/save/update/publish/assign/enroll/restore/archive/remove/delete announcements | [`rules/announcements.md`](documentation/rules/announcements.md) |
 | Reporting test, build, emulator, Worker, or verification failure as product behavior | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Making deployed/current-state claims for Firebase, Hosting, Cloudflare Workers, Wrangler, R2, or remote data | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
-| PRD/task-list packet planning, review, correction, handoff, closure, taskbox/findings/traceability/log/docs reconciliation, exact-path staging, RTK/PowerShell proof, or Cloudflare/Wrangler/R2 remote proof | [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) |
+| Packet/taskbox/findings/traceability reconciliation, exact-path staging, remote-state proof, or formal milestone/packet closure (including its commit or handoff) | [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
 | Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
 | Writing hooks using `window.*`, `document.*`, `navigator.*` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
@@ -103,4 +139,7 @@ When your action matches a trigger below, STOP and READ the linked file before w
 ## Repo Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
-- Google Cloud, Gemini, Vertex AI, API key, service enablement, or MCP auth troubleshooting: load `.agent/skills/google-cloud-cli-first/SKILL.md` and keep the mirrored `.agents/skills/google-cloud-cli-first/SKILL.md` synchronized.
+- Local dependency installation, tool provisioning, tool lookup, Windows ARM64/x64 routing, or worktree cleanup: read `documentation/system/local-tooling-layout.md`. Run `npm run tooling:doctor` before installing anything, and use `npm run tooling:where -- <tool>` to locate the existing repo-owned or shared tool before downloading or invoking a global binary.
+- Before tests, builds, or dev commands in a copied checkout/worktree, inspect that checkout's package script and read `documentation/system/local-tooling-layout.md`; older copies may still launch the retired dependency-installing harness. Resolve the existing tool from the canonical checkout while preserving the selected source/configuration and working directory.
+- Prefer Codex Local for ordinary implementation and verification. Use a worktree only for concurrent source isolation; never install dependencies into a managed worktree just to run checks. Hand off to Local and use the canonical checkout's dependencies instead.
+- With the DevSpace plugin, open the canonical checkout using `mode="checkout"` and reuse the returned `workspaceId`. Use `mode="worktree"` only when the user explicitly needs parallel isolation.

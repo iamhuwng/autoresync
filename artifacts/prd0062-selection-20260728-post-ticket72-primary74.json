@@ -1,0 +1,78 @@
+{
+  "selectedAt": "2026-07-28T04:01:21.288Z",
+  "governingPolicy": "Deterministic roadmap plus mandatory complete-transitive-prerequisite and acceptance-readiness gates.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket72-closed.json",
+    "issueHash": "a5a92d63d1459365b855576c083504c0e77c9df2cd2efed14d0dfc3a391d3af4",
+    "issueCount": 112,
+    "openCount": 60,
+    "closedCount": 52,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 74, 82, 105, 129, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "issue": 74,
+    "ticket": "28A",
+    "title": "Authorize trusted Book Runtime commands",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31, 34, 59, 72],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 52,
+    "acceptanceReadiness": {
+      "status": "executable",
+      "scope": "Repair the existing runtime authorization boundary for the current #72 schema-v3 binding while preserving supported legacy v2 reads.",
+      "executableGates": [
+        "strict runtime command schema and authorization tests",
+        "fixture-created schema-v3 binding through draft-read authorization",
+        "fixture-created schema-v3 binding through command authorization",
+        "legacy schema-v2 behavior remains covered",
+        "route and trusted-action gates remain disabled",
+        "local repository, Worker, rules-fragment, and service-identity proof remains #74-owned"
+      ],
+      "destinationGatesNotClaimed": [
+        "assembled generated database.rules.json and emulator proof remain #118-owned",
+        "deployed/canary identity, cleanup, readback, and rollback remain #134-owned",
+        "browser runtime proof remains #73/#75/#76-owned"
+      ]
+    },
+    "requiredAuthority": [
+      "local repository implementation and focused tests",
+      "live #74 acceptance contract and issue reclosure",
+      "no deployment, browser activation, private-B2 activation, #50A change, #03B change, trusted-action activation, or route-gate activation"
+    ],
+    "selectionReason": "Earliest unresolved Runtime root/enabler with all live direct and transitive prerequisites closed, executable local acceptance gates, available authority, and highest verified downstream leverage on the current frontier."
+  },
+  "candidateRejections": [
+    {
+      "issues": [49, 50],
+      "rule": "authority-and-safety",
+      "reason": "Graph-clear, but private-B2 provisioning/lifecycle and deployed disposable-object proof are not executable while private-B2, trusted actions, and related activation capabilities must remain disabled."
+    },
+    {
+      "issues": [82, 105],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear, but #82 belongs to later teacher/student workflow work and #105 belongs to the later public-catalog/teacher workflow phase; their browser, route, or deployment gates are not the current Runtime root/enabler."
+    },
+    {
+      "issues": [129, 131, 132, 133],
+      "rule": "roadmap-phase-and-acceptance-readiness",
+      "reason": "Graph-clear, but these are final integration/regression suites. They cannot be selected before Runtime and later workflow phases, and their final proof must preserve the #50A all-six-deny boundary."
+    },
+    {
+      "issues": [76, 77, 80, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 130, 134, 135, 136],
+      "rule": "mandatory-complete-transitive-prerequisite",
+      "reason": "Ineligible: the live graph reports at least one open direct or transitive prerequisite. The complete per-ticket chains and exact open prerequisite sets remain in the referenced 112-ticket graph artifact; no implementation or acceptance work starts on these tickets."
+    }
+  ],
+  "peerLaneDecision": {
+    "issues": [93, 94, 97],
+    "status": "read-only",
+    "reason": "#93 is transitively blocked by the current open #74 contract repair. Do not release the notification lane until #74 closes and a fresh complete graph proves eligibility."
+  },
+  "selectionDecision": "Select exactly one Runtime primary: #74. Repair only the schema-v3 compatibility contract, close it with fresh evidence, commit and push after closure, then rebuild the complete 112-ticket graph before any descendant or peer-lane selection. Preserve full 112-ticket scope and all disabled capability boundaries."
+}

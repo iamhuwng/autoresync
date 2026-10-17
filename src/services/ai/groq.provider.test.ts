@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GroqProvider } from './groq.provider';
 import type { Chunk } from '../../types/document.types';
 import { getEnv } from '../../config/env.config';
-import { getDecryptedKeys } from '../api-keys.service';
+import { getActiveKeyIds } from '../api-keys.service';
 
 // Mock Groq SDK
-vi.mock('groq-sdk', () => ({
+vi.mock('./browser-provider-clients', () => ({
   default: vi.fn().mockImplementation(() => ({
     chat: {
       completions: {
@@ -21,7 +21,7 @@ vi.mock('../../config/env.config', () => ({
 }));
 
 vi.mock('../api-keys.service', () => ({
-  getDecryptedKeys: vi.fn().mockResolvedValue([]),
+  getActiveKeyIds: vi.fn().mockResolvedValue(['test-key-1']),
 }));
 
 // Mock response validator
@@ -48,11 +48,18 @@ describe('Groq Provider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getEnv).mockReturnValue({ VITE_GROQ_API_KEY: 'test-groq-key' });
-    vi.mocked(getDecryptedKeys).mockResolvedValue([]);
+    vi.mocked(getActiveKeyIds).mockResolvedValue(['test-key-1']);
     provider = new GroqProvider();
   });
 
   describe('Initialization', () => {
+    it('recovers after the Worker key inventory is initially unavailable', async () => {
+      vi.mocked(getActiveKeyIds).mockRejectedValueOnce(new Error('503 AI gateway unavailable'));
+      expect((await provider.testConnection()).success).toBe(false);
+      expect((await provider.testConnection()).success).toBe(true);
+      expect(getActiveKeyIds).toHaveBeenCalledTimes(2);
+    });
+
     it('should initialize lazily when a client call is made', async () => {
       await provider.testConnection();
 
@@ -72,6 +79,30 @@ describe('Groq Provider', () => {
   });
 
   describe('Parse Chunk', () => {
+    it.each([
+      ['401', '401 Authentication failed'],
+      ['403', '403 Forbidden'],
+      ['429', '429 quota exhausted'],
+    ])('rotates parseChunk after a %s key error', async (_status, failure) => {
+      const parsed = { passages: [], questions: [], answerKey: {}, confidence: 90 };
+      const suffix = `${Date.now()}-${Math.random()}`;
+      const clientsByKey = new Map<string, { chat: { completions: { create: ReturnType<typeof vi.fn> } } }>();
+      const failedKey = `parse-rotation-failed-${suffix}`;
+      const healthyKey = `parse-rotation-healthy-${suffix}`;
+      clientsByKey.set(healthyKey, { chat: { completions: { create: vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify(parsed) } }] }) } } });
+      clientsByKey.set(failedKey, { chat: { completions: { create: vi.fn().mockRejectedValue(new Error(failure)) } } });
+      vi.mocked(getActiveKeyIds).mockResolvedValue([healthyKey, failedKey]);
+      const Groq = (await import('./browser-provider-clients')).default;
+      vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
+      provider = new GroqProvider();
+
+      const result = await provider.parseChunk(mockChunk);
+
+      expect(result.success).toBe(true);
+      expect(clientsByKey.get(failedKey)?.chat.completions.create).toHaveBeenCalledTimes(1);
+      expect(clientsByKey.get(healthyKey)?.chat.completions.create).toHaveBeenCalledTimes(1);
+    });
+
     it('should successfully parse chunk', async () => {
       const mockResponse = {
         choices: [{
@@ -94,7 +125,7 @@ describe('Groq Provider', () => {
         }],
       };
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -112,7 +143,7 @@ describe('Groq Provider', () => {
     });
 
     it('should handle API errors', async () => {
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -141,7 +172,7 @@ describe('Groq Provider', () => {
         }],
       };
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -167,7 +198,7 @@ describe('Groq Provider', () => {
         }],
       };
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -185,7 +216,7 @@ describe('Groq Provider', () => {
     });
 
     it('should fail when client not initialized', async () => {
-      vi.mocked(getEnv).mockReturnValue({});
+      vi.mocked(getActiveKeyIds).mockResolvedValue([]);
 
       const newProvider = new GroqProvider();
       const result = await newProvider.parseChunk(mockChunk);
@@ -222,7 +253,7 @@ describe('Groq Provider', () => {
           }],
         });
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: {
           completions: { create },
@@ -264,7 +295,7 @@ describe('Groq Provider', () => {
         }],
       };
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -284,7 +315,7 @@ describe('Groq Provider', () => {
     });
 
     it('should track last error', async () => {
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -304,14 +335,52 @@ describe('Groq Provider', () => {
   });
 
   describe('Structured JSON key slots', () => {
-    it('combines admin and env Groq keys with dedupe', async () => {
-      vi.mocked(getDecryptedKeys).mockResolvedValue(['admin-slot-key', 'shared-slot-key']);
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY: 'legacy-slot-key',
-        VITE_GROQ_API_KEY_1: 'shared-slot-key',
-        VITE_GROQ_API_KEY_2: 'numbered-slot-key',
-      } as any);
-      const Groq = (await import('groq-sdk')).default;
+    it.each([
+      ['401', '401 Authentication failed'],
+      ['403', '403 Forbidden'],
+      ['429', '429 quota exhausted'],
+    ])('rotates structured generation after a %s key error', async (_status, failure) => {
+      const suffix = `${Date.now()}-${Math.random()}`;
+      const failedKey = `rotation-failed-${suffix}`;
+      const healthyKey = `rotation-healthy-${suffix}`;
+      const clientsByKey = new Map<string, { chat: { completions: { create: ReturnType<typeof vi.fn> } } }>();
+      clientsByKey.set(failedKey, { chat: { completions: { create: vi.fn().mockRejectedValue(new Error(failure)) } } });
+      clientsByKey.set(healthyKey, { chat: { completions: { create: vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"ok":true}' } }] }) } } });
+      vi.mocked(getActiveKeyIds).mockResolvedValue([failedKey, healthyKey]);
+      const Groq = (await import('./browser-provider-clients')).default;
+      vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
+      provider = new GroqProvider();
+
+      const result = await provider.generateStructuredJson('{"request":true}', { preferredKeyIndex: 0 });
+      const slots = await provider.getAvailableStructuredJsonKeySlots();
+
+      expect(result).toEqual({ success: true, data: { ok: true } });
+      expect(clientsByKey.get(failedKey)?.chat.completions.create).toHaveBeenCalledTimes(1);
+      expect(clientsByKey.get(healthyKey)?.chat.completions.create).toHaveBeenCalledTimes(1);
+      expect(slots.map(({ available }) => available)).toEqual([false, true]);
+    });
+
+    it.each([
+      '429 user_rate_limited',
+      '401 user_unauthorized',
+      '403 user_account_disabled',
+    ])('does not bench a healthy key for Worker access failure %s', async (failure) => {
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['user-throttled-slot-key']);
+      const create = vi.fn().mockRejectedValue(new Error(failure));
+      const Groq = (await import('./browser-provider-clients')).default;
+      vi.mocked(Groq).mockImplementation(() => ({ chat: { completions: { create } } }) as any);
+      provider = new GroqProvider();
+
+      const result = await provider.generateStructuredJson('{"request":true}', { preferredKeyIndex: 0 });
+      const slots = await provider.getAvailableStructuredJsonKeySlots();
+
+      expect(result.success).toBe(false);
+      expect(slots[0]?.available).toBe(true);
+    });
+
+    it('uses only the Worker key inventory', async () => {
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['admin-slot-key', 'shared-slot-key']);
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create: vi.fn() } },
       }) as any);
@@ -319,12 +388,10 @@ describe('Groq Provider', () => {
 
       const slots = await provider.getAvailableStructuredJsonKeySlots();
 
-      expect(slots).toHaveLength(4);
+      expect(slots).toHaveLength(2);
       expect(vi.mocked(Groq).mock.calls.map(([options]) => (options as { apiKey: string }).apiKey)).toEqual([
         'admin-slot-key',
         'shared-slot-key',
-        'legacy-slot-key',
-        'numbered-slot-key',
       ]);
     });
 
@@ -341,13 +408,9 @@ describe('Groq Provider', () => {
           },
         });
       });
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'slot-key-1',
-        VITE_GROQ_API_KEY_2: 'slot-key-2',
-        VITE_GROQ_API_KEY_3: 'slot-key-3',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['slot-key-1', 'slot-key-2', 'slot-key-3']);
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
       provider = new GroqProvider();
 
@@ -374,12 +437,9 @@ describe('Groq Provider', () => {
           },
         });
       });
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'benched-groq-slot-key',
-        VITE_GROQ_API_KEY_2: 'fresh-groq-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['benched-groq-slot-key', 'fresh-groq-slot-key']);
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
       provider = new GroqProvider();
 
@@ -391,11 +451,8 @@ describe('Groq Provider', () => {
     });
 
     it('reports available structured-generation key slots with fingerprints only', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'fingerprint-slot-key-1',
-        VITE_GROQ_API_KEY_2: 'fingerprint-slot-key-2',
-      } as any);
-      const Groq = (await import('groq-sdk')).default;
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['fingerprint-slot-key-1', 'fingerprint-slot-key-2']);
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create: vi.fn() } },
       }) as any);
@@ -410,13 +467,11 @@ describe('Groq Provider', () => {
     });
 
     it('honors per-call model selection for structured generation', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'model-selection-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['model-selection-slot-key']);
       const create = vi.fn().mockResolvedValue({
         choices: [{ message: { content: '{"ok":true}' } }],
       });
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -435,13 +490,11 @@ describe('Groq Provider', () => {
     });
 
     it('honors per-call response format for structured generation', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'response-format-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['response-format-slot-key']);
       const create = vi.fn().mockResolvedValue({
         choices: [{ message: { content: '{"ok":true}' } }],
       });
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -474,15 +527,13 @@ describe('Groq Provider', () => {
     });
 
     it('retries structured generation with smaller max tokens after request-size TPM errors', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'tpm-retry-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['tpm-retry-slot-key']);
       const create = vi.fn()
         .mockRejectedValueOnce(new Error('413 Request too large for model on tokens per minute (TPM)'))
         .mockResolvedValueOnce({
           choices: [{ message: { content: '{"ok":true}' } }],
         });
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -501,15 +552,13 @@ describe('Groq Provider', () => {
     });
 
     it('retries structured generation with smaller max tokens after request-size TPD errors', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'tpd-retry-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['tpd-retry-slot-key']);
       const create = vi.fn()
         .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per day (TPD): Requested 19146. Please try again in 48m4.896s.'))
         .mockResolvedValueOnce({
           choices: [{ message: { content: '{"ok":true}' } }],
         });
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -526,15 +575,13 @@ describe('Groq Provider', () => {
     });
 
     it('waits and retries temporary structured-generation TPM rate limits before benching the key', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'tpm-wait-retry-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['tpm-wait-retry-slot-key']);
       const create = vi.fn()
         .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
         .mockResolvedValueOnce({
           choices: [{ message: { content: '{"ok":true}' } }],
         });
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -555,16 +602,14 @@ describe('Groq Provider', () => {
     it('honors repeated Groq retry-after windows during one structured-generation call', async () => {
       vi.useFakeTimers();
       try {
-        vi.mocked(getEnv).mockReturnValue({
-          VITE_GROQ_API_KEY_1: 'tpm-repeat-wait-retry-slot-key',
-        } as any);
+        vi.mocked(getActiveKeyIds).mockResolvedValue(['tpm-repeat-wait-retry-slot-key']);
         const create = vi.fn()
           .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
           .mockRejectedValueOnce(new Error('429 Rate limit reached on tokens per minute (TPM). Please try again in 0.001s.'))
           .mockResolvedValueOnce({
             choices: [{ message: { content: '{"ok":true}' } }],
           });
-        const Groq = (await import('groq-sdk')).default;
+        const Groq = (await import('./browser-provider-clients')).default;
         vi.mocked(Groq).mockImplementation(() => ({
           chat: { completions: { create } },
         }) as any);
@@ -588,11 +633,9 @@ describe('Groq Provider', () => {
     });
 
     it('benches structured generation slots when request-size retries still fail', async () => {
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'tpm-failing-slot-key',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['tpm-failing-slot-key']);
       const create = vi.fn().mockRejectedValue(new Error('413 Request too large for model on tokens per minute (TPM)'));
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation(() => ({
         chat: { completions: { create } },
       }) as any);
@@ -631,12 +674,9 @@ describe('Groq Provider', () => {
           },
         },
       });
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'race-slot-key-1',
-        VITE_GROQ_API_KEY_2: 'race-slot-key-2',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['race-slot-key-1', 'race-slot-key-2']);
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
       provider = new GroqProvider();
 
@@ -650,7 +690,7 @@ describe('Groq Provider', () => {
       expect(slots[1]?.available).toBe(true);
     });
 
-    it('benches hard preferred-slot key errors for structured generation', async () => {
+    it('rotates past hard preferred-slot key errors for structured generation', async () => {
       const clientsByKey = new Map<string, { chat: { completions: { create: ReturnType<typeof vi.fn> } } }>();
       clientsByKey.set('hard-error-slot-key-1', {
         chat: {
@@ -668,22 +708,39 @@ describe('Groq Provider', () => {
           },
         },
       });
-      vi.mocked(getEnv).mockReturnValue({
-        VITE_GROQ_API_KEY_1: 'hard-error-slot-key-1',
-        VITE_GROQ_API_KEY_2: 'hard-error-slot-key-2',
-      } as any);
+      vi.mocked(getActiveKeyIds).mockResolvedValue(['hard-error-slot-key-1', 'hard-error-slot-key-2']);
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => clientsByKey.get(options.apiKey) as any);
       provider = new GroqProvider();
 
       const result = await provider.generateStructuredJson('{"request":true}', { preferredKeyIndex: 0 });
       const slots = await provider.getAvailableStructuredJsonKeySlots();
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
       expect(slots[0]?.available).toBe(false);
       expect(slots[1]?.available).toBe(true);
     });
+  });
+
+  it('continues writing grading on the next Groq key after a rejected key', async () => {
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const healthyKey = `grading-healthy-${suffix}`;
+    const rejectedKey = `grading-rejected-${suffix}`;
+    const healthyCreate = vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"score":85,"confidence":90,"feedback":"Good"}' } }] });
+    const rejectedCreate = vi.fn().mockRejectedValue(new Error('401 Authentication failed'));
+    vi.mocked(getActiveKeyIds).mockResolvedValue([healthyKey, rejectedKey]);
+    const Groq = (await import('./browser-provider-clients')).default;
+    vi.mocked(Groq).mockImplementation((options: { apiKey: string }) => ({
+      chat: { completions: { create: options.apiKey === healthyKey ? healthyCreate : rejectedCreate } },
+    }) as any);
+    provider = new GroqProvider();
+
+    const result = await provider.gradeWritingAnswer('I have gone', ['I have gone'], 'I went');
+
+    expect(result).toEqual({ success: true, data: { score: 85, confidence: 90, feedback: 'Good' } });
+    expect(rejectedCreate).toHaveBeenCalledTimes(1);
+    expect(healthyCreate).toHaveBeenCalledTimes(1);
   });
 
   describe('Connection Test', () => {
@@ -696,7 +753,7 @@ describe('Groq Provider', () => {
         }],
       };
 
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -714,7 +771,7 @@ describe('Groq Provider', () => {
     });
 
     it('should handle connection test failure', async () => {
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {
@@ -737,7 +794,7 @@ describe('Groq Provider', () => {
 
   describe('Reset', () => {
     it('should reset error state', async () => {
-      const Groq = (await import('groq-sdk')).default;
+      const Groq = (await import('./browser-provider-clients')).default;
       const mockClient = {
         chat: {
           completions: {

@@ -14,13 +14,14 @@
  * This component provides consistent navigation across all teacher pages.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../modern';
 import { TeacherNavigation } from './TeacherNavigation';
 import { Breadcrumbs } from './Breadcrumbs';
 import { MobileMenu, HamburgerButton } from './MobileMenu';
 import { useNavigationContext } from '../../hooks/useNavigationContext';
+import { NotificationBell, type NotificationBellHandle } from '../notifications/NotificationBell';
 import { ROUTES } from '../../constants/routes';
 import { useDocumentTitle, useScreenSize } from '../../core/platform';
 
@@ -76,6 +77,8 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
 
     const useMobileDrawerNavigation = width <= 768;
     const shouldUseCompactNavigation = width < 1280;
+    const mobileControlsRef = useRef<HTMLDivElement>(null);
+    const notificationBellRef = useRef<NotificationBellHandle>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     // Show back button if not on root and not hidden
@@ -100,6 +103,7 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
         { id: 'homework', label: 'Homework', icon: '📋', onClick: () => navigate(ROUTES.TEACHER_HOMEWORK), isActive: false },
         { id: 'grading', label: 'Grading', icon: '📝', onClick: () => navigate(ROUTES.TEACHER_GRADING), isActive: false },
         { id: 'students', label: 'Students', icon: '👥', onClick: () => navigate(ROUTES.TEACHER_STUDENTS), isActive: false },
+        ...(userId ? [{ id: 'notification-history', label: 'Notification history', onClick: () => notificationBellRef.current?.openHistory(mobileControlsRef.current?.querySelector<HTMLButtonElement>('[aria-label="Toggle menu"]') ?? undefined), isActive: false }] : []),
     ];
 
     return (
@@ -186,7 +190,8 @@ export const TeacherHeader: React.FC<TeacherHeaderProps> = ({
 
                 {/* Mobile: Hamburger Menu */}
                 {!hideNavigation && useMobileDrawerNavigation && (
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div ref={mobileControlsRef} style={{ display: 'flex', alignItems: 'center' }}>
+                        {userId && <NotificationBell ref={notificationBellRef} userId={userId} role={userRole === 'super_admin' ? 'admin' : 'teacher'} hideTrigger />}
                         <HamburgerButton
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                             isOpen={mobileMenuOpen}

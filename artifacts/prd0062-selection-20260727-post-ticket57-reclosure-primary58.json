@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-27T04:04:00.000Z",
+  "selectionStatus": "selected",
+  "selectedPrimary": {
+    "issue": 58,
+    "ticket": "09C",
+    "title": "PRD0062 09C — Authorize teacher Assembly document preview",
+    "roadmapPhase": "runtime trusted seam / teacher preview enabler",
+    "selectionReason": "All direct and transitive prerequisites are formally CLOSED after fresh #56/#57 reverification. #58 acceptance is executable with current Firebase, browser, preview, and 09A/09B authority, and it has the strongest current critical-path leverage."
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket57-reclosure.json",
+    "issueHash": "0788c7db003e95d571bbdbe38afeb080ea666141e450dfc515d9909b248a40ac",
+    "issueCount": 112,
+    "openCount": 78,
+    "closedCount": 34,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 58, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "closedPrerequisites": {
+    "direct": [31, 35, 51, 57],
+    "transitiveOpen": []
+  },
+  "candidateDisposition": [
+    {
+      "issue": 58,
+      "downstreamLeverage": 63,
+      "eligible": true,
+      "selected": true
+    },
+    {
+      "issues": [49, 50],
+      "eligible": true,
+      "rejection": "Independent provisioning/operations roots with lower critical-path leverage."
+    },
+    {
+      "issue": 61,
+      "downstreamLeverage": 27,
+      "eligible": true,
+      "rejection": "Later teacher import workflow with lower leverage than the trusted preview seam."
+    },
+    {
+      "issues": [65, 66],
+      "downstreamLeverage": 60,
+      "eligible": true,
+      "rejection": "Publication adapters have slightly lower leverage and follow the runtime trusted-seam phase."
+    },
+    {
+      "issue": 70,
+      "downstreamLeverage": 27,
+      "eligible": true,
+      "rejection": "Later migration/operations workflow with lower leverage."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "eligible": false,
+      "rejection": "Final-closure suites remain phase-ineligible and share unresolved downstream acceptance."
+    }
+  ],
+  "authorityAndReadiness": {
+    "requiredAuthority": [
+      "local reconciled worktree",
+      "Firebase identity/readback and preview deployment",
+      "teacher quick-login browser at http://localhost:5173",
+      "existing 09A authorization and 09B bounded transport seams"
+    ],
+    "acceptanceReadiness": "Executable without enabling #50A or #03B. #59 retains top-level deployed route composition; #118 retains generated-rules assembly/deployment."
+  },
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "currentRoadmapPhase": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "highestClosureAndDownstreamValueAmongEligibleCurrentPhaseCandidates": true,
+    "preservesFull112TicketScope": true
+  }
+}

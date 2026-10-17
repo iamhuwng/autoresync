@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { useSortable, arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Card, Group, Text, ActionIcon, Badge, TextInput, Tooltip, Collapse, Stack, Button } from '@mantine/core';
-import { IconGripVertical, IconEdit, IconTrash, IconBook, IconCheck, IconPlus, IconChevronRight, IconRefresh, IconAlertTriangle, IconPlayerPlay, IconSettings } from '@tabler/icons-react';
+import { IconGripVertical, IconEdit, IconTrash, IconBook, IconCheck, IconPlus, IconChevronRight, IconRefresh, IconAlertTriangle, IconPlayerPlay, IconSettings, IconBooks } from '@tabler/icons-react';
+import { buildRoute } from '../../constants/routes';
 import type { Module, CourseMaterial } from '../../types/course.types';
 import type { ModuleSyncStatus } from '../../services/courseSyncService';
 import { ModuleSyncBanner } from './ModuleSyncBanner';
@@ -15,27 +15,8 @@ export interface ExtendedMaterial extends CourseMaterial {
     isUnavailable?: boolean;
 }
 
-const materialCardStyles = {
-    root: {
-        padding: '8px 10px',
-        borderRadius: '10px',
-    },
-};
-
-const moduleCardStyles = {
-    root: {
-        padding: '10px 12px',
-        borderRadius: '12px',
-    },
-};
-
-const iconActionStyles = {
-    root: {
-        width: 28,
-        minWidth: 28,
-        height: 28,
-    },
-};
+const iconActionClass = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2';
+const badgeClass = 'inline-flex shrink-0 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs';
 
 interface ModuleItemProps {
     module: Module;
@@ -46,6 +27,7 @@ interface ModuleItemProps {
     onSyncComplete?: () => void;         // Callback when sync apply/dismiss completes
     onMarkComplete?: () => void;
     onAddMaterial?: () => void;
+    onAddBook?: () => void;
     onSyncMaterial?: (linkId: string) => Promise<void>;
     onRemoveMaterial?: (linkId: string) => Promise<void>;
     onReorderMaterials?: (newOrder: string[]) => Promise<void>;
@@ -81,59 +63,62 @@ const SortableMaterialItem = ({
 
     return (
         <div ref={setNodeRef} style={style}>
-            <Card withBorder padding="xs" radius="sm" bg="gray.0" styles={materialCardStyles}>
-                <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
-                    <Group gap={6} wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex' }} data-testid="material-drag-handle">
                             <IconGripVertical size={14} color="gray" />
                         </div>
                         <IconBook size={13} color="gray" />
-                        <Text
-                            size="xs"
-                            fw={500}
-                            component={Link}
-                            to={`/material/${material.materialId}`}
-                            state={{ courseId: material.courseId, moduleId: material.moduleId }}
-                            style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
-                            lineClamp={1}
-                        >
-                            {material.title}
-                        </Text>
-                        {material.isCopy && <Badge size="xs" color="blue" variant="dot">Copy</Badge>}
-                        {material.isUnavailable && <Badge size="xs" color="red" leftSection={<IconAlertTriangle size={9} />}>Unavailable</Badge>}
-                        {material.isCopy && material.syncedAt && (
-                            <Text size="10px" c="dimmed">
-                                Synced: {new Date(material.syncedAt).toLocaleDateString()}
-                            </Text>
+                        {material.materialKind === 'book-delivery' ? (
+                            <Link
+                                to={buildRoute('TEACHER_MATERIAL_BOOK', { bookId: material.materialId })}
+                                style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
+                                className="truncate text-xs font-medium"
+                                title={material.title}
+                            >{material.title}</Link>
+                        ) : (
+                            <Link
+                                to={`/material/${material.materialId}`}
+                                state={{ courseId: material.courseId, moduleId: material.moduleId }}
+                                style={{ cursor: 'pointer', textDecoration: 'none', color: 'inherit', minWidth: 0, lineHeight: 1.3 }}
+                                className="truncate text-xs font-medium"
+                                title={material.title}
+                            >{material.title}</Link>
                         )}
-                    </Group>
+                        {material.materialKind === 'book-delivery' && <span className={`${badgeClass} text-violet-700`}>Book</span>}
+                        {material.isCopy && <span className={`${badgeClass} text-blue-700`}>Copy</span>}
+                        {material.isUnavailable && <span className={`${badgeClass} text-red-700`}><IconAlertTriangle size={9} />Unavailable</span>}
+                        {material.isCopy && material.syncedAt && (
+                            <span className="text-[10px] text-slate-500">
+                                Synced: {new Date(material.syncedAt).toLocaleDateString()}
+                            </span>
+                        )}
+                    </div>
 
-                    <Group gap={4} wrap="nowrap">
+                    <div className="flex shrink-0 items-center gap-1">
                         {material.isCopy && onSync && (
-                            <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                leftSection={<IconRefresh size={11} />}
+                            <button
+                                type="button"
+                                className="inline-flex min-h-11 items-center gap-1 rounded px-2 text-xs text-blue-700 hover:bg-blue-50"
                                 onClick={() => onSync(material.id)}
                             >
-                                Sync
-                            </Button>
+                                <IconRefresh size={11} /> Sync
+                            </button>
                         )}
                         {onRemove && (
-                            <ActionIcon
-                                variant="subtle"
-                                color="red"
-                                size="sm"
+                            <button
+                                type="button"
+                                className={`${iconActionClass} text-red-700`}
                                 onClick={() => onRemove(material.id)}
-                                aria-label="Remove material"
-                                styles={iconActionStyles}
+                                aria-label={material.materialKind === 'book-delivery' ? 'Revoke Book item' : 'Remove material'}
                             >
                                 <IconTrash size={13} />
-                            </ActionIcon>
+                            </button>
                         )}
-                    </Group>
-                </Group>
-            </Card>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -147,6 +132,7 @@ export const ModuleItem = ({
     onSyncComplete,
     onMarkComplete,
     onAddMaterial,
+    onAddBook,
     onSyncMaterial,
     onRemoveMaterial,
     onReorderMaterials,
@@ -204,34 +190,32 @@ export const ModuleItem = ({
     };
 
     return (
-        <Card
-            withBorder
-            shadow="sm"
-            padding="sm"
+        <div
+            className="rounded-md border border-slate-200 bg-white px-3 py-2.5"
             ref={setNodeRef}
             style={style}
-            styles={moduleCardStyles}
         >
-            <Group justify="space-between" wrap="nowrap" align="flex-start" gap="sm">
-                <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
                     <div {...attributes} {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center' }} data-testid="drag-handle">
                         <IconGripVertical size={16} color="gray" />
                     </div>
 
-                    <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size="sm"
+                    <button
+                        type="button"
+                        className={`${iconActionClass} text-slate-600`}
                         onClick={() => setIsOpen(!isOpen)}
                         style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}
                         aria-label="Toggle materials"
-                        styles={iconActionStyles}
+                        aria-expanded={isOpen}
                     >
                         <IconChevronRight size={14} />
-                    </ActionIcon>
+                    </button>
 
                     {isEditingName ? (
-                        <TextInput
+                        <input
+                            aria-label="Module name"
+                            className="min-h-11 min-w-0 flex-1 rounded border border-slate-300 px-2 text-sm"
                             value={editedName}
                             onChange={(e) => setEditedName(e.currentTarget.value)}
                             onBlur={handleRename}
@@ -242,92 +226,87 @@ export const ModuleItem = ({
                                     setEditedName(module.name);
                                 }
                             }}
-                            size="sm"
                             autoFocus
                             style={{ flex: 1 }}
                         />
                     ) : (
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text
-                                fw={600}
-                                size="sm"
+                            <button
+                                type="button"
+                                className="min-h-11 max-w-full truncate bg-transparent p-0 text-left text-sm font-semibold"
+                                title={module.name}
                                 style={{ cursor: 'pointer', lineHeight: 1.3 }}
                                 onClick={() => setIsEditingName(true)}
-                                lineClamp={1}
                             >
                                 {module.name}
-                            </Text>
-                            <Group gap={6} mt={4} wrap="wrap">
-                                <Group gap={4} c="dimmed" wrap="nowrap">
+                            </button>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                <span className="flex items-center gap-1 text-slate-500">
                                     <IconBook size={12} />
-                                    <Text size="11px">{module.materialsCount || 0} materials</Text>
-                                </Group>
+                                    <span className="text-[11px]">{module.materialsCount || 0} materials</span>
+                                </span>
 
                                 {syncStatus && syncStatus.pendingMaterials.length > 0 && (
-                                    <Badge size="xs" color="blue" variant="dot">
+                                    <span className={`${badgeClass} text-blue-700`}>
                                         {syncStatus.pendingMaterials.length} update{syncStatus.pendingMaterials.length !== 1 ? 's' : ''}
-                                    </Badge>
+                                    </span>
                                 )}
 
                                 {isCompleted && (
-                                    <Badge color="green" variant="light" size="xs" leftSection={<IconCheck size={10} />}>
-                                        Done
-                                    </Badge>
+                                    <span className={`${badgeClass} text-green-700`}>
+                                        <IconCheck size={10} /> Done
+                                    </span>
                                 )}
 
-                                <Badge size="xs" color={module.accessType === 'sequential' ? 'orange' : 'gray'} variant="light">
+                                <span className={`${badgeClass} ${module.accessType === 'sequential' ? 'text-orange-700' : 'text-slate-600'}`}>
                                     {module.accessType === 'sequential' ? 'Sequential' : 'Open'}
-                                </Badge>
-                            </Group>
+                                </span>
+                            </div>
                         </div>
                     )}
-                </Group>
+                </div>
 
-                <Group gap={4} wrap="wrap" justify="flex-end" style={{ flexShrink: 0 }}>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                     {onStartSession && materials.length > 0 && (
-                        <Tooltip label="Start a session for this module">
-                            <Button
-                                variant="light"
-                                color="violet"
-                                size="compact-xs"
-                                leftSection={<IconPlayerPlay size={14} />}
+                            <button
+                                type="button"
+                                title="Start a session for this module"
+                                className="inline-flex min-h-11 items-center gap-1 rounded bg-violet-50 px-2 text-xs text-violet-700"
                                 onClick={onStartSession}
                             >
-                                Start
-                            </Button>
-                        </Tooltip>
+                                <IconPlayerPlay size={14} /> Start
+                            </button>
                     )}
                     {onAddMaterial && (
-                        <Tooltip label="Add material to this module">
-                            <ActionIcon variant="light" color="blue" onClick={onAddMaterial} aria-label="Add material" styles={iconActionStyles}>
+                            <button type="button" title="Add material to this module" className={`${iconActionClass} text-blue-700`} onClick={onAddMaterial} aria-label="Add material">
                                 <IconPlus size={14} />
-                            </ActionIcon>
-                        </Tooltip>
+                            </button>
+                    )}
+                    {onAddBook && (
+                            <button type="button" title="Add a published Book to this module" className={`${iconActionClass} text-violet-700`} onClick={onAddBook} aria-label="Add Book">
+                                <IconBooks size={14} />
+                            </button>
                     )}
                     {module.accessType === 'sequential' && !isCompleted && onMarkComplete && (
-                        <Tooltip label="Mark as completed for this class">
-                            <ActionIcon variant="light" color="green" onClick={onMarkComplete} aria-label="Mark complete" styles={iconActionStyles}>
+                            <button type="button" title="Mark as completed for this class" className={`${iconActionClass} text-green-700`} onClick={onMarkComplete} aria-label="Mark complete">
                                 <IconCheck size={14} />
-                            </ActionIcon>
-                        </Tooltip>
+                            </button>
                     )}
                     {onOpenSettings && (
-                        <Tooltip label="Configure Practice Settings for Module">
-                            <ActionIcon variant="light" color="cyan" onClick={onOpenSettings} aria-label="Practice Settings" styles={iconActionStyles}>
+                            <button type="button" title="Configure Practice Settings for Module" className={`${iconActionClass} text-cyan-700`} onClick={onOpenSettings} aria-label="Practice Settings">
                                 <IconSettings size={14} />
-                            </ActionIcon>
-                        </Tooltip>
+                            </button>
                     )}
-                    <ActionIcon variant="subtle" color="blue" onClick={onEdit} aria-label="Edit module" styles={iconActionStyles}>
+                    <button type="button" className={`${iconActionClass} text-blue-700`} onClick={onEdit} aria-label="Edit module">
                         <IconEdit size={14} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" color="red" onClick={onDelete} aria-label="Delete module" styles={iconActionStyles}>
+                    </button>
+                    <button type="button" className={`${iconActionClass} text-red-700`} onClick={onDelete} aria-label="Delete module">
                         <IconTrash size={14} />
-                    </ActionIcon>
-                </Group>
-            </Group>
+                    </button>
+                </div>
+            </div>
 
-            <Collapse in={isOpen}>
+            {isOpen && <div>
                 {/* Sync Banner (inside collapsed content) */}
                 {syncStatus && copyCourseId && onSyncComplete && syncStatus.pendingMaterials.length > 0 && (
                     <div style={{ padding: '8px 0 4px 26px' }}>
@@ -345,9 +324,9 @@ export const ModuleItem = ({
                     onDragEnd={handleDragEnd}
                 >
                     <SortableContext items={materials.map(m => m.id)} strategy={verticalListSortingStrategy}>
-                        <Stack gap={6} mt={8} pl={26}>
+                        <div className="mt-2 flex flex-col gap-1.5 sm:pl-6">
                             {materials.length === 0 && (
-                                <Text c="dimmed" size="sm" fs="italic">No materials in this module</Text>
+                                <p className="text-sm italic text-slate-500">No materials in this module</p>
                             )}
                             {materials.map(mat => (
                                 <SortableMaterialItem
@@ -357,11 +336,10 @@ export const ModuleItem = ({
                                     onRemove={onRemoveMaterial}
                                 />
                             ))}
-                        </Stack>
+                        </div>
                     </SortableContext>
                 </DndContext>
-            </Collapse>
-        </Card>
+            </div>}
+        </div>
     );
 };
-

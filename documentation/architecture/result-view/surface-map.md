@@ -2,6 +2,13 @@
 
 This file answers one question: which surface owns which part of the result-view runtime.
 
+## PRD0062 #104 Observability Note
+
+PRD0062 #104 registers Book runtime launch, denial, and return telemetry in
+`src/config/featureRegistry.ts`. These actions belong to the specialized Book
+runtime and do not add or alter a result-view route, host, shell, data path, or
+ownership boundary. The canonical result-view surface map below is unchanged.
+
 ## Shared Body
 
 - `SharedSavedResultCore` is the canonical saved-result content body.

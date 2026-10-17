@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ref, set, get, update, push } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
+import { notifyCommittedEvent } from './notificationProducerClient';
+import { verifyHomeworkResultAuthority } from './homeworkResultAuthorityClient';
+
 import {
     saveQuestionFeedback,
     getQuestionFeedback,
@@ -18,6 +22,9 @@ import {
 
 // Mock Firebase
 vi.mock('firebase/database');
+vi.mock('firebase/auth', () => ({ getAuth: vi.fn() }));
+vi.mock('./notificationProducerClient', () => ({ notifyCommittedEvent: vi.fn() }));
+vi.mock('./homeworkResultAuthorityClient', () => ({ verifyHomeworkResultAuthority: vi.fn() }));
 vi.mock('@/services/firebase', () => ({
     database: {}
 }));
@@ -32,86 +39,7 @@ describe('feedbackService', () => {
         } as any);
     });
 
-    describe('saveQuestionFeedback', () => {
-        it('should save question feedback with all required fields', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockUpdate = vi.mocked(update);
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
 
-            mockRef.mockImplementation((_database, path) => ({ path } as any));
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-            mockUpdate.mockResolvedValue(undefined);
-            mockGet.mockResolvedValue({
-                exists: () => true,
-                val: () => ({
-                    questionResults: [
-                        { questionNumber: 1, questionId: 'q1' },
-                        { questionNumber: 2, questionId: 'q2' }
-                    ],
-                    overallFeedback: null,
-                    feedbackUpdatedAt: null,
-                    feedbackUpdatedBy: null,
-                    hasFeedback: false
-                })
-            } as any);
-
-            await saveQuestionFeedback('result123', 'q1', 'Great answer!', 'teacher456', 'Mr. Smith');
-
-            expect(mockSet).toHaveBeenCalled();
-            const feedbackData = mockSet.mock.calls[0][1] as QuestionFeedback;
-
-            expect(feedbackData.questionId).toBe('q1');
-            expect(feedbackData.feedback).toBe('Great answer!');
-            expect(feedbackData.updatedBy).toBe('Mr. Smith');
-            expect(feedbackData.updatedById).toBe('teacher456');
-            expect(feedbackData.updatedByName).toBe('Mr. Smith');
-            expect(feedbackData.teacherName).toBe('Mr. Smith');
-            expect(feedbackData.updatedAt).toBeTypeOf('number');
-
-            expect(mockUpdate).toHaveBeenCalledWith(
-                expect.objectContaining({ path: 'test_results/result123' }),
-                expect.objectContaining({
-                    'questionResults/0/teacherFeedback': 'Great answer!',
-                    feedbackUpdatedBy: 'Mr. Smith',
-                    feedbackUpdatedByTeacherId: 'teacher456',
-                    feedbackUpdatedByTeacherName: 'Mr. Smith',
-                    hasFeedback: true
-                })
-            );
-        });
-
-        it('should trim feedback text', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-
-            await saveQuestionFeedback('result123', 'q1', '  Needs improvement  ', 'teacher456');
-
-            const feedbackData = mockSet.mock.calls[0][1] as QuestionFeedback;
-            expect(feedbackData.feedback).toBe('Needs improvement');
-        });
-
-        it('should throw error if required parameters are missing', async () => {
-            await expect(
-                saveQuestionFeedback('', 'q1', 'feedback', 'teacher456')
-            ).rejects.toThrow('Missing required parameters');
-
-            await expect(
-                saveQuestionFeedback('result123', '', 'feedback', 'teacher456')
-            ).rejects.toThrow('Missing required parameters');
-
-            await expect(
-                saveQuestionFeedback('result123', 'q1', 'feedback', '')
-            ).rejects.toThrow('Missing required parameters');
-        });
-    });
 
     describe('getQuestionFeedback', () => {
         it('should return question feedback if it exists', async () => {
@@ -246,66 +174,15 @@ describe('feedbackService', () => {
         });
     });
 
-    describe('saveOverallFeedback', () => {
-        it('should save overall feedback and update result flags', async () => {
-            const mockSet = vi.mocked(set);
-            const mockUpdate = vi.mocked(update);
-            const mockPush = vi.mocked(push);
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
 
-            mockRef.mockImplementation((_database, path) => ({ path } as any));
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-            mockUpdate.mockResolvedValue(undefined);
-            mockGet.mockResolvedValue({
-                exists: () => true,
-                val: () => ({
-                    questionResults: [],
-                    overallFeedback: null,
-                    feedbackUpdatedAt: null,
-                    feedbackUpdatedBy: null,
-                    hasFeedback: false
-                })
-            } as any);
-
-            await saveOverallFeedback('result123', 'Overall great work!', 'teacher456', 'Mr. Smith');
-
-            expect(mockSet).toHaveBeenCalled();
-            expect(mockUpdate).toHaveBeenCalledTimes(2);
-
-            const feedbackData = mockSet.mock.calls[0][1] as OverallFeedback;
-            expect(feedbackData.feedback).toBe('Overall great work!');
-            expect(feedbackData.updatedBy).toBe('Mr. Smith');
-            expect(feedbackData.updatedById).toBe('teacher456');
-            expect(feedbackData.updatedByName).toBe('Mr. Smith');
-
-            const updateData = mockUpdate.mock.calls[0][1] as any;
-            expect(updateData.hasFeedback).toBe(true);
-            expect(updateData.feedbackUpdatedBy).toBe('Mr. Smith');
-            expect(updateData.feedbackUpdatedByTeacherId).toBe('teacher456');
-            expect(updateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
-
-            const canonicalUpdateData = mockUpdate.mock.calls[1][1] as any;
-            expect(canonicalUpdateData.overallFeedback).toBe('Overall great work!');
-            expect(canonicalUpdateData.feedbackUpdatedBy).toBe('Mr. Smith');
-            expect(canonicalUpdateData.feedbackUpdatedByTeacherId).toBe('teacher456');
-            expect(canonicalUpdateData.feedbackUpdatedByTeacherName).toBe('Mr. Smith');
-            expect(canonicalUpdateData.hasFeedback).toBe(true);
-        });
-
-        it('should throw error if required parameters are missing', async () => {
-            await expect(
-                saveOverallFeedback('', 'feedback', 'teacher456')
-            ).rejects.toThrow('Missing required parameters');
-
-            await expect(
-                saveOverallFeedback('result123', 'feedback', '')
-            ).rejects.toThrow('Missing required parameters');
-        });
-    });
 
     describe('getOverallFeedback', () => {
+        it('keeps older string feedback readable without authority capture', async () => {
+            vi.mocked(get).mockResolvedValueOnce({ exists: () => true, val: () => 'Old feedback' } as any)
+                .mockResolvedValueOnce({ exists: () => true, val: () => ({ feedbackUpdatedAt: 123, feedbackUpdatedByTeacherId: 'teacher456' }) } as any);
+            expect(await getOverallFeedback('result123')).toMatchObject({ feedback: 'Old feedback', updatedAt: 123, updatedById: 'teacher456' });
+            expect(notifyCommittedEvent).not.toHaveBeenCalled();
+        });
         it('should return overall feedback if it exists', async () => {
             const mockGet = vi.mocked(get);
             const mockRef = vi.mocked(ref);
@@ -420,222 +297,122 @@ describe('feedbackService', () => {
         });
     });
 
-    describe('deleteQuestionFeedback', () => {
-        it('should delete question feedback', async () => {
-            const mockSet = vi.mocked(set);
-            const mockRef = vi.mocked(ref);
 
-            mockRef.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
 
-            await deleteQuestionFeedback('result123', 'q1');
 
-            expect(mockSet).toHaveBeenCalledWith(expect.anything(), null);
-        });
 
-        it('should throw error if parameters are missing', async () => {
-            await expect(
-                deleteQuestionFeedback('', 'q1')
-            ).rejects.toThrow('Missing required parameters');
 
-            await expect(
-                deleteQuestionFeedback('result123', '')
-            ).rejects.toThrow('Missing required parameters');
-        });
-    });
 
-    describe('deleteOverallFeedback', () => {
-        it('should delete overall feedback and update result flags', async () => {
-            const mockSet = vi.mocked(set);
-            const mockUpdate = vi.mocked(update);
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
 
-            mockRef.mockImplementation((_database, path) => ({ path } as any));
-            mockSet.mockResolvedValue(undefined);
-            mockUpdate.mockResolvedValue(undefined);
-            mockGet.mockResolvedValue({
-                exists: () => false,
-                val: () => null
-            } as any);
+});
 
-            await deleteOverallFeedback('result123');
-
-            expect(mockSet).toHaveBeenCalledWith(expect.anything(), null);
-            expect(mockUpdate).toHaveBeenCalled();
-
-            const updateData = mockUpdate.mock.calls[0][1] as any;
-            expect(updateData.hasFeedback).toBe(false);
-        });
-
-        it('should throw error if resultId is missing', async () => {
-            await expect(
-                deleteOverallFeedback('')
-            ).rejects.toThrow('Missing required parameter');
+describe('app-owned feedback commits', () => {
+    const eventId = '00000000-0000-4000-8000-000000000123';
+    let rows: Record<string, any>;
+    let result: any;
+    beforeEach(() => {
+        vi.clearAllMocks();
+        result = { resultId: 'result123', studentId: 'student1', testId: 'test1', testType: 'homework', testSkill: 'writing',
+            isGuest: false, submittedAt: 123, createdAt: 123, writingData: { submissionId: 'result123' },
+            context: { type: 'homework', source: { type: 'homework', id: 'hw1', submissionId: 'result123' }, assignment: { homeworkId: 'hw1' } },
+            visibility: { ownershipResolved: true, visibilityOwnerTeacherId: 'teacher456', contextType: 'homework',
+                sourceType: 'homework', sourceId: 'hw1', homeworkId: 'hw1' },
+            questionResults: [{ questionId: 'q1', questionNumber: 1, score: 3 }, { questionId: 'q2', questionNumber: 2, score: 4 }],
+        };
+        rows = { 'test_results/result123': result, 'users/teacher456': { role: 'teacher', displayName: 'Verified Teacher' },
+            'student_teacher_links/teacher456/student1': false,
+            'result_notification_authority/result123': { schemaVersion: 2, resultId: 'result123', studentId: 'student1', ownerTeacherId: 'teacher456',
+                contextType: 'homework', homeworkId: 'hw1', homeworkSubmissionId: 'hws1', testId: 'test1', submittedAt: 123,
+                writingSubmittedAt: 123, homeworkSubmittedAt: 123, sourceRulesetName: 'projects/test/rulesets/sealed', sourceRulesCutoff: '2026-09-30T00:00:00Z' },
+        };
+        vi.mocked(getAuth).mockReturnValue({ currentUser: { uid: 'teacher456' } } as any);
+        vi.mocked(ref).mockImplementation((_db, path) => (path ?? '__root__') as any);
+        vi.mocked(get).mockImplementation(async (path) => ({ exists: () => rows[String(path)] != null, val: () => rows[String(path)] ?? null }) as any);
+        vi.mocked(notifyCommittedEvent).mockResolvedValue({ status: 'failed', delivered: 0, failed: 1, unknown: 0, unattempted: 0, code: 'offline' });
+        vi.mocked(verifyHomeworkResultAuthority).mockResolvedValue({ status: 'held', code: 'homework_authority_not_qualified' });
+        vi.mocked(update).mockImplementation(async (_ref, writes) => {
+            for (const [path, value] of Object.entries(writes)) {
+                if (!path.startsWith('test_results/result123/')) { rows[path] = value; continue; }
+                const parts = path.replace('test_results/result123/', '').split('/');
+                let parent = result;
+                for (const key of parts.slice(0, -1)) parent = parent[key] ??= {};
+                if (value === null) delete parent[parts.at(-1)!]; else parent[parts.at(-1)!] = value;
+            }
         });
     });
 
-    describe('canTeacherEditFeedback', () => {
-        it('should return true if teacher owns the course', async () => {
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            // Mock result with courseId
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ courseId: 'course123' })
-            } as any);
-
-            // Mock course with matching teacher
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ createdBy: 'teacher456' })
-            } as any);
-
-            mockRef.mockReturnValue({} as any);
-
-            const result = await canTeacherEditFeedback('result123', 'teacher456');
-
-            expect(result).toBe(true);
-        });
-
-        it('should respect canonical visibility ownership when present', async () => {
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({
-                    visibility: {
-                        ownershipResolved: true,
-                        visibilityOwnerTeacherId: 'teacher456',
-                        contextType: 'class_session',
-                    },
-                }),
-            } as any);
-
-            mockRef.mockReturnValue({} as any);
-
-            const result = await canTeacherEditFeedback('result123', 'teacher456');
-
-            expect(result).toBe(true);
-        });
-
-        it('should return false if teacher does not own the course', async () => {
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            // Mock result with courseId
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ courseId: 'course123' })
-            } as any);
-
-            // Mock course with different teacher
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({ createdBy: 'teacher789' })
-            } as any);
-
-            mockRef.mockReturnValue({} as any);
-
-            const result = await canTeacherEditFeedback('result123', 'teacher456');
-
-            expect(result).toBe(false);
-        });
-
-        it('should return true if result has no courseId (backward compatibility)', async () => {
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            mockGet.mockResolvedValueOnce({
-                exists: () => true,
-                val: () => ({}) // No courseId
-            } as any);
-
-            mockRef.mockReturnValue({} as any);
-
-            const result = await canTeacherEditFeedback('result123', 'teacher456');
-
-            expect(result).toBe(true);
-        });
-
-        it('should return false if result does not exist', async () => {
-            const mockGet = vi.mocked(get);
-            const mockRef = vi.mocked(ref);
-
-            mockGet.mockResolvedValueOnce({
-                exists: () => false,
-                val: () => null
-            } as any);
-
-            mockRef.mockReturnValue({} as any);
-
-            const result = await canTeacherEditFeedback('result123', 'teacher456');
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false if parameters are missing', async () => {
-            const result1 = await canTeacherEditFeedback('', 'teacher456');
-            const result2 = await canTeacherEditFeedback('result123', '');
-
-            expect(result1).toBe(false);
-            expect(result2).toBe(false);
-        });
+    it('atomically commits exact feedback, mirror and history; notice failure leaves save successful', async () => {
+        await saveQuestionFeedback('result123', 'q1', '  Exact text  ', 'teacher456', 'Caller Name', { eventId, expectedRevision: 0 });
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update).toHaveBeenCalledWith('__root__', expect.objectContaining({
+            'test_results/result123/questionResults/0/teacherFeedback': 'Exact text',
+            'test_results/result123/questionFeedback/q1': expect.objectContaining({ feedback: 'Exact text', eventId, updatedBy: 'teacher456', updatedByName: 'Verified Teacher' }),
+            [`test_results/result123/feedbackHistory/${eventId}`]: expect.objectContaining({ eventId, feedback: 'Exact text', teacherId: 'teacher456', studentId: 'student1', resultId: 'result123', questionId: 'q1', expectedRevision: 0, revision: 1 }),
+            'test_results/result123/feedbackMutation': { type: 'question', questionId: 'q1', questionIndex: '0', eventId, expectedRevision: 0, revision: 1 },
+        }));
+        expect(result.questionResults[0].score).toBe(3);
+        expect(notifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'feedback-saved', resultId: 'result123', eventId });
+        await saveQuestionFeedback('result123', 'q1', 'Exact text', 'teacher456', undefined, { eventId });
+        expect(update).toHaveBeenCalledTimes(1);
+        await expect(saveQuestionFeedback('result123', 'q1', 'Changed', 'teacher456', undefined, { eventId })).rejects.toThrow('event conflict');
+        await expect(saveOverallFeedback('result123', 'Stale', 'teacher456', undefined, { expectedRevision: 0 })).rejects.toThrow('revision conflict');
     });
 
-    describe('bulkSaveQuestionFeedback', () => {
-        it('should save feedback for multiple questions', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
+    it('returns after a committed save while notice delivery is still pending', async () => {
+        vi.mocked(notifyCommittedEvent).mockReturnValue(new Promise(() => {}));
+        await expect(saveOverallFeedback('result123', 'Saved', 'teacher456', undefined, { eventId }))
+            .resolves.toBeUndefined();
+        expect(update).toHaveBeenCalledOnce();
+        expect(notifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'feedback-saved', resultId: 'result123', eventId });
+    });
 
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
+    it('preserves revisions/history through edit and delete', async () => {
+        await saveOverallFeedback('result123', 'First', 'teacher456', undefined, { eventId });
+        const later = '00000000-0000-4000-8000-000000000124';
+        await saveOverallFeedback('result123', 'Second', 'teacher456', undefined, { eventId: later, expectedRevision: 1 });
+        await deleteOverallFeedback('result123');
+        expect(result.overallFeedback).toBeUndefined();
+        expect(result.feedbackRevision).toBe(3);
+        expect(result.feedbackHistory[eventId].feedback).toBe('First');
+        expect(result.feedbackHistory[later].feedback).toBe('Second');
+        expect(rows[`feedback_notification_intents/${eventId}`]).toBeUndefined();
+        expect(Object.keys(vi.mocked(update).mock.calls[2]![1])).not.toContain(`test_results/result123/feedbackHistory/${eventId}`);
+    });
 
-            const feedbackMap = {
-                q1: 'Good answer',
-                q2: 'Excellent work',
-                q3: 'Needs improvement'
-            };
+    it('deletes question mirror atomically and retains another overall feedback', async () => {
+        await saveQuestionFeedback('result123', 'q1', 'Question', 'teacher456');
+        await saveOverallFeedback('result123', 'Overall', 'teacher456');
+        await deleteQuestionFeedback('result123', 'q1');
+        expect(result.questionFeedback.q1).toBeUndefined();
+        expect(result.questionResults[0].teacherFeedback).toBeUndefined();
+        expect(result.hasFeedback).toBe(true);
+        expect(Object.keys(result.feedbackHistory)).toHaveLength(2);
+    });
 
-            await bulkSaveQuestionFeedback('result123', feedbackMap, 'teacher456', 'Mr. Smith');
+    it('holds absent authority before product writes when verifier is not qualified', async () => {
+        delete rows['result_notification_authority/result123'];
+        await expect(saveOverallFeedback('result123', 'Text', 'teacher456')).rejects.toThrow('homework_authority_not_qualified');
+        expect(verifyHomeworkResultAuthority).toHaveBeenCalledExactlyOnceWith('result123');
+        expect(notifyCommittedEvent).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+    });
 
-            // Should be called for each question + history entries
-            expect(mockSet).toHaveBeenCalled();
-        });
+    it.each(['actor', 'capture', 'v1', 'solo', 'identity'])('denies unproven %s before writes', async (kind) => {
+        if (kind === 'actor') rows['users/teacher456'].role = 'student';
+        if (kind === 'v1') rows['result_notification_authority/result123'].schemaVersion = 1;
+        if (kind === 'capture') rows['result_notification_authority/result123'].ownerTeacherId = 'other';
+        if (kind === 'solo') result.visibility.contextType = 'solo_practice';
+        if (kind === 'identity') result.context.source.submissionId = 'other';
+        await expect(saveOverallFeedback('result123', 'Text', 'teacher456')).rejects.toThrow();
+        expect(await canTeacherEditFeedback('result123', 'teacher456')).toBe(false);
+        expect(update).not.toHaveBeenCalled();
+    });
 
-        it('should skip empty feedback', async () => {
-            const mockSet = vi.mocked(set);
-            const mockPush = vi.mocked(push);
-            const mockRef = vi.mocked(ref);
-
-            mockRef.mockReturnValue({} as any);
-            mockPush.mockReturnValue({} as any);
-            mockSet.mockResolvedValue(undefined);
-
-            const feedbackMap = {
-                q1: 'Good answer',
-                q2: '',  // Empty
-                q3: '   '  // Whitespace only
-            };
-
-            await bulkSaveQuestionFeedback('result123', feedbackMap, 'teacher456');
-
-            // Should only save for q1 (+ history)
-            expect(mockSet.mock.calls.length).toBeGreaterThan(0);
-        });
-
-        it('should throw error if required parameters are missing', async () => {
-            await expect(
-                bulkSaveQuestionFeedback('', {}, 'teacher456')
-            ).rejects.toThrow('Missing required parameters');
-
-            await expect(
-                bulkSaveQuestionFeedback('result123', {}, '')
-            ).rejects.toThrow('Missing required parameters');
-        });
+    it('rejects a spoofed actor and invalid text/question; serializes bulk revisions', async () => {
+        await expect(saveOverallFeedback('result123', 'Text', 'other')).rejects.toThrow('unauthenticated');
+        await expect(saveOverallFeedback('result123', ' ', 'teacher456')).rejects.toThrow('invalid');
+        await expect(saveQuestionFeedback('result123', 'q9', 'Text', 'teacher456')).rejects.toThrow('not found');
+        await bulkSaveQuestionFeedback('result123', { q1: 'First', q2: 'Second', q3: ' ' }, 'teacher456');
+        expect(result.feedbackRevision).toBe(2);
     });
 });

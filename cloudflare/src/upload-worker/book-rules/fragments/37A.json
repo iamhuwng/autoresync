@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "37A",
+  "owner": {
+    "ticketId": "37A",
+    "issue": 91,
+    "generatedRuleLocations": [
+      "book_activity_integrity/.read",
+      "book_activity_integrity/.write",
+      "book_activity_integrity/scopes/.read",
+      "book_activity_integrity/scopes/.write",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/.read",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/.write",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/.write",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/.validate",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/events/$eventId/.validate",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/sessions/$sessionId/.validate",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/.validate",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/$eventId/.write",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/$eventId/.validate"
+    ],
+    "serviceIdentity": "book_integrity_service",
+    "leastPrivilegePaths": [
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger",
+      "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/$eventId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity_integrity",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/scopes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/scopes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_recipientId == $recipientId && auth.token.book_integrity_contextId == $contextId && auth.token.book_integrity_placementId == $placementId && auth.token.book_integrity_activityId == $activityId && auth.token.book_integrity_attemptId == $attemptId"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_recipientId == $recipientId && auth.token.book_integrity_contextId == $contextId && auth.token.book_integrity_placementId == $placementId && auth.token.book_integrity_activityId == $activityId && auth.token.book_integrity_attemptId == $attemptId"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.numChildren() == 8 && newData.hasChildren(['schemaVersion', 'recipientId', 'contextId', 'placementId', 'activityId', 'accountableAttemptId', 'events', 'sessions']) && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('placementId').val() == $placementId && newData.child('activityId').val() == $activityId && newData.child('accountableAttemptId').val() == $attemptId && newData.child('events').numChildren() <= 64 && newData.child('sessions').numChildren() <= 4 && !newData.child('answer').exists() && !newData.child('response').exists() && !newData.child('prompt').exists() && !newData.child('pdf').exists() && !newData.child('pdfBytes').exists() && !newData.child('clipboard').exists() && !newData.child('clipboardContents').exists() && !newData.child('secret').exists() && !newData.child('credentials').exists() && !newData.child('privateObjectKey').exists()"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/events/$eventId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.numChildren() == 14 && newData.hasChildren(['schemaVersion', 'eventId', 'requestFingerprint', 'signal', 'recordedAt', 'source', 'clientSessionId', 'sequence', 'recipientId', 'accountableAttemptId', 'attemptNumber', 'target', 'policyId', 'policyRevision']) && newData.child('schemaVersion').val() == 1 && newData.child('eventId').val() == $eventId && newData.child('recipientId').val() == $recipientId && newData.child('accountableAttemptId').val() == $attemptId && newData.child('target').numChildren() == 8 && newData.child('target').hasChildren(['bookId', 'bindingId', 'bindingRevision', 'contextKind', 'contextId', 'placementId', 'activityId', 'activityVersion']) && newData.child('target').child('contextKind').val() == 'homework' && newData.child('target').child('contextId').val() == $contextId && newData.child('target').child('placementId').val() == $placementId && newData.child('target').child('activityId').val() == $activityId && newData.child('source').val() == 'browser' && newData.child('recordedAt').isString() && newData.child('sequence').isNumber() && newData.child('attemptNumber').isNumber() && newData.child('requestFingerprint').isString() && newData.child('signal').isString()"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/ledger/sessions/$sessionId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.numChildren() == 2 && newData.hasChildren(['clientSessionId', 'lastSeenAt']) && newData.child('clientSessionId').val() == $sessionId && newData.child('lastSeenAt').isString()"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.numChildren() <= 64"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/$eventId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_integrity_service == true && auth.token.book_integrity_recipientId == $recipientId && auth.token.book_integrity_contextId == $contextId && auth.token.book_integrity_placementId == $placementId && auth.token.book_integrity_activityId == $activityId && auth.token.book_integrity_attemptId == $attemptId && !data.exists() && newData.exists()"
+    },
+    {
+      "path": "book_activity_integrity/scopes/$recipientId/$contextId/$placementId/$activityId/$attemptId/events/$eventId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.numChildren() == 14 && newData.hasChildren(['schemaVersion', 'eventId', 'requestFingerprint', 'signal', 'recordedAt', 'source', 'clientSessionId', 'sequence', 'recipientId', 'accountableAttemptId', 'attemptNumber', 'target', 'policyId', 'policyRevision']) && newData.child('schemaVersion').val() == 1 && newData.child('eventId').val() == $eventId && newData.child('recipientId').val() == $recipientId && newData.child('accountableAttemptId').val() == $attemptId && newData.child('target').numChildren() == 8 && newData.child('target').hasChildren(['bookId', 'bindingId', 'bindingRevision', 'contextKind', 'contextId', 'placementId', 'activityId', 'activityVersion']) && newData.child('target').child('contextKind').val() == 'homework' && newData.child('target').child('contextId').val() == $contextId && newData.child('target').child('placementId').val() == $placementId && newData.child('target').child('activityId').val() == $activityId && newData.child('source').val() == 'browser' && newData.child('recordedAt').isString() && newData.child('sequence').isNumber() && newData.child('attemptNumber').isNumber() && newData.child('requestFingerprint').isString() && newData.child('signal').isString() && !newData.child('answer').exists() && !newData.child('response').exists() && !newData.child('prompt').exists() && !newData.child('pdf').exists() && !newData.child('clipboard').exists() && !newData.child('secret').exists() && !newData.child('credentials').exists()"
+    }
+  ]
+}

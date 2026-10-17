@@ -1,0 +1,18 @@
+{
+  "project": "desktop-1440",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket70-component&candidate=%257B%2522bookId%2522%253A%2522prd0062-ticket56-book%2522%252C%2522bookRevision%2522%253A7%252C%2522candidateId%2522%253A%2522candidate-ticket70-component%2522%252C%2522lifecycle%2522%253A%2522validated%2522%252C%2522manifest%2522%253A%257B%2522bookId%2522%253A%2522prd0062-ticket56-book%2522%252C%2522sourceSet%2522%253A%257B%2522sourceStrategy%2522%253A%2522component_pdfs%2522%252C%2522sources%2522%253A%255B%257B%2522sourceKey%2522%253A%2522component-a%2522%252C%2522sourceVersionId%2522%253A%2522source-component-a%2522%252C%2522sourceOrder%2522%253A1%252C%2522ownerNodeKey%2522%253A%2522section-fixture%2522%257D%255D%257D%252C%2522nodes%2522%253A%255B%257B%2522nodeKey%2522%253A%2522section-fixture%2522%252C%2522parentNodeKey%2522%253Anull%252C%2522nodeType%2522%253A%2522section%2522%252C%2522order%2522%253A1%257D%252C%257B%2522nodeKey%2522%253A%2522unit-fixture%2522%252C%2522parentNodeKey%2522%253A%2522section-fixture%2522%252C%2522nodeType%2522%253A%2522unit%2522%252C%2522order%2522%253A1%257D%255D%252C%2522units%2522%253A%255B%257B%2522unitKey%2522%253A%2522unit-fixture%2522%252C%2522activitySlots%2522%253A%255B%255D%252C%2522pageGroups%2522%253A%255B%257B%2522pageGroupKey%2522%253A%2522pages-ticket70%2522%252C%2522sourceKey%2522%253A%2522component-a%2522%252C%2522pages%2522%253A%255B2%255D%252C%2522defaultPhysicalPageNumber%2522%253A2%252C%2522activityKeys%2522%253A%255B%255D%252C%2522mode%2522%253A%2522reference_only%2522%257D%255D%257D%255D%257D%252C%2522ownerId%2522%253A%2522teacher-1%2522%252C%2522revision%2522%253A1%252C%2522sourceSetRevision%2522%253A4%252C%2522unitKey%2522%253A%2522unit-fixture%2522%252C%2522updatedAt%2522%253A%25222026-07-27T00%253A00%253A00.000Z%2522%252C%2522validation%2522%253A%257B%2522valid%2522%253Atrue%252C%2522errors%2522%253A%255B%255D%257D%257D",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "proof": [
+    "prepare creates staged candidate only",
+    "discard removes staged candidate",
+    "original candidate, source bytes, publication state survive reload"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

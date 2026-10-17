@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T02:23:32Z",
+  "status": "ready",
+  "scope": "V19b Firestore authorization-contract drift remediation only",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md sections 3, 6, 9, and 15",
+  "source": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "productSourceMutation": false
+  },
+  "currentProduction": {
+    "workerDeploymentId": "d2dc9eb1-cc0d-4471-911a-860df1eaa270",
+    "workerVersionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9",
+    "workerTrafficPercent": 100,
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRelease": "projects/temp-a1437/releases/cloud.firestore",
+    "firestoreRollbackRuleset": "projects/temp-a1437/rulesets/a041e920-bb67-47be-99d3-31f02b38b8a4",
+    "firestoreRollbackRulesSha256": "058e1b545b20168f96db82fb693313f0c11dacabb9f59c2239a38068e7a2d99e"
+  },
+  "candidate": {
+    "path": "firestore.rules",
+    "sha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612"
+  },
+  "exactFailureReproduction": {
+    "artifact": "tmp/prd0062-v19b-exact-firestore-authority-write.json",
+    "artifactSha256": "8eb98681f966aaec3a0a1116f2deb57c5a2b61709d91ea6f124f2d3abbbc9c8b",
+    "documentId": "assignment-vocab-u1-d43935c735245dc8--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority",
+    "uid": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "claims": {
+      "book_homework_service": true,
+      "book_homework_assignmentId": "assignment-vocab-u1-d43935c735245dc8--x3hDfjYVN7cJtSbwq0ChIjl1Bk62--authority",
+      "book_homework_ownerId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2"
+    },
+    "repositoryRulesResult": "allowed",
+    "deployedRulesResult": "permission-denied",
+    "deployedFailurePredicates": [
+      "request.resource.data.createdBy == request.auth.uid: createdBy is absent",
+      "isValidReadingPassageHomeworkPayload(request.resource.data): materialType is absent"
+    ],
+    "classification": "FIRESTORE_RULES_DEPLOYMENT_DRIFT"
+  },
+  "proof": [
+    {
+      "command": "Firebase Firestore emulator exact V19b authority write against repository and deployed rules",
+      "result": "4/4 passed",
+      "log": "tmp/v19b-exact-firestore-rules-emulator.log",
+      "logSha256": "174721d51f6a7a0b8f43d11a841a3c0b88c5ed291f7527593071c9bd61485ef7"
+    },
+    {
+      "command": "Firebase Firestore emulator full homeworkFirestoreRules.test.ts",
+      "result": "10/10 passed",
+      "log": "tmp/v19b-homework-firestore-rules-full.log",
+      "logSha256": "ed51232234f41f571da4d255ed869a8208cc464f111f4766f9ee7a1e5b72eb05"
+    }
+  ],
+  "execution": {
+    "order": [
+      "Create and compile an inactive Firestore ruleset from exact candidate bytes",
+      "Verify the inactive ruleset source hash",
+      "Update only projects/temp-a1437/releases/cloud.firestore to that exact ruleset",
+      "Read back release and source identity",
+      "Do not activate a Worker or submit another assignment"
+    ],
+    "rollbackTrigger": "Any create, compile, release-update, or readback identity mismatch",
+    "rollback": "Restore projects/temp-a1437/releases/cloud.firestore to projects/temp-a1437/rulesets/a041e920-bb67-47be-99d3-31f02b38b8a4 and verify exact readback"
+  }
+}

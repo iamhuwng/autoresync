@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T12:08:00Z",
+  "status": "rolled_back_stop_for_exact_reproduction",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-corrected-input-checkpoint-2026-08-14.json",
+  "presentation": {
+    "source": "tmp/prd0062-m1-reconcile-20260814T111223Z/material-book.json",
+    "title": "Vocabulary U1",
+    "description": null
+  },
+  "command": {
+    "path": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "sha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5"
+  },
+  "activation": {
+    "workerVersionId": "899156dc-b8b9-44b0-8790-fc7fc956c3c2",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreRulesSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc"
+  },
+  "productionResponse": {
+    "httpStatus": 202,
+    "body": {
+      "status": "committed_projection_pending",
+      "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+      "state": "committed",
+      "visibility": "committed",
+      "recipientCount": 1,
+      "committedRecipientCount": 1,
+      "revision": 7
+    }
+  },
+  "durableReadback": {
+    "saga": {
+      "state": "committed",
+      "visibility": "committed",
+      "revision": 7,
+      "recipientCount": 1,
+      "committedRecipientCount": 1,
+      "presentation": {
+        "title": "Vocabulary U1"
+      }
+    },
+    "authorityHttpStatus": 200,
+    "deliveryIndexPresent": true,
+    "deliveryCurrentStatus": "active",
+    "compatibilityHttpStatus": 404
+  },
+  "rollbackReadback": {
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6"
+  },
+  "decision": "No replay, source change, rules change, new candidate, production retry, browser handoff, or Milestone 2 work. Stop for exact reproduction of the compatibility projection failure."
+}

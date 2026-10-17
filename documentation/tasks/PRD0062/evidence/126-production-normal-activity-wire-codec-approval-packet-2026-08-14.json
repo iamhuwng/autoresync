@@ -1,0 +1,191 @@
+{
+  "artifactKind": "prd0062-126-production-normal-activity-wire-codec-approval-packet",
+  "schemaVersion": 1,
+  "status": "awaiting-explicit-production-execution-approval",
+  "createdAt": "2026-08-13T20:20:00Z",
+  "expiresAt": "2026-08-13T23:20:00Z",
+  "supersedes": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-wire-codec-approval-packet-2026-08-14.json",
+    "sha256": "85ae665811e3e7dd3ce5f271461a54fbf16affd2576088be8cbf2be5a9769157",
+    "reason": "its authority was consumed by the failed-safe execution and its bundle predates the Activity RTDB wire-codec repair"
+  },
+  "consumes": [
+    {
+      "path": "documentation/tasks/PRD0062/evidence/126-production-normal-wire-codec-execution-result-2026-08-14.json",
+      "sha256": "69032951e8d289a4a8c0282e242cc201ea37ccc39be4781b5f31c6076c94e306"
+    }
+  ],
+  "structuralDecision": {
+    "architecture": "retain",
+    "repositoryWireCodecBoundary": "#59 owns repair",
+    "ruleChange118": false,
+    "solAdvisorVerdict": "ship",
+    "solAdvisorP0P1Findings": [],
+    "reviewerRuntime": "danger-full-access/permission disabled, behaviorally read-only, not OS-enforced"
+  },
+  "currentProduction": {
+    "worker": "r2-upload-signer",
+    "deploymentId": "be9842a8-aeaf-4daf-9f08-1d570a6c7b96",
+    "version": "41ed251c-6069-4840-9bed-785ce93381d8",
+    "percentage": 100,
+    "rollbackMessage": "prd0062-126-production-normal-wire-codec-auto-rollback-v10-activity",
+    "createdOrObservedAt": "2026-08-13T19:55:23.061938Z",
+    "liveRulesReadOnlyCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0",
+    "rollbackRulesCanonicalEquality": true,
+    "productionMutationPerformedByThisPacket": false
+  },
+  "scope": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "classStatus": "active",
+    "classContainsStudent": true,
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "sourceVersion": "source-version-70f2ccf7d1a42d67",
+    "account": "book_b2_primary",
+    "sourceKey": "full",
+    "pdf": {
+      "path": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
+      "sha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
+      "sizeBytes": 977013,
+      "pageCount": 4
+    },
+    "durableAssemblyCandidate": {
+      "candidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+      "revision": 2,
+      "lifecycle": "validated",
+      "valid": true
+    },
+    "durableActivityCandidate": {
+      "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+      "targetActivityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+      "revision": 1,
+      "lifecycle": "staged"
+    },
+    "durableStateBeforeExecution": {
+      "activitySaved": false,
+      "tupleBinding": false,
+      "approval": false,
+      "publication": false,
+      "assignment": false,
+      "delivery": false
+    }
+  },
+  "reuseAndForbiddenMutation": {
+    "reuseRetainedSourceAttachment": true,
+    "reuseExistingAssemblyCandidate": true,
+    "reuseExistingActivityCandidate": true,
+    "uploadBytes": false,
+    "createSecondAssemblyCandidate": false,
+    "createSecondActivityCandidate": false,
+    "recreateMaterialBook": false,
+    "reuseProvenWrongSource422Receipt": true,
+    "createAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "otherTickets": false,
+    "publicSource": false
+  },
+  "frozenIdentities": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "activityRepositorySha256": "14bc5cae017ef2801cb27fd6ee350cafc56062b29f9d92cc6ab90d3d24d32359",
+    "activityRepositoryTestSha256": "ac54390f0d23b91ef52a986cf368127b3932eede1a151d673f3b7ef452a72091",
+    "generatedRulesSha256": "da74d7441c03d19562a3d558ab31ff55a53d7d3ad1cb4b3b49528a624ecab669",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rollbackRulesConfigSha256": "73f6db450456437e7359f2002fe08dc5b5d7d94424de610de3f4970e125283fb",
+    "activationConfigSha256": "02309fc938a934bf1497df7b99dfe67ed8a098177fb09fb7a2426d7b1151c00b",
+    "workerRollbackConfigSha256": "47dbcdb70e681e42d0f60016effae5bd998cff9d862e4ad8b14dcf7ef59a43c8",
+    "bundleActivationRollbackSha256": "3449951bfa263c75ed4953de47d5f4f3ac3d0c3fa8fca969fe129fa18375ef40",
+    "bundleSizeBytes": 1768446,
+    "bundleUploadKiB": 1727.00,
+    "bundleGzipSha256": "b812b594da89af3af1104d24f03bda16ba6460fc1faa440bce343b28fa591b61",
+    "bundleGzipSizeBytes": 331101,
+    "bundleGzipKiB": 323.34,
+    "wranglerVersion": "4.103.0",
+    "rootLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+    "cloudflareLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+    "expiresAt": "2026-08-13T23:20:00Z"
+  },
+  "verification": {
+    "focusedActivityRepositoryAndWorker": "29/29",
+    "ticket59": "57/57",
+    "tsc": "baseline red in unrelated concurrent modules; no reviewed-path error; do not claim green",
+    "diffCheck": "exit 0",
+    "ticket118Matrix": "88/88 reused because exact rules identity is unchanged",
+    "activationDryRun": "exit 0",
+    "rollbackDryRun": "exit 0",
+    "solAdvisor": "ship",
+    "solAdvisorP0P1Findings": []
+  },
+  "requestedAuthority": {
+    "uploadInactiveRollbackWorkerVersion": true,
+    "uploadInactiveActivationWorkerVersion": true,
+    "deployGeneratedRules": true,
+    "deployExactGeneratedRules": true,
+    "activateExactWorkerAt100Percent": true,
+    "executeExactExistingTeacherWorkflow": true,
+    "createScopedDurableRevocationMarker": true,
+    "createOneScopedDurableApprovalRevocationMarker": true,
+    "rollbackRulesAndWorker": true,
+    "createAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "otherTickets": false,
+    "otherIdentitiesBooksFilesRoutes": false,
+    "componentPdfsMigrationsDeletionRecoveryNotifications": false,
+    "publicSource": false
+  },
+  "authHeaderContract": {
+    "firebasePasswordSignInOrigin": "http://localhost:5173",
+    "firebasePasswordSignInReferer": "http://localhost:5173",
+    "firebaseSignInOnlyAllowedFallback": "http://localhost:5174",
+    "workerRouteOrigin": "https://kahut1.web.app",
+    "neverReuseWorkerOriginForFirebaseSignIn": true,
+    "neverUseLocalhostAsWorkerOrigin": true
+  },
+  "runbookOrder": [
+    "verify packet hashes, expiry, PDF, current rollback state, and current durable candidates; sign in with Firebase using Origin and Referer http://localhost:5173 exactly before any traffic or rules mutation; stop if sign-in fails",
+    "upload inactive rollback and activation versions; inspect exact bindings and stop if either is not deployable",
+    "deploy the same generated rules and read back the canonical rules",
+    "activate the exact Worker version at 100 percent",
+    "validate the existing Activity candidate revision 1 and require HTTP 200 with validated revision 2",
+    "save the same Activity candidate with exact unit/activity binding; require saved candidate revision 3 and durable tuple binding to the exact Activity and candidate",
+    "preview the candidate; require HTTP 200 and record exact registry, version, and expiry",
+    "run stale preview/publication negative before publication; require HTTP 422 with no durable publication mutation and reuse the wrong-source evidence rather than a new live operation",
+    "create approval A",
+    "write the single exact revocation marker scoped to the Book, unit, and approval A with existing trusted operator authority; require publication denial HTTP 422 and leave the marker durable",
+    "create approval B with a new random ID on the same unchanged preview; require unrevoked durable readback",
+    "publish with approval B; require the exact canonical Activity version and binding and publication state",
+    "assign to the exact class and student and read back teacher and student delivery",
+    "record identities and roll back rules and Worker on any failure"
+  ],
+  "stopGates": [
+    "any hash, expiry, or state mismatch",
+    "sign-in failure or authentication-header mismatch",
+    "inactive binding or deployability failure",
+    "rules or traffic mismatch",
+    "Activity validation anything other than HTTP 200 validated revision 2",
+    "Activity save or tuple binding anything other than saved revision 3 and the exact binding",
+    "preview, stale, or revoked denial gate fails",
+    "any workflow failure",
+    "any scope expansion"
+  ],
+  "wrongSourceNegative": "reuse the consumed v10 evidence; do not add another live operation",
+  "approvalBoundary": {
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "decision": "stop for explicit approval against packet SHA"
+  },
+  "forbiddenExpansion": [
+    "other identities, Books, files, or routes",
+    "component PDFs, migrations, deletion, recovery, or notifications",
+    "accounts, IAM, or public source"
+  ]
+}

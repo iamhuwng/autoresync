@@ -1,0 +1,119 @@
+{
+  "generatedAt": "2026-07-28",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-selection-refresh.json",
+  "issueHash": "2fd12f46366f546f2ab026f1766ebefe1067e3762e2443f00c8ee0cb466cff99",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 62,
+    "closedCount": 50,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 78, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow-runtime",
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 62,
+    "completeChainSource": "Every open ticket record in sourceGraph.records contains its complete transitivePrerequisites and openTransitivePrerequisites.",
+    "openPrerequisiteRejections": {
+      "count": 50,
+      "rule": "Any non-empty openTransitivePrerequisites makes ticket ineligible; no inspection, implementation, or acceptance work started.",
+      "tickets": [77, 79, 80, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136]
+    }
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; private-B2 must stay disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-authority",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; 50A all-six-deny/default-deny must stay unchanged."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected-acceptance-readiness",
+      "reason": "Graph-clear, but live contract still owns deployment and rollback proof without a destination-first owner or executable deployment authority; generated rules remain #09E-owned."
+    },
+    {
+      "ticket": 78,
+      "decision": "selected",
+      "reason": "Independent student-runtime ticket. Direct and transitive prerequisites are formally CLOSED. UI-only acceptance is executable with local harness and localhost:5174 Student browser proof; no backend, trusted action, private-B2, #50A, or #03B authority required."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later homework-assignment subphase; do not bypass current runtime UX primary."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later operations/notification subphase; current runtime phase not reconciled."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public catalog/access subphase; current runtime phase not reconciled."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation; implementation phase not complete."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure assembled Student browser reconciliation; do not consume evidence before implementation/runtime owners finish."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation."
+    }
+  ],
+  "blockedCandidateRecord": {
+    "ticket": 76,
+    "owner": "#76 contract owner, with #09E generated-rules owner and an unassigned deployment executor",
+    "requiredAction": "Add destination-first ownership for deployed submission/rollback proof, name executable authority, and preserve #09E generated-rules ownership before re-selection.",
+    "evidence": "Live #76 body queried after graph refresh: no destination-first transfer ledger; #76 still owns deployment, rollback, security, and browser gates; actual deployment executor is unspecified.",
+    "impact": "#76 and its descendants remain ineligible. No descendant may bypass this shared blocker family."
+  },
+  "selection": {
+    "primaryTicket": 78,
+    "title": "PRD0062 30 — Add UI-only personal timer",
+    "status": "selected-student-workflow-runtime",
+    "directClosedPrerequisites": [75],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74, 75],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 35,
+    "acceptanceReadiness": "Executable local fake-clock, accessibility, isolation, preview-build, and localhost:5174 Student browser gates. Timer has no backend path, Worker route, database rule, service identity, secret, trusted action, or deployed-state claim.",
+    "requiredAuthority": [
+      "closed #75 runtime persistence boundary",
+      "local x64 test/build harness",
+      "Student dev quick-login at localhost:5174",
+      "trusted actions disabled; preserve #50A all-six-deny/default-deny, #03B disabled, private-B2 disabled"
+    ]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": []
+  }
+}

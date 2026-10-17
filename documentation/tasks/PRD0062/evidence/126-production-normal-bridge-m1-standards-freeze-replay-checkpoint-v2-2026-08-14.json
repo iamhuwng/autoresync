@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T17:16:40Z",
+  "status": "pending_independent_standards_rereview",
+  "scope": "Standards-freeze corrections and exactly one authorized same-command Milestone-1 compatibility repair replay; no Milestone 2",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md and the user's 2026-08-14 Standards-freeze instruction",
+  "supersedes": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-standards-freeze-replay-checkpoint-2026-08-14.json",
+  "priorReview": {
+    "spec": "PASS",
+    "standards": "FAIL: expired scope, incomplete identity inventory, and missing inactive preflight/browser evidence",
+    "v2Disposition": "all cited checkpoint defects are corrected below; production traffic remains unchanged pending rereview"
+  },
+  "sourceIdentity": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "preCheckpointStatusEntries": 650,
+    "preCheckpointStatusSha256": "359937303452a4d7bc9c7ec0c4bdd355e7f1f06ac8b0fc1db4e0f9cb28a16f08",
+    "trackedBinaryDiffSha256ExcludingLiteralRootJson": "9ddf0473df8088e85548ab7cd08a867b4c7e9b2e915969487bb5454d7cf5bd7f",
+    "untrackedPathManifestSha256": "18b7a5bd2ec3d110d9db05c39b6c62a6c0a6fbe5156416f3dd0428398712990a",
+    "manifestBoundary": "captured immediately before this append-only v2 checkpoint and excludes this v2 checkpoint path",
+    "literalRootJson": "exact HEAD state; absent from git diff and git status"
+  },
+  "workerArtifact": {
+    "entryPath": "cloudflare/worker.js",
+    "entrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+    "activationDryRunBundle": "cloudflare/tmp/prd0062-bridge-m1-standards-freeze-v2-activation-dryrun/worker.js",
+    "rollbackDryRunBundle": "cloudflare/tmp/prd0062-bridge-m1-standards-freeze-v2-rollback-dryrun/worker.js",
+    "bundleSha256": "2f9fba6a01595d336a2dcf1a58d1a014d889f3c7abb40b688b688a1335b48245",
+    "bundleBytes": 1845062,
+    "bundleGzipBytes": 344220,
+    "activationRollbackBundlesEqual": true,
+    "scriptEtag": "b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56"
+  },
+  "configuration": {
+    "activationPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationSha256": "54fcf9d4b5aefb0abd946335fcb71ca85d60e0de09a0e3c7c2d4344abad9f662",
+    "rollbackPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+    "issuedAt": "2026-08-14T17:05:00.000Z",
+    "expiresAt": "2026-08-15T05:05:00.000Z",
+    "requiredNames": [
+      "FIREBASE_PROJECT_ID",
+      "FIREBASE_DB_URL",
+      "BOOK_ROLLOUT_ENVIRONMENT",
+      "BOOK_ROLLOUT_CONFIG_JSON",
+      "BOOK_PILOT_SCOPE_ENFORCEMENT",
+      "BOOK_PILOT_SCOPE_ENVIRONMENT",
+      "BOOK_PILOT_SCOPE_CONFIG_JSON",
+      "BOOK_SOURCE_UPLOAD_ACCOUNT_ID",
+      "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY",
+      "BOOK_DELIVERY_SERVICE_IDENTITY",
+      "BOOK_ASSEMBLY_SERVICE_IDENTITY",
+      "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY",
+      "BOOK_HOMEWORK_SERVICE_IDENTITY",
+      "BOOK_RUNTIME_SERVICE_IDENTITY",
+      "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION",
+      "BOOK_HOMEWORK_ROUTES_ENABLED",
+      "BOOK_HOMEWORK_READ_ROUTES_ENABLED",
+      "BOOK_RUNTIME_ROUTES_ENABLED",
+      "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED"
+    ],
+    "serviceIdentities": [
+      "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+      "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+    ],
+    "rendererRegistry": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1",
+    "rendererManifestPath": "src/services/book-activity/runtime/activityRendererManifest.json",
+    "rendererManifestFileSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+    "requiredSecretPresence": [
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "FIREBASE_WEB_API_KEY",
+      "GOOGLE_SA_KEY",
+      "LISTENING_AUTHORING_IDEMPOTENCY_SECRET",
+      "LISTENING_DELIVERY_SECRET",
+      "LISTENING_UPLOAD_SESSION_GRANT_SECRET",
+      "UPLOAD_GRANT_SECRET"
+    ],
+    "secretValuesRecorded": false
+  },
+  "rulesArtifact": {
+    "rtdbPath": "database.rules.json",
+    "rtdbSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "producerPath": "cloudflare/scripts/generate-prd0062-118-rules.mjs",
+    "producerSha256": "bf298e73d912574c5323e3fedcff7b97e0bc1c5f705fb3f936b57d057a522c4c",
+    "composerPath": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts",
+    "composerSha256": "be16b90b1f64dc31218372ec037b50fe20de8285c9436a46a95d1dcdc57446c9",
+    "generatorIdentity": "prd0062-118-composer-v2 43 fragments",
+    "fragmentHashes": {
+      "16A": "4e356bca5f5c71af06394bdba90b753d5c698319bb3cdf0b46c8b86804dcc376",
+      "118A": "6425ca819f8fc4412679ddea2dd2c95bd9b29e2e63c53e87b3b0589a896d7393",
+      "118B": "ab0d0228eb16f7de7afab36e8982f59b5b90071b1d79f4061824d3b9fbc13175",
+      "118C": "c03ece773f71ccc9f09b1715b5da2d10dc771b52792671dc515ffb88cef9afe1",
+      "118D": "2a13ce6c787b1dcd14660fcd08424d8ba285fb3b333c76c7c3e1c01acb23f357"
+    },
+    "firestorePath": "firestore.rules",
+    "firestoreSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "inactiveFirestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "inactiveFirestoreReadbackSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc"
+  },
+  "freshInactiveVersions": {
+    "rollback": {
+      "versionId": "a921299b-853f-41ab-a8a5-ccda1f9bfae0",
+      "number": 117,
+      "createdAt": "2026-08-14T17:09:35.925598Z",
+      "routes": "Homework and Runtime disabled",
+      "hasPreview": false
+    },
+    "diagnosticActivation": {
+      "versionId": "ec8ef179-35e7-4547-ba16-a96b9192d67d",
+      "number": 118,
+      "createdAt": "2026-08-14T17:09:46.619327Z",
+      "routes": "Homework read/write and Runtime read/launch enabled",
+      "hasPreview": false
+    },
+    "bindingReadback": "both have all 19 named secret bindings; activation has the exact renderer registry; both have script etag b46fe291195c097485acbab88ff6239ddf81aeb67fff908f1c4e21e67d2ebd56",
+    "startAndPreflight": {
+      "rollback": "exact rollback config started locally; exact assignment-command OPTIONS returned HTTP 204 with the expected origin, methods, headers, Vary, and no-store policy",
+      "activation": "exact activation config started locally; exact assignment-command OPTIONS returned HTTP 204 with the expected origin, methods, headers, Vary, and no-store policy",
+      "productionOrigin": "current deny-only production Worker exact assignment-command OPTIONS returned HTTP 204",
+      "productionTraffic": "unchanged: deployment 8eda16bc-96f6-4291-9643-9e3da79a9b78 remains 100% on rollback version 7f11dc93-fd77-4f33-90bf-a2d92cce828a"
+    }
+  },
+  "frozenInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "bookRevision": 2,
+    "sourceKey": "full",
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assemblyCandidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+    "assemblyCandidateRevision": 2,
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "schedule": {
+      "finalDueAt": "2026-08-21T00:00:00.000Z",
+      "nodeOverrides": []
+    },
+    "policy": {
+      "intent": "practice",
+      "integrityCapture": false,
+      "integrityOverride": false,
+      "maxAttempts": 2,
+      "feedbackRelease": "immediate",
+      "lateSubmissionAllowed": false
+    },
+    "presentation": {
+      "title": "Vocabulary U1",
+      "description": null
+    },
+    "placementContext": "one unit-vocab-u1 Activity placement for exact class 2NE3KY and exact student recipient"
+  },
+  "exactReplayGate": {
+    "requestPath": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "requestSha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "literalBytesRequired": true,
+    "command": "cd cloudflare && ./node_modules/.bin/vitest run --config vitest.book-homework-current-workerd.config.mjs --maxWorkers=1 --passWithNoTests=false",
+    "result": "1 file, 2 tests passed on 2026-08-14T17:13Z",
+    "proof": "the literal request bytes pass the canonical parser and route through default createUploadWorker; committed root + exact recipient authority + active Delivery + absent shell are seeded; replay repairs/readbacks the shell; teacher, student, shell-locator, authoritative context enrichment, and trusted Book consumption pass without new authoritative assignment state"
+  },
+  "standardsFreezeVerification": {
+    "dataLoadingEvidence": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-student-homework-data-loading-contract-2026-08-14.md",
+    "observability": "bookHomeworkStudentDetailOpened and bookHomeworkStudentLaunchRequested are registered under FEATURE_IDS.homework and handler tests pass with safe metadata",
+    "focusedResults": [
+      "focused ESLint passed",
+      "git diff --check passed",
+      "Homework list/detail/shell/registry: 12 files, 103 tests passed",
+      "Runtime host/canonical/fail-closed units: 46 passed; 10 emulator cases subsequently run explicitly",
+      "renderer registry: 12 passed",
+      "production-normal Ticket 59: 57 passed",
+      "bridge/authority/context/projection: 59 passed",
+      "canonical RTDB emulator codec: 1 passed",
+      "Firestore rules emulator: 15 passed",
+      "deployment-equivalent exact replay gate: 2 passed"
+    ],
+    "liveStudentBrowser": {
+      "authentication": "supported dev Student Firebase quick login at http://localhost:5174 succeeded",
+      "path": "Student Dashboard -> Homework -> Dashboard -> Homework using real StudentShellRoute navigation",
+      "result": "My Homework visible; warmed sibling return had loaderOnSiblingReturn=false",
+      "runtimePreactivation": "intentional fail-closed Activity window unavailable while deny-only Worker owns production; live Runtime is a post-activation keep-or-rollback condition"
+    },
+    "independentProductReview": {
+      "standardsBeforeCheckpoint": "PASS",
+      "specBeforeCheckpoint": "PASS",
+      "checkpointV1Spec": "PASS",
+      "checkpointV2Standards": "pending"
+    }
+  },
+  "preTrafficProductionState": {
+    "workerDeploymentId": "8eda16bc-96f6-4291-9643-9e3da79a9b78",
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "firestoreRelease": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreRulesSourceSha256": "e783340be524b36a7add78f02c14422686f61ef26113203b743fc39101d73350",
+    "rtdbRulesWireSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "saga": "committed, visible, revision 7, one exact committed recipient, operation 7592acca-0766-4407-b6d9-ac8146048876",
+    "authority": "exact recipient authority document HTTP 200, revision 2",
+    "delivery": "exact binding index present and current status active",
+    "compatibility": "homework_assignments exact document HTTP 404"
+  },
+  "execution": {
+    "remainingReplayBudget": 1,
+    "order": [
+      "obtain independent Standards PASS on this exact v2 checkpoint",
+      "activate and verify Firestore ruleset projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+      "activate and verify RTDB rules SHA-256 e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+      "deploy inactive diagnostic Worker ec8ef179-35e7-4547-ba16-a96b9192d67d at 100% and read back",
+      "submit the exact request bytes once",
+      "verify committed compatibility readback, teacher projection, student projection, trusted Runtime launch/return, and browser handoff at https://kahut1.web.app"
+    ],
+    "successCondition": "committed response, exact compatibility shell present, teacher/student consumption and live trusted Runtime browser flow pass",
+    "failureAction": "immediately deploy rollback Worker a921299b-853f-41ab-a8a5-ccda1f9bfae0 at 100%, restore RTDB wire SHA-256 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6 and Firestore release projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6, read back diagnostics, and stop",
+    "milestone2": "forbidden before browser handoff"
+  }
+}

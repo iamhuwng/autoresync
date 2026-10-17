@@ -1,0 +1,171 @@
+{
+  "artifactKind": "prd0062-126-production-normal-approval-packet",
+  "schemaVersion": 1,
+  "status": "awaiting-explicit-deployment-and-activation-approval",
+  "createdAt": "2026-08-13T14:06:37Z",
+  "approvalBoundary": {
+    "baseCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "remoteMutation": false,
+    "deployment": false,
+    "activation": false,
+    "push": false,
+    "pullRequest": false,
+    "iamChange": false
+  },
+  "supersedesConsumedPacket": {
+    "path": "documentation/tasks/PRD0062/evidence/126-bounded-activation-approval-packet.json",
+    "sha256": "5bb4bc950bf1d5462c0d02c13137809cbfea6604a5dc4996553c9d2b52b5d6ad",
+    "status": "historical-input-only-approval-consumed",
+    "modified": false
+  },
+  "ticketOwnership": {
+    "59": "canonical production route composition, exact Activity binding, reader ports, publication transaction repair, and production-normal workflow proof",
+    "118": "generated RTDB rules, accepted fragment 15B, Material Book/source projection/activity binding/approval authority paths, and emulator matrix",
+    "126": "consumes the frozen implementation and verification identities; this packet performs no deployment or activation"
+  },
+  "productionNormalFoundation": {
+    "activityBinding": {
+      "pathTemplate": "book_assembly_activity_bindings/owners/{ownerId}/books/{bookId}/units/{unitKey}/activities/{activityKey}",
+      "domainContractPath": "src/services/book-assembly/unitActivityBinding.repository.ts",
+      "domainContractSha256": "e4a2c2282fe2b2361a111ea28030a5486304c172f128300da66e03697d824d3f",
+      "firebaseRepositoryPath": "cloudflare/src/upload-worker/book-assembly/unit-activity-binding-repository.ts",
+      "firebaseRepositorySha256": "fbbf8599dcea526b323490840cd1f26c41cc7e9e949fede9cf548ff4c801a8d3",
+      "writerPath": "src/services/book-assembly/unitActivityImport.service.ts",
+      "writerSha256": "512c6477a7bb29cc26c32e37f898aff730a7172ccaab367e1d1bb21f0c136f08",
+      "trustedWorkerPath": "cloudflare/src/upload-worker/book-activity-authoring/worker.ts",
+      "trustedWorkerSha256": "8f2c5e84d18ac0a999855981b028f9efad204442432f4a522c44d6f6b27e580f",
+      "contract": "one server-owned reference-only binding; the browser sends logical unit/activity context, the trusted authoring worker validates the current Assembly slot and CAS-binds the saved candidate to stable Activity identity, and publication reconciliation adds the exact immutable Activity version; payloads are not duplicated"
+    },
+    "productionComposition": {
+      "path": "cloudflare/src/upload-worker/book-assembly/production-composition.ts",
+      "sha256": "277ef167be6c01b1512fdec19e359a183fc2368d8378827e453713999e2ff08d",
+      "workerEntryPath": "cloudflare/worker.js",
+      "workerEntrySha256": "6e57c62f071da394afba16cf2bf3d41b8362c7936e1a70d5dbf3cd4ece1149fd",
+      "readers": [
+        "Material Book",
+        "exact verified Source Version projection",
+        "exact Activity candidate through the tuple binding",
+        "assembly candidate",
+        "durable preview approval and revocation"
+      ]
+    },
+    "sourceAttachment": {
+      "path": "src/services/book-source-delivery/materialBookSourceAttachment.service.ts",
+      "sha256": "0e54ac51ea9055d6b542a5323e9f8b552013947d659c0d32d94a5f93147c1588",
+      "productionRepositoryPath": "cloudflare/src/upload-worker/book-source/material-book-source-attachment-repository.ts",
+      "productionRepositorySha256": "427e03a690b6b11ce787fa63f4f3fdcb8b023c2b3370dd305b708e62222fa813",
+      "sourceWorkerPath": "cloudflare/src/upload-worker/book-source/worker.ts",
+      "sourceWorkerSha256": "4b2f707af54a5222f58b8c971b475932440bcbdff424080191854aef762c1bf8",
+      "completionServicePath": "src/services/book-source-delivery/sourceUpload.service.ts",
+      "completionServiceSha256": "8459706daf8a56b311abd0e7dd2eff9c1ddcf0ac4a38e01fd4feb224a6a724fe",
+      "contract": "verified completion and already-verified replay invoke a trusted provider-free continuation that CAS-attaches the full-PDF Source Set to the canonical Material Book; partial attachment failure is repairable on replay"
+    },
+    "publicationTransactionRepair": {
+      "path": "cloudflare/src/upload-worker/book-assembly/publication-repository.ts",
+      "sha256": "a96311cd467242647ecd3d27d125c19536f8ba33739afbf690719c78442b3463",
+      "rootCause": "the immutable before-image was serialized after the in-place domain mutation, producing an empty immutable diff; it is now captured before mutation"
+    }
+  },
+  "rules118Identity": {
+    "generator": {
+      "path": "cloudflare/scripts/generate-prd0062-118-rules.mjs",
+      "sha256": "bf298e73d912574c5323e3fedcff7b97e0bc1c5f705fb3f936b57d057a522c4c"
+    },
+    "composer": {
+      "path": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts",
+      "sha256": "be16b90b1f64dc31218372ec037b50fe20de8285c9436a46a95d1dcdc57446c9",
+      "fragments": 43,
+      "operations": 416
+    },
+    "authorityFragments": {
+      "15B": "180bdd785d01362a204a13dfe9be081358cba527cea496a0566d16ea3ce64c16",
+      "118A": "6425ca819f8fc4412679ddea2dd2c95bd9b29e2e63c53e87b3b0589a896d7393",
+      "118B": "ab0d0228eb16f7de7afab36e8982f59b5b90071b1d79f4061824d3b9fbc13175",
+      "118C": "942746600fd72aad6b03107be54eb52b81e7d15b320cf2ebf1bcc4eb43bf313e",
+      "118D": "2a13ce6c787b1dcd14660fcd08424d8ba285fb3b333c76c7c3e1c01acb23f357"
+    },
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "b87eb4bc9a7497b03293b282563df5c25bf13ecfbe943c799875576b10d43965"
+    },
+    "rollbackRules": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    }
+  },
+  "isolatedLinuxProof": {
+    "executionCopy": "/tmp/prd0062-126-production-final.ttTXcY/repo",
+    "sourceSnapshot": {
+      "regularFiles": 5893,
+      "aggregateSha256": "a257d9a7e265df3fb6e0f8aa9951b58d40ee01bcb064d291a2c879191d7cbe39",
+      "timing": "before dependency installation and before this packet was added",
+      "excluded": [".git", "node_modules", "tmp", "dist", "coverage", ".wrangler", "*.log"]
+    },
+    "runtime": {
+      "node": "v22.22.0",
+      "npm": "10.9.4",
+      "platform": "linux",
+      "architecture": "arm64",
+      "wrangler": "4.103.0"
+    },
+    "locks": {
+      "rootPackageLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+      "cloudflarePackageLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0"
+    },
+    "install": "npm ci --ignore-scripts succeeded independently at repository root and cloudflare; no NODE_PATH or linked modules were used"
+  },
+  "verification": {
+    "productionNormalWorkflow": {
+      "configPath": "cloudflare/vitest.ticket59.config.mjs",
+      "configSha256": "59da3f9f19017d46e1599983c915305636eb6c9c628640b435d56e5192b4ac49",
+      "workflowTestPath": "cloudflare/test/book-production-normal-workflow.test.ts",
+      "workflowTestSha256": "e129041df25c8825d58a94d97ad13b1f62988d54e992d2a2cb7326fe7fb8617f",
+      "result": "5 files, 56/56 passed",
+      "coverage": "verified PDF authority -> Material Book source attachment -> candidate preview -> durable approval -> full-PDF publication preflight and canonical publication; stale, revoked, wrong-source, replay, and response-loss reconciliation negatives"
+    },
+    "sourceAttachmentAndImport": {
+      "result": "isolated focused groups: source/attachment/import 49/49; source attachment plus trusted authoring worker 27/27",
+      "coverage": "verified completion continuation and replay, Material Book CAS attachment, provider-free projection, wrong-owner/stale/unverified non-mutation, and server-owned Unit Activity binding create/replay/stale/conflict/cross-scope"
+    },
+    "rulesComposer": {
+      "generation": "43 fragments",
+      "result": "1 file, 13/13 passed"
+    },
+    "rulesEmulatorMatrix": {
+      "result": "8 files, 23 suites, 86/86 tests passed; zero failed, skipped, pending, or todo",
+      "resultSha256": "069eec6883501fbc469ed64eea630a08760c37e5383891d63ff3ab451e4ba4ff",
+      "coverage": "Material Book including exact book_assembly service read, verified source projection, exact Activity binding, durable approval/revocation, stale/wrong-owner/wrong-book/wrong-unit/wrong-source and ancestor-shaped denial"
+    },
+    "typescript": {
+      "result": "not a release gate for this packet",
+      "reason": "the inherited working tree has unrelated pre-existing repository-wide diagnostics; the production-normal focused suites and Wrangler bundle compile the changed runtime path"
+    },
+    "diffCheck": "passed"
+  },
+  "exactConfigDryRuns": {
+    "activation": {
+      "configPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+      "configSha256": "0a82b35e3c5fc63413d8b71dd138c028bab9b01693b7b54726a74d321d147152",
+      "command": "npx wrangler deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+      "cwd": "cloudflare",
+      "result": "exit 0; 1717.37 KiB upload / 322.09 KiB gzip; no deployment"
+    },
+    "rollback": {
+      "configPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
+      "configSha256": "8df907045dee6b1cf446feaec2291c92b6c1673c446f48c8fd7360c428283ff7",
+      "command": "npx wrangler deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
+      "cwd": "cloudflare",
+      "result": "exit 0; 1717.37 KiB upload / 322.09 KiB gzip; no deployment"
+    },
+    "configExpiry": "2026-08-13T22:40:00.000Z",
+    "harnessNote": "the repository wrapper was attempted in the already-native Linux execution copy and stopped before Wrangler because its contract requires a Windows host that launches WSL; direct pinned Wrangler 4.103.0 then proved both exact configs in that Linux copy"
+  },
+  "decision": {
+    "implementation": "production-normal critical path locally ready",
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "stopGate": "explicit approval is required against this exact packet and configuration hashes before any deployment or activation; regenerate and rehash if the configs expire or any frozen byte changes"
+  }
+}

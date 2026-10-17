@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-31T09:43:42.651Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket66-closed.json",
+  "graphHash": "0d53d17d0f813a2567b423aee2e6901487d424b33a99de6e49174301d14d3297",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 47,
+    "closedCount": 65,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Activity revision",
+  "graphClearFrontier": [
+    68,
+    77,
+    87,
+    91,
+    106,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 68,
+    "title": "PRD0062 19 — Revise one Activity safely",
+    "directPrerequisites": [
+      35,
+      63,
+      64
+    ],
+    "closedPrerequisites": [
+      35,
+      63,
+      64
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 23,
+    "acceptanceReadiness": "All direct and transitive prerequisites are formally CLOSED. Both initial strategy-specific Activity publication producers (#65 and #66) now supply complete canonical payloads through #64, so the retained Activity-revision staging, preview, CAS, immutable-version, local security, and teacher browser gates are executable without a deployment or student-shell claim.",
+    "requiredAuthority": [
+      "ticket-owned Activity revision authoring, diff, candidate, publication, Worker, repository, UI, and local rule-fragment paths",
+      "read-only live issue and current-state configuration readback",
+      "teacher localhost:5173 quick-login fixture for ticket-owned browser proof",
+      "rollback limited to disabling revision staging/publication while retaining immutable candidates and versions"
+    ],
+    "selectionReason": "#68 is the earliest unresolved ticket after both initial publication strategies are complete and is next in deterministic roadmap order. It extends #64's canonical boundary to replacement Activity revisions while preserving Activity identity. Selecting any additional graph-clear ticket would violate the exactly-one-primary rule."
+  },
+  "candidateRejections": [
+    {
+      "numbers": [
+        77,
+        87,
+        91,
+        106
+      ],
+      "reason": "Graph-clear but later result, schedule, integrity, or catalog phases. Deterministic roadmap order advances first to Activity revision #68 after initial publication closes."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only at the dependency-graph level. Final browser, accessibility, contract/security, legacy, backup, and recovery suites remain final-closure work, not the next implementation primary."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "disabled",
+    "03B": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny except an explicitly authorized bounded disposable acceptance gate",
+    "masterKey": "offline provisioning-only; never a runtime binding",
+    "selectionOnly": "No #68 implementation, gate enablement, deployment mutation, Firebase mutation, or issue mutation is performed by this snapshot."
+  }
+}

@@ -1,0 +1,37 @@
+.book-integrity-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.book-integrity-panel__state,
+.book-integrity-panel__error,
+.book-integrity-panel__refresh-error {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+
+.book-integrity-panel__state {
+  border: 1px solid #d9e0e5;
+  background: #fff;
+  color: #475569;
+}
+
+.book-integrity-panel__error,
+.book-integrity-panel__refresh-error {
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.book-integrity-panel__error button {
+  min-height: 44px;
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}

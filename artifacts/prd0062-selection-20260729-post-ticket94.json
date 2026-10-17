@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-07-29T07:05:00Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260729-post-ticket94-closed.json",
+  "graphHash": "254ff263b3b850e4afea5f942c6bb0af0d938e76bb4cf916009ad57ae70979a6",
+  "issueCount": 112,
+  "openCount": 51,
+  "closedCount": 61,
+  "graphClearFrontier": [49, 50, 76, 95, 97, 106, 129, 130, 131, 132, 133],
+  "roadmapPhase": "operations",
+  "selectedPrimary": {
+    "number": 95,
+    "ticket": "38B2",
+    "title": "Migrate course, class, assignment, and enrollment notification producers",
+    "directPrerequisites": [94],
+    "closedTransitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 93, 94],
+    "allTransitivePrerequisitesClosed": true,
+    "downstreamLeverage": 30,
+    "acceptanceReadiness": {
+      "localProducerAndNegativeTests": "executable",
+      "authenticatedRolePortProof": "executable at http://localhost:5173 and http://localhost:5174",
+      "stagingCompatibilityProof": "executable with the #94 trusted seam without enabling restrictive rules",
+      "rollbackProof": "executable with producer adapters disabled and legacy entry points retained"
+    },
+    "requiredAuthority": [
+      "local repository and focused harness",
+      "authenticated teacher/student localhost role sessions",
+      "#94 trusted command seam and scoped notification-create authority",
+      "no production identity, secret value, private-B2, 50A, or 03B activation"
+    ],
+    "reason": "Earliest unresolved Operations producer-migration root after #94, with complete closed prerequisite chain and strongest verified downstream leverage among eligible notification candidates."
+  },
+  "candidateRejections": [
+    {
+      "number": 49,
+      "reason": "Ineligible: private-B2 direct-upload provisioning conflicts with the preserved private-B2-disabled/no-values safety boundary."
+    },
+    {
+      "number": 50,
+      "reason": "Ineligible: direct-B2 recovery acceptance requires private-B2 authority unavailable under the current safety boundary."
+    },
+    {
+      "number": 76,
+      "reason": "Graph-clear but ineligible for selection: Student workflow phase is not current; terminal-attempt acceptance requires disposable deployed submit/rollback authority."
+    },
+    {
+      "number": 97,
+      "reason": "Eligible Operations candidate but not selected: #95 is the earlier producer-family slice and has higher downstream leverage (30 versus 23); exactly one primary policy defers #97."
+    },
+    {
+      "number": 106,
+      "reason": "Graph-clear but ineligible for selection: Teacher workflow phase is not current; reference/fork acceptance is later than the Operations notification migration root."
+    },
+    {
+      "number": 129,
+      "reason": "Graph-clear but ineligible: final-closure phase is not active and positive acceptance shares the preserved #50A all-deny boundary."
+    },
+    {
+      "number": 130,
+      "reason": "Graph-clear but ineligible: final-closure phase is not active and positive acceptance shares the preserved #50A all-deny boundary."
+    },
+    {
+      "number": 131,
+      "reason": "Graph-clear but ineligible: final-closure phase is not active and positive acceptance shares the preserved #50A all-deny boundary."
+    },
+    {
+      "number": 132,
+      "reason": "Graph-clear but ineligible: final security-closure phase cannot start while implementation tickets remain open."
+    },
+    {
+      "number": 133,
+      "reason": "Graph-clear but ineligible: final recovery-closure phase cannot start while implementation tickets remain open."
+    }
+  ],
+  "constraints": {
+    "onePrimaryTicket": true,
+    "ticket50A": "all-six-deny/default-deny",
+    "ticket03B": "disabled",
+    "privateB2": "disabled/no values",
+    "trustedProductionGates": "disabled"
+  }
+}

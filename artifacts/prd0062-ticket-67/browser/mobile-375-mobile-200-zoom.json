@@ -1,0 +1,18 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly-mapping-revision?fixture=ticket67",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "mobile viewport 375x900",
+    "source-assisted preview and publish controls remain visible at 200% zoom",
+    "no horizontal document overflow"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

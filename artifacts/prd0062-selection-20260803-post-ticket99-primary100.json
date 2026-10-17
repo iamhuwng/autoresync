@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-08-03T00:21:23.5919939+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260802-post-ticket99-closed.json",
+  "graphHash": "8ca830cd0df5c066aaab196837cabf6fd95c3dd771609b86074385214e18e5f4",
+  "graphArtifactSha256": "49eb3932d562aa076f053d9bdc9902e23b08509e383fa84bbbcb1ffd9c30bc9a",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 35,
+    "closedCount": 77,
+    "rawEdgeCount": 311,
+    "uniqueEdgeCount": 311,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Idempotent trusted Book notification emission",
+  "selectedTicket": {
+    "number": 100,
+    "title": "PRD0062 38C — Emit idempotent Book notifications from existing Worker",
+    "closedDirectPrerequisites": [
+      99
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 20,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "#100 is newly graph-clear after #99 closed and is the direct continuation of the notification track. It preserves the restrictive browser boundary while moving notification creation into the existing trusted Book Worker."
+  },
+  "candidateDecisions": [
+    {
+      "number": 100,
+      "decision": "SELECTED",
+      "reason": "Sole next primary: direct successor to #99, all prerequisites closed, and the next notification producer required before downstream notification integration and proof."
+    },
+    {
+      "numbers": [
+        101,
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_OTHER_PRODUCT_PHASES",
+      "reason": "These graph-clear tickets belong to separate impact/privacy, placement, and public-content phases; they do not continue the just-completed notification security boundary."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "These browser and regression proof owners remain deferred until outstanding implementation producers are complete."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}

@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-07-26T19:34:57.575Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-post-53-closed.json",
+  "graph": {
+    "issueHash": "0fd2390681dc60cd7e41d398b34b0ca8a3bb713485f746d17e1ee1b7b4d694fe",
+    "issueCount": 112,
+    "openCount": 82,
+    "closedCount": 30,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 54, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Runtime",
+  "selectedPrimary": {
+    "number": 54,
+    "title": "PRD0062 10B - Render accessible PDF.js viewer and runtime shell",
+    "directPrerequisites": [53],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47, 48, 51, 52, 53],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 48,
+    "acceptanceReadiness": "Executable: #54 retained contract is reusable viewer/viewer-host implementation, component/teacher browser proof, production-shaped transport-contract proof, local lifecycle/security/memory/a11y proof. Integrated student launch, Delivery projection, canonical route/CSP, assembled registry, and deployed route proof remain destination-owned by #73/#59.",
+    "requiredAuthority": [
+      "local repository edits under src/components/book-runtime and focused viewer tests",
+      "local browser proof at http://localhost:5173 using dev quick-login or fixture as live contract requires",
+      "no Worker deploy, no Firebase rules deploy, no 50A activation, no 03B enablement"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "number": 49,
+      "title": "PRD0062 06C - Provision and prove private B2 direct upload",
+      "reason": "Graph-clear but not current roadmap phase. Direct-B2 provisioning/operations remains later than current Runtime viewer seam; selecting it would skip #54 runtime dependency chain."
+    },
+    {
+      "number": 50,
+      "title": "PRD0062 07 - Reconcile failed and unfinished direct-B2 uploads",
+      "reason": "Graph-clear but Operations/provisioning phase. Downstream cleanup/reconciliation does not precede current Runtime viewer seam."
+    },
+    {
+      "number": 56,
+      "title": "PRD0062 13B - Build hierarchy and source Assembly workspace",
+      "reason": "Graph-clear but Teacher workflow phase. Current Runtime phase still has eligible #54 root/enabler."
+    },
+    {
+      "number": 64,
+      "title": "PRD0062 16A - Provide the trusted common publication primitive",
+      "reason": "Graph-clear but Teacher workflow/publication phase. Current Runtime phase still has eligible #54 root/enabler."
+    },
+    {
+      "number": 129,
+      "title": "PRD0062 51B2 - Run teacher updates, replacement, and results browser suite",
+      "reason": "Final closure phase. Cannot bypass unresolved Runtime/Teacher/Student/Operations work or shared 50A/route/deployment boundaries."
+    },
+    {
+      "number": 130,
+      "title": "PRD0062 51C1 - Run student runtime and persistence browser suite",
+      "reason": "Final closure phase. Cannot bypass unresolved Runtime/Teacher/Student/Operations work or shared 50A/route/deployment boundaries."
+    },
+    {
+      "number": 131,
+      "title": "PRD0062 51C2 - Run student accessibility and device browser suite",
+      "reason": "Final closure phase. Cannot bypass unresolved Runtime/Teacher/Student/Operations work or shared 50A/route/deployment boundaries."
+    },
+    {
+      "number": 132,
+      "title": "PRD0062 51D1 - Run contract and security regressions",
+      "reason": "Final closure phase. Cannot bypass unresolved Runtime/Teacher/Student/Operations work or shared 50A/route/deployment boundaries."
+    },
+    {
+      "number": 133,
+      "title": "PRD0062 51D2 - Run legacy, backup, and recovery regressions",
+      "reason": "Final closure phase. Cannot bypass unresolved Runtime/Teacher/Student/Operations work or shared 50A/route/deployment boundaries."
+    }
+  ],
+  "preservedConstraints": [
+    "Work exactly one primary ticket.",
+    "All direct and transitive prerequisites for #54 are formally CLOSED.",
+    "03B remains disabled.",
+    "50A remains all-six-deny/default-deny.",
+    "No #128-#133 selection while Runtime/Teacher/Student/Operations work remains open.",
+    "Full 112-ticket scope preserved; no early completion."
+  ]
+}

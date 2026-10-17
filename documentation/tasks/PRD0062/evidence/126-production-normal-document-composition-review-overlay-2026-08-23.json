@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "prd0062-126-independent-review-method-overlay",
+  "recordedAt": "2026-08-23T19:10:00+07:00",
+  "ticket": "#126 / 50B",
+  "baseEvidence": "126-production-normal-document-composition-cycle-2026-08-23.json",
+  "baseEvidenceCommit": "56e5e171c53b76bc38afb6e8166b3594585281b7",
+  "reviewedProductCandidate": "31496c20d0abaf5e56e8a2dade24339aa5413a9c",
+  "priorReviewCycle": {
+    "recordCommit": "2f60d7f4c7841225c880f0026e0e8601080c8466",
+    "standards": "FINDINGS: review record omitted durable method and residual-risk detail and referenced its parent",
+    "specification": "PASS"
+  },
+  "reviewMethod": {
+    "independentReviewers": 2,
+    "agentShape": "independent leaf subagents; no subagent spawned another",
+    "mode": "read-only review of the exact candidate, evidence, and authority overlays",
+    "primaryOwnership": "primary agent retained plan, integration, verification, and final claims",
+    "requiredOutput": "PASS or FINDINGS with file-path evidence and required corrections"
+  },
+  "reviewScope": [
+    "source/test/config root-cause change and ordinary Homework/Book authority invariants",
+    "red/green and adjacent local proof classifications",
+    "exact Worker upload, activation, readback, and rollback identities",
+    "browser-control blocker and truthful non-closure",
+    "durable assignment preservation and no replay/projector write",
+    "append-only authority overlays and historical evidence preservation",
+    "secret redaction, main/Listening/unrelated/forensic/WSL scope boundaries"
+  ],
+  "governingRequirements": [
+    "AGENTS.md live-state, append-only evidence, and no-main-change rules",
+    "PRD0062 production-normal recovery plan Sections 18-20",
+    "PRD0062 architecture amendment and Book Homework bridge contract",
+    "user-authorized bounded activation with mandatory safe rollback and no assignment replay"
+  ],
+  "riskModel": [
+    "false closure from local, emulator, or dry-run proof",
+    "stale source/config/manifest/deployed identity",
+    "secret disclosure",
+    "durable assignment mutation or replay",
+    "unrecorded production traffic or scope change",
+    "historical evidence rewrite",
+    "reviewer sign-off without residual-risk ownership"
+  ],
+  "validation": [
+    "exact source and documentation diff inspection",
+    "JSON parse, UTF-8, diff-check, and pre-commit enforcement",
+    "candidate and rollback Worker identity/readback cross-check",
+    "active authority and dependency-graph reconciliation"
+  ],
+  "residualRisks": [
+    {
+      "id": "browser-control-runtime",
+      "status": "OPEN",
+      "owner": "external browser-control runtime",
+      "impact": "required authenticated teacher/student/reference-only/PDF/Runtime acceptance cannot be executed",
+      "mitigation": "candidate rolled back at 100%; repeat the bounded gate only after browser control initializes"
+    },
+    {
+      "id": "windows-build-emulator-harness",
+      "status": "OPEN_TOOLING",
+      "owner": "Windows snapshot and Firebase emulator boundary",
+      "impact": "frontend build and emulator phases did not reach product assertions",
+      "mitigation": "retain classification as tooling failure; rerun proportional local proof before a future activation"
+    },
+    {
+      "id": "dependent-tickets",
+      "status": "HELD",
+      "owner": "PRD0062 dependency graph",
+      "impact": "#128-#136 and release gates cannot close",
+      "mitigation": "leave #126 BLOCKED_ROLLED_BACK and do not start later tickets"
+    }
+  ],
+  "currentDisposition": "FINAL_REVIEW_PENDING",
+  "closureRule": "Do not claim #126 or PRD0062 completion until both independent reviewers PASS the resulting exact final evidence state; preserve rollback meanwhile."
+}

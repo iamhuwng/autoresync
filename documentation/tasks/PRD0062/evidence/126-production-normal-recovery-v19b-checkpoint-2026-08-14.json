@@ -1,0 +1,194 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-checkpoint",
+  "schemaVersion": 1,
+  "status": "ready-for-one-bounded-production-attempt",
+  "createdAt": "2026-08-14T01:52:41Z",
+  "expiresAt": "2026-08-14T13:37:00Z",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md Phases A-C",
+  "predecessors": [
+    "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v17-assignment-checkpoint-2026-08-14.json",
+    "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v16-assignment-failure-result-2026-08-14.json"
+  ],
+  "sourceIdentity": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "preCheckpointStatusSha256": "54dc687fa3cd2daf2f51058de6b45dc4e0b6d97bd59c15e6c9c9c759af9e596c",
+    "trackedBinaryDiffSha256ExcludingUnrelatedJson": "9225278b365408cb588b573d4378cb8361730bd81d83f4bfc89ff5c705b4a23f",
+    "dirtyContentManifest": "tmp/prd0062-v19b-dirty-content-manifest.txt",
+    "dirtyContentManifestFiles": 107,
+    "dirtyContentManifestSha256": "521b0174cf06390a56df82a168132d733e6f62b41c52d8dd40381cd40db692f5",
+    "excludedFromDirtyContentManifest": [
+      "tmp/**",
+      "documentation/tasks/PRD0062/evidence/**",
+      "json"
+    ]
+  },
+  "workerArtifact": {
+    "bundleSha256": "fad7d2a67d7cea104bd8eb724dc2c700010309d40673e7d4d68bd62392746ec0",
+    "bundleSizeBytes": 1793097,
+    "gzip9SizeBytes": 332981,
+    "scriptEtag": "2890aa26080d471bd159e757792860c7b0b6122fba44b9ac6dd76a0af6641ac5",
+    "activationConfig": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-v19b-activation.jsonc",
+    "activationConfigSha256": "0ffac9ec9491840e6dd16879da366f47964d4db9924e367e1e4c57ac87427dd5",
+    "rollbackConfig": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-v19b-rollback.jsonc",
+    "rollbackConfigSha256": "1d46e131a50c7107a34a06de04f295468ffa0165a838fa91f4e1c39b38b477fe",
+    "issuedAt": "2026-08-14T01:37:00.000Z",
+    "expiresAt": "2026-08-14T13:37:00.000Z"
+  },
+  "workerVersions": {
+    "rollbackVersionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9",
+    "activationVersionId": "4cd8e081-5183-4717-b93f-f1549ccbf0ee",
+    "supersededInactiveV19": {
+      "rollbackVersionId": "3d9c0e25-56eb-400e-9a17-9a814665e315",
+      "activationVersionId": "0e2964d0-90ce-4a4a-bb46-47feda8635b8",
+      "reason": "preview setting remained unavailable, so exact version preflight could not be demonstrated"
+    },
+    "startupMilliseconds": {
+      "rollbackUpload": 25,
+      "activationUpload": 32
+    },
+    "exactVersionPreflight": {
+      "mechanism": "zero-percent deployment plus Cloudflare-Workers-Version-Overrides",
+      "rollback": {
+        "status": 204,
+        "tailConfirmedScriptVersionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9"
+      },
+      "activation": {
+        "status": 204,
+        "tailConfirmedScriptVersionId": "4cd8e081-5183-4717-b93f-f1549ccbf0ee"
+      }
+    },
+    "currentDeployment": {
+      "deploymentId": "f9cbf5d9-9b4f-4966-b868-899a910ee870",
+      "activeRollbackVersionId": "3f483e54-7501-4c37-b37d-7275e52409b4",
+      "activeRollbackTrafficPercent": 100,
+      "activationValidationTrafficPercent": 0
+    }
+  },
+  "rules": {
+    "activationPath": "database.rules.json",
+    "activationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rollbackPath": "firebase.prd0062-118-rules.rollback.json",
+    "rollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "liveReadbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+  },
+  "configuration": {
+    "firebaseProjectId": "temp-a1437",
+    "workerOrigin": "https://r2-upload-signer.iamhuwng.workers.dev",
+    "allowedOrigins": [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://kahut1.web.app"
+    ],
+    "rendererRegistry": "activity-renderer-manifest-v1@sha256:6ec59a0085256e6214e448f9a16312d707699c5083d11c9d356c0b5d15e66be1",
+    "serviceIdentities": {
+      "source": "book-source-worker-runtime@temp-a1437.iam.gserviceaccount.com",
+      "activity": "book-activity-authoring-rt@temp-a1437.iam.gserviceaccount.com",
+      "assembly": "book-assembly-p2-runtime@temp-a1437.iam.gserviceaccount.com",
+      "delivery": "book-delivery-runtime@temp-a1437.iam.gserviceaccount.com",
+      "homework": "book-homework-runtime@temp-a1437.iam.gserviceaccount.com",
+      "runtime": "book-runtime-runtime@temp-a1437.iam.gserviceaccount.com"
+    },
+    "requiredSecretsPresentByName": [
+      "FIREBASE_WEB_API_KEY",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY"
+    ]
+  },
+  "frozenInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "sourceVersionId": "source-version-70f2ccf7d1a42d67",
+    "sourceKey": "full",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "candidateId": "candidate-63a7b569-aaa1-4fca-9297-2b284f88415c",
+    "candidateRevision": 3,
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "activityVersion": 1,
+    "saveBindingOperationId": "62e20638-b575-4f12-8d10-243a356103c3",
+    "publicationOperationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "assignmentOperationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "idempotencyKey": "0c171038-deb4-4441-8f53-5e241398c664",
+    "context": {
+      "kind": "unit",
+      "nodeKey": "unit-vocab-u1",
+      "classId": "2NE3KY"
+    },
+    "schedule": {
+      "finalDueAt": "2026-08-21T00:00:00.000Z",
+      "nodeOverrides": []
+    },
+    "policy": {
+      "intent": "practice",
+      "integrityCapture": false,
+      "integrityOverride": false,
+      "activityPolicies": [
+        {
+          "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+          "maxAttempts": 2,
+          "feedbackRelease": "immediate",
+          "lateSubmissionAllowed": false
+        }
+      ]
+    }
+  },
+  "verification": {
+    "v17DeploymentEquivalentHistoricalFailure": "1/1",
+    "currentDeploymentEquivalentCommitReplay": "1/1",
+    "homeworkFocused": "16/16",
+    "deliveryFocused": "4/4 with 9 skipped by focused filter",
+    "ticket59": "57/57",
+    "productionNormalRealRtdbEmulator": "2/2",
+    "generatedRulesComposer": "13/13",
+    "assembledRulesMatrix": "89/89 with zero skipped",
+    "scopedDiffCheck": "pass"
+  },
+  "eligibility": {
+    "v18": "ineligible-hypothesis-not-causal",
+    "v19": "superseded-before-activation-because-exact-version-preflight-was-unavailable",
+    "v19b": "eligible-for-one-bounded-attempt"
+  },
+  "executionOrder": [
+    "deploy exact activation rules and verify readback hash",
+    "activate exact Worker version 4cd8e081-5183-4717-b93f-f1549ccbf0ee",
+    "read back exact deployment identity",
+    "verify existing Source, Activity, binding, and publication identities without duplication",
+    "submit the frozen assignment once and replay only with the same operation and idempotency identities",
+    "verify teacher and student consumption",
+    "keep production active only if every required positive and negative readback passes"
+  ],
+  "rollbackTriggers": [
+    "unexpected 5xx",
+    "authentication or token-exchange failure",
+    "intended-path rules denial",
+    "missing or crossed authority",
+    "duplicate version or assignment state",
+    "unreconciled partial commit",
+    "invalid teacher or student readback"
+  ],
+  "rollbackOrder": [
+    "deploy Worker rollback version 99fc954e-41bf-47c6-9e9c-724d37a422e9 first",
+    "restore firebase.prd0062-118-rules.rollback.json second",
+    "verify both rollback identities and preserve all durable partial state"
+  ]
+}

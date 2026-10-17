@@ -1,0 +1,171 @@
+{
+  "artifactKind": "prd0062-126-production-execution-approval-packet",
+  "schemaVersion": 1,
+  "status": "awaiting-explicit-production-execution-approval",
+  "createdAt": "2026-08-13T14:51:50Z",
+  "supersedesApprovalBoundary": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-approval-packet-2026-08-13.json",
+    "sha256": "aca9ff5f1a3799f297c5378daa23032f5f3d679fb02799322e47e73d59c0da94",
+    "reason": "the prior packet froze implementation and dry-run identities but did not authorize or specify the #118 rules deployment/readback/rollback sequence required before Worker activation"
+  },
+  "currentProductionState": {
+    "observedAt": "2026-08-13T14:48:00Z",
+    "cloudflareAccountId": "e41db829dabe9993f03674afdfd56510",
+    "worker": "r2-upload-signer",
+    "deploymentId": "930e3cce-bcb2-4f6c-ad88-be560c5e5813",
+    "activeVersionId": "e465c35e-44e7-46af-9ba8-47038ed952b0",
+    "activePercentage": 100,
+    "activeDisposition": "known deny-only rollback",
+    "firebaseProjectId": "temp-a1437",
+    "firebaseDatabaseInstance": "temp-a1437-default-rtdb",
+    "activeRulesReadbackSha256": "011cfb8bbba909d62357e928fec58246a40037ffe844917b0d7e78ee919aad9b"
+  },
+  "requestedAuthority": {
+    "deployGeneratedRtdbRules": true,
+    "uploadInactiveWorkerVersions": true,
+    "activateBoundedWorkerVersionAt100Percent": true,
+    "executeBoundedExistingTeacherWorkflow": true,
+    "deployRollbackRulesOnFailure": true,
+    "activateDenyOnlyWorkerRollbackAt100PercentOnFailure": true,
+    "deployment": true,
+    "activation": true,
+    "remoteMutation": true,
+    "createRemoteAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "executeOtherTickets": false
+  },
+  "scope": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentIds": ["x3hDfjYVN7cJtSbwq0ChIjl1Bk62"],
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "maxStudents": 30,
+    "sourceVersionDisposition": "reuse the existing verified private Source Version retained by the prior bounded attempt; do not upload duplicate source bytes",
+    "forbiddenExpansion": [
+      "additional teachers, students, Books, assignments, or source files",
+      "component-PDF publication, migrations, replacement, deletion, recovery, notification, or unrelated routes",
+      "new service accounts, credentials, IAM grants, buckets, public source paths, or broad rollout"
+    ]
+  },
+  "frozenIdentities": {
+    "sourceApprovalPacketSha256": "aca9ff5f1a3799f297c5378daa23032f5f3d679fb02799322e47e73d59c0da94",
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "b87eb4bc9a7497b03293b282563df5c25bf13ecfbe943c799875576b10d43965"
+    },
+    "rollbackRules": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    },
+    "rollbackRulesConfig": {
+      "path": "firebase.prd0062-118-rollback.config.json",
+      "sha256": "73f6db450456437e7359f2002fe08dc5b5d7d94424de610de3f4970e125283fb"
+    },
+    "activationConfig": {
+      "path": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+      "sha256": "0a82b35e3c5fc63413d8b71dd138c028bab9b01693b7b54726a74d321d147152"
+    },
+    "workerRollbackConfig": {
+      "path": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc",
+      "sha256": "8df907045dee6b1cf446feaec2291c92b6c1673c446f48c8fd7360c428283ff7"
+    },
+    "expiresAt": "2026-08-13T22:40:00.000Z"
+  },
+  "preflight": {
+    "cloudflareIdentity": "Wrangler 4.103.0 OAuth readback matched iamhuwng@gmail.com and exact account e41db829dabe9993f03674afdfd56510",
+    "firebaseIdentity": "existing gcloud operator iamhuwng@gmail.com on project temp-a1437; no credential or IAM mutation",
+    "generatedRulesDryRun": "Firebase CLI syntax dry-run passed for database.rules.json",
+    "rollbackRulesDryRun": "Firebase CLI syntax dry-run passed using firebase.prd0062-118-rollback.config.json",
+    "workerDryRuns": "activation and rollback each passed at 1717.37 KiB upload / 322.09 KiB gzip",
+    "trafficReadback": "deny-only version e465c35e-44e7-46af-9ba8-47038ed952b0 is active at 100 percent"
+  },
+  "executionRunbook": [
+    {
+      "order": 1,
+      "owner": "#118 generated-rules owner",
+      "action": "deploy generated RTDB rules before enabling any Worker route",
+      "command": "GOOGLE_CLOUD_QUOTA_PROJECT=temp-a1437 FIREBASE_TOKEN=\"$(gcloud auth print-access-token --quiet)\" npx firebase-tools deploy --only database --project temp-a1437 --non-interactive",
+      "successGate": "exit 0 and deployment reports only database rules"
+    },
+    {
+      "order": 2,
+      "owner": "#118 generated-rules owner",
+      "action": "read back active RTDB rules and prove semantic JSON equality to database.rules.json",
+      "command": "GOOGLE_CLOUD_QUOTA_PROJECT=temp-a1437 FIREBASE_TOKEN=\"$(gcloud auth print-access-token --quiet)\" npx firebase-tools database:get /.settings/rules --project temp-a1437 --instance temp-a1437-default-rtdb --output /tmp/prd0062-active-rules-after.json",
+      "successGate": "canonical parsed JSON deep-equals database.rules.json; otherwise execute rules rollback and stop"
+    },
+    {
+      "order": 3,
+      "owner": "#126 activation owner",
+      "action": "upload a new deny-only rollback Worker version without traffic",
+      "cwd": "cloudflare",
+      "command": "npx wrangler versions upload --config wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc --message prd0062-126-production-normal-deny-rollback",
+      "successGate": "capture version ID; version readback has every governed route disabled and all six rollout actions denied"
+    },
+    {
+      "order": 4,
+      "owner": "#126 activation owner",
+      "action": "upload the bounded activation Worker version without traffic",
+      "cwd": "cloudflare",
+      "command": "npx wrangler versions upload --config wrangler.prd0062-ticket126-vocab-u1-activation.jsonc --message prd0062-126-production-normal-activation",
+      "successGate": "capture version ID; exact scope/config/secret-name readback matches this packet before traffic"
+    },
+    {
+      "order": 5,
+      "owner": "#126 activation owner",
+      "action": "activate only the captured activation version",
+      "cwd": "cloudflare",
+      "commandTemplate": "npx wrangler versions deploy <ACTIVATION_VERSION_ID>@100 --name r2-upload-signer --message prd0062-126-production-normal-activation -y",
+      "successGate": "deployment status reports exactly the captured activation version at 100 percent"
+    },
+    {
+      "order": 6,
+      "owner": "#126 activation owner",
+      "action": "run the bounded normal workflow using the existing named teacher, retained verified source, exact Book, one assignment, and one existing student",
+      "successGate": "Material Book authority -> candidate preview -> durable approval -> full-PDF publication preflight/publication succeeds; non-allowlisted and stale/revoked/wrong-source attempts fail before mutation; no duplicate source bytes or accounts are created"
+    },
+    {
+      "order": 7,
+      "owner": "#126 activation owner",
+      "action": "record version/config/rules/scope and canonical publication readback",
+      "successGate": "all exact identities match and no unrelated route is enabled; otherwise rollback"
+    }
+  ],
+  "rollbackRunbook": [
+    {
+      "order": 1,
+      "action": "activate the captured deny-only Worker version at 100 percent",
+      "cwd": "cloudflare",
+      "commandTemplate": "npx wrangler versions deploy <ROLLBACK_VERSION_ID>@100 --name r2-upload-signer --message prd0062-126-production-normal-rollback -y",
+      "successGate": "deployment status reports exactly the deny-only version at 100 percent before rules rollback"
+    },
+    {
+      "order": 2,
+      "action": "restore the accepted #118 rollback RTDB rules",
+      "command": "GOOGLE_CLOUD_QUOTA_PROJECT=temp-a1437 FIREBASE_TOKEN=\"$(gcloud auth print-access-token --quiet)\" npx firebase-tools deploy --only database --project temp-a1437 --config firebase.prd0062-118-rollback.config.json --non-interactive",
+      "successGate": "readback deep-equals firebase.prd0062-118-rules.rollback.json"
+    },
+    {
+      "order": 3,
+      "action": "verify deny-before-side-effect and record retained bounded state",
+      "successGate": "every governed route is disabled, scope enforcement disabled, all six actions denied, traffic 100 percent deny-only, and no assignment or out-of-scope data was created"
+    }
+  ],
+  "stopGates": [
+    "any frozen hash mismatch or time later than 2026-08-13T22:40:00.000Z",
+    "active rules readback differs from generated rules after deployment",
+    "Worker version readback lacks any existing required secret name or differs from exact bounded config",
+    "traffic is not exactly one captured version at 100 percent",
+    "any non-allowlisted request succeeds or any expected bounded step fails",
+    "publication cannot resolve Material Book, Source Version, Activity binding, candidate, or durable approval",
+    "any unrelated route, identity, Book, assignment, student, source object, account, or IAM permission would be touched"
+  ],
+  "approvalBoundary": {
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "decision": "stop for explicit approval against this packet SHA-256; only then execute the exact runbook"
+  }
+}

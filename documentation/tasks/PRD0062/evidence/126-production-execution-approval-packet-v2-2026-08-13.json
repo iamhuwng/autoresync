@@ -1,0 +1,119 @@
+{
+  "artifactKind": "prd0062-126-production-execution-approval-packet",
+  "schemaVersion": 2,
+  "status": "awaiting-renewed-explicit-production-execution-approval",
+  "createdAt": "2026-08-13T15:00:47Z",
+  "supersedes": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-execution-approval-packet-2026-08-13.json",
+    "sha256": "94a313add8a5381eea5b12a20d6aa0e407c9343bffe38848d9648d1969b5e63b",
+    "approvalConsumed": true,
+    "result": "generated RTDB rules deployed and deep-equality readback passed; inactive deny-only Worker upload failed Cloudflare validation before version creation because a shared module dereferenced undefined import.meta.env; Worker traffic never changed; accepted rollback RTDB rules were restored and deep-equality readback passed"
+  },
+  "currentProductionState": {
+    "observedAfterRollback": "2026-08-13T14:55:00Z",
+    "cloudflareAccountId": "e41db829dabe9993f03674afdfd56510",
+    "worker": "r2-upload-signer",
+    "activeVersionId": "e465c35e-44e7-46af-9ba8-47038ed952b0",
+    "activePercentage": 100,
+    "activeDisposition": "known deny-only rollback",
+    "firebaseProjectId": "temp-a1437",
+    "firebaseDatabaseInstance": "temp-a1437-default-rtdb",
+    "activeRulesDisposition": "accepted #118 rollback rules; remote readback deep-equals firebase.prd0062-118-rules.rollback.json",
+    "newWorkerVersionCreatedByFailedAttempt": false,
+    "boundedWorkflowExecuted": false
+  },
+  "demonstratedRootCauseRepair": {
+    "owner": "#59 Worker integration/package boundary; shared Reading V2 values remain semantically unchanged",
+    "failure": "Cloudflare Worker version validation threw Cannot read properties of undefined reading VITE_READING_V2_ROLLOUT_MODE during module initialization",
+    "implementation": {
+      "path": "src/config/readingV2FeatureFlags.ts",
+      "sha256": "e5326215a274ebaa669a0791364e32f0e3f119b7d4fa1cf220c3ee86dc9aebee",
+      "change": "all eight existing Vite environment reads use optional chaining so native Worker/Node initialization receives the existing normalizer defaults when import.meta.env is absent"
+    },
+    "regressionTest": {
+      "path": "src/config/readingV2FeatureFlags.test.ts",
+      "sha256": "b9ff6bf0d091cf7932ee55e14e96bf315585a5fae246b797e1077d9ead4dde0b"
+    },
+    "verification": [
+      "feature flag suite 14/14 passed",
+      "native Node non-Vite import initialized and printed off disabled",
+      "production #59 suite 56/56 passed",
+      "activation and deny-only Worker versions-upload dry-runs passed at 1717.37 KiB / 322.10 KiB",
+      "Sol Advisor final verdict ship with no findings"
+    ]
+  },
+  "isolatedSourceIdentity": {
+    "executionCopy": "/tmp/prd0062-126-execution-v2.IytOdU/repo",
+    "regularFiles": 5894,
+    "aggregateSha256": "d43b880e3fbb5ab83b739c2d28697e9b53cb0347ea0b8e16248f26a71969ee42",
+    "excluded": [".git", "node_modules", "tmp", "dist", "coverage", ".wrangler", "*.log", "prior generated #126 approval packets"],
+    "rootPackageLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+    "cloudflarePackageLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0"
+  },
+  "requestedAuthority": {
+    "deployGeneratedRtdbRules": true,
+    "uploadInactiveWorkerVersions": true,
+    "activateBoundedWorkerVersionAt100Percent": true,
+    "executeBoundedExistingTeacherWorkflow": true,
+    "deployRollbackRulesOnFailure": true,
+    "activateDenyOnlyWorkerRollbackAt100PercentOnFailure": true,
+    "deployment": true,
+    "activation": true,
+    "remoteMutation": true,
+    "createRemoteAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "executeOtherTickets": false
+  },
+  "scope": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentIds": ["x3hDfjYVN7cJtSbwq0ChIjl1Bk62"],
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "maxStudents": 30,
+    "sourceVersionDisposition": "reuse the retained existing verified private Source Version; do not upload duplicate bytes",
+    "forbiddenExpansion": [
+      "additional teachers, students, Books, assignments, or source files",
+      "component-PDF, migration, replacement, deletion, recovery, notification, or unrelated routes",
+      "new accounts, credentials, IAM grants, buckets, public source paths, or broad rollout"
+    ]
+  },
+  "frozenDeploymentIdentities": {
+    "generatedRulesSha256": "b87eb4bc9a7497b03293b282563df5c25bf13ecfbe943c799875576b10d43965",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rollbackRulesConfigSha256": "73f6db450456437e7359f2002fe08dc5b5d7d94424de610de3f4970e125283fb",
+    "activationConfigSha256": "0a82b35e3c5fc63413d8b71dd138c028bab9b01693b7b54726a74d321d147152",
+    "workerRollbackConfigSha256": "8df907045dee6b1cf446feaec2291c92b6c1673c446f48c8fd7360c428283ff7",
+    "expiresAt": "2026-08-13T22:40:00.000Z"
+  },
+  "executionRunbook": [
+    "verify every frozen hash and expiry",
+    "deploy database.rules.json only; read back active rules and require canonical JSON deep equality",
+    "upload deny-only Worker version without traffic; capture ID and validate exact route/action/secret-name bindings",
+    "upload activation Worker version without traffic; capture ID and validate exact scope/route/action/secret-name bindings",
+    "activate only the captured activation version at 100 percent and require exact deployment readback",
+    "execute only the retained-source normal workflow for the exact named teacher, Book, assignment, and student; require non-allowlisted and stale/revoked/wrong-source denial before mutation",
+    "record exact rules, Worker, scope, publication, assignment, and student readback"
+  ],
+  "rollbackRunbook": [
+    "activate the captured deny-only Worker version at 100 percent and verify traffic first",
+    "deploy firebase.prd0062-118-rules.rollback.json through firebase.prd0062-118-rollback.config.json",
+    "require rollback rules deep-equality readback, all governed routes disabled, scope enforcement disabled, all six actions denied, and denial before side effects"
+  ],
+  "stopGates": [
+    "any hash mismatch or expiry",
+    "rules readback mismatch",
+    "Worker upload/validation failure or missing required secret name",
+    "Worker version binding/config mismatch",
+    "traffic not exactly one captured version at 100 percent",
+    "any bounded workflow failure or any successful non-allowlisted/stale/revoked/wrong-source attempt",
+    "any unrelated route, identity, data object, account, credential, IAM permission, or ticket would be touched"
+  ],
+  "approvalBoundary": {
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "decision": "stop for renewed explicit approval against this exact v2 packet SHA-256"
+  }
+}

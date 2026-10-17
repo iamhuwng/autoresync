@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useHomeworkTags } from '../hooks/useHomeworkTags';
 import { useNavigation } from '../hooks/useNavigation';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useHomeworkList } from '../hooks/useHomeworkList';
 import { useTargetGrid } from '../hooks/useTargetGrid';
 import {
@@ -39,7 +40,9 @@ import {
 } from '../components/homework/HomeworkIcons';
 import { archiveHomework, deleteHomework, duplicateHomework, extendDeadline, permanentlyDeleteHomework, restoreHomework } from '../services/homeworkManager';
 import { bulkCloseHomework, bulkExtendDeadlines, closeAllPastDueHomework, selectHomeworkForBulkOperation } from '../services/homeworkBulkOperations';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import type { HomeworkAssignment, HomeworkStatus } from '../types/homework.types';
+import { FEATURE_IDS } from '../config/featureRegistry';
 
 import { Card, CardBody, Button, Input, VanillaLoader, VanillaTabs, toast } from '../components/modern';
 import { TeacherHeader } from '../components/navigation';
@@ -108,6 +111,7 @@ function getStatusLabel(status: string) {
 export function TeacherHomeworkListPage() {
     const { user, profile, logout } = useAuth();
     const { navigateTo } = useNavigation('teacher');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const { selected, selectedCount, toggle, selectAll, deselectAll, isSelected } = useBulkSelection<string>();
     const { tags: homeworkTags } = useHomeworkTags();
     const [viewMode, setViewMode] = useState<ViewMode>('targets');
@@ -149,7 +153,11 @@ export function TeacherHomeworkListPage() {
         searchQuery,
     });
 
-    const { targetCards } = useTargetGrid(homework, searchQuery);
+    const legacyHomework = useMemo(
+        () => homework.filter((currentHomework) => !isBookHomeworkCompatibilityProjection(currentHomework)),
+        [homework],
+    );
+    const { targetCards } = useTargetGrid(legacyHomework, searchQuery);
 
     useEffect(() => {
         const timeout = setTimeout(() => {
@@ -168,7 +176,17 @@ export function TeacherHomeworkListPage() {
         setBulkModeEnabled(false);
     }, [deselectAll]);
 
+    const legacyHomeworkIds = useMemo(
+        () => new Set(legacyHomework.map((currentHomework) => currentHomework.id)),
+        [legacyHomework],
+    );
+    const selectedLegacyIds = useMemo(
+        () => Array.from(selected).filter((homeworkId) => legacyHomeworkIds.has(homeworkId)),
+        [legacyHomeworkIds, selected],
+    );
+
     const handleDelete = async (hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         if (!confirm(`Archive "${hw.title || hw.materialTitle}"? You can restore it later from archived homework.`)) {
             return;
         }
@@ -184,6 +202,7 @@ export function TeacherHomeworkListPage() {
     };
 
     const handleDuplicate = async (hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         try {
             await duplicateHomework(hw.id, {});
             showToast('Duplicated', `"${hw.title || hw.materialTitle}" has been duplicated.`, 'success');
@@ -195,10 +214,12 @@ export function TeacherHomeworkListPage() {
     };
 
     const handleEdit = (hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         setEditingHomework(hw);
     };
 
     const handleExtendDeadline = async (hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         const currentDue = new Date(hw.scheduling.dueDate);
         const newDateStr = prompt(
             `Current deadline: ${currentDue.toLocaleString()}\n\nEnter new deadline (YYYY-MM-DD HH:MM):`,
@@ -227,6 +248,7 @@ export function TeacherHomeworkListPage() {
     };
 
     const handleRestore = useCallback(async (hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         try {
             await restoreHomework(hw.id);
             showToast('Restored', `"${hw.title || hw.materialTitle}" was restored.`, 'success');
@@ -243,11 +265,12 @@ export function TeacherHomeworkListPage() {
     }, [refetch, showToast]);
 
     const handlePermanentDelete = useCallback((hw: HomeworkAssignment) => {
+        if (isBookHomeworkCompatibilityProjection(hw)) return;
         setPermanentDeleteTarget(hw);
     }, []);
 
     const handlePermanentDeleteConfirm = useCallback(async () => {
-        if (!permanentDeleteTarget) {
+        if (!permanentDeleteTarget || isBookHomeworkCompatibilityProjection(permanentDeleteTarget)) {
             return;
         }
 
@@ -280,7 +303,7 @@ export function TeacherHomeworkListPage() {
             return;
         }
 
-        const pastDueCount = homework.filter((hw) => hw.status === 'past_due').length;
+        const pastDueCount = legacyHomework.filter((hw) => hw.status === 'past_due').length;
         if (pastDueCount === 0) {
             showToast('Nothing to close', 'There are no past-due homework assignments right now.', 'info');
             return;
@@ -302,7 +325,7 @@ export function TeacherHomeworkListPage() {
             console.error('Error closing past due homework:', closeError);
             showToast('Bulk close failed', 'Failed to close past-due homework.', 'error');
         }
-    }, [homework, refetch, showToast, user?.uid]);
+    }, [legacyHomework, refetch, showToast, user?.uid]);
 
     // handleBulkModeToggle removed — bulk mode is now inside AdvancedSearchPanel in the modal
 
@@ -315,21 +338,22 @@ export function TeacherHomeworkListPage() {
             const matchingHomework = await selectHomeworkForBulkOperation(user.uid, {
                 status: statusFilter,
             });
-            selectAll(matchingHomework.map((matchingItem) => matchingItem.id));
+            const legacyMatchingHomework = matchingHomework.filter((matchingItem) => legacyHomeworkIds.has(matchingItem.id));
+            selectAll(legacyMatchingHomework.map((matchingItem) => matchingItem.id));
             setBulkModeEnabled(true);
-            showToast('Bulk selection ready', `Selected ${matchingHomework.length} ${getStatusLabel(statusFilter).toLowerCase()} homework assignment${matchingHomework.length === 1 ? '' : 's'}.`, 'info');
+            showToast('Bulk selection ready', `Selected ${legacyMatchingHomework.length} ${getStatusLabel(statusFilter).toLowerCase()} homework assignment${legacyMatchingHomework.length === 1 ? '' : 's'}.`, 'info');
         } catch (selectionError) {
             console.error('Error selecting matching homework:', selectionError);
             showToast('Bulk selection failed', 'Unable to select homework matching the current filter.', 'error');
         }
-    }, [selectAll, showToast, statusFilter, user?.uid]);
+    }, [legacyHomeworkIds, selectAll, showToast, statusFilter, user?.uid]);
 
     const handleBulkExtendConfirm = useCallback(async (params: {
         mode: 'absolute' | 'relative';
         absoluteDate?: number;
         relativeHours?: number;
     }) => {
-        const selectedIds = Array.from(selected);
+        const selectedIds = selectedLegacyIds;
         if (selectedIds.length === 0) {
             return;
         }
@@ -360,10 +384,10 @@ export function TeacherHomeworkListPage() {
             console.error('Error extending homework deadlines:', bulkExtendError);
             showToast('Bulk extend failed', 'Failed to extend selected homework deadlines.', 'error');
         }
-    }, [clearBulkSelection, refetch, selected, showToast]);
+    }, [clearBulkSelection, refetch, selectedLegacyIds, showToast]);
 
     const handleBulkClose = useCallback(async () => {
-        const selectedIds = Array.from(selected);
+        const selectedIds = selectedLegacyIds;
         if (selectedIds.length === 0) {
             return;
         }
@@ -387,10 +411,10 @@ export function TeacherHomeworkListPage() {
             console.error('Error closing homework in bulk:', bulkCloseError);
             showToast('Bulk close failed', 'Failed to close selected homework.', 'error');
         }
-    }, [clearBulkSelection, refetch, selected, showToast]);
+    }, [clearBulkSelection, refetch, selectedLegacyIds, showToast]);
 
     const handleBulkDuplicate = useCallback(async () => {
-        const selectedIds = Array.from(selected);
+        const selectedIds = selectedLegacyIds;
         if (selectedIds.length === 0) {
             return;
         }
@@ -418,10 +442,10 @@ export function TeacherHomeworkListPage() {
                 : `Duplicated ${successCount} of ${selectedIds.length} homework assignments.`,
             failureCount > 0 ? 'error' : 'success'
         );
-    }, [clearBulkSelection, refetch, selected, showToast]);
+    }, [clearBulkSelection, refetch, selectedLegacyIds, showToast]);
 
     const handleBulkDeleteConfirm = useCallback(async () => {
-        const selectedIds = Array.from(selected);
+        const selectedIds = selectedLegacyIds;
         if (selectedIds.length === 0) {
             return;
         }
@@ -450,7 +474,7 @@ export function TeacherHomeworkListPage() {
                 : `Archived ${successCount} of ${selectedIds.length} homework assignments.`,
             failureCount > 0 ? 'error' : 'success'
         );
-    }, [clearBulkSelection, refetch, selected, showToast]);
+    }, [clearBulkSelection, refetch, selectedLegacyIds, showToast]);
 
     const handleLogout = async () => {
         try {
@@ -466,8 +490,12 @@ export function TeacherHomeworkListPage() {
     }, [filteredHomework]);
 
     const searchFilteredHomework = useMemo(() => {
-        return visibleHomework;
-    }, [statusFilter, visibleHomework]);
+        return visibleHomework.filter((currentHomework) => !isBookHomeworkCompatibilityProjection(currentHomework));
+    }, [visibleHomework]);
+    const bookVisibleHomework = useMemo(
+        () => visibleHomework.filter((currentHomework) => isBookHomeworkCompatibilityProjection(currentHomework)),
+        [visibleHomework],
+    );
 
     // homeworkByClass removed — replaced by TargetGrid + StudentGrid drill-down
 
@@ -489,11 +517,11 @@ export function TeacherHomeworkListPage() {
     }, [searchFilteredHomework]);
 
     const averageCompletionRate = useMemo(() => {
-        if (homework.length === 0) {
+        if (legacyHomework.length === 0) {
             return 0;
         }
 
-        const total = homework.reduce((sum, hw) => {
+        const total = legacyHomework.reduce((sum, hw) => {
             if (typeof hw.stats.completionRate === 'number') {
                 return sum + hw.stats.completionRate;
             }
@@ -505,12 +533,12 @@ export function TeacherHomeworkListPage() {
             return sum;
         }, 0);
 
-        return Math.round(total / homework.length);
-    }, [homework]);
+        return Math.round(total / legacyHomework.length);
+    }, [legacyHomework]);
 
     const needsAttentionCount = useMemo(() => {
         const now = Date.now();
-        return homework.filter((hw) => {
+        return legacyHomework.filter((hw) => {
             const dueSoon = hw.status === 'active' && hw.scheduling.dueDate > now && hw.scheduling.dueDate - now <= DAY_IN_MS;
             const availableFrom = hw.scheduling.availableFrom;
             const goesLiveSoon =
@@ -521,7 +549,7 @@ export function TeacherHomeworkListPage() {
 
             return hw.status === 'past_due' || dueSoon || goesLiveSoon;
         }).length;
-    }, [homework]);
+    }, [legacyHomework]);
 
     // pastDueCount now computed inside CompactStatsBar
     const bulkSelectionVisible = bulkModeEnabled || selectedCount > 0;
@@ -543,12 +571,66 @@ export function TeacherHomeworkListPage() {
     // handleClosedToggle removed — now inside AdvancedSearchPanel in the modal
 
     const handleSelectionToggle = useCallback((homeworkId: string) => {
+        if (!legacyHomeworkIds.has(homeworkId)) return;
         if (!bulkModeEnabled) {
             setBulkModeEnabled(true);
         }
 
         toggle(homeworkId);
-    }, [bulkModeEnabled, toggle]);
+    }, [bulkModeEnabled, legacyHomeworkIds, toggle]);
+
+    const handleOpenBookDetail = useCallback((homework: HomeworkAssignment) => {
+        trackAction('bookHomeworkTeacherDetailOpened', {
+            homeworkId: homework.id,
+            source: 'teacher_homework_list',
+        });
+        handleOpenDetail(homework);
+    }, [handleOpenDetail, trackAction]);
+
+    const renderBookHomeworkCards = useCallback((items: HomeworkAssignment[], offset = 0) => (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+            }}
+        >
+            {items.map((hw, index) => (
+                <article
+                    key={hw.id}
+                    data-testid={`book-homework-card-${hw.id}`}
+                    style={{
+                        animation: `slideUp 0.45s ease-out ${(offset + index) * 0.04}s backwards`,
+                        border: '1px solid rgba(99,102,241,0.2)',
+                        borderRadius: '1rem',
+                        padding: '1.25rem',
+                        background: 'rgba(255,255,255,0.95)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div style={{ display: 'grid', gap: '0.35rem' }}>
+                        <span style={{ color: '#4f46e5', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                            Book Homework
+                        </span>
+                        <h3 style={{ margin: 0, color: '#1e293b' }}>{hw.title || hw.materialTitle}</h3>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                            Progress is available in the trusted Book projection.
+                        </span>
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => handleOpenBookDetail(hw)}
+                    >
+                        View details
+                    </Button>
+                </article>
+            ))}
+        </div>
+    ), [handleOpenBookDetail]);
 
     const renderHomeworkCards = useCallback((items: HomeworkAssignment[], offset = 0) => (
         <div
@@ -558,7 +640,7 @@ export function TeacherHomeworkListPage() {
                 gap: '1rem',
             }}
         >
-            {items.map((hw, index) => {
+            {items.filter((hw) => !isBookHomeworkCompatibilityProjection(hw)).map((hw, index) => {
                 const alertBadge = getHomeworkAlertBadge(hw);
 
                 return (
@@ -669,8 +751,8 @@ export function TeacherHomeworkListPage() {
                     </p>
                 </div>
                 <CompactStatsBar
-                    totalCount={homework.length}
-                    visibleCount={visibleHomework.length}
+                    totalCount={legacyHomework.length}
+                    visibleCount={searchFilteredHomework.length}
                     activeScheduledCount={(statusCounts.active ?? 0) + (statusCounts.scheduled ?? 0)}
                     pastDueCount={statusCounts.past_due ?? 0}
                     avgCompletionRate={averageCompletionRate}
@@ -782,7 +864,7 @@ export function TeacherHomeworkListPage() {
                             </Button>
                         </CardBody>
                     </Card>
-                ) : searchFilteredHomework.length === 0 ? (
+                ) : searchFilteredHomework.length === 0 && bookVisibleHomework.length === 0 ? (
                     <Card
                         variant="default"
                         style={{
@@ -847,43 +929,53 @@ export function TeacherHomeworkListPage() {
                         ) : null}
 
                         {viewMode === 'targets' && (
-                            drillDownClass ? (
-                                <StudentGrid
-                                    classId={drillDownClass.classId}
-                                    className={drillDownClass.className}
-                                    classHomework={drillDownClass.homework}
-                                    onBack={() => setDrillDownClass(null)}
-                                    onStudentClick={(studentId, studentName, classId, className) =>
-                                        setModalStudent({ studentId, studentName, classId, className })
-                                    }
-                                    searchQuery={searchQuery}
-                                />
-                            ) : (
-                                <TargetGrid
-                                    targetCards={targetCards}
-                                    onTargetClick={(target) => {
-                                        if (target.targetType === 'class') {
-                                            setDrillDownClass({
-                                                classId: target.targetId,
-                                                className: target.targetName,
-                                                homework: target.homework,
-                                            });
-                                        } else {
-                                            setModalStudent({
-                                                studentId: target.targetId,
-                                                studentName: target.targetName,
-                                            });
+                            <>
+                                {renderBookHomeworkCards(bookVisibleHomework)}
+                                {drillDownClass ? (
+                                    <StudentGrid
+                                        classId={drillDownClass.classId}
+                                        className={drillDownClass.className}
+                                        classHomework={drillDownClass.homework}
+                                        onBack={() => setDrillDownClass(null)}
+                                        onStudentClick={(studentId, studentName, classId, className) =>
+                                            setModalStudent({ studentId, studentName, classId, className })
                                         }
-                                    }}
-                                    onCreateHomework={handleCreateHomework}
-                                />
-                            )
+                                        searchQuery={searchQuery}
+                                    />
+                                ) : (
+                                    <TargetGrid
+                                        targetCards={targetCards}
+                                        onTargetClick={(target) => {
+                                            if (target.targetType === 'class') {
+                                                setDrillDownClass({
+                                                    classId: target.targetId,
+                                                    className: target.targetName,
+                                                    homework: target.homework,
+                                                });
+                                            } else {
+                                                setModalStudent({
+                                                    studentId: target.targetId,
+                                                    studentName: target.targetName,
+                                                });
+                                            }
+                                        }}
+                                        onCreateHomework={handleCreateHomework}
+                                    />
+                                )}
+                            </>
                         )}
 
-                        {viewMode === 'chronological' && renderHomeworkCards(searchFilteredHomework)}
+                        {viewMode === 'chronological' && (
+                            <>
+                                {renderBookHomeworkCards(bookVisibleHomework)}
+                                {renderHomeworkCards(searchFilteredHomework)}
+                            </>
+                        )}
 
                         {viewMode === 'by_status' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            <>
+                                {renderBookHomeworkCards(bookVisibleHomework)}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                                 {Object.entries(homeworkByStatus)
                                     .filter(([, homeworkList]) => homeworkList.length > 0)
                                     .map(([status, homeworkList], groupIndex) => (
@@ -912,7 +1004,8 @@ export function TeacherHomeworkListPage() {
                                             </CardBody>
                                         </Card>
                                     ))}
-                            </div>
+                                </div>
+                            </>
                         )}
 
                         {hasMore ? (
@@ -994,7 +1087,7 @@ export function TeacherHomeworkListPage() {
                 studentName={modalStudent?.studentName ?? ''}
                 classId={modalStudent?.classId}
                 className={modalStudent?.className}
-                allHomework={homework}
+                allHomework={legacyHomework}
                 onNavigateToDetail={handleOpenDetail}
                 onEdit={handleEdit}
                 onDuplicate={handleDuplicate}

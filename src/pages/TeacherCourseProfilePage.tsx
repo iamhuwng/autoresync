@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TeacherHeader } from '../components/navigation';
-import { Tabs, Loader, Alert, Group, Text, Badge, Switch, Stack, Divider } from '@mantine/core';
+import { VanillaLoader } from '../components/modern/VanillaLoader';
+import { RichContent } from '../core/components/RichContent';
 import {
     IconArrowLeft,
     IconUsers,
@@ -26,7 +27,10 @@ import CourseAnnouncementEditor from '../components/course/CourseAnnouncementEdi
 import { ModuleSessionModal } from '../components/session/ModuleSessionModal';
 import { PracticeSettingsModal } from '../components/PracticeSettingsModal';
 import { useAuth } from '../hooks/useAuth';
-import { notifications } from '@mantine/notifications';
+import { toast } from '../components/modern/ToastNotification';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
+import './TeacherCourseProfilePage.css';
 
 // Modern Components
 import { Card, CardBody, Button } from '../components/modern';
@@ -36,6 +40,7 @@ const TeacherCourseProfilePage = () => {
     const navigate = useNavigate();
 
     const { user, profile } = useAuth();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.courses);
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -90,6 +95,7 @@ const TeacherCourseProfilePage = () => {
     const handleCreateAnnouncement = async (data: { title: string; content: string; attachments: any[]; targetClassIds: string[] }) => {
         if (!course || !user?.uid) return;
 
+        trackAction('addAnnouncement', { courseId: course.id });
         setIsSubmittingAnnouncement(true);
         try {
             const result = await createCourseAnnouncement({
@@ -104,11 +110,18 @@ const TeacherCourseProfilePage = () => {
             });
 
             if (result.success) {
-                notifications.show({
-                    title: 'Announcement Sent',
-                    message: 'Your announcement has been posted and students notified.',
-                    color: 'green'
-                });
+                toast.success('Announcement posted.');
+                void result.deliveryPromise?.then((delivery) => {
+                    if (delivery.delivered > 0 && delivery.failed + delivery.unknown + delivery.unattempted === 0) {
+                        toast.info(`${delivery.delivered} student notifications sent.`);
+                    } else if (delivery.delivered > 0) {
+                        toast.warning(`${delivery.delivered} notifications sent; ${delivery.failed + delivery.unknown + delivery.unattempted} others were not confirmed.`);
+                    } else if (delivery.status === 'skipped' && delivery.unattempted === 0) {
+                        toast.info('No eligible enrolled students to notify.');
+                    } else {
+                        toast.warning('Notification delivery could not be confirmed.');
+                    }
+                }).catch(() => toast.warning('Notification delivery could not be confirmed.'));
                 setIsCreatingAnnouncement(false);
                 // Refresh list
                 const updated = await getCourseAnnouncements(course.id);
@@ -117,11 +130,7 @@ const TeacherCourseProfilePage = () => {
                 throw new Error(result.error);
             }
         } catch (err: any) {
-            notifications.show({
-                title: 'Error',
-                message: err.message || 'Failed to send announcement',
-                color: 'red'
-            });
+            toast.error(err.message || 'Could not post announcement.');
         } finally {
             setIsSubmittingAnnouncement(false);
         }
@@ -154,7 +163,7 @@ const TeacherCourseProfilePage = () => {
                 justifyContent: 'center',
                 background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 100%)'
             }}>
-                <Loader size="xl" color="violet" />
+                <span role="status" aria-label="Loading course"><VanillaLoader size="xl" /></span>
             </div>
         );
     }
@@ -162,9 +171,9 @@ const TeacherCourseProfilePage = () => {
     if (error || !course) {
         return (
             <div style={{ padding: '4rem', textAlign: 'center' }}>
-                <Alert color="red" title="Error" style={{ maxWidth: '500px', margin: '0 auto' }}>
+                <div role="alert" style={{ maxWidth: '500px', margin: '0 auto' }}>
                     {error || 'Course not found'}
-                </Alert>
+                </div>
                 <Button variant="glass" mt="xl" onClick={handleBack}>
                     <IconArrowLeft size={16} /> Back to Courses
                 </Button>
@@ -198,18 +207,18 @@ const TeacherCourseProfilePage = () => {
                 <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                     {/* Course Code Badge */}
                     <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <Badge color={course.visibility === 'public' ? 'green' : 'blue'} variant="light" size="lg" styles={{ root: { fontWeight: 800 } }}>
+                        <span className="course-badge">
                             {course.visibility.toUpperCase()}
-                        </Badge>
+                        </span>
                         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>CODE:</span>
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '1rem', color: '#4f46e5', background: 'rgba(99, 102, 241, 0.1)', padding: '0.25rem 0.75rem', borderRadius: '0.5rem' }}>
                             {course.code}
                         </span>
                         <span style={{ margin: '0 0.25rem', opacity: 0.3 }}>|</span>
                         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#64748b' }}>TYPE:</span>
-                        <Badge variant="outline" color="gray" size="md">
+                        <span className="course-badge">
                             {course.type.toUpperCase()}
-                        </Badge>
+                        </span>
                     </div>
 
                     {/* Course Overview Card (Glass) */}
@@ -238,9 +247,9 @@ const TeacherCourseProfilePage = () => {
                             </div>
                             <div style={{ flex: 1, minWidth: '300px' }}>
                                 <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e293b', marginBottom: '0.5rem' }}>Course Overview</h3>
-                                <Text color="#64748b" style={{ lineHeight: 1.6 }}>
+                                <p style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     {course.description || "No description provided for this course. Access the settings tab to update course information."}
-                                </Text>
+                                </p>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem' }}>
                                 <Card variant="lavender" style={{ minWidth: '120px' }}>
@@ -267,17 +276,26 @@ const TeacherCourseProfilePage = () => {
                         }}
                     >
                         <CardBody>
-                            <Tabs value={activeTab} onChange={setActiveTab} variant="pills" color="grape" radius="md">
-                                <Tabs.List style={{ marginBottom: '2rem', gap: '0.5rem' }}>
-                                    <Tabs.Tab value="modules" style={{ fontWeight: 700 }} leftSection={<IconList size={16} />}>Modules</Tabs.Tab>
-                                    <Tabs.Tab value="announcements" style={{ fontWeight: 700 }} leftSection={<IconSpeakerphone size={16} />}>Announcements</Tabs.Tab>
-                                    <Tabs.Tab value="students" style={{ fontWeight: 700 }} leftSection={<IconUsers size={16} />}>Students</Tabs.Tab>
-                                    <Tabs.Tab value="requests" style={{ fontWeight: 700 }} leftSection={<IconInbox size={16} />}>Requests</Tabs.Tab>
-                                    <Tabs.Tab value="practice_settings" style={{ fontWeight: 700 }} leftSection={<IconSettings size={16} />}>Practice Settings</Tabs.Tab>
-                                    <Tabs.Tab value="settings" style={{ fontWeight: 700 }} leftSection={<IconSettings size={16} />}>Settings</Tabs.Tab>
-                                </Tabs.List>
+                            <div className="course-tabs">
+                                <div role="tablist" aria-label="Course sections" className="course-tabs-list" onKeyDown={(event) => {
+                                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                                    const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+                                    const index = tabs.indexOf(event.target as HTMLButtonElement);
+                                    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+                                        : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+                                    event.preventDefault();
+                                    tabs[next]?.focus();
+                                    tabs[next]?.click();
+                                }}>
+                                    <button type="button" role="tab" id="course-tab-modules" aria-controls="course-panel-modules" aria-selected={activeTab === 'modules'} onClick={() => { setActiveTab('modules'); trackAction('viewCourseTab', { courseId: course.id, tab: 'modules' }); }}><IconList size={16} />Modules</button>
+                                    <button type="button" role="tab" id="course-tab-announcements" aria-controls="course-panel-announcements" aria-selected={activeTab === 'announcements'} onClick={() => { setActiveTab('announcements'); trackAction('viewCourseTab', { courseId: course.id, tab: 'announcements' }); }}><IconSpeakerphone size={16} />Announcements</button>
+                                    <button type="button" role="tab" id="course-tab-students" aria-controls="course-panel-students" aria-selected={activeTab === 'students'} onClick={() => { setActiveTab('students'); trackAction('viewCourseTab', { courseId: course.id, tab: 'students' }); }}><IconUsers size={16} />Students</button>
+                                    <button type="button" role="tab" id="course-tab-requests" aria-controls="course-panel-requests" aria-selected={activeTab === 'requests'} onClick={() => { setActiveTab('requests'); trackAction('viewCourseTab', { courseId: course.id, tab: 'requests' }); }}><IconInbox size={16} />Requests</button>
+                                    <button type="button" role="tab" id="course-tab-practice_settings" aria-controls="course-panel-practice_settings" aria-selected={activeTab === 'practice_settings'} onClick={() => { setActiveTab('practice_settings'); trackAction('viewCourseTab', { courseId: course.id, tab: 'practice_settings' }); }}><IconSettings size={16} />Practice Settings</button>
+                                    <button type="button" role="tab" id="course-tab-settings" aria-controls="course-panel-settings" aria-selected={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); trackAction('viewCourseTab', { courseId: course.id, tab: 'settings' }); }}><IconSettings size={16} />Settings</button>
+                                </div>
 
-                                <Tabs.Panel value="modules">
+                                {activeTab === 'modules' && <section role="tabpanel" id="course-panel-modules" aria-labelledby="course-tab-modules">
                                     {courseId && course && (
                                         <>
                                             <ModuleList
@@ -297,9 +315,9 @@ const TeacherCourseProfilePage = () => {
                                             )}
                                         </>
                                     )}
-                                </Tabs.Panel>
+                                </section>}
 
-                                <Tabs.Panel value="announcements">
+                                {activeTab === 'announcements' && <section role="tabpanel" id="course-panel-announcements" aria-labelledby="course-tab-announcements">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                         <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Course Board</h3>
                                         {!isCreatingAnnouncement && (
@@ -310,7 +328,7 @@ const TeacherCourseProfilePage = () => {
                                         )}
                                     </div>
 
-                                    <Stack gap="xl">
+                                    <div className="course-stack">
                                         {isCreatingAnnouncement ? (
                                             <div style={{
                                                 background: 'rgba(255, 255, 255, 0.5)',
@@ -358,33 +376,26 @@ const TeacherCourseProfilePage = () => {
                                                                             </span>
                                                                         </div>
                                                                     </div>
-                                                                    <Badge variant="light" color="indigo" size="sm" styles={{ root: { fontWeight: 800 } }}>
+                                                                    <span className="course-badge">
                                                                         BOARD POST
-                                                                    </Badge>
+                                                                    </span>
                                                                 </div>
 
-                                                                <div
-                                                                    style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.6, marginBottom: '1.5rem' }}
-                                                                    dangerouslySetInnerHTML={{ __html: announcement.content }}
+                                                                <RichContent style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.6, marginBottom: '1.5rem' }}
+                                                                    content={announcement.content} format="html"
                                                                 />
 
                                                                 {announcement.attachments && announcement.attachments.length > 0 && (
                                                                     <div style={{ marginBottom: '1.5rem' }}>
-                                                                        <Text size="xs" fw={800} c="dimmed" mb="xs" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attached Resources</Text>
-                                                                        <Group gap="xs">
+                                                                        <p style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Attached Resources</p>
+                                                                        <div className="course-attachments">
                                                                             {announcement.attachments.map((att, idx) => (
-                                                                                <Badge
-                                                                                    key={idx}
-                                                                                    variant="outline"
-                                                                                    color="gray"
-                                                                                    size="sm"
-                                                                                    leftSection={<IconExternalLink size={12} />}
-                                                                                    styles={{ root: { cursor: 'pointer', padding: '0.75rem', height: 'auto', fontWeight: 600 } }}
-                                                                                >
+                                                                                <span key={idx} className="course-badge">
+                                                                                    <IconExternalLink size={12} />
                                                                                     {att.name}
-                                                                                </Badge>
+                                                                                </span>
                                                                             ))}
-                                                                        </Group>
+                                                                        </div>
                                                                     </div>
                                                                 )}
 
@@ -393,11 +404,11 @@ const TeacherCourseProfilePage = () => {
                                                                         <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                                                                             {announcement.teacherName?.charAt(0) || 'T'}
                                                                         </div>
-                                                                        <Text size="xs" fw={700} c="dimmed">{announcement.teacherName}</Text>
+                                                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#868e96' }}>{announcement.teacherName}</span>
                                                                     </div>
-                                                                    <Badge size="xs" variant="dot" color="blue" styles={{ root: { fontWeight: 700 } }}>
-                                                                        Sent to {announcement.sentToStudentIds?.length || 0} students
-                                                                    </Badge>
+                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb' }}>
+                                                                        {announcement.targetClassIds ? 'Selected classes' : 'All enrolled students'}
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -405,23 +416,23 @@ const TeacherCourseProfilePage = () => {
                                                 )}
                                             </>
                                         )}
-                                    </Stack>
-                                </Tabs.Panel>
+                                    </div>
+                                </section>}
 
-                                <Tabs.Panel value="students">
+                                {activeTab === 'students' && <section role="tabpanel" id="course-panel-students" aria-labelledby="course-tab-students">
                                     <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8' }}>
                                         <IconUsers size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
                                         <h4 style={{ color: '#444', fontWeight: 800 }}>Student Roster</h4>
                                         <p style={{ maxWidth: '300px', margin: '0 auto', fontSize: '0.9rem' }}>Comprehensive student enrollment list and participation tracking coming soon.</p>
                                     </div>
-                                </Tabs.Panel>
+                                </section>}
 
-                                <Tabs.Panel value="requests">
+                                {activeTab === 'requests' && <section role="tabpanel" id="course-panel-requests" aria-labelledby="course-tab-requests">
                                     {courseId && <RequestReviewList courseId={courseId} />}
-                                </Tabs.Panel>
+                                </section>}
 
-                                <Tabs.Panel value="settings">
-                                    <Stack gap="xl" mt="md">
+                                {activeTab === 'settings' && <section role="tabpanel" id="course-panel-settings" aria-labelledby="course-tab-settings">
+                                    <div className="course-stack" style={{ marginTop: '1rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                             <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Enrollment Flow</h4>
                                             <div style={{
@@ -435,45 +446,56 @@ const TeacherCourseProfilePage = () => {
                                                 gap: '1.5rem'
                                             }}>
                                                 <div style={{ flex: 1 }}>
-                                                    <Group gap="xs" mb="xs">
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                         <IconShieldCheck size={20} color="#4f46e5" />
-                                                        <Text fw={800} size="sm">Auto-approve with code</Text>
-                                                    </Group>
-                                                    <Text size="xs" color="dimmed" style={{ lineHeight: 1.5 }}>
+                                                        <span style={{ fontWeight: 800, fontSize: '0.875rem' }}>Auto-approve with code</span>
+                                                    </div>
+                                                    <p style={{ fontSize: '0.75rem', color: '#868e96', lineHeight: 1.5, margin: 0 }}>
                                                         When enabled, students who enter the correct course code for this protected course
                                                         will be enrolled automatically, bypassing the manual request phase.
-                                                    </Text>
+                                                    </p>
                                                 </div>
-                                                <Switch
-                                                    checked={course.autoApproveWithCode || false}
-                                                    onChange={async (event) => {
-                                                        const newVal = event.currentTarget.checked;
-                                                        setCourse({ ...course, autoApproveWithCode: newVal });
-                                                        await updateCourse(course.id, { autoApproveWithCode: newVal });
-                                                        notifications.show({ title: 'Setting Updated', message: 'Enrollment flow updated successfully', color: 'indigo' });
-                                                    }}
-                                                    color="indigo"
-                                                    size="md"
-                                                />
+                                                <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, minHeight: 44, cursor: 'pointer' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        role="switch"
+                                                        aria-label="Auto-approve with code"
+                                                        className="course-auto-approve-switch"
+                                                        checked={course.autoApproveWithCode || false}
+                                                        onChange={async (event) => {
+                                                            const newVal = event.currentTarget.checked;
+                                                            setCourse({ ...course, autoApproveWithCode: newVal });
+                                                            trackAction('editCourse', { courseId: course.id, setting: 'autoApproveWithCode' });
+                                                            try {
+                                                                const result = await updateCourse(course.id, { autoApproveWithCode: newVal });
+                                                                if (!result.success) throw new Error(result.error || 'Could not update enrollment flow.');
+                                                                toast.success('Enrollment flow updated successfully.');
+                                                            } catch (error) {
+                                                                setCourse({ ...course, autoApproveWithCode: !newVal });
+                                                                toast.error(error instanceof Error ? error.message : 'Could not update enrollment flow.');
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
                                             </div>
                                         </div>
 
                                         <div style={{ paddingTop: '2rem', borderTop: '1px solid #f1f5f9' }}>
-                                            <Divider label={<span style={{ fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk & Maintenance</span>} labelPosition="center" color="red" mb="xl" />
+                                            <h4 style={{ color: '#ef4444' }}>Risk & Maintenance</h4>
 
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                                 <div>
-                                                    <Text size="sm" fw={800} color="#1e293b">Archive Course</Text>
-                                                    <Text size="xs" color="dimmed">Temporarily remove access for all students. Course will be hidden from catalog.</Text>
+                                                    <p>Archive Course</p>
+                                                    <p>Temporarily remove access for all students. Course will be hidden from catalog.</p>
                                                 </div>
                                                 <Button variant="danger" size="sm" disabled>Archive Course</Button>
                                             </div>
                                         </div>
-                                    </Stack>
-                                </Tabs.Panel>
+                                    </div>
+                                </section>}
 
-                                <Tabs.Panel value="practice_settings">
-                                    <Stack gap="xl" mt="md">
+                                {activeTab === 'practice_settings' && <section role="tabpanel" id="course-panel-practice_settings" aria-labelledby="course-tab-practice_settings">
+                                    <div className="course-stack" style={{ marginTop: '1rem' }}>
                                         <div style={{ padding: '2rem', background: '#fff', borderRadius: '1.25rem', border: '1px solid #e2e8f0' }}>
                                             {courseId && (
                                                 <PracticeSettingsModal
@@ -484,9 +506,9 @@ const TeacherCourseProfilePage = () => {
                                                 />
                                             )}
                                         </div>
-                                    </Stack>
-                                </Tabs.Panel>
-                            </Tabs>
+                                    </div>
+                                </section>}
+                            </div>
                         </CardBody>
                     </Card>
                 </div>

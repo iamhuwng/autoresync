@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResultContext } from '../types/solo.types';
 import {
+    resolveBookResultGroupOwnership,
     resolveResultOwnership,
     type ResultOwnershipResolverDependencies,
 } from './resultOwnershipResolver';
@@ -41,6 +42,22 @@ describe('resultOwnershipResolver', () => {
 
     beforeEach(() => {
         dependencies = createDependencies();
+    });
+
+    it('resolves explicit solo selection only from active class owner and student roster', async () => {
+        vi.mocked(dependencies.getClass).mockResolvedValue({ createdBy: 'teacher-selected', status: 'active', courseId: 'course-1',
+            students: { 'student-1': { status: 'active' } } });
+        const input = { result: { studentId: 'student-1' }, context: createContext({ type: 'self_study',
+            selectedTeacherId: 'teacher-selected', classId: 'class-1' }) };
+        expect((await resolveResultOwnership(input, dependencies)).visibility).toMatchObject({ ownershipResolved: true,
+            contextType: 'solo_practice', sourceType: 'class', sourceId: 'class-1', classId: 'class-1',
+            courseId: 'course-1', visibilityOwnerTeacherId: 'teacher-selected' });
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        for (const source of [{ createdBy: 'teacher-other', status: 'active', students: { 'student-1': { status: 'active' } } },
+            { createdBy: 'teacher-selected', status: 'active', students: { 'student-1': { status: 'pending_approval' } } }, null]) {
+            vi.mocked(dependencies.getClass).mockResolvedValue(source);
+            expect((await resolveResultOwnership(input, dependencies)).visibility.ownershipResolved).toBe(false);
+        }
     });
 
     it('resolves homework ownership from homework.createdBy', async () => {
@@ -292,6 +309,23 @@ describe('resultOwnershipResolver', () => {
         expect(dependencies.getSubmission).toHaveBeenCalledWith('submission-1');
     });
 
+    it('reuses a verified live Writing source while reading current session authority', async () => {
+        const input = { result: { studentId: 'student-1' }, writingSubmissionId: 'writing-1',
+            verifiedWritingSubmission: { id: 'writing-1', studentId: 'student-1',
+                context: { type: 'live-session' as const, sessionCode: 'SESSION-1' } } };
+        vi.mocked(dependencies.getSession).mockResolvedValue({ createdByUserId: 'teacher-current', linkedClassId: 'class-current' });
+        expect((await resolveResultOwnership(input, dependencies)).visibility).toMatchObject({
+            ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-current', classId: 'class-current',
+            ownerResolutionSource: 'session.createdByUserId',
+        });
+        expect(dependencies.getSession).toHaveBeenCalledWith('SESSION-1');
+        expect(dependencies.getSubmission).not.toHaveBeenCalled();
+        vi.mocked(dependencies.getSession).mockResolvedValue(null);
+        expect((await resolveResultOwnership(input, dependencies)).visibility.ownershipResolved).toBe(false);
+        await expect(resolveResultOwnership({ ...input, verifiedWritingSubmission: { ...input.verifiedWritingSubmission, id: 'other' } }, dependencies))
+            .rejects.toThrow('Verified Writing source differs from result identity');
+    });
+
     it('does not treat homework submission ids as writing submission ids', async () => {
         (dependencies.getHomeworkById as ReturnType<typeof vi.fn>).mockResolvedValue({
             createdBy: 'teacher-homework',
@@ -390,5 +424,79 @@ describe('resultOwnershipResolver', () => {
             unresolvedReason: 'homework_not_found',
             sourceDeleted: true,
         });
+    });
+});
+
+describe('Book result ownership adapter', () => {
+    const attempts = [
+        {
+            attemptId: 'solo-1',
+            recipientId: 'student-1',
+            contextId: 'solo-context',
+            contextKind: 'solo' as const,
+            ownerTeacherIdSnapshot: null,
+        },
+        {
+            attemptId: 'homework-1',
+            recipientId: 'student-1',
+            contextId: 'homework-context',
+            contextKind: 'homework' as const,
+            ownerTeacherIdSnapshot: 'teacher-1',
+        },
+    ];
+
+    it('allows a student only their own attempts without an ownership lookup', async () => {
+        const resolveHomeworkOwners = vi.fn();
+        const decisions = await resolveBookResultGroupOwnership({
+            viewer: { uid: 'student-1', role: 'student' },
+            studentId: 'student-1',
+            attempts,
+        }, { resolveHomeworkOwners });
+
+        expect(decisions.every((decision) => decision.visible)).toBe(true);
+        expect(resolveHomeworkOwners).not.toHaveBeenCalled();
+    });
+
+    it('bulk-resolves Homework authority once and denies private Solo to teachers', async () => {
+        const resolveHomeworkOwners = vi.fn(async () => ({
+            'homework-context': 'teacher-1',
+        }));
+        const decisions = await resolveBookResultGroupOwnership({
+            viewer: { uid: 'teacher-1', role: 'teacher' },
+            studentId: 'student-1',
+            attempts,
+        }, { resolveHomeworkOwners });
+
+        expect(resolveHomeworkOwners).toHaveBeenCalledTimes(1);
+        expect(resolveHomeworkOwners).toHaveBeenCalledWith({
+            studentId: 'student-1',
+            contextIds: ['homework-context'],
+        });
+        expect(decisions).toEqual([
+            expect.objectContaining({ attemptId: 'solo-1', visible: false, reason: 'private_solo' }),
+            expect.objectContaining({ attemptId: 'homework-1', visible: true, reason: 'visible' }),
+        ]);
+    });
+
+    it('fails closed for wrong or unresolved current Homework owners', async () => {
+        const wrong = await resolveBookResultGroupOwnership({
+            viewer: { uid: 'teacher-2', role: 'teacher' },
+            studentId: 'student-1',
+            attempts: [attempts[1]],
+        }, {
+            resolveHomeworkOwners: vi.fn(async () => ({
+                'homework-context': 'teacher-1',
+            })),
+        });
+        const unresolved = await resolveBookResultGroupOwnership({
+            viewer: { uid: 'teacher-1', role: 'teacher' },
+            studentId: 'student-1',
+            attempts: [attempts[1]],
+        }, {
+            resolveHomeworkOwners: vi.fn(async () => ({})),
+        });
+
+        expect(wrong[0]).toMatchObject({ visible: false, reason: 'wrong_teacher' });
+        expect(unresolved[0]).toMatchObject({ visible: false, reason: 'unresolved_owner' });
     });
 });

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-15T02:12:54Z",
+  "status": "rolled_back_browser_handoff_blocked",
+  "mission": "PRD0062 Milestone 1 browser delivery",
+  "classification": "HOSTING_CLIENT_AUTHORIZATION_FAILURE_BEFORE_HOSTING_VERSION_CREATE",
+  "checkpoint": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-browser-delivery-freeze-checkpoint-v2-2026-08-15.json",
+    "sha256": "084051d37cf0788b252314accbe6e9d19937dc3b05a9bf14ec9af82775ff8ccf",
+    "standards": "PASS",
+    "spec": "PASS"
+  },
+  "frozenFrontend": {
+    "artifactManifestSha256": "88f4b8cffec0f8e108b3be308c82703875a1a59ce14362d4504a9960963abcab",
+    "fileCount": 441,
+    "bytes": 11872235,
+    "indexSha256": "a51fdab515ec62ecfc018a7d265d0530b0e0db188bd411a9f11be34e9c8de826",
+    "entry": "/assets/index-rR9ze86f.js",
+    "entrySha256": "6fe80c6b833b8ef0aac3b70066cbce02bf720749c3c1bbaefc11bd1a59ccf3d7"
+  },
+  "activation": {
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreUpdateTime": "2026-08-15T02:10:35.529365Z",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbReadback": "deep-equal to exact activation rules",
+    "workerVersion": "57b33871-f1a6-454f-a6aa-9236777bc68a",
+    "workerOrdinal": 121,
+    "workerDeployment": "95b19bca-ef12-4e60-b114-3c88f4d799bd",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-15T02:11:01.807541Z"
+  },
+  "hosting": {
+    "command": "firebase deploy --only hosting:kahut1 --project temp-a1437 --non-interactive",
+    "authenticationMechanism": "gcloud access token supplied through FIREBASE_TOKEN",
+    "result": "FAIL",
+    "error": "Failed to get Firebase project temp-a1437. Please make sure the project exists and your account has permission to access it.",
+    "hostingVersionCreated": false,
+    "hostingReleaseChanged": false,
+    "liveRelease": "sites/kahut1/channels/live/releases/1784390955725000",
+    "liveVersion": "sites/kahut1/versions/31a9052843c443c5",
+    "liveReleaseTime": "2026-07-18T16:09:15.725Z"
+  },
+  "rollback": {
+    "reason": "Hosting client authorization failed before a Hosting version was created",
+    "workerVersion": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "workerDeployment": "4537ceb3-2f11-4587-ab37-5847aa23f029",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-15T02:11:25.382638Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreUpdateTime": "2026-08-15T02:11:43.599083Z",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rtdbReadback": "deep-equal to exact rollback rules",
+    "hostingRollbackRequired": false,
+    "readback": "PASS"
+  },
+  "durableStateAfterRollback": {
+    "rootRevision": 7,
+    "rootState": "committed",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "authorityRevision": 2,
+    "deliveryRevision": 1,
+    "deliveryStatus": "active",
+    "compatibilityShell": "PRESENT",
+    "compatibilityAssignmentKind": "book_homework_compatibility",
+    "compatibilitySchemaVersion": 1,
+    "compatibilityHasStats": false,
+    "compatibilityHasLegacyStatus": false,
+    "compatibilityHasStudentOverrides": false,
+    "assignmentCommandRequestCountThisAttempt": 0,
+    "durableProductMutation": false
+  },
+  "browser": {
+    "teacher": "NOT RUN: Hosting artifact was not deployed",
+    "student": "NOT RUN: Hosting artifact was not deployed",
+    "runtime": "NOT RUN: Hosting artifact was not deployed",
+    "ordinaryHomeworkSmoke": "NOT RUN: Hosting artifact was not deployed"
+  },
+  "disposition": {
+    "browserHandoff": "NOT READY",
+    "adapterExpansion": "not performed",
+    "assignmentReplay": "not performed and forbidden",
+    "milestone2": "not started",
+    "nextOwner": "Hosting deployment authentication/client credential path only"
+  }
+}

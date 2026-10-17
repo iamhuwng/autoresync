@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "issue": 90,
+  "ticket": "PRD0062 36B",
+  "capturedAt": "2026-08-02T02:17:40+07:00",
+  "localVerification": {
+    "focusedAndRegression": {
+      "filesPassed": 13,
+      "testsPassed": 111,
+      "proved": [
+        "all 32 independent field-release combinations",
+        "typed grade and regrade command envelopes",
+        "stale conflict, retry, authorization loss, malformed response, and redacted error behavior",
+        "complete target isolation across current and prior evaluation revisions",
+        "atomic grading-state reset when the selected locator changes",
+        "current and immutable prior evaluation revisions",
+        "policy-filtered student result and audit-visible correction",
+        "Book completion and grading independence",
+        "attempt count and eligibility independence",
+        "runtime submission fact independence",
+        "integrity and legacy result visibility independence",
+        "default-hidden rollback composition"
+      ]
+    },
+    "trustedWorkerAndPreview": {
+      "filesPassed": 3,
+      "testsPassed": 61
+    },
+    "browser": {
+      "testsPassed": 2,
+      "teacherOrigin": "http://localhost:5173",
+      "studentOrigin": "http://localhost:5174",
+      "quickLogin": true,
+      "proved": [
+        "subjective teacher grading",
+        "objective teacher regrade",
+        "stale-conflict recovery with focus restoration",
+        "shared accessible success and failure announcements",
+        "current and immutable prior history",
+        "policy-released score, answer, correctness, and feedback",
+        "audit-visible correction note",
+        "denied response exact hidden shape",
+        "denied fields absent from response, DOM, route, storage, and console",
+        "375px layout",
+        "200 percent zoom layout"
+      ],
+      "screenshots": [
+        "browser/teacher-grade-regrade-conflict-375.png",
+        "browser/teacher-grade-regrade-conflict-200.png",
+        "browser/student-policy-correction-375.png",
+        "browser/student-policy-correction-200.png"
+      ]
+    },
+    "productionBuildAndBundleBudget": "passed",
+    "targetedEslint": "passed",
+    "wranglerPositiveDryRun": "passed",
+    "wranglerRollbackDryRun": "passed"
+  },
+  "independentReview": {
+    "completedAfterFinalInspectableDiff": true,
+    "findingsResolved": [
+      "grading presentation and form state persisted across locator changes",
+      "evaluation revisions were not fully bound to the requested target"
+    ],
+    "reReview": "passed with no residual defect"
+  },
+  "productionEquivalentPreview": {
+    "worker": "r2-upload-signer-prd0062-ticket90-preview",
+    "url": "https://r2-upload-signer-prd0062-ticket90-preview.iamhuwng.workers.dev",
+    "bindings": [],
+    "firstPositiveVersionId": "8b5e42f2-6cf2-4915-a1b4-fac1680c5fc3",
+    "positiveProofStatus": 200,
+    "positiveProofPassed": true,
+    "trustedInterface": "ticket89-typed-command",
+    "repository": "firebase-rest-cas",
+    "indexedHistoryQueries": 1,
+    "deniedProjection": {
+      "attemptId": "attempt-1",
+      "status": "hidden"
+    },
+    "deniedFieldsAbsent": true,
+    "rollback": {
+      "versionId": "86bbcbda-55e5-40a5-9c65-9aefcee2c5ce",
+      "status": 503,
+      "teacherPresentation": "hidden",
+      "studentEvaluation": {
+        "status": "hidden"
+      },
+      "evaluationHistory": "preserved",
+      "submissions": "preserved",
+      "writable": false,
+      "boundDataStores": 0
+    },
+    "restoredPositiveVersionId": "81130637-26f7-4cca-b3ed-c297a20910cb",
+    "restoredPositiveProofStatus": 200,
+    "restoredPositiveProofPassed": true,
+    "cleanup": {
+      "deletedWorker": "r2-upload-signer-prd0062-ticket90-preview",
+      "postDeleteStatus": 404
+    },
+    "deploymentFailureClassification": {
+      "firstAttemptActivated": false,
+      "cause": "Cloudflare UTC compatibility date validation",
+      "resolution": "Aligned both configs to the already-authorized 2026-08-01 ticket 89 compatibility date."
+    }
+  },
+  "ownershipBoundaries": {
+    "canonicalEvaluationPersistenceModified": false,
+    "submissionFactsModified": false,
+    "completionModified": false,
+    "attemptEligibilityModified": false,
+    "integrityStateModified": false,
+    "serviceCredentialExposedToBrowser": false,
+    "browserPersistenceAdded": false,
+    "releaseAuthorityMovedIntoRenderer": false
+  }
+}

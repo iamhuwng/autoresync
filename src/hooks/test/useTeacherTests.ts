@@ -1,20 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   get,
+  endBefore,
+  limitToLast,
   onValue,
+  orderByChild,
+  query as dbQuery,
   ref,
   update as dbUpdate,
 } from 'firebase/database';
-import { doc, deleteDoc } from 'firebase/firestore';
+import {
+  doc,
+  deleteDoc,
+} from 'firebase/firestore';
 import { database, firestore as db } from '../../services/firebase';
+import { materialCatalogIds } from '../../types/materialCatalog.types';
 import {
   adaptMaterialSummariesToTeacherCards,
 } from '../../services/materialCatalog/materialSummaryCardAdapter.service';
 import {
   buildMaterialSummaryUpdatePayload,
-  getMaterialSummaryListPath,
-  listActiveMaterialSummaries,
-  type MaterialSummaryListQuery,
+  getMaterialSummaryPagePath,
+  listMaterialSummaryPage,
+  type MaterialSummaryPageCursor,
+  type MaterialSummaryPageQuery,
 } from '../../services/materialCatalog/materialSummaryPort.service';
 import {
   createLegacyTestMaterialSummary,
@@ -34,10 +43,28 @@ interface UseTeacherTestsOptions {
   ownerId?: string;
   userRole?: string;
   contentFilter?: TeacherContentFilter;
+  testTypeId?: string | null;
 }
 
 const errorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback;
+
+const deleteMaterialSidecars = async (
+  deletes: Array<Promise<unknown>>,
+  materialId: string,
+) => {
+  if (deletes.length === 0) {
+    return;
+  }
+  const results = await Promise.allSettled(deletes);
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    console.warn('[TeacherMaterials] Sidecar cleanup failed after material removal.', {
+      materialId,
+      failures: failures.length,
+    });
+  }
+};
 
 const isListeningLegacyRuntimeRecord = (
   runtime: Record<string, unknown>,
@@ -67,16 +94,27 @@ const summarizeMaterialsForDiagnostics = (materials: any[]) => ({
   ),
 });
 
-const readMaterialSummaries = async (
-  query: MaterialSummaryListQuery,
-): Promise<any[]> => adaptMaterialSummariesToTeacherCards(
-  await listActiveMaterialSummaries(query, {
-    read: async (path) => {
-      const snapshot = await get(ref(database, path));
+const teacherTestMaterialKinds = new Set([
+  'full-test',
+  'listening-part',
+  'writing-prompt',
+  'thcs-thpt-test',
+]);
+
+const isTeacherTestSummary = (summary: { materialKind?: unknown }): boolean =>
+  teacherTestMaterialKinds.has(String(summary.materialKind || '').toLowerCase());
+
+const readMaterialSummaries = async (query: MaterialSummaryPageQuery, cursor?: MaterialSummaryPageCursor) => {
+  const page = await listMaterialSummaryPage(query, {
+    readPage: async (path, limit, pageCursor) => {
+      const snapshot = await get(dbQuery(ref(database, path), orderByChild('updatedAt'),
+        ...(pageCursor ? [endBefore(pageCursor.updatedAt, pageCursor.materialId)] : []),
+        limitToLast(limit)));
       return snapshot.exists() ? snapshot.val() : null;
     },
-  }),
-);
+  }, { cursor });
+  return { ...page, rows: adaptMaterialSummariesToTeacherCards(page.rows.filter(isTeacherTestSummary)) };
+};
 
 export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
   const {
@@ -84,50 +122,72 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     ownerId,
     contentFilter = 'my',
     realtime = true,
+    testTypeId,
   } = options;
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedScope, setLoadedScope] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<MaterialSummaryPageCursor | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const listScope = contentFilter === 'public' ? 'public' : 'owned';
-  const buildQuery = useCallback((): MaterialSummaryListQuery => {
+  const scopeKey = `${enabled}:${listScope}:${ownerId ?? ''}:${testTypeId ?? ''}`;
+  const activeScope = useRef(scopeKey);
+  activeScope.current = scopeKey;
+  const requestVersion = useRef(0);
+  const moreInFlight = useRef(false);
+  const buildQuery = useCallback((): MaterialSummaryPageQuery => {
+    const normalizedTestTypeId = testTypeId ? materialCatalogIds.testTypeId(testTypeId) : undefined;
     if (listScope === 'public') {
-      return { scope: 'public' };
+      return { scope: 'public', surfaceFamily: 'assessment', testTypeId: normalizedTestTypeId };
     }
     if (!ownerId) {
       throw new Error('My Content requires an authenticated owner.');
     }
-    return { scope: 'owned', ownerId };
-  }, [listScope, ownerId]);
+    return { scope: 'owned', ownerId, surfaceFamily: 'assessment', testTypeId: normalizedTestTypeId };
+  }, [listScope, ownerId, testTypeId]);
 
-  const loadTeacherMaterials = useCallback(async () =>
-    readMaterialSummaries(buildQuery()), [buildQuery]);
+  const loadTeacherMaterials = useCallback(async (pageCursor?: MaterialSummaryPageCursor) =>
+    readMaterialSummaries(buildQuery(), pageCursor), [buildQuery]);
 
   useEffect(() => {
     let isSubscribed = true;
     let unsubscribe: (() => void) | undefined;
     let initialSnapshot = true;
+    requestVersion.current += 1;
+    moreInFlight.current = false;
+    setLoadingMore(false);
+    setTests([]);
+    setCursor(null);
+    setHasMore(false);
 
     if (!enabled) {
       setTests([]);
       setLoading(false);
       setError(null);
       setLoadedScope(null);
+      setCursor(null);
+      setHasMore(false);
       return () => {
         isSubscribed = false;
       };
     }
 
     const load = async (source: 'initial' | 'realtime') => {
+      const version = ++requestVersion.current;
+      moreInFlight.current = false;
+      setLoadingMore(false);
       const startedAt = getTeacherMaterialsDiagnosticTime();
       if (source === 'initial') {
         setLoading(true);
         setLoadedScope(null);
       }
       try {
-        const materials = await loadTeacherMaterials();
-        if (!isSubscribed) {
+        const page = await loadTeacherMaterials();
+        const materials = page.rows;
+        if (!isSubscribed || activeScope.current !== scopeKey || version !== requestVersion.current) {
           return;
         }
         logTeacherMaterialsDiagnostic(`${source}_load_succeeded`, {
@@ -137,11 +197,13 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
           ...summarizeMaterialsForDiagnostics(materials),
         });
         setTests(materials);
+        setCursor(page.cursor);
+        setHasMore(page.hasMore);
         setLoadedScope(listScope);
         setError(null);
         setLoading(false);
       } catch (loadError) {
-        if (!isSubscribed) {
+        if (!isSubscribed || activeScope.current !== scopeKey || version !== requestVersion.current) {
           return;
         }
         const message = errorMessage(
@@ -155,6 +217,8 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
           message,
         });
         setTests([]);
+        setCursor(null);
+        setHasMore(false);
         setLoadedScope(null);
         setError(message);
         setLoading(false);
@@ -165,7 +229,7 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       if (!isSubscribed || !realtime) {
         return;
       }
-      let query: MaterialSummaryListQuery;
+      let query: MaterialSummaryPageQuery;
       try {
         query = buildQuery();
       } catch (queryError) {
@@ -173,7 +237,7 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
         return;
       }
       unsubscribe = onValue(
-        ref(database, getMaterialSummaryListPath(query)),
+        dbQuery(ref(database, getMaterialSummaryPagePath(query)), orderByChild('updatedAt'), limitToLast(26)),
         () => {
           if (initialSnapshot) {
             initialSnapshot = false;
@@ -186,6 +250,8 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
             return;
           }
           setTests([]);
+          setCursor(null);
+          setHasMore(false);
           setLoadedScope(null);
           setError(errorMessage(
             listenerError,
@@ -209,9 +275,13 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     listScope,
     loadTeacherMaterials,
     realtime,
+    scopeKey,
   ]);
 
   const refresh = async () => {
+    const version = ++requestVersion.current;
+    moreInFlight.current = false;
+    setLoadingMore(false);
     if (!enabled) {
       setTests([]);
       setLoadedScope(null);
@@ -221,16 +291,50 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     }
     setLoading(true);
     try {
-      const materials = await loadTeacherMaterials();
-      setTests(materials);
+      const page = await loadTeacherMaterials();
+      if (activeScope.current !== scopeKey || version !== requestVersion.current) return;
+      setTests(page.rows);
+      setCursor(page.cursor);
+      setHasMore(page.hasMore);
       setLoadedScope(listScope);
       setError(null);
     } catch (refreshError) {
+      if (activeScope.current !== scopeKey || version !== requestVersion.current) return;
       setTests([]);
+      setCursor(null);
+      setHasMore(false);
       setLoadedScope(null);
       setError(errorMessage(refreshError, 'Failed to refresh materials.'));
     } finally {
-      setLoading(false);
+      if (activeScope.current === scopeKey && version === requestVersion.current) setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!enabled || !cursor || !hasMore || moreInFlight.current) return;
+    const version = requestVersion.current;
+    moreInFlight.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await loadTeacherMaterials(cursor);
+      if (activeScope.current !== scopeKey || version !== requestVersion.current) return;
+      setTests((current) => [...current, ...page.rows.filter((row) =>
+        !current.some((existing) => existing.id === row.id))]);
+      setCursor(page.cursor);
+      setHasMore(page.hasMore);
+      setError(null);
+    } catch (loadError) {
+      if (activeScope.current !== scopeKey || version !== requestVersion.current) return;
+      setTests([]);
+      setCursor(null);
+      setHasMore(false);
+      setLoadedScope(null);
+      setError(errorMessage(loadError, 'Failed to load more materials.'));
+    } finally {
+      if (activeScope.current === scopeKey && version === requestVersion.current) {
+        moreInFlight.current = false;
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -250,6 +354,15 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       ...current,
       updatedAt: Date.now(),
     }, 'removed');
+    const runtimeSourceDraftId =
+      typeof current.sourceDraftId === 'string' && current.sourceDraftId.trim()
+        ? current.sourceDraftId.trim()
+        : undefined;
+    const sourceDraftId =
+      typeof test.sourceDraftId === 'string' && test.sourceDraftId.trim()
+        ? test.sourceDraftId.trim()
+        : runtimeSourceDraftId;
+
     await dbUpdate(ref(database), {
       [`tests/${test.id}`]: null,
       ...buildMaterialSummaryUpdatePayload(removedSummary, previousSummary),
@@ -259,14 +372,19 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
       test?.testType === 'IELTS' &&
       String(test?.skill || '').toLowerCase() === 'writing';
     if (test.testType === 'THCS-THPT') {
-      await deleteDoc(doc(db, 'thcs_library', test.id));
-      if (test.sourceDraftId) {
-        await deleteDoc(doc(db, 'thcs_drafts', test.sourceDraftId));
+      const deletes: Array<Promise<unknown>> = [
+        deleteDoc(doc(db, 'thcs_library', test.id)),
+      ];
+      if (sourceDraftId) {
+        deletes.push(deleteDoc(doc(db, 'thcs_drafts', sourceDraftId)));
       }
+      await deleteMaterialSidecars(deletes, test.id);
       return;
     }
-    if (isWritingTest && test.sourceDraftId) {
-      await deleteDoc(doc(db, 'writing_drafts', test.sourceDraftId));
+    if (isWritingTest && sourceDraftId) {
+      await deleteMaterialSidecars([
+        deleteDoc(doc(db, 'writing_drafts', sourceDraftId)),
+      ], test.id);
     }
   };
 
@@ -303,6 +421,9 @@ export function useTeacherTests(options: UseTeacherTestsOptions = {}) {
     loading,
     error,
     loadedScope,
+    hasMore,
+    loadingMore,
+    loadMore,
     refresh,
     deleteTest,
     togglePublic,

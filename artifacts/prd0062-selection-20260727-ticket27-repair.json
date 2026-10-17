@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-07-27",
+  "roadmapPhase": "foundation",
+  "primaryTicket": 27,
+  "selectionStatus": "selected",
+  "selectionReason": "Earliest unresolved Foundation enabler with all direct/transitive prerequisites closed, executable local acceptance gates, available local authority, and strongest verified downstream leverage among current eligible candidates.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-27-reopened-and-transfers.json",
+    "issueHash": "b1ef979117e508e9f9204538a1b387657cc893f0731fbeef477725b09d4198f8",
+    "issueCount": 112,
+    "openCount": 86,
+    "closedCount": 26,
+    "rawEdges": 308,
+    "uniqueEdges": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [27, 40, 129, 130, 131, 132, 133]
+  },
+  "selected": {
+    "ticket": 27,
+    "title": "PRD0062 03B — Implement private B2 provider adapter",
+    "directPrerequisites": [26],
+    "transitivePrerequisites": [26],
+    "openTransitivePrerequisites": [],
+    "graphClear": true,
+    "acceptanceReadiness": {
+      "localProviderAndWiringTests": "executable",
+      "liveB2Capability": "disabled; no credentials or activation required",
+      "distinctFileVersionRepair": "required by reopened contract"
+    },
+    "downstreamLeverage": 86,
+    "requiredAuthority": [
+      "repository source and provider contracts",
+      "local fake/stub provider tests",
+      "03B-disabled safety boundary"
+    ]
+  },
+  "candidateRejections": {
+    "40": "Foundation candidate, graph-clear, but #27 is earlier root/enabler and has stronger downstream leverage (86 vs 47); one-primary rule selects #27.",
+    "52": "INELIGIBLE: transitive prerequisite #27 is OPEN after concrete adapter identity-contract repair; do not inspect or implement descendant acceptance.",
+    "129": "Final-closure phase; not current Foundation phase and shares preserved #50A boundary.",
+    "130": "Final-closure phase; not current Foundation phase and shares preserved #50A boundary.",
+    "131": "Final-closure phase; not current Foundation phase and shares preserved #50A boundary.",
+    "132": "Final-closure phase; not current Foundation phase and shares preserved #50A boundary.",
+    "133": "Final-closure phase; not current Foundation phase and shares preserved #50A boundary."
+  },
+  "scope": {
+    "preserve112Tickets": true,
+    "completionDeclared": false
+  }
+}

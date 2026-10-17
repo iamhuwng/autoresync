@@ -1,0 +1,145 @@
+.book-impact-review {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  color: #273238;
+}
+
+.book-impact-review__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #d7dfe3;
+  padding-bottom: 1rem;
+}
+
+.book-impact-review__header h2,
+.book-impact-review__header p,
+.book-impact-review__context h3,
+.book-impact-review__context p {
+  margin: 0;
+}
+
+.book-impact-review__eyebrow {
+  color: #647176;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.book-impact-review__dismiss {
+  min-height: 44px;
+  border: 1px solid #89969c;
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.book-impact-review__dismiss:focus-visible,
+.book-impact-review input:focus-visible {
+  outline: 3px solid #b9b4ff;
+  outline-offset: 2px;
+}
+
+.book-impact-review__notice {
+  border: 1px solid #b45309;
+  border-radius: .35rem;
+  padding: .75rem;
+  background: #fff7ed;
+}
+
+.book-impact-review__summary,
+.book-impact-review__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+  margin: 0;
+}
+
+.book-impact-review__summary div,
+.book-impact-review__facts div {
+  min-width: 0;
+  border-left: 2px solid #cbd5da;
+  padding-left: .65rem;
+}
+
+.book-impact-review dt {
+  color: #647176;
+  font-size: .78rem;
+}
+
+.book-impact-review dd {
+  margin: .2rem 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.book-impact-review__contexts,
+.book-impact-review__activities {
+  display: grid;
+  gap: .75rem;
+}
+
+.book-impact-review__context {
+  display: grid;
+  gap: .9rem;
+  border: 1px solid #d7dfe3;
+  border-radius: .45rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.book-impact-review__context-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.book-impact-review__context-heading > span {
+  border: 1px solid #abb7bc;
+  border-radius: 999px;
+  padding: .2rem .55rem;
+  font-size: .78rem;
+}
+
+.book-impact-review__activities fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid #e2e8eb;
+  margin: 0;
+  padding: .75rem 0 0;
+}
+
+.book-impact-review__activities legend {
+  width: 100%;
+  padding: 0 0 .4rem;
+  font-weight: 650;
+}
+
+.book-impact-review__activities label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: .4rem;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .book-impact-review__header,
+  .book-impact-review__context-heading {
+    display: grid;
+  }
+
+  .book-impact-review__summary,
+  .book-impact-review__facts {
+    grid-template-columns: 1fr 1fr;
+  }
+}

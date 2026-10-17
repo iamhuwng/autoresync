@@ -2,8 +2,7 @@
  * THCSAnswerKeyPanel — Extended answer key panel for all question types (PRD-0028 Task 3.4)
  * Groups questions by type: MCQ → Fill-in → Writing → Cloze
  */
-import React, { useState, useMemo } from 'react';
-import { Collapse, Text } from '@mantine/core';
+import React, { useMemo } from 'react';
 import type { THCSSection, THCSQuestion } from '../../types/thcs-test.types';
 import { INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
 import THCSFillInAnswerInput from './THCSFillInAnswerInput';
@@ -27,7 +26,6 @@ const THCSAnswerKeyPanel: React.FC<THCSAnswerKeyPanelProps> = ({
     sections, onUpdateAnswer, onUpdateFillInAnswers, onUpdateModelAnswers,
     onUpdateClozeMapping, onRequestAISuggestions,
 }) => {
-    const [open, setOpen] = useState(false);
 
     const allQuestions: QuestionWithIndex[] = useMemo(() =>
         sections.flatMap((s, si) =>
@@ -55,10 +53,6 @@ const THCSAnswerKeyPanel: React.FC<THCSAnswerKeyPanelProps> = ({
         return blanks.every(n => q.blankMapping![n]);
     }).length;
 
-    const total = allQuestions.length;
-    const answered = mcqAnswered + fillInAnswered + writingAnswered + clozeAnswered;
-    const missing = total - answered;
-
     return (
         <div style={{
             background: 'rgba(255,255,255,0.9)',
@@ -67,32 +61,6 @@ const THCSAnswerKeyPanel: React.FC<THCSAnswerKeyPanelProps> = ({
             border: '1px solid rgba(139,92,246,0.15)',
             overflow: 'hidden',
         }}>
-            {/* Toggle header */}
-            <button
-                onClick={() => setOpen(!open)}
-                style={{
-                    width: '100%', padding: '0.75rem 1.5rem',
-                    background: 'linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(99,102,241,0.08) 100%)',
-                    border: 'none', cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between',
-                }}
-            >
-                <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>
-                    🔑 Answer Key
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <Text size="sm" c="dimmed">
-                        {answered}/{total} answered
-                        {missing > 0 && <span style={{ color: '#f59e0b', fontWeight: 600 }}> | {missing} missing</span>}
-                    </Text>
-                    <span style={{
-                        transform: open ? 'rotate(180deg)' : 'rotate(0)',
-                        transition: 'transform 0.2s', fontSize: '0.75rem',
-                    }}>▼</span>
-                </div>
-            </button>
-
-            <Collapse in={open}>
                 <div style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                     {/* MCQ Section */}
@@ -140,6 +108,7 @@ const THCSAnswerKeyPanel: React.FC<THCSAnswerKeyPanelProps> = ({
                                             >
                                                 <input
                                                     type="radio"
+                                                    aria-label={`Question ${q.questionNumber}: ${label}`}
                                                     name={`ak-${q.id}`}
                                                     checked={q.correctAnswer === label}
                                                     onChange={() => onUpdateAnswer(q.sectionIndex, q.questionIndex, label)}
@@ -268,7 +237,6 @@ const THCSAnswerKeyPanel: React.FC<THCSAnswerKeyPanelProps> = ({
                         </div>
                     )}
                 </div>
-            </Collapse>
         </div>
     );
 };

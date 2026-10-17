@@ -19,6 +19,9 @@ import {
     query,
     where,
     orderBy,
+    documentId,
+    startAfter,
+    limit,
     Timestamp,
 } from 'firebase/firestore';
 import { get, ref, set, push, update as dbUpdate } from 'firebase/database';
@@ -36,6 +39,38 @@ import { buildMaterialSummaryUpdatePayload } from './materialCatalog/materialSum
 
 const WRITING_DRAFTS_COLLECTION = 'writing_drafts';
 
+/** Bounded teacher-lobby read; the existing full-list API serves other callers. */
+export async function listTeacherWritingDraftPage(
+    userId: string,
+    cursor?: { updatedAt: Timestamp; id: string },
+): Promise<{ success: boolean; data?: (WritingTestDraft & { cursorUpdatedAt: Timestamp })[]; error?: string }> {
+    try {
+        const constraints = [
+            where('userId', '==', userId),
+            orderBy('updatedAt', 'desc'),
+            orderBy(documentId(), 'desc'),
+            ...(cursor ? [startAfter(cursor.updatedAt, cursor.id)] : []),
+            limit(26),
+        ];
+        const snapshot = await getDocs(query(collection(db, WRITING_DRAFTS_COLLECTION), ...constraints));
+        return {
+            success: true,
+            data: snapshot.docs.map((row) => {
+                const data = row.data();
+                return {
+                    ...data,
+                    id: row.id,
+                    createdAt: toDateOrFallback(data.createdAt, new Date(0)),
+                    updatedAt: toDateOrFallback(data.updatedAt, new Date(0)),
+                    cursorUpdatedAt: data.updatedAt as Timestamp,
+                } as WritingTestDraft & { cursorUpdatedAt: Timestamp };
+            }),
+        };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch writing drafts' };
+    }
+}
+
 function toDateOrFallback(value: unknown, fallback: Date): Date {
     if (value instanceof Timestamp) return value.toDate();
     if (value instanceof Date) return value;
@@ -44,6 +79,74 @@ function toDateOrFallback(value: unknown, fallback: Date): Date {
         if (!Number.isNaN(parsed.getTime())) return parsed;
     }
     return fallback;
+}
+
+const WRITING_FORMATS = new Set(['task1-only', 'task2-only', 'full-test']);
+
+function hasCanonicalWritingEditorPayload(test: Partial<IELTSWritingTest>): boolean {
+    return Boolean(
+        test.id
+        && Array.isArray(test.tasks)
+        && WRITING_FORMATS.has(String(test.metadata?.format || ''))
+    );
+}
+
+function hasExpectedWritingTaskShape(
+    format: string,
+    tasks: unknown,
+): boolean {
+    if (!Array.isArray(tasks)) {
+        return false;
+    }
+
+    const taskNumbers = new Set(
+        tasks.map((task) => Number((task as Partial<WritingTestDraft['tasks'][number]>)?.taskNumber)),
+    );
+    if (format === 'task1-only') {
+        return taskNumbers.size === 1 && taskNumbers.has(1);
+    }
+    if (format === 'task2-only') {
+        return taskNumbers.size === 1 && taskNumbers.has(2);
+    }
+    if (format === 'full-test') {
+        return taskNumbers.size === 2 && taskNumbers.has(1) && taskNumbers.has(2);
+    }
+    return false;
+}
+
+function draftHasCanonicalWritingShape(
+    draft: Record<string, any>,
+    canonicalTest: IELTSWritingTest,
+): boolean {
+    const format = String(draft.metadata?.format || '');
+    return (
+        format === canonicalTest.metadata.format
+        && hasExpectedWritingTaskShape(format, draft.tasks)
+    );
+}
+
+async function resolveCanonicalWritingTestForEdit(
+    test: Partial<IELTSWritingTest> & { id: string }
+): Promise<IELTSWritingTest> {
+    if (hasCanonicalWritingEditorPayload(test)) {
+        return test as IELTSWritingTest;
+    }
+
+    const snapshot = await get(ref(database, `tests/${test.id}`));
+    if (!snapshot.exists()) {
+        throw new Error('Published writing test not found');
+    }
+
+    const canonical = snapshot.val() as IELTSWritingTest;
+    if (
+        canonical?.testType !== 'IELTS'
+        || String(canonical?.skill || '').toLowerCase() !== 'writing'
+        || !hasCanonicalWritingEditorPayload(canonical)
+    ) {
+        throw new Error('Published writing test is missing editable Writing content');
+    }
+
+    return canonical;
 }
 
 async function buildWritingDraftDocument(
@@ -374,40 +477,46 @@ export const ensureWritingEditableDraft = withRestoreGuard<{ success: boolean; d
     userId: string
 ): Promise<{ success: boolean; draftId?: string; error?: string }> => {
     try {
-        const draftId = test.sourceDraftId || doc(collection(db, WRITING_DRAFTS_COLLECTION)).id;
+        const canonicalTest = await resolveCanonicalWritingTestForEdit(test);
+        const draftId = canonicalTest.sourceDraftId || doc(collection(db, WRITING_DRAFTS_COLLECTION)).id;
         const draftRef = doc(db, WRITING_DRAFTS_COLLECTION, draftId);
-        const draftSnap = test.sourceDraftId ? await getDoc(draftRef) : null;
+        const draftSnap = canonicalTest.sourceDraftId ? await getDoc(draftRef) : null;
+        const existingDraftData = draftSnap?.exists() ? draftSnap.data() : null;
+        const shouldHydrateFromPublishedTest = (
+            !existingDraftData
+            || !draftHasCanonicalWritingShape(existingDraftData, canonicalTest)
+        );
 
-        if (!draftSnap || !draftSnap.exists()) {
+        if (shouldHydrateFromPublishedTest) {
             const draftDoc = deepRemoveUndefined({
                 id: draftId,
                 userId,
                 testType: 'IELTS',
                 skill: 'Writing',
-                metadata: test.metadata,
-                tasks: test.tasks,
-                isPublic: Boolean(test.isPublic),
+                metadata: canonicalTest.metadata,
+                tasks: canonicalTest.tasks,
+                isPublic: Boolean(canonicalTest.isPublic),
                 status: 'published',
-                publishedTestId: test.id,
-                createdAt: toDateOrFallback(test.createdAt, new Date()),
-                updatedAt: toDateOrFallback(test.updatedAt, new Date()),
+                publishedTestId: canonicalTest.id,
+                createdAt: toDateOrFallback(canonicalTest.createdAt, new Date()),
+                updatedAt: toDateOrFallback(canonicalTest.updatedAt, new Date()),
             }) as WritingTestDraft;
             await setDoc(draftRef, draftDoc);
         }
 
-        if (!test.sourceDraftId) {
+        if (!canonicalTest.sourceDraftId) {
             const updatedAt = Date.now();
             const nextTest = {
-                ...test,
+                ...canonicalTest,
                 sourceDraftId: draftId,
                 updatedAt,
             };
             await dbUpdate(ref(database), {
-                [`tests/${test.id}/sourceDraftId`]: draftId,
-                [`tests/${test.id}/updatedAt`]: updatedAt,
+                [`tests/${canonicalTest.id}/sourceDraftId`]: draftId,
+                [`tests/${canonicalTest.id}/updatedAt`]: updatedAt,
                 ...buildMaterialSummaryUpdatePayload(
-                    createLegacyTestMaterialSummary(test.id, nextTest),
-                    createLegacyTestMaterialSummary(test.id, test),
+                    createLegacyTestMaterialSummary(canonicalTest.id, nextTest),
+                    createLegacyTestMaterialSummary(canonicalTest.id, canonicalTest),
                 ),
             });
         }

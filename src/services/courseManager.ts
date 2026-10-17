@@ -5,9 +5,10 @@
  */
 
 import { ref, push, set, get, update, query, orderByChild, equalTo, remove } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 import { database } from './firebase';
 import type { Course, Module, CourseMaterial, StudentCourseProgress } from '../types/course.types';
-import { createBulkNotifications } from './notificationService';
+import { notifyCommittedEvent, createTrustedBulkNotifications, createTrustedNotification } from './notificationProducerClient';
 import { logCreate, logUpdate, logDelete } from './auditService';
 
 const COURSES_REF = 'courses';
@@ -15,8 +16,6 @@ const MODULES_REF = 'course_modules';
 const COURSE_MATERIALS_REF = 'course_materials';
 const COURSE_TYPES_REF = 'course_types';
 const COURSE_TYPE_REQUESTS_REF = 'course_type_requests';
-
-import { createNotification } from './notificationService';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -304,11 +303,13 @@ export async function archiveCourse(courseId: string): Promise<{ success: boolea
                 const courseSnap = await get(ref(database, `${COURSES_REF}/${courseId}`));
                 const courseName = courseSnap.val()?.name || 'Untitled Course';
 
-                await createBulkNotifications(studentIds, {
+                await createTrustedBulkNotifications(studentIds, {
+                    producerFamily: 'course',
+                    authorityRecordId: courseId,
+                    operationKey: `course-archived:${courseId}`,
                     title: 'Course Archived',
                     message: `The course "${courseName}" has been archived by the teacher and is no longer accessible.`,
                     type: 'info',
-                    metadata: { courseId }
                 });
             }
         }
@@ -461,7 +462,7 @@ export async function getPendingTypeRequests(): Promise<CourseTypeRequest[]> {
 /**
  * Approve a course type request
  */
-export async function approveCourseType(requestId: string, approvedBy: string): Promise<{ success: boolean; error?: string }> {
+export async function approveCourseType(requestId: string): Promise<{ success: boolean; error?: string }> {
     try {
         // 1. Get the request
         const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
@@ -473,38 +474,37 @@ export async function approveCourseType(requestId: string, approvedBy: string): 
         if (request.status !== 'pending') {
             return { success: false, error: 'Request is handled' };
         }
+        const approvedBy = getAuth().currentUser?.uid;
+        if (!approvedBy) return { success: false, error: 'Admin is not signed in' };
 
         // 2. Create the course type
         const typeId = generateId(COURSE_TYPES_REF);
         if (!typeId) return { success: false, error: 'Failed to generate type ID' };
 
+        const handledAt = now();
         const newType: CourseTypeDefinition = {
             id: typeId,
             name: request.typeName,
             isSystem: false,
             createdBy: request.teacherId,
-            createdAt: now()
+            createdAt: handledAt
         };
 
-        await set(ref(database, `${COURSE_TYPES_REF}/${typeId}`), newType);
-
-        await update(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`), {
+        const updatedRequest: CourseTypeRequest = {
+            ...request,
             status: 'approved',
             approvedBy,
-            approvedAt: now()
-        });
+            approvedAt: handledAt,
+        };
 
-        // Send notification to teacher
+        await update(ref(database), {
+            [`${COURSE_TYPES_REF}/${typeId}`]: newType,
+            [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
+        });
         try {
-            await createNotification({
-                userId: request.teacherId,
-                type: 'success',
-                title: 'Course Type Approved',
-                message: `Your request for course type "${request.typeName}" has been approved. You can now use it when creating courses.`,
-                link: '/teacher/courses' // Or to create page?
-            });
-        } catch (notifyErr) {
-            console.error('Failed to send approval notification', notifyErr);
+            void notifyCommittedEvent({ eventKind: 'course-type-decided', requestId, decision: 'approved', occurredAt: handledAt });
+        } catch (error) {
+            console.error('Failed to start course type approved notice:', error);
         }
 
         return { success: true };
@@ -519,32 +519,28 @@ export async function approveCourseType(requestId: string, approvedBy: string): 
  */
 export async function rejectCourseType(requestId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
     try {
-        // Send notification to teacher
-        try {
-            // Get original request details if needed, but we don't have it here unless queried again 
-            // or passed in. Usually good to get request first. But update doesn't need read first?
-            // Wait, we need teacherId to notify. The update call didn't fetch the request.
-            // Let's refactor slightly to read first.
-            const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
-            if (requestSnapshot.exists()) {
-                const request = requestSnapshot.val() as CourseTypeRequest;
-                await createNotification({
-                    userId: request.teacherId,
-                    type: 'error',
-                    title: 'Course Type Rejected',
-                    message: `Your request for course type "${request.typeName}" was rejected${reason ? ': ' + reason : '.'}`,
-                    link: '/teacher/courses'
-                });
-            }
-        } catch (notifyErr) {
-            console.error('Failed to send rejection notification', notifyErr);
-        }
-
-        await update(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`), {
+        const requestSnapshot = await get(ref(database, `${COURSE_TYPE_REQUESTS_REF}/${requestId}`));
+        if (!requestSnapshot.exists()) return { success: false, error: 'Request not found' };
+        const request = requestSnapshot.val() as CourseTypeRequest;
+        if (request.status !== 'pending') return { success: false, error: 'Request is handled' };
+        const handledBy = getAuth().currentUser?.uid;
+        if (!handledBy) return { success: false, error: 'Admin is not signed in' };
+        const handledAt = now();
+        const updatedRequest: CourseTypeRequest = {
+            ...request,
             status: 'rejected',
             rejectionReason: reason || 'Admin rejected',
-            approvedAt: now() // using approvedAt as 'handledAt' essentially
+            handledBy,
+            handledAt,
+        };
+        await update(ref(database), {
+            [`${COURSE_TYPE_REQUESTS_REF}/${requestId}`]: updatedRequest,
         });
+        try {
+            void notifyCommittedEvent({ eventKind: 'course-type-decided', requestId, decision: 'rejected', occurredAt: handledAt });
+        } catch (error) {
+            console.error('Failed to start course type rejected notice:', error);
+        }
         return { success: true };
     } catch (error) {
         console.error('Error rejecting course type:', error);

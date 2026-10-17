@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "ticket": 99,
+  "capturedAt": "2026-08-02T17:07:45Z",
+  "scope": "ticket-owned local Realtime Database rules harness",
+  "harness": {
+    "databaseRules": "artifacts/prd0062-ticket-99/browser-rules.json",
+    "firebaseConfig": "artifacts/prd0062-ticket-99/browser-firebase.json",
+    "runner": "artifacts/prd0062-ticket-99/browser-role-proof.mjs",
+    "databaseEmulator": "localhost:9002",
+    "appDatabaseBinding": "[Firebase] Database emulator connected at localhost:9002",
+    "viteEnvironment": "VITE_FIREBASE_DATABASE_EMULATOR_HOST=localhost:9002 on both role-port processes",
+    "trustedCreationBoundary": "Firebase Database emulator admin seed; no browser credential or custom claim",
+    "browserIdentity": "real development-role Firebase ID token evaluated by the local emulator rules"
+  },
+  "roles": [
+    {
+      "role": "teacher",
+      "accountFixture": "teacher",
+      "url": "http://localhost:5173",
+      "route": "/lobby",
+      "fixture": "Ticket 99 teacher unread fixture",
+      "action": "clicked one unread notification",
+      "visibleResult": "notification rendered as read after reload",
+      "trustedCreation": "local emulator admin seed succeeded",
+      "appDatabaseBinding": "[Firebase] Database emulator connected at localhost:9002",
+      "denials": {
+        "contentMutation": 401,
+        "browserCreation": 401,
+        "destinationMutation": 401,
+        "crossUserRead": 401,
+        "crossUserWrite": 401
+      },
+      "consoleReview": {
+        "notificationErrors": [],
+        "knownHarnessNoise": [
+          "unseeded classes and teacher preference reads were denied",
+          "unseeded reporting writes were denied"
+        ]
+      }
+    },
+    {
+      "role": "student",
+      "accountFixture": "student",
+      "url": "http://localhost:5174",
+      "route": "/student",
+      "fixture": "Ticket 99 student unread fixture",
+      "action": "filtered to unread feed and clicked one notification",
+      "visibleResult": "notification left the unread feed after reload",
+      "unreadCountBefore": 1,
+      "unreadCountAfter": 0,
+      "trustedCreation": "local emulator admin seed succeeded",
+      "appDatabaseBinding": "[Firebase] Database emulator connected at localhost:9002",
+      "denials": {
+        "contentMutation": 401,
+        "browserCreation": 401,
+        "destinationMutation": 401,
+        "crossUserRead": 401,
+        "crossUserWrite": 401
+      },
+      "consoleReview": {
+        "notificationErrors": [],
+        "knownHarnessNoise": [
+          "unseeded class, homework, result, reporting, and prefetch reads were denied",
+          "the isolated notification harness has no performance index because index composition belongs to ticket 118"
+        ]
+      }
+    }
+  ],
+  "readStateWriteShape": {
+    "browserVisibleProof": "both role surfaces consumed the seeded notification and showed the persisted read state",
+    "exactLeafProof": "src/services/notificationService.test.ts and src/__tests__/security/notificationFirebaseRules.emulator.test.ts prove notifications/{recipientId}/{notificationId}/read only"
+  },
+  "commands": [
+    "$env:VITE_FIREBASE_DATABASE_EMULATOR_HOST='localhost:9002'; node scripts/harness/run-tool.mjs vite . dev --host localhost --port 5173 --strictPort",
+    "$env:VITE_FIREBASE_DATABASE_EMULATOR_HOST='localhost:9002'; node scripts/harness/run-tool.mjs vite . dev --host localhost --port 5174 --strictPort",
+    "node artifacts/prd0062-ticket-99/browser-role-proof.mjs http://localhost:5173/ teacher",
+    "node artifacts/prd0062-ticket-99/browser-role-proof.mjs http://localhost:5174/ student"
+  ],
+  "remoteStateClaimed": false
+}

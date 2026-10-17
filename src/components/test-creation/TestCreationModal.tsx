@@ -641,6 +641,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
     const [thcsHasUnsavedChanges, setThcsHasUnsavedChanges] = useState(false);
     const [thcsStep, setThcsStep] = useState(0);
     const [thcsWideLayout, setThcsWideLayout] = useState(false);
+    const [thcsExpandedLayout, setThcsExpandedLayout] = useState(false);
     const [thcsStepConfigs, setThcsStepConfigs] = useState<WizardStep[]>(DEFAULT_THCS_STEP_CONFIGS);
     const [readingV2ImportSource, setReadingV2ImportSource] = useState('');
     const [readingV2ImportError, setReadingV2ImportError] = useState<string | null>(null);
@@ -1470,6 +1471,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setThcsHasUnsavedChanges(false);
         setThcsStep(0);
         setThcsWideLayout(false);
+        setThcsExpandedLayout(false);
         setThcsStepConfigs(DEFAULT_THCS_STEP_CONFIGS);
         setReadingV2ImportSource('');
         setReadingV2ImportError(null);
@@ -1500,6 +1502,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
         setThcsHasUnsavedChanges(false);
         setThcsStep(0);
         setThcsWideLayout(false);
+        setThcsExpandedLayout(false);
         setThcsStepConfigs(DEFAULT_THCS_STEP_CONFIGS);
         setReadingV2ImportSource('');
         setReadingV2ImportError(null);
@@ -1556,6 +1559,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
             setThcsHasUnsavedChanges(false);
             setThcsStep(0);
             setThcsWideLayout(false);
+            setThcsExpandedLayout(false);
             setReadingV2ImportSource('');
             setReadingV2ImportError(null);
             setReadingV2PromptCopied(false);
@@ -2053,6 +2057,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     onDirtyChange={setThcsHasUnsavedChanges}
                     onStepChange={setThcsStep}
                     onWideLayoutChange={setThcsWideLayout}
+                    onExpandedLayoutChange={setThcsExpandedLayout}
                     onStepConfigChange={setThcsStepConfigs}
                 />
             );
@@ -2586,7 +2591,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 1001,
+                    zIndex: 1200,
                 }}
                 onClick={() => setShowCloseConfirmation(false)}
             >
@@ -2636,6 +2641,7 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
 
     return (
         <>
+            {opened && <style>{'.mantine-Select-dropdown { z-index: 1150 !important; }'}</style>}
             <Modal
                 opened={opened}
                 onClose={handleCloseRequest}
@@ -2650,8 +2656,8 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                     content: {
                         ...(modalStyles.content as React.CSSProperties),
                         ...(isThcsFlow || isListeningBuilderStep ? {
-                            maxWidth: isListeningBuilderStep ? 'min(960px, 94vw)' : thcsWideLayout ? '95vw' : '620px',
-                            height: isListeningBuilderStep ? 'min(680px, 82vh)' : undefined,
+                            maxWidth: isListeningBuilderStep ? 'min(960px, 94vw)' : thcsWideLayout ? '95vw' : thcsExpandedLayout ? 'min(940px, 95vw)' : '620px',
+                            height: isListeningBuilderStep ? 'min(680px, 82vh)' : isThcsFlow ? '90vh' : undefined,
                             transitionProperty: 'max-width',
                             transitionDuration: '220ms',
                             transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -2667,9 +2673,9 @@ const TestCreationModal: React.FC<TestCreationModalProps> = ({
                         style={{
                             ...(modalStyles.body as React.CSSProperties),
                             padding: isThcsFlow || isListeningBuilderStep ? 0 : (modalStyles.body as React.CSSProperties).padding,
-                            overflowY: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'hidden' : 'auto',
-                            display: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'flex' : (modalStyles.body as React.CSSProperties).display,
-                            flexDirection: (isThcsFlow && thcsWideLayout) || isListeningBuilderStep ? 'column' : (modalStyles.body as React.CSSProperties).flexDirection,
+                            overflowY: isThcsFlow || isListeningBuilderStep ? 'hidden' : 'auto',
+                            display: isThcsFlow || isListeningBuilderStep ? 'flex' : (modalStyles.body as React.CSSProperties).display,
+                            flexDirection: isThcsFlow || isListeningBuilderStep ? 'column' : (modalStyles.body as React.CSSProperties).flexDirection,
                         }}
                     >
                         {renderStepContent()}

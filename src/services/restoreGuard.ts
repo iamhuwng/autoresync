@@ -33,6 +33,81 @@ function isPermissionDeniedError(error: unknown): boolean {
 let cachedResult: { active: boolean; checkedAt: number } | null = null;
 const CACHE_TTL_MS = 5000;
 
+/** #121 side-effect families are intentionally duplicated here as a small
+ * client/domain seam so adapters do not need to import Worker modules. */
+export const RECOVERY_SIDE_EFFECT_FAMILIES = Object.freeze([
+    'source-cleanup-provider-delete',
+    'submission-result-scoring',
+    'completion',
+    'checkpoint',
+    'notification',
+    'update-replacement-revocation',
+    'audit-fan-out',
+] as const);
+
+export type RecoverySideEffectFamily = typeof RECOVERY_SIDE_EFFECT_FAMILIES[number];
+
+export interface RecoverySideEffectContext {
+    readonly recoveryOperationId?: string;
+    readonly operationId?: string;
+    readonly operationState?: string;
+    readonly finalReconciliation?: 'pending' | 'approved';
+    readonly releasedFamilies?: readonly string[];
+}
+
+export type RecoverySideEffectSuppressionCode =
+    | 'missing-operation-id'
+    | 'missing-operation-state'
+    | 'unknown-family'
+    | 'operation-mismatch'
+    | 'operation-not-completed'
+    | 'reconciliation-pending'
+    | 'family-not-released'
+    | 'released';
+
+export interface RecoverySideEffectDecision {
+    readonly suppressed: boolean;
+    readonly code: RecoverySideEffectSuppressionCode;
+}
+
+/** Fail closed for absent or malformed recovery state. */
+export function isRecoverySideEffectSuppressed(
+    family: unknown,
+    context: RecoverySideEffectContext | null | undefined,
+): RecoverySideEffectDecision {
+    if (typeof family !== 'string' || !RECOVERY_SIDE_EFFECT_FAMILIES.includes(family as RecoverySideEffectFamily)) {
+        return { suppressed: true, code: 'unknown-family' };
+    }
+    if (!context?.recoveryOperationId) return { suppressed: true, code: 'missing-operation-id' };
+    if (!context.operationId || !context.operationState) return { suppressed: true, code: 'missing-operation-state' };
+    if (context.recoveryOperationId !== context.operationId) return { suppressed: true, code: 'operation-mismatch' };
+    if (context.operationState !== 'completed') return { suppressed: true, code: 'operation-not-completed' };
+    if (context.finalReconciliation !== 'approved') return { suppressed: true, code: 'reconciliation-pending' };
+    if (!context.releasedFamilies?.includes(family)) return { suppressed: true, code: 'family-not-released' };
+    return { suppressed: false, code: 'released' };
+}
+
+/**
+ * Guard the irreversible side-effect boundary. This is separate from the
+ * legacy restore flag wrapper because #121 must not turn an unknown recovery
+ * operation into an allow decision.
+ */
+export function withRecoverySideEffectGuard<TReturn>(
+    family: RecoverySideEffectFamily,
+    safeReturn: TReturn,
+    context: RecoverySideEffectContext | null | undefined | (() => RecoverySideEffectContext | null | undefined | Promise<RecoverySideEffectContext | null | undefined>),
+) {
+    return function <TArgs extends unknown[]>(
+        fn: (...args: TArgs) => Promise<TReturn>,
+    ): (...args: TArgs) => Promise<TReturn> {
+        return async (...args: TArgs): Promise<TReturn> => {
+            const resolved = typeof context === 'function' ? await context() : context;
+            if (isRecoverySideEffectSuppressed(family, resolved).suppressed) return safeReturn;
+            return fn(...args);
+        };
+    };
+}
+
 /**
  * Check if a restore is currently in progress.
  * Uses a 5-second cache to minimize RTDB reads.

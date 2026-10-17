@@ -177,6 +177,212 @@ export type HomeworkMaterialType = 'quiz' | 'test' | 'thcs-test' | 'reading-pass
 
 export type HomeworkMaterialSkill = 'reading' | 'listening' | 'writing' | 'speaking';
 
+/** Explicit Mode 2 assignment discriminator. Legacy records omit this field. */
+export const BOOK_HOMEWORK_ASSIGNMENT_KIND = 'book_activity_bundle' as const;
+export const BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION = 1 as const;
+export type BookHomeworkAssignmentKind = typeof BOOK_HOMEWORK_ASSIGNMENT_KIND;
+
+export const BOOK_HOMEWORK_COMPATIBILITY_ASSIGNMENT_KIND = 'book_homework_compatibility' as const;
+export const BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION = 1 as const;
+export type BookHomeworkCompatibilityAssignmentKind = typeof BOOK_HOMEWORK_COMPATIBILITY_ASSIGNMENT_KIND;
+
+export interface BookHomeworkCompatibilityProjection {
+    readonly schemaVersion: typeof BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION;
+    readonly assignmentKind: BookHomeworkCompatibilityAssignmentKind;
+    readonly id: string;
+    readonly createdBy: string;
+    readonly createdAt: number;
+    readonly updatedAt: number;
+    readonly materialId: string;
+    readonly materialTitle: string;
+    readonly materialType: 'book';
+    readonly materialSkill: 'mixed';
+    readonly title: string;
+    readonly description?: string;
+    readonly target: {
+        readonly type: 'students';
+        readonly studentIds: readonly string[];
+    };
+    readonly scheduling: {
+        readonly availableFrom?: number;
+        readonly dueDate: number;
+    };
+    readonly config: {
+        readonly timerMinutes: null;
+        readonly maxAttempts: null;
+        readonly feedbackTiming: 'never';
+        readonly lateSubmissionAllowed: false;
+    };
+    readonly visibility: {
+        readonly showTimer: false;
+        readonly showAttempts: false;
+        readonly showDueDate: true;
+        readonly showQuestionCount: false;
+        readonly showDuration: false;
+    };
+    readonly archived: false;
+    readonly tags: readonly [];
+    readonly bookHomeworkCompatibility: {
+        readonly schemaVersion: typeof BOOK_HOMEWORK_COMPATIBILITY_SCHEMA_VERSION;
+        readonly assignmentId: string;
+        readonly sourceSagaRevision: number;
+        readonly sourceFingerprint: string;
+    };
+}
+
+export type BookHomeworkSelectionTarget =
+    | { readonly kind: 'book'; readonly bookId: string }
+    | { readonly kind: 'section' | 'chapter' | 'unit' | 'test'; readonly bookId: string; readonly nodeKey: string }
+    | { readonly kind: 'activity'; readonly bookId: string; readonly activityId: string; readonly placementId?: string };
+
+export type BookHomeworkStructuralNodeType =
+    | 'intro-placeholder'
+    | 'toc-placeholder'
+    | 'note-placeholder'
+    | 'section'
+    | 'chapter'
+    | 'unit'
+    | 'test';
+
+export interface BookHomeworkStructuralOutlineNode {
+    readonly nodeKey: string;
+    readonly parentNodeKey: string | null;
+    readonly nodeType: BookHomeworkStructuralNodeType;
+    readonly order: number;
+    readonly titleSnapshot?: string;
+}
+
+export interface BookHomeworkSourceContext {
+    readonly sourceKey: string;
+    readonly sourceVersionId: string;
+    readonly componentOrder?: number;
+    readonly ownerNodeKey?: string;
+    readonly physicalPageNumbers: readonly number[];
+}
+
+export type BookHomeworkBindingState = 'required' | 'excluded';
+export type BookHomeworkSourceReadiness = 'ready' | 'unavailable' | 'not-required';
+export type BookHomeworkExclusionReason =
+    | 'not-published'
+    | 'unsupported-activity'
+    | 'missing-source'
+    | 'unresolved-mapping'
+    | 'outside-selected-target'
+    | 'duplicate-placement';
+
+export interface BookHomeworkStudentDocumentPin {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly sha256Hex: string;
+}
+
+export interface BookHomeworkTargetPreviewRow {
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly nodeKey: string;
+    readonly state: 'included' | 'excluded';
+    readonly reason?: BookHomeworkExclusionReason;
+}
+
+export interface BookHomeworkTargetPreviewReceipt {
+    readonly fingerprint: string;
+    readonly rows: readonly BookHomeworkTargetPreviewRow[];
+    readonly includedCount: number;
+    readonly excludedCount: number;
+    readonly excludedReasonCounts: Readonly<Partial<Record<BookHomeworkExclusionReason, number>>>;
+}
+
+interface BookHomeworkActivityBindingBase {
+    readonly bindingId: string;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly nodeKey: string;
+    readonly order: number;
+    readonly titleSnapshot?: string;
+    readonly contextMode: 'none' | 'optional' | 'required';
+    readonly pageGroupKeys: readonly string[];
+    readonly sourceReadiness: BookHomeworkSourceReadiness;
+}
+
+export type BookHomeworkActivityBinding =
+    | (BookHomeworkActivityBindingBase & {
+        readonly state: 'required';
+        readonly activityVersion: number;
+        readonly activityVersionId: string;
+        readonly sourceContext: readonly BookHomeworkSourceContext[];
+    })
+    | (BookHomeworkActivityBindingBase & {
+        readonly state: 'excluded';
+        readonly activityVersion?: number;
+        readonly activityVersionId?: string;
+        readonly exclusionReason: BookHomeworkExclusionReason;
+        readonly sourceContext?: readonly BookHomeworkSourceContext[];
+    });
+
+export interface BookHomeworkScheduleRule {
+    readonly nodeKey: string;
+    readonly availableFrom?: string;
+    readonly dueAt?: string;
+}
+
+export interface BookHomeworkManifest {
+    readonly schemaVersion: typeof BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION;
+    readonly assignmentKind: BookHomeworkAssignmentKind;
+    readonly manifestVersionId: string;
+    readonly ownerId: string;
+    readonly createdByCommandId: string;
+    readonly createdAt: string;
+    readonly bindingRevision: number;
+    readonly book: {
+        readonly bookId: string;
+        readonly bookMode: 'pdf';
+        readonly bookRevision: number;
+        /** Immutable Book-owned manifest identity for the published placement graph. */
+        readonly manifestVersionId: string;
+        readonly publicationId: string;
+        readonly publicationRevision: number;
+        readonly publicationStatus: 'published';
+    };
+    readonly context: {
+        readonly contextId: string;
+        readonly recipientId: string;
+        readonly kind: 'homework';
+        readonly entitlementBasis: 'assignment';
+    };
+    readonly selectedTarget: BookHomeworkSelectionTarget;
+    readonly studentDocument?: BookHomeworkStudentDocumentPin;
+    readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
+    readonly outline: readonly BookHomeworkStructuralOutlineNode[];
+    readonly scheduleRules: readonly BookHomeworkScheduleRule[];
+    readonly bindings: readonly BookHomeworkActivityBinding[];
+    readonly completion: {
+        readonly aggregation: 'required-activities-submitted-over-required-activities';
+        readonly requiredBindingCount: number;
+        readonly excludedBindingCount: number;
+        readonly legacyScoreFields: 'untouched';
+    };
+}
+
+export interface BookHomeworkStudentSafeProjection {
+    readonly schemaVersion: typeof BOOK_HOMEWORK_MANIFEST_SCHEMA_VERSION;
+    readonly assignmentKind: BookHomeworkAssignmentKind;
+    readonly manifestVersionId: string;
+    readonly book: Pick<BookHomeworkManifest['book'], 'bookId' | 'bookRevision' | 'publicationId' | 'publicationRevision'>;
+    readonly context: Pick<BookHomeworkManifest['context'], 'contextId' | 'recipientId' | 'kind'>;
+    readonly selectedTarget: BookHomeworkSelectionTarget;
+    readonly studentDocument?: BookHomeworkStudentDocumentPin;
+    readonly targetPreview?: BookHomeworkTargetPreviewReceipt;
+    readonly outline: readonly BookHomeworkStructuralOutlineNode[];
+    readonly scheduleRules: readonly BookHomeworkScheduleRule[];
+    readonly bindings: readonly BookHomeworkActivityBinding[];
+    readonly completion: BookHomeworkManifest['completion'];
+}
+
+export interface BookHomeworkAssignmentFields {
+    readonly assignmentKind: BookHomeworkAssignmentKind;
+    readonly bookManifest: BookHomeworkManifest;
+}
+
 export interface HomeworkContentRef {
     contentKind:
         | 'thcs_test'
@@ -320,6 +526,9 @@ export interface HomeworkAssignment {
     // NOTE: `scheduling` (availableFrom, dueDate) is stored in the existing HomeworkAssignment
     // fields (HomeworkScheduling), NOT in thcsConfig. Do NOT duplicate date fields in thcsConfig.
 }
+
+/** Strongly typed Mode 2 assignment view; legacy HomeworkAssignment remains unchanged. */
+export type BookHomeworkAssignment = HomeworkAssignment & BookHomeworkAssignmentFields;
 
 /**
  * Denormalized statistics for a homework assignment

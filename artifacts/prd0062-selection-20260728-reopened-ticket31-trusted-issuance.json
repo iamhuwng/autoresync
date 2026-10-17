@@ -1,0 +1,66 @@
+{
+  "selectedAt": "2026-07-28T02:23:00.000Z",
+  "governingPolicy": "Deterministic roadmap plus mandatory complete-transitive-prerequisite and acceptance-readiness gates.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260728-reopen-ticket31-trusted-issuance.json",
+    "issueHash": "e35bd240521e6bf44570026c149d67a8042e84504b326e3194b63a6352d63253",
+    "issueCount": 112,
+    "openCount": 61,
+    "closedCount": 51,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [31, 49, 50, 129, 131, 132, 133]
+  },
+  "supersededSelection": {
+    "issue": 72,
+    "artifact": "artifacts/prd0062-selection-20260728-reopened-ticket72-projection-repair.json",
+    "reason": "Independent closure review proved direct prerequisite #31 trusted issuance accepts caller-authored publication/version/source authority. #72 is dependency-ineligible until #31 repairs and recloses."
+  },
+  "selectedTicket": {
+    "issue": 31,
+    "ticket": "08B",
+    "title": "Persist trusted Book Delivery bindings with CAS and rules",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [30],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 74,
+    "acceptanceReadiness": "Executable locally: replace caller-authored binding issuance with opaque intent, trusted canonical publication hydration, server ID allocation, factory construction, and focused Worker/repository/security proof.",
+    "requiredAuthority": [
+      "local repository implementation and tests",
+      "live issue reopen and reclosure with concrete evidence",
+      "no deployment or private capability activation"
+    ],
+    "closureGap": {
+      "owner": "#31 trusted Book Delivery issuance",
+      "requiredAction": "Accept opaque issuance intent, hydrate canonical publication state through an injected trusted loader, allocate binding identity server-side, construct with createBookDeliveryBinding, and deny forged publication/scope/version/source fields.",
+      "evidence": [
+        "https://github.com/iamhuwng/autoresync/issues/31#issuecomment-5099193882",
+        "cloudflare/src/upload-worker/book-delivery/worker.ts accepts request.binding",
+        "src/services/book-delivery/bookDelivery.entitlementFactory.ts has no production issuance caller"
+      ],
+      "impact": "#72 and 73 other descendants cannot treat stored Delivery bindings as canonical trusted state."
+    }
+  },
+  "candidateRejections": [
+    {
+      "issues": [49, 50],
+      "rule": "authority-and-safety",
+      "reason": "Graph-clear, but private-B2 provisioning/lifecycle proof is not executable while private-B2 must remain disabled."
+    },
+    {
+      "issues": [129, 131, 132, 133],
+      "rule": "roadmap-phase",
+      "reason": "Graph-clear only; Integration/final-closure tickets are outside the current Runtime root repair phase."
+    },
+    {
+      "issues": [72, 76, 77, 80, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 130, 134, 135, 136],
+      "rule": "mandatory-complete-transitive-prerequisite",
+      "reason": "Ineligible because at least one direct or transitive prerequisite is open. Exact rejected chains are recorded per issue in graphSnapshot.artifact records.openTransitivePrerequisites."
+    }
+  ],
+  "selectionDecision": "Select exactly one Runtime root/enabler primary: reopened #31. Do not continue #72 implementation until #31 recloses and the full 112-ticket graph is rebuilt."
+}

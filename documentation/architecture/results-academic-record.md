@@ -5,7 +5,7 @@ This document no longer defines result visibility locally.
 Canonical visibility governance now lives in:
 - `documentation/architecture/result-visibility-ownership-governance.md`
 - `documentation/result-visibility-producer-consumer-contract.md`
-- `documentation/architecture/result-view-permission-matrix.md`
+- `documentation/architecture/result-view/visibility-policy.md`
 
 Writing-specific architecture now has its own packet:
 - `documentation/architecture/ielts-writing/README.md`

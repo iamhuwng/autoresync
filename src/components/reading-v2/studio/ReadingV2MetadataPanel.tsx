@@ -83,6 +83,7 @@ export function ReadingV2MetadataPanel({
           }
         >
           <option value="full-test">Full test</option>
+          <option value="reading-passage">Reading passage</option>
           <option value="task-group-material">Task-group material</option>
           <option value="extracted-task-group-material">Extracted task-group material</option>
         </select>

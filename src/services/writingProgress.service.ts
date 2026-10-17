@@ -1,5 +1,6 @@
 import { storage } from '../core/platform/storage';
 import type { SoloProgressScopeContext } from '../types/practice.types';
+import type { WritingSubmission } from '../types/ielts-writing.types';
 
 const EXPIRY_MS = 72 * 60 * 60 * 1000;
 
@@ -65,6 +66,29 @@ export function buildWritingProgressStorageKey({
 
 export function shouldIncludeLegacyWritingProgressFallback(scopeContext?: SoloProgressScopeContext): boolean {
     return normalizeScopeContext(scopeContext).mode === 'self_study';
+}
+
+// The accepted-source repair outlives the editable draft and its 72-hour expiry.
+const pendingSubmissionKey = (params: WritingProgressKeyParams): string =>
+    `${buildWritingProgressStorageKey(params)}__pending_submission`;
+
+export async function readPendingWritingSubmission(params: WritingProgressKeyParams): Promise<WritingSubmission | null> {
+    const pending = await storage.get<WritingSubmission>(pendingSubmissionKey(params));
+    if (pending !== null && (!pending.id || pending.studentId !== params.studentId
+        || !pending.context || !pending.testMeta || !Array.isArray(pending.tasks))) {
+        throw new Error('Saved Writing recovery is invalid. Reopen the original attempt.');
+    }
+    return pending;
+}
+
+export async function writePendingWritingSubmission(params: WritingProgressKeyParams, submission: WritingSubmission): Promise<void> {
+    const pending = await readPendingWritingSubmission(params);
+    if (pending && pending.id !== submission.id) throw new Error('A Writing attempt still needs recovery');
+    await storage.set(pendingSubmissionKey(params), pending ?? submission);
+}
+
+export async function removePendingWritingSubmission(params: WritingProgressKeyParams): Promise<void> {
+    await storage.remove(pendingSubmissionKey(params));
 }
 
 export function getWritingProgressLookupKeys(

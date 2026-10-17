@@ -1,0 +1,45 @@
+import type { BookRouteMethod } from '../book-routes/types.ts';
+
+export interface BookSourceRouteDescriptor {
+  readonly handler: 'begin' | 'decideStudentSafeSource' | 'complete' | 'status' | 'cancel' | 'attach' | 'sources';
+  readonly method: BookRouteMethod;
+  readonly path: string;
+}
+
+export const bookSourceRouteDescriptors: readonly BookSourceRouteDescriptor[] = Object.freeze([
+  {
+    handler: 'attach',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/source-set/attach',
+  },
+  {
+    handler: 'begin',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/upload/begin',
+  },
+  {
+    handler: 'decideStudentSafeSource',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/upload/:reservationId/student-safe/decide',
+  },
+  {
+    handler: 'complete',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/upload/:reservationId/complete',
+  },
+  {
+    handler: 'status',
+    method: 'GET',
+    path: '/v1/book-source/books/:bookId/upload/:reservationId/status',
+  },
+  {
+    handler: 'sources',
+    method: 'GET',
+    path: '/v1/book-source/books/:bookId/sources',
+  },
+  {
+    handler: 'cancel',
+    method: 'POST',
+    path: '/v1/book-source/books/:bookId/upload/:reservationId/cancel',
+  },
+]);

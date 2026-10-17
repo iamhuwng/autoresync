@@ -1,0 +1,72 @@
+{
+  "ticket": 95,
+  "title": "PRD0062 38B2 - Migrate course, class, assignment, and enrollment notification producers",
+  "status": "PASS_LOCAL_DESTINATION_TRANSFERRED",
+  "generatedAt": "2026-07-29T16:03:37+07:00",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260729-ticket95-preclose-checklist.json",
+    "issueHash": "a673d9f973ac0933f935f4912edb70249dfbca00258e2c81421bbc9a4409220b",
+    "issues": 112,
+    "open": 51,
+    "closed": 61,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "frontier": [49, 50, 76, 95, 97, 106, 129, 130, 131, 132, 133]
+  },
+  "contractRepair": {
+    "source": 95,
+    "destination": 134,
+    "transferred": [
+      "integrated producer-created role-port rendering",
+      "safe destination and own read-state journey",
+      "staging/deployed persistence and notification readback",
+      "active route/configuration/identity/gate readback",
+      "deployed idempotency, cleanup, and producer-command rollback"
+    ],
+    "reimbursement": "#134 live body now owns the transferred per-family notification drill; #95 live body now retains local producer/command proof and explicitly makes no independent integrated/deployed claim.",
+    "hardDependencyChanged": false,
+    "safety": "#50A all-deny, #03B disabled, private-B2 disabled, trusted actions deny-by-default"
+  },
+  "ownedProof": {
+    "families": ["course", "class", "assignment", "enrollment", "course-announcement", "deadline"],
+    "paths": [
+      "src/services/courseManager.ts",
+      "src/services/classManager.ts",
+      "src/services/assignmentManager.ts",
+      "src/services/enrollmentManager.ts",
+      "src/services/deadlineReminderService.ts",
+      "src/pages/TeacherHomeworkDetailPage.tsx",
+      "src/services/courseAnnouncementService.ts",
+      "src/components/course/RequestReviewList.tsx",
+      "src/services/notificationProducerClient.ts",
+      "src/services/notificationProducerClient.test.ts",
+      "src/services/notificationProducerInventory.test.ts",
+      "src/services/assignmentManager.test.ts",
+      "src/services/enrollmentManager.test.ts"
+    ],
+    "claims": [
+      "bounded trusted command shape",
+      "owned authority record and recipient input passed through mandatory #94 server resolver",
+      "deterministic operation identity",
+      "legacy-compatible visible title/message/link semantics",
+      "no owned-path raw notification RTDB writes",
+      "disabled-route and missing-worker-origin fail-closed behavior"
+    ]
+  },
+  "verification": {
+    "focusedHarness": "PASS: 5 files, 67 tests",
+    "eslint": "PASS",
+    "mantineBoundary": "PASS",
+    "productionBuild": "PASS: 9,448 modules",
+    "bundleBudget": "PASS",
+    "diffCheck": "PASS: no whitespace errors",
+    "pinnedTypecheck": "Pre-existing/shared Book Assembly and runtime diagnostics only; no #95 diagnostics",
+    "browserAndDeployment": "Destination-owned by #134; not claimed by #95",
+    "latestHarnessAttempt": "A later production-build rerun timed out while existing localhost:5173 and localhost:5174 dev servers remained active; no product diagnostic was emitted. Retain prior exact x64 build PASS above."
+  },
+  "rollback": "#95 leaves notification route and trusted activation disabled; legacy readers/read-state remain. #134 owns integrated producer-command disable/cleanup rollback.",
+  "closureReady": true
+}

@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -34,9 +33,7 @@ vi.mock('../hooks/useFeatureTracking', () => ({
 function renderPage() {
   return render(
     <BrowserRouter>
-      <MantineProvider>
-        <LoginPage />
-      </MantineProvider>
+      <LoginPage />
     </BrowserRouter>
   );
 }
@@ -200,6 +197,28 @@ describe('LoginPage', () => {
 
     expect(screen.getByText(/loading\.\.\./i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign in with google/i })).not.toBeInTheDocument();
+  });
+
+  it('prevents duplicate Google popup requests while sign-in is already in flight', async () => {
+    let resolveLogin;
+    mockLogin.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLogin = resolve;
+    }));
+
+    const user = userEvent.setup();
+    renderPage();
+
+    const button = screen.getByRole('button', { name: /sign in with google/i });
+    await user.click(button);
+
+    expect(button).toBeDisabled();
+    await user.click(button);
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+
+    resolveLogin();
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
   });
 
   it('shows a readable error message when login fails', async () => {

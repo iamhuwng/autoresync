@@ -480,6 +480,76 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     ]));
   });
 
+  it('accepts per-question multiple-choice option banks from Auto V4 payloads', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(3),
+        'Questions 27-28',
+        'Choose the correct letter, A-C.',
+        '27 Synthetic choice question.',
+        'A First option for 27',
+        'B Second option for 27',
+        'C Third option for 27',
+        '28 Synthetic choice question.',
+        'A First option for 28',
+        'B Second option for 28',
+        'C Third option for 28',
+        'Answers',
+        '27 C',
+        '28 A',
+      ].join('\n'),
+      sourceName: 'per-question-multiple-choice.md',
+    });
+    const payload = {
+      answerKeyText: '27 C\n28 A',
+      materials: [
+        {
+          passageNumber: 3,
+          passages: [{ content: 'Synthetic passage content with enough text.' }],
+          sectionInstructions: [{
+            questionRange: { start: 27, end: 28 },
+            taskType: 'multiple-choice',
+          }],
+          questions: [
+            {
+              questionNumber: 27,
+              type: 'multiple-choice',
+              labeledOptions: [{ label: 'A' }, { label: 'B' }, { label: 'C' }],
+            },
+            {
+              questionNumber: 28,
+              type: 'multiple-choice',
+              labeledOptions: [{ label: 'A' }, { label: 'B' }, { label: 'C' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(verifyReadingV2AutoPayloadAgainstLedger(payload, ledger).map((issue) => issue.code))
+      .not.toContain('source-reference-bank-missing');
+    expect(verifyReadingV2AutoPayloadAgainstLedger(payload, ledger).map((issue) => issue.code))
+      .not.toContain('source-reference-bank-mismatch');
+
+    const incompletePayload = {
+      ...payload,
+      materials: [{
+        ...payload.materials[0],
+        questions: [
+          payload.materials[0]!.questions[0]!,
+          {
+            ...payload.materials[0]!.questions[1]!,
+            labeledOptions: [{ label: 'A' }, { label: 'B' }],
+          },
+        ],
+      }],
+    };
+
+    expect(verifyReadingV2AutoPayloadAgainstLedger(incompletePayload, ledger)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-reference-bank-mismatch', severity: 'error' }),
+    ]));
+  });
+
   it('verifies instruction word limits, judgement vocabulary, and reuse rules before Studio handoff', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: [

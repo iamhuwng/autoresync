@@ -1,0 +1,67 @@
+{
+  "recordedAt": "2026-07-27T10:41:00Z",
+  "governingRule": "Graph-clear is necessary but insufficient. Select one roadmap-phase root/enabler only when all transitive prerequisites are closed, acceptance gates are executable, and ownership/authority are available.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-selection-refresh.json",
+    "hash": "af812a928fe3c6f8c403d9cb7aa4eeb801fe423d79d05ae5482d40f9028e24d6",
+    "issues": 112,
+    "open": 73,
+    "closed": 39,
+    "edges": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 63, 65, 66, 67, 70, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Teacher workflow — authoring, source inspection, prepublish proof, publication",
+  "candidates": [
+    {
+      "ticket": 49,
+      "state": "ineligible",
+      "reason": "Foundation private-B2 provisioning has no executable remote authority. Owner: Cloudflare/B2 provisioning authority. Required action: create scoped private bucket/key/CORS/lifecycle configuration and disposable-object/cost evidence. Impact: direct-upload activation and reconciliation remain unavailable."
+    },
+    {
+      "ticket": 50,
+      "state": "ineligible",
+      "reason": "Shares #49 private-B2 deployment/cleanup authority blocker. Its configured/deployed disposal and reconciliation gates cannot execute until that independent foundation blocker is resolved; do not bypass it through a descendant."
+    },
+    {
+      "ticket": 63,
+      "state": "selected",
+      "directPrerequisites": [36, 38, 39, 40, 41, 60, 62],
+      "transitivePrerequisitesClosed": true,
+      "downstreamLeverage": 24,
+      "acceptanceReadiness": "Local teacher preview projection, host, authorization, renderer-parity, isolated-state, accessibility, rollback, and browser gates are executable without activating 50A or 03B. Student shell proof remains #73-owned.",
+      "authority": "Existing teacher Assembly/09C, viewer/transport seams; no new browser credential or capability activation.",
+      "selectionReason": "Earliest unresolved teacher-workflow enabler with executable owned proof; resolves the preview-host ownership boundary before producer tickets whose browser gate consumes that host."
+    },
+    {
+      "ticket": 65,
+      "state": "ineligible",
+      "reason": "Although graph-clear with leverage 60, its live teacher browser gate requires previewing before publication while #63 exclusively owns candidate-preview host/projection. That positive gate is not executable without unresolved #63 ownership; select #63 first rather than duplicate preview behavior."
+    },
+    {
+      "ticket": 66,
+      "state": "ineligible",
+      "reason": "Same unresolved #63 preview-host ownership affects its teacher preview/publish browser gate; component adapter proof cannot duplicate or bypass #63."
+    },
+    {
+      "ticket": 67,
+      "state": "ineligible",
+      "reason": "Source-assisted mapping changes require fresh 15B preview approval. #63 owns production and proof of that preview contribution, so this gate is not acceptance-ready."
+    },
+    {
+      "ticket": 70,
+      "state": "deferred-eligible",
+      "reason": "All prerequisite chains are closed and it is independent, but lower leverage (27) than the selected preview enabler and not the earliest unresolved proof boundary in current teacher-workflow sequence."
+    },
+    {
+      "ticket": "129-133",
+      "state": "ineligible",
+      "reason": "Final-closure phase only. Do not select merely because #127 is closed; positive acceptance shares unresolved #50A all-six-deny/default-deny activation boundary."
+    }
+  ],
+  "primary": 63,
+  "nextRequiredEvent": "Complete only #63-owned proof, then commit/push after closure and rebuild all 112 live issue bodies before selecting again."
+}

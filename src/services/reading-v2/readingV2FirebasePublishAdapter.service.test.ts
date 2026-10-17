@@ -4,6 +4,8 @@ import { readingV2Ids, type ReadingV2Document } from '../../types/readingV2.type
 import { materialCatalogIds } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
+import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
+import { createReadingV2PassageLibraryFirebaseReader, listTeacherReadingPassages } from './readingV2PassageLibrary.service';
 import {
   buildReadingV2FirebasePublishUpdates,
   commitReadingV2PublishPlanToFirebase,
@@ -105,6 +107,55 @@ const createPassagePublishPlan = () => {
   }).commitPlan;
 };
 
+const createThreePassagePublishPlan = () => {
+  const documents = [
+    createReadingV2CanonicalFixture('sentence-completion'),
+    createReadingV2CanonicalFixture('true-false-not-given'),
+    createReadingV2CanonicalFixture('table-completion'),
+  ].map((document, index) => ({
+    ...document,
+    sections: Object.fromEntries(Object.entries(document.sections).map(([id, section]) => [
+      id, { ...section, title: `Reading Passage ${index + 1}` },
+    ])),
+  }));
+  const first = documents[0];
+  const document: ReadingV2Document = {
+    ...first,
+    title: 'Three Passage Full Test',
+    sectionIds: documents.flatMap((entry) => entry.sectionIds),
+    sections: Object.assign({}, ...documents.map((entry) => entry.sections)),
+    stimuli: Object.assign({}, ...documents.map((entry) => entry.stimuli)),
+    anchors: Object.assign({}, ...documents.map((entry) => entry.anchors)),
+    taskGroups: Object.assign({}, ...documents.map((entry) => entry.taskGroups)),
+    interactions: Object.assign({}, ...documents.map((entry) => entry.interactions)),
+    optionSets: Object.assign({}, ...documents.map((entry) => entry.optionSets)),
+    validationState: { issues: [] },
+  };
+  return publishReadingV2Material({
+    repository: createReadingV2Repository(),
+    materialId: readingV2Ids.materialId('three-passage-master'),
+    ownerId: 'teacher-1',
+    document,
+    publishedBy: 'teacher-1',
+    snapshotVersionId: readingV2Ids.snapshotVersionId('three-passage-snapshot'),
+    publishedAt: '2026-06-01T00:00:00.000Z',
+    metadata: {
+      title: document.title,
+      materialKind: 'reading-v2-full-test-composition',
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      visibility: 'public' as any,
+    },
+    readingPassageExtraction: {
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      visibility: 'public',
+    },
+  }).commitPlan;
+};
+
 const databaseSnapshot = (
   exists: boolean,
   value: unknown,
@@ -197,6 +248,20 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         studentSafeProjectionReady: true,
         passageRefCount: 1,
       }),
+    });
+    expect(
+      firebaseUpdates.updates[
+        'material_catalog/material_summary_indexes/v1/by_id/material-firebase'
+      ],
+    ).toMatchObject({
+      materialId: 'material-firebase',
+      producerId: 'reading-v2-full-test',
+      questionCount: 2,
+      sourceSnapshotVersionId: 'snapshot-firebase',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
     });
     expect(firebaseUpdates.updates[readingV2StoragePaths.relationshipIndexes('solo-launch', 'material-firebase')])
       .toMatchObject({
@@ -302,6 +367,14 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         displaySnapshot: 'Passage 1',
       },
     });
+    expect(firebaseUpdates.updates[
+      `material_catalog/material_summary_indexes/v1/by_id/${passageId}`
+    ]).toMatchObject({
+      materialId: passageId,
+      producerId: 'reading-v2-passage',
+      materialKind: 'reading-passage',
+      visibility: 'public',
+    });
     expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests(passageId, 'snapshot-firebase-passages')]))
       .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
     expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests('material-firebase-passages', 'snapshot-firebase-passages')]))
@@ -342,6 +415,50 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     expect(firebaseUpdates.updates[
       'material_catalog/material_summary_indexes/v1/by_source_full_test/old-full-test/material-firebase-passages-passage-1'
     ]).toBeUndefined();
+  });
+
+  it('publishes three child summaries that the Reading Passage library discovers', async () => {
+    const plan = createThreePassagePublishPlan();
+    const updates = buildReadingV2FirebasePublishUpdates(plan).updates;
+    const childIds = [1, 2, 3].map((number) => `three-passage-master-passage-${number}`);
+    const summaryRoot = 'material_catalog/material_summary_indexes/v1';
+    expect(updates[`${summaryRoot}/by_id/three-passage-master`]).toMatchObject({
+      producerId: 'reading-v2-full-test', materialKind: 'full-test', passageRefCount: 3,
+    });
+    for (const id of childIds) {
+      expect(updates[readingV2StoragePaths.readingPassageMaterials(id)]).toMatchObject({ passageMaterialId: id });
+      const summary = updates[`${summaryRoot}/by_id/${id}`];
+      expect(summary).toMatchObject({
+        schemaVersion: 1, materialId: id, producerId: 'reading-v2-passage',
+        materialKind: 'reading-passage', ownerId: 'teacher-1', visibility: 'public',
+        lifecycleState: 'active', testTypeMembership: { ielts: true },
+        sourceSnapshotVersionId: 'three-passage-snapshot', questionCount: 2,
+      });
+      expect(updates[`${summaryRoot}/by_owner/teacher-1/${id}`]).toEqual(summary);
+      expect(updates[`${summaryRoot}/by_visibility/public/${id}`]).toEqual(summary);
+      expect(updates[`${summaryRoot}/by_material_kind/reading-passage/${id}`]).toEqual(summary);
+      expect(updates[`${summaryRoot}/by_test_type/ielts/${id}`]).toEqual(summary);
+      expect(updates[readingV2StoragePaths.materialMetadata(id)]).toMatchObject({ materialId: id });
+      expect(updates[readingV2StoragePaths.studentSafeTests(id, 'three-passage-snapshot')]).toBeTruthy();
+    }
+    vi.mocked(get).mockImplementation(async (reference: any) => {
+      const path = reference.path as string;
+      const value = updates[path] ?? Object.fromEntries(
+        Object.entries(updates)
+          .filter(([key]) => key.startsWith(`${path}/`) && !key.slice(path.length + 1).includes('/'))
+          .map(([key, entry]) => [key.slice(path.length + 1), entry]),
+      );
+      return databaseSnapshot(value !== null && Object.keys(value as object).length > 0, value);
+    });
+    const rows = await listTeacherReadingPassages({
+      teacherId: 'teacher-1', scope: 'public',
+      reader: createReadingV2PassageLibraryFirebaseReader(),
+    });
+    expect(rows.map((row) => row.materialId).sort()).toEqual(childIds);
+    vi.mocked(update).mockReset();
+    await commitReadingV2PublishPlanToFirebase(plan);
+    expect(update).toHaveBeenCalledOnce();
+    expect(ref).toHaveBeenCalledWith(expect.anything());
   });
 
   it('treats an existing matching commit marker as an idempotent retry', async () => {

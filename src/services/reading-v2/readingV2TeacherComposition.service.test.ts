@@ -635,6 +635,42 @@ describe('readingV2TeacherComposition.service', () => {
     )).toEqual([]);
   });
 
+  it('publishes master edits when Firebase omitted an empty interaction review label', async () => {
+    const updates: Record<string, unknown> = {};
+    const snapshotWithoutReviewLabel = snapshotFor('passage-a', 'snapshot-a');
+    const [interactionId, interaction] = Object.entries(snapshotWithoutReviewLabel.document.interactions)[0] as [string, any];
+    delete interaction.reviewLabel;
+    const sourceSnapshots = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]: snapshotWithoutReviewLabel,
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
+        snapshotFor('passage-b', 'snapshot-b'),
+    };
+    const existing = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+
+    const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
+      teacherId: 'teacher-1',
+      composition: existing,
+      passages,
+      repository: {
+        read: vi.fn(async (path: string) => sourceSnapshots[path]),
+        update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
+          Object.assign(updates, nextUpdates);
+        }),
+      },
+      now: '2026-06-16T00:00:00.000Z',
+    });
+
+    const publishedSnapshot = updates[readingV2StoragePaths.publishedSnapshots(
+      existing.testMaterialId,
+      result.composition.publishedVersionId,
+    )] as ReadingV2PublishedSnapshot;
+    expect(publishedSnapshot.document.interactions[`passage-1:${interactionId}`]?.reviewLabel.displayNumber).toBe(1);
+  });
+
   it('rejects selected rows that are missing frozen published snapshots', () => {
     expect(() => buildReadingV2TeacherSelectedPassageComposition({
       teacherId: 'teacher-1',
@@ -672,8 +708,15 @@ describe('readingV2TeacherComposition.service', () => {
 
     expect(writes).toEqual(expect.arrayContaining([
       {
-        path: `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
-        value: 'removed',
+        path: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
+        value: expect.objectContaining({
+          compositionId: composition.compositionId,
+          ownerId: 'teacher-1',
+          publishedVersionId: composition.publishedVersionId,
+          state: 'removed',
+          removedAt: '2026-06-03T00:00:00.000Z',
+          removedBy: 'teacher-1',
+        }),
       },
       {
         path: `${readingV2StoragePaths.materialMetadata(composition.testMaterialId)}/state`,
@@ -701,9 +744,46 @@ describe('readingV2TeacherComposition.service', () => {
       path.includes('published_snapshots'),
     )).toBe(false);
     expect(result.changedPaths).toEqual(expect.arrayContaining([
-      `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
+      readingV2StoragePaths.fullTestCompositions(composition.compositionId),
       `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
       `tests/${composition.testMaterialId}`,
     ]));
+  });
+
+  it('sanitizes master removal audit paths when correlation ids include RTDB-forbidden timestamp characters', async () => {
+    const composition = buildReadingV2TeacherSelectedPassageComposition({
+      teacherId: 'teacher-1',
+      passages,
+      now: '2026-06-02T00:00:00.000Z',
+    });
+    let updates: Record<string, unknown | null> = {};
+
+    await removeReadingV2MasterComposition({
+      actorUserId: 'teacher-1',
+      actorRole: 'teacher',
+      composition,
+      repository: {
+        write: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        remove: async () => {
+          throw new Error('Expected root update repository path.');
+        },
+        update: async (nextUpdates) => {
+          updates = { ...nextUpdates };
+        },
+      },
+      now: '2026-07-08T04:43:48.660Z',
+      correlationId: 'teacher-1:composition-1:2026-07-08T04:43:48.660Z',
+      sourceFeatureId: 'teacher_materials_reading_master_removed',
+      sourceRoute: '/lobby',
+    });
+
+    const auditPath = Object.keys(updates)
+      .find((path) => path.startsWith('reading_v2/audit_events/'));
+
+    expect(auditPath).toBeDefined();
+    expect(auditPath).toContain('2026-07-08T04:43:48-660Z');
+    expect(auditPath?.replace('reading_v2/audit_events/', '')).not.toMatch(/[.#$[\]/]/);
   });
 });

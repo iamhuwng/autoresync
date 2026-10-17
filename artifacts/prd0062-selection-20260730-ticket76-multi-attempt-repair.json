@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "CORRECTED_AND_RESELECTED",
+  "roadmapPhase": "runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket76-reopened-multi-attempt.json",
+  "graphIssueHash": "63eb59910e9d3c2cca4565095ca9ff9242d010c9044dfe245b4e7e96c5792788",
+  "correction": {
+    "previousSelection": 77,
+    "reason": "Closed prerequisite #76 was not acceptance-ready: terminal persistence hard-coded attemptNumber 1 and denied every later completion for the same Activity, making #77 repeated-attempt grouping impossible.",
+    "owner": 76,
+    "requiredAction": "Restore bounded repeated terminal attempts with authoritative attempt limits, atomic monotonic numbering, immutable prior rows, exact replay, conflict denial, crash recovery, and provenance.",
+    "impact": "#77, #87, #91, and their descendants are dependency-ineligible until #76 re-closes."
+  },
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 48,
+    "closedCount": 64,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 76, 106, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "number": 76,
+    "title": "PRD0062 28C — Submit terminal Activity attempts and immutable results",
+    "directPrerequisites": [74, 75],
+    "completeTransitivePrerequisites": [
+      25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+      44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65,
+      66, 72, 73, 74, 75
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 40,
+    "acceptanceReadiness": {
+      "localRepositoryAndTransaction": "Executable under the existing focused runtime harness.",
+      "browser": "Existing #76 browser proof remains valid; repeated-attempt browser proof will be added only after the repository repair.",
+      "deployment": "Destination-owned by #134 under the live #76 contract; no production activation is required for this repair.",
+      "ownership": "#76 owns terminal numbering and immutable aggregate creation; #77 remains read/projection-only.",
+      "authority": "Available for local implementation and verification; all production/trusted gates remain disabled."
+    },
+    "selectionReason": "Reopened root prerequisite with the strongest downstream leverage and a closed complete prerequisite chain. Root-first repair is mandatory before any #77 descendant work."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "eligible": false,
+      "reason": "Graph-clear but acceptance-ineligible while private-B2/03B/trusted activation remains disabled and remote provider/cost/cleanup/browser/rollback proof lacks active authority."
+    },
+    {
+      "ticket": 77,
+      "eligible": false,
+      "reason": "Direct prerequisite #76 is OPEN; repeated-attempt acceptance cannot execute until #76 is repaired and formally CLOSED."
+    },
+    {
+      "ticket": 87,
+      "eligible": false,
+      "reason": "Direct prerequisite #76 is OPEN; schedule-enforcement work is dependency-ineligible."
+    },
+    {
+      "ticket": 91,
+      "eligible": false,
+      "reason": "Direct prerequisite #76 is OPEN; integrity work is dependency-ineligible."
+    },
+    {
+      "ticket": 106,
+      "eligible": false,
+      "reason": "Teacher-workflow phase; the current Runtime root repair #76 must close first."
+    },
+    {
+      "ticket": 129,
+      "eligible": false,
+      "reason": "Final-closure phase and not the current Runtime root."
+    },
+    {
+      "ticket": 130,
+      "eligible": false,
+      "reason": "Final-closure phase and not the current Runtime root."
+    },
+    {
+      "ticket": 131,
+      "eligible": false,
+      "reason": "Final-closure phase and not the current Runtime root."
+    },
+    {
+      "ticket": 132,
+      "eligible": false,
+      "reason": "Final-closure phase and not the current Runtime root."
+    },
+    {
+      "ticket": 133,
+      "eligible": false,
+      "reason": "Final-closure phase and not the current Runtime root."
+    }
+  ],
+  "safety": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "scope": "Full 112-ticket scope preserved; exactly one primary selected."
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "ticket": 87,
+  "title": "PRD0062 34B — Enforce effective Book Homework windows",
+  "recordedAt": "2026-08-01T11:15:00+07:00",
+  "acceptanceStatus": "passed-independent-review",
+  "resolvedProviderBlocker": {
+    "ticket": 85,
+    "commit": "a76c27c5",
+    "result": "Each committed Homework authority now contains a validated frozen per-placement policy snapshot bound to policy identity, Placement, Activity, and Activity Version; legacy missing snapshots fail closed."
+  },
+  "authoritativeSelection": {
+    "graph": "artifacts/prd0062-graph-20260731-post-ticket80-closed.json",
+    "selection": "artifacts/prd0062-selection-20260731-post-ticket80-primary87.json",
+    "liveIssueState": "OPEN",
+    "closedPrerequisites": [76, 79, 83, 86],
+    "boundedLiveVerificationAt": "2026-08-01T09:40:00+07:00"
+  },
+  "implementation": {
+    "decisionContract": "book-homework-effective-window schemaVersion=2 resolverVersion=2",
+    "authority": "Trusted Worker server time plus committed student-specific Homework authority, frozen per-placement policy, schedule hierarchy, extensions, and current runtime attempts.",
+    "defaultComposition": [
+      "Book Delivery launch/document boundary",
+      "canonical Book Runtime state/autosave/submit boundary",
+      "browser runtime typed projection consumer"
+    ],
+    "failClosedLegacyBehavior": "Missing, malformed, stale, mismatched, or legacy policy snapshots return unavailable and never fall back to browser time, route state, or cached projections."
+  },
+  "localProof": {
+    "rootFocused": {
+      "files": 4,
+      "tests": 30,
+      "status": "passed"
+    },
+    "cloudflareFocused": {
+      "files": 6,
+      "tests": 42,
+      "status": "passed"
+    },
+    "targetedLint": {
+      "status": "passed",
+      "diagnostics": 0
+    },
+    "buildHarness": {
+      "status": "inconclusive-harness-stall",
+      "command": "npm run build",
+      "observed": "The x64 source-mirroring harness emitted no product diagnostics and exceeded 300 seconds; focused TypeScript-loading test suites and Wrangler compilation passed.",
+      "classification": "harness, not product failure"
+    },
+    "boundaryCoverage": [
+      "before/at/after release and deadline",
+      "ancestor precedence and student extensions",
+      "late allowed and denied",
+      "completed and overdue review",
+      "reload and stale cache",
+      "concurrent authority mutation",
+      "crafted client window and binding",
+      "browser/server clock skew",
+      "context-scoped document authorization without PDF page narrowing"
+    ],
+    "wranglerDryRun": {
+      "profile": "media",
+      "status": "passed",
+      "uploadKiB": 144.84,
+      "gzipKiB": 28.82
+    }
+  },
+  "studentBrowserProof": {
+    "url": "http://localhost:5174/__smoke/book-runtime",
+    "config": "playwright.prd0062-ticket87.config.mjs",
+    "deliveryAuthorityUrl": "http://localhost:5187/v1/book-delivery/student-fixture/homework-fixture",
+    "status": "passed",
+    "tests": 1,
+    "duration": "1.2m",
+    "states": [
+      "unreleased",
+      "available",
+      "overdue",
+      "late-allowed",
+      "review"
+    ],
+    "reloadSafe": true,
+    "security": "The browser consumes a typed Delivery-shaped server projection. Query route state, clientNow=2099, forged state, and stale prior projection never decide the window.",
+    "screenshots": [
+      "artifacts/prd0062-ticket-87/browser/unreleased-reload-safe.png",
+      "artifacts/prd0062-ticket-87/browser/available-reload-safe.png",
+      "artifacts/prd0062-ticket-87/browser/overdue-reviewable.png",
+      "artifacts/prd0062-ticket-87/browser/late-allowed.png",
+      "artifacts/prd0062-ticket-87/browser/completed-review.png"
+    ]
+  },
+  "productionEquivalentPreview": {
+    "profile": "media",
+    "accountSentinel": "kahoot-media",
+    "worker": "r2-upload-signer-prd0062-ticket87-preview",
+    "workerUrl": "https://r2-upload-signer-prd0062-ticket87-preview.iamhuwng.workers.dev",
+    "passingVersionId": "d619eda2-f69d-481d-80a5-5d75a7c5e0bb",
+    "passingReadback": {
+      "httpStatus": 200,
+      "proofKind": "prd0062-ticket87-production-equivalent",
+      "serverEvaluatedAt": "2026-08-01T02:45:38.928Z",
+      "clientNowIgnored": "2099-01-01T00:00:00.000Z",
+      "unreleasedOutcome": "denied",
+      "rangeStatus": 206,
+      "headStatus": 200,
+      "refreshAfterAssignmentMutationStatus": 403,
+      "authorizationCount": 3,
+      "raceStatus": 409,
+      "raceCode": "runtime_schedule_authority_stale",
+      "currentAuthorityRevision": 2,
+      "raceNoWrite": true,
+      "autosaveStatus": 200,
+      "submitStatus": 200,
+      "attemptCount": 1,
+      "completionCount": 1,
+      "forgedBindingOutcome": "unavailable",
+      "pass": true
+    },
+    "rollback": {
+      "versionId": "bb1dc93e-dcb3-44bb-a8fc-1c481cbf8ed1",
+      "trafficPercent": 100,
+      "proofHttpStatus": 503,
+      "code": "ticket87_preview_rollback_fail_closed",
+      "writable": false
+    },
+    "cleanup": {
+      "workerDeleted": true,
+      "postDeleteHttpStatus": 404
+    }
+  },
+  "reopenedMaxAttemptsRepair": {
+    "reason": "The original completion boolean treated the first terminal attempt as exhaustion even when the frozen Homework policy permitted another attempt.",
+    "authorityChange": "The schedule authority now derives attemptsUsed from distinct current terminal attempts in the exact recipient, binding, context, Placement, Activity, and Activity Version scope, then computes attemptsRemaining and attemptsExhausted against maxAttempts.",
+    "completionSeparation": "A first terminal attempt still produces completed/review state, while autosave and submit remain permitted until the attempt limit is exhausted. Review-required remains reviewable and ungraded.",
+    "localProof": {
+      "root": {
+        "files": 4,
+        "tests": 31,
+        "status": "passed"
+      },
+      "cloudflare": {
+        "files": 8,
+        "tests": 62,
+        "status": "passed"
+      },
+      "targetedLint": {
+        "status": "passed",
+        "diagnostics": 0
+      }
+    },
+    "studentBrowserProof": {
+      "url": "http://localhost:5174/__smoke/book-runtime",
+      "status": "passed",
+      "tests": 1,
+      "addedState": "completed-review-retry-available",
+      "screenshot": "artifacts/prd0062-ticket-87/browser/completed-review-retry-available.png"
+    },
+    "productionEquivalentPreview": {
+      "profile": "media",
+      "accountSentinel": "kahoot-media",
+      "worker": "r2-upload-signer-prd0062-ticket87-preview",
+      "dryRun": {
+        "status": "passed",
+        "uploadKiB": 154.64,
+        "gzipKiB": 30.03
+      },
+      "passingVersionId": "f13ccf69-207f-4bdf-8d89-82282e2a2444",
+      "passingReadback": {
+        "httpStatus": 200,
+        "pass": true,
+        "firstSubmitStatus": 200,
+        "firstAttemptNumber": 1,
+        "retryAutosaveStatus": 200,
+        "retrySubmitStatus": 200,
+        "retryAttemptNumber": 2,
+        "exhaustedSubmitStatus": 403,
+        "exhaustedCode": "runtime_attempt_limit_reached",
+        "attemptsUsed": 2,
+        "attemptsRemaining": 0,
+        "attemptsExhausted": true,
+        "canReview": true,
+        "canSubmit": false,
+        "replayAfterExhaustionStatus": 200,
+        "replayAfterExhaustionOutcome": "replayed",
+        "replayAfterExhaustionAttemptNumber": 2,
+        "attemptCount": 2,
+        "completionCount": 2,
+        "raceNoWrite": true,
+        "forgedBindingOutcome": "unavailable"
+      },
+      "rollback": {
+        "versionId": "58c577ae-6388-4b95-97b1-8644f751cffd",
+        "trafficPercent": 100,
+        "proofHttpStatus": 503,
+        "code": "ticket87_preview_rollback_fail_closed",
+        "writable": false
+      },
+      "cleanup": {
+        "workerDeleted": true,
+        "deploymentStatusCode": 10007,
+        "postDeleteHttpStatus": 404
+      }
+    }
+  },
+  "independentReview": {
+    "status": "PASS",
+    "reviewedAt": "2026-08-01T11:15:00+07:00",
+    "focusedVerification": "Root 4 files/31 tests and Cloudflare selected 8 files/62 tests passed; targeted ESLint and final Wrangler dry-run passed.",
+    "finding": "No remaining acceptance blocker. Exact binding/revision propagation, terminal-attempt exhaustion, retry authority, trusted submit replay after exhaustion, stable two-row aggregation, preview readback, fail-closed rollback, and cleanup passed.",
+    "caveat": "Non-blocking coverage gaps remain for malformed attempt-policy boundary matrices, multi-interaction attempt counting, autosave replay after exhaustion, and greater-than-50/unlimited query behavior. The general npm build remains classified as the previously observed x64 source-mirroring harness stall; focused TypeScript-loading suites and Wrangler compilation passed with no product diagnostics."
+  }
+}

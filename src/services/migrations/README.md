@@ -34,6 +34,21 @@ node src/services/migrations/addProfileCompletedAt.js
 | 2026-02-22 | `migrateNotifications.ts` | Refactor notifications to per-user path | Created |
 
 ### Notifications Migration
-Migrates the flat `notifications/` structure to `notifications/{userId}/{notificationId}`.
-**Dry Run**: `npx ts-node src/services/migrations/migrateNotifications.ts --dry-run`
-**Actual**: `npx ts-node src/services/migrations/migrateNotifications.ts`
+
+The old browser-SDK entry point is retired and fails closed. Notification data
+must be migrated only by the bounded operator runner, which authenticates with
+the dedicated deployment identity, persists a signed checkpoint, and supports
+dry-run/resume/reconcile/rollback:
+
+```bash
+node scripts/migrate-notifications.mjs --dry-run --batch-size 100
+node scripts/migrate-notifications.mjs --execute --batch-size 100
+node scripts/migrate-notifications.mjs --reconcile --batch-size 100
+node scripts/migrate-notifications.mjs --rollback
+```
+
+Do not pass credentials or user tokens on the command line. The runner requires
+the deployment-only environment variables documented in the PRD0062 evidence
+runbook, defaults to gcloud service-account impersonation for a short-lived
+operator token, performs a checkpoint-path REST preflight, and rejects
+`FIREBASE_TOKEN`/browser-user token credentials.

@@ -70,7 +70,7 @@ Announcements do not replace tracking or audit requirements.
 
 Before finishing, verify:
 1. the action is registered and tracked according to `documentation/rules/observability.md`
-2. Reading V2 state-changing archive, restore, repair, remove, and duplicate-decision actions write required audit events according to `documentation/architecture/reading-v2-audit-trail.md`
+2. Reading V2 state-changing archive, restore, repair, remove, and duplicate-decision actions write required audit events according to `documentation/architecture/changelog/reading-v2-audit-trail.md`
 3. the announcement message matches the durable outcome, not just the optimistic UI state
 
 ---

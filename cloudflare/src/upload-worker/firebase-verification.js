@@ -44,7 +44,12 @@ async function verifyFirebaseJwt(token, env, jwtVerify, jwks) {
       return { valid: false, reason: 'missing_subject' };
     }
 
-    return { valid: true, uid: payload.sub };
+    return {
+      valid: true,
+      uid: payload.sub,
+      email: typeof payload.email === 'string' ? payload.email : undefined,
+      emailVerified: payload.email_verified === true,
+    };
   } catch {
     return { valid: false, reason: 'invalid_token' };
   }

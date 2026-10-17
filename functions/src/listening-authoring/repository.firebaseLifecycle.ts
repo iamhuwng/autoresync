@@ -2,8 +2,6 @@ import * as admin from 'firebase-admin';
 
 import {
   LISTENING_AUTHORING_ROOT,
-  assertNoActiveListeningTempCleanupLease,
-  assertNoDeletedListeningTempAssets,
   cloneDraftRecord,
   cloneRecord,
   cloneVersionRecord,
@@ -16,7 +14,6 @@ import {
 import {
   cloneOperationRecord,
   createOperationScopeKey,
-  deriveAssetIds,
 } from './repository.operationRecords';
 import { runLifecycleMutation } from './repository.lifecycleMutation';
 
@@ -40,7 +37,6 @@ export const firebaseLifecycleTransaction = async (
   const transaction = await rootRef.transaction((currentValue) => {
     const current: ListeningAuthoringRootState =
       currentValue !== null ? cloneRootState(currentValue as ListeningAuthoringRootState) : {};
-    assertNoActiveListeningTempCleanupLease(current, Date.now());
     const drafts = new Map<string, ListeningAuthoringDraftRecord>([
       ...Object.entries(current.drafts ?? {}),
       ...Object.entries(current.revision_drafts ?? {}),
@@ -48,13 +44,6 @@ export const firebaseLifecycleTransaction = async (
     const versions = new Map<string, ListeningPublishedVersionRecord>(
       Object.entries(current.versions ?? {}),
     );
-    if (input.operationType === 'restore') {
-      const targetDraft = drafts.get(input.targetId);
-      if (targetDraft) {
-        assertNoDeletedListeningTempAssets(current, targetDraft.assetIds);
-        assertNoDeletedListeningTempAssets(current, deriveAssetIds(targetDraft.document));
-      }
-    }
     const operationsById = new Map<string, ListeningAuthoringOperationRecord>(
       Object.entries(current.operations ?? {}),
     );

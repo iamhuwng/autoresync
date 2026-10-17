@@ -4,17 +4,24 @@ import {
   type MaterialBookMetadata,
   type MaterialBookNode,
 } from '../../types/materialCatalog.types';
+import type { SourceSetCandidate } from '../../types/bookAssembly.types';
+import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../book-assembly/componentPdfActivation.service';
+import { createComponentStudentDocument } from '../book-assembly/componentStudentDocument.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from './testTypeConfig.service';
 import { createMaterialBookSummary } from './materialSummaryAdapters.service';
 import {
   approvePublicBook,
+  PublicBookReadinessRefreshError,
   buildMaterialBookIndexCleanup,
   buildMaterialBookIndexWrites,
   createBookDraft,
   createMaterialBooksRepository,
   listPublicBookReviewQueue,
   listTeacherBooks,
+  listTeacherBooksPage,
+  planMaterialBookTreeUpdate,
   rejectPublicBookReview,
+  readMaterialBookPdfAuthority,
   returnPublicBookToPrivate,
   updateBookMetadata,
   updateBookTree,
@@ -59,6 +66,11 @@ const node = (overrides: Partial<MaterialBookNode> = {}): MaterialBookNode => ({
   updatedAt: NOW,
   ...overrides,
 });
+
+const sourceSet: SourceSetCandidate = {
+  sourceStrategy: 'full_pdf',
+  sources: [{ sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1 }],
+};
 
 const createRepo = (
   books: readonly MaterialBookMetadata[] = [],
@@ -163,6 +175,7 @@ describe('materialBooks.service', () => {
     const book = await createBookDraft(
       {
         bookId: materialCatalogIds.bookId('book-1'),
+        bookMode: 'materials',
         ownerId: 'teacher-1',
         title: 'Cambridge IELTS 18',
         authors: ['Cambridge'],
@@ -191,6 +204,7 @@ describe('materialBooks.service', () => {
     const book = await createBookDraft(
       {
         bookId: materialCatalogIds.bookId('book-1'),
+        bookMode: 'materials',
         ownerId: 'teacher-1',
         title: 'Book with section',
         authors: [],
@@ -205,6 +219,296 @@ describe('materialBooks.service', () => {
     expect(book.status).toBe('ready');
     expect(repo.writes).toEqual([]);
     expect(Object.keys(repo.updates[0])).toContain('material_catalog/book_nodes/book-1/node-1');
+  });
+
+  it('persists declared materials and pdf Book modes', async () => {
+    const repo = createRepo();
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+    };
+
+    const materialsBook = await createBookDraft(
+      {
+        bookId: materialCatalogIds.bookId('materials-book'),
+        bookMode: 'materials',
+        ownerId: 'teacher-1',
+        title: 'Materials Book',
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        now: () => NOW,
+      },
+      repo,
+      context,
+    );
+    const pdfBook = await createBookDraft(
+      {
+        bookId: materialCatalogIds.bookId('pdf-book'),
+        bookMode: 'pdf',
+        ownerId: 'teacher-1',
+        title: 'PDF Book',
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        now: () => NOW,
+      },
+      repo,
+      context,
+    );
+
+    expect(materialsBook.bookMode).toBe('materials');
+    expect(pdfBook.bookMode).toBe('pdf');
+    expect(pdfBook).toMatchObject({ bookRevision: 0, sourceSetRevision: 0 });
+    expect(pdfBook.sourceSet).toBeUndefined();
+    expect(pdfBook.setupActivations).toBeUndefined();
+    expect(repo.updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        'material_catalog/books/materials-book': expect.objectContaining({ bookMode: 'materials' }),
+      }),
+      expect.objectContaining({
+        'material_catalog/books/pdf-book': expect.objectContaining({ bookMode: 'pdf' }),
+      }),
+    ]));
+    expect(materialsBook).not.toHaveProperty('bookRevision');
+    expect(pdfBook.bookRevision).toBe(0);
+    expect(pdfBook.sourceSetRevision).toBe(0);
+    expect(pdfBook).not.toHaveProperty('sourceSet');
+  });
+
+  it('increments PDF Book revisions while preserving source authority', async () => {
+    const repo = createRepo([metadata({
+      bookMode: 'pdf',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    const first = await updateBookMetadata('book-1', { title: 'Renamed once' }, repo, context);
+    const second = await updateBookMetadata('book-1', { title: 'Renamed twice' }, repo, context);
+
+    expect(first).toMatchObject({ bookRevision: 5, sourceSetRevision: 2, sourceSet });
+    expect(second).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet });
+    const submitted = await updateBookMetadata('book-1', { visibility: 'public-library-pending-review' }, repo, context);
+    expect(submitted).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet, status: second.status });
+  });
+
+  it('preserves setup activation receipts and rejects metadata replacement', async () => {
+    const setupActivations = [{ operationId: 'operation-1', marker: 'exact' }] as never;
+    const repo = createRepo([metadata({ bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet, setupActivations })]);
+    const context = { actorId: 'teacher-1', actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW };
+    const updated = await updateBookMetadata('book-1', { title: 'Preserved' }, repo, context);
+    expect(updated.setupActivations).toEqual(setupActivations);
+    await expect(updateBookMetadata('book-1', { setupActivations: [] } as never, repo, context))
+      .rejects.toThrow('PDF authority is immutable');
+  });
+
+  it('reads only complete eligible PDF authority and fails closed otherwise', async () => {
+    const complete = metadata({
+      bookMode: 'pdf',
+      status: 'ready',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    });
+    const repo = createRepo([complete]);
+
+    await expect(readMaterialBookPdfAuthority(repo, 'book-1')).resolves.toMatchObject({
+      bookId: 'book-1',
+      bookMode: 'pdf',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet,
+    });
+
+    for (const incomplete of [
+      metadata({ bookMode: 'materials', status: 'ready', bookRevision: 4, sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'archived', bookRevision: 4, sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'ready', sourceSetRevision: 2, sourceSet }),
+      metadata({ bookMode: 'pdf', status: 'ready', bookRevision: 4, sourceSetRevision: 2 }),
+    ]) {
+      const candidateRepo = createRepo([incomplete]);
+      await expect(readMaterialBookPdfAuthority(candidateRepo, 'book-1')).resolves.toBeNull();
+    }
+  });
+
+  it.each([
+    ['one component', [{ sourceKey: 'unit-1', sourceVersionId: 'source-1', sourceOrder: 1, ownerNodeKey: 'unit-1' }]],
+    ['more than twenty components', Array.from({ length: 21 }, (_, index) => ({
+      sourceKey: `unit-${index + 1}`,
+      sourceVersionId: `source-${index + 1}`,
+      sourceOrder: index + 1,
+      ownerNodeKey: `unit-${index + 1}`,
+    }))],
+    ['sparse component order', [
+      { sourceKey: 'unit-1', sourceVersionId: 'source-1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'unit-2', sourceVersionId: 'source-2', sourceOrder: 3, ownerNodeKey: 'unit-2' },
+    ]],
+  ] as const)('rejects malformed canonical %s metadata', async (_label, sources) => {
+    const repo = createRepo([metadata({
+      bookMode: 'pdf',
+      status: 'ready',
+      bookRevision: 4,
+      sourceSetRevision: 2,
+      sourceSet: { sourceStrategy: 'component_pdfs', sources } as SourceSetCandidate,
+    })]);
+
+    await expect(readMaterialBookPdfAuthority(repo, 'book-1')).resolves.toBeNull();
+  });
+
+  it('resolves missing legacy Book mode in read and list paths', async () => {
+    const legacyBook = metadata({
+      bookId: materialCatalogIds.bookId('legacy-book'),
+      visibility: 'public-library-pending-review',
+    });
+    const read = vi.fn(async (path: string) => {
+      if (path === 'material_catalog/books/legacy-book') {
+        return legacyBook;
+      }
+
+      if (path === 'material_catalog/book_indexes/by_visibility/public-library-pending-review') {
+        return { 'legacy-book': legacyBook };
+      }
+
+      return null;
+    });
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    await expect(repo.readBook('legacy-book')).resolves.toMatchObject({ bookMode: 'materials' });
+    await expect(repo.listBooksByIndex({
+      teacherId: 'teacher-1',
+      scope: 'public-review-pending',
+    })).resolves.toEqual([
+      expect.objectContaining({ bookId: 'legacy-book', bookMode: 'materials' }),
+    ]);
+  });
+
+  it('does not persist the resolved fallback while updating legacy metadata', async () => {
+    const legacyBook = metadata();
+    const read = vi.fn(async (path: string) => (
+      path === 'material_catalog/books/book-1' ? legacyBook : null
+    ));
+    const update = vi.fn(async () => undefined);
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn(), update });
+
+    await expect(updateBookMetadata(
+      'book-1',
+      { title: 'Legacy renamed' },
+      repo,
+      {
+        actorId: 'teacher-1',
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+        now: () => NOW,
+      },
+    )).resolves.toMatchObject({ bookMode: 'materials', title: 'Legacy renamed' });
+
+    const canonicalWrite = update.mock.calls[0]?.[0]?.['material_catalog/books/book-1'];
+    expect(canonicalWrite).toMatchObject({ title: 'Legacy renamed' });
+    expect(canonicalWrite).not.toHaveProperty('bookMode');
+  });
+
+  it('rejects malformed persisted Book modes', async () => {
+    const read = vi.fn(async () => metadata({ bookMode: 'invalid' as never }));
+    const repo = createMaterialBooksRepository({ read, write: vi.fn(), remove: vi.fn() });
+
+    await expect(repo.readBook('book-1')).rejects.toThrow('Invalid Material Book mode: invalid');
+  });
+
+  it('rejects every attempted Book mode update without changing the original Book', async () => {
+    const repo = createRepo([metadata({ bookMode: 'materials' })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    for (const bookMode of ['materials', 'pdf'] as const) {
+      await expect(updateBookMetadata(
+        'book-1',
+        { bookMode } as never,
+        repo,
+        context,
+      )).rejects.toThrow('Material Book mode is immutable. Create a successor Book instead.');
+    }
+
+    await expect(repo.readBook('book-1')).resolves.toMatchObject({ bookMode: 'materials' });
+    expect(repo.updates).toEqual([]);
+  });
+
+  it('rejects successor-lineage retargeting without changing the original Book', async () => {
+    const repo = createRepo([metadata({
+      modeSuccessorLineage: {
+        kind: 'mode-successor',
+        predecessorBookId: 'book-before',
+        fromMode: 'pdf',
+        toMode: 'materials',
+        reason: 'Rebuild with material references',
+        actorId: 'teacher-1',
+        createdAt: NOW,
+      },
+    })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    await expect(updateBookMetadata(
+      'book-1',
+      {
+        modeSuccessorLineage: {
+          kind: 'mode-successor',
+          predecessorBookId: 'retargeted',
+          fromMode: 'materials',
+          toMode: 'pdf',
+          reason: 'retarget',
+          actorId: 'attacker',
+          createdAt: 'later',
+        },
+      } as never,
+      repo,
+      context,
+    )).rejects.toThrow('successor lineage is immutable');
+    expect(repo.updates).toEqual([]);
+  });
+
+  it('rejects source-strategy successor-lineage retargeting without changing the original Book', async () => {
+    const lineage = {
+      kind: 'source-strategy-successor' as const,
+      predecessorBookId: materialCatalogIds.bookId('book-before'),
+      predecessorPublicationId: 'publication-before',
+      predecessorManifestVersionId: 'manifest-before',
+      fromStrategy: 'full_pdf' as const,
+      toStrategy: 'component_pdfs' as const,
+      actorId: 'teacher-1',
+      createdByCommandId: '00000000-0000-4000-8000-000000000071',
+      createdAt: NOW,
+    };
+    const repo = createRepo([metadata({ sourceStrategySuccessorLineage: lineage })]);
+    const context = {
+      actorId: 'teacher-1',
+      actorRole: 'teacher' as const,
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      now: () => NOW,
+    };
+
+    await expect(updateBookMetadata(
+      'book-1',
+      { sourceStrategySuccessorLineage: { ...lineage, predecessorPublicationId: 'retargeted' } } as never,
+      repo,
+      context,
+    )).rejects.toThrow('source-strategy successor lineage is immutable');
+    expect(repo.updates).toEqual([]);
+    await expect(repo.readBook('book-1')).resolves.toMatchObject({
+      sourceStrategySuccessorLineage: lineage,
+    });
   });
 
   it('updates metadata and cleans stale visibility/Test Type indexes', async () => {
@@ -248,7 +552,7 @@ describe('materialBooks.service', () => {
     const nextNode = node({
       nodeId: materialCatalogIds.nodeId('chapter-1'),
       type: 'chapter',
-      order: 1,
+      order: 2,
     });
 
     await expect(
@@ -277,6 +581,99 @@ describe('materialBooks.service', () => {
       'material_catalog/book_nodes/book-1/chapter-1': expect.any(Object),
       'material_catalog/books/book-1': expect.objectContaining({ status: 'ready' }),
     });
+  });
+
+  it('plans the complete Book, index, and material-summary mirror update without I/O', () => {
+    const current = metadata({ updatedAt: 'base' });
+    const nextNode = node({
+      materialRefs: [{
+        refId: materialCatalogIds.refId('fork-ref'),
+        materialId: 'fork-activity',
+        materialKind: 'interactive-activity',
+        snapshotVersionId: 'fork-version',
+        titleSnapshot: 'Forked activity',
+        testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+        visibilitySnapshot: 'private',
+        availability: 'available',
+        updateState: 'current',
+        ownerIdSnapshot: current.ownerId,
+        order: 0,
+        addedAt: NOW,
+        addedBy: current.ownerId,
+      }],
+    });
+
+    const plan = planMaterialBookTreeUpdate({
+      current,
+      previousNodes: [node()],
+      nextNodes: [nextNode],
+      expectedUpdatedAt: 'base',
+      now: NOW,
+      context: {
+        actorId: current.ownerId,
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+    });
+
+    expect(plan.metadata).toMatchObject({ updatedAt: NOW, updatedBy: current.ownerId });
+    expect(plan.nodes[0]?.updatedAt).toBe(NOW);
+    expect(plan.updates).toMatchObject({
+      'material_catalog/books/book-1': expect.objectContaining({ updatedAt: NOW }),
+      'material_catalog/book_nodes/book-1/node-1': expect.objectContaining({
+        materialRefs: expect.arrayContaining([expect.objectContaining({ refId: 'fork-ref' })]),
+      }),
+      'material_catalog/book_indexes/by_owner/teacher-1/book-1': expect.any(Object),
+      'material_catalog/material_summary_indexes/v1/by_id/book-1': expect.any(Object),
+    });
+  });
+
+  it('scopes a canonical fork plan to the target node while validating the full tree', () => {
+    const current = metadata({ updatedAt: 'base' });
+    const target = node({ updatedAt: 'before' });
+    const sibling = node({
+      nodeId: materialCatalogIds.nodeId('node-2'),
+      title: 'Unrelated section',
+      order: 2,
+      updatedAt: 'before',
+    });
+    const nextTarget = {
+      ...target,
+      materialRefs: [{
+        refId: materialCatalogIds.refId('fork-ref'),
+        materialId: 'fork-activity',
+        materialKind: 'interactive-activity' as const,
+        snapshotVersionId: 'fork-version',
+        titleSnapshot: 'Forked activity',
+        testTypeIdsSnapshot: [materialCatalogIds.testTypeId('ielts')],
+        visibilitySnapshot: 'private' as const,
+        availability: 'available' as const,
+        updateState: 'current' as const,
+        ownerIdSnapshot: current.ownerId,
+        order: 0,
+        addedAt: NOW,
+        addedBy: current.ownerId,
+      }],
+    };
+
+    const plan = planMaterialBookTreeUpdate({
+      current,
+      previousNodes: [target, sibling],
+      nextNodes: [nextTarget, sibling],
+      touchedNodeIds: [target.nodeId],
+      expectedUpdatedAt: 'base',
+      now: NOW,
+      context: {
+        actorId: current.ownerId,
+        actorRole: 'teacher',
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+    });
+
+    expect(plan.nodes.find((entry) => entry.nodeId === target.nodeId)?.updatedAt).toBe(NOW);
+    expect(plan.nodes.find((entry) => entry.nodeId === sibling.nodeId)?.updatedAt).toBe('before');
+    expect(plan.updates).toHaveProperty('material_catalog/book_nodes/book-1/node-1');
+    expect(plan.updates).not.toHaveProperty('material_catalog/book_nodes/book-1/node-2');
   });
 
   it('does not perform partial Book writes when an atomic metadata update fails', async () => {
@@ -415,6 +812,28 @@ describe('materialBooks.service', () => {
     expect(repo.listBookNodes).not.toHaveBeenCalled();
   });
 
+  it('pages Book summaries through the bounded family and Test Type index without payload reads', async () => {
+    const readPage = vi.fn(async () => Object.fromEntries(Array.from({ length: 26 }, (_, index) => {
+      const book = metadata({ bookId: materialCatalogIds.bookId(`book-${index}`),
+        title: `Book ${index}`, updatedAt: `2026-06-${String(index + 1).padStart(2, '0')}T00:00:00.000Z` });
+      return [book.bookId, createMaterialBookSummary(book)];
+    })));
+    const read = vi.fn(async () => { throw new Error('Listing must not hydrate Book payloads.'); });
+    const repository = createMaterialBooksRepository({ read, readPage, write: vi.fn() });
+
+    const page = await listTeacherBooksPage({
+      teacherId: 'teacher-1', scope: 'private', testTypeId: materialCatalogIds.testTypeId('ielts'), repository,
+    });
+
+    expect(readPage).toHaveBeenCalledWith(
+      'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/book/ielts', 26, undefined,
+    );
+    expect(page.rows).toHaveLength(25);
+    expect(page.hasMore).toBe(true);
+    expect(page.cursor).toEqual({ updatedAt: '2026-06-02T00:00:00.000Z', materialId: 'book-1' });
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it('keeps Book listing available when Reading V2 summaries include delivery metadata', async () => {
     const book = metadata({
       bookId: materialCatalogIds.bookId('stable-book'),
@@ -476,7 +895,7 @@ describe('materialBooks.service', () => {
     ]);
   });
 
-  it('fails loudly when an owned Book summary has no canonical Book record', async () => {
+  it('lists an owned Book summary without reading canonical Book content', async () => {
     const book = metadata({ bookId: materialCatalogIds.bookId('missing-book') });
     const repo: MaterialBooksRepository = {
       readBook: vi.fn(async () => null),
@@ -494,10 +913,11 @@ describe('materialBooks.service', () => {
       scope: 'private',
       repository: repo,
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-    })).rejects.toThrow(/missing its owned canonical record: missing-book/);
+    })).resolves.toEqual([expect.objectContaining({ bookId: 'missing-book' })]);
+    expect(repo.readBook).not.toHaveBeenCalled();
   });
 
-  it('fails loudly when a public Book summary has no public projection', async () => {
+  it('lists a public Book summary without reading its public projection', async () => {
     const repo = {
       ...createRepo([
         metadata({
@@ -515,7 +935,27 @@ describe('materialBooks.service', () => {
       scope: 'public',
       repository: repo,
       testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
-    })).rejects.toThrow(/missing its public projection: public-book/);
+    })).resolves.toEqual([expect.objectContaining({ bookId: 'public-book' })]);
+    expect(repo.readPublicBookProjection).not.toHaveBeenCalled();
+  });
+
+  it('rejects contradictory public and owner Book summary visibility', async () => {
+    const publicBook = metadata({ visibility: 'public-library-published', status: 'ready' });
+    const privateBook = metadata({ visibility: 'public-library-pending-review', status: 'ready' });
+    const repo = createRepo();
+    const listBookSummaries = vi.fn(async () => [
+      { ...createMaterialBookSummary(publicBook), bookVisibility: 'public-library-pending-review' as const },
+    ]);
+    await expect(listTeacherBooks({ teacherId: 'teacher-2', scope: 'public',
+      repository: { ...repo, listBookSummaries },
+    })).rejects.toThrow(/invalid listing fields/);
+
+    listBookSummaries.mockResolvedValueOnce([
+      { ...createMaterialBookSummary(privateBook), bookVisibility: 'public-library-published' as const },
+    ]);
+    await expect(listTeacherBooks({ teacherId: 'teacher-1', scope: 'private',
+      repository: { ...repo, listBookSummaries },
+    })).rejects.toThrow(/invalid listing fields/);
   });
 
   it('lists pending public Book review queue from the pending-review visibility index', async () => {
@@ -627,6 +1067,16 @@ describe('materialBooks.service', () => {
   });
 
   it('approves pending public Books by writing a public-safe projection after unsafe-ref checks', async () => {
+    const document = createComponentStudentDocument({ sourceVersionId: 'combined-v1', descriptorRevision: 2, sha256Hex: 'a'.repeat(64),
+      byteSize: 1024, physicalPageCount: 2, compositionFingerprint: 'composition-1', components: [
+        { sourceKey: 'one', sourceVersionId: 'one-v1', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'two', sourceVersionId: 'two-v1', sourceOrder: 2, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ] });
+    const componentSourceSet: SourceSetCandidate = { sourceStrategy: 'component_pdfs', sources: document.components.map(({ sourceKey, sourceVersionId, sourceOrder, ownerNodeKey }) => ({ sourceKey, sourceVersionId, sourceOrder, ownerNodeKey })) };
+    const activation = createComponentPdfActivationReceipt({ operationId: 'activation-1', ownerId: 'teacher-1', bookId: 'book-1',
+      expectedBookRevision: 3, expectedSourceSetRevision: 1, activatedAt: NOW, sourceSet: componentSourceSet,
+      unitCandidates: [{ unitKey: 'unit-1', candidateId: 'candidate-1', candidateRevision: 1, manifestFingerprint: 'b'.repeat(64) }],
+      activities: [], studentDocument: { sourceVersionId: document.sourceVersionId, descriptorRevision: document.descriptorRevision, descriptorFingerprint: fingerprintComponentPdfActivationValue(document) } });
     const publicRefNode = node({
       materialRefs: [
         {
@@ -649,6 +1099,7 @@ describe('materialBooks.service', () => {
       metadata({
         visibility: 'public-library-pending-review',
         status: 'ready',
+        bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet: componentSourceSet, setupActivations: [activation],
       }),
     ], {
       'book-1': [publicRefNode],
@@ -672,9 +1123,12 @@ describe('materialBooks.service', () => {
     );
 
     expect(approved.visibility).toBe('public-library-published');
+    expect(approved).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, setupActivations: [activation] });
+    expect(await readMaterialBookPdfAuthority(repo, 'book-1')).toMatchObject({ bookRevision: 4, sourceSet: componentSourceSet });
     expect(repo.writes).toEqual([]);
     expect(repo.updates).toHaveLength(1);
     const projectionWrite = repo.updates[0]['material_catalog/public_book_projections/book-1'];
+    expect(repo.updates[0]['material_catalog/public_book_readiness/book-1']).toBeNull();
 
     expect(projectionWrite).toMatchObject({
       bookId: 'book-1',
@@ -708,6 +1162,22 @@ describe('materialBooks.service', () => {
       'material_catalog/books/book-1': expect.objectContaining({ visibility: 'public-library-published' }),
       'material_catalog/book_indexes/by_visibility/public-library-published/book-1': expect.any(Object),
     });
+  });
+
+  it('reports refresh failure with the committed approval and preserves content revision', async () => {
+    const repo = createRepo([metadata({ visibility: 'public-library-pending-review', status: 'ready', bookMode: 'pdf',
+      bookRevision: 4, sourceSetRevision: 2, sourceSet })], { 'book-1': [] });
+    const refresh = vi.fn(async () => {
+      expect((await repo.readBook('book-1'))?.visibility).toBe('public-library-published');
+      throw new Error('backend unavailable');
+    });
+    const error = await approvePublicBook('book-1', { ...repo, refreshPublicReadiness: refresh },
+      { actorId: 'admin-1', actorRole: 'super_admin', testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES, now: () => NOW },
+      { reason: 'Approved PDF.' }).catch((value) => value);
+    expect(error).toBeInstanceOf(PublicBookReadinessRefreshError);
+    expect(error.committedBook).toMatchObject({ visibility: 'public-library-published', bookRevision: 4, sourceSetRevision: 2 });
+    expect(repo.updates).toHaveLength(1);
+    expect(refresh).toHaveBeenCalledWith('book-1');
   });
 
   it('approves ready Books when RTDB omits empty node fields', async () => {
@@ -876,6 +1346,7 @@ describe('materialBooks.service', () => {
       metadata({
         visibility: 'public-library-published',
         status: 'ready',
+        bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 2, sourceSet,
       }),
     ]);
 
@@ -887,6 +1358,7 @@ describe('materialBooks.service', () => {
     );
 
     expect(rejected.visibility).toBe('public-library-rejected');
+    expect(rejected).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet, status: 'ready' });
     expect(rejected.publicReview).toMatchObject({
       status: 'rejected',
       reason: 'Contains outdated material refs.',
@@ -903,6 +1375,7 @@ describe('materialBooks.service', () => {
     );
 
     expect(returned.visibility).toBe('private');
+    expect(returned).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet, status: 'ready' });
     expect(returned.publicReview).toMatchObject({
       status: 'returned-private',
       reason: 'Owner should revise metadata.',

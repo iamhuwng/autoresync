@@ -1,0 +1,177 @@
+{
+  "generatedAt": "2026-07-29T03:19:40+07:00",
+  "sourceGraph": "artifacts/prd0062-graph-20260729-post-ticket59-closed-router-repair.json",
+  "issueHash": "ec27748b8cdec05a1787de1f0a0dd61182512c441e923c8444a929cb665317fa",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 55,
+    "closedCount": 57,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 86, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryTransitiveGate": {
+    "unresolvedTicketsAudited": 55,
+    "allUnresolvedTickets": [49, 50, 76, 77, 80, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 129, 130, 131, 132, 133, 134, 135, 136],
+    "completeChainSource": "The live graph records every unresolved ticket's directPrerequisites, transitivePrerequisites, and openTransitivePrerequisites.",
+    "ineligibilityRule": "Any direct or transitive open prerequisite, ownership blocker, roadmap-phase mismatch, unavailable authority, or non-executable acceptance gate makes a ticket ineligible.",
+    "openTransitivePrerequisiteRejections": [77, 80, 87, 88, 89, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+    "rejectionReason": "Each listed ticket has an open transitive prerequisite recorded in the source graph; no work may begin on it."
+  },
+  "roadmap": {
+    "activePhase": "teacher-workflow",
+    "phaseOrder": ["foundation", "runtime", "teacher-workflow", "student-workflow", "operations", "final-closure"],
+    "selectionStatus": "paused_no_eligible_candidate",
+    "primaryTicket": null
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "roadmapPhase": "foundation",
+      "graphClear": true,
+      "directClosedPrerequisites": [47, 48],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Private-B2 provisioning, scoped identity, disposable upload, and cleanup proof are not executable under current authority.",
+      "owner": "#49 private-B2 provisioning/deployment authority",
+      "impact": "Selecting #49 would violate the preserved private-B2 safety boundary."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "roadmapPhase": "foundation",
+      "graphClear": true,
+      "directClosedPrerequisites": [29, 47, 48],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 16,
+      "reason": "#50A remains all-six-deny/default-deny; activation authority is unavailable.",
+      "owner": "#50A canonical approval and rollout authority",
+      "impact": "Selecting #50 would require prohibited capability activation."
+    },
+    {
+      "ticket": 76,
+      "decision": "rejected",
+      "roadmapPhase": "student-workflow",
+      "graphClear": true,
+      "directClosedPrerequisites": [74, 75],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74, 75],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 40,
+      "reason": "Graph-clear but later student-workflow phase; teacher-workflow root/enablers are not acceptance-ready."
+    },
+    {
+      "ticket": 86,
+      "decision": "rejected",
+      "roadmapPhase": "teacher-workflow",
+      "graphClear": true,
+      "directClosedPrerequisites": [59, 84, 85],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 81, 82, 83, 84, 85],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 39,
+      "reason": "#59 is now closed, but #86 remains acceptance-ineligible: approved route/deployment injection, identity/readback, browser, and rollback proof are unavailable.",
+      "owner": "#86 route composition and #134 deployment authority",
+      "requiredAction": "Inject #85 saga, #84 authority/root resolver, and Book Delivery repository through an approved preview/deployed surface with scoped identities; prove canonical route, Firestore/RTDB visibility, token/identity readback, browser, and rollback.",
+      "evidence": "Default createUploadWorker() supplies no Book handlers; enabled path fails closed with saga_unavailable. #59 adjacent suite is clean, but no #86 browser/deployed/rollback proof exists.",
+      "impact": "Do not inspect, implement, or begin #86 or its descendants. Keep route/trusted gates disabled."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected",
+      "roadmapPhase": "operations",
+      "graphClear": true,
+      "directClosedPrerequisites": [74],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 34,
+      "reason": "Graph-clear but later Operations phase; cannot bypass the blocked teacher-workflow root."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected",
+      "roadmapPhase": "teacher-workflow",
+      "graphClear": true,
+      "directClosedPrerequisites": [42, 65, 66, 69, 71, 72],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 42, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 69, 70, 71, 72],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 25,
+      "reason": "Independent teacher candidate is not acceptance-ready: typed catalog route, safe public boundary, entitlement adapter, negative security matrix, deployed readback, and hide-catalog rollback proof are absent.",
+      "owner": "#105 ContentCatalog plus public-projection/rules and entitlement owners",
+      "impact": "Do not inspect or implement #105 until its live audit is repaired."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Later final-closure teacher browser suite."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [75, 127],
+      "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74, 75, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Later final-closure student runtime/persistence suite."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Later final-closure student accessibility/device suite."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Later final-closure contract/security suite."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "roadmapPhase": "final-closure",
+      "graphClear": true,
+      "directClosedPrerequisites": [127],
+      "completeTransitivePrerequisiteChain": [44, 127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "reason": "Later final-closure legacy/backup/recovery suite."
+    }
+  ],
+  "selection": {
+    "primaryTicket": null,
+    "reason": "No current-phase root/enabler satisfies all prerequisite, authority, and executable acceptance gates.",
+    "pauseCondition": "Resume after #86 receives approved route/deployment/browser/rollback authority or #105 receives missing catalog/public-projection/entitlement/deployment/rollback evidence. Refetch all issue bodies and rebuild the complete 112-ticket graph before selecting exactly one primary.",
+    "descendantPolicy": "Do not bypass #86 or #105 acceptance blockers by selecting descendants."
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "mode03B": "disabled",
+    "mode50A": "all-six-deny/default-deny",
+    "privateB2": "disabled",
+    "scope": "Preserve all 112 tickets; no early completion."
+  }
+}

@@ -16,6 +16,10 @@ import {
     deleteDoc,
     query,
     where,
+    orderBy,
+    documentId,
+    startAfter,
+    limit,
     Timestamp,
     getFirestore,
 } from 'firebase/firestore';
@@ -32,6 +36,35 @@ const db = getFirestore();
  * Collection path for THCS drafts
  */
 const THCS_DRAFTS_COLLECTION = 'thcs_drafts';
+
+/** Bounded teacher-lobby read. The cursor is the last row actually displayed/consumed. */
+export async function listTeacherThcsDraftPage(
+    userId: string,
+    cursor?: { updatedAt: Timestamp; id: string },
+): Promise<ServiceResponse<(THCSDraft & { cursorUpdatedAt: Timestamp })[]>> {
+    try {
+        const constraints = [
+            where('userId', '==', userId),
+            orderBy('updatedAt', 'desc'),
+            orderBy(documentId(), 'desc'),
+            ...(cursor ? [startAfter(cursor.updatedAt, cursor.id)] : []),
+            limit(26),
+        ];
+        const snapshot = await getDocs(query(collection(db, THCS_DRAFTS_COLLECTION), ...constraints));
+        return {
+            success: true,
+            data: snapshot.docs.map((row) => {
+                const data = row.data();
+                return {
+                    ...convertTimestamps<THCSDraft>({ ...data, id: row.id }),
+                    cursorUpdatedAt: data.updatedAt as Timestamp,
+                };
+            }),
+        };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch THCS drafts' };
+    }
+}
 
 /**
  * Create a new THCS-THPT draft document

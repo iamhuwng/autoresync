@@ -1,0 +1,90 @@
+{
+  "ticket": 95,
+  "title": "PRD0062 38B2 - Migrate course, class, assignment, and enrollment notification producers",
+  "status": "BLOCKED",
+  "generatedAt": "2026-07-29T15:25:00+07:00",
+  "selection": {
+    "graphArtifact": "artifacts/prd0062-graph-20260729-ticket95-blocked-refresh.json",
+    "graphHash": "8e0c6f3113b08030c2da514fb299dbd571ffd38a53ea69334120925efd5d1237",
+    "issueCount": 112,
+    "openCount": 51,
+    "closedCount": 61,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClear": true,
+    "acceptanceReady": false,
+    "roadmapPhase": "operations",
+    "directPrerequisites": [94],
+    "closedTransitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 93, 94],
+    "downstreamLeverage": 30,
+    "requiredAuthority": [
+      "#94 trusted command seam and scoped notification-create authority",
+      "staging persistence for course, class, assignment, enrollment, announcement, deadline, and due-soon producer families",
+      "readback and idempotency evidence before restrictive rules activation"
+    ]
+  },
+  "implementation": {
+    "ownedProducerPaths": [
+      "src/services/courseManager.ts",
+      "src/services/classManager.ts",
+      "src/services/assignmentManager.ts",
+      "src/services/enrollmentManager.ts",
+      "src/services/deadlineReminderService.ts",
+      "src/pages/TeacherHomeworkDetailPage.tsx",
+      "src/services/courseAnnouncementService.ts",
+      "src/components/course/RequestReviewList.tsx",
+      "src/services/notificationProducerClient.ts",
+      "src/services/notificationProducerClient.test.ts",
+      "src/services/notificationProducerInventory.test.ts",
+      "src/services/assignmentManager.test.ts",
+      "src/services/enrollmentManager.test.ts"
+    ],
+    "families": ["course", "class", "assignment", "enrollment", "announcement", "deadline"],
+    "rawNotificationWrites": "none in owned producer paths",
+    "trustedCommandShape": "validated producer family, owned authority record, recipient, deterministic operation key, bounded title/message/link",
+    "legacyCompatibility": "legacy notification reads and read-state paths remain; new trusted commands omit arbitrary legacy metadata",
+    "safety": "notification command route remains disabled; missing worker origin fails closed; #50A, #03B, private-B2, and trusted production gates unchanged"
+  },
+  "verification": {
+    "focusedHarness": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/notificationProducerClient.test.ts src/services/notificationProducerInventory.test.ts src/services/assignmentManager.test.ts src/services/enrollmentManager.test.ts src/services/notificationService.test.ts",
+      "result": "PASS",
+      "files": 5,
+      "tests": 67
+    },
+    "eslint": "PASS",
+    "mantineBoundary": "PASS",
+    "diffCheck": "PASS with pre-existing LF-to-CRLF warning for unrelated json path",
+    "productionBuild": {
+      "result": "PASS",
+      "modules": 9448,
+      "duration": "2m15s"
+    },
+    "bundleBudget": "PASS",
+    "pinnedTypecheck": "BLOCKED by pre-existing/shared Book Assembly and runtime diagnostics; no diagnostics in #95 paths",
+    "rawProducerScan": "PASS; no notificationService/createNotification/createBulkNotifications references in the eight migrated producer paths"
+  },
+  "browserProof": {
+    "result": "INCOMPLETE",
+    "teacherUrl": "http://localhost:5173",
+    "studentUrl": "http://localhost:5174",
+    "teacher": "Authenticated teacher surface rendered notification control and existing notification destination; no seeded #95 course/class/assignment/enrollment record was available.",
+    "student": "Authenticated student surface rendered unread notification state and class/result feed; stale ended session correctly failed closed instead of navigating.",
+    "readState": "Existing UI state rendered; fresh #95 producer-created read-state mutation was not claimed.",
+    "reason": "The live browser gate is not satisfied by compatibility-only seeded data."
+  },
+  "blocker": {
+    "owner": "local/staging harness and notification-command deployment authority",
+    "requiredAction": "Provide an approved staging or production-equivalent disposable surface with #94 command persistence, scoped notification-create identity, per-family readback, and idempotency evidence; keep restrictive rules and trusted activation disabled.",
+    "evidence": [
+      "Live #95 acceptance requires staging exercises for every owned producer family before rules activation.",
+      "#94 route flag BOOK_NOTIFICATIONS_ROUTES_ENABLED remains disabled.",
+      "Current browser run had no seeded #95 producer-created records; stale student destination failed closed.",
+      "Local focused tests and production build pass, but injected fetch proof is not staging persistence proof."
+    ],
+    "impact": "#95 cannot close. #97 shares the same unavailable #94 trusted-command/staging blocker family and is not an eligible fallback. No ticket was closed and no commit was created in this turn."
+  }
+}

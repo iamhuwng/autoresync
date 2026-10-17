@@ -3,7 +3,6 @@
  * Shows each blank with multi-value text inputs for accepted answers.
  */
 import React, { useState } from 'react';
-import { TextInput } from '@mantine/core';
 import type { BlankAnswer } from '../../types/thcs-test.types';
 
 interface THCSFillInAnswerInputProps {
@@ -52,6 +51,7 @@ const THCSFillInAnswerInput: React.FC<THCSFillInAnswerInputProps> = ({ blankAnsw
                             }}>
                                 {ans}
                                 <button
+                                    aria-label={`Remove ${ans} from blank ${bi + 1}`}
                                     onClick={() => handleRemove(bi, ai)}
                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontWeight: 700, fontSize: '0.625rem', padding: 0, lineHeight: 1 }}
                                 >×</button>
@@ -63,16 +63,16 @@ const THCSFillInAnswerInput: React.FC<THCSFillInAnswerInputProps> = ({ blankAnsw
                     </div>
                     {/* Input */}
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <TextInput
+                        <input
                             placeholder="Add answer..."
                             value={inputValues[bi] || ''}
                             onChange={(e) => setInputValues(prev => ({ ...prev, [bi]: e.target.value }))}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(bi); } }}
-                            size="xs"
-                            style={{ flex: 1 }}
-                            styles={{ input: { fontSize: '0.75rem', height: 24, minHeight: 24 } }}
+                            aria-label={`Accepted answer for blank ${bi + 1}`}
+                            style={{ flex: 1, minWidth: 0, fontSize: '0.75rem', minHeight: 28, border: '1px solid #cbd5e1', borderRadius: 4, padding: '0 6px' }}
                         />
                         <button
+                            aria-label={`Add answer for blank ${bi + 1}`}
                             onClick={() => handleAdd(bi)}
                             style={{ padding: '0 0.375rem', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '0.25rem', background: 'transparent', color: '#7c3aed', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}
                         >+</button>

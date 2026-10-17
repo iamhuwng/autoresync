@@ -67,7 +67,6 @@ export function AuthProvider({ children }) {
   // Track if we're in the process of force logout
   const isForceLoggingOut = useRef(false);
 
-  const SUPER_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL;
 
   /**
    * Handle force logout with reason
@@ -152,35 +151,17 @@ export function AuthProvider({ children }) {
               // ===== END SECURITY CHECKS =====
 
               // Profile exists and is valid
-              const isSuperAdmin = authUser.email === SUPER_ADMIN_EMAIL;
               const mergedProfile = {
                 ...data,
                 uid: authUser.uid,
                 email: authUser.email, // Ensure email is up to date from Auth
-                role: isSuperAdmin ? 'super_admin' : data.role,
               };
               setProfile(mergedProfile);
               setIsBlocked(false);
               setForceLogoutReason(null);
             } else {
               // No profile exists yet - will be created during login/registration flow
-              // If it's the Super Admin email, we can auto-create/promote
-              if (authUser.email === SUPER_ADMIN_EMAIL) {
-                const newProfile = {
-                  uid: authUser.uid,
-                  email: authUser.email,
-                  displayName: authUser.displayName,
-                  photoURL: authUser.photoURL,
-                  role: 'super_admin',
-                  createdAt: serverTimestamp(),
-                  lastLoginAt: serverTimestamp(),
-                  status: 'active',
-                  forceReauth: false
-                };
-                set(userRef, newProfile).catch(console.error);
-              } else {
-                setProfile(null);
-              }
+              setProfile(null);
             }
             setLoading(false);
           });
@@ -203,7 +184,7 @@ export function AuthProvider({ children }) {
         unsubscribeProfile();
       }
     };
-  }, [SUPER_ADMIN_EMAIL, handleForceLogout]);
+  }, [handleForceLogout]);
 
   /**
    * Google OAuth login
@@ -236,21 +217,19 @@ export function AuthProvider({ children }) {
         await set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp());
         await remove(ref(database, `users/${authUser.uid}/forceReauth`)).catch(() => { });
       } else {
-        // Create new student profile by default if not super admin
-        if (authUser.email !== SUPER_ADMIN_EMAIL) {
-          const newProfile = {
-            uid: authUser.uid,
-            email: authUser.email,
-            displayName: authUser.displayName,
-            photoURL: authUser.photoURL,
-            role: 'student', // Default role
-            createdAt: serverTimestamp(),
-            lastLoginAt: serverTimestamp(),
-            status: 'active',
-            forceReauth: false
-          };
-          await set(userRef, newProfile);
-        }
+        // Create a student profile; administrator promotion requires trusted administration.
+        const newProfile = {
+          uid: authUser.uid,
+          email: authUser.email,
+          displayName: authUser.displayName,
+          photoURL: authUser.photoURL,
+          role: 'student',
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+          status: 'active',
+          forceReauth: false
+        };
+        await set(userRef, newProfile);
       }
 
       // Log successful login (Task 6.8)

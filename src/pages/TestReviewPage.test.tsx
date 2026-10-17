@@ -25,7 +25,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MantineProvider } from '@mantine/core';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOCKS
@@ -64,6 +63,16 @@ vi.mock('../services/draftCloudService', () => ({
 
 // Mock testStorage (saveTestToFirebase)
 const mockSaveTestToFirebase = vi.fn();
+const mockUploadImage = vi.fn();
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+const mockTrackAction = vi.fn();
+
+vi.mock('../services/r2Storage', () => ({ default: { uploadImage: (...args: unknown[]) => mockUploadImage(...args) } }));
+vi.mock('../components/modern/ToastNotification', () => ({
+    toast: { success: (...args: unknown[]) => mockToastSuccess(...args), error: (...args: unknown[]) => mockToastError(...args) },
+}));
+vi.mock('../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: mockTrackAction }) }));
 
 vi.mock('../services/testStorage', () => ({
     saveTestToFirebase: (...args: unknown[]) => mockSaveTestToFirebase(...args),
@@ -99,6 +108,15 @@ vi.mock('../components/test-creation/ParseReviewPanel', () => ({
         <div data-testid="parse-review-panel">
             <span data-testid="passages-count">{props.passages?.length ?? 0}</span>
             <span data-testid="questions-count">{props.questions?.length ?? 0}</span>
+            {props.questions?.filter((question: any) => question.type === 'diagram-labeling').map((question: any) => (
+                <div key={question.questionNumber}>
+                    <span data-testid="diagram-url">{question.diagramImage || ''}</span>
+                    <input aria-label="Upload diagram" type="file" onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) props.onDiagramUpload(question.questionNumber, file);
+                    }} />
+                </div>
+            ))}
             {props.leftSidebarContent}
         </div>
     ),
@@ -229,11 +247,7 @@ const renderPage = async () => {
     const mod = await import('./TestReviewPage');
     TestReviewPage = mod.default;
 
-    return render(
-        <MantineProvider>
-            <TestReviewPage />
-        </MantineProvider>
-    );
+    return render(<TestReviewPage />);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -264,6 +278,7 @@ describe('TestReviewPage', () => {
             testId: 'test-published-001',
         });
         mockDeleteDraft.mockResolvedValue({ success: true });
+        mockUploadImage.mockResolvedValue({ url: 'https://r2.example/diagram.png' });
         // Mock window.confirm for publish confirmation
         vi.spyOn(window, 'confirm').mockReturnValue(true);
     });
@@ -562,6 +577,20 @@ describe('TestReviewPage', () => {
         });
     });
 
+    it('switches the native sidebar between review items and the publishing checklist', async () => {
+        const user = userEvent.setup();
+        await renderPage();
+
+        const publishSidebarButton = await screen.findByRole('button', { name: 'Publish' });
+        expect(screen.getByTestId('completion-checklist')).not.toBeVisible();
+        await user.click(publishSidebarButton);
+        expect(screen.getByTestId('completion-checklist')).toBeVisible();
+        expect(publishSidebarButton).toHaveAttribute('aria-pressed', 'true');
+
+        await user.click(screen.getByRole('button', { name: /Need Review/ }));
+        expect(screen.getByTestId('completion-checklist')).not.toBeVisible();
+    });
+
     // ─────────────────────────────────────────────────────────────────────────
     // Publish Button
     // ─────────────────────────────────────────────────────────────────────────
@@ -772,6 +801,62 @@ describe('TestReviewPage', () => {
     // ─────────────────────────────────────────────────────────────────────────
     // Publishing Flow (Tasks 6.1-6.3)
     // ─────────────────────────────────────────────────────────────────────────
+
+    it('uploads a diagram to R2 and preserves its URL through draft save and publish', async () => {
+        const user = userEvent.setup();
+        mockLoadDraft.mockResolvedValue({
+            success: true,
+            data: createPublishableDraft({
+                questions: [{
+                    questionNumber: 1, questionText: 'Label the diagram', type: 'diagram-labeling',
+                    answer: 'A', passageId: 'passage-1', confidence: 90,
+                }],
+            }),
+        });
+
+        await renderPage();
+        await screen.findByLabelText('Upload diagram');
+        await user.upload(screen.getByLabelText('Upload diagram'), new File(['image'], 'diagram.png', { type: 'image/png' }));
+
+        await waitFor(() => {
+            expect(mockUploadImage).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId('diagram-url')).toHaveTextContent('https://r2.example/diagram.png');
+            expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({
+                questions: [expect.objectContaining({ imageUrl: 'https://r2.example/diagram.png' })],
+            }));
+        });
+        expect(mockTrackAction).toHaveBeenCalledWith('uploadDiagramImage', { questionNumber: 1 });
+        expect(mockToastSuccess).toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: 'Publish Test' }));
+        await waitFor(() => expect(mockSaveTestToFirebase).toHaveBeenCalledWith(
+            expect.anything(), expect.anything(),
+            [expect.objectContaining({ imageUrl: 'https://r2.example/diagram.png' })],
+            expect.anything(), undefined, expect.anything(), false,
+        ));
+    });
+
+    it('retains a saved diagram on reload and leaves the question unchanged when upload fails', async () => {
+        const user = userEvent.setup();
+        mockLoadDraft.mockResolvedValue({
+            success: true,
+            data: createPublishableDraft({
+                questions: [{
+                    questionNumber: 1, questionText: 'Label the diagram', type: 'diagram-labeling',
+                    answer: 'A', passageId: 'passage-1', confidence: 90, imageUrl: 'https://r2.example/old.png',
+                }],
+            }),
+        });
+        mockUploadImage.mockRejectedValue(new Error('offline'));
+
+        await renderPage();
+        await screen.findByText('https://r2.example/old.png');
+        await user.upload(screen.getByLabelText('Upload diagram'), new File(['new'], 'new.png', { type: 'image/png' }));
+
+        await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+        expect(screen.getByTestId('diagram-url')).toHaveTextContent('https://r2.example/old.png');
+        expect(mockSave).not.toHaveBeenCalled();
+    });
 
     describe('Publishing Flow', () => {
         it('calls saveTestToFirebase with correct data when publish is clicked', async () => {

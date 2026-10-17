@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-15T03:44:42Z",
+  "mission": "PRD0062 Milestone-1 browser handoff",
+  "classification": "STUDENT_SHELL_MEMBERSHIP_EMPTY_BEFORE_HOMEWORK_DISCOVERY",
+  "transport": {
+    "result": "PASS",
+    "diagnosis": "the original six-retry upload failure was transient transport behavior under the default 200-request Hosting upload concurrency, not authentication or artifact rejection",
+    "nonLiveProof": {
+      "version": "sites/kahut1/versions/c4f60a9e9eca95a5",
+      "file": "dist/assets/readingV2PasteImportFixtures-DAgz9S3G.js",
+      "gzipSha256": "5a792cb4f1bf08fb0765e79ced0275e0c13241d7efd0af93ad1828181324cd55",
+      "httpStatus": 200,
+      "elapsedSeconds": 1.7
+    },
+    "mitigation": "repository-local Firebase CLI 15.11.0 with FIREBASE_HOSTING_UPLOAD_CONCURRENCY=1 and the established authenticated Firebase CLI account",
+    "iamOrCredentialMutation": false
+  },
+  "frozenFrontend": {
+    "changed": false,
+    "files": 441,
+    "bytes": 11872235,
+    "manifestSha256": "88f4b8cffec0f8e108b3be308c82703875a1a59ce14362d4504a9960963abcab",
+    "indexSha256": "a51fdab515ec62ecfc018a7d265d0530b0e0db188bd411a9f11be34e9c8de826",
+    "entry": "/assets/index-rR9ze86f.js",
+    "entrySha256": "6fe80c6b833b8ef0aac3b70066cbce02bf720749c3c1bbaefc11bd1a59ccf3d7"
+  },
+  "successfulHostingDeployment": {
+    "release": "projects/temp-a1437/sites/kahut1/channels/live/releases/1786764728911000",
+    "version": "projects/temp-a1437/sites/kahut1/versions/78a42227163a9276",
+    "status": "FINALIZED",
+    "releaseTime": "2026-08-15T03:32:08.911Z",
+    "servedIndexSha256": "a51fdab515ec62ecfc018a7d265d0530b0e0db188bd411a9f11be34e9c8de826",
+    "servedEntrySha256": "6fe80c6b833b8ef0aac3b70066cbce02bf720749c3c1bbaefc11bd1a59ccf3d7"
+  },
+  "backendActivation": {
+    "workerDeployment": "d5ae2e6f-4a33-44b9-b7e9-55d36f0ca968",
+    "workerVersion": "57b33871-f1a6-454f-a6aa-9236777bc68a",
+    "trafficPercent": 100,
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "assignmentCommandRequests": 0
+  },
+  "preBrowserDurableReadback": {
+    "root": "committed revision 7",
+    "authority": "revision 2",
+    "delivery": "active binding revision 1",
+    "compatibilityShell": "PRESENT; schema version 1; no stats, status, or studentOverrides"
+  },
+  "browser": {
+    "origin": "https://kahut1.web.app",
+    "teacher": {
+      "authentication": "PASS; teacher@test.com",
+      "listRoute": "/teacher/homework",
+      "bookDiscovery": "PASS; exact Vocabulary U1 Book Homework card rendered",
+      "bookDetail": "NOT_COMPLETED_BEFORE_STOP"
+    },
+    "student": {
+      "authentication": "PASS; student@test.com",
+      "listRoute": "/student/homework",
+      "result": "FAIL",
+      "visibleState": "No classes joined yet; All (0); 0 assignments",
+      "bookDiscovery": "FAIL; Vocabulary U1 compatibility shell was not listed",
+      "bookDetail": "NOT_REACHABLE",
+      "runtime": "NOT_REACHABLE"
+    },
+    "ordinaryHomework": {
+      "result": "NOT_AVAILABLE_IN_RENDERED_LIST",
+      "teacherOrdinaryCardCount": 0,
+      "studentAssignmentCount": 0
+    }
+  },
+  "owningBoundaryEvidence": {
+    "studentUid": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "shellOwner": "StudentShellDataProvider/useStudentShellData enrolledClasses",
+    "targetClassId": "2NE3KY",
+    "targetClassLegacyMembershipPresent": true,
+    "targetClassMembershipIndexPresent": false,
+    "observedContractBreak": "the shell resolved enrolledClasses to an empty list before the Homework list loader could query bounded homework_assignments",
+    "adapterOrAuthorityFailure": false
+  },
+  "rollback": {
+    "hostingRelease": "projects/temp-a1437/sites/kahut1/channels/live/releases/1786765420384000",
+    "hostingVersion": "projects/temp-a1437/sites/kahut1/versions/31a9052843c443c5",
+    "workerDeployment": "b338c919-0fb7-43b2-8f24-acc2ac5747cd",
+    "workerVersion": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "workerTrafficPercent": 100,
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "readback": "PASS"
+  },
+  "durableStateAfterRollback": {
+    "root": "committed revision 7",
+    "authority": "revision 2",
+    "delivery": "active binding revision 1",
+    "compatibilityShell": "PRESENT; unchanged",
+    "assignmentCommandRequests": 0
+  },
+  "disposition": "STOPPED AT STUDENT SHELL CLASS-MEMBERSHIP OWNERSHIP BOUNDARY; no adapter expansion; NOT READY FOR USER BROWSER HANDOFF"
+}

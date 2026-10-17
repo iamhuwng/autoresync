@@ -1,7 +1,7 @@
 # Local Main Workspace Safety Plan
 
-Status: approved plan, implementation pending  
-Created: 2026-05-16  
+Status: approved plan, implementation pending
+Created: 2026-05-16
 Canonical project: `C:\Users\The Lord\Desktop\luyentap-writing-import-rebased`
 
 ## Purpose

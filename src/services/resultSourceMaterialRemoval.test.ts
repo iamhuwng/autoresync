@@ -42,7 +42,7 @@ describe('resultSourceMaterialRemoval', () => {
       expect.arrayContaining([
         'test_results_by_session',
         'test_results_by_student',
-        'test_results_by_teacher',
+        'teacher_result_keys',
         'test_results_by_course',
         'test_results_by_class',
       ]),

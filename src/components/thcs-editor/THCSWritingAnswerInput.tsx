@@ -3,7 +3,6 @@
  * Multi-value text input for model answers.
  */
 import React, { useState } from 'react';
-import { TextInput } from '@mantine/core';
 
 interface THCSWritingAnswerInputProps {
     modelAnswers: string[];
@@ -38,6 +37,7 @@ const THCSWritingAnswerInput: React.FC<THCSWritingAnswerInputProps> = ({ modelAn
                     }}>
                         {ans.length > 40 ? ans.substring(0, 40) + '…' : ans}
                         <button
+                            aria-label={`Remove model answer ${ans}`}
                             onClick={() => handleRemove(i)}
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontWeight: 700, fontSize: '0.625rem', padding: 0, lineHeight: 1 }}
                         >×</button>
@@ -49,16 +49,16 @@ const THCSWritingAnswerInput: React.FC<THCSWritingAnswerInputProps> = ({ modelAn
             </div>
             {/* Input */}
             <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <TextInput
+                <input
                     placeholder="Add model answer..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
-                    size="xs"
-                    style={{ flex: 1 }}
-                    styles={{ input: { fontSize: '0.75rem', height: 24, minHeight: 24 } }}
+                    aria-label="Model answer"
+                    style={{ flex: 1, minWidth: 0, fontSize: '0.75rem', minHeight: 28, border: '1px solid #cbd5e1', borderRadius: 4, padding: '0 6px' }}
                 />
                 <button
+                    aria-label="Add model answer"
                     onClick={handleAdd}
                     style={{ padding: '0 0.375rem', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '0.25rem', background: 'transparent', color: '#059669', fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}
                 >+</button>

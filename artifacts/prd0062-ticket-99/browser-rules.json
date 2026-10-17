@@ -1,0 +1,29 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "security_logs": {
+      ".write": "auth != null"
+    },
+    "notifications": {
+      ".read": "false",
+      ".write": "false",
+      "$recipientId": {
+        ".read": "auth != null && auth.uid === $recipientId",
+        ".write": "false",
+        "$notificationId": {
+          ".write": "false",
+          "read": {
+            ".write": "auth != null && auth.uid === $recipientId && data.exists() && data.val() === false && newData.exists() && newData.val() === true"
+          }
+        }
+      }
+    }
+  }
+}

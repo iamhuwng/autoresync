@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-07-29T05:00:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260729-ticket105-contract-transfer.json",
+  "graphHash": "ffdcfe4161964e02d574d70ba09ea7c54369f2e862793d84939828b2eb9e6849",
+  "roadmapPhase": "teacher workflow / controlled catalog reuse",
+  "selectedTicket": 105,
+  "closedPrerequisites": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 42, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 69, 70, 71, 72],
+  "openTransitivePrerequisites": [],
+  "downstreamLeverage": 25,
+  "acceptanceReadiness": "executable locally after destination-first deployed/canary proof transfer to #134",
+  "requiredAuthority": "local repository, Firebase emulator/rules harness, localhost teacher quick-login",
+  "candidateRejections": [
+    {"ticket": 49, "reason": "private-B2 provisioning authority remains disabled; different operations phase"},
+    {"ticket": 50, "reason": "private-B2 recovery authority remains disabled; different operations phase"},
+    {"ticket": 76, "reason": "student terminal-attempt workflow follows the current teacher/catalog phase"},
+    {"ticket": 93, "reason": "notification operations phase follows current teacher/catalog phase"},
+    {"ticket": 129, "reason": "final-closure browser suite; acceptance not executable while activation boundary remains denied"},
+    {"ticket": 130, "reason": "final-closure browser suite; acceptance not executable while activation boundary remains denied"},
+    {"ticket": 131, "reason": "final-closure browser suite; acceptance not executable while activation boundary remains denied"},
+    {"ticket": 132, "reason": "final-closure regression suite; acceptance not executable while activation boundary remains denied"},
+    {"ticket": 133, "reason": "final-closure recovery suite; acceptance not executable while activation boundary remains denied"}
+  ]
+}

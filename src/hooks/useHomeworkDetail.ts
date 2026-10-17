@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { collection, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { firestore as db } from '../services/firebase';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import type { HomeworkAssignment, HomeworkSubmission } from '../types/homework.types';
 
 export interface UseHomeworkDetailReturn {
@@ -19,6 +20,7 @@ function sortSubmissions(submissions: HomeworkSubmission[]): HomeworkSubmission[
 
 const HOMEWORK_COLLECTION = 'homework_assignments';
 const SUBMISSION_COLLECTION = 'homework_submissions';
+type HomeworkReadMode = 'compatibility' | 'ordinary' | null;
 
 export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn {
     const [homework, setHomework] = useState<HomeworkAssignment | null>(null);
@@ -26,6 +28,8 @@ export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn 
     const [homeworkLoading, setHomeworkLoading] = useState(true);
     const [submissionsLoading, setSubmissionsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [homeworkReadId, setHomeworkReadId] = useState<string | null>(null);
+    const [homeworkReadMode, setHomeworkReadMode] = useState<HomeworkReadMode>(null);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const loadHomework = useCallback(async () => {
@@ -37,6 +41,8 @@ export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn 
             setError(null);
             setHomeworkLoading(false);
             setSubmissionsLoading(false);
+            setHomeworkReadId(null);
+            setHomeworkReadMode(null);
             return;
         }
 
@@ -50,17 +56,24 @@ export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn 
             if (!homeworkSnapshot.exists()) {
                 setHomework(null);
                 setError('Homework not found');
+                setHomeworkReadMode('ordinary');
             } else {
-                setHomework({
+                const nextHomework = {
                     id: homeworkSnapshot.id,
                     ...(homeworkSnapshot.data() as Omit<HomeworkAssignment, 'id'>),
-                });
+                };
+                setHomework(nextHomework);
+                setHomeworkReadMode(
+                    isBookHomeworkCompatibilityProjection(nextHomework) ? 'compatibility' : 'ordinary'
+                );
             }
         } catch (err) {
             console.error('Error loading homework detail:', err);
             setError(err instanceof Error ? err.message : 'Failed to load homework');
+            setHomeworkReadMode('ordinary');
         } finally {
             setHomeworkLoading(false);
+            setHomeworkReadId(normalizedHomeworkId);
         }
     }, [homeworkId]);
 
@@ -72,6 +85,20 @@ export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn 
         const normalizedHomeworkId = homeworkId?.trim();
 
         if (!normalizedHomeworkId) {
+            setSubmissions([]);
+            setSubmissionsLoading(false);
+            return;
+        }
+
+        // Wait for the assignment detail read before deciding whether this is
+        // the compatibility projection. Missing/ordinary assignments still
+        // fall through to the existing submissions subscription once read.
+        if (homeworkReadId !== normalizedHomeworkId || homeworkReadMode === null) {
+            setSubmissionsLoading(true);
+            return;
+        }
+
+        if (homeworkReadMode === 'compatibility') {
             setSubmissions([]);
             setSubmissionsLoading(false);
             return;
@@ -114,7 +141,7 @@ export function useHomeworkDetail(homeworkId?: string): UseHomeworkDetailReturn 
 
             unsubscribe();
         };
-    }, [homeworkId]);
+    }, [homeworkId, homeworkReadId, homeworkReadMode]);
 
     const refetch = useCallback(async () => {
         await loadHomework();

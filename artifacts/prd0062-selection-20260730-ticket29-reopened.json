@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-07-30T14:33:57.1050608Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket29-reopened.json",
+  "graphIssueHash": "394ac57ea145ac62931279afec8d0fd88fa7771ded50ef44553ae294b16b0eb1",
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [
+    29,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 29,
+    "ticket": "04",
+    "title": "Reserve Source Version capacity",
+    "closedPrerequisites": [
+      25,
+      27
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 86,
+    "acceptanceReadiness": "Executable: repository regression, adjacent control/Worker suites, dry-run, and rollback preserve-ledger proof are available under current authority.",
+    "requiredAuthority": "Ordinary repository implementation, tests, issue evidence, closure, commit, and push under the active PRD0062 goal.",
+    "selectionReason": "A deployed #49 begin request proved #29's closed Book/source ownership invariant false. #29 is the earliest unresolved Foundation root and blocks #47 and #49 transitively."
+  },
+  "rejectedCandidates": [
+    {
+      "number": 49,
+      "reason": "Dependency-ineligible: transitive prerequisite #29 is OPEN."
+    },
+    {
+      "number": 129,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 131,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 132,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 133,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    }
+  ],
+  "primaryCount": 1
+}

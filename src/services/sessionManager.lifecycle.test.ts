@@ -5,11 +5,13 @@ const {
   refMock,
   setMock,
   updateMock,
+  createTrustedBulkNotificationsMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   refMock: vi.fn((_database?: unknown, path = '') => ({ path })),
   setMock: vi.fn(),
   updateMock: vi.fn(),
+  createTrustedBulkNotificationsMock: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -35,6 +37,9 @@ vi.mock('./sessionHelpers', () => ({
 vi.mock('../types/releaseState.types', () => ({
   getSessionEndReleaseState: vi.fn(() => 'review-released'),
 }));
+vi.mock('./notificationProducerClient', () => ({
+  createTrustedBulkNotifications: (...args: unknown[]) => createTrustedBulkNotificationsMock(...args),
+}));
 
 import {
   createSession,
@@ -58,6 +63,7 @@ describe('sessionManager lifecycle index writes', () => {
     sessionStorage.clear();
     updateMock.mockResolvedValue(undefined);
     setMock.mockResolvedValue(undefined);
+    createTrustedBulkNotificationsMock.mockResolvedValue({ success: true });
   });
 
   it('creates canonical session and owner index in one root update', async () => {
@@ -84,6 +90,52 @@ describe('sessionManager lifecycle index writes', () => {
         createdAt: 1_000,
       },
     }));
+  });
+
+  it('notifies enrolled students through the session producer with stable authority and retry identity', async () => {
+    getMock.mockImplementation(async (reference: { path: string }) => {
+      if (reference.path === 'classes/class-1/name') return snap('Class 1');
+      if (reference.path === 'classes/class-1/students') {
+        return snap({ 'student-1': { uid: 'student-1' }, 'student-2': { uid: 'student-2' } });
+      }
+      return snap(null);
+    });
+
+    await createSession({ testId: 'test-1', classId: 'class-1', createdBy: 'teacher-1' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(createTrustedBulkNotificationsMock).toHaveBeenCalledWith(
+      ['student-1', 'student-2'],
+      {
+        producerFamily: 'session',
+        authorityRecordId: 'ABC123',
+        operationKey: 'session-opened:ABC123',
+        type: 'info',
+        title: '📚 New Session Available',
+        message: 'Class 1 has a new test session ready. Join with code ABC123.',
+        link: '/student-wait/ABC123',
+      },
+    );
+  });
+
+  it('keeps roster notification delivery when optional class-name read fails', async () => {
+    getMock.mockImplementation(async (reference: { path: string }) => {
+      if (reference.path === 'classes/class-1/name') throw new Error('class name unavailable');
+      if (reference.path === 'classes/class-1/students') {
+        return snap({ 'student-1': { uid: 'student-1' } });
+      }
+      return snap(null);
+    });
+
+    await createSession({ testId: 'test-1', classId: 'class-1', createdBy: 'teacher-1' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(createTrustedBulkNotificationsMock).toHaveBeenCalledWith(
+      ['student-1'],
+      expect.objectContaining({
+        message: 'Your class has a new test session ready. Join with code ABC123.',
+      }),
+    );
   });
 
   it('extension reactivates stored expired sessions and refreshes owner index atomically', async () => {

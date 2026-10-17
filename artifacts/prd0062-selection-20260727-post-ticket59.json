@@ -1,0 +1,185 @@
+{
+  "selectedAt": "2026-07-27T22:58:00+07:00",
+  "governingPolicy": "Mandatory dependency gate and deterministic roadmap: calculate every direct and transitive prerequisite chain; graph-clear is not acceptance-ready; require live-closed prerequisites, current roadmap phase, executable acceptance gates, available ownership/authority, and strongest verified closure/downstream-unblock value; select exactly one primary.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket59-publication-routes-closed.json",
+    "issueHash": "328174745a8ac7a9ded5e74ff6b3a989b479e8536e02b9d1620c56a0ff7c0ca1",
+    "issueCount": 112,
+    "openCount": 68,
+    "closedCount": 44,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [
+      49,
+      50,
+      67,
+      68,
+      70,
+      73,
+      81,
+      93,
+      129,
+      130,
+      131,
+      132,
+      133
+    ],
+    "transitiveChainAudit": "Every unresolved ticket's complete transitivePrerequisites and openTransitivePrerequisites are stored in the referenced 112-ticket graph artifact."
+  },
+  "selectedTicket": {
+    "issue": 70,
+    "ticket": "20B",
+    "title": "Migrate unpublished Mode 2 source strategy and remap",
+    "roadmapPhase": "teacher workflow",
+    "directPrerequisites": [
+      32,
+      57
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      55,
+      56,
+      57
+    ],
+    "openTransitivePrerequisites": [],
+    "closedPrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      55,
+      56,
+      57
+    ],
+    "downstreamLeverage": 27,
+    "acceptanceReadiness": "Executable local candidate migration, explicit source-qualified remap, browser fixture, security/rollback, and x64 preview/dry-run proof without publication, private-B2, or trusted-action activation. No client-supplied IDs or source mappings are accepted. #50A remains all-deny/default-deny and #03B/private-B2 remain disabled.",
+    "requiredAuthority": [
+      "local source-strategy migration implementation and focused tests",
+      "teacher role-port browser proof at http://localhost:5173",
+      "x64 build/preview or Wrangler dry-run only; no remote mutation",
+      "no #50A, #03B, private-B2, publication, or trusted-action activation"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "issues": [
+        49,
+        50
+      ],
+      "reason": "Graph-clear, but Foundation acceptance requires private-B2 provisioning, deployed disposable-object proof, or lifecycle mutation that is not executable under current authority and safety policy. Ineligible, not merely lower priority."
+    },
+    {
+      "issues": [
+        67,
+        68
+      ],
+      "reason": "Graph-clear and same Teacher workflow phase, but positive mapping/activity publication acceptance requires trusted publication capability and deployment evidence; those action gates remain disabled. Different from #70's unpublished, no-publication boundary."
+    },
+    {
+      "issues": [
+        73,
+        81
+      ],
+      "reason": "Graph-clear, but Student workflow phase is later than the current Teacher workflow phase; defer until the current phase's eligible root/enabler work is reconciled."
+    },
+    {
+      "issue": 93,
+      "reason": "Graph-clear, but Operations phase is later than the current Teacher workflow phase; defer by roadmap phase rule."
+    },
+    {
+      "issues": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only by live Blocked-by edges; Final closure/regression phase is later and acceptance remains bounded by preserved activation and #50A safety gates."
+    }
+  ],
+  "nonFrontierOpenTickets": {
+    "rule": "Reject before inspection or implementation because at least one direct or transitive prerequisite is OPEN; exact complete chains and open prerequisite IDs are in the graph artifact.",
+    "issues": [
+      71,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      128,
+      134,
+      135,
+      136
+    ]
+  },
+  "selectionDecision": "Select exactly one primary: #70 / Ticket 20B. It is the earliest eligible Teacher-workflow root/enabler after #59 closure and has the strongest verified downstream leverage among eligible candidates. Do not begin #67/#68 publication descendants or later Student/Operations/Final candidates until their phase and acceptance gates are eligible."
+}

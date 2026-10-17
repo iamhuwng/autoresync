@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-07-26T04:20:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260726-post-ticket13a-transfer.json",
+  "graphIssueHash": "d0ade87415132aa1befd5ec62c568a1eae2d62db9a037c6ae2ccf13107c0c993",
+  "roadmapPhase": "runtime",
+  "selectionContract": {
+    "ticketCount": 112,
+    "requireClosedTransitivePrerequisites": true,
+    "requireExecutableAcceptanceGates": true,
+    "rootsAndEnablersBeforeDescendants": true,
+    "exactlyOnePrimary": true,
+    "recomputeAfterClosure": true,
+    "preserve03BDisabled": true,
+    "preserve50AAllSixDeny": true,
+    "destinationFirstTransferLedger": true
+  },
+  "graphSnapshot": {
+    "issueCount": 112,
+    "openCount": 90,
+    "closedCount": 22,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [38, 39, 40, 41, 49, 50, 51, 55, 129, 130, 131, 132, 133]
+  },
+  "selectedPrimary": {
+    "ticket": 55,
+    "title": "PRD0062 13A — Build Assembly candidate command API",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [32, 35, 48],
+    "closedTransitivePrerequisites": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 74,
+    "acceptanceReadiness": {
+      "executable": true,
+      "basis": "Destination-first transfer removed #59-owned deployed route proof and #118-owned generated/assembled-rules proof from #55. Retained API, handler, repository, exact RTDB path, fragment/static security, query-budget, and local mutation-disabled rollback gates are executable in the focused harness.",
+      "browserGate": "Not independently required by live #55 contract.",
+      "deployedRouteGate": "Destination-owned by #59/09D.",
+      "assembledRulesGate": "Destination-owned by #118/09E."
+    },
+    "requiredAuthority": [
+      "Scoped Assembly service-identity declaration and config names",
+      "Focused local Worker/repository harness",
+      "Static 13A fragment/security harness"
+    ],
+    "selectionReason": "Earliest eligible runtime Assembly enabler with strongest verified downstream leverage after destination-first ownership transfer."
+  },
+  "candidateEvaluation": [
+    {
+      "tickets": [38, 39, 40, 41],
+      "status": "rejected",
+      "reason": "Downstream renderer/adaptor work; browser acceptance requires unavailable #22B student shell. Do not bypass current Assembly enabler."
+    },
+    {
+      "ticket": 49,
+      "status": "rejected",
+      "reason": "Independent but later delivery provisioning; B2 account/key/policy and 500 MiB disposable proof require unavailable Backblaze authority."
+    },
+    {
+      "ticket": 50,
+      "status": "rejected",
+      "reason": "Independent but later operations/recovery; deployed exact-version cleanup identity and B2 disposable-object authority unavailable."
+    },
+    {
+      "ticket": 51,
+      "status": "rejected",
+      "reason": "Later document-delivery enabler; deployed acceptance still requires #59 canonical route registration and identity integration."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "status": "rejected",
+      "reason": "Final-closure phase; graph-clear status after #127 does not permit selection before runtime/workflow/operations inputs and phase transition."
+    }
+  ],
+  "crossTicketTransfers": {
+    "to59": [
+      "Canonical top-level Assembly route composition",
+      "Deployed Assembly route reachability",
+      "Deployed Worker-to-Firebase Assembly identity integration",
+      "Disposable canonical-route save/reload",
+      "Active Worker version/config/readback",
+      "Route-level rollback proof"
+    ],
+    "to118": [
+      "Generated database.rules.json proof",
+      "Assembled emulator enforcement proof for Assembly paths",
+      "Active rules deployment/hash/readback",
+      "Generated-rules rollback artifact",
+      "Legacy-path preservation after Assembly fragment composition"
+    ]
+  },
+  "decision": "Select exactly #55 as runtime primary. Finish retained #55 gates, record destination-owned proof as open in #59/#118, close #55 only after retained evidence passes, then commit/push and rebuild all 112 issue bodies."
+}

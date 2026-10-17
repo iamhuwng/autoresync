@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "44",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "44",
+    "issue": 106,
+    "serviceIdentity": "public_book_canonical_fork_service",
+    "generatedRuleLocations": [
+      "book_activity/canonical_fork_operations/.write",
+      "book_activity/canonical_fork_operations/$actorId/$operationId/.read",
+      "book_activity/canonical_fork_operations/$actorId/$operationId/.write",
+      "material_catalog/books/.write",
+      "material_catalog/books/$bookId/.write",
+      "material_catalog/books/$bookId/.validate",
+      "material_catalog/book_nodes/.write",
+      "material_catalog/book_nodes/$bookId/$nodeId/.write",
+      "material_catalog/book_nodes/$bookId/$nodeId/materialRefs/$refIndex/.validate",
+      "material_catalog/book_indexes/.write",
+      "material_catalog/book_indexes/by_owner/$ownerId/$bookId/.write",
+      "material_catalog/book_indexes/by_visibility/$visibility/$bookId/.write",
+      "material_catalog/book_indexes/by_test_type/$testTypeId/$bookId/.write",
+      "material_catalog/material_summary_indexes/v1/.write",
+      "material_catalog/material_summary_indexes/v1/by_id/$materialId/.write",
+      "material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId/.write",
+      "material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId/.write",
+      "material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId/.write",
+      "material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_activity/canonical_fork_operations/$actorId/$operationId",
+      "material_catalog/books/$bookId",
+      "material_catalog/book_nodes/$bookId/$nodeId",
+      "material_catalog/book_indexes/by_owner/$ownerId/$bookId",
+      "material_catalog/book_indexes/by_visibility/$visibility/$bookId",
+      "material_catalog/book_indexes/by_test_type/$testTypeId/$bookId",
+      "material_catalog/material_summary_indexes/v1/by_id/$materialId",
+      "material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId",
+      "material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId",
+      "material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId",
+      "material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity/canonical_fork_operations/$actorId/$operationId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'recordKind' || $other == 'actorId' || $other == 'operationId' || $other == 'status' || $other == 'intentFingerprint' || $other == 'planFingerprint' || $other == 'activityId' || $other == 'activityVersionId' || $other == 'canonicalFingerprint' || $other == 'safeProjectionFingerprint' || $other == 'target' || $other == 'source' || $other == 'createdAt'"
+    },
+    {
+      "path": "book_activity/canonical_fork_operations/$actorId/$operationId/target/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'originalNodeId' || $other == 'placementId' || $other == 'appendOrder' || $other == 'expectedUpdatedAt'"
+    },
+    {
+      "path": "book_activity/canonical_fork_operations/$actorId/$operationId/source/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'ownerId' || $other == 'manifestVersionId' || $other == 'publicationId' || $other == 'publicationRevision' || $other == 'sourceVersionId' || $other == 'activityId' || $other == 'activityVersionId' || $other == 'activityVersion' || $other == 'payloadFingerprint' || $other == 'placementIds' || $other == 'placementSetFingerprint' || $other == 'nodeKey' || $other == 'placementId' || $other == 'unitKey' || $other == 'activityKey' || $other == 'selectionPath' || $other == 'selectionOrder' || $other == 'sourcePages' || $other == 'pageGroupKeys' || $other == 'contextFingerprint'"
+    },
+    {
+      "path": "material_catalog/books/$bookId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'bookMode' || $other == 'modeSuccessorLineage' || $other == 'reusedActivityRefs' || $other == 'sourceStrategySuccessorLineage' || $other == 'setupActivations' || $other == 'ownerId' || $other == 'title' || $other == 'subtitle' || $other == 'authors' || $other == 'publisher' || $other == 'edition' || $other == 'series' || $other == 'isbn' || $other == 'coverUrl' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'description' || $other == 'visibility' || $other == 'status' || $other == 'createdAt' || $other == 'updatedAt' || $other == 'createdBy' || $other == 'updatedBy' || $other == 'publicReview' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'brokenRefReasons'"
+    },
+    {
+      "path": "material_catalog/book_nodes/$bookId/$nodeId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'nodeId' || $other == 'bookId' || $other == 'parentNodeId' || $other == 'type' || $other == 'title' || $other == 'order' || $other == 'materialRefs' || $other == 'createdAt' || $other == 'updatedAt'"
+    },
+    {
+      "path": "material_catalog/book_nodes/$bookId/$nodeId/materialRefs/$refIndex/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'refId' || $other == 'materialId' || $other == 'materialKind' || $other == 'snapshotVersionId' || $other == 'titleSnapshot' || $other == 'testTypeIdsSnapshot' || $other == 'visibilitySnapshot' || $other == 'availability' || $other == 'updateState' || $other == 'ownerIdSnapshot' || $other == 'order' || $other == 'addedAt' || $other == 'addedBy'"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_owner/$ownerId/$bookId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'bookMode' || $other == 'ownerId' || $other == 'title' || $other == 'subtitle' || $other == 'authors' || $other == 'publisher' || $other == 'series' || $other == 'coverUrl' || $other == 'visibility' || $other == 'status' || $other == 'testTypeIds' || $other == 'testTypeMembership' || $other == 'tags' || $other == 'updatedAt' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'brokenRefReasons'"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_visibility/$visibility/$bookId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'bookMode' || $other == 'ownerId' || $other == 'title' || $other == 'subtitle' || $other == 'authors' || $other == 'publisher' || $other == 'series' || $other == 'coverUrl' || $other == 'visibility' || $other == 'status' || $other == 'testTypeIds' || $other == 'testTypeMembership' || $other == 'tags' || $other == 'updatedAt' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'brokenRefReasons'"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_test_type/$testTypeId/$bookId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'bookId' || $other == 'bookMode' || $other == 'ownerId' || $other == 'title' || $other == 'subtitle' || $other == 'authors' || $other == 'publisher' || $other == 'series' || $other == 'coverUrl' || $other == 'visibility' || $other == 'status' || $other == 'testTypeIds' || $other == 'testTypeMembership' || $other == 'tags' || $other == 'updatedAt' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'brokenRefReasons'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_id/$materialId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'materialId' || $other == 'producerId' || $other == 'materialKind' || $other == 'surfaceFamily' || $other == 'ownerId' || $other == 'title' || $other == 'description' || $other == 'visibility' || $other == 'lifecycleState' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'updatedAt'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'materialId' || $other == 'producerId' || $other == 'materialKind' || $other == 'surfaceFamily' || $other == 'ownerId' || $other == 'title' || $other == 'description' || $other == 'visibility' || $other == 'lifecycleState' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'updatedAt'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'materialId' || $other == 'producerId' || $other == 'materialKind' || $other == 'surfaceFamily' || $other == 'ownerId' || $other == 'title' || $other == 'description' || $other == 'visibility' || $other == 'lifecycleState' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'updatedAt'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'materialId' || $other == 'producerId' || $other == 'materialKind' || $other == 'surfaceFamily' || $other == 'ownerId' || $other == 'title' || $other == 'description' || $other == 'visibility' || $other == 'lifecycleState' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'updatedAt'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId/$other",
+      "rule": ".validate",
+      "merge": "replace-fork-allowed-key-validation",
+      "requiresExistingRule": false,
+      "expression": "auth == null || auth.token.pbcf.s != true || $other == 'schemaVersion' || $other == 'materialId' || $other == 'producerId' || $other == 'materialKind' || $other == 'surfaceFamily' || $other == 'ownerId' || $other == 'title' || $other == 'description' || $other == 'visibility' || $other == 'lifecycleState' || $other == 'primaryTestTypeId' || $other == 'testTypeIds' || $other == 'tags' || $other == 'hasBrokenRefs' || $other == 'brokenRefCount' || $other == 'updatedAt'"
+    },
+    {
+      "path": "book_activity/canonical_fork_operations",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity/canonical_fork_operations/$actorId/$operationId",
+      "rule": ".read",
+      "merge": "replace-exact-claim",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.a == $actorId && auth.token.pbcf.o == $operationId && data.exists()"
+    },
+    {
+      "path": "material_catalog/books",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/book_nodes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/book_indexes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "material_catalog/book_nodes/$bookId/$nodeId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && auth.token.pbcf.tn == $nodeId && root.child('material_catalog/books').child($bookId).child('ownerId').val() == auth.token.pbcf.a && data.exists() && newData.exists() && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('bookId').val() == data.child('bookId').val() && newData.child('nodeId').val() == data.child('nodeId').val() && newData.child('parentNodeId').val() == data.child('parentNodeId').val() && newData.child('type').val() == data.child('type').val() && newData.child('title').val() == data.child('title').val() && newData.child('order').val() == data.child('order').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('refId').val() == auth.token.pbcf.tp && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('materialId').val() == auth.token.pbcf.ia && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('materialKind').val() == 'interactive-activity' && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('snapshotVersionId').val() == auth.token.pbcf.iv && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('titleSnapshot').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('activity/title').val() && (!newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('testTypeIdsSnapshot').exists() || newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('testTypeIdsSnapshot').hasChildren()) && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('visibilitySnapshot').val() == 'private' && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('availability').val() == 'available' && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('updateState').val() == 'current' && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('ownerIdSnapshot').val() == auth.token.pbcf.a && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('order').val() == auth.token.pbcf.ao && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('addedAt').val() == auth.token.pbcf.ct && newData.child('materialRefs').child('' + auth.token.pbcf.ri).child('addedBy').val() == auth.token.pbcf.a"
+    },
+    {
+      "path": "material_catalog/book_nodes/$bookId/$nodeId/materialRefs/$refIndex",
+      "rule": ".validate",
+      "merge": "replace-scalar-immutable-existing-or-server-capability-append",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && auth.token.pbcf.tn == $nodeId && ((data.exists() && newData.exists() && newData.child('refId').val() == data.child('refId').val() && newData.child('materialId').val() == data.child('materialId').val() && newData.child('materialKind').val() == data.child('materialKind').val() && newData.child('snapshotVersionId').val() == data.child('snapshotVersionId').val() && newData.child('titleSnapshot').val() == data.child('titleSnapshot').val() && newData.child('visibilitySnapshot').val() == data.child('visibilitySnapshot').val() && newData.child('availability').val() == data.child('availability').val() && newData.child('updateState').val() == data.child('updateState').val() && newData.child('ownerIdSnapshot').val() == data.child('ownerIdSnapshot').val() && newData.child('order').val() == data.child('order').val() && newData.child('addedAt').val() == data.child('addedAt').val() && newData.child('addedBy').val() == data.child('addedBy').val()) || (!data.exists() && newData.exists() && $refIndex == '' + auth.token.pbcf.ri && newData.child('refId').val() == auth.token.pbcf.tp && newData.child('materialId').val() == auth.token.pbcf.ia && newData.child('materialKind').val() == 'interactive-activity' && newData.child('snapshotVersionId').val() == auth.token.pbcf.iv && newData.child('titleSnapshot').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('activity/title').val() && (!newData.child('testTypeIdsSnapshot').exists() || newData.child('testTypeIdsSnapshot').hasChildren()) && newData.child('visibilitySnapshot').val() == 'private' && newData.child('availability').val() == 'available' && newData.child('updateState').val() == 'current' && newData.child('ownerIdSnapshot').val() == auth.token.pbcf.a && newData.child('order').val() == auth.token.pbcf.ao && newData.child('addedAt').val() == auth.token.pbcf.ct && newData.child('addedBy').val() == auth.token.pbcf.a))"
+    },
+    {
+      "path": "material_catalog/books/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && data.exists() && newData.exists() && data.child('ownerId').val() == auth.token.pbcf.a && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('updatedBy').val() == auth.token.pbcf.a && newData.child('status').val() == auth.token.pbcf.bs && newData.child('setupActivations/0').exists() == data.child('setupActivations/0').exists() && newData.child('setupActivations/0/operationId').val() == data.child('setupActivations/0/operationId').val() && newData.child('setupActivations/0/inputFingerprint').val() == data.child('setupActivations/0/inputFingerprint').val() && newData.child('setupActivations/1').exists() == data.child('setupActivations/1').exists() && newData.child('setupActivations/1/operationId').val() == data.child('setupActivations/1/operationId').val() && newData.child('setupActivations/1/inputFingerprint').val() == data.child('setupActivations/1/inputFingerprint').val() && newData.child('setupActivations/2').exists() == data.child('setupActivations/2').exists() && newData.child('setupActivations/2/operationId').val() == data.child('setupActivations/2/operationId').val() && newData.child('setupActivations/2/inputFingerprint').val() == data.child('setupActivations/2/inputFingerprint').val() && newData.child('setupActivations/3').exists() == data.child('setupActivations/3').exists() && newData.child('setupActivations/3/operationId').val() == data.child('setupActivations/3/operationId').val() && newData.child('setupActivations/3/inputFingerprint').val() == data.child('setupActivations/3/inputFingerprint').val() && newData.child('setupActivations/4').exists() == data.child('setupActivations/4').exists() && newData.child('setupActivations/4/operationId').val() == data.child('setupActivations/4/operationId').val() && newData.child('setupActivations/4/inputFingerprint').val() == data.child('setupActivations/4/inputFingerprint').val() && newData.child('setupActivations/5').exists() == data.child('setupActivations/5').exists() && newData.child('setupActivations/5/operationId').val() == data.child('setupActivations/5/operationId').val() && newData.child('setupActivations/5/inputFingerprint').val() == data.child('setupActivations/5/inputFingerprint').val() && newData.child('setupActivations/6').exists() == data.child('setupActivations/6').exists() && newData.child('setupActivations/6/operationId').val() == data.child('setupActivations/6/operationId').val() && newData.child('setupActivations/6/inputFingerprint').val() == data.child('setupActivations/6/inputFingerprint').val() && newData.child('setupActivations/7').exists() == data.child('setupActivations/7').exists() && newData.child('setupActivations/7/operationId').val() == data.child('setupActivations/7/operationId').val() && newData.child('setupActivations/7/inputFingerprint').val() == data.child('setupActivations/7/inputFingerprint').val() && newData.child('setupActivations/8').exists() == data.child('setupActivations/8').exists() && newData.child('setupActivations/8/operationId').val() == data.child('setupActivations/8/operationId').val() && newData.child('setupActivations/8/inputFingerprint').val() == data.child('setupActivations/8/inputFingerprint').val() && newData.child('setupActivations/9').exists() == data.child('setupActivations/9').exists() && newData.child('setupActivations/9/operationId').val() == data.child('setupActivations/9/operationId').val() && newData.child('setupActivations/9/inputFingerprint').val() == data.child('setupActivations/9/inputFingerprint').val() && newData.child('setupActivations/10').exists() == data.child('setupActivations/10').exists() && newData.child('setupActivations/10/operationId').val() == data.child('setupActivations/10/operationId').val() && newData.child('setupActivations/10/inputFingerprint').val() == data.child('setupActivations/10/inputFingerprint').val() && newData.child('setupActivations/11').exists() == data.child('setupActivations/11').exists() && newData.child('setupActivations/11/operationId').val() == data.child('setupActivations/11/operationId').val() && newData.child('setupActivations/11/inputFingerprint').val() == data.child('setupActivations/11/inputFingerprint').val() && newData.child('setupActivations/12').exists() == data.child('setupActivations/12').exists() && newData.child('setupActivations/12/operationId').val() == data.child('setupActivations/12/operationId').val() && newData.child('setupActivations/12/inputFingerprint').val() == data.child('setupActivations/12/inputFingerprint').val() && newData.child('setupActivations/13').exists() == data.child('setupActivations/13').exists() && newData.child('setupActivations/13/operationId').val() == data.child('setupActivations/13/operationId').val() && newData.child('setupActivations/13/inputFingerprint').val() == data.child('setupActivations/13/inputFingerprint').val() && newData.child('setupActivations/14').exists() == data.child('setupActivations/14').exists() && newData.child('setupActivations/14/operationId').val() == data.child('setupActivations/14/operationId').val() && newData.child('setupActivations/14/inputFingerprint').val() == data.child('setupActivations/14/inputFingerprint').val() && newData.child('setupActivations/15').exists() == data.child('setupActivations/15').exists() && newData.child('setupActivations/15/operationId').val() == data.child('setupActivations/15/operationId').val() && newData.child('setupActivations/15/inputFingerprint').val() == data.child('setupActivations/15/inputFingerprint').val() && newData.child('setupActivations/16').exists() == data.child('setupActivations/16').exists() && newData.child('setupActivations/16/operationId').val() == data.child('setupActivations/16/operationId').val() && newData.child('setupActivations/16/inputFingerprint').val() == data.child('setupActivations/16/inputFingerprint').val() && newData.child('setupActivations/17').exists() == data.child('setupActivations/17').exists() && newData.child('setupActivations/17/operationId').val() == data.child('setupActivations/17/operationId').val() && newData.child('setupActivations/17/inputFingerprint').val() == data.child('setupActivations/17/inputFingerprint').val() && newData.child('setupActivations/18').exists() == data.child('setupActivations/18').exists() && newData.child('setupActivations/18/operationId').val() == data.child('setupActivations/18/operationId').val() && newData.child('setupActivations/18/inputFingerprint').val() == data.child('setupActivations/18/inputFingerprint').val() && newData.child('setupActivations/19').exists() == data.child('setupActivations/19').exists() && newData.child('setupActivations/19/operationId').val() == data.child('setupActivations/19/operationId').val() && newData.child('setupActivations/19/inputFingerprint').val() == data.child('setupActivations/19/inputFingerprint').val() && newData.child('setupActivations/20').exists() == data.child('setupActivations/20').exists() && newData.child('setupActivations/20/operationId').val() == data.child('setupActivations/20/operationId').val() && newData.child('setupActivations/20/inputFingerprint').val() == data.child('setupActivations/20/inputFingerprint').val() && newData.child('setupActivations/21').exists() == data.child('setupActivations/21').exists() && newData.child('setupActivations/21/operationId').val() == data.child('setupActivations/21/operationId').val() && newData.child('setupActivations/21/inputFingerprint').val() == data.child('setupActivations/21/inputFingerprint').val() && newData.child('setupActivations/22').exists() == data.child('setupActivations/22').exists() && newData.child('setupActivations/22/operationId').val() == data.child('setupActivations/22/operationId').val() && newData.child('setupActivations/22/inputFingerprint').val() == data.child('setupActivations/22/inputFingerprint').val() && newData.child('setupActivations/23').exists() == data.child('setupActivations/23').exists() && newData.child('setupActivations/23/operationId').val() == data.child('setupActivations/23/operationId').val() && newData.child('setupActivations/23/inputFingerprint').val() == data.child('setupActivations/23/inputFingerprint').val() && newData.child('setupActivations/24').exists() == data.child('setupActivations/24').exists() && newData.child('setupActivations/24/operationId').val() == data.child('setupActivations/24/operationId').val() && newData.child('setupActivations/24/inputFingerprint').val() == data.child('setupActivations/24/inputFingerprint').val() && newData.child('setupActivations/25').exists() == data.child('setupActivations/25').exists() && newData.child('setupActivations/25/operationId').val() == data.child('setupActivations/25/operationId').val() && newData.child('setupActivations/25/inputFingerprint').val() == data.child('setupActivations/25/inputFingerprint').val() && newData.child('setupActivations/26').exists() == data.child('setupActivations/26').exists() && newData.child('setupActivations/26/operationId').val() == data.child('setupActivations/26/operationId').val() && newData.child('setupActivations/26/inputFingerprint').val() == data.child('setupActivations/26/inputFingerprint').val() && newData.child('setupActivations/27').exists() == data.child('setupActivations/27').exists() && newData.child('setupActivations/27/operationId').val() == data.child('setupActivations/27/operationId').val() && newData.child('setupActivations/27/inputFingerprint').val() == data.child('setupActivations/27/inputFingerprint').val() && newData.child('setupActivations/28').exists() == data.child('setupActivations/28').exists() && newData.child('setupActivations/28/operationId').val() == data.child('setupActivations/28/operationId').val() && newData.child('setupActivations/28/inputFingerprint').val() == data.child('setupActivations/28/inputFingerprint').val() && newData.child('setupActivations/29').exists() == data.child('setupActivations/29').exists() && newData.child('setupActivations/29/operationId').val() == data.child('setupActivations/29/operationId').val() && newData.child('setupActivations/29/inputFingerprint').val() == data.child('setupActivations/29/inputFingerprint').val() && newData.child('setupActivations/30').exists() == data.child('setupActivations/30').exists() && newData.child('setupActivations/30/operationId').val() == data.child('setupActivations/30/operationId').val() && newData.child('setupActivations/30/inputFingerprint').val() == data.child('setupActivations/30/inputFingerprint').val() && newData.child('setupActivations/31').exists() == data.child('setupActivations/31').exists() && newData.child('setupActivations/31/operationId').val() == data.child('setupActivations/31/operationId').val() && newData.child('setupActivations/31/inputFingerprint').val() == data.child('setupActivations/31/inputFingerprint').val() && newData.child('bookId').val() == data.child('bookId').val() && newData.child('bookMode').val() == data.child('bookMode').val() && newData.child('ownerId').val() == data.child('ownerId').val() && newData.child('title').val() == data.child('title').val() && newData.child('subtitle').val() == data.child('subtitle').val() && newData.child('publisher').val() == data.child('publisher').val() && newData.child('edition').val() == data.child('edition').val() && newData.child('series').val() == data.child('series').val() && newData.child('isbn').val() == data.child('isbn').val() && newData.child('coverUrl').val() == data.child('coverUrl').val() && newData.child('primaryTestTypeId').val() == data.child('primaryTestTypeId').val() && newData.child('description').val() == data.child('description').val() && newData.child('visibility').val() == data.child('visibility').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdBy').val() == data.child('createdBy').val()"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_id/$materialId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $materialId && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && newData.child('description').val() == data.child('description').val() && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('materialId').val() == $materialId && newData.child('producerId').val() == 'material-book' && newData.child('materialKind').val() == 'book' && newData.child('surfaceFamily').val() == 'book' && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('title').val() == data.child('title').val() && newData.child('visibility').val() == 'private' && newData.child('lifecycleState').val() == 'active'"
+    },
+    {
+      "path": "book_activity/canonical_fork_operations/$actorId/$operationId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.a == $actorId && auth.token.pbcf.o == $operationId && !data.exists() && newData.hasChildren(['schemaVersion', 'recordKind', 'actorId', 'operationId', 'status', 'intentFingerprint', 'planFingerprint', 'activityId', 'activityVersionId', 'canonicalFingerprint', 'safeProjectionFingerprint', 'target', 'source', 'createdAt']) && newData.child('schemaVersion').val() == 1 && newData.child('recordKind').val() == 'public-book-canonical-fork-operation' && newData.child('actorId').val() == auth.token.pbcf.a && newData.child('operationId').val() == auth.token.pbcf.o && newData.child('status').val() == 'committed' && newData.child('intentFingerprint').val() == auth.token.pbcf.if && newData.child('planFingerprint').val() == auth.token.pbcf.fp && newData.child('activityId').val() == auth.token.pbcf.ia && newData.child('activityVersionId').val() == auth.token.pbcf.iv && newData.child('canonicalFingerprint').val() == auth.token.pbcf.cf && newData.child('safeProjectionFingerprint').val() == auth.token.pbcf.sf && newData.child('createdAt').val() == auth.token.pbcf.ct && newData.child('target').hasChildren(['bookId', 'originalNodeId', 'placementId', 'appendOrder', 'expectedUpdatedAt']) && newData.child('target/bookId').val() == auth.token.pbcf.tb && newData.child('target/originalNodeId').val() == auth.token.pbcf.tn && newData.child('target/placementId').val() == auth.token.pbcf.tp && newData.child('target/appendOrder').val() == auth.token.pbcf.ao && newData.child('target/expectedUpdatedAt').val() == auth.token.pbcf.eu && newData.child('source').hasChildren(['bookId', 'ownerId', 'manifestVersionId', 'publicationId', 'publicationRevision', 'sourceVersionId', 'activityId', 'activityVersionId', 'activityVersion', 'payloadFingerprint', 'placementIds', 'placementSetFingerprint', 'nodeKey', 'placementId', 'unitKey', 'activityKey', 'selectionPath', 'selectionOrder', 'sourcePages', 'pageGroupKeys']) && newData.child('source/bookId').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/bookId').val() && newData.child('source/ownerId').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('ownerId').val() && newData.child('source/manifestVersionId').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/manifestVersionId').val() && newData.child('source/publicationId').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/publicationId').val() && newData.child('source/publicationRevision').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/publicationRevision').val() && newData.child('source/sourceVersionId').val() == auth.token.pbcf.sv && newData.child('source/activityId').val() == auth.token.pbcf.sa && newData.child('source/activityVersionId').val() == auth.token.pbcf.svi && newData.child('source/activityVersion').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('activityVersion').val() && newData.child('source/payloadFingerprint').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('payloadFingerprint').val() && newData.child('source/placementIds').hasChildren() && newData.child('source/placementSetFingerprint').val() == auth.token.pbcf.sps && newData.child('source/nodeKey').val() == auth.token.pbcf.sn && newData.child('source/placementId').val() == auth.token.pbcf.spi && newData.child('source/unitKey').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/unitKey').val() && newData.child('source/activityKey').val() == root.child('book_activity/versions').child(auth.token.pbcf.sa).child(auth.token.pbcf.svi).child('provenance/activityKey').val() && newData.child('source/selectionPath').hasChildren() && newData.child('source/selectionOrder').val() == auth.token.pbcf.sel && newData.child('source/sourcePages').hasChildren() && newData.child('source/pageGroupKeys').hasChildren() && newData.child('source/contextFingerprint').val() == auth.token.pbcf.cx && root.child('material_catalog/books').child(auth.token.pbcf.tb).child('ownerId').val() == auth.token.pbcf.a && root.child('material_catalog/books').child(auth.token.pbcf.tb).child('updatedAt').val() == auth.token.pbcf.eu"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_owner/$ownerId/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && $ownerId == auth.token.pbcf.a && newData.child('visibility').val() == data.child('visibility').val() && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('status').val() == auth.token.pbcf.bs && newData.child('bookId').val() == $bookId && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('bookMode').val() == data.child('bookMode').val() && newData.child('title').val() == data.child('title').val()"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_visibility/$visibility/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && $visibility == 'private' && newData.child('visibility').val() == 'private' && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('status').val() == auth.token.pbcf.bs && newData.child('bookId').val() == $bookId && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('bookMode').val() == data.child('bookMode').val() && newData.child('title').val() == data.child('title').val()"
+    },
+    {
+      "path": "material_catalog/book_indexes/by_test_type/$testTypeId/$bookId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $bookId && newData.child('testTypeMembership').child($testTypeId).val() == true && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('status').val() == auth.token.pbcf.bs && newData.child('bookId').val() == $bookId && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('bookMode').val() == data.child('bookMode').val() && newData.child('title').val() == data.child('title').val()"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_owner/$ownerId/$materialId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $materialId && $ownerId == auth.token.pbcf.a && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('materialId').val() == $materialId && newData.child('producerId').val() == 'material-book' && newData.child('materialKind').val() == 'book' && newData.child('surfaceFamily').val() == 'book' && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('title').val() == data.child('title').val() && newData.child('visibility').val() == 'private' && newData.child('lifecycleState').val() == 'active'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_visibility/$visibility/$materialId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $materialId && $visibility == 'private' && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('materialId').val() == $materialId && newData.child('producerId').val() == 'material-book' && newData.child('materialKind').val() == 'book' && newData.child('surfaceFamily').val() == 'book' && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('title').val() == data.child('title').val() && newData.child('visibility').val() == 'private' && newData.child('lifecycleState').val() == 'active'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_material_kind/$materialKind/$materialId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $materialId && $materialKind == 'book' && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('materialId').val() == $materialId && newData.child('producerId').val() == 'material-book' && newData.child('materialKind').val() == 'book' && newData.child('surfaceFamily').val() == 'book' && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('title').val() == data.child('title').val() && newData.child('visibility').val() == 'private' && newData.child('lifecycleState').val() == 'active'"
+    },
+    {
+      "path": "material_catalog/material_summary_indexes/v1/by_test_type/$testTypeId/$materialId",
+      "rule": ".write",
+      "merge": "conjoin-existing-authorization-canonical-fork-scalar-pinned-server-capability",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.pbcf.s == true && auth.token.pbcf.dl >= now && auth.token.pbcf.tb == $materialId && data.exists() && newData.exists() && data.child('updatedAt').val() == auth.token.pbcf.eu && newData.child('updatedAt').val() == auth.token.pbcf.ct && newData.child('materialId').val() == $materialId && newData.child('producerId').val() == 'material-book' && newData.child('materialKind').val() == 'book' && newData.child('surfaceFamily').val() == 'book' && newData.child('ownerId').val() == auth.token.pbcf.a && newData.child('title').val() == data.child('title').val() && newData.child('visibility').val() == 'private' && newData.child('lifecycleState').val() == 'active'"
+    },
+    {
+      "path": "material_catalog/books/$bookId",
+      "rule": ".validate",
+      "merge": "conjoin-existing-validation-preserving-delete",
+      "requiresExistingRule": true,
+      "expression": "newData.child('setupActivations/0').exists() == data.child('setupActivations/0').exists() && newData.child('setupActivations/0/operationId').val() == data.child('setupActivations/0/operationId').val() && newData.child('setupActivations/0/inputFingerprint').val() == data.child('setupActivations/0/inputFingerprint').val() && newData.child('setupActivations/1').exists() == data.child('setupActivations/1').exists() && newData.child('setupActivations/1/operationId').val() == data.child('setupActivations/1/operationId').val() && newData.child('setupActivations/1/inputFingerprint').val() == data.child('setupActivations/1/inputFingerprint').val() && newData.child('setupActivations/2').exists() == data.child('setupActivations/2').exists() && newData.child('setupActivations/2/operationId').val() == data.child('setupActivations/2/operationId').val() && newData.child('setupActivations/2/inputFingerprint').val() == data.child('setupActivations/2/inputFingerprint').val() && newData.child('setupActivations/3').exists() == data.child('setupActivations/3').exists() && newData.child('setupActivations/3/operationId').val() == data.child('setupActivations/3/operationId').val() && newData.child('setupActivations/3/inputFingerprint').val() == data.child('setupActivations/3/inputFingerprint').val() && newData.child('setupActivations/4').exists() == data.child('setupActivations/4').exists() && newData.child('setupActivations/4/operationId').val() == data.child('setupActivations/4/operationId').val() && newData.child('setupActivations/4/inputFingerprint').val() == data.child('setupActivations/4/inputFingerprint').val() && newData.child('setupActivations/5').exists() == data.child('setupActivations/5').exists() && newData.child('setupActivations/5/operationId').val() == data.child('setupActivations/5/operationId').val() && newData.child('setupActivations/5/inputFingerprint').val() == data.child('setupActivations/5/inputFingerprint').val() && newData.child('setupActivations/6').exists() == data.child('setupActivations/6').exists() && newData.child('setupActivations/6/operationId').val() == data.child('setupActivations/6/operationId').val() && newData.child('setupActivations/6/inputFingerprint').val() == data.child('setupActivations/6/inputFingerprint').val() && newData.child('setupActivations/7').exists() == data.child('setupActivations/7').exists() && newData.child('setupActivations/7/operationId').val() == data.child('setupActivations/7/operationId').val() && newData.child('setupActivations/7/inputFingerprint').val() == data.child('setupActivations/7/inputFingerprint').val() && newData.child('setupActivations/8').exists() == data.child('setupActivations/8').exists() && newData.child('setupActivations/8/operationId').val() == data.child('setupActivations/8/operationId').val() && newData.child('setupActivations/8/inputFingerprint').val() == data.child('setupActivations/8/inputFingerprint').val() && newData.child('setupActivations/9').exists() == data.child('setupActivations/9').exists() && newData.child('setupActivations/9/operationId').val() == data.child('setupActivations/9/operationId').val() && newData.child('setupActivations/9/inputFingerprint').val() == data.child('setupActivations/9/inputFingerprint').val() && newData.child('setupActivations/10').exists() == data.child('setupActivations/10').exists() && newData.child('setupActivations/10/operationId').val() == data.child('setupActivations/10/operationId').val() && newData.child('setupActivations/10/inputFingerprint').val() == data.child('setupActivations/10/inputFingerprint').val() && newData.child('setupActivations/11').exists() == data.child('setupActivations/11').exists() && newData.child('setupActivations/11/operationId').val() == data.child('setupActivations/11/operationId').val() && newData.child('setupActivations/11/inputFingerprint').val() == data.child('setupActivations/11/inputFingerprint').val() && newData.child('setupActivations/12').exists() == data.child('setupActivations/12').exists() && newData.child('setupActivations/12/operationId').val() == data.child('setupActivations/12/operationId').val() && newData.child('setupActivations/12/inputFingerprint').val() == data.child('setupActivations/12/inputFingerprint').val() && newData.child('setupActivations/13').exists() == data.child('setupActivations/13').exists() && newData.child('setupActivations/13/operationId').val() == data.child('setupActivations/13/operationId').val() && newData.child('setupActivations/13/inputFingerprint').val() == data.child('setupActivations/13/inputFingerprint').val() && newData.child('setupActivations/14').exists() == data.child('setupActivations/14').exists() && newData.child('setupActivations/14/operationId').val() == data.child('setupActivations/14/operationId').val() && newData.child('setupActivations/14/inputFingerprint').val() == data.child('setupActivations/14/inputFingerprint').val() && newData.child('setupActivations/15').exists() == data.child('setupActivations/15').exists() && newData.child('setupActivations/15/operationId').val() == data.child('setupActivations/15/operationId').val() && newData.child('setupActivations/15/inputFingerprint').val() == data.child('setupActivations/15/inputFingerprint').val() && newData.child('setupActivations/16').exists() == data.child('setupActivations/16').exists() && newData.child('setupActivations/16/operationId').val() == data.child('setupActivations/16/operationId').val() && newData.child('setupActivations/16/inputFingerprint').val() == data.child('setupActivations/16/inputFingerprint').val() && newData.child('setupActivations/17').exists() == data.child('setupActivations/17').exists() && newData.child('setupActivations/17/operationId').val() == data.child('setupActivations/17/operationId').val() && newData.child('setupActivations/17/inputFingerprint').val() == data.child('setupActivations/17/inputFingerprint').val() && newData.child('setupActivations/18').exists() == data.child('setupActivations/18').exists() && newData.child('setupActivations/18/operationId').val() == data.child('setupActivations/18/operationId').val() && newData.child('setupActivations/18/inputFingerprint').val() == data.child('setupActivations/18/inputFingerprint').val() && newData.child('setupActivations/19').exists() == data.child('setupActivations/19').exists() && newData.child('setupActivations/19/operationId').val() == data.child('setupActivations/19/operationId').val() && newData.child('setupActivations/19/inputFingerprint').val() == data.child('setupActivations/19/inputFingerprint').val() && newData.child('setupActivations/20').exists() == data.child('setupActivations/20').exists() && newData.child('setupActivations/20/operationId').val() == data.child('setupActivations/20/operationId').val() && newData.child('setupActivations/20/inputFingerprint').val() == data.child('setupActivations/20/inputFingerprint').val() && newData.child('setupActivations/21').exists() == data.child('setupActivations/21').exists() && newData.child('setupActivations/21/operationId').val() == data.child('setupActivations/21/operationId').val() && newData.child('setupActivations/21/inputFingerprint').val() == data.child('setupActivations/21/inputFingerprint').val() && newData.child('setupActivations/22').exists() == data.child('setupActivations/22').exists() && newData.child('setupActivations/22/operationId').val() == data.child('setupActivations/22/operationId').val() && newData.child('setupActivations/22/inputFingerprint').val() == data.child('setupActivations/22/inputFingerprint').val() && newData.child('setupActivations/23').exists() == data.child('setupActivations/23').exists() && newData.child('setupActivations/23/operationId').val() == data.child('setupActivations/23/operationId').val() && newData.child('setupActivations/23/inputFingerprint').val() == data.child('setupActivations/23/inputFingerprint').val() && newData.child('setupActivations/24').exists() == data.child('setupActivations/24').exists() && newData.child('setupActivations/24/operationId').val() == data.child('setupActivations/24/operationId').val() && newData.child('setupActivations/24/inputFingerprint').val() == data.child('setupActivations/24/inputFingerprint').val() && newData.child('setupActivations/25').exists() == data.child('setupActivations/25').exists() && newData.child('setupActivations/25/operationId').val() == data.child('setupActivations/25/operationId').val() && newData.child('setupActivations/25/inputFingerprint').val() == data.child('setupActivations/25/inputFingerprint').val() && newData.child('setupActivations/26').exists() == data.child('setupActivations/26').exists() && newData.child('setupActivations/26/operationId').val() == data.child('setupActivations/26/operationId').val() && newData.child('setupActivations/26/inputFingerprint').val() == data.child('setupActivations/26/inputFingerprint').val() && newData.child('setupActivations/27').exists() == data.child('setupActivations/27').exists() && newData.child('setupActivations/27/operationId').val() == data.child('setupActivations/27/operationId').val() && newData.child('setupActivations/27/inputFingerprint').val() == data.child('setupActivations/27/inputFingerprint').val() && newData.child('setupActivations/28').exists() == data.child('setupActivations/28').exists() && newData.child('setupActivations/28/operationId').val() == data.child('setupActivations/28/operationId').val() && newData.child('setupActivations/28/inputFingerprint').val() == data.child('setupActivations/28/inputFingerprint').val() && newData.child('setupActivations/29').exists() == data.child('setupActivations/29').exists() && newData.child('setupActivations/29/operationId').val() == data.child('setupActivations/29/operationId').val() && newData.child('setupActivations/29/inputFingerprint').val() == data.child('setupActivations/29/inputFingerprint').val() && newData.child('setupActivations/30').exists() == data.child('setupActivations/30').exists() && newData.child('setupActivations/30/operationId').val() == data.child('setupActivations/30/operationId').val() && newData.child('setupActivations/30/inputFingerprint').val() == data.child('setupActivations/30/inputFingerprint').val() && newData.child('setupActivations/31').exists() == data.child('setupActivations/31').exists() && newData.child('setupActivations/31/operationId').val() == data.child('setupActivations/31/operationId').val() && newData.child('setupActivations/31/inputFingerprint').val() == data.child('setupActivations/31/inputFingerprint').val()"
+    }
+  ]
+}

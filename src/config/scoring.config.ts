@@ -138,8 +138,10 @@ export function getQuestionPoints(
 }
 
 /**
- * Calculate IELTS Reading band score from correct answer count
- * Uses official IELTS Reading scoring table (for 40 questions)
+ * Estimate IELTS Academic Reading practice bands from correct answer count.
+ * Uses IDP's approximate conversion; actual boundaries vary by test paper:
+ * https://ielts.idp.com/egypt/results/scores/reading
+ * Short tests are scaled to 40 questions as a practice estimate.
  * 
  * @param correctCount - Number of correct answers
  * @param totalQuestions - Total number of questions (defaults to 40)
@@ -149,30 +151,30 @@ export function calculateIELTSReadingBandScore(
   correctCount: number,
   totalQuestions: number = 40
 ): number {
-  // If test has 40 questions, use official IELTS Reading table
+  // Approximate Academic Reading conversion for 40 questions.
   if (totalQuestions === 40) {
-    if (correctCount >= 40) return 9.0;
-    if (correctCount >= 39) return 8.5;
-    if (correctCount >= 37) return 8.0;
-    if (correctCount >= 36) return 7.5;
-    if (correctCount >= 34) return 7.0;
-    if (correctCount >= 32) return 6.5;
-    if (correctCount >= 30) return 6.0;
-    if (correctCount >= 27) return 5.5;
-    if (correctCount >= 23) return 5.0;
-    if (correctCount >= 19) return 4.5;
-    if (correctCount >= 15) return 4.0;
-    if (correctCount >= 12) return 3.5;
-    if (correctCount >= 9) return 3.0;
-    if (correctCount >= 6) return 2.5;
-    if (correctCount >= 4) return 2.0;
+    if (correctCount >= 39) return 9.0;
+    if (correctCount >= 37) return 8.5;
+    if (correctCount >= 35) return 8.0;
+    if (correctCount >= 33) return 7.5;
+    if (correctCount >= 30) return 7.0;
+    if (correctCount >= 27) return 6.5;
+    if (correctCount >= 23) return 6.0;
+    if (correctCount >= 19) return 5.5;
+    if (correctCount >= 15) return 5.0;
+    if (correctCount >= 13) return 4.5;
+    if (correctCount >= 10) return 4.0;
+    if (correctCount >= 8) return 3.5;
+    if (correctCount >= 6) return 3.0;
+    if (correctCount >= 4) return 2.5;
+    // Existing practice floors below the published IDP conversion range.
     if (correctCount >= 2) return 1.5;
     if (correctCount >= 1) return 1.0;
     return 0.5;
   }
   
   // For non-40 question tests, scale proportionally
-  // Convert to equivalent 40-question score, then use IELTS table
+  // Convert to an equivalent 40-question score for an approximate practice band.
   const scaledScore = Math.round((correctCount / totalQuestions) * 40);
   return calculateIELTSReadingBandScore(scaledScore, 40);
 }

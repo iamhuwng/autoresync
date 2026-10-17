@@ -114,15 +114,8 @@ describe('resultVisibilityReindex.service', () => {
             skippedCount: 0,
             unresolvedCount: 0,
         });
-        expect(plan.updates['test_results_by_teacher/legacy-teacher/result-2']).toBeNull();
-        expect(plan.updates['test_results_by_teacher/teacher-1/result-2']).toEqual(
-            expect.objectContaining({
-                resultId: 'result-2',
-                studentId: 'student-1',
-                studentName: 'Student',
-                percentage: 80,
-            }),
-        );
+        expect(plan.updates['teacher_result_keys/legacy-teacher/result-2']).toBeNull();
+        expect(plan.updates['teacher_result_keys/teacher-1/result-2']).toEqual(true);
     });
 
     it('removes existing teacher indexes for solo practice rows without rebuilding them', () => {
@@ -146,7 +139,7 @@ describe('resultVisibilityReindex.service', () => {
             rebuiltCount: 0,
             deletedCount: 1,
         });
-        expect(plan.updates['test_results_by_teacher/legacy-teacher/result-3']).toBeNull();
+        expect(plan.updates['teacher_result_keys/legacy-teacher/result-3']).toBeNull();
     });
 
     it('flags unresolved rows for reporting-style follow-up and clears stale indexes', () => {
@@ -174,7 +167,7 @@ describe('resultVisibilityReindex.service', () => {
             deletedCount: 1,
             unresolvedCount: 1,
         });
-        expect(plan.updates['test_results_by_teacher/legacy-teacher/result-4']).toBeNull();
+        expect(plan.updates['teacher_result_keys/legacy-teacher/result-4']).toBeNull();
     });
 
     it('rebuilds canonical class and course indexes while deleting stale nested buckets', () => {

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "prd0062-126-independent-review-decision",
+  "recordedAt": "2026-08-23T19:40:00+07:00",
+  "ticket": "#126 / 50B",
+  "exactReviewedCommit": "3c3c536c5bd78f2226e63b756ccdd7bee8ac98cd",
+  "reviewers": {
+    "standards": {
+      "agentId": "01a02e75-fb76-7a01-a6b6-e3528364d6bc",
+      "status": "PASS",
+      "scope": "exact final evidence state, append-only overlays, repository standards, redaction, and unrelated-path boundaries"
+    },
+    "specification": {
+      "agentId": "01a02e75-fd37-7643-9c9a-6afbf30b747a",
+      "status": "PASS",
+      "scope": "exact final evidence state, #126 source/deployment/rollback truth, browser blocker, durable-state preservation, and held dependency graph"
+    }
+  },
+  "method": "independent leaf subagents reviewed read-only; no subagent spawned another; primary agent retained integration and final claims",
+  "reviewInputs": [
+    "126-production-normal-document-composition-cycle-2026-08-23.json",
+    "126-production-normal-document-composition-cycle-2026-08-23.md",
+    "126-production-normal-document-composition-review-overlay-2026-08-23.json",
+    "126-production-normal-document-composition-review-overlay-2026-08-23.md",
+    "126-production-normal-document-composition-review-acceptance-log-2026-08-23.json",
+    "126-production-normal-document-composition-review-acceptance-log-2026-08-23.md"
+  ],
+  "testsNotRerun": true,
+  "testExecutionStatement": "This decision overlay is audit-only and changes no product source/config/rules/tests; product proof remains the base evidence classifications.",
+  "residualRisks": [
+    {
+      "id": "browser-control-runtime",
+      "status": "OPEN",
+      "owner": "external browser-control runtime",
+      "mitigation": "candidate remains rolled back at 100%; no #126 closure claim"
+    },
+    {
+      "id": "build-emulator-harness",
+      "status": "OPEN_TOOLING",
+      "owner": "Windows snapshot/Firebase emulator boundary",
+      "mitigation": "rerun before any future activation"
+    },
+    {
+      "id": "dependent-tickets",
+      "status": "HELD",
+      "owner": "PRD0062 dependency graph",
+      "mitigation": "do not start #128-#136"
+    }
+  ],
+  "reviewDisposition": "PASS_FOR_EXACT_REVIEWED_EVIDENCE; PRD0062 remains BLOCKED_ROLLED_BACK because browser acceptance is external-blocked"
+}

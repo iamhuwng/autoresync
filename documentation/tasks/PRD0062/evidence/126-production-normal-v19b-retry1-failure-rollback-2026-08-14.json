@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-14T07:38:18Z",
+  "candidate": "V19b retry-1",
+  "result": "failed-and-rolled-back",
+  "assignmentRequest": {
+    "assignmentId": "assignment-vocab-u1-29896863-e887-4e2e-8ced-3b3e93be5a93",
+    "operationId": "75aa6071-7c1d-40c5-a28f-c69de5112ffa",
+    "idempotencyKey": "c120db45-ad01-4e00-814d-047bbb26f0d8",
+    "attemptCount": 1,
+    "httpStatus": 500,
+    "responseCode": "book_homework_command_failed",
+    "responseArtifact": "tmp/prd0062-v19b-retry1-assignment-response.json",
+    "responseSha256": "523ffb1200ece5bf6e2bbb807e5626258b7d52cdd47b3ed43af3dc3131bc3f4b"
+  },
+  "durableReadback": {
+    "oldCompensatedAssignmentUnchanged": true,
+    "oldAssignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "oldState": "compensated",
+    "oldRevision": 5,
+    "newState": "compensating",
+    "newVisibility": "hidden",
+    "newRevision": 3,
+    "newCommittedRecipientCount": 0,
+    "newLastError": "book_homework_firestore_read_failed:403",
+    "newSagaArtifact": "tmp/prd0062-v19b-retry1-failure-new-saga.json",
+    "newSagaSha256": "b4aa91bd6e5534ac4eec3546d2db5f25a103980be0e4212e3fb3e802196781fe",
+    "newFirestoreAuthorityHttpStatus": 404,
+    "newDeliveryIndex": null,
+    "newDeliveryScope": null
+  },
+  "rollback": {
+    "workerVersionId": "bbd13106-3943-43a2-a216-9d18781b4329",
+    "workerTrafficPercent": 100,
+    "workerDeploymentId": "d593d593-b37b-4a1e-81a2-3b6ff86ff06f",
+    "workerStatusArtifact": "tmp/prd0062-v19b-retry1-failure-rollback-status.json",
+    "workerStatusSha256": "ded3049be1e34767a7f874dfa8304d2e61e38bb505068909b31f5c874b7f1e23",
+    "bookHomeworkRoutesEnabled": "disabled",
+    "bookHomeworkReadRoutesEnabled": "disabled",
+    "pilotScopeEnforcement": "disabled",
+    "rolloutActions": "all-deny",
+    "rtdbRulesArtifact": "firebase.prd0062-118-rules.rollback.json",
+    "rtdbRulesLiveReadbackArtifact": "tmp/prd0062-v19b-retry1-failure-live-rtdb-rules.json",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rtdbRulesDeepEqual": true,
+    "firestoreRulesDisposition": "unchanged repository-current remediated production baseline"
+  },
+  "circuitBreaker": {
+    "triggered": true,
+    "failureFamily": "Homework Firestore authorization/token/claim composition",
+    "disposition": "STOP",
+    "createV20": false,
+    "replayAssignment": false,
+    "sourceMutationAuthorized": false
+  }
+}

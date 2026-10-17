@@ -1,11 +1,7 @@
 /**
  * THCSSectionBlock — Section editor with questions, reorder, instruction (PRD-0027 Task 4.3)
  */
-import React, { useState } from 'react';
-import {
-    TextInput, Textarea, NumberInput, SegmentedControl,
-    ActionIcon, Tooltip, Collapse, Modal, Button as MButton, Text,
-} from '@mantine/core';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
     useSensor, useSensors,
@@ -19,6 +15,12 @@ import { ALL_INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
 import THCSQuestionBlock from './THCSQuestionBlock';
 import { THCSBulkPasteModal } from './THCSBulkPasteModal';
 import { Button } from '../modern';
+import { toast } from '../modern/ToastNotification';
+import './THCSSectionBlock.css';
+
+const QUESTION_BATCH_SIZE = 20;
+const QUESTION_LOAD_THRESHOLD = 240;
+const sectionQuestionViewState = new Map<string, { revealedCount: number; scrollTop: number }>();
 
 // ── Sortable Question Wrapper (Task 9.3) ──
 function SortableQuestionItem({ id, children }: { id: string; children: React.ReactNode }) {
@@ -62,25 +64,76 @@ interface THCSSectionBlockProps {
     onDelete: () => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
+    onTrackAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
 }
 
 const READING_INTENTS: THCSQuestionType[] = ['reading-cloze-mcq', 'reading-comprehension', 'reading-announcement', 'reading-cloze-wordbank'];
 
 const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
     section, sectionIndex, totalSections, globalQuestionOffset, draftId,
-    onUpdate, onDelete, onMoveUp, onMoveDown,
+    onUpdate, onDelete, onMoveUp, onMoveDown, onTrackAction,
 }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const deleteDialogRef = useRef<HTMLDialogElement>(null);
     const [showBulkPaste, setShowBulkPaste] = useState(false);
     const [showPassage, setShowPassage] = useState(false);
     const [editingRawText, setEditingRawText] = useState(false);
+    const questionListRef = useRef<HTMLDivElement>(null);
+    const restoredQuestionSectionId = useRef<string | null>(null);
+    const [revealedQuestionCount, setRevealedQuestionCount] = useState(() =>
+        Math.max(QUESTION_BATCH_SIZE, sectionQuestionViewState.get(section.id)?.revealedCount ?? 0),
+    );
+
+    useLayoutEffect(() => {
+        const list = questionListRef.current;
+        if (!list || restoredQuestionSectionId.current === section.id) return;
+        const saved = sectionQuestionViewState.get(section.id);
+        const savedCount = Math.max(QUESTION_BATCH_SIZE, saved?.revealedCount ?? 0);
+        if (revealedQuestionCount !== savedCount) {
+            setRevealedQuestionCount(savedCount);
+            return;
+        }
+        list.scrollTop = saved?.scrollTop ?? 0;
+        restoredQuestionSectionId.current = section.id;
+    }, [section.id, revealedQuestionCount]);
+
+    const visibleQuestions = section.questions.slice(0, revealedQuestionCount);
+
+    const handleQuestionListScroll = (event: React.UIEvent<HTMLDivElement>) => {
+        const list = event.currentTarget;
+        let nextCount = revealedQuestionCount;
+        if (list.scrollHeight - list.clientHeight - list.scrollTop <= QUESTION_LOAD_THRESHOLD
+            && revealedQuestionCount < section.questions.length) {
+            nextCount = Math.min(revealedQuestionCount + QUESTION_BATCH_SIZE, section.questions.length);
+            setRevealedQuestionCount(nextCount);
+        }
+        sectionQuestionViewState.set(section.id, { revealedCount: nextCount, scrollTop: list.scrollTop });
+    };
+
+    useEffect(() => {
+        const dialog = deleteDialogRef.current;
+        if (!dialog) return;
+        if (showDeleteConfirm && !dialog.open) dialog.showModal();
+        if (!showDeleteConfirm && dialog.open) dialog.close();
+    }, [showDeleteConfirm]);
 
     const isRawFallback = section.isRawTextFallback === true
         || section.questions.some(q => q.type === 'raw-text-fallback');
 
+    const rawText = section.rawText ?? section.questions.filter(q => q.type === 'raw-text-fallback').map(q => q.questionText).join('\n');
+
     const hasReadingIntents = section.questions.some(q => READING_INTENTS.includes(q.type));
 
     // Question management
+    const revealAppendedQuestions = (nextCount: number) => {
+        setRevealedQuestionCount(nextCount);
+        sectionQuestionViewState.set(section.id, { revealedCount: nextCount, scrollTop: questionListRef.current?.scrollTop ?? 0 });
+        requestAnimationFrame(() => {
+            const list = questionListRef.current;
+            if (list) list.scrollTop = list.scrollHeight;
+        });
+    };
+
     const handleAddQuestion = () => {
         const lastQ = section.questions[section.questions.length - 1];
         const defaultType: THCSQuestionType = lastQ ? lastQ.type : 'mcq-grammar';
@@ -96,6 +149,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
             correctAnswer: '' as any,
         };
 
+        revealAppendedQuestions(section.questions.length + 1);
         onUpdate({ ...section, questions: [...section.questions, newQ] });
     };
 
@@ -176,65 +230,53 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                 display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
             }}>
                 {/* Section name */}
-                <TextInput
+                <input
+                    className="thcs-section-name"
+                    aria-label="Section name"
                     value={section.name}
                     onChange={(e) => onUpdate({ ...section, name: e.target.value })}
-                    size="sm"
-                    style={{ width: 200 }}
-                    styles={{ input: { fontWeight: 700, fontSize: '1rem' } }}
                 />
 
                 {/* Layout toggle */}
-                <SegmentedControl
-                    data={[
-                        { value: 'single-column', label: '1 Col' },
-                        { value: 'two-column', label: '2 Col' },
-                    ]}
-                    value={section.layout}
-                    onChange={(val) => onUpdate({ ...section, layout: val as 'single-column' | 'two-column', isCustomLayout: true })}
-                    size="xs"
-                />
+                <div className="thcs-section-segmented" role="group" aria-label="Section layout">
+                    {(['single-column', 'two-column'] as const).map((layout) => (
+                        <label key={layout}>
+                            <input type="radio" name={`section-layout-${section.id}`} checked={section.layout === layout}
+                                onChange={() => onUpdate({ ...section, layout, isCustomLayout: true })} />
+                            <span>{layout === 'single-column' ? '1 Col' : '2 Col'}</span>
+                        </label>
+                    ))}
+                </div>
 
                 {/* Total points */}
-                <NumberInput
-                    label="Points"
-                    value={section.totalPoints}
-                    onChange={(val) => onUpdate({ ...section, totalPoints: typeof val === 'number' ? val : 0 })}
-                    size="xs"
-                    min={0}
-                    step={0.25}
-                    style={{ width: 90 }}
-                />
+                <label className="thcs-section-points">Points
+                    <input type="number" value={section.totalPoints} min={0} step={0.25}
+                        onChange={(e) => onUpdate({ ...section, totalPoints: Number(e.target.value) || 0 })} />
+                </label>
 
                 {/* Point mode */}
-                <SegmentedControl
-                    data={[
-                        { value: 'auto', label: 'Auto' },
-                        { value: 'manual', label: 'Manual' },
-                    ]}
-                    value={section.pointMode}
-                    onChange={(val) => onUpdate({ ...section, pointMode: val as 'auto' | 'manual' })}
-                    size="xs"
-                />
+                <div className="thcs-section-segmented" role="group" aria-label="Point mode">
+                    {(['auto', 'manual'] as const).map((mode) => (
+                        <label key={mode}>
+                            <input type="radio" name={`section-points-${section.id}`} checked={section.pointMode === mode}
+                                onChange={() => onUpdate({ ...section, pointMode: mode })} />
+                            <span>{mode === 'auto' ? 'Auto' : 'Manual'}</span>
+                        </label>
+                    ))}
+                </div>
 
                 <div style={{ flex: 1 }} />
 
                 {/* Move/Delete buttons */}
-                <Tooltip label="Move section up">
-                    <ActionIcon variant="subtle" size="sm" disabled={sectionIndex === 0} onClick={onMoveUp}>↑</ActionIcon>
-                </Tooltip>
-                <Tooltip label="Move section down">
-                    <ActionIcon variant="subtle" size="sm" disabled={sectionIndex === totalSections - 1} onClick={onMoveDown}>↓</ActionIcon>
-                </Tooltip>
-                <Tooltip label={totalSections <= 1 ? 'A test must have at least one section' : `Delete ${section.name}`}>
-                    <ActionIcon
-                        variant="subtle" color="red" size="sm"
-                        disabled={totalSections <= 1}
-                        onClick={() => setShowDeleteConfirm(true)}
-                    >
-                        🗑️
-                    </ActionIcon>
-                </Tooltip>
+                <button type="button" className="thcs-section-icon" title="Move section up" aria-label="Move section up"
+                    disabled={sectionIndex === 0} onClick={onMoveUp}>↑</button>
+                <button type="button" className="thcs-section-icon" title="Move section down" aria-label="Move section down"
+                    disabled={sectionIndex === totalSections - 1} onClick={onMoveDown}>↓</button>
+                <button type="button" className="thcs-section-icon thcs-section-icon--delete"
+                    title={totalSections <= 1 ? 'A test must have at least one section' : `Delete ${section.name}`}
+                    aria-label={`Delete ${section.name}`}
+                    disabled={totalSections <= 1}
+                    onClick={() => setShowDeleteConfirm(true)}>🗑️</button>
             </div>
 
             {/* Section Body */}
@@ -242,7 +284,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                 {/* Task 11.2: Mixed question type warning */}
                 {(() => {
                     const uniqueTypes = new Set(section.questions.map(q => q.type));
-                    if (uniqueTypes.size > 1) {
+                    if (uniqueTypes.size > 1 && !section.isCustomInstruction) {
                         return (
                             <div style={{
                                 padding: '0.5rem 0.75rem',
@@ -256,7 +298,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 color: '#92400e',
                             }}>
                                 <span>⚠️</span>
-                                <span>This section has mixed question types — the auto-generated instruction may not be accurate. Consider writing a custom instruction.</span>
+                                <span>Needs review — check the instruction for these question types.</span>
                             </div>
                         );
                     }
@@ -289,13 +331,12 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                             </button>
                         )}
                     </div>
-                    <Textarea
+                    <textarea
+                        className="thcs-section-textarea"
                         placeholder="Section instruction text..."
                         value={section.instructionText}
                         onChange={(e) => onUpdate({ ...section, instructionText: e.target.value, isCustomInstruction: true })}
-                        size="xs"
-                        minRows={2}
-                        autosize
+                        rows={2}
                     />
                 </div>
 
@@ -316,10 +357,10 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         >
                             📄 {showPassage ? 'Hide' : 'Show'} Reading Passage
                         </button>
-                        <Collapse in={showPassage}>
+                        {showPassage && (
                             <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <TextInput
-                                    label="Passage Title"
+                                <label className="thcs-section-field">Passage Title
+                                <input
                                     placeholder="e.g., Reading Passage 1"
                                     value={(() => {
                                         // Resolve best title: prefer flat if it looks like a real title
@@ -342,10 +383,10 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                             },
                                         } as any);
                                     }}
-                                    size="xs"
                                 />
-                                <Textarea
-                                    label="Passage Content"
+                                </label>
+                                <label className="thcs-section-field">Passage Content
+                                <textarea
                                     placeholder="Paste the reading passage here..."
                                     value={(() => {
                                         // Resolve best content: prefer whichever is longer
@@ -371,12 +412,11 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                             },
                                         } as any);
                                     }}
-                                    minRows={6}
-                                    autosize
-                                    size="xs"
+                                    rows={6}
                                 />
+                                </label>
                             </div>
-                        </Collapse>
+                        )}
                     </div>
                 )}
 
@@ -428,11 +468,19 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                                 fontSize: '0.8125rem', color: '#92400e', fontWeight: 600,
                             }}>
-                                <span>⚠️</span>
-                                <span>Manual review required — this section uses raw text fallback</span>
+                                {section.importSourceNeedsReview !== false ? 'Needs review — check and complete the question structure' : 'Source text'}
                             </div>
                             <button
-                                onClick={() => setEditingRawText(!editingRawText)}
+                                onClick={() => {
+                                    if (editingRawText) {
+                                        onUpdate({ ...section, importSourceNeedsReview: false });
+                                        onTrackAction?.('thcsImportSourceReviewed', { sectionId: section.id });
+                                        toast.success('Source text reviewed.');
+                                    } else {
+                                        onTrackAction?.('thcsImportSourceEdit', { sectionId: section.id });
+                                    }
+                                    setEditingRawText(!editingRawText);
+                                }}
                                 style={{
                                     padding: '0.25rem 0.5rem', border: '1px solid rgba(251,191,36,0.3)',
                                     borderRadius: '0.375rem', background: editingRawText ? 'rgba(251,191,36,0.15)' : 'transparent',
@@ -440,16 +488,29 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                     cursor: 'pointer',
                                 }}
                             >
-                                {editingRawText ? '💾 Done' : '✏️ Edit'}
+                                {editingRawText ? 'Use edited text' : 'Edit text'}
                             </button>
                         </div>
+                        {section.importSourceNeedsReview && (
+                            <p style={{ margin: '0 0 0.5rem', fontSize: '0.8125rem', color: '#92400e' }}>
+                                Remove answers and duplicated content before using this text.
+                            </p>
+                        )}
                         {editingRawText ? (
-                            <Textarea
-                                value={section.rawText || ''}
-                                onChange={(e) => onUpdate({ ...section, rawText: e.target.value })}
-                                minRows={6}
-                                autosize
-                                size="xs"
+                            <textarea
+                                className="thcs-section-textarea"
+                                aria-label="Section source text"
+                                value={rawText}
+                                onChange={(e) => {
+                                    const text = e.target.value;
+                                    onUpdate({
+                                        ...section, rawText: text,
+                                        importSourceNeedsReview: true,
+                                        questions: section.questions.map(q => q.type === 'raw-text-fallback'
+                                            ? { ...q, questionText: text } : q),
+                                    });
+                                }}
+                                rows={6}
                                 placeholder="Raw text from the original document..."
                             />
                         ) : (
@@ -465,7 +526,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                 maxHeight: '300px',
                                 overflowY: 'auto',
                             }}>
-                                {section.rawText || '(No raw text stored)'}
+                                {rawText || '(No source text stored)'}
                             </div>
                         )}
                     </div>
@@ -482,8 +543,8 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                     onDragEnd={(event: DragEndEvent) => {
                         const { active, over } = event;
                         if (!over || active.id === over.id) return;
-                        const oldIdx = section.questions.findIndex(q => q.id === active.id);
-                        const newIdx = section.questions.findIndex(q => q.id === over.id);
+                        const oldIdx = visibleQuestions.findIndex(q => q.id === active.id);
+                        const newIdx = visibleQuestions.findIndex(q => q.id === over.id);
                         if (oldIdx === -1 || newIdx === -1) return;
                         // Task 9.5: Re-number after reorder
                         requestAnimationFrame(() => {
@@ -495,31 +556,45 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                         });
                     }}
                 >
-                    <SortableContext items={section.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingLeft: 24 }}>
-                            {section.questions.map((q, qi) => (
-                                <SortableQuestionItem key={q.id} id={q.id}>
-                                    <THCSQuestionBlock
-                                        question={q}
-                                        questionIndex={qi}
-                                        globalNumber={globalQuestionOffset + qi + 1}
-                                        sectionPointMode={section.pointMode}
-                                        draftId={draftId}
-                                        onUpdate={(updated) => handleUpdateQuestion(qi, updated)}
-                                        onDelete={() => handleDeleteQuestion(qi)}
-                                        onMoveUp={() => handleMoveQuestion(qi, -1)}
-                                        onMoveDown={() => handleMoveQuestion(qi, 1)}
-                                        canMoveUp={qi > 0}
-                                        canMoveDown={qi < section.questions.length - 1}
-                                    />
-                                </SortableQuestionItem>
-                            ))}
+                    <SortableContext items={visibleQuestions.filter(q => q.type !== 'raw-text-fallback').map(q => q.id)} strategy={verticalListSortingStrategy}>
+                        <div
+                            ref={questionListRef}
+                            className="thcs-question-list"
+                            role="region"
+                            aria-label={`${section.name} questions`}
+                            onScroll={handleQuestionListScroll}
+                        >
+                            <div className="thcs-question-list__items">
+                                {visibleQuestions.map((q, qi) => q.type === 'raw-text-fallback' ? null : (
+                                    <SortableQuestionItem key={q.id} id={q.id}>
+                                        <THCSQuestionBlock
+                                            question={q}
+                                            questionIndex={qi}
+                                            globalNumber={globalQuestionOffset + qi + 1}
+                                            sectionPointMode={section.pointMode}
+                                            draftId={draftId}
+                                            onUpdate={(updated) => handleUpdateQuestion(qi, updated)}
+                                            onDelete={() => handleDeleteQuestion(qi)}
+                                            onMoveUp={() => handleMoveQuestion(qi, -1)}
+                                            onMoveDown={() => handleMoveQuestion(qi, 1)}
+                                            canMoveUp={qi > 0}
+                                            canMoveDown={qi < section.questions.length - 1}
+                                            onTrackAction={onTrackAction}
+                                        />
+                                    </SortableQuestionItem>
+                                ))}
+                            </div>
                         </div>
                     </SortableContext>
                 </DndContext>
+                {visibleQuestions.length < section.questions.length && (
+                    <div className="thcs-question-list__count" aria-live="polite">
+                        Showing {visibleQuestions.length} of {section.questions.length} questions. Scroll down to load more.
+                    </div>
+                )}
 
-                {/* Add Question buttons */}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {/* Raw source is edited above; its carrier is not a structured question. */}
+                {!isRawFallback && <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button
                         onClick={handleAddQuestion}
                         style={{
@@ -551,6 +626,7 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                                         correctAnswer: '' as any,
                                     });
                                 }
+                                revealAppendedQuestions(section.questions.length + n);
                                 onUpdate({ ...section, questions: [...section.questions, ...newQuestions] });
                             }}
                             style={{
@@ -575,25 +651,26 @@ const THCSSectionBlock: React.FC<THCSSectionBlockProps> = ({
                     >
                         📋 Paste Questions
                     </button>
-                </div>
+                </div>}
             </div>
 
             {/* Delete Confirmation */}
-            <Modal
-                opened={showDeleteConfirm}
+            <dialog
+                ref={deleteDialogRef}
+                className="thcs-delete-dialog"
+                aria-labelledby={`delete-section-${section.id}`}
                 onClose={() => setShowDeleteConfirm(false)}
-                title="Delete Section"
-                centered
-                size="sm"
+                onKeyDown={(event) => { if (event.key === 'Escape') event.stopPropagation(); }}
             >
-                <Text size="sm" mb="md">
+                <h2 id={`delete-section-${section.id}`}>Delete Section</h2>
+                <p>
                     Delete <strong>{section.name}</strong> and all {section.questions.length} question(s) inside?
-                </Text>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <MButton variant="subtle" onClick={() => setShowDeleteConfirm(false)}>Cancel</MButton>
-                    <MButton color="red" onClick={() => { onDelete(); setShowDeleteConfirm(false); }}>Delete</MButton>
+                </p>
+                <div className="thcs-delete-dialog__actions">
+                    <button type="button" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                    <button type="button" className="thcs-delete-dialog__confirm" onClick={() => { onDelete(); setShowDeleteConfirm(false); }}>Delete</button>
                 </div>
-            </Modal>
+            </dialog>
 
             {/* Task 8.2: Bulk Paste Modal */}
             <THCSBulkPasteModal

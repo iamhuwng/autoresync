@@ -1,0 +1,34 @@
+{
+  "observedOn": "2026-10-17",
+  "hosting": {
+    "project": "temp-a1437",
+    "site": "kahut1",
+    "version": "10039da56ea1c0ae",
+    "releaseTime": "2026-10-06T07:08:57.107Z",
+    "files": 458,
+    "javascriptAssetsHashVerified": 393
+  },
+  "notification": {
+    "commandVersion": "541166ae-93db-4d92-8eda-5fb291325b42",
+    "publicVersion": "5696e963-c5ed-463d-a495-30db3c07bc98",
+    "commandAllocation": 100,
+    "publicAllocation": 100,
+    "publicDurableObjectOwner": "luyentap-notification-command",
+    "schedules": [],
+    "firestoreRuleset": "8fcf3e1c-1a56-4138-8e4c-24cc594c5316",
+    "ordinaryRtdbDifferencePaths": [],
+    "unauthenticatedPostStatus": 401,
+    "productionOriginPreflightStatus": 204
+  },
+  "aiGateway": {
+    "version": "09d2b77a-03ec-40ff-b0c9-933a9b007325",
+    "allocation": 100
+  },
+  "limits": [
+    "Provider versions do not expose deployed Git provenance.",
+    "No credential values retained; credential validity not tested.",
+    "Provider readback did not exercise authenticated browsers; see the subsequent isolated candidate acceptance record.",
+    "No remote mutation or stable-main promotion."
+  ],
+  "subsequentCandidateAcceptance": "2026-10-17-candidate-acceptance.json"
+}

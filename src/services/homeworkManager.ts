@@ -10,6 +10,7 @@ import {
     where,
     deleteField,
     writeBatch,
+    increment,
 } from 'firebase/firestore';
 // @ts-ignore - JS service file
 import { firestore as db } from './firebase';
@@ -30,6 +31,8 @@ import type {
     StudentOverride
 } from '../types/homework.types';
 import type { AntiCheatConfig } from '../types/integrity.types';
+import type { ClassSummary } from '../types/class.types';
+import { isBookHomeworkCompatibilityProjection } from './book-homework/bookHomeworkCompatibilityProjection.service';
 
 const HOMEWORK_COLLECTION = 'homework_assignments';
 
@@ -110,8 +113,16 @@ function stripUndefinedFields<T>(value: T): T {
 }
 
 function normalizeHomeworkAssignment(homework: HomeworkAssignment): HomeworkAssignment {
+    if (isBookHomeworkCompatibilityProjection(homework)) {
+        return homework as unknown as HomeworkAssignment;
+    }
+
     return {
         ...homework,
+        config: {
+            ...homework.config,
+            maxAttempts: homework.config?.maxAttempts ?? null,
+        },
         tags: homework.tags ?? [],
         archived: homework.archived ?? false,
         studentOverrides: homework.studentOverrides ?? {},
@@ -311,9 +322,17 @@ export async function getHomeworkByClass(classId: string): Promise<HomeworkAssig
 /**
  * Get homework assignments for a specific student
  */
-export async function getHomeworkForStudent(studentId: string): Promise<HomeworkAssignment[]> {
+export interface GetHomeworkForStudentOptions {
+    /** Shell-owned membership summaries. Omit only outside StudentShellDataProvider. */
+    studentClasses?: readonly Pick<ClassSummary, 'id'>[];
+}
+
+export async function getHomeworkForStudent(
+    studentId: string,
+    options: GetHomeworkForStudentOptions = {},
+): Promise<HomeworkAssignment[]> {
     try {
-        const studentClasses = await getStudentClasses(studentId);
+        const studentClasses = options.studentClasses ?? await getStudentClasses(studentId);
         const studentQuery = query(
             collection(db, HOMEWORK_COLLECTION),
             where('target.studentIds', 'array-contains', studentId)
@@ -471,6 +490,31 @@ export async function updateStudentOverride(
 
     const homeworkRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
     await updateDoc(homeworkRef, updates);
+}
+
+/** Persist the teacher action and its immutable occurrence atomically. */
+export async function recordManualHomeworkReminder(
+    homeworkId: string,
+    studentId: string,
+    actorUid: string,
+    eventId: string,
+    occurredAt: number,
+): Promise<void> {
+    const batch = writeBatch(db);
+    const assignmentRef = doc(db, HOMEWORK_COLLECTION, homeworkId);
+    const intentRef = doc(db, 'homework_manual_reminder_intents', eventId);
+    batch.update(assignmentRef, {
+        [`studentOverrides.${studentId}.reminderCount`]: increment(1),
+        [`studentOverrides.${studentId}.lastRemindedAt`]: occurredAt,
+    });
+    batch.set(intentRef, {
+        eventId,
+        homeworkId,
+        studentId,
+        actorUid,
+        occurredAt,
+    });
+    await batch.commit();
 }
 
 /**
@@ -671,6 +715,9 @@ export async function propagateTestMetadataToHomework(
 
         snapshot.docs.forEach((docSnap) => {
             const data = docSnap.data();
+            if (isBookHomeworkCompatibilityProjection(data)) {
+                return;
+            }
             // Only update if the title actually changed
             if (updates.materialTitle && data.materialTitle !== updates.materialTitle) {
                 batch.update(docSnap.ref, { materialTitle: updates.materialTitle });

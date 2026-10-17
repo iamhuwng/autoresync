@@ -27,6 +27,8 @@ export interface CourseTypeRequest {
     approvedBy?: string;
     approvedAt?: number;
     rejectionReason?: string;
+    handledBy?: string;
+    handledAt?: number;
 }
 
 // Main Course Interface
@@ -97,6 +99,10 @@ export interface CourseMaterial {
     isCopy: boolean; // true if it's a deep copy, false if linked
     originalMaterialId?: string; // if copy, points to source
     syncedAt?: number; // last sync timestamp
+
+    // Canonical #102 direct-Course Book placement. Class copies remain #103-owned.
+    materialKind?: 'book-delivery';
+    bookDeliveryPlacement?: import('../services/book-delivery/courseBookPlacement.service').CourseBookPlacement;
 }
 
 // Enrollment Type

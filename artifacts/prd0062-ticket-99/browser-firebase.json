@@ -1,0 +1,22 @@
+{
+  "database": {
+    "rules": "browser-rules.json"
+  },
+  "emulators": {
+    "database": {
+      "host": "localhost",
+      "port": 9002
+    },
+    "hub": {
+      "host": "localhost",
+      "port": 4402
+    },
+    "logging": {
+      "host": "localhost",
+      "port": 4502
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}

@@ -2,8 +2,7 @@
  * THCSQuestionBlock — Individual question editor (PRD-0027 Task 4.4)
  * Supports image upload via file picker AND clipboard paste (Ctrl+V / button)
  */
-import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { TextInput, Textarea, Select, NumberInput, ActionIcon, Tooltip, Collapse } from '@mantine/core';
+import React, { useRef, useState, useCallback } from 'react';
 import type { THCSQuestion, MCQIntent, THCSQuestionType } from '../../types/thcs-test.types';
 import { INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
 import THCSPronunciationOptions from './THCSPronunciationOptions';
@@ -12,6 +11,7 @@ import THCSFillInBlock from './THCSFillInBlock';
 import THCSWritingBlock from './THCSWritingBlock';
 import THCSClozeWordBankBlock from './THCSClozeWordBankBlock';
 import r2StorageService from '../../services/r2Storage';
+import { useClipboard } from '../../core/platform/hooks/useClipboard';
 
 interface THCSQuestionBlockProps {
     question: THCSQuestion;
@@ -25,6 +25,7 @@ interface THCSQuestionBlockProps {
     onMoveDown: () => void;
     canMoveUp: boolean;
     canMoveDown: boolean;
+    onTrackAction?: (actionName: string, metadata?: Record<string, unknown>) => void;
 }
 
 const QUESTION_TYPE_OPTIONS = [
@@ -74,10 +75,10 @@ const LABELS = ['A', 'B', 'C', 'D'] as const;
 
 const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
     question, questionIndex: _questionIndex, globalNumber, sectionPointMode,
-    onUpdate, onDelete, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
+    onUpdate, onDelete, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onTrackAction,
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const blockRef = useRef<HTMLDivElement>(null);
+    const { availableImage, refreshImage } = useClipboard({ watchImages: true });
     const [showExplanation, setShowExplanation] = useState(!!question.explanation?.text);
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -88,8 +89,11 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
     const isCloze = question.type === 'reading-cloze-wordbank';
     const isPronunciation = question.intent === 'pronunciation' || question.intent === 'word-stress';
     const isErrorId = question.intent === 'error-identification';
+    const supportsVisualText = question.type === 'mcq-sign-notice' || question.intent === 'mcq-sign-notice'
+        || question.type === 'reading-announcement' || question.intent === 'reading-announcement';
 
     const handleTypeChange = (newType: THCSQuestionType) => {
+        onTrackAction?.('thcsQuestionTypeChanged', { questionNumber: globalNumber, type: newType });
         const isMCQNow = newType in INSTRUCTION_TEMPLATES;
 
         let updates: Partial<THCSQuestion> = { type: newType };
@@ -154,60 +158,27 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
     // Clipboard paste handler — reads image from clipboard
     const handleClipboardPaste = useCallback(async () => {
         if (uploading) return;
-        try {
-            // Try modern Clipboard API first
-            if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
-                const clipboardItems = await navigator.clipboard.read();
-                for (const item of clipboardItems) {
-                    const imageType = item.types.find(t => t.startsWith('image/'));
-                    if (imageType) {
-                        const blob = await item.getType(imageType);
-                        const file = new File([blob], `paste-${Date.now()}.${imageType.split('/')[1]}`, { type: imageType });
-                        processImageFile(file);
-                        return;
-                    }
-                }
-                setUploadError('No image found in clipboard');
-            } else {
-                setUploadError('Clipboard API not available — try Ctrl+V instead');
-            }
-        } catch (err) {
-            // Permission denied or no clipboard access
-            if (err instanceof DOMException && err.name === 'NotAllowedError') {
-                setUploadError('Clipboard permission denied — try Ctrl+V instead');
-            } else {
-                setUploadError('Could not read clipboard');
-            }
+        onTrackAction?.('thcsQuestionImagePasteRequested', { questionNumber: globalNumber });
+        const file = await refreshImage();
+        if (!file) {
+            setUploadError('No image found or clipboard access was blocked — focus this card and press Ctrl+V');
+            return;
         }
-    }, [uploading, processImageFile]);
+        await processImageFile(file);
+    }, [globalNumber, onTrackAction, processImageFile, refreshImage, uploading]);
 
-    // Ctrl+V paste event listener on the question block
-    useEffect(() => {
-        const block = blockRef.current;
-        if (!block) return;
-
-        const handlePasteEvent = (e: ClipboardEvent) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-
-            for (const item of Array.from(items)) {
-                if (item.type.startsWith('image/')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const file = item.getAsFile();
-                    if (file) processImageFile(file);
-                    return;
-                }
-            }
-            // If no image found, let the event propagate (could be text paste into inputs)
-        };
-
-        block.addEventListener('paste', handlePasteEvent);
-        return () => block.removeEventListener('paste', handlePasteEvent);
-    }, [processImageFile]);
+    const handlePasteEvent = useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+        if (question.imageUrl || uploading) return;
+        const image = Array.from(event.clipboardData.items).find((item) => item.type.startsWith('image/'))?.getAsFile();
+        if (!image) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onTrackAction?.('thcsQuestionImagePasteRequested', { questionNumber: globalNumber });
+        void processImageFile(image);
+    }, [globalNumber, onTrackAction, processImageFile, question.imageUrl, uploading]);
 
     return (
-        <div ref={blockRef} tabIndex={-1} style={{
+        <div onPaste={handlePasteEvent} style={{
             background: 'rgba(255,255,255,0.6)',
             borderRadius: '0.75rem',
             border: '1px solid rgba(139,92,246,0.1)',
@@ -225,27 +196,24 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                     Q{globalNumber}
                 </span>
 
-                <Select
-                    data={QUESTION_TYPE_OPTIONS}
+                <select
+                    aria-label="Question type"
                     value={question.type}
-                    onChange={(val) => val && handleTypeChange(val as THCSQuestionType)}
-                    size="xs"
-                    style={{ flex: 1, maxWidth: 240 }}
-                    placeholder="Select type"
-                    searchable
-                />
+                    onChange={(event) => handleTypeChange(event.target.value as THCSQuestionType)}
+                    style={{ flex: 1, maxWidth: 240, padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', background: '#fff' }}
+                >
+                    {QUESTION_TYPE_OPTIONS.map((group) => (
+                        <optgroup key={group.group} label={group.group}>
+                            {group.items.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                        </optgroup>
+                    ))}
+                </select>
 
                 <div style={{ flex: 1 }} />
 
-                <Tooltip label="Move up (Alt+↑)">
-                    <ActionIcon variant="subtle" size="xs" disabled={!canMoveUp} onClick={onMoveUp} style={{ opacity: 0.5 }}>↑</ActionIcon>
-                </Tooltip>
-                <Tooltip label="Move down (Alt+↓)">
-                    <ActionIcon variant="subtle" size="xs" disabled={!canMoveDown} onClick={onMoveDown} style={{ opacity: 0.5 }}>↓</ActionIcon>
-                </Tooltip>
-                <Tooltip label="Delete question">
-                    <ActionIcon variant="subtle" color="red" size="sm" onClick={onDelete}>✕</ActionIcon>
-                </Tooltip>
+                <button type="button" title="Move up (Alt+↑)" aria-label="Move question up" disabled={!canMoveUp} onClick={() => { onTrackAction?.('thcsQuestionMoved', { questionNumber: globalNumber, direction: 'up' }); onMoveUp(); }} style={{ opacity: 0.5, border: 0, background: 'transparent' }}>↑</button>
+                <button type="button" title="Move down (Alt+↓)" aria-label="Move question down" disabled={!canMoveDown} onClick={() => { onTrackAction?.('thcsQuestionMoved', { questionNumber: globalNumber, direction: 'down' }); onMoveDown(); }} style={{ opacity: 0.5, border: 0, background: 'transparent' }}>↓</button>
+                <button type="button" title="Delete question" aria-label="Delete question" onClick={() => { onTrackAction?.('thcsQuestionDeleted', { questionNumber: globalNumber }); onDelete(); }} style={{ border: 0, background: 'transparent', color: '#ef4444' }}>✕</button>
             </div>
 
             {/* Question content — varies by type */}
@@ -265,16 +233,17 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
             ) : (
                 <>
                     {/* Standard question text */}
-                    <Textarea
-                        label="Question"
-                        placeholder="Enter question text..."
-                        value={question.questionText}
-                        onChange={(e) => onUpdate({ ...question, questionText: e.target.value })}
-                        minRows={2}
-                        autosize
-                        size="sm"
-                        mb="sm"
-                    />
+                    <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                        <span style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8125rem', fontWeight: 600 }}>Question</span>
+                        <textarea
+                            placeholder="Enter question text..."
+                            value={question.questionText}
+                            onChange={(e) => onUpdate({ ...question, questionText: e.target.value })}
+                            onBlur={() => onTrackAction?.('thcsQuestionTextUpdated', { questionNumber: globalNumber })}
+                            rows={2}
+                            style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', font: 'inherit' }}
+                        />
+                    </label>
 
                     {/* Options */}
                     {isPronunciation ? (
@@ -297,7 +266,10 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                                         type="radio"
                                         name={`correct-${question.id}`}
                                         checked={question.correctAnswer === label}
-                                        onChange={() => onUpdate({ ...question, correctAnswer: label })}
+                                        onChange={() => {
+                                            onTrackAction?.('thcsQuestionAnswerChanged', { questionNumber: globalNumber });
+                                            onUpdate({ ...question, correctAnswer: label });
+                                        }}
                                         style={{ accentColor: '#8b5cf6', width: 16, height: 16 }}
                                     />
                                     <span style={{
@@ -307,7 +279,8 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                                     }}>
                                         {label}.
                                     </span>
-                                    <TextInput
+                                    <input
+                                        aria-label={`Option ${label}`}
                                         placeholder={`Option ${label}`}
                                         value={question.options[i]}
                                         onChange={(e) => {
@@ -315,8 +288,8 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                                             newOpts[i] = e.target.value;
                                             onUpdate({ ...question, options: newOpts });
                                         }}
-                                        style={{ flex: 1 }}
-                                        size="xs"
+                                        onBlur={() => onTrackAction?.('thcsQuestionOptionUpdated', { questionNumber: globalNumber, option: label })}
+                                        style={{ flex: 1, minWidth: 0, padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', font: 'inherit', fontSize: '0.75rem' }}
                                     />
                                 </div>
                             ))}
@@ -340,7 +313,11 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                         }} />
                         <div style={{ display: 'flex', gap: '0.375rem' }}>
                             <button
-                                onClick={() => fileInputRef.current?.click()}
+                                type="button"
+                                onClick={() => {
+                                    onTrackAction?.('thcsQuestionImageUploadRequested', { questionNumber: globalNumber });
+                                    fileInputRef.current?.click();
+                                }}
                                 style={{
                                     padding: '0.2rem 0.5rem', fontSize: '0.7rem', fontWeight: 600,
                                     border: '1px solid rgba(139,92,246,0.2)', borderRadius: '0.25rem',
@@ -350,7 +327,11 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                                 🔄 Replace
                             </button>
                             <button
-                                onClick={() => onUpdate({ ...question, imageUrl: undefined, _imageKey: undefined } as any)}
+                                type="button"
+                                onClick={() => {
+                                    onTrackAction?.('thcsQuestionImageRemoved', { questionNumber: globalNumber });
+                                    onUpdate({ ...question, imageUrl: undefined, _imageKey: undefined } as any);
+                                }}
                                 style={{
                                     padding: '0.2rem 0.5rem', fontSize: '0.7rem', fontWeight: 600,
                                     border: '1px solid rgba(239,68,68,0.2)', borderRadius: '0.25rem',
@@ -364,13 +345,17 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                 ) : (
                     /* ── Empty state: buttons + paste zone ── */
                     <div
+                        onPointerEnter={() => { void refreshImage(); }}
                         onDragOver={(e) => { e.preventDefault(); setPasteHover(true); }}
                         onDragLeave={() => setPasteHover(false)}
                         onDrop={(e) => {
                             e.preventDefault();
                             setPasteHover(false);
                             const file = e.dataTransfer.files[0];
-                            if (file?.type.startsWith('image/')) processImageFile(file);
+                            if (file?.type.startsWith('image/')) {
+                                onTrackAction?.('thcsQuestionImageDropRequested', { questionNumber: globalNumber });
+                                processImageFile(file);
+                            }
                         }}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -386,7 +371,11 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                         }}
                     >
                         <button
-                            onClick={() => fileInputRef.current?.click()}
+                            type="button"
+                            onClick={() => {
+                                onTrackAction?.('thcsQuestionImageUploadRequested', { questionNumber: globalNumber });
+                                fileInputRef.current?.click();
+                            }}
                             disabled={uploading}
                             style={{
                                 padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
@@ -397,18 +386,21 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                         >
                             🖼️ Add Image
                         </button>
-                        <button
-                            onClick={handleClipboardPaste}
-                            disabled={uploading}
-                            style={{
-                                padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
-                                border: '1px solid rgba(34,197,94,0.2)', borderRadius: '0.375rem',
-                                background: 'transparent', color: '#16a34a', cursor: 'pointer',
-                                opacity: uploading ? 0.5 : 1,
-                            }}
-                        >
-                            📋 Paste
-                        </button>
+                        {availableImage && (
+                            <button
+                                type="button"
+                                onClick={handleClipboardPaste}
+                                disabled={uploading}
+                                style={{
+                                    padding: '0.25rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
+                                    border: '1px solid rgba(34,197,94,0.2)', borderRadius: '0.375rem',
+                                    background: 'transparent', color: '#16a34a', cursor: 'pointer',
+                                    opacity: uploading ? 0.5 : 1,
+                                }}
+                            >
+                                📋 Paste screenshot
+                            </button>
+                        )}
                         {uploading && (
                             <span style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 500 }}>
                                 ⏳ Uploading...
@@ -433,24 +425,54 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                 )}
             </div>
 
+            {supportsVisualText && (
+                <label style={{ display: 'block', marginTop: '0.75rem' }}>
+                    <span style={{ display: 'block', marginBottom: '0.25rem', color: '#334155', fontSize: '0.75rem', fontWeight: 600 }}>
+                        {question.imageUrl ? 'Image description (optional)' : 'Visual text alternative (instead of an image)'}
+                    </span>
+                    <textarea
+                        aria-label="Visual text alternative"
+                        value={question.imageCaption || ''}
+                        onChange={(event) => onUpdate({ ...question, imageCaption: event.target.value })}
+                        onBlur={() => {
+                            if (question.imageCaption?.trim()) {
+                                onTrackAction?.('thcsQuestionVisualTextUpdated', { questionNumber: globalNumber });
+                            }
+                        }}
+                        placeholder="Type the sign, notice, or poster text students need to read..."
+                        rows={3}
+                        style={{
+                            width: '100%', resize: 'vertical', boxSizing: 'border-box', padding: '0.5rem 0.625rem',
+                            border: '1px solid #cbd5e1', borderRadius: '0.375rem', color: '#1e293b', font: 'inherit', fontSize: '0.8125rem',
+                        }}
+                    />
+                </label>
+            )}
+
             {/* Manual points */}
             {sectionPointMode === 'manual' && (
-                <NumberInput
-                    label="Points"
-                    value={question.points || 0}
-                    onChange={(val) => onUpdate({ ...question, points: typeof val === 'number' ? val : 0 })}
-                    step={0.25}
-                    min={0}
-                    size="xs"
-                    mt="xs"
-                    style={{ maxWidth: 100 }}
-                />
+                <label style={{ display: 'block', maxWidth: 100, marginTop: '0.75rem' }}>
+                    <span style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600 }}>Points</span>
+                    <input
+                        type="number"
+                        value={question.points || 0}
+                        onChange={(event) => onUpdate({ ...question, points: Number(event.target.value) || 0 })}
+                        onBlur={() => onTrackAction?.('thcsQuestionPointsUpdated', { questionNumber: globalNumber })}
+                        step={0.25}
+                        min={0}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem' }}
+                    />
+                </label>
             )}
 
             {/* Explanation */}
             <div style={{ marginTop: '0.5rem' }}>
                 <button
-                    onClick={() => setShowExplanation(!showExplanation)}
+                    type="button"
+                    onClick={() => {
+                        onTrackAction?.('thcsQuestionExplanationToggled', { questionNumber: globalNumber, open: !showExplanation });
+                        setShowExplanation(!showExplanation);
+                    }}
                     style={{
                         border: 'none', background: 'transparent', fontSize: '0.75rem',
                         color: '#8b5cf6', cursor: 'pointer', fontWeight: 600,
@@ -458,25 +480,26 @@ const THCSQuestionBlock: React.FC<THCSQuestionBlockProps> = ({
                 >
                     {showExplanation ? '− Hide Explanation' : '+ Add Explanation'}
                 </button>
-                <Collapse in={showExplanation}>
-                    <Textarea
-                        label="Why is this answer correct?"
-                        placeholder="Optional explanation for students..."
-                        value={question.explanation?.text || ''}
-                        onChange={(e) => onUpdate({
-                            ...question,
-                            explanation: {
-                                text: e.target.value,
-                                source: 'teacher',
-                                approvedByTeacher: true,
-                            },
-                        })}
-                        size="xs"
-                        minRows={2}
-                        autosize
-                        mt={4}
-                    />
-                </Collapse>
+                {showExplanation && (
+                    <label style={{ display: 'block', marginTop: '0.25rem' }}>
+                        <span style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: 600 }}>Why is this answer correct?</span>
+                        <textarea
+                            placeholder="Optional explanation for students..."
+                            value={question.explanation?.text || ''}
+                            onChange={(e) => onUpdate({
+                                ...question,
+                                explanation: {
+                                    text: e.target.value,
+                                    source: 'teacher',
+                                    approvedByTeacher: true,
+                                },
+                            })}
+                            onBlur={() => onTrackAction?.('thcsQuestionExplanationUpdated', { questionNumber: globalNumber })}
+                            rows={2}
+                            style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.375rem', font: 'inherit', fontSize: '0.75rem' }}
+                        />
+                    </label>
+                )}
             </div>
         </div>
     );

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "49B",
+  "issue": 122,
+  "status": "inactive",
+  "activation": "deny-only-until-125-reconciliation",
+  "backupInventory": "child-of-book_delivery/scopes",
+  "owner": {
+    "ticketId": "49B",
+    "issue": 122,
+    "serviceIdentity": "book_recovery_service",
+    "generatedRuleLocations": [
+      "book_delivery/scopes/$recipientId/$contextId/recovery/hold/.read",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/hold/.write",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/hold/.validate",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey/.read",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey/.write",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "book_delivery/scopes/$recipientId/$contextId/recovery/hold",
+      "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/hold",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && ((auth.token.book_delivery_service == true && auth.token.book_delivery_recipientId == $recipientId && auth.token.book_delivery_contextId == $contextId) || (auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.o == data.child('recoveryOperationId').val() && auth.token.bkr.r == $recipientId && auth.token.bkr.c == $contextId && auth.token.bkr.dl >= now))"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/hold",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.o == newData.child('recoveryOperationId').val() && auth.token.bkr.r == $recipientId && auth.token.bkr.c == $contextId && newData.exists() && newData.child('kind').val() == 'book-delivery-recovery-hold' && newData.child('schemaVersion').val() == 1 && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('deliveryState').val() == 'unavailable' && newData.child('readDenied').val() == true && newData.child('activation').val() == 'held-for-reconciliation' && ((!data.exists()) || newData.val() == data.val()) && !newData.child('pdfBytes').exists() && !newData.child('pdfBody').exists() && !newData.child('providerObject').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('url').exists() && !newData.child('viewerLink').exists() && !newData.child('entitlement').exists() && !newData.child('credentials').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('signed').exists()"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/hold",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!newData.exists() || (newData.hasChildren(['kind', 'schemaVersion', 'recoveryOperationId', 'recipientId', 'contextId', 'deliveryState', 'readDenied', 'activation']) && newData.child('kind').val() == 'book-delivery-recovery-hold' && newData.child('schemaVersion').val() == 1 && newData.child('recoveryOperationId').isString() && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('deliveryState').val() == 'unavailable' && newData.child('readDenied').val() == true && newData.child('activation').val() == 'held-for-reconciliation' && !newData.child('pdfBytes').exists() && !newData.child('pdfBody').exists() && !newData.child('providerObject').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('url').exists() && !newData.child('viewerLink').exists() && !newData.child('entitlement').exists() && !newData.child('credentials').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('signed').exists())"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.o == data.child('recoveryOperationId').val() && auth.token.bkr.r == $recipientId && auth.token.bkr.c == $contextId && auth.token.bkr.dl >= now"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bkr.s == true && auth.token.bkr.si == 'book_recovery_service' && auth.token.bkr.o == newData.child('recoveryOperationId').val() && auth.token.bkr.r == $recipientId && auth.token.bkr.c == $contextId && newData.exists() && newData.child('kind').val() == 'book-delivery-recovery-projection' && newData.child('schemaVersion').val() == 1 && newData.child('projectionKey').val() == $projectionKey && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('deliveryState').val() == 'unavailable' && newData.child('readDenied').val() == true && newData.child('activation').val() == 'held-for-reconciliation' && ((!data.exists()) || newData.val() == data.val()) && !newData.child('pdfBytes').exists() && !newData.child('pdfBody').exists() && !newData.child('providerObject').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('url').exists() && !newData.child('viewerLink').exists() && !newData.child('entitlement').exists() && !newData.child('credentials').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('signed').exists()"
+    },
+    {
+      "path": "book_delivery/scopes/$recipientId/$contextId/recovery/projections/$projectionKey",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!newData.exists() || (newData.hasChildren(['kind', 'schemaVersion', 'projectionKey', 'recoveryOperationId', 'bindingId', 'bindingRevision', 'recordRevision', 'recipientId', 'contextId', 'ownerId', 'publicationStatus', 'deliveryState', 'readDenied', 'activation', 'sourceStatuses']) && newData.child('kind').val() == 'book-delivery-recovery-projection' && newData.child('schemaVersion').val() == 1 && newData.child('projectionKey').val() == $projectionKey && newData.child('recoveryOperationId').isString() && newData.child('bindingId').isString() && newData.child('bindingRevision').isNumber() && newData.child('recordRevision').isNumber() && newData.child('recipientId').val() == $recipientId && newData.child('contextId').val() == $contextId && newData.child('ownerId').isString() && (newData.child('publicationStatus').val() == 'published' || newData.child('publicationStatus').val() == 'unpublished') && newData.child('deliveryState').val() == 'unavailable' && newData.child('readDenied').val() == true && newData.child('activation').val() == 'held-for-reconciliation' && newData.child('sourceStatuses').hasChildren() && !newData.child('pdfBytes').exists() && !newData.child('pdfBody').exists() && !newData.child('providerObject').exists() && !newData.child('providerAuthority').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('url').exists() && !newData.child('viewerLink').exists() && !newData.child('entitlement').exists() && !newData.child('credentials').exists() && !newData.child('token').exists() && !newData.child('secret').exists() && !newData.child('signed').exists())"
+    }
+  ]
+}

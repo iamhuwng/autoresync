@@ -3,15 +3,12 @@ import * as admin from 'firebase-admin';
 import {
   cloneOperationRecord,
   createOperationScopeKey,
-  deriveAssetIds,
 } from './repository.operationRecords';
 import {
   normalizeLegacyListeningTest,
   runLegacyFirstEditMutation,
 } from './repository.legacyFirstEditMutation';
 import {
-  assertNoActiveListeningTempCleanupLease,
-  assertNoDeletedListeningTempAssets,
   cloneDraftRecord,
   cloneRecord,
   cloneVersionRecord,
@@ -47,14 +44,11 @@ export const firebaseLegacyFirstEditTransaction = async (
     const current: DatabaseRootState =
       currentValue !== null ? cloneRecord(currentValue as DatabaseRootState) : {};
     const authoring = current.listening_authoring ?? {};
-    assertNoActiveListeningTempCleanupLease(authoring, Date.now());
     const rawLegacyTests = current.tests ?? {};
     const legacyTests = new Map<string, LegacyListeningTestRecord>();
     for (const [testId, value] of Object.entries(rawLegacyTests)) {
       if (testId === input.legacyTestId) {
-        const normalized = normalizeLegacyListeningTest(value, testId);
-        assertNoDeletedListeningTempAssets(authoring, deriveAssetIds(normalized));
-        legacyTests.set(testId, normalized);
+        legacyTests.set(testId, normalizeLegacyListeningTest(value, testId));
       }
     }
     const drafts = new Map<string, ListeningAuthoringDraftRecord>([

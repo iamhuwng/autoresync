@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "42A",
+  "owner": {
+    "ticketId": "42A",
+    "issue": 102,
+    "serviceIdentity": "course_book_authority_102",
+    "generatedRuleLocations": [
+      "/.validate",
+      "course_enrollments/$legacyEnrollmentId/.write",
+      "course_book_authority/enrollments/$courseId/$studentId/.write",
+      "course_book_authority/releases/$courseId/$moduleId/$studentId/.write",
+      "course_book_authority/operations/$operationId/.write",
+      "course_materials/$materialId/.write",
+      "course_materials/$materialId/bookDeliveryPlacement/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/$field/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/pins/$pin/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/pins/selectedActivities/$activityIndex/$activityField/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/pins/selectedActivities/$activityIndex/sourceVersionIds/$sourceIndex/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/selection/$selectionField/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/selection/nodeKeys/$nodeIndex/.validate",
+      "course_materials/$materialId/bookDeliveryPlacement/selection/placementIds/$placementIndex/.validate",
+      "course_book_authority/operations/$operationId/outcome/$field/.validate",
+      "course_book_authority/operations/$operationId/outcome/pins/$pin/.validate",
+      "course_book_authority/operations/$operationId/outcome/pins/selectedActivities/$activityIndex/$activityField/.validate",
+      "course_book_authority/operations/$operationId/outcome/pins/selectedActivities/$activityIndex/sourceVersionIds/$sourceIndex/.validate",
+      "course_book_authority/operations/$operationId/outcome/selection/$selectionField/.validate",
+      "course_book_authority/operations/$operationId/outcome/selection/nodeKeys/$nodeIndex/.validate",
+      "course_book_authority/operations/$operationId/outcome/selection/placementIds/$placementIndex/.validate",
+      "course_materials/$materialId/$other/.validate",
+      "course_materials/$materialId/id/.validate",
+      "course_materials/$materialId/courseId/.validate",
+      "course_materials/$materialId/moduleId/.validate",
+      "course_materials/$materialId/materialId/.validate",
+      "course_materials/$materialId/order/.validate",
+      "course_materials/$materialId/linkedAt/.validate",
+      "course_materials/$materialId/isCopy/.validate",
+      "course_materials/$materialId/materialKind/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "course_enrollments/$legacyEnrollmentId",
+      "course_book_authority/enrollments/$courseId/$studentId",
+      "course_book_authority/releases/$courseId/$moduleId/$studentId",
+      "course_book_authority/operations/$operationId",
+      "course_materials/$materialId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "",
+      "rule": ".validate",
+      "merge": "root-post-write-coupling",
+      "requiresExistingRule": false,
+      "expression": "newData.child('system_flags').child('restore_in_progress').val() !== true && (!(auth != null && auth.token.courseBookAuthority102 === true) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-transition' && data.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() === auth.token.expectedLegacyRevision && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() === data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() + 1 && data.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('revision').val() === auth.token.expectedAuthorityRevision && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('revision').val() === data.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('revision').val() + 1 && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('operationId').val() === auth.token.operationId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('studentId').val() === auth.token.studentId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-request-transition' && data.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('isClassInstance').val() !== true && root.child('course_requests').child(auth.token.requestId).child('id').val() === auth.token.requestId && root.child('course_requests').child(auth.token.requestId).child('status').val() === 'pending' && root.child('course_requests').child(auth.token.requestId).child('expiresAt').val() > now && root.child('course_requests').child(auth.token.requestId).child('teacherId').val() === auth.token.actorUid && root.child('course_requests').child(auth.token.requestId).child('courseId').val() === auth.token.courseId && root.child('course_requests').child(auth.token.requestId).child('studentId').val() === auth.token.studentId && root.child('course_requests').child(auth.token.requestId).child('type').val() === auth.token.requestType && newData.child('course_requests').child(auth.token.requestId).child('status').val() === 'approved' && newData.child('course_requests').child(auth.token.requestId).child('processedBy').val() === auth.token.actorUid && newData.child('course_requests').child(auth.token.requestId).child('processedAt').isNumber() && newData.child('course_requests').child(auth.token.requestId).child('processedAt').val() > root.child('course_requests').child(auth.token.requestId).child('requestedAt').val() && newData.child('course_requests').child(auth.token.requestId).child('processedAt').val() <= now + 5000 && newData.child('course_requests').child(auth.token.requestId).child('id').val() === root.child('course_requests').child(auth.token.requestId).child('id').val() && newData.child('course_requests').child(auth.token.requestId).child('studentId').val() === root.child('course_requests').child(auth.token.requestId).child('studentId').val() && newData.child('course_requests').child(auth.token.requestId).child('studentName').val() === root.child('course_requests').child(auth.token.requestId).child('studentName').val() && newData.child('course_requests').child(auth.token.requestId).child('courseId').val() === root.child('course_requests').child(auth.token.requestId).child('courseId').val() && newData.child('course_requests').child(auth.token.requestId).child('courseName').val() === root.child('course_requests').child(auth.token.requestId).child('courseName').val() && newData.child('course_requests').child(auth.token.requestId).child('teacherId').val() === root.child('course_requests').child(auth.token.requestId).child('teacherId').val() && newData.child('course_requests').child(auth.token.requestId).child('type').val() === root.child('course_requests').child(auth.token.requestId).child('type').val() && newData.child('course_requests').child(auth.token.requestId).child('requestedAt').val() === root.child('course_requests').child(auth.token.requestId).child('requestedAt').val() && newData.child('course_requests').child(auth.token.requestId).child('expiresAt').val() === root.child('course_requests').child(auth.token.requestId).child('expiresAt').val() && ((!data.child('course_enrollments').child(auth.token.legacyEnrollmentId).exists() && auth.token.expectedLegacyRevision === 0 && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('id').val() === auth.token.legacyEnrollmentId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('courseId').val() === auth.token.courseId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('studentId').val() === auth.token.studentId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('enrollmentType').val() === 'individual' && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('status').val() === 'active' && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() === 1 && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('operationId').val() === auth.token.operationId) || (data.child('course_enrollments').child(auth.token.legacyEnrollmentId).exists() && ((data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() === auth.token.expectedLegacyRevision) || (!data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').exists() && auth.token.expectedLegacyRevision === 0)) && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('id').val() === auth.token.legacyEnrollmentId && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('courseId').val() === auth.token.courseId && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('studentId').val() === auth.token.studentId && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('enrollmentType').val() !== 'class-based' && data.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('status').val() === 'active' && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('id').val() === auth.token.legacyEnrollmentId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('courseId').val() === auth.token.courseId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('studentId').val() === auth.token.studentId && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('status').val() === 'expired' && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('revision').val() === auth.token.expectedLegacyRevision + 1 && newData.child('course_enrollments').child(auth.token.legacyEnrollmentId).child('operationId').val() === auth.token.operationId)) && ((data.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('revision').val() === auth.token.expectedAuthorityRevision) || (!data.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).exists() && auth.token.expectedAuthorityRevision === 0)) && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('revision').val() === auth.token.expectedAuthorityRevision + 1 && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('studentId').val() === auth.token.studentId && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('status').val() === (auth.token.requestType === 'join' ? 'active' : 'revoked') && newData.child('course_book_authority').child('enrollments').child(auth.token.courseId).child(auth.token.studentId).child('operationId').val() === auth.token.operationId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('operation').val() === 'enrollment-request-transition' && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('operationId').val() === auth.token.operationId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('requestId').val() === auth.token.requestId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('actorUid').val() === auth.token.actorUid && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('requestType').val() === auth.token.requestType && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('studentId').val() === auth.token.studentId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('revision').val() === auth.token.expectedAuthorityRevision + 1) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'release-transition' && data.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null && data.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('revision').val() === auth.token.expectedReleaseRevision && newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('revision').val() === data.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('revision').val() + 1 && newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('moduleId').val() === auth.token.moduleId && newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('studentId').val() === auth.token.studentId && newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('operationId').val() === auth.token.operationId && (newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('released').val() === true || newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('released').val() === false) && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('operation').val() === 'release-transition' && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('operationId').val() === auth.token.operationId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('actorUid').val() === auth.token.actorUid && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('moduleId').val() === auth.token.moduleId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('studentId').val() === auth.token.studentId && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('released').val() === newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('released').val() && newData.child('course_book_authority').child('operations').child(auth.token.operationId).child('revision').val() === newData.child('course_book_authority').child('releases').child(auth.token.courseId).child(auth.token.moduleId).child(auth.token.studentId).child('revision').val()) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition' && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('archivedAt').exists() === false && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('course_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.child('course_book_authority/operations').child(auth.token.operationId).exists() && newData.child('course_book_authority/operations').child(auth.token.operationId).child('operation').val() === 'placement-transition' && newData.child('course_book_authority/operations').child(auth.token.operationId).child('action').val() === auth.token.action && newData.child('course_book_authority/operations').child(auth.token.operationId).child('operationId').val() === auth.token.operationId && newData.child('course_book_authority/operations').child(auth.token.operationId).child('actorUid').val() === auth.token.actorUid && newData.child('course_book_authority/operations').child(auth.token.operationId).child('courseId').val() === auth.token.courseId && newData.child('course_book_authority/operations').child(auth.token.operationId).child('moduleId').val() === auth.token.moduleId && newData.child('course_book_authority/operations').child(auth.token.operationId).child('courseMaterialId').val() === auth.token.courseMaterialId && newData.child('course_book_authority/operations').child(auth.token.operationId).child('expectedPlacementRevision').val() === auth.token.expectedPlacementRevision && newData.child('course_book_authority/operations').child(auth.token.operationId).child('revision').val() === auth.token.nextPlacementRevision && newData.child('course_book_authority/operations').child(auth.token.operationId).child('fingerprint').val() === auth.token.fingerprint && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').exists() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('courseMaterialId').val() === auth.token.courseMaterialId && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('courseId').val() === auth.token.courseId && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('moduleId').val() === auth.token.moduleId && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('ownerId').val() === auth.token.actorUid && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('placementRevision').val() === auth.token.nextPlacementRevision && auth.token.nextPlacementRevision === auth.token.expectedPlacementRevision + 1 && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('courseMaterialId').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/courseMaterialId').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('courseId').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/courseId').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('moduleId').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/moduleId').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('ownerId').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/ownerId').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('displayTitle').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/displayTitle').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('placementRevision').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/placementRevision').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('completionAggregationPolicy').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/completionAggregationPolicy').val() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('status').val() === newData.child('course_book_authority/operations').child(auth.token.operationId).child('outcome/status').val() && ((auth.token.action === 'create' && auth.token.expectedPlacementRevision === 0 && !data.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').exists() && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('status').val() === 'active') || (auth.token.action === 'revoke' && data.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('placementRevision').val() === auth.token.expectedPlacementRevision && data.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('status').val() === 'active' && newData.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('status').val() === 'revoked'))))"
+    },
+    {
+      "path": "course_enrollments/$legacyEnrollmentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": true,
+      "expression": "(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-transition' && auth.token.legacyEnrollmentId === $legacyEnrollmentId && root.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null && data.child('revision').val() === auth.token.expectedLegacyRevision && newData.child('revision').val() === auth.token.expectedLegacyRevision + 1) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-request-transition' && auth.token.requestType === 'join' && auth.token.legacyEnrollmentId === $legacyEnrollmentId && !data.exists() && auth.token.expectedLegacyRevision === 0 && root.child('course_requests').child(auth.token.requestId).child('id').val() === auth.token.requestId && root.child('course_requests').child(auth.token.requestId).child('status').val() === 'pending' && root.child('course_requests').child(auth.token.requestId).child('expiresAt').val() > now && root.child('course_requests').child(auth.token.requestId).child('teacherId').val() === auth.token.actorUid && root.child('course_requests').child(auth.token.requestId).child('courseId').val() === auth.token.courseId && root.child('course_requests').child(auth.token.requestId).child('studentId').val() === auth.token.studentId && root.child('course_requests').child(auth.token.requestId).child('type').val() === auth.token.requestType && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('isClassInstance').val() !== true && newData.child('id').val() === $legacyEnrollmentId && newData.child('courseId').val() === auth.token.courseId && newData.child('studentId').val() === auth.token.studentId && newData.child('enrollmentType').val() === 'individual' && newData.child('status').val() === 'active' && newData.child('revision').val() === 1 && newData.child('operationId').val() === auth.token.operationId) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-request-transition' && auth.token.requestType === 'unenroll' && auth.token.legacyEnrollmentId === $legacyEnrollmentId && data.exists() && ((data.child('revision').val() === auth.token.expectedLegacyRevision) || (!data.child('revision').exists() && auth.token.expectedLegacyRevision === 0)) && data.child('courseId').val() === auth.token.courseId && data.child('studentId').val() === auth.token.studentId && data.child('enrollmentType').val() !== 'class-based' && data.child('status').val() === 'active' && root.child('course_requests').child(auth.token.requestId).child('id').val() === auth.token.requestId && root.child('course_requests').child(auth.token.requestId).child('status').val() === 'pending' && root.child('course_requests').child(auth.token.requestId).child('expiresAt').val() > now && root.child('course_requests').child(auth.token.requestId).child('teacherId').val() === auth.token.actorUid && root.child('course_requests').child(auth.token.requestId).child('courseId').val() === auth.token.courseId && root.child('course_requests').child(auth.token.requestId).child('studentId').val() === auth.token.studentId && root.child('course_requests').child(auth.token.requestId).child('type').val() === auth.token.requestType && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('isClassInstance').val() !== true && newData.child('id').val() === data.child('id').val() && newData.child('courseId').val() === data.child('courseId').val() && newData.child('studentId').val() === data.child('studentId').val() && newData.child('enrollmentType').val() === data.child('enrollmentType').val() && newData.child('status').val() === 'expired' && newData.child('revision').val() === auth.token.expectedLegacyRevision + 1 && newData.child('operationId').val() === auth.token.operationId)"
+    },
+    {
+      "path": "course_book_authority/enrollments/$courseId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-transition' && auth.token.courseId === $courseId && auth.token.studentId === $studentId && data.child('revision').val() === auth.token.expectedAuthorityRevision && newData.child('revision').val() === auth.token.expectedAuthorityRevision + 1 && newData.child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'enrollment-request-transition' && auth.token.courseId === $courseId && auth.token.studentId === $studentId && ((data.child('revision').val() === auth.token.expectedAuthorityRevision) || (!data.exists() && auth.token.expectedAuthorityRevision === 0)) && newData.child('revision').val() === auth.token.expectedAuthorityRevision + 1 && newData.child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId && newData.child('courseId').val() === auth.token.courseId && newData.child('studentId').val() === auth.token.studentId && newData.child('status').val() === (auth.token.requestType === 'join' ? 'active' : 'revoked') && newData.child('operationId').val() === auth.token.operationId && root.child('course_requests').child(auth.token.requestId).child('id').val() === auth.token.requestId && root.child('course_requests').child(auth.token.requestId).child('status').val() === 'pending' && root.child('course_requests').child(auth.token.requestId).child('expiresAt').val() > now && root.child('course_requests').child(auth.token.requestId).child('teacherId').val() === auth.token.actorUid && root.child('course_requests').child(auth.token.requestId).child('courseId').val() === auth.token.courseId && root.child('course_requests').child(auth.token.requestId).child('studentId').val() === auth.token.studentId && root.child('course_requests').child(auth.token.requestId).child('type').val() === auth.token.requestType && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('isClassInstance').val() !== true)"
+    },
+    {
+      "path": "course_book_authority/releases/$courseId/$moduleId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'release-transition' && auth.token.courseId === $courseId && auth.token.moduleId === $moduleId && auth.token.studentId === $studentId && root.child('course_book_authority').child('operations').child(auth.token.operationId).val() === null && data.child('revision').val() === auth.token.expectedReleaseRevision && newData.child('revision').val() === auth.token.expectedReleaseRevision + 1 && newData.child('courseId').val() === auth.token.courseId && newData.child('moduleId').val() === auth.token.moduleId && newData.child('studentId').val() === auth.token.studentId && newData.child('operationId').val() === auth.token.operationId && (newData.child('released').val() === true || newData.child('released').val() === false)"
+    },
+    {
+      "path": "course_book_authority/operations/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.courseBookAuthority102 === true && auth.token.operationId === $operationId && !data.exists() && ((auth.token.operation === 'enrollment-transition' && newData.child('operationId').val() === $operationId && newData.child('courseId').val() === auth.token.courseId && newData.child('studentId').val() === auth.token.studentId && newData.child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId) || (auth.token.operation === 'enrollment-request-transition' && newData.child('operation').val() === 'enrollment-request-transition' && newData.child('operationId').val() === $operationId && newData.child('requestId').val() === auth.token.requestId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('courseId').val() === auth.token.courseId && newData.child('studentId').val() === auth.token.studentId && newData.child('requestType').val() === auth.token.requestType && newData.child('legacyEnrollmentId').val() === auth.token.legacyEnrollmentId && newData.child('revision').val() === auth.token.expectedAuthorityRevision + 1) || (auth.token.operation === 'release-transition' && newData.child('operation').val() === 'release-transition' && newData.child('operationId').val() === $operationId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('courseId').val() === auth.token.courseId && newData.child('moduleId').val() === auth.token.moduleId && newData.child('studentId').val() === auth.token.studentId && newData.child('revision').val() === auth.token.expectedReleaseRevision + 1) || (auth.token.operation === 'placement-transition' && newData.child('operation').val() === 'placement-transition' && newData.child('action').val() === auth.token.action && newData.child('operationId').val() === $operationId && newData.child('actorUid').val() === auth.token.actorUid && newData.child('courseId').val() === auth.token.courseId && newData.child('moduleId').val() === auth.token.moduleId && newData.child('courseMaterialId').val() === auth.token.courseMaterialId && newData.child('fingerprint').val() === auth.token.fingerprint && newData.child('expectedPlacementRevision').val() === auth.token.expectedPlacementRevision && newData.child('revision').val() === auth.token.nextPlacementRevision))"
+    },
+    {
+      "path": "course_materials/$materialId",
+      "rule": ".write",
+      "expression": "auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition' && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('archivedAt').exists() === false && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('course_book_authority').child('rollback').child('denyNewWrites').val() !== true && auth.token.courseMaterialId === $materialId && newData.exists()",
+      "merge": "conjoin-existing-authorization",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true) || (auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition' && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('courses').child(auth.token.courseId).child('ownerId').val() === auth.token.actorUid && root.child('courses').child(auth.token.courseId).child('archivedAt').exists() === false && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('course_book_authority').child('rollback').child('denyNewWrites').val() !== true && auth.token.courseMaterialId === $materialId && newData.hasChildren(['courseMaterialId','courseId','moduleId','ownerId','displayTitle','selection','placementRevision','completionAggregationPolicy','status','pins']) && newData.child('pins').hasChildren(['bookId','publicationId','publicationRevision','manifestVersionId','bindingRevision']) && newData.child('selection/kind').isString())",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/$field",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child($field).val() && (auth.token.action !== 'revoke' || $field === 'status' || $field === 'placementRevision' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child($field).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/pins/$pin",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('pins').child($pin).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child($pin).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/pins/selectedActivities/$activityIndex/$activityField",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('pins').child('selectedActivities').child($activityIndex).child($activityField).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child($activityField).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/pins/selectedActivities/$activityIndex/sourceVersionIds/$sourceIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('pins').child('selectedActivities').child($activityIndex).child('sourceVersionIds').child($sourceIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child('sourceVersionIds').child($sourceIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/selection/$selectionField",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child($selectionField).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child($selectionField).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/selection/nodeKeys/$nodeIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('nodeKeys').child($nodeIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('nodeKeys').child($nodeIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/bookDeliveryPlacement/selection/placementIds/$placementIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('course_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('placementIds').child($placementIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('placementIds').child($placementIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/$field",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child($field).val() && (auth.token.action !== 'revoke' || $field === 'status' || $field === 'placementRevision' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child($field).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/pins/$pin",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child($pin).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child($pin).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/pins/selectedActivities/$activityIndex/$activityField",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child($activityField).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child($activityField).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/pins/selectedActivities/$activityIndex/sourceVersionIds/$sourceIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child('sourceVersionIds').child($sourceIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('pins').child('selectedActivities').child($activityIndex).child('sourceVersionIds').child($sourceIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/selection/$selectionField",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child($selectionField).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child($selectionField).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/selection/nodeKeys/$nodeIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('nodeKeys').child($nodeIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('nodeKeys').child($nodeIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_book_authority/operations/$operationId/outcome/selection/placementIds/$placementIndex",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || ((newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('placementIds').child($placementIndex).val() && (auth.token.action !== 'revoke' || newData.val() === root.child('course_materials').child(auth.token.courseMaterialId).child('bookDeliveryPlacement').child('selection').child('placementIds').child($placementIndex).val()))",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/$other",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || newData.val() === data.val()",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/id",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === auth.token.courseMaterialId)",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/courseId",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === auth.token.courseId)",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/moduleId",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === auth.token.moduleId)",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/materialId",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === newData.parent().child('bookDeliveryPlacement/pins/bookId').val())",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/order",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.isNumber())",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/linkedAt",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.isNumber())",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/isCopy",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === false)",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    },
+    {
+      "path": "course_materials/$materialId/materialKind",
+      "rule": ".validate",
+      "expression": "!(auth != null && auth.token.courseBookAuthority102 === true && auth.token.operation === 'placement-transition') || (auth.token.action === 'revoke' ? newData.val() === data.val() : newData.val() === 'book-delivery')",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false
+    }
+  ]
+}

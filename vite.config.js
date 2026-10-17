@@ -1,14 +1,41 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createBookSourcePreviewCsp } from './src/services/book-source-delivery/sourceUpload.browserPolicy';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
-const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
-
+const acceptanceEnvDir = path.join(repoRoot, 'tmp', 'acceptance-empty-env');
+const sharedEnvDir = path.resolve(
+  process.env.LUYENTAP_ENV_DIR || path.join(os.homedir(), '.luyentap', 'env'),
+);
+const sharedEnvFiles = ['.env', '.env.local', '.env.development', '.env.development.local'];
+const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDir, name)))
+  ? sharedEnvDir
+  : repoRoot;
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const sharedEnvRoot = mode === 'acceptance' ? acceptanceEnvDir : sharedEnvDir;
+  const bookEnv = {
+    ...loadEnv(mode, sharedEnvRoot, 'VITE_BOOK_'),
+    ...loadEnv(mode, mode === 'acceptance' ? acceptanceEnvDir : repoRoot, 'VITE_BOOK_'),
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => key.startsWith('VITE_BOOK_')),
+    ),
+  };
+  const bookEnvDefinitions = Object.fromEntries(
+    Object.entries(bookEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
+  );
+  const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
+  const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
+
+  return {
+    // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
+    envDir: sharedEnvRoot,
+    define: bookEnvDefinitions,
   // IMPORTANT: Fixed port for OAuth compatibility with Google Drive
   // The OAuth credentials in Google Cloud Console must include this exact origin
   // If you get 403 errors, ensure http://localhost:5173 is in your authorized origins
@@ -18,6 +45,13 @@ export default defineConfig({
   },
   preview: {
     port: 5173,
+    ...(bookSourcePreviewCsp
+      ? {
+          headers: {
+            'Content-Security-Policy': bookSourcePreviewCsp,
+          },
+        }
+      : {}),
   },
   resolve: {
     alias: {
@@ -26,6 +60,17 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    ...(mode === 'acceptance' ? [{
+      name: 'acceptance-network-boundary',
+      transformIndexHtml: () => [{
+        tag: 'meta',
+        attrs: {
+          'http-equiv': 'Content-Security-Policy',
+          content: "connect-src 'self' http://localhost:19099 http://localhost:19000 ws://localhost:19000 http://localhost:19080 http://localhost:19087; form-action 'none'; frame-src 'none'; object-src 'none'",
+        },
+        injectTo: 'head-prepend',
+      }],
+    }] : []),
     ...(enableBundleVisualizer
       ? [visualizer({
           filename: './dist/stats.html',
@@ -85,4 +130,5 @@ export default defineConfig({
       }
     }
   },
+  };
 });

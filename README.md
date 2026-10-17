@@ -1,5 +1,14 @@
 # Kahoot — Interactive Learning & Assessment Platform
 
+> Maintenance baseline preparation: this branch reconstructs the October 6 live
+> application and adds reviewed release/isolation tooling. It is a candidate,
+> not a verified production source or an approved replacement for `main`.
+> Start with [source provenance](documentation/system/live-baseline-reconstruction-20261017.md)
+> and [release safety](documentation/system/release-safety.md). Current PDF Book
+> development remains in the original feature checkout.
+> [Current checks and promotion gates](documentation/system/maintenance-baseline-20261017.md)
+> describe the candidate's latest verified state.
+
 A full-featured, real-time educational platform built with **React 19**, **Firebase**, and **Vite**. Supports IELTS and THCS (Vietnamese middle-school) test creation, live classroom sessions, AI-powered content extraction, course management, and comprehensive academic tracking — all in a single SPA.
 
 > **Codebase at a glance** (from CodeGraphContext):
@@ -255,25 +264,32 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
 ### Prerequisites
 
-- **Node.js 18+** and npm
-- Firebase project with Realtime Database & Auth enabled
-- Google Gemini API key (for AI extraction)
+- **Node.js 22.12+** and npm; the checked lockfile uses Vite 7
+- Local Firebase Auth, Realtime Database, and Firestore emulators for development
+- Reviewed AI gateway configuration for extraction; provider secrets stay server-side
 - *(Optional)* Cloudflare R2 account (for file storage)
 
 ### Installation
 
+Use an owner-reviewed published revision. Check the current
+[maintenance status](documentation/system/maintenance-baseline-20261017.md)
+before selecting the base for new work. Use the synchronized stable `main` for
+new feature branches; keep the separate PDF Book branch out of maintenance work.
+
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd kahoot
+   git clone <repository-url> luyentap
+   cd luyentap
    ```
 
 2. Install dependencies:
    ```bash
-   npm install
+   npm ci --no-audit --no-fund
    ```
 
-3. Configure environment — copy `env.example.txt` to `.env` and fill in:
+3. Configure the machine-local development environment using
+   `npm run env:bootstrap` and [the local development guide](documentation/system/local-live-deployment.md).
+   Firebase's public configuration has these names:
    ```env
    # Firebase
    VITE_FIREBASE_API_KEY=
@@ -284,34 +300,30 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
    VITE_FIREBASE_MESSAGING_SENDER_ID=
    VITE_FIREBASE_APP_ID=
 
-   # AI (required for test extraction)
-   VITE_GEMINI_API_KEY=
-
-   # Cloudflare R2 / Listening Worker endpoints
-   # Use the deployed Worker URL for local dev and production builds.
-   VITE_R2_UPLOAD_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-   VITE_LISTENING_AUTHORING_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-   VITE_LISTENING_UPLOAD_SESSION_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-   VITE_LISTENING_LIVE_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-   VITE_LISTENING_SOLO_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-   VITE_LISTENING_RESULT_REVIEW_DELIVERY_WORKER_URL=https://r2-upload-signer.iamhuwng.workers.dev
-
    ```
+
+   Keep production settings in the separate reviewed `.env.production` described
+   in that guide. Local development uses `demo-luyentap-local`; Book provider
+   acceptance additionally requires its restricted provider setup. On a fresh
+   machine, follow the tooling guide before provisioning missing dependencies.
 
 4. Start development server:
    ```bash
-   npm run dev
+   npm run dev -- 5173
    ```
 
-5. Open `http://localhost:5173`
+5. Open `http://localhost:5173/login`. Reveal the dev quick-login buttons with
+   the bottom-right settings icon. Student verification uses port 5174.
 
 ### Available Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Start Vite dev server |
+| `npm run dev -- 5173` | Start the isolated local Firebase/app/Book Worker stack |
 | `npm run build` | Direct Vite production build plus bundle-budget check |
-| `npm run deploy:hosting` | Run `npm run build`, then deploy Hosting target `kahut1` |
+| `npm run build:production` | Checked production build; no remote mutation |
+| `npm run release:check` | Read-only assessment with an explicit reviewed base |
+| `npm run deploy:hosting` | Guarded Hosting release after review and separate authorization |
 | `npm test` | Run app Vitest unit tests with memory-safe worker settings |
 | `npm run test:scripts` | Run script tests in Node and Vitest |
 | `npm run test:r2` | Run `r2-backup-worker` tests |

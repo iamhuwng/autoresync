@@ -1,6 +1,7 @@
 import { get, ref, update, type Database } from 'firebase/database';
 import { database as defaultDatabase } from '../firebase';
 import type { ReadingV2DerivedProjection } from './readingV2Projection.service';
+import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
 import type {
   ReadingV2PublishCommitPlan,
   ReadingV2PublishCommitOperation,
@@ -221,24 +222,29 @@ export const buildReadingV2FirebasePublishUpdates = (
         operation.projection,
       ]),
   );
-  commitPlan.operations
-    .filter((operation): operation is Extract<
-      ReadingV2PublishCommitOperation,
-      { readonly kind: 'material-metadata' }
-    > => operation.kind === 'material-metadata')
-    .forEach((operation) => {
-      const summary = createReadingV2MaterialSummary(
-        operation.metadata,
-        studentSafeProjections.get(operation.metadata.materialId),
-      );
-      if (!summary) {
-        return;
-      }
+  const metadataWrites = commitPlan.operations.flatMap((operation): ReadingV2MaterialMetadata[] => {
+    if (operation.kind === 'material-metadata') return [operation.metadata];
+    if (operation.kind === 'storage-write' && operation.writeKind === 'reading-passage-metadata') {
+      return [operation.value as ReadingV2MaterialMetadata];
+    }
+    return [];
+  });
+  metadataWrites.forEach((metadata) => {
+    const childProjection = metadata.publishedSnapshotVersionId
+      ? updates[readingV2StoragePaths.studentSafeTests(metadata.materialId, metadata.publishedSnapshotVersionId)]
+      : undefined;
+    const summary = createReadingV2MaterialSummary(
+      metadata,
+      studentSafeProjections.get(metadata.materialId) ?? childProjection as ReadingV2DerivedProjection | undefined,
+    );
+    if (!summary) {
+      return;
+    }
 
-      buildMaterialSummaryIndexPlan(summary).forEach((write) => {
-        updates[write.path] = write.value;
-      });
+    buildMaterialSummaryIndexPlan(summary).forEach((write) => {
+      updates[write.path] = write.value;
     });
+  });
 
   whereUsedByAsset.forEach((value, passageAssetId) => {
     updates[readingV2StoragePaths.whereUsedGraph(passageAssetId)] = value;

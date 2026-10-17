@@ -103,7 +103,7 @@ const makeTestRecord = (input: {
     questions: [{ id: 'q1' }],
 });
 
-const makeFetchMock = (records: Map<string, unknown>) => {
+const makeFetchMock = (records: Map<string, unknown>, failures: { firestoreStatus?: number; grantStatus?: number } = {}) => {
     const firestoreWrites: unknown[] = [];
     const rtdbWrites: Array<{ path: string; body: unknown }> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -117,6 +117,9 @@ const makeFetchMock = (records: Map<string, unknown>) => {
             }
             if (method === 'PUT' || method === 'PATCH') {
                 rtdbWrites.push({ path, body: init?.body ? JSON.parse(String(init.body)) : null });
+                if (path.startsWith('homework_test_access/') && failures.grantStatus) {
+                    return json({ error: 'Grant write failed' }, failures.grantStatus);
+                }
                 return json({ ok: true });
             }
         }
@@ -124,6 +127,9 @@ const makeFetchMock = (records: Map<string, unknown>) => {
         if (url.hostname === 'firestore.googleapis.com') {
             expect(method).toBe('POST');
             firestoreWrites.push(init?.body ? JSON.parse(String(init.body)) : null);
+            if (failures.firestoreStatus) {
+                return json({ error: 'Assignment create failed' }, failures.firestoreStatus);
+            }
             return json({
                 name: 'projects/temp-a1437/databases/(default)/documents/homework_assignments/hw-1',
             });
@@ -235,6 +241,32 @@ describe('homework assignment Worker route', () => {
         });
     });
 
+    it('stores the Firebase UID when a direct target uses a class-member key', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'reading-v2-1', skill: 'Reading' }));
+        records.set('classes/class-1', {
+            ...classRecord,
+            students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+        });
+        records.set('classes', {
+            'class-1': {
+                ...classRecord,
+                students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+            },
+        });
+        records.set('student_teacher_links/teacher-1', {});
+        records.set('student_teacher_assignments', {});
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_reading', contentId: 'reading-v2-1' },
+            target: { type: 'students', studentIds: ['member-key'] },
+        })), env);
+
+        expect(response.status).toBe(201);
+        expect(JSON.stringify(firestoreWrites[0])).toContain('student-uid');
+        expect(JSON.stringify(firestoreWrites[0])).not.toContain('member-key');
+    });
+
     it('accepts direct student targets through active assignment records', async () => {
         const records = okRecords();
         records.set('classes', {});
@@ -278,6 +310,96 @@ describe('homework assignment Worker route', () => {
 
         expect(response.status).toBe(403);
         expect(body.reasonCode).toBe('TARGET_NOT_ALLOWED');
+    });
+
+    it('grants private THCS class recipients and UID aliases without replacing previous assignment grants', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
+        records.set('classes/class-1', {
+            ...classRecord,
+            students: { 'student-1': { uid: 'student-1' }, 'member-key': { uid: 'student-2' } },
+        });
+        records.set('homework_test_access/thcs-1', { 'student-1': { 'earlier-homework': true } });
+        const { fetchMock, rtdbWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1' },
+        })), env);
+        const { assignmentId } = await response.json() as { assignmentId: string };
+
+        expect(response.status).toBe(201);
+        expect(rtdbWrites).toEqual([{
+            path: 'homework_test_access/thcs-1',
+            body: {
+                [`student-1/${assignmentId}`]: true,
+                [`member-key/${assignmentId}`]: true,
+                [`student-2/${assignmentId}`]: true,
+            },
+        }]);
+        expect(fetchMock).toHaveBeenCalledWith('https://db.example.test/homework_test_access/thcs-1.json', expect.objectContaining({ method: 'PATCH' }));
+    });
+
+    it('grants only deduplicated validated direct THCS recipients', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
+        records.set('classes', {});
+        records.set('student_teacher_links/teacher-1', { 'student-linked': true });
+        const { rtdbWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1' },
+            target: { type: 'students', studentIds: ['student-linked', 'student-linked'] },
+        })), env);
+        const { assignmentId } = await response.json() as { assignmentId: string };
+
+        expect(response.status).toBe(201);
+        expect(rtdbWrites).toEqual([{
+            path: 'homework_test_access/thcs-1',
+            body: { [`student-linked/${assignmentId}`]: true },
+        }]);
+    });
+
+    it('does not grant THCS access for an unauthorized target', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
+        records.set('classes', {});
+        const { rtdbWrites, firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1' },
+            target: { type: 'students', studentIds: ['unrelated-student'] },
+        })), env);
+
+        expect(response.status).toBe(403);
+        expect(rtdbWrites).toEqual([]);
+        expect(firestoreWrites).toEqual([]);
+    });
+
+    it('rolls back only the new THCS assignment grants when Firestore creation fails', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
+        const { fetchMock, rtdbWrites, firestoreWrites } = makeFetchMock(records, { firestoreStatus: 500 });
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1' },
+        })), env);
+        const assignmentId = String(firestoreFields(firestoreWrites[0]).id.stringValue);
+
+        expect(response.status).toBe(500);
+        expect(rtdbWrites).toEqual([
+            { path: 'homework_test_access/thcs-1', body: { [`student-1/${assignmentId}`]: true, [`student-2/${assignmentId}`]: true } },
+            { path: 'homework_test_access/thcs-1', body: { [`student-1/${assignmentId}`]: null, [`student-2/${assignmentId}`]: null } },
+        ]);
+        expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/homework_test_access/')).map(([, init]) => init?.method)).toEqual(['PATCH', 'PATCH']);
+    });
+
+    it('does not create a THCS assignment when its grant write fails', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'thcs-1', skill: 'Reading', testType: 'THCS-THPT' }));
+        const { rtdbWrites, firestoreWrites } = makeFetchMock(records, { grantStatus: 403 });
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'thcs_test', contentId: 'thcs-1' },
+        })), env);
+
+        expect(response.status).toBe(500);
+        expect(rtdbWrites).toHaveLength(1);
+        expect(firestoreWrites).toEqual([]);
     });
 
     it.each([
@@ -360,6 +482,21 @@ describe('homework assignment Worker route', () => {
 
         expect(response.status).toBe(400);
         expect(body.reasonCode).toBe('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED');
+    });
+
+    it('rejects a Mode 2 Book payload before legacy Firebase reads or writes', async () => {
+        const { fetchMock } = makeFetchMock(new Map());
+
+        const response = await handleCreateHomeworkAssignment(requestFor({
+            assignmentKind: 'book_activity_bundle',
+            bookManifest: { manifestVersionId: 'manifest-1' },
+            target: { type: 'students', studentIds: ['student-1'] },
+        }), env);
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(response.status).toBe(400);
+        expect(body.reasonCode).toBe('WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED');
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('rejects unsupported content kind', async () => {
@@ -487,6 +624,60 @@ describe('homework assignment Worker route', () => {
         expect(response.status).toBe(201);
         expect(body.contentRef).toMatchObject({ contentKind: 'reading_passage', contentId: 'passage-1', version: 'snapshot-1' });
         expect(JSON.stringify(firestoreWrites[0])).toContain('readingPassageSnapshot');
+    });
+
+    it('normalizes misclassified Reading V2 passage refs from canonical metadata', async () => {
+        const records = new Map<string, unknown>([
+            ['users/teacher-1', { role: 'teacher' }],
+            ['classes/class-1', classRecord],
+            ['reading_v2/material_metadata/passage-misclassified', {
+                materialId: 'passage-misclassified',
+                materialKind: 'reading-passage',
+                deliveryEngine: 'reading-v2',
+                ownerId: 'teacher-1',
+                title: 'Canonical Reading Passage',
+                state: 'published',
+                visibility: 'private',
+                publishedSnapshotVersionId: 'snapshot-passage',
+            }],
+            ['reading_v2/published_snapshots/passage-misclassified/snapshot-passage', {
+                materialId: 'passage-misclassified',
+                snapshotVersionId: 'snapshot-passage',
+                ownerId: 'teacher-1',
+                publishedAt: '2026-09-18T00:00:00.000Z',
+                questionCount: 14,
+            }],
+            ['reading_v2/projections/student_safe_tests/passage-misclassified:snapshot-passage', {
+                deliveryEngine: 'reading-v2',
+                plane: 'projection',
+                projectionKind: 'student-safe',
+                sourceSnapshotVersionId: 'snapshot-passage',
+                content: { title: 'Canonical Reading Passage' },
+            }],
+        ]);
+        const { firestoreWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: {
+                contentKind: 'ielts_reading',
+                contentId: 'passage-misclassified',
+                version: 'snapshot-passage',
+                source: 'reading-v2',
+            },
+        })), env);
+        const body = await response.json() as Record<string, unknown>;
+        const firestoreBody = JSON.stringify(firestoreWrites[0]);
+
+        expect(response.status).toBe(201);
+        expect(body.contentRef).toMatchObject({
+            contentKind: 'reading_passage',
+            contentId: 'passage-misclassified',
+            version: 'snapshot-passage',
+            source: 'reading-v2',
+        });
+        expect(firestoreBody).toContain('reading-passage');
+        expect(firestoreBody).toContain('readingPassageSnapshot');
+        expect(firestoreBody).not.toContain('readingV2AssignmentPayloadPath');
     });
 
     it('accepts Reading V2 full tests and writes a frozen assignment payload', async () => {

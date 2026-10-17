@@ -14,5 +14,13 @@ export default defineConfig({
   ],
   test: {
     include: ['__tests__/**/*.test.js', 'test/**/*.test.ts'],
+    deps: {
+      optimizer: {
+        ssr: {
+          enabled: true,
+          include: ['pdf-lib', 'pako', '@pdf-lib/standard-fonts', '@pdf-lib/upng'],
+        },
+      },
+    },
   },
 });

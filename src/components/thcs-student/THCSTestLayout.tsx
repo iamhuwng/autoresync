@@ -65,10 +65,11 @@ import THCSSubmitConfirmation from './THCSSubmitConfirmation';
 import { markThcsTest, thcsResultToTestMarkingResult } from '../../services/thcsAutoMarking.service';
 import { gradeWritingQuestions } from '../../services/thcsWritingGrading.service';
 import { saveTestResult } from '../../services/testResults.service';
-import { sendThcsFullyGradedNotification } from '../../services/notificationService';
+import { createTrustedNotification } from '../../services/notificationProducerClient';
 import { resolveSessionMutationFailure } from '../../services/sessionActionError';
 import { Button, toast } from '../modern';
 import { buildThcsSessionResultContext } from './thcsSessionResultContext';
+import { buildRoute } from '../../constants/routes';
 
 import type { THCSTest } from '../../types/thcs-test.types';
 import { shuffleTest } from '../../utils/thcsShuffle';
@@ -612,17 +613,21 @@ const THCSTestLayout: React.FC<THCSTestLayoutProps> = ({ testData, sessionCode }
                 }).catch(err => console.warn('Failed to load academicRecordService:', err));
 
                 // Phase 3 Task 3.3: Notify student that test is fully graded
-                sendThcsFullyGradedNotification(
-                    user.uid,
-                    testData.metadata.title,
-                    gradingResult.scaledScore,
-                    `${sessionCode}_${user.uid}`
-                ).catch(err => console.warn('[THCS] Fully graded notification failed:', err));
+                void createTrustedNotification({
+                    producerFamily: 'thcs-practice',
+                    authorityRecordId: resultId,
+                    recipientId: user.uid,
+                    operationKey: `thcs-fully-graded:${resultId}`,
+                    type: 'success',
+                    title: '✅ Test Fully Graded',
+                    message: `All answers in "${testData.metadata.title}" have been graded. Your score: ${gradingResult.scaledScore}/10.`,
+                    link: buildRoute('RESULT_DETAIL', { resultId }),
+                }).catch(err => console.warn('[THCS] Fully graded notification failed:', err));
             }
 
             // Task 5.7: Fire-and-forget writing grading trigger
             if (gradingResult.gradingStatus === 'auto-graded') {
-                gradeWritingQuestions(gradingResult, testData.sections, sessionCode, user.uid)
+                gradeWritingQuestions(gradingResult, testData.sections, sessionCode, user.uid, resultId)
                     .catch(err => console.warn('Background writing grading failed:', err));
                 console.info(`[THCS] ${thcsData.pendingWritingCount} writing question(s) pending grading`);
             }

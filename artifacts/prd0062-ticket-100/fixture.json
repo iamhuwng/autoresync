@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "ticket100-local-book-homework",
+  "operationId": "10000000-0000-4000-8000-000000000100",
+  "idempotencyKey": "ticket100-local-idempotency",
+  "title": "New Book homework",
+  "message": "A Book homework assignment is ready.",
+  "destination": "/student/homework/ticket100-local-book-homework"
+}

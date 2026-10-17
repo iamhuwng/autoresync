@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Stack, Paper, Text, Divider, Alert, Loader, Center, Group } from '@mantine/core';
 import { IconMessageCircle, IconAlertCircle } from '@tabler/icons-react';
 import { FeedbackEditor } from '../feedback/FeedbackEditor';
 import {
@@ -9,7 +8,6 @@ import {
     getOverallFeedback,
     canTeacherEditFeedback
 } from '@/services/feedbackService';
-import { sendFeedbackNotification } from '@/services/notificationService';
 
 /**
  * TeacherFeedbackManager Component
@@ -34,8 +32,6 @@ export interface TeacherFeedbackManagerProps {
     studentId: string;
     /** The student's name */
     studentName: string;
-    /** The test name */
-    testName: string;
     /** Array of questions from the test */
     questions: Question[];
     /** Current teacher's user ID */
@@ -44,20 +40,16 @@ export interface TeacherFeedbackManagerProps {
     teacherName?: string;
     /** Course ID for permission checking */
     courseId?: string;
-    /** Whether to notify the student after a successful feedback save */
-    notifyStudentOnSave?: boolean;
 }
 
 export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
     resultId,
-    studentId,
+    studentId: _studentId,
     studentName,
-    testName,
     questions,
     teacherId,
     teacherName,
     courseId: _courseId,
-    notifyStudentOnSave = false,
 }) => {
     const [loading, setLoading] = useState(true);
     const [canEdit, setCanEdit] = useState(false);
@@ -116,16 +108,6 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                 teacherName
             );
 
-            // Send notification to student
-            if (notifyStudentOnSave) {
-                await sendFeedbackNotification(
-                    studentId,
-                    resultId,
-                    testName,
-                    teacherName
-                );
-            }
-
             // Reload feedback to get updated data
             const updatedFeedback = await getAllQuestionFeedback(resultId);
             setQuestionFeedback(updatedFeedback);
@@ -149,16 +131,6 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                 teacherName
             );
 
-            // Send notification to student
-            if (notifyStudentOnSave) {
-                await sendFeedbackNotification(
-                    studentId,
-                    resultId,
-                    testName,
-                    teacherName
-                );
-            }
-
             // Reload feedback to get updated data
             const updatedFeedback = await getOverallFeedback(resultId);
             setOverallFeedback(updatedFeedback);
@@ -175,9 +147,30 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
      */
     if (loading) {
         return (
-            <Center p="xl">
-                <Loader size="md" />
-            </Center>
+            <div
+                role="status"
+                aria-label="Loading feedback"
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2rem',
+                }}
+            >
+                <style>{'@keyframes teacher-feedback-spin { to { transform: rotate(360deg); } }'}</style>
+                <span
+                    aria-hidden="true"
+                    style={{
+                        width: '1.5rem',
+                        height: '1.5rem',
+                        border: '0.2rem solid #dbeafe',
+                        borderTopColor: '#228be6',
+                        borderRadius: '50%',
+                        display: 'inline-block',
+                        animation: 'teacher-feedback-spin 0.8s linear infinite',
+                    }}
+                />
+            </div>
         );
     }
 
@@ -186,48 +179,73 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
      */
     if (error || !canEdit) {
         return (
-            <Alert
-                icon={<IconAlertCircle size={16} />}
-                color="red"
-                variant="light"
+            <div
+                role="alert"
+                style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    border: '1px solid #fecaca',
+                    borderRadius: '0.375rem',
+                    backgroundColor: '#fef2f2',
+                    color: '#991b1b',
+                }}
             >
-                <Text size="sm">{error || 'You cannot add feedback to this result.'}</Text>
-            </Alert>
+                <IconAlertCircle size={16} aria-hidden="true" />
+                <span style={{ fontSize: '0.875rem' }}>
+                    {error || 'You cannot add feedback to this result.'}
+                </span>
+            </div>
         );
     }
 
     return (
-        <Stack gap="lg">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Header */}
-            <Paper p="md" radius="md" withBorder style={{ backgroundColor: 'rgba(34, 139, 230, 0.05)' }}>
-                <Group gap="xs">
-                    <IconMessageCircle size={20} color="#228be6" />
-                    <Text size="md" fw={600} c="blue">
+            <section
+                style={{
+                    padding: '1rem',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '0.5rem',
+                    backgroundColor: 'rgba(34, 139, 230, 0.05)',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <IconMessageCircle size={20} color="#228be6" aria-hidden="true" />
+                    <strong style={{ fontSize: '1rem', color: '#1864ab' }}>
                         Provide Feedback for {studentName}
-                    </Text>
-                </Group>
-                <Text size="sm" c="dimmed" mt="xs">
+                    </strong>
+                </div>
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#6c757d' }}>
                     Add personalized feedback to help the student improve. Students will be notified when you save feedback.
-                </Text>
-            </Paper>
+                </p>
+            </section>
 
             {/* Per-Question Feedback */}
             {questions.length > 0 && (
-                <Stack gap="md">
-                    <Text size="sm" fw={600} c="dimmed" tt="uppercase">
+                <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#6c757d', textTransform: 'uppercase' }}>
                         Question Feedback
-                    </Text>
+                    </h3>
 
                     {questions.map((question) => (
-                        <Paper key={question.id} p="md" radius="md" withBorder>
-                            <Stack gap="sm">
-                                <Text size="sm" fw={600}>
+                        <div
+                            key={question.id}
+                            style={{
+                                padding: '1rem',
+                                border: '1px solid #dee2e6',
+                                borderRadius: '0.5rem',
+                            }}
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <strong style={{ fontSize: '0.875rem' }}>
                                     Question {question.number}
-                                </Text>
-                                <Text size="sm" c="dimmed" style={{ fontStyle: 'italic' }}>
+                                </strong>
+                                <p style={{ margin: 0, fontSize: '0.875rem', color: '#6c757d', fontStyle: 'italic' }}>
                                     {question.text}
-                                </Text>
-                                <Divider />
+                                </p>
+                                <hr style={{ width: '100%', border: 0, borderTop: '1px solid #dee2e6', margin: 0 }} />
                                 <FeedbackEditor
                                     questionId={question.id}
                                     questionText={question.text}
@@ -237,24 +255,30 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                                     minRows={2}
                                     maxRows={6}
                                 />
-                            </Stack>
-                        </Paper>
+                            </div>
+                        </div>
                     ))}
-                </Stack>
+                </section>
             )}
 
             {/* Overall Feedback */}
-            <Stack gap="md">
-                <Divider
-                    label={
-                        <Text size="sm" fw={600} c="dimmed" tt="uppercase">
-                            Overall Feedback
-                        </Text>
-                    }
-                    labelPosition="center"
-                />
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span aria-hidden="true" style={{ flex: 1, borderTop: '1px solid #dee2e6' }} />
+                    <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600, color: '#6c757d', textTransform: 'uppercase' }}>
+                        Overall Feedback
+                    </h3>
+                    <span aria-hidden="true" style={{ flex: 1, borderTop: '1px solid #dee2e6' }} />
+                </div>
 
-                <Paper p="md" radius="md" withBorder style={{ backgroundColor: 'rgba(34, 139, 230, 0.03)' }}>
+                <div
+                    style={{
+                        padding: '1rem',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(34, 139, 230, 0.03)',
+                    }}
+                >
                     <FeedbackEditor
                         initialFeedback={overallFeedback?.feedback || ''}
                         onSave={handleSaveOverallFeedback}
@@ -263,9 +287,9 @@ export const TeacherFeedbackManager: React.FC<TeacherFeedbackManagerProps> = ({
                         minRows={4}
                         maxRows={12}
                     />
-                </Paper>
-            </Stack>
-        </Stack>
+                </div>
+            </section>
+        </div>
     );
 };
 

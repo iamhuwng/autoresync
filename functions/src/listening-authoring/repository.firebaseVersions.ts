@@ -5,22 +5,12 @@ import {
   LISTENING_AUTHORING_SCHEMA_VERSION,
 } from './constants';
 import {
-  LISTENING_AUTHORING_ROOT,
-  assertNoActiveListeningTempCleanupLease,
-  assertNoDeletedListeningTempAssets,
-  cloneRecord,
   cloneVersionRecord,
   normalizeVersionMap,
   normalizeVersionRecord,
   type CreateListeningPublishedVersionInput,
   type ListeningPublishedVersionRecord,
 } from './repository.shared';
-import { deriveAssetIds } from './repository.operationRecords';
-
-interface ListeningAuthoringVersionRootState {
-  versions?: Record<string, ListeningPublishedVersionRecord>;
-  [key: string]: unknown;
-}
 
 export const createFirebaseVersionTransaction = async (
   db: admin.database.Database,
@@ -29,19 +19,16 @@ export const createFirebaseVersionTransaction = async (
   | { kind: 'created'; record: ListeningPublishedVersionRecord }
   | { kind: 'exists'; record: ListeningPublishedVersionRecord }
 > => {
-  const versionsRef = db.ref(LISTENING_AUTHORING_ROOT);
+  const versionsRef = db.ref(LISTENING_AUTHORING_PATHS.versions);
   let outcome:
     | { kind: 'created'; record: ListeningPublishedVersionRecord }
     | { kind: 'exists'; record: ListeningPublishedVersionRecord }
     | null = null;
   const transaction = await versionsRef.transaction((currentValue) => {
-    const root: ListeningAuthoringVersionRootState = currentValue !== null
-      ? cloneRecord(currentValue as ListeningAuthoringVersionRootState)
-      : {};
-    assertNoActiveListeningTempCleanupLease(root, Date.now());
-    assertNoDeletedListeningTempAssets(root, input.assetIds);
-    assertNoDeletedListeningTempAssets(root, deriveAssetIds(input.document));
-    const current = normalizeVersionMap(root.versions ?? {});
+    const current =
+      currentValue !== null
+        ? normalizeVersionMap(currentValue as Record<string, unknown>)
+        : {};
 
     const existingById = current[input.versionId];
     if (existingById !== undefined) {
@@ -61,7 +48,10 @@ export const createFirebaseVersionTransaction = async (
     });
     outcome = { kind: 'created', record: cloneVersionRecord(created) };
 
-    return { ...root, versions: { ...current, [created.versionId]: created } };
+    return {
+      ...current,
+      [created.versionId]: created,
+    };
   }, undefined, false);
 
   if (outcome !== null) {

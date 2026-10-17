@@ -35,6 +35,347 @@ service cloud.firestore {
         );
     }
 
+    // Mode 2 Book Homework is a trusted-worker authority record. Firestore
+    // rules deny browser writes and admit only the assignment/owner-scoped
+    // Firebase service claim minted by the Homework Worker.
+    function isBookHomework(data) {
+      return data is map
+        && (
+          (
+            data.keys().hasAny(['assignmentKind'])
+            && data.assignmentKind is string
+            && data.assignmentKind == 'book_activity_bundle'
+          )
+          || data.keys().hasAny(['bookManifest'])
+        );
+    }
+
+    // Per-recipient Book authority capability. This is deliberately separate
+    // from the compatibility-shell/RTDB `book_homework` claim.
+    function isExactBookHomeworkAuthorityService(authorityId, assignmentId, ownerId) {
+      return hasExactBookHomeworkAuthorityClaims()
+        && request.auth.uid == ownerId
+        && request.auth.token.book_homework_authority_authorityId == authorityId
+        && request.auth.token.book_homework_authority_assignmentId == assignmentId
+        && request.auth.token.book_homework_authority_ownerId == ownerId
+        && isDeterministicBookHomeworkAuthorityId(authorityId, assignmentId);
+    }
+
+    function hasExactBookHomeworkAuthorityClaims() {
+      return request.auth != null
+        && request.auth.token.keys().hasAll([
+          'book_homework_authority_service',
+          'book_homework_authority_authorityId',
+          'book_homework_authority_assignmentId',
+          'book_homework_authority_ownerId'
+        ])
+        && request.auth.token.book_homework_authority_service == true;
+    }
+
+    function isExactBookHomeworkAuthorityGet(authorityId) {
+      return hasExactBookHomeworkAuthorityClaims()
+        && request.auth.uid == request.auth.token.book_homework_authority_ownerId
+        && request.auth.token.book_homework_authority_authorityId == authorityId
+        && isDeterministicBookHomeworkAuthorityId(
+          authorityId,
+          request.auth.token.book_homework_authority_assignmentId,
+        )
+        && (
+          !exists(/databases/$(database)/documents/book_homework_authorities/$(authorityId))
+          || resource.data.ownerId == request.auth.token.book_homework_authority_ownerId
+        );
+    }
+
+    function isDeterministicBookHomeworkAuthorityId(authorityId, assignmentId) {
+      return assignmentId is string
+        && assignmentId.matches('^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$')
+        && authorityId is string
+        && authorityId.matches('^' + assignmentId + '--[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}--authority$');
+    }
+
+    function isBookHomeworkCompatibility(data) {
+      return data is map
+        && data.keys().hasAll(['assignmentKind', 'bookHomeworkCompatibility'])
+        && data.assignmentKind == 'book_homework_compatibility'
+        && data.bookHomeworkCompatibility is map;
+    }
+
+    function isExactBookHomeworkCompatibilityService(assignmentId, ownerId) {
+      return hasExactBookHomeworkCompatibilityClaims()
+        && isSafeBookHomeworkAssignmentId(assignmentId)
+        && request.auth.uid == ownerId
+        && request.auth.token.book_homework_compatibility_assignmentId == assignmentId
+        && request.auth.token.book_homework_compatibility_ownerId == ownerId;
+    }
+
+    function hasExactBookHomeworkCompatibilityClaims() {
+      return request.auth != null
+        && request.auth.token.keys().hasAll([
+          'book_homework_compatibility_service',
+          'book_homework_compatibility_assignmentId',
+          'book_homework_compatibility_ownerId'
+        ])
+        && request.auth.token.book_homework_compatibility_service == true;
+    }
+
+    function isExactBookHomeworkCompatibilityGet(assignmentId) {
+      return hasExactBookHomeworkCompatibilityClaims()
+        && isSafeBookHomeworkAssignmentId(assignmentId)
+        && request.auth.uid == request.auth.token.book_homework_compatibility_ownerId
+        && request.auth.token.book_homework_compatibility_assignmentId == assignmentId;
+    }
+
+    function isSafeBookHomeworkAssignmentId(assignmentId) {
+      return assignmentId is string
+        && assignmentId.matches('^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$');
+    }
+
+    function isValidBookHomeworkCompatibilityProjection(data, assignmentId, ownerId) {
+      return isBookHomeworkCompatibility(data)
+        && data.keys().hasAll([
+          'schemaVersion', 'assignmentKind', 'id', 'createdBy', 'createdAt', 'updatedAt',
+          'materialId', 'materialTitle', 'materialType', 'materialSkill', 'title', 'target',
+          'scheduling', 'config', 'visibility', 'archived', 'tags', 'bookHomeworkCompatibility'
+        ])
+        && data.keys().hasOnly([
+          'schemaVersion', 'assignmentKind', 'id', 'createdBy', 'createdAt', 'updatedAt',
+          'materialId', 'materialTitle', 'materialType', 'materialSkill', 'title', 'description',
+          'target', 'scheduling', 'config', 'visibility', 'archived', 'tags', 'bookHomeworkCompatibility'
+        ])
+        && data.schemaVersion == 1
+        && data.assignmentKind == 'book_homework_compatibility'
+        && data.id == assignmentId
+        && data.createdBy == ownerId
+        && data.bookHomeworkCompatibility is map
+        && data.bookHomeworkCompatibility.keys().hasAll([
+          'schemaVersion', 'assignmentId', 'sourceSagaRevision', 'sourceFingerprint'
+        ])
+        && data.bookHomeworkCompatibility.keys().hasOnly([
+          'schemaVersion', 'assignmentId', 'sourceSagaRevision', 'sourceFingerprint'
+        ])
+        && data.bookHomeworkCompatibility.schemaVersion == 1
+        && data.bookHomeworkCompatibility.assignmentId == assignmentId
+        && data.bookHomeworkCompatibility.sourceSagaRevision is int
+        && data.bookHomeworkCompatibility.sourceSagaRevision >= 1
+        && data.bookHomeworkCompatibility.sourceFingerprint is string
+        && data.bookHomeworkCompatibility.sourceFingerprint.size() > 0
+        && data.target is map
+        && data.target.type == 'students'
+        && data.target.studentIds is list
+        && data.materialType == 'book'
+        && data.materialSkill == 'mixed';
+    }
+
+    function isBookHomeworkCompatibilityReader(data) {
+      return (
+          request.auth != null
+          && !isBookHomeworkCompatibilityServiceAuth()
+          && isBookHomeworkCompatibility(data)
+          && data.createdBy == request.auth.uid
+        ) || (
+          request.auth != null
+          && !isBookHomeworkCompatibilityServiceAuth()
+          && isBookHomeworkCompatibility(data)
+          && data.keys().hasAll(['target'])
+          && data.target is map
+          && data.target.studentIds is list
+          && data.target.studentIds.hasAny([request.auth.uid])
+        );
+    }
+
+    function isBookHomeworkCompatibilityServiceAuth() {
+      return hasExactBookHomeworkCompatibilityClaims();
+    }
+
+    function isLegalBookHomeworkCompatibilityUpdate() {
+      return request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.assignmentKind == resource.data.assignmentKind
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.bookHomeworkCompatibility.schemaVersion
+          == resource.data.bookHomeworkCompatibility.schemaVersion
+        && request.resource.data.bookHomeworkCompatibility.assignmentId
+          == resource.data.bookHomeworkCompatibility.assignmentId
+        && request.resource.data.bookHomeworkCompatibility.sourceSagaRevision
+          > resource.data.bookHomeworkCompatibility.sourceSagaRevision
+        && request.resource.data.bookHomeworkCompatibility.sourceFingerprint is string
+        && request.resource.data.bookHomeworkCompatibility.sourceFingerprint.size() > 0;
+    }
+
+    function isValidBookHomeworkAuthorityRecord(data, authorityId, assignmentId, ownerId) {
+      return isBookHomework(data)
+        && data.keys().hasAll([
+          'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
+          'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
+          'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt',
+          'activityPolicies', 'operations'
+        ])
+        && data.assignmentId == authorityId
+        && data.assignmentKind == 'book_activity_bundle'
+        && data.schemaVersion == 1
+        && data.ownerId == ownerId
+        && data.revision is int
+        && data.revision >= 1
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.bookManifest is map
+        && data.bookManifest.ownerId == ownerId
+        && data.bookManifest.context is map
+        && data.bookManifest.context.recipientId is string
+        && data.bookManifest.context.recipientId.matches('^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$')
+        && authorityId == assignmentId + '--' + data.bookManifest.context.recipientId + '--authority'
+        && data.bookManifest.context.contextId == assignmentId
+        && data.bookManifest.context.kind == 'homework'
+        && data.bookManifest.context.entitlementBasis == 'assignment'
+        && data.saga is map
+        && data.saga.sagaId == assignmentId
+        && data.saga.state in ['prepared', 'committed', 'compensating']
+        && data.visibility is map
+        && data.visibility.status == data.saga.state
+        && data.visibility.manifestVersionId == data.bookManifest.manifestVersionId
+        && data.visibility.pointerId == data.bookManifest.manifestVersionId
+        && data.visibility.revision is int
+        && data.visibility.revision >= 1
+        && data.visibility.revision <= data.revision;
+    }
+
+    function isLegalBookHomeworkAuthorityUpdate() {
+      return request.resource.data.revision == resource.data.revision + 1
+        && request.resource.data.assignmentId == resource.data.assignmentId
+        && request.resource.data.assignmentKind == resource.data.assignmentKind
+        && request.resource.data.schemaVersion == resource.data.schemaVersion
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.bookManifest.context == resource.data.bookManifest.context
+        && request.resource.data.bookManifest.ownerId == resource.data.bookManifest.ownerId
+        && request.resource.data.saga.sagaId == resource.data.saga.sagaId
+        && request.resource.data.visibility.manifestVersionId == resource.data.visibility.manifestVersionId
+        && request.resource.data.visibility.pointerId == resource.data.visibility.pointerId
+        && request.resource.data.saga.state == request.resource.data.visibility.status
+        && (
+          request.resource.data.saga.state == resource.data.saga.state
+          || (resource.data.saga.state == 'prepared'
+            && (request.resource.data.saga.state == 'committed'
+              || request.resource.data.saga.state == 'compensating'))
+          || (resource.data.saga.state == 'compensating'
+            && request.resource.data.saga.state == 'committed')
+          || (resource.data.saga.state == 'committed'
+            && request.resource.data.saga.state == 'compensating')
+        );
+    }
+
+    function isCommittedBookHomework(data) {
+      return isBookHomework(data)
+        && data.keys().hasAll([
+          'assignmentId', 'ownerId', 'bookManifest', 'schedule', 'studentExtensions',
+          'saga', 'visibility', 'schemaVersion', 'revision', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
+          'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt',
+          'updatedAt', 'operations'
+        ])
+        && data.assignmentId is string
+        && data.ownerId is string
+        && data.schemaVersion == 1
+        && data.revision is int
+        && data.revision >= 1
+        && data.createdAt is string
+        && data.updatedAt is string
+        && data.bookManifest is map
+        && data.bookManifest.keys().hasAll([
+          'schemaVersion', 'assignmentKind', 'manifestVersionId', 'ownerId',
+          'createdByCommandId', 'createdAt', 'bindingRevision', 'book', 'context',
+          'selectedTarget', 'outline', 'scheduleRules', 'bindings', 'completion'
+        ])
+        && data.bookManifest.keys().hasOnly([
+          'schemaVersion', 'assignmentKind', 'manifestVersionId', 'ownerId',
+          'createdByCommandId', 'createdAt', 'bindingRevision', 'book', 'context',
+          'selectedTarget', 'outline', 'scheduleRules', 'bindings', 'completion'
+        ])
+        && data.bookManifest.assignmentKind == 'book_activity_bundle'
+        && data.bookManifest.schemaVersion == 1
+        && data.bookManifest.manifestVersionId is string
+        && data.bookManifest.ownerId == data.ownerId
+        && data.bookManifest.createdByCommandId is string
+        && data.bookManifest.createdAt is string
+        && data.bookManifest.bindingRevision is int
+        && data.bookManifest.book is map
+        && data.bookManifest.book.keys().hasAll([
+          'bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'
+        ])
+        && data.bookManifest.book.keys().hasOnly([
+          'bookId', 'bookMode', 'bookRevision', 'publicationId', 'publicationRevision', 'publicationStatus'
+        ])
+        && data.bookManifest.book.bookId is string
+        && data.bookManifest.book.bookMode == 'pdf'
+        && data.bookManifest.book.bookRevision is int
+        && data.bookManifest.book.publicationId is string
+        && data.bookManifest.book.publicationRevision is int
+        && data.bookManifest.book.publicationStatus == 'published'
+        && data.bookManifest.context is map
+        && data.bookManifest.context.keys().hasAll(['contextId', 'recipientId', 'kind', 'entitlementBasis'])
+        && data.bookManifest.context.keys().hasOnly(['contextId', 'recipientId', 'kind', 'entitlementBasis'])
+        && data.bookManifest.context.contextId is string
+        && data.bookManifest.context.recipientId is string
+        && data.bookManifest.context.kind == 'homework'
+        && data.bookManifest.context.entitlementBasis == 'assignment'
+        && data.bookManifest.selectedTarget is map
+        && data.bookManifest.selectedTarget.bookId is string
+        && data.bookManifest.outline is list
+        && data.bookManifest.scheduleRules is list
+        && data.bookManifest.bindings is list
+        && data.bookManifest.completion is map
+        && data.bookManifest.completion.keys().hasAll([
+          'aggregation', 'requiredBindingCount', 'excludedBindingCount', 'legacyScoreFields'
+        ])
+        && data.bookManifest.completion.keys().hasOnly([
+          'aggregation', 'requiredBindingCount', 'excludedBindingCount', 'legacyScoreFields'
+        ])
+        && data.bookManifest.completion.requiredBindingCount is int
+        && data.bookManifest.completion.excludedBindingCount is int
+        && data.schedule is map
+        && data.schedule.keys().hasAll(['schemaVersion', 'resolverVersion', 'finalDueAt', 'scheduleRules'])
+        && data.schedule.keys().hasOnly(['schemaVersion', 'resolverVersion', 'availableFrom', 'finalDueAt', 'scheduleRules'])
+        && data.schedule.schemaVersion == 1
+        && data.schedule.resolverVersion == 1
+        && data.schedule.finalDueAt is string
+        && data.schedule.scheduleRules is list
+        && data.studentExtensions is map
+        && (!data.keys().hasAny(['operations']) || data.operations is map)
+        && data.saga is map
+        && data.saga.keys().hasAll(['sagaId', 'state', 'lastCommandId'])
+        && data.saga.keys().hasOnly(['sagaId', 'state', 'lastCommandId'])
+        && data.saga.sagaId is string
+        && data.saga.lastCommandId is string
+        && data.visibility is map
+        && data.visibility.keys().hasAll(['status', 'pointerId', 'manifestVersionId', 'revision'])
+        && data.visibility.keys().hasOnly(['status', 'pointerId', 'manifestVersionId', 'revision'])
+        && data.visibility.status == 'committed'
+        && data.saga.state == 'committed'
+        && data.visibility.status == data.saga.state
+        && data.visibility.pointerId is string
+        && data.visibility.manifestVersionId is string
+        && data.visibility.revision is int
+        && data.visibility.revision >= 1
+        && data.visibility.revision <= data.revision
+        && data.visibility.pointerId == data.visibility.manifestVersionId
+        && data.bookManifest.manifestVersionId == data.visibility.manifestVersionId;
+    }
+
+    function isBookHomeworkOwnerOrRecipient(data) {
+      return data.ownerId == request.auth.uid
+        || (
+          data.bookManifest.keys().hasAll(['context'])
+          && data.bookManifest.context.keys().hasAll(['recipientId'])
+          && data.bookManifest.context.recipientId == request.auth.uid
+        );
+    }
+
     function isSafeHomeworkStats(stats) {
       return stats.keys().hasOnly([
           'totalAssigned',
@@ -55,6 +396,8 @@ service cloud.firestore {
 
     function isStudentStatsOnlyHomeworkUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stats', 'updatedAt'])
+        && !isBookHomework(resource.data)
+        && !isBookHomework(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
         && isSafeHomeworkStats(resource.data.stats)
         && isSafeHomeworkStats(request.resource.data.stats)
@@ -77,11 +420,7 @@ service cloud.firestore {
 
     // API Keys Configuration
     match /settings/api_keys {
-      // Only authenticated users can read (or specific admin roles depending on app structure)
-      // Since it's client-side, we limit to authenticated users.
-      // Ideally, a custom claim like `request.auth.token.admin == true` would be best,
-      // but restricting to at least authenticated users is better than public access.
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
 
     // Homework tag configuration
@@ -145,21 +484,106 @@ service cloud.firestore {
 
     // Homework assignments — teachers create, students read their assigned ones
     match /homework_assignments/{assignmentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.createdBy == request.auth.uid
-        && isValidReadingPassageHomeworkPayload(request.resource.data);
-      allow update: if request.auth != null
+      // A service read must be path/claim scoped and cannot depend on the
+      // document existing. This is required for create-after-missing-read.
+      allow get: if isExactBookHomeworkCompatibilityGet(assignmentId);
+      // Raw Book authority documents are never browser-readable. Firestore
+      // rules cannot validate arbitrary members of nested lists/maps; the
+      // canonical Worker owns authenticated safe Book projections.
+      allow read: if (
+          request.auth != null
+          && !isBookHomeworkCompatibilityServiceAuth()
+          && !isBookHomework(resource.data)
+          && !isBookHomeworkCompatibility(resource.data)
+        ) || (
+          isBookHomeworkCompatibilityReader(resource.data)
+        );
+      allow create: if (
+          request.auth != null
+          && !isBookHomework(request.resource.data)
+          && !isBookHomeworkCompatibility(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.id == assignmentId
+          && isValidReadingPassageHomeworkPayload(request.resource.data)
+        ) || (
+          isExactBookHomeworkCompatibilityService(assignmentId, request.resource.data.createdBy)
+          && isValidBookHomeworkCompatibilityProjection(
+            request.resource.data,
+            assignmentId,
+            request.resource.data.createdBy
+          )
+        );
+      allow update: if (
+        request.auth != null
+        && !isBookHomework(resource.data)
+        && !isBookHomework(request.resource.data)
+        && !isBookHomeworkCompatibility(resource.data)
+        && !isBookHomeworkCompatibility(request.resource.data)
         && (
           (
             resource.data.createdBy == request.auth.uid
             && request.resource.data.createdBy == resource.data.createdBy
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'createdAt', 'materialId', 'materialType', 'materialSkill', 'contentRef', 'target', 'assignmentKind'])
             && isValidReadingPassageHomeworkPayload(request.resource.data)
           )
           || isStudentStatsOnlyHomeworkUpdate()
-        );
+        ) || (
+          isExactBookHomeworkCompatibilityService(assignmentId, resource.data.createdBy)
+          && isValidBookHomeworkCompatibilityProjection(
+            resource.data,
+            assignmentId,
+            resource.data.createdBy
+          )
+          && isValidBookHomeworkCompatibilityProjection(
+            request.resource.data,
+            assignmentId,
+            resource.data.createdBy
+          )
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.id == resource.data.id
+          && isLegalBookHomeworkCompatibilityUpdate()
+        ));
       allow delete: if request.auth != null
+        && !isBookHomework(resource.data)
+        && !isBookHomeworkCompatibility(resource.data)
         && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Raw per-recipient Book authority. Browser access is denied: only the
+    // exact owner-scoped Worker capability may address one document.
+    match /book_homework_authorities/{authorityId} {
+      allow get: if isExactBookHomeworkAuthorityGet(authorityId);
+      allow list: if false;
+      allow create: if isExactBookHomeworkAuthorityService(
+          authorityId,
+          request.resource.data.saga.sagaId,
+          request.resource.data.ownerId
+        )
+        && isValidBookHomeworkAuthorityRecord(
+          request.resource.data,
+          authorityId,
+          request.resource.data.saga.sagaId,
+          request.resource.data.ownerId
+        );
+      allow update: if isExactBookHomeworkAuthorityService(
+          authorityId,
+          resource.data.saga.sagaId,
+          resource.data.ownerId
+        )
+        && isValidBookHomeworkAuthorityRecord(
+          resource.data,
+          authorityId,
+          resource.data.saga.sagaId,
+          resource.data.ownerId
+        )
+        && isValidBookHomeworkAuthorityRecord(
+          request.resource.data,
+          authorityId,
+          resource.data.saga.sagaId,
+          resource.data.ownerId
+        )
+        && isLegalBookHomeworkAuthorityUpdate();
+      allow delete: if false;
     }
 
     // Homework submissions — students create their own, teachers can reset
@@ -170,21 +594,84 @@ service cloud.firestore {
     match /homework_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
+        && request.resource.data.id == submissionId
+        && request.resource.data.teacherId == get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy
         && (request.resource.data.studentId == request.auth.uid
+            && request.resource.data.status == 'in_progress'
+            && !request.resource.data.keys().hasAny(['resultId', 'submittedAt', 'notificationIntent', 'notificationDelivery', 'administrativeImport'])
             || (request.resource.data.teacherId == request.auth.uid
                 && request.resource.data.administrativeImport.source == 'external-admin-import'
                 && request.resource.data.administrativeImport.importedByTeacherId == request.auth.uid
                 && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid));
-      // Students can update own submissions; teachers can update for grading
-      // Third condition: allows teacher to backfill teacherId on old submissions
-      // (created before teacherId was introduced) by writing their own UID.
       allow update: if request.auth != null
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'studentId', 'teacherId', 'homeworkId', 'startedAt', 'administrativeImport'])
+        && (!resource.data.keys().hasAny(['submittedAt'])
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['resultId', 'submittedAt']))
+        && !request.resource.data.keys().hasAny(['notificationIntent', 'notificationDelivery'])
         && (resource.data.studentId == request.auth.uid
-            || resource.data.teacherId == request.auth.uid
-            || request.resource.data.teacherId == request.auth.uid);
+            || resource.data.teacherId == request.auth.uid);
       // Only the homework creator (teacher) can delete submissions (for reset)
       allow delete: if request.auth != null
         && resource.data.teacherId == request.auth.uid;
+    }
+
+    // Optional post-commit proofs authenticate only their saved actor. No delivery state.
+    match /homework_notification_proofs/{eventId} {
+      allow get: if request.auth != null && (!exists(/databases/$(database)/documents/homework_notification_proofs/$(eventId)) || resource.data.actorUid == request.auth.uid);
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.eventId == eventId
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && ((request.resource.data.kind == 'thcs-homework-assigned'
+          && request.resource.data.keys().hasOnly(['eventId', 'kind', 'actorUid', 'homeworkId', 'occurredAt'])
+          && request.resource.data.homeworkId == eventId
+          && get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.createdBy == request.auth.uid
+          && get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.materialType == 'thcs-test'
+          && request.resource.data.occurredAt == get(/databases/$(database)/documents/homework_assignments/$(eventId)).data.createdAt)
+        || (request.resource.data.kind == 'homework-submitted'
+          && request.resource.data.keys().hasOnly(['eventId', 'kind', 'actorUid', 'homeworkId', 'studentId', 'resultId', 'occurredAt'])
+          && get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.studentId == request.auth.uid
+          && get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.status in ['submitted', 'graded']
+          && !get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.keys().hasAny(['administrativeImport'])
+          && request.resource.data.studentId == request.auth.uid
+          && request.resource.data.homeworkId == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.homeworkId
+          && request.resource.data.resultId == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.resultId
+          && request.resource.data.occurredAt == get(/databases/$(database)/documents/homework_submissions/$(eventId)).data.submittedAt));
+    }
+
+    match /homework_manual_reminder_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['eventId', 'homeworkId', 'studentId', 'actorUid', 'occurredAt'])
+        && request.resource.data.eventId == eventId && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && request.resource.data.occurredAt >= request.time.toMillis() - 300000
+        && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].lastRemindedAt == request.resource.data.occurredAt
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].reminderCount == get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.get('studentOverrides', {}).get(request.resource.data.studentId, {}).get('reminderCount', 0) + 1
+        && getAfter(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.studentOverrides[request.resource.data.studentId].reminderCount <= 3;
+    }
+
+    match /homework_reset_notification_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'eventId', 'homeworkId', 'studentId', 'sourceSubmissionId', 'actorUid', 'occurredAt', 'resultId'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.eventId == eventId && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.occurredAt is int
+        && request.resource.data.occurredAt <= request.time.toMillis()
+        && request.resource.data.occurredAt >= request.time.toMillis() - 300000
+        && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.teacherId == request.auth.uid
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.homeworkId == request.resource.data.homeworkId
+        && get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.studentId == request.resource.data.studentId
+        && request.resource.data.get('resultId', null) == get(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId)).data.get('resultId', null)
+        && !existsAfter(/databases/$(database)/documents/homework_submissions/$(request.resource.data.sourceSubmissionId));
     }
 
     // Homework templates — teacher-owned
@@ -257,9 +744,24 @@ service cloud.firestore {
     // null for new documents. Also, create had no ownership validation, allowing
     // any user to create drafts under another user's userId.
     // Fix follows the thcs_templates gold standard: separate create/read/update/delete.
+    function isPublishedTestDraft(data) {
+      return data.get('status', '') == 'published'
+        || data.get('publishedTestId', null) != null;
+    }
+
+    function preservesPublishedTestDraft(previous, next) {
+      return next.userId == previous.userId
+        && (!isPublishedTestDraft(previous)
+          || (next.get('publishedTestId', null) == previous.get('publishedTestId', null)
+            && (next.get('status', '') == previous.get('status', '')
+              || next.get('status', '') == 'published')));
+    }
+
     match /thcs_drafts/{draftId} {
       // Read: only the owner can read their own drafts
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow get: if request.auth != null
+        && (!exists(request.path) || resource.data.userId == request.auth.uid);
+      allow list: if request.auth != null && resource.data.userId == request.auth.uid;
 
       // Create: must be authenticated AND the userId in the new document must match the caller
       allow create: if request.auth != null
@@ -267,11 +769,13 @@ service cloud.firestore {
 
       // Update: only the owner can update (resource.data exists for existing docs)
       allow update: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && resource.data.userId == request.auth.uid
+        && preservesPublishedTestDraft(resource.data, request.resource.data);
 
       // Delete: only the owner can delete
       allow delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && resource.data.userId == request.auth.uid
+        && !isPublishedTestDraft(resource.data);
     }
 
     // PRD-0027: THCS-THPT Library Collection
@@ -327,6 +831,29 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/writing_submissions/$(submissionId)).data.context.selectedTeacherId == request.auth.uid;
     }
 
+    function isSoloWritingSubmissionNotificationIntent(eventId, data) {
+      let sourcePath = /databases/$(database)/documents/writing_submissions/$(data.authorityRecordId);
+      let source = get(sourcePath).data;
+      return data.keys().hasOnly([
+          'schemaVersion', 'eventId', 'kind', 'authorityRecordId', 'occurrenceId', 'actorUid', 'occurredAt'
+        ])
+        && data.schemaVersion == 1
+        && data.eventId == eventId
+        && data.kind in ['writing-submitted-student', 'writing-submitted-teacher']
+        && data.authorityRecordId is string
+        && data.occurrenceId == eventId
+        && data.actorUid == request.auth.uid
+        && data.occurredAt is int
+        && source.id == data.authorityRecordId
+        && source.studentId == request.auth.uid
+        && source.context.type == 'solo-practice'
+        && source.submittedAt == data.occurredAt
+        && (data.kind == 'writing-submitted-student'
+          ? eventId == 'writing-' + data.authorityRecordId + '-submitted-student'
+          : eventId == 'writing-' + data.authorityRecordId + '-submitted-teacher'
+            && source.context.selectedTeacherId is string
+            && source.context.classId is string);
+    }
     match /writing_submissions/{submissionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -336,20 +863,36 @@ service cloud.firestore {
             || resource.data.context.selectedTeacherId == request.auth.uid
             || request.resource.data.context.assigningTeacherId == request.auth.uid
             || request.resource.data.context.selectedTeacherId == request.auth.uid
-            || request.resource.data.grading.teacherId == request.auth.uid);
+            || request.resource.data.grading.teacherId == request.auth.uid)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.submittedAt == resource.data.submittedAt
+        && request.resource.data.context.type == resource.data.context.type
+        && request.resource.data.context.get('selectedTeacherId', null) == resource.data.context.get('selectedTeacherId', null)
+        && request.resource.data.context.get('classId', null) == resource.data.context.get('classId', null);
       allow delete: if false;  // Submissions are permanent records
+    }
+
+    match /writing_notification_intents/{eventId} {
+      allow get: if request.auth != null && resource.data.actorUid == request.auth.uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null
+        && isSoloWritingSubmissionNotificationIntent(eventId, request.resource.data);
     }
 
     // Writing test drafts — teacher-owned CRUD
     match /writing_drafts/{draftId} {
-      allow read: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow get: if request.auth != null
+        && (!exists(request.path) || resource.data.userId == request.auth.uid);
+      allow list: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null
         && request.resource.data.userId == request.auth.uid;
       allow update: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && resource.data.userId == request.auth.uid
+        && preservesPublishedTestDraft(resource.data, request.resource.data);
       allow delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+        && resource.data.userId == request.auth.uid
+        && !isPublishedTestDraft(resource.data);
     }
 
     // [GAP-02] User settings — per-user private settings (annotation categories, etc.)

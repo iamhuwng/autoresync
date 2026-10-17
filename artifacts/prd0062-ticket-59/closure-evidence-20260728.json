@@ -1,0 +1,48 @@
+{
+  "ticket": 59,
+  "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+  "stateBeforeClose": "OPEN",
+  "roadmapPhase": "runtime",
+  "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket59-publication-routes.json",
+  "graphArtifact": "artifacts/prd0062-graph-20260728-reopen59.json",
+  "proof": {
+    "publicationRouteComposition": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-publication-route-handlers.test.ts --typecheck --reporter=dot",
+      "result": "8 tests passed; no type errors",
+      "covers": [
+        "Full-PDF and component-PDF canonical handler namespace binding",
+        "durable repository factory injection",
+        "strategy worker routing through the injected repository",
+        "disabled/missing-port fail-closed behavior",
+        "canonical router resolution and control-body limits"
+      ]
+    },
+    "routeManifest": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-route-manifest.test.ts --typecheck --reporter=dot",
+      "result": "23 tests passed; no type errors",
+      "covers": [
+        "unique Full-PDF/component-PDF descriptors",
+        "#59 owner, method, auth/rate/gate, identity/config declarations",
+        "disabled-by-default gates",
+        "duplicate/missing/ambiguous route rejection",
+        "unrelated route and backup/public-B2 boundary preservation"
+      ]
+    },
+    "adjacentBaseline": "book-router.test.ts executed 15 assertions but emitted 2 pre-existing unhandled book_response_too_large stream errors; this adjacent baseline is not used as #59 closure proof."
+  },
+  "destinationBoundaries": {
+    "64": "durable aggregate/common CAS/conformance",
+    "65": "Full-PDF strategy adapter and local teacher proof",
+    "66": "component-PDF strategy adapter and local teacher proof",
+    "118": "generated database.rules.json and assembled emulator/deployment readback",
+    "134": "deployed/canary publication, identity, readback, cleanup, and rollback drill"
+  },
+  "safety": {
+    "publicationRoutes": "disabled-by-default",
+    "trustedActionGates": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "remoteDeployment": "not claimed"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "project": "mobile-320",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket57-component",
+  "viewport": {
+    "width": 320,
+    "height": 900
+  },
+  "consoleErrors": [],
+  "pdfRequests": [],
+  "overflow": {
+    "clientWidth": 320,
+    "scrollWidth": 320
+  },
+  "proof": [
+    "teacher quick-login",
+    "full-PDF source/page mapping",
+    "component-PDF branch-scoped source/page mapping with repeated local page numbers",
+    "reload persistence",
+    "stale CAS conflict recovery",
+    "200% zoom and overflow safety",
+    "no PDF request from #57 mapping workspace"
+  ]
+}

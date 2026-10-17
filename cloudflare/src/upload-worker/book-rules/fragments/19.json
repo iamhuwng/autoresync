@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "19",
+  "owner": {
+    "ticketId": "19",
+    "issue": 68,
+    "generatedRuleLocations": [
+      "book_activity/.read",
+      "book_activity/.write",
+      "book_activity/revision_control/$activityId/.read",
+      "book_activity/revision_control/$activityId/current/.write",
+      "book_activity/revision_control/$activityId/history/$activityVersionId/.write",
+      "book_activity/revision_control/$activityId/history/$activityVersionId/.validate",
+      "book_activity/revision_control/$activityId/operations/$operationId/.write",
+      "book_activity/revision_control/$activityId/operations/$operationId/.validate"
+    ],
+    "serviceIdentity": "book_activity_revision_service",
+    "leastPrivilegePaths": [
+      "users/$ownerId",
+      "book_activity/revision_control/$activityId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_activity",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_activityId == $activityId && (!data.exists() || auth.token.book_activity_revision_ownerId == data.child('current/ownerId').val())"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId/current",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_activityId == $activityId && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && newData.child('schemaVersion').val() == 1 && newData.child('lifecycle').val() == 'published' && newData.child('activityId').val() == $activityId && newData.child('activityVersionId').isString() && newData.child('activityVersion').isNumber() && newData.child('payloadFingerprint').isString() && newData.child('updatedByOperationId').isString() && newData.child('updatedAt').isString() && root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val()).child('activityId').val() == $activityId && root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val()).child('activityVersion').val() == newData.child('activityVersion').val() && root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val()).child('ownerId').val() == newData.child('ownerId').val() && root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val()).child('payloadFingerprint').val() == newData.child('payloadFingerprint').val() && newData.parent().child('history').child(newData.child('activityVersionId').val()).child('payloadFingerprint').val() == newData.child('payloadFingerprint').val() && newData.parent().child('operations').child(newData.child('updatedByOperationId').val()).child('resultActivityVersionId').val() == newData.child('activityVersionId').val() && (((!data.exists() || newData.child('activityVersion').val() > data.child('activityVersion').val()) && root.child('book_activity/versions').child($activityId).child(newData.child('activityVersionId').val()).child('createdByOperationId').val() == newData.child('updatedByOperationId').val()) || (auth.token.book_activity_revision_rollback == true && data.exists() && newData.child('activityVersion').val() <= data.child('activityVersion').val())) && !newData.child('answerKey').exists() && !newData.child('credentials').exists() && !newData.child('providerAuthority').exists() && !newData.child('privateObjectKey').exists() && !newData.child('sourceContext/answerKey').exists() && !newData.child('sourceContext/credentials').exists() && !newData.child('sourceContext/providerAuthority').exists() && !newData.child('sourceContext/privateObjectKey').exists()"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId/history/$activityVersionId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_activityId == $activityId && newData.exists() && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && (!data.exists() || newData.val() == data.val())"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId/history/$activityVersionId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(data.exists() && newData.val() == data.val()) || (!data.exists() && newData.hasChildren(['schemaVersion', 'activityId', 'activityVersionId', 'activityVersion', 'ownerId', 'payloadFingerprint', 'createdByOperationId', 'publishedAt']) && newData.child('schemaVersion').val() == 1 && newData.child('activityId').val() == $activityId && newData.child('activityVersionId').val() == $activityVersionId && newData.child('activityVersion').val() == root.child('book_activity/versions').child($activityId).child($activityVersionId).child('activityVersion').val() && newData.child('ownerId').val() == root.child('book_activity/versions').child($activityId).child($activityVersionId).child('ownerId').val() && (!newData.child('placementIds').exists() || newData.child('placementIds').hasChildren()) && newData.child('payloadFingerprint').val() == root.child('book_activity/versions').child($activityId).child($activityVersionId).child('payloadFingerprint').val() && newData.child('createdByOperationId').val() == root.child('book_activity/versions').child($activityId).child($activityVersionId).child('createdByOperationId').val() && newData.child('publishedAt').isString() && !newData.child('answerKey').exists() && !newData.child('credentials').exists() && !newData.child('providerAuthority').exists() && !newData.child('privateObjectKey').exists())"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId/operations/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_activity_revision_service == true && auth.token.book_activity_revision_activityId == $activityId && newData.exists() && auth.token.book_activity_revision_ownerId == newData.child('ownerId').val() && (!data.exists() || newData.val() == data.val())"
+    },
+    {
+      "path": "book_activity/revision_control/$activityId/operations/$operationId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(data.exists() && newData.val() == data.val()) || (!data.exists() && newData.hasChildren(['schemaVersion', 'operationId', 'activityId', 'expectedActivityVersion', 'resultActivityVersionId', 'ownerId', 'fingerprint', 'result', 'createdAt']) && newData.child('schemaVersion').val() == 1 && newData.child('operationId').val() == $operationId && newData.child('activityId').val() == $activityId && newData.child('expectedActivityVersion').isNumber() && newData.child('resultActivityVersionId').isString() && newData.child('ownerId').val() == root.child('book_activity/versions').child($activityId).child(newData.child('resultActivityVersionId').val()).child('ownerId').val() && newData.child('fingerprint').isString() && newData.child('result').hasChildren(['status']) && (auth.token.book_activity_revision_rollback == true || root.child('book_activity/versions').child($activityId).child(newData.child('resultActivityVersionId').val()).child('createdByOperationId').val() == $operationId) && newData.child('createdAt').isString() && !newData.child('answerKey').exists() && !newData.child('credentials').exists() && !newData.child('providerAuthority').exists() && !newData.child('privateObjectKey').exists())"
+    }
+  ]
+}

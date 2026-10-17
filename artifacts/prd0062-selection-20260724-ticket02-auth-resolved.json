@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-24",
+  "event": "ticket-02-blocker-change",
+  "roadmapPhase": "foundation",
+  "primary": 45,
+  "primaryTitle": "PRD0062 02 — Route each mode to its own editor",
+  "primaryState": "OPEN",
+  "graph": {
+    "ticketCount": 112,
+    "open": 99,
+    "closed": 13,
+    "edgeCount": 309,
+    "missingReferences": 0,
+    "cycles": 0,
+    "topologicalTraversal": "112/112",
+    "transitiveChainsCalculatedForEveryOpenTicket": true,
+    "graphClearFrontier": [29, 35, 38, 39, 40, 41, 42, 45, 129, 130, 131, 132, 133]
+  },
+  "selection": {
+    "directPrerequisites": [25, 44],
+    "transitivePrerequisites": [25, 44],
+    "closedPrerequisites": [25, 44],
+    "downstreamLeverage": 85,
+    "acceptanceReadiness": [
+      "all local implementation, focused tests, lint, build, regression, local browser, rollback, and review gates passed",
+      "Firebase Hosting preview is deployed",
+      "Firebase Auth authorizedDomains includes the exact preview hostname",
+      "Identity Toolkit accepts the exact preview Referer",
+      "final authenticated remote browser flow awaits user-approved Chrome launch"
+    ],
+    "requiredAuthority": [
+      "user-approved launch of the configured Chrome profile",
+      "authenticated teacher preview flow"
+    ]
+  },
+  "blocker": {
+    "family": "chrome-browser-availability",
+    "owner": "User-approved Chrome launch",
+    "requiredAction": "Approve launching Chrome, then run the authenticated Teacher preview flow.",
+    "evidence": "Chrome, extension, and native host are configured; Chrome is not running. API-level preview referrer/auth policy now passes.",
+    "impact": "#45 remains OPEN; no commit and no descendant selection."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 29,
+      "reason": "Cloudflare media/B2 read-only reconciliation authority unavailable; Wrangler media profile requires missing token."
+    },
+    {
+      "ticket": 35,
+      "reason": "Cloudflare Activity-authoring Worker deployment and scoped service-identity gates are not executable; same unavailable media authority."
+    },
+    {
+      "ticket": 38,
+      "reason": "Mandatory browser acceptance requires OPEN #73/22B shell; BookRuntimeShell is absent."
+    },
+    {
+      "ticket": 39,
+      "reason": "Mandatory browser acceptance shares OPEN #73/22B shell blocker."
+    },
+    {
+      "ticket": 40,
+      "reason": "Mandatory browser acceptance shares OPEN #73/22B shell blocker."
+    },
+    {
+      "ticket": 41,
+      "reason": "Cloudflare media/auth authority and runtime shell acceptance are unavailable."
+    },
+    {
+      "ticket": 42,
+      "reason": "Operations roadmap phase; the Foundation primary #45 remains selected and near closure."
+    },
+    {
+      "ticket": 73,
+      "reason": "Open direct and transitive prerequisites; ineligible under the mandatory dependency gate."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "reason": "Final Closure phase; positive acceptance remains behind the preserved #50A/#126 boundary."
+    }
+  ],
+  "decision": "Pause on #45. No independent acceptance-ready Foundation root with a different blocker family is available, and descendants remain ineligible."
+}

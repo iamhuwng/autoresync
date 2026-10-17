@@ -1,0 +1,47 @@
+{
+  "selectedAt": "2026-07-27T22:05:17+07:00",
+  "governingPolicy": "Mandatory dependency gate and deterministic roadmap: calculate complete transitive prerequisite chains; require live-closed prerequisites, current roadmap phase, executable acceptance gates, available ownership/authority, and strongest closure/downstream-unblock value; select exactly one primary.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket64-reopen-durable-repo.json",
+    "issueHash": "51e6aaf928c7064c7f4cf912aa430d168680f446d9f502bd048a015275eecf28",
+    "issueCount": 112,
+    "openCount": 69,
+    "closedCount": 43,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 64, 70, 129, 130, 131, 132, 133],
+    "transitiveChainAudit": "Every issue record, including every unresolved ticket complete transitivePrerequisites and openTransitivePrerequisites, is stored in referenced graph artifact."
+  },
+  "selectedTicket": {
+    "issue": 64,
+    "ticket": "16A",
+    "title": "Provide the trusted common publication primitive",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31],
+    "openTransitivePrerequisites": [],
+    "closedPrerequisites": [25, 26, 27, 29, 30, 31],
+    "downstreamLeverage": 64,
+    "acceptanceReadiness": "Executable local repair: add durable production BookAssemblyPublicationRepository for complete atomic publication aggregate and prove CAS/replay/crash/recovery/rollback conformance against Firebase RTDB seam. Deployed route composition/injection remains #59; generated rules/deployment proof remains #118; deployed/canary proof remains #134.",
+    "requiredAuthority": [
+      "local repository implementation and focused tests",
+      "local Firebase RTDB REST seam/conformance execution",
+      "no remote deployment or production-state mutation",
+      "no #50A, #03B, trusted-action, or private-B2 activation"
+    ]
+  },
+  "candidateRejections": [
+    {"issue": 49, "reason": "Graph-clear, but current authority/safety boundary forbids private-B2 provisioning and deployed disposable-object proof; acceptance is not executable."},
+    {"issue": 50, "reason": "Graph-clear, but current authority/safety boundary forbids private-B2 lifecycle mutation and deployed reconciliation proof; acceptance is not executable."},
+    {"issue": 70, "reason": "Graph-clear, but teacher-workflow source-strategy migration is later roadmap phase; downstream leverage 27 is below #64 leverage 64."},
+    {"issues": [129, 130, 131, 132, 133], "reason": "Graph-clear only by live Blocked-by edges; final regression/browser phase is not current Runtime phase and acceptance remains bounded by preserved activation/#50A safety gates."}
+  ],
+  "nonFrontierOpenTickets": {
+    "rule": "Rejected before implementation because at least one direct or transitive prerequisite is OPEN; complete chains and exact open prerequisite IDs are in graph artifact.",
+    "issues": [67, 68, 71, 73, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136]
+  },
+  "selectionDecision": "Select exactly one primary: #64 / Ticket 16A. Repair durable common publication storage before descendant or canonical route injection work."
+}

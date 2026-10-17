@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-07-26",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket24-transfer.json",
+  "issueHash": "8e237a1a9ef0871163ba30d0e11e0402233386e3aa2b7f17385212c0cba217ba",
+  "issueCount": 112,
+  "openCount": 88,
+  "closedCount": 24,
+  "roadmapPhase": "runtime",
+  "selectedTicket": 39,
+  "closedPrerequisites": [25, 33, 34, 36, 37],
+  "transitivePrerequisiteChain": [25, 33, 34, 36, 37],
+  "downstreamLeverage": 66,
+  "acceptanceReadiness": {
+    "status": "executable",
+    "retainedProof": [
+      "matching and ordering renderers and codecs",
+      "pointer and non-drag keyboard interaction",
+      "partial and complete state with identity/order preservation",
+      "duplicate, unknown, malformed, and unsupported fail-closed behavior",
+      "read-only/review, source correspondence, accessibility, touch-target, and component zoom tests",
+      "coverage-matrix parity, production registration loading, and rollback registration removal"
+    ],
+    "destinationOwnedProof": {
+      "ticket": 73,
+      "proof": [
+        "Student quick-login at localhost:5174",
+        "assembled BookRuntimeShell matching/ordering fixtures",
+        "mouse, non-drag keyboard, mobile touch-sized controls, navigation, and browser-level 200% zoom",
+        "integrated unsupported-state behavior without canonical save/submit"
+      ]
+    },
+    "requiredAuthority": [
+      "ticket 22A renderer registry",
+      "ticket 26 supported coverage matrix",
+      "ticket 22B destination-owned shell proof"
+    ],
+    "unavailableAuthority": []
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 39,
+      "decision": "selected",
+      "reason": "Earliest runtime renderer producer with closed transitive chain, executable retained gates, and destination-first integrated-proof transfer to #73."
+    },
+    {
+      "ticket": 40,
+      "decision": "rejected",
+      "reason": "Eligible runtime peer; one-primary rule selects earlier #39."
+    },
+    {
+      "ticket": 41,
+      "decision": "rejected",
+      "reason": "Eligible later runtime adapter lane; one-primary rule selects earlier #39."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Foundation private-B2 provisioning lane; current roadmap phase is Runtime and its remote provisioning/cost authority is not the selected producer seam."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Operations reconciliation lane; not the current Runtime producer priority."
+    },
+    {
+      "ticket": 51,
+      "decision": "rejected",
+      "reason": "Later document-route authorization lane; not the earliest Runtime renderer producer."
+    },
+    {
+      "ticket": 56,
+      "decision": "rejected",
+      "reason": "Teacher workflow lane and its browser-safe Source Version/current-revision/candidate readback authority remains unresolved."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-phase suite; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-phase suite; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-phase suite; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-phase suite; final acceptance and preserved #50A boundary remain unresolved."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-phase suite; final acceptance and preserved #50A boundary remain unresolved."
+    }
+  ]
+}

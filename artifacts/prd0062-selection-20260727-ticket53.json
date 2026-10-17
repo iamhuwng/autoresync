@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-07-27",
+  "ticket": 53,
+  "title": "PRD0062 10A — Build authenticated range transport with abort and bounded memory",
+  "roadmapPhase": "runtime",
+  "selectionReason": "First eligible Runtime ticket after #40 closure: every direct and transitive prerequisite is formally CLOSED, the transport acceptance gates are executable with available Firebase/browser authority, and the ticket has verified downstream leverage of 49 unresolved descendants.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-40-closed.json",
+    "issueHash": "3660c6613a34e8479c54f3c54b4ae0e4ba431f59c62a9bb8382a5ed6f5295789",
+    "issueCount": 112,
+    "openCount": 83,
+    "closedCount": 29,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 53, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "closedPrerequisites": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47, 48, 51, 52],
+  "transitivePrerequisiteGate": {
+    "allClosed": true,
+    "openPrerequisites": []
+  },
+  "acceptanceReadiness": {
+    "executable": true,
+    "authority": [
+      "local source/test harness",
+      "current Firebase authenticated browser/session authority for transport acceptance",
+      "canonical #52 opaque document route contract"
+    ],
+    "gates": [
+      "current Firebase ID token on HEAD, full GET, and range requests",
+      "exactly one forced-refresh retry on authentication expiry",
+      "safe response metadata validation",
+      "bounded memory and abort/release behavior",
+      "no B2 URL, credential, cookie, or provider-claim construction"
+    ],
+    "unavailableOrUnsafeGates": []
+  },
+  "downstreamLeverage": {
+    "unresolvedDescendants": 49,
+    "scope": "runtime delivery and later assembled student/operations proof"
+  },
+  "candidateRejections": {
+    "49": "Operations/provisioning phase; later than current Runtime phase.",
+    "50": "Operations/reconciliation phase; later than current Runtime phase.",
+    "56": "Teacher workflow phase; later than current Runtime phase.",
+    "64": "Teacher workflow/publication phase; later than current Runtime phase.",
+    "129": "Final closure phase; not an earliest Runtime root/enabler and preserves downstream #50A/deployment boundaries.",
+    "130": "Final closure phase; not an earliest Runtime root/enabler and preserves downstream #50A/deployment boundaries.",
+    "131": "Final closure phase; not an earliest Runtime root/enabler and preserves downstream #50A/deployment boundaries.",
+    "132": "Final closure phase; not an earliest Runtime root/enabler and preserves downstream #50A/deployment boundaries.",
+    "133": "Final closure phase; not an earliest Runtime root/enabler and preserves downstream #50A/deployment boundaries."
+  },
+  "primaryCount": 1,
+  "preservedConstraints": {
+    "scope112Tickets": true,
+    "mode03B": "disabled",
+    "boundary50A": "all-six-deny/default-deny",
+    "integratedStudentBrowserProof": "#73-owned",
+    "deployedAssemblyRouteProof": "#59-owned",
+    "assembledRulesProof": "#118-owned"
+  },
+  "recomputeAfterClosure": true
+}

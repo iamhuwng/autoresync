@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-07-31T06:32:00Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket59-closed.json",
+  "graphHash": "fdfaa3bba9492deae6a7c5f27e5c8d4a50d4c64bdb9a84b15b0bdcb730e888ac",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 49,
+    "closedCount": 63,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Publication",
+  "graphClearFrontier": [
+    65,
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 65,
+    "title": "PRD0062 16 - Publish one full-PDF Unit atomically",
+    "directPrerequisites": [
+      64
+    ],
+    "closedPrerequisites": [
+      64
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      64
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 61,
+    "acceptanceReadiness": "All direct and transitive prerequisites are formally CLOSED. Ticket #64 now provides the durable all-or-none canonical Activity Version boundary that the reopened #65 contract requires. The existing full-PDF adapter, publication repository, local teacher fixture, Firebase harness, canonical Worker route seam, and deny-by-default deployment controls make the ticket executable without advancing #50A. Activated production behavior remains constrained to the disposable acceptance scope explicitly owned by the live ticket and later destination contracts.",
+    "requiredAuthority": [
+      "full-PDF publication adapter and its owned Worker/repository seams",
+      "read-only live issue, Firebase, and deployed Worker/configuration readback",
+      "teacher localhost:5173 quick-login fixture for the ticket-owned browser proof",
+      "named Cloudflare media profile only for an explicitly bounded disabled-by-default preview or current-state readback",
+      "rollback limited to disabling the publication command/capability or an explicit trusted pointer rollback"
+    ],
+    "selectionReason": "#65 is the earliest unresolved Publication root after the canonical #59 Runtime enabler closed. It has the highest downstream leverage on the refreshed frontier, all seven transitive prerequisites are closed, and its reopened producer contract is the first full-PDF consumer of #64's repaired immutable canonical Activity Version boundary."
+  },
+  "candidateRejections": [
+    {
+      "number": 66,
+      "reason": "Graph-clear but the parallel component-PDF strategy follows the earlier full-PDF adapter in deterministic roadmap order. Selecting both would violate the exactly-one-primary rule."
+    },
+    {
+      "number": 68,
+      "reason": "Graph-clear but later Activity revision publication must follow proof that initial full-PDF publication writes the canonical immutable Activity payload and lineage."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear only at the dependency-graph level. Final browser, accessibility, contract/security, legacy, backup, and recovery suites remain later roadmap work while initial publication producers and assembled runtime surfaces are incomplete."
+    }
+  ],
+  "governingSafety": {
+    "privateB2": "disabled",
+    "03B": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny except an explicitly authorized bounded disposable acceptance gate",
+    "masterKey": "offline provisioning-only; never a runtime binding",
+    "selectionOnly": "No #65 implementation, gate enablement, deployment mutation, Firebase mutation, or issue mutation is performed by this snapshot."
+  }
+}

@@ -1,3 +1,6 @@
+import { useRef, useState } from 'react';
+import { toast } from '../../modern/ToastNotification';
+import r2StorageService from '../../../services/r2Storage';
 import {
   readingV2Ids,
   type ReadingV2Anchor,
@@ -32,6 +35,9 @@ export function ReadingV2StimulusEditor({
   teacherFacing = false,
   onDocumentChange,
 }: ReadingV2StimulusEditorProps) {
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const documentRef = useRef(document);
+  documentRef.current = document;
   const firstSection = document.sectionIds[0] ? document.sections[document.sectionIds[0]] : undefined;
   const stimulusId = selectedStimulusId ?? firstSection?.stimulusIds[0];
   const stimulus = stimulusId ? document.stimuli[stimulusId] : undefined;
@@ -457,25 +463,34 @@ export function ReadingV2StimulusEditor({
               aria-label="Diagram image file"
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              onChange={(event) => {
+              disabled={uploadingImage}
+              onChange={async (event) => {
                 const file = event.currentTarget.files?.[0];
-                if (!file) {
+                event.currentTarget.value = '';
+                if (!file || uploadingImage) {
                   return;
                 }
-
-                const reader = new FileReader();
-                reader.addEventListener('load', () => {
-                  if (typeof reader.result === 'string') {
-                    commitStimulus({
-                      ...stimulus,
-                      content: { ...stimulusContent, imageUrl: reader.result },
-                    });
+                setUploadingImage(true);
+                try {
+                  const { url } = await r2StorageService.uploadImage(file);
+                  const currentDocument = documentRef.current;
+                  const currentStimulus = currentDocument.stimuli[stimulus.stimulusId];
+                  if (currentStimulus?.content.kind === 'diagram-content') {
+                    onDocumentChange(updateStimulus(currentDocument, {
+                      ...currentStimulus,
+                      content: { ...currentStimulus.content, imageUrl: url },
+                    }));
+                    toast.success('Diagram image uploaded. Save the draft when ready.');
                   }
-                });
-                reader.readAsDataURL(file);
+                } catch {
+                  toast.error('Could not upload the diagram image. Please try again.');
+                } finally {
+                  setUploadingImage(false);
+                }
               }}
             />
           </label>
+          {uploadingImage ? <span role="status">Uploading image…</span> : null}
           <p className="reading-v2-studio__muted">
             {stimulusContent.hotspots.length} answer fields are linked to this diagram.
           </p>

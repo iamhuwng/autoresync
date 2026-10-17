@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-07-30T14:50:02.1890393+07:00",
+  "selectionStatus": "SELECTED",
+  "roadmapPhase": "runtime-repair",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket87-blocked-ticket74-reopened.json",
+  "graphIssueHash": "d9888046d4be72fb9716ea494a8447f9d1f0b3505d6fdcd4f9d89c80526a1277",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 48,
+    "closedCount": 64,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [
+      49,
+      74,
+      129,
+      131,
+      132,
+      133
+    ]
+  },
+  "selectedTicket": {
+    "number": 74,
+    "title": "PRD0062 28A — Authorize trusted Book Runtime commands",
+    "directPrerequisites": [
+      31,
+      34,
+      59,
+      72
+    ],
+    "completeTransitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      44,
+      45,
+      46,
+      47,
+      48,
+      51,
+      52,
+      55,
+      56,
+      57,
+      58,
+      59,
+      64,
+      65,
+      66,
+      72
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 52,
+    "acceptanceReadiness": {
+      "local": "Executable in the #74-owned authorization, Worker, repository-context, and focused contract tests. The repair is a generic target-aware schedule-policy seam and does not implement #87 nested scheduling.",
+      "browser": "Not required by #74. Browser schedule behavior remains #87 and final-suite ownership.",
+      "deployment": "No activation or positive deployment is required. #134 retains activated deployed/canary runtime identity, disposable-row, readback, telemetry, cleanup, and operational rollback proof.",
+      "ownership": "#74 owns the runtime authorization/schedule-policy interface and generic no-write denial seam. #87 will own the effective-window resolver and operation decisions after prerequisite repairs.",
+      "rollback": "Existing Solo behavior remains explicit; Homework remains fail closed until a target-aware policy is injected. All runtime/trusted route gates stay disabled.",
+      "authority": "Repository-local implementation and harness authority are available. No production, private-B2, #50A, or trusted-action authority is required."
+    },
+    "selectionReason": "All direct and transitive prerequisites are formally CLOSED. #74 is the earliest unresolved Runtime root/enabler, has the strongest verified downstream leverage (52), and its closed interface is concretely insufficient for #87 and other descendants."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "eligible": false,
+      "reason": "Graph-clear Foundation activation work remains acceptance-ineligible under the current remote state: private B2 is DISABLED and its canonical provider/CORS/cost/cleanup/browser/rollback evidence is incomplete.",
+      "blocker": {
+        "owner": "#49 with Backblaze/Cloudflare operator authority",
+        "requiredAction": "Complete the approved exact-identity preview activation sequence with disposable data and remote readback.",
+        "evidence": "Live #49 activation contract and current private-B2 disabled state.",
+        "impact": "Private B2/03B remains disabled; this blocker family is independent from the #74 runtime seam."
+      }
+    },
+    {
+      "ticket": 77,
+      "eligible": false,
+      "reason": "Dependency-ineligible: open transitive prerequisite #74."
+    },
+    {
+      "ticket": 87,
+      "eligible": false,
+      "reason": "Dependency-ineligible: open transitive prerequisite #74. Its authoritative policy body and canonical schedule-command boundaries also remain acceptance-readiness blockers owned by later #84/#85/#86 repairs.",
+      "blocker": {
+        "owner": "#74 first, followed by #84/#85/#86 in root order",
+        "requiredAction": "Repair and re-close each prerequisite boundary, rebuilding the full graph after every closure.",
+        "evidence": "Issue #87 blocker comment https://github.com/iamhuwng/autoresync/issues/87#issuecomment-5128095927",
+        "impact": "#87 implementation remains untouched and cannot start."
+      }
+    },
+    {
+      "ticket": 91,
+      "eligible": false,
+      "reason": "Dependency-ineligible: open transitive prerequisite #74."
+    },
+    {
+      "ticket": 106,
+      "eligible": false,
+      "reason": "Dependency-ineligible: open transitive prerequisite #74."
+    },
+    {
+      "ticket": 129,
+      "eligible": false,
+      "reason": "Integration/final-closure suite; product implementation and activation work remains open, including the preserved #50A boundary."
+    },
+    {
+      "ticket": 131,
+      "eligible": false,
+      "reason": "Integration/final-closure accessibility/device suite; Runtime and Student-workflow implementation roots remain open."
+    },
+    {
+      "ticket": 132,
+      "eligible": false,
+      "reason": "Integration/final-closure security suite; product implementation and activation gates remain open."
+    },
+    {
+      "ticket": 133,
+      "eligible": false,
+      "reason": "Integration/final-closure legacy/recovery suite; product implementation, activation, and recovery owners remain open."
+    }
+  ],
+  "blockerAudit": {
+    "trigger": "Forward-completeness audit before #87 implementation",
+    "independentReview": "BLOCKED — missing selected-Activity schedule input, durable per-Activity policy body, canonical schedule command/revision boundary, and correct document-breadth behavior.",
+    "issue87ImplementationChanged": false
+  },
+  "safety": {
+    "ticket03B": "DISABLED",
+    "privateB2": "DISABLED",
+    "ticket50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "trustedActions": "DISABLED",
+    "productionActivationAuthorized": false
+  }
+}

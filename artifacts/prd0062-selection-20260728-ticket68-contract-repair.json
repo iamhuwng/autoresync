@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-07-28T00:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket68-contract-repair.json",
+  "issueHash": "0847cd554f03965894bd64d661356b29a030f32f486515171dec2f29fe99f11d",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 65,
+    "closedCount": 47,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 68, 73, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "teacher-workflow",
+  "selection": {
+    "primaryTicket": 68,
+    "title": "PRD0062 19 — Revise one Activity safely",
+    "status": "selected-contract-repair-ready",
+    "directClosedPrerequisites": [35, 63, 64],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 60, 61, 62, 63, 64],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 23,
+    "acceptanceReadiness": "Local Activity-revision service, Worker/repository, fragment/security, semantic-diff, CAS/replay/crash, teacher-browser, and local rollback gates are executable under the current x64 harness and localhost:5173 authority. Destination-owned assembled-rules proof is explicitly #118; deployed/canary identity, readback, cleanup, recovery, and operational rollback are explicitly #134; assembled Student old-version/current-context proof is #73. Missing implementation is the selected ticket's work, not an unavailable acceptance gate.",
+    "requiredAuthority": [
+      "closed #35 trusted Activity candidate lifecycle",
+      "closed #63 exact preview/current-context contract",
+      "closed #64 durable common publication primitive",
+      "local x64 harness and teacher localhost:5173 quick-login/browser authority",
+      "no trusted-action activation, #50A, #03B, private-B2, or deployed positive authority"
+    ],
+    "currentImplementationGap": "Activity revision service/Worker/UI and ticket-owned local tests are not yet implemented. The live contract now preserves all proof exactly once: #68 local behavior/proof, #118 generated/assembled rules, #134 deployed/canary drill, and #73 assembled Student proof."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; required remote capability and deployment/billing proof are unavailable. Do not enable private-B2."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; exact-version cleanup requires unavailable remote private-B2 state."
+    },
+    {
+      "ticket": 68,
+      "decision": "selected",
+      "reason": "Independent Teacher-workflow enabler with all direct/transitive prerequisites formally CLOSED, executable local gates, repaired destination ownership, and verified downstream leverage. It does not bypass #49/#50: those are a different private-B2 blocker family and remain disabled."
+    },
+    {
+      "ticket": 73,
+      "decision": "rejected-phase",
+      "reason": "Later Student-workflow shell/integration phase; #68 local revision proof is the earlier teacher enabler and assembled Student proof remains #73-owned."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later Homework workflow phase; no need to bypass the selected teacher enabler."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Operations phase; roadmap later than the selected Teacher-workflow enabler."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public/student access phase; roadmap does not permit selection before the teacher revision enabler."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser suite; graph-clear is not final acceptance-ready while implementation and earlier phases remain open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure student runtime suite; later phase."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device suite; later phase."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security regression suite; later phase."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery suite; later phase."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is ineligible because its complete direct/transitive prerequisite chain contains one or more open tickets in the source graph. #118, #134, and #73 remain destination proof owners and are not undeclared hard prerequisites of #68."
+}

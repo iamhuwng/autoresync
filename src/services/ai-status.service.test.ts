@@ -6,7 +6,7 @@ vi.mock('../config/env.config', () => ({
 }));
 
 vi.mock('./api-keys.service', () => ({
-  getDecryptedKeys: vi.fn(() => Promise.resolve([])),
+  getActiveKeyIds: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('./key-cooldown.service', () => ({

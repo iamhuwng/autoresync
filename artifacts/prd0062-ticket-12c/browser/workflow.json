@@ -1,0 +1,13 @@
+{
+  "ticket": "12C",
+  "issue": 35,
+  "role": "teacher@test.com",
+  "baseUrl": "http://localhost:5173",
+  "staged": "staged",
+  "reloadedRevision": 1,
+  "conflict": "revision_conflict",
+  "recovered": "validated",
+  "discarded": "discarded",
+  "publishedStateUnchanged": true,
+  "proofBoundary": "Fixture-backed browser domain seam only; #59 owns live top-level route and identity integration."
+}

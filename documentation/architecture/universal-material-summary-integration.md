@@ -34,10 +34,12 @@ Key directives captured from that log:
 
 - The original defect was missing materials in Teacher Lobby Materials after
   Reading V1, quiz, Google Drive, and session-tab cleanup.
-- My Content must represent all supported active material kinds owned by the
-  teacher, not only legacy `/tests` rows or Reading V2 full tests.
-- Public Library must represent all active public material summaries, including
-  public rows owned by the current teacher.
+- Superseded as a tab presentation rule on 2026-07-08: My Content was recorded
+  here as all supported active material kinds owned by the teacher, not only
+  legacy `/tests` rows or Reading V2 full tests.
+- Superseded as a tab presentation rule on 2026-07-08: Public Library was
+  recorded here as all active public material summaries, including public rows
+  owned by the current teacher.
 - The long-term fix is a producer registry plus shared MaterialSummary port,
   not another tab-specific loader patch.
 - Publishing, updating, archiving, restoring, removing, reconciliation, and
@@ -49,6 +51,37 @@ Key directives captured from that log:
   incident only.
 - The class-page regression found during this work was a legacy/fixture data
   normalization problem, not part of the material-summary authority model.
+
+## 2026-07-08 Product Correction
+
+The 2026-07-07 phrase "My Content must represent all supported active material
+kinds" is obsolete as a tab presentation rule. It remains true only at the
+summary-catalog authority layer: supported producers must write active
+summaries so each dedicated view can discover them.
+
+Teacher Lobby tab presentation is:
+
+- My Content: published tests owned by the teacher.
+- Public Library: published public tests.
+- Reading Passage: active or archived Reading Passage rows, according to the
+  tab's own visibility/archive controls.
+- Book: Book rows, according to the tab's own visibility controls.
+- Drafts: family-specific draft stores, separate from published materials.
+
+Published-test material kinds are:
+
+- `full-test`
+- `listening-part`
+- `writing-prompt`
+- `thcs-thpt-test`
+
+THCS `Use as-is` / `thcs_linked_tests` references are not owned materials and
+must not be merged into My Content. If the product needs them as saved
+shortcuts, they belong in a separate Saved/Linked view.
+
+Reading Passage and Book rows must not appear in My Content/Public Library just
+because they are active owned or public summaries. Their own tabs remain
+summary-index consumers, not separate discovery authorities.
 
 ## Architecture
 
@@ -65,9 +98,13 @@ canonical producer
      -> material_summary_indexes/v1/by_visibility/{visibility}/{materialId}
      -> material_summary_indexes/v1/by_material_kind/{materialKind}/{materialId}
      -> material_summary_indexes/v1/by_test_type/{testTypeId}/{materialId}
+     -> material_summary_indexes/v1/by_owner_family/{ownerId}/{surfaceFamily}/{materialId}
+     -> material_summary_indexes/v1/by_visibility_family/{visibility}/{surfaceFamily}/{materialId}
+     -> material_summary_indexes/v1/by_owner_family_type/{ownerId}/{surfaceFamily}/{testTypeId}/{materialId}
+     -> material_summary_indexes/v1/by_visibility_family_type/{visibility}/{surfaceFamily}/{testTypeId}/{materialId}
 
 Teacher Materials
-  -> owned or public summary index
+  -> bounded owned/public family summary query, optionally narrowed by Test Type
   -> registry-backed filters and adapters
   -> canonical/runtime read only after an explicit user action
 ```
@@ -91,6 +128,20 @@ Producers use:
 Consumers use:
 
 - `listActiveMaterialSummaries(query, reader)`
+- `listMaterialSummaryPage(query, reader, { limit: 25, cursor })`
+
+Teacher Lobby uses the page interface. Its reader issues an indexed RTDB query
+for at most 26 rows and uses an exclusive `(updatedAt, materialId)` cursor.
+Family buckets restrict published tests, passages, and Books before download;
+family/type buckets apply the Test Type block selection before download.
+The older whole-bucket interface remains for secondary discovery/repair consumers,
+including the course Book picker; it is not Teacher Lobby's listing path.
+
+The shared producer fan-out writes and cleans the four compound buckets atomically
+with the existing summary indexes. Reconciliation recognizes their two/three
+partition levels, so reviewed repair converges without deleting valid buckets.
+Existing databases require a reviewed summary refresh after rules/index deployment;
+missing indexes must not trigger a whole-bucket fallback.
 
 The module owns:
 
@@ -136,9 +187,20 @@ Optional safe display/filter fields:
 - `sourceFullTestId`
 - `hasBrokenRefs`
 - `brokenRefCount`
+- `hasStudentSafeProjection`
+- `deliveryProjectionReady`
+- `studentSafeProjectionReady`
+- `passageRefCount`
 
 `materialId` is stable across indexes. Canonical identifiers and snapshot
 identifiers remain owned by the producer.
+
+Reading V2 full-test summaries must carry assignment-readiness facts from the
+published student-safe projection: `questionCount`, `sourceSnapshotVersionId`,
+`hasStudentSafeProjection`, `deliveryProjectionReady`,
+`studentSafeProjectionReady`, and `passageRefCount`. Teacher Materials cards use
+those summary facts to show question counts and enable `Assign HW` without
+hydrating Reading V2 canonical/projection payloads during list rendering.
 
 `testTypeMembership` is a derived map such as `{ "ielts": true }`. Producers
 may pass only `testTypeIds` to the port; the port normalizes and writes the
@@ -202,22 +264,27 @@ Restore:
 
 ## Consumer Contract
 
-My Content reads all active summaries at:
+My Content reads active owned summaries at:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_owner/{teacherId}
+material_catalog/material_summary_indexes/v1/by_owner_family/{teacherId}/assessment
 ```
 
-Public Library reads all active public summaries at:
+It presents only published-test material kinds, using bounded recent pages.
+
+Public Library reads active public summaries at:
 
 ```text
-material_catalog/material_summary_indexes/v1/by_visibility/public
+material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment
 ```
 
-Tabs, Test Types, skills, kinds, and search are filters over this summary
-collection. Dedicated Reading Passage and Book views may remain, but they must
-be derived views of registered summary kinds rather than independent discovery
-authorities.
+It presents only published-test material kinds, using bounded recent pages.
+
+Tabs select the summary family at the query layer. Explicit Test Type selection
+uses the matching family/type compound bucket. Skill and search filter loaded
+results; Load More includes older results. Dedicated Reading Passage and Book
+views query their registered summary families, and are not part of the
+My Content/Public Library published-test views.
 
 Teacher preferences control presentation order only. They never determine
 whether a material is discoverable.
@@ -232,7 +299,7 @@ infrastructure or contract error must not be presented as a valid empty list.
 | Teacher owner | Reads and writes own active summaries. Includes the teacher's private and public materials. The bucket must contain active rows only. | Reads all active public summaries, including their own public materials. The bucket must contain active rows only. | Reads `by_id` only for active own summaries or active public summaries. |
 | Teacher non-owner | Cannot read another teacher's private owned bucket. | Reads active public summaries from any owner. | Reads `by_id` only for public active summaries. |
 | Super admin | Reads and writes all owner buckets for diagnostics, repair, and moderation. | Reads and writes all visibility buckets, with public Book create, update, and delete staying admin-only. | Reads and writes `by_id`, `by_material_kind`, and `by_test_type`. |
-| Student | No access to Teacher Materials summary indexes. | No access to Teacher Materials summary indexes. | No access. |
+| Student | No owner-bucket access. | Active public summaries are readable for student discovery under current rules. | Public active `by_id` summaries only. |
 | Unauthenticated | No access. | No access. | No access. |
 
 The phrase "private material" means private to its owner, not globally visible
@@ -261,14 +328,36 @@ match the reviewed dry-run operations exactly before a root multi-location
 update is committed. Bridge repair keeps `/tests` runtime-compatible; it must
 not become listing authority.
 
+THCS runtime bridges are also separate from listing authority. Historical
+Firestore `thcs_library` rows are not a valid My Content fallback because they
+can contain only metadata and `sectionSummary`, with no runnable
+`sections/questions` body. Use `repair:thcs-runtime-bridges` to backfill only
+published `thcs_drafts` rows that have full sections into `/tests` plus
+MaterialSummary v1. Metadata-only `thcs_library` rows are reported as
+unbackfillable historical records, not shown as active tests. A removed
+MaterialSummary `by_id` tombstone blocks repair from resurrecting stale THCS
+draft or library sidecars; repair may only clean stale active fan-outs for that
+test.
+
+Writing runtime bridges follow the same boundary. Firestore `writing_drafts`
+owns authoring state, while `/tests/{publishedTestId}` remains the runtime
+compatibility row for published Writing tests and MaterialSummary v1 remains
+the listing authority. A published draft with `publishedTestId` but no runtime
+row and no summary fan-out is producer drift. Use
+`repair:writing-runtime-bridges` to rebuild only complete published Writing
+drafts into `/tests` plus MaterialSummary v1. Do not make My Content scan
+Firestore `writing_drafts` or broad `/tests` to compensate. Removed
+MaterialSummary `by_id` tombstones block repair from resurrecting stale Writing
+draft sidecars.
+
 ## Rules
 
 RTDB rules must:
 
-- allow an owner to read only `by_owner/{auth.uid}` for My Content
-- validate every `by_owner` and `by_visibility` row as `lifecycleState:
+- allow an owner to read only their owner/family/type discovery buckets
+- validate every owner/visibility discovery row as `lifecycleState:
   'active'`; these list buckets must not store archived or removed rows
-- allow teachers to read only `by_visibility/public` for Public Library
+- allow public discovery only under public visibility/family/type buckets
 - allow teacher `by_id` reads only for active rows they own or active public
   rows
 - allow owner lifecycle writes to create their own archived/removed `by_id`
@@ -281,6 +370,7 @@ RTDB rules must:
 - validate summary schema and path-key identity
 - validate `by_test_type/{testTypeId}` rows through
   `testTypeMembership.{testTypeId} === true`
+- validate compound family and Test Type path membership and index `updatedAt`
 - close each universal summary row with child validators and
   `$other.validate=false` so unknown fields such as `reviewPayload`, `content`,
   `aiReviewEvidence`, or future canonical payload fields cannot be smuggled into
@@ -363,13 +453,21 @@ repair, rules, and consumer proof. A publish-only integration is incomplete
 unless a lifecycle operation is explicitly unsupported and fails closed before
 canonical state changes.
 
-## Current Closure Evidence
+## Current Listing Contract and Historical Closure Evidence
 
-- My Content reads `material_summary_indexes/v1/by_owner/{teacherId}` only.
-- Public Library reads `material_summary_indexes/v1/by_visibility/public` only.
-- Active dedicated Reading Passage and Book tab discovery also starts from
-  `material_summary_indexes/v1` and hydrates feature-owned safe projections only
-  where the specialized tab needs extra display fields.
+- My Content reads `material_summary_indexes/v1/by_owner_family/{teacherId}/assessment` and
+  presents published-test material kinds only.
+- My Content does not merge `users/{teacherId}/thcs_linked_tests`; linked or
+  use-as-is THCS refs are not owned materials.
+- Google Chrome proof after the owned-only correction for
+  `hungnguyenzim@gmail.com` showed 24 My Content materials, 13 owned THCS rows,
+  no linked/use-as-is THCS rows, no `Retake`, no `Linked` badge, and no console
+  warnings/errors.
+- Public Library reads `material_summary_indexes/v1/by_visibility_family/public/assessment`
+  and presents published-test material kinds only.
+- Active dedicated Reading Passage and Book tabs query bounded family/type
+  pages in `material_summary_indexes/v1` without canonical hydration. Reading
+  Passage Archive hydrates metadata only for its displayed page.
 - Producers registered as `summary-v1`: Reading V2 full tests, Reading V2
   passages, Books, Writing, THCS-THPT, generic tests, and Listening save/update.
 - `/tests` remains runtime/legacy compatibility storage, not listing authority.
@@ -385,9 +483,42 @@ canonical state changes.
   under `output/reading-v2-test-bridge-repair/`; the prewrite report planned 12
   bridge operations and postwrite verification reported zero remaining bridge
   operations.
+- Approved THCS `/tests` bridge repair on 2026-07-08 used local reports under
+  `output/thcs-runtime-bridge-repair/`; the prewrite report planned 3 runtime
+  writes and 15 MaterialSummary writes, the approved write committed, and
+  final-hardening corrective write committed 1 runtime write and 5
+  MaterialSummary writes. Final postwrite verification reported zero remaining
+  THCS bridge operations. Seventeen Firestore `thcs_library` metadata-only rows
+  remained unbackfillable because no full published draft sections were
+  available.
+- Writing `/tests` bridge repair on 2026-07-08 used local reports under
+  `output/writing-runtime-bridge-repair/`; the prewrite report planned 11
+  runtime writes and 55 MaterialSummary writes, the write committed with
+  `user-requested-proceed-2026-07-08`, and final postwrite verification
+  reported zero remaining Writing bridge operations.
 - Browser QA on `http://localhost:5173/lobby` after rules and approved repair
   showed My Content, Public Library, Reading Passage, and Book tabs rendering
   without permission errors or fake empty states.
+- Browser QA after the Writing repair showed My Content as a published-test
+  view with 7 owned rows for the Teacher Test account: 5 Reading V2 full-test
+  rows plus 2 Writing rows. Reading Passage/Book rows remained excluded from My
+  Content.
+- 2026-07-08 Reading V2 assignment-readiness repair: summary-v1 now permits and
+  preserves student-safe readiness fields; Reading V2 full-test summary
+  producers and material-summary reconciliation derive them from
+  `reading_v2/projections/student_safe_tests`. RTDB rules for all five summary
+  buckets were deployed to `temp-a1437`, and 54 live Reading V2 full-test
+  summary paths were repaired from canonical/projection data. Postwrite dry-run
+  reported zero remaining `reading-v2-full-test` summary drift; remaining
+  drift was limited to Reading Passage and THCS summary rows.
+- Chrome proof on `http://localhost:5173/lobby` after the repair showed 13 My
+  Content rows, 5 Reading V2 rows, all Reading V2 rows with positive question
+  counts and `Assign HW`, no Reading Passage/Book kind rows, and no fresh
+  console warnings/errors after the Firestore `writing_drafts` index was
+  created.
+- Raw live repair reports and payloads can contain auth data, test bodies, or
+  user content. Do not commit them unless a deliberately redacted artifact is
+  needed for review.
 - Browser QA on teacher class list/detail after the class normalization fix
   showed PRD-0055 fixture rows rendering without `Invalid Date` or
   `status.toUpperCase()` crashes.
@@ -410,8 +541,23 @@ of these are true for that exact project:
    ```
 
 6. Post-write readback shows active owner/public summaries in v1 indexes.
-7. Browser QA proves My Content has all owned active supported materials and
-   Public Library has all public active supported materials.
+7. Browser QA proves My Content has owned active published tests, Public
+   Library has active public published tests, and Reading Passage/Book tabs show
+   their own rows from summary-backed discovery.
 8. Any required `/tests` compatibility bridge repair has a separate dry-run
    report, approval gate, post-write zero-op verification, and browser/runtime
    proof.
+
+THCS bridge repair command:
+
+```bash
+npm run repair:thcs-runtime-bridges -- --dry-run --project <project-id> --report <file>
+npm run repair:thcs-runtime-bridges -- --write --project <project-id> --approved <id> --from-report <file>
+```
+
+Writing bridge repair command:
+
+```bash
+npm run repair:writing-runtime-bridges -- --dry-run --project <project-id> --report <file>
+npm run repair:writing-runtime-bridges -- --write --project <project-id> --approved <id> --from-report <file>
+```

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-14T02:26:08.110011Z",
+  "status": "success",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-v19b-firestore-drift-remediation-checkpoint-2026-08-14.json",
+  "classification": "FIRESTORE_RULES_DEPLOYMENT_DRIFT",
+  "cause": "The deployed Firestore ruleset contained only the legacy Reading Passage homework create contract and no book_homework_service contract. The exact V19b Book Homework authority payload therefore failed createdBy and materialType predicates despite correct UID and custom claims.",
+  "sourceMutation": false,
+  "deployment": {
+    "release": "projects/temp-a1437/releases/cloud.firestore",
+    "previousRuleset": "projects/temp-a1437/rulesets/a041e920-bb67-47be-99d3-31f02b38b8a4",
+    "previousRulesSha256": "058e1b545b20168f96db82fb693313f0c11dacabb9f59c2239a38068e7a2d99e",
+    "activeRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "activeRulesSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612",
+    "repositoryRulesSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612",
+    "exactReadback": true
+  },
+  "proof": {
+    "exactV19bEmulator": "Repository rules allow exact payload; deployed rollback rules deny it; 4/4 probes passed",
+    "fullHomeworkFirestoreEmulator": "10/10 passed",
+    "liveReleaseReadback": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "liveSourceReadbackSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612"
+  },
+  "postDeploymentState": {
+    "workerVersionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9",
+    "workerTrafficPercent": 100,
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "assignmentSagaState": "compensated",
+    "assignmentSagaVisibility": "hidden",
+    "assignmentSagaRevision": 5,
+    "firestoreAuthorityDocumentHttpStatus": 404
+  },
+  "productionAttempt": "not performed",
+  "nextGate": "Decide a bounded V19b retry input strategy without creating V20. The frozen assignment ID is terminal compensated and cannot be assumed replayable."
+}

@@ -1,0 +1,96 @@
+{
+  "ticket": 105,
+  "ticketCode": "43",
+  "recordedAt": "2026-07-29T05:30:00Z",
+  "proofClass": "local implementation, local integration, and localhost browser module proof",
+  "selection": {
+    "graphArtifact": "artifacts/prd0062-graph-20260729-ticket105-contract-transfer.json",
+    "graphHash": "ffdcfe4161964e02d574d70ba09ea7c54369f2e862793d84939828b2eb9e6849",
+    "selectionArtifact": "artifacts/prd0062-selection-20260729-ticket105.json",
+    "primaryTicket": 105
+  },
+  "ownership": {
+    "destinationFirstTransferApplied": true,
+    "destinationTicket": 134,
+    "transferredProof": [
+      "deployed disposable public catalog projection and public-projection rules",
+      "deployed capability-state and authenticated entitlement checks",
+      "deployed teacher catalog journey and source-assisted denial",
+      "active Worker/Firebase identity, config, version, rules-hash, and gate readback",
+      "deployed cleanup and rollback"
+    ]
+  },
+  "implementation": {
+    "typedBrowseAndResolve": true,
+    "materialBooksPublicProjectionAdapter": true,
+    "identityMapping": {
+      "refId": "placementId",
+      "materialId": "activityId",
+      "snapshotVersionId": "activityVersionId"
+    },
+    "publicationSourceReadinessInjected": true,
+    "entitlementInjected": true,
+    "directBookDeliveryCoupling": false,
+    "unsupportedPublicNodesFiltered": true,
+    "publicReferenceReplacementMode": "invalidation-only",
+    "sourceIdentityReturned": false,
+    "canonicalWorkerRouteChanged": false
+  },
+  "verification": {
+    "catalogAndRules": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/materialCatalog/contentCatalog.service.test.ts src/services/materialCatalog/contentCatalog.materialBooksRepository.test.ts src/__tests__/security/contentCatalogRuleFragment.test.ts",
+      "result": "PASS",
+      "files": 3,
+      "tests": 17
+    },
+    "worker": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/content-catalog-worker.test.ts",
+      "result": "PASS",
+      "files": 1,
+      "tests": 4
+    },
+    "eslint": "PASS for all #105 source and test paths",
+    "mantineBoundary": "PASS",
+    "diffCheck": "PASS",
+    "productionBuild": {
+      "command": "npm run build",
+      "result": "PASS",
+      "modules": 9446,
+      "bundleBudget": "PASS"
+    },
+    "rollback": {
+      "result": "PASS",
+      "publicProjectionRemoved": true,
+      "catalogFailsClosed": true,
+      "privateOwnerRecordRetained": true,
+      "priorSafeSelectionFrozen": true,
+      "sourceByteResolverCalls": 0
+    },
+    "browser": {
+      "url": "http://localhost:5173",
+      "authenticatedUser": "teacher@test.com",
+      "classification": "authenticated localhost browser module proof; not a normal product journey",
+      "result": "PASS",
+      "observed": {
+        "states": [
+          "playable",
+          "metadata-only"
+        ],
+        "hierarchy": [
+          "unit",
+          "activity"
+        ],
+        "authorizedPreview": "playable",
+        "metadataOnlySourceAssistedPreview": "preview_not_authorized",
+        "privateFieldLeak": false
+      }
+    }
+  },
+  "safety": {
+    "productionDeployPerformed": false,
+    "trustedActionGatesEnabled": false,
+    "ticket50AChanged": false,
+    "ticket03BChanged": false,
+    "privateB2Changed": false
+  }
+}

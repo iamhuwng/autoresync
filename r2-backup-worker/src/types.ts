@@ -140,6 +140,178 @@ export interface RestoreProgress {
     error?: string;
 }
 
+// ── Book metadata backup/restore inventory (PRD0062 48B) ────────────────
+
+/** One explicit, non-overlapping canonical Book metadata root. */
+export interface BookMetadataInventoryRoot {
+    readonly path: string;
+    readonly order: number;
+    readonly required: true;
+    readonly schemaVersion: 1;
+    readonly present: boolean;
+    /** Shared notifications are validated/fenced here and reconciled by #124. */
+    readonly restoreDisposition: 'restore' | 'delegated-validation-only';
+    readonly delegatedOwner: '#124' | null;
+    readonly data: Record<string, unknown>;
+    readonly entityCount: number;
+    /** Deterministic metadata fingerprint; it never represents PDF bytes. */
+    readonly contentFingerprint: string;
+}
+
+/** Versioned, exhaustive Book metadata-only backup payload. */
+export interface BookMetadataBackupInventory {
+    readonly kind: 'book-metadata-inventory';
+    readonly inventoryVersion: 'prd0062-48b-v2';
+    readonly schemaVersion: 1;
+    readonly backupId: string;
+    readonly firebaseProject: string;
+    readonly generatedAt: string;
+    readonly bytePolicy: 'metadata-only';
+    readonly pdfBodyReads: 0;
+    readonly pdfBodyWrites: 0;
+    readonly pdfBodyBytes: 0;
+    readonly rootCount: number;
+    readonly roots: readonly BookMetadataInventoryRoot[];
+    /** References are sorted and deduplicated at capture time. */
+    readonly sourceVersionIds: readonly string[];
+    readonly audit: {
+        readonly bounded: true;
+        readonly provenance: readonly string[];
+    };
+}
+
+export interface BookMetadataRootFence {
+    readonly etag: string;
+    readonly revision: number | null;
+}
+
+export interface BookMetadataRestoreDiagnostic {
+    readonly code: string;
+    readonly path: string;
+    readonly message: string;
+}
+
+/** Deterministic preview proof consumed by Book metadata execute. */
+export interface BookMetadataRestorePreview {
+    readonly backupId: string;
+    readonly inventoryVersion: 'prd0062-48b-v2';
+    readonly inventoryFingerprint: string;
+    readonly valid: boolean;
+    readonly allowed: boolean;
+    readonly rootCount: number;
+    readonly orderedRoots: readonly string[];
+    readonly delegatedRoots: readonly string[];
+    readonly rootFences: Readonly<Record<string, BookMetadataRootFence>>;
+    readonly sourceVersionIds: readonly string[];
+    readonly missingSourceVersionIds: readonly string[];
+    readonly diagnostics: readonly BookMetadataRestoreDiagnostic[];
+    readonly zeroByteProof: {
+        readonly pdfBodyReads: 0;
+        readonly pdfBodyWrites: 0;
+        readonly providerOperations: 0;
+    };
+}
+
+// ── PRD0062 49A recovery control plane ─────────────────────────────────
+
+export const RECOVERY_ENVELOPE_SCHEMA_VERSION = 'prd0062-49a-v1' as const;
+export const RECOVERY_OPERATION_SCHEMA_VERSION = 'prd0062-49a-v1' as const;
+
+export type RecoveryEnvelopePhase = 'dry-run' | 'execute';
+
+export type RecoveryOperationState =
+    | 'previewed'
+    | 'authorized'
+    | 'restoring_canonical_authority'
+    | 'rebuilding'
+    | 'reconciling'
+    | 'completed'
+    | 'failed_retryable'
+    | 'failed_terminal';
+
+export type RecoveryWorkPhase =
+    | 'restoring_canonical_authority'
+    | 'rebuilding'
+    | 'reconciling';
+
+export type RecoverySuppressionFamily =
+    | 'source-cleanup-provider-delete'
+    | 'submission-result-scoring'
+    | 'completion'
+    | 'checkpoint'
+    | 'notification'
+    | 'update-replacement-revocation'
+    | 'audit-fan-out';
+
+export interface RecoverySnapshotIdentity {
+    readonly backupId: string;
+    readonly snapshotId: string;
+    readonly firebaseProject: string;
+    readonly tenantId: string;
+    readonly ownerId: string;
+    readonly inventoryVersion: string;
+    readonly inventoryFingerprint: string;
+    readonly allowedRoots: readonly string[];
+}
+
+export interface RecoveryEnvelopeAuthorization {
+    readonly kind: 'deployment-operator' | 'deployment-service';
+    readonly identity: string;
+}
+
+export interface RecoveryEnvelopeIntegrity {
+    readonly algorithm: 'injected-signature';
+    readonly value: string;
+}
+
+export interface RecoveryEnvelope {
+    readonly kind: 'book-recovery-envelope';
+    readonly schemaVersion: typeof RECOVERY_ENVELOPE_SCHEMA_VERSION;
+    readonly snapshot: RecoverySnapshotIdentity;
+    readonly phase: RecoveryEnvelopePhase;
+    readonly idempotencyKey: string;
+    readonly issuedAt: string;
+    readonly expiresAt: string;
+    readonly authorized: RecoveryEnvelopeAuthorization;
+    readonly integrity: RecoveryEnvelopeIntegrity;
+}
+
+export interface RecoveryOperationError {
+    readonly code: string;
+    readonly phase: RecoveryWorkPhase | null;
+    readonly at: string;
+    readonly message: string;
+}
+
+export interface RecoveryOperationAuditEvent {
+    readonly code: string;
+    readonly at: string;
+    readonly phase: RecoveryWorkPhase | null;
+}
+
+export interface RecoveryOperationRecord {
+    readonly kind: 'book-recovery-operation';
+    readonly schemaVersion: typeof RECOVERY_OPERATION_SCHEMA_VERSION;
+    readonly operationId: string;
+    readonly snapshot: RecoverySnapshotIdentity;
+    readonly idempotencyKey: string;
+    readonly requestFingerprint: string;
+    readonly state: RecoveryOperationState;
+    readonly stateRevision: number;
+    readonly resumePhase: RecoveryWorkPhase | null;
+    readonly attempts: Readonly<Record<RecoveryWorkPhase, number>>;
+    readonly errors: readonly RecoveryOperationError[];
+    readonly audit: readonly RecoveryOperationAuditEvent[];
+    readonly suppression: {
+        readonly mode: 'fail-closed';
+        readonly families: readonly RecoverySuppressionFamily[];
+        readonly releasedFamilies: readonly RecoverySuppressionFamily[];
+        readonly finalReconciliation: 'pending' | 'approved';
+    };
+    readonly createdAt: string;
+    readonly updatedAt: string;
+}
+
 // ─── Restore Preview ───────────────────────────────────────────────────
 export interface RestorePreview {
     backupId: string;
@@ -153,6 +325,7 @@ export interface RestorePreview {
     };
     gdprExcludedCount: number;
     warnings: string[];
+    bookMetadata?: BookMetadataRestorePreview;
 }
 
 export interface RestorePreviewCategory {
@@ -175,6 +348,11 @@ export interface RestoreResult {
         skipped: number;
         failed: number;
     }>;
+    bookMetadata?: {
+        readonly restoredRoots: number;
+        readonly skippedRoots: number;
+        readonly failedRoots: number;
+    };
 }
 
 // ─── Status Tracker (in-memory + persisted to R2) ──────────────────────

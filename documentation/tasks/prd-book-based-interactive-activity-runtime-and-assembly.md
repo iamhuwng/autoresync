@@ -1,6 +1,8 @@
 > **DORMANT PRD0062 HISTORICAL EVIDENCE - NOT CURRENT IMPLEMENTATION AUTHORITY**
 >
 > Preserved for possible future reimplementation. Read the [PRD0062b dormant status](PRD0062b/DORMANT-STATUS-2026-07-18.md) first. The body below records dated design history; it does not describe current implementation, deployment, task closure, or mutation authority. Reuse requires fresh baseline validation and separate approval.
+>
+> **Active-lineage note (2026-08-15):** current PRD0062 implementation also has an accepted architecture/delivery amendment at [`PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`](PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md). That amendment records the active Book Homework compatibility, trusted-projection, production-composition, review, and browser-handoff requirements discovered during completion work; this historical body remains non-authoritative for current mutation by itself.
 
 # PRD: Book-Based Interactive Activity Runtime and Assembly Workspace
 

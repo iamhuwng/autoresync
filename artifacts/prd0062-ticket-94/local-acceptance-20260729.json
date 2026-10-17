@@ -1,0 +1,84 @@
+{
+  "ticket": 94,
+  "ticketCode": "38B1",
+  "recordedAt": "2026-07-29T07:00:00Z",
+  "proofClass": "local implementation, authenticated localhost role journeys, and production-equivalent command/repository conformance",
+  "selection": {
+    "graphArtifact": "artifacts/prd0062-graph-20260729-ticket94-inventory-ownership-repair.json",
+    "graphHash": "ff8ea99f25380350831e5330808224acf5870fc22b4652b19a5a6f65c9f2251f",
+    "primaryTicket": 94,
+    "transitivePrerequisitesClosed": true,
+    "roadmapPhase": "operations"
+  },
+  "implementation": {
+    "producerPathsInventoried": 21,
+    "producerOwnershipExactlyOnce": true,
+    "directAndDynamicImportsCovered": true,
+    "boundedTrustedCommandSchema": true,
+    "metadataUsesTicket93Parser": true,
+    "recipientAuthorityMandatory": true,
+    "deterministicOperationKey": true,
+    "firebaseRestEtagCas": true,
+    "idempotentReplayAndConflict": true,
+    "legacyReadersAndReadStateRetained": true,
+    "producerMigrationPerformed": false,
+    "newQueueOrFanoutLedger": false,
+    "canonicalRouteReservationReused": true,
+    "topLevelWorkerCompositionChanged": false
+  },
+  "verification": {
+    "rootFocusedTests": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/notificationCommandClient.test.ts src/services/notificationProducerInventory.test.ts src/services/notificationMetadata.test.ts src/services/notificationDestinationResolver.test.ts src/services/notificationService.test.ts src/components/notifications/NotificationBell.test.tsx src/components/notifications/NotificationPanel.test.tsx src/components/navigation/TeacherNavigation.test.tsx",
+      "result": "PASS",
+      "files": 8,
+      "tests": 70
+    },
+    "cloudflareFocusedTests": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/notification-command-worker.test.ts test/book-route-manifest.test.ts",
+      "result": "PASS",
+      "files": 2,
+      "tests": 29
+    },
+    "eslint": "PASS for all #94 source and test paths",
+    "mantineBoundary": "PASS",
+    "diffCheck": "PASS",
+    "productionBuild": {
+      "result": "PASS",
+      "modules": 9446,
+      "bundleBudget": "PASS"
+    },
+    "browser": {
+      "teacher": {
+        "url": "http://localhost:5173/teacher/grading/writing/-OpEgHA3ZGpDKH3Bmr1I",
+        "authenticatedUser": "teacher@test.com",
+        "result": "PASS",
+        "observed": "Existing New Writing Submission notification rendered, opened the canonical teacher grading destination, and displayed the student submission."
+      },
+      "student": {
+        "url": "http://localhost:5174/student-wait/YEDF89",
+        "authenticatedUser": "student@test.com",
+        "result": "PASS",
+        "observed": "Existing student notification/feed item opened the canonical student waiting-room destination; unread count changed from 17 to 16 after opening."
+      }
+    },
+    "stagingCompatibility": {
+      "result": "PASS",
+      "observed": "Local Worker and Firebase REST mock conformance covers valid/malformed commands, auth, recipient derivation, ETag CAS, replay/conflict, bounded receipt, legacy reads, and raw-write bypass detection.",
+      "productionDeployment": "NOT PERFORMED: #94 retains route reservation and staging evidence; deployment identity/readback belongs to destination #134."
+    },
+    "rollback": {
+      "result": "PASS",
+      "producerMigrationPerformed": false,
+      "legacyReaderAndReadStateRetained": true,
+      "trustedRouteGate": "disabled",
+      "restrictiveRulesChanged": false
+    }
+  },
+  "safety": {
+    "productionDeployPerformed": false,
+    "trustedActionGatesEnabled": false,
+    "ticket50AChanged": false,
+    "ticket03BChanged": false,
+    "privateB2Changed": false
+  }
+}

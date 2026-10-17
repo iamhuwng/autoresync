@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-15T04:50:57Z",
+  "mission": "PRD0062 Milestone-1 browser handoff",
+  "membershipRootCause": "The canonical student_classes projection was missing 2NE3KY, and getStudentClasses discarded valid indexed summaries when a subsequent broad legacy scan failed.",
+  "owningFix": {
+    "source": "projection-present returns bounded verified summaries; legacy scan remains only when the entire projection is absent",
+    "reconciliation": "conditionally created student_classes/x3hDfjYVN7cJtSbwq0ChIjl1Bk62/2NE3KY with joinedAt 1772983529130 and active status",
+    "rosterEtagStable": true,
+    "bookOrHomeworkSourceChanged": false,
+    "assignmentCommands": 0
+  },
+  "proof": {
+    "oldRedNewGreen": "PASS",
+    "focusedRegression": "13 files; 115 tests passed; 0 failed",
+    "focusedEslint": "PASS",
+    "productionBuild": "PASS; 441 files; manifest be10e6fd4d6a78ec7138522406ac5b16c06dd9df9464c8a7686faf9b5552895f",
+    "standardsReview": "PASS",
+    "specReview": "PASS"
+  },
+  "deployment": {
+    "hostingRelease": "projects/temp-a1437/sites/kahut1/channels/live/releases/1786768145006000",
+    "hostingVersion": "projects/temp-a1437/sites/kahut1/versions/265a291ee1c8040e",
+    "servedIndexSha256": "184a78ad042b40ce475f866764c7f2f5117fa174a3bdb1d635413ca5a5957ba5",
+    "servedEntry": "/assets/index-Dz5Ao-Gs.js",
+    "servedEntrySha256": "e30155fdb6e820bed9d172760051e89d69e5c4dccba3b04f27d655b2b8a70144",
+    "workerVersion": "57b33871-f1a6-454f-a6aa-9236777bc68a",
+    "workerTraffic": 100,
+    "workerDeploymentResult": "SUCCESS",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f"
+  },
+  "preBrowserReadback": {
+    "root": "committed revision 7",
+    "authority": "revision 2",
+    "delivery": "active binding revision 1",
+    "compatibilityShell": "PRESENT schema 1; no fake legacy fields",
+    "membershipProjection": "2NE3KY active",
+    "assignmentCommands": 0
+  },
+  "browser": {
+    "teacher": {
+      "result": "FAIL",
+      "boundary": "trusted Book Homework teacher detail projection",
+      "observed": "Book detail/progress rendered, but teacher-book-student-x3hDfjYVN7cJtSbwq0ChIjl1Bk62 never became visible within 30 seconds"
+    },
+    "student": "NOT_RUN_AFTER_TEACHER_FAILURE",
+    "runtime": "NOT_RUN_AFTER_TEACHER_FAILURE",
+    "ordinaryHomework": "NOT_RUN_AFTER_TEACHER_FAILURE"
+  },
+  "rollback": {
+    "hostingRelease": "projects/temp-a1437/sites/kahut1/channels/live/releases/1786769408199000",
+    "hostingVersion": "projects/temp-a1437/sites/kahut1/versions/31a9052843c443c5",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "worker": "activation v121 remains at 100%; rollback v119 could not be redeployed because the existing Wrangler OAuth refresh credential rotated during activation and no refreshed credential was persisted",
+    "durableStatePreserved": "root revision 7; authority revision 2; Delivery active revision 1; compatibility shell PRESENT; membership projection 2NE3KY active; zero assignment commands"
+  },
+  "classification": "TEACHER_BOOK_HOMEWORK_TRUSTED_PROJECTION_MISSING_STUDENT_ROW",
+  "disposition": "STOPPED AT TEACHER DETAIL PROJECTION OWNER; Cloudflare reauthorization is additionally required to complete Worker rollback/readback; no adapter expansion; NOT READY FOR USER BROWSER HANDOFF"
+}

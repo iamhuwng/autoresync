@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T07:27:23Z",
+  "status": "ready",
+  "candidateName": "V19b retry-1",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md and the user's bounded V19b retry instruction",
+  "source": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "productSourceChangedSinceV19b": false,
+    "workerBundleSha256": "fad7d2a67d7cea104bd8eb724dc2c700010309d40673e7d4d68bd62392746ec0",
+    "workerBundleBytes": 1793097,
+    "workerScriptEtag": "2890aa26080d471bd159e757792860c7b0b6122fba44b9ac6dd76a0af6641ac5"
+  },
+  "configs": {
+    "activationPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-v19b-activation.jsonc",
+    "activationSha256": "844da5254b7ec10f1e90d9407da84b4e5c5333700783899eaa697e5476b8c176",
+    "rollbackPath": "cloudflare/wrangler.prd0062-ticket126-vocab-u1-v19b-rollback.jsonc",
+    "rollbackSha256": "f45c4e68115820b8b274b5851df4ca3125925a0cc3601b8a4e8d135c3fc77969",
+    "issuedAt": "2026-08-14T07:20:30.000Z",
+    "expiresAt": "2026-08-14T19:20:30.000Z"
+  },
+  "workerVersions": {
+    "currentRollbackVersionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9",
+    "retryRollbackVersionId": "bbd13106-3943-43a2-a216-9d18781b4329",
+    "retryActivationVersionId": "f9e0214e-a18c-48ff-80e1-af52eb88c9e2",
+    "retryRollbackVersionNumber": 111,
+    "retryActivationVersionNumber": 112,
+    "inactiveValidation": {
+      "rollback": "HTTP 204 with tail-confirmed scriptVersion.id bbd13106-3943-43a2-a216-9d18781b4329",
+      "activation": "HTTP 204 with tail-confirmed scriptVersion.id f9e0214e-a18c-48ff-80e1-af52eb88c9e2",
+      "currentTraffic": "99fc954e-41bf-47c6-9e9c-724d37a422e9 at 100%, f9e0214e-a18c-48ff-80e1-af52eb88c9e2 at 0%"
+    }
+  },
+  "rules": {
+    "rtdbActivationPath": "database.rules.json",
+    "rtdbActivationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rtdbLivePreactivationSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRulesSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612",
+    "firestoreLiveRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreLiveSha256": "22857e290bf2269c9999ed6ce9ca978883f9eb9a8ad2055baf11739492c58612"
+  },
+  "freshInputs": {
+    "assignmentId": "assignment-vocab-u1-29896863-e887-4e2e-8ced-3b3e93be5a93",
+    "operationId": "75aa6071-7c1d-40c5-a28f-c69de5112ffa",
+    "idempotencyKey": "c120db45-ad01-4e00-814d-047bbb26f0d8",
+    "commandPath": "tmp/prd0062-v19b-retry1-assignment-command.json",
+    "commandSha256": "c63cbdd3000e09f9c703779482e70ca6a2ec4b7e0503936764772b9d59d9d194"
+  },
+  "frozenCanonicalInputs": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "publicationRevision": 1,
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "activityId": "activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3",
+    "activityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "placementId": "placement-activity-vocab-u1-c43712a7-8ca7-477a-8a05-32a8d1988d04",
+    "finalDueAt": "2026-08-21T00:00:00.000Z",
+    "publicationCanonicalHash": "ca39aa8dbd8797e71b6661e9664d89d6e678837557685615aad9725027ae057f",
+    "activityCanonicalHash": "de3fa35d58a811ad5aad3ee1d97ec3f4bc4f9efb6a8fd2bce2dd2a137d019d6",
+    "bindingCanonicalHash": "9e252e9143f9c1d22eb9a068250f994e3bbdaf8157c5bd2e4465d075d1992c9d"
+  },
+  "preactivationState": {
+    "oldAssignment": "compensated, hidden, revision 5, unchanged",
+    "newSaga": null,
+    "newFirestoreAuthorityHttpStatus": 404,
+    "newDeliveryIndex": null,
+    "newDeliveryScope": null,
+    "canonicalState": "exact hash match"
+  },
+  "proof": [
+    "Exact retry-1 production-shaped workerd assignment commit/replay: 1/1 passed",
+    "Exact retry-1 Firestore authority payload and claims against real Firestore emulator: 1/1 passed with crossed-claim denial",
+    "Activation and rollback Wrangler dry-runs produced identical worker.js SHA-256 fad7d2a67d7cea104bd8eb724dc2c700010309d40673e7d4d68bd62392746ec0"
+  ],
+  "execution": {
+    "order": [
+      "Deploy exact RTDB activation rules and verify SHA-256 e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+      "Deploy exact Worker version f9e0214e-a18c-48ff-80e1-af52eb88c9e2 at 100%",
+      "Submit exactly one frozen assignment command",
+      "Verify committed saga, Firestore authority, Delivery index/scope, teacher projection, and student projection",
+      "Keep active only on complete success and hand off https://kahut1.web.app immediately"
+    ],
+    "rollbackTrigger": "Any new Homework authentication, rules, composition, assignment, or consumption failure",
+    "rollbackOrder": [
+      "Deploy Worker version bbd13106-3943-43a2-a216-9d18781b4329 at 100%",
+      "Verify deny-only Worker traffic",
+      "Restore RTDB rollback rules SHA-256 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+      "Verify rollback readback and stop without another candidate"
+    ],
+    "firestoreRulesOnRollback": "Remain on repository-current ruleset e6bc182c-000a-461b-9c6c-ba10ae9d9ca6; it is the remediated production baseline, not retry-candidate state"
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "ticket": 76,
+  "generatedAt": "2026-07-30",
+  "roadmapPhase": "runtime",
+  "repair": "Repeated terminal attempts",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket76-reopened-multi-attempt.json",
+  "graphIssueHash": "63eb59910e9d3c2cca4565095ca9ff9242d010c9044dfe245b4e7e96c5792788",
+  "closedPrerequisites": [74, 75],
+  "acceptance": {
+    "authoritativePolicy": "Submit fails closed when the trusted attempt-policy resolver is unavailable or returns no policy. A valid policy permits a bounded later attempt or denies it before any terminal mutation.",
+    "atomicNumbering": "The repository allocates the next positive attempt number inside the same aggregate CAS transaction that appends the immutable attempt, result, completion, index, and operation receipt.",
+    "priorRowPreservation": "A second distinct valid operation creates attempt 2 while retaining attempt 1 and its result, completion, and index unchanged.",
+    "idempotency": "Exact replay of attempt 2 returns the original receipt and attempt number. Conflicting idempotency-key reuse remains fail-closed.",
+    "attemptLimit": "A third distinct operation under maxAttempts 2 is denied without adding or replacing any terminal row.",
+    "malformedSequence": "Missing, duplicate, or non-positive persisted attempt numbers fail closed instead of silently renumbering legacy or corrupt rows.",
+    "aggregateIntegrity": "Before allocating a later attempt, the repository validates contiguous numbering and exact attempt/result/completion/index identity, version, draft revision, provenance, operation, and timestamp agreement; gaps, orphans, mismatches, and incomplete replays fail closed.",
+    "durableReplayRetention": "The bounded operation map preserves accepted and denied terminal receipts, prunes only older non-terminal receipts, rejects terminal-capacity exhaustion, and rejects any deterministic attempt/result/completion/index ID collision before mutation.",
+    "immutableVersionPins": "Every terminal row persists the canonical activityVersionId, acknowledged draft revision, Page Group keys, Source Version IDs, and local pages from the authorized Delivery binding.",
+    "deniedIdempotency": "Attempt-limit denial is persisted through the same scoped CAS aggregate. Exact replay remains denied even if policy later changes, while conflicting reuse of the key fails closed.",
+    "browser": "The previously recorded authenticated Student localhost:5174 terminal-submit proof remains applicable. This backend aggregate repair adds no route or UI and makes no new repeated-attempt product-journey claim.",
+    "deployment": "Not claimed. Deployed/canary terminal proof, active identity/config/generated-rules readback, cleanup, telemetry, and operational rollback remain owned by #134.",
+    "rollback": "Canonical production composition still has no attempt-policy resolver and therefore fails terminal submit closed. Worker routes and every trusted capability remain disabled."
+  },
+  "verification": {
+    "cloudflareFocused": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run test/book-runtime-terminal-submit.test.ts test/book-runtime-repository.test.ts test/book-runtime-worker.test.ts test/book-runtime-authorization.test.ts test/book-runtime-command-schema.test.ts test/book-runtime-canonical-composition.test.ts test/book-runtime-route-integration.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "testFiles": 7,
+      "testsPassed": 35,
+      "typeErrors": 0
+    },
+    "rootFocused": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-activity/activityRuntime.browser.test.ts src/hooks/book-runtime/useBookActivityRuntime.test.tsx src/services/book-activity/activityDomain.service.test.ts src/services/book-activity/activityDomain.property.test.ts src/config/featureRegistry.test.ts --typecheck --passWithNoTests=false --reporter=dot",
+      "testFiles": 5,
+      "testsPassed": 49,
+      "typeErrors": 0
+    },
+    "lint": "Scoped ESLint passed for all eight repaired implementation/test paths.",
+    "utf8": "Passed for all eight repaired implementation/test files.",
+    "diffCheck": "git diff --check passed.",
+    "productionBuild": {
+      "command": "node scripts/harness/run-tool.mjs vite . build",
+      "result": "passed",
+      "duration": "4m50s"
+    },
+    "bundleBudget": {
+      "command": "node scripts/check-bundle-budget.mjs",
+      "result": "passed",
+      "rootEntry": "241KB"
+    },
+    "workerDryRun": {
+      "command": "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.jsonc",
+      "result": "passed",
+      "uploadSize": "987.36 KiB",
+      "gzipSize": "187.12 KiB",
+      "safetyReadback": "BOOK_RUNTIME_ROUTES_ENABLED=disabled; Book Delivery, authoring, Assembly, publication, source, homework, evaluation-history, integrity, notification, update, and replacement gates all remained disabled."
+    }
+  },
+  "reviewRepair": {
+    "initialVerdict": "FAIL",
+    "redLoop": {
+      "cloudflare": "2 files: 5 failed, 6 passed before the invariant repair.",
+      "browser": "1 file: missing attemptNumber response incorrectly resolved before the repair."
+    },
+    "correctedFindings": [
+      "Durable terminal receipts can no longer be evicted and replay can no longer overwrite a deterministic attempt ID.",
+      "Contiguous numbering and associated result/completion/index consistency are validated before allocation.",
+      "Canonical Activity Version ID, acknowledged draft revision, Page Group keys, Source Version IDs, and pages are persisted.",
+      "Limit-denied idempotency keys are CAS-reserved and replay deterministically.",
+      "Terminal browser acknowledgement now requires both immutable attemptId and positive attemptNumber.",
+      "Valid context-free and optional placements retain canonical Activity Version pins while persisting empty Page Group/source provenance.",
+      "In-memory capacity checks stage the operation map before any terminal row mutation.",
+      "Aggregate validation rejects every orphan or mis-keyed child regardless of embedded identity.",
+      "Terminal rows and accepted terminal receipts are validated bidirectionally before replay or a later mutation."
+    ],
+    "regressionProof": [
+      "Receipt map filled to its exact durable bound, followed by a new autosave and successful replay of the preserved terminal receipt.",
+      "Injected terminal ETag conflict retries to one complete terminal aggregate.",
+      "Attempt 1 rows remain deeply equal after attempt 2.",
+      "Missing receipt plus deterministic ID collision fails closed.",
+      "Gapped sequences, associated-row number mismatch, null policy, missing policy, and missing browser attempt number fail closed.",
+      "Complete durable rows without an accepted receipt and accepted terminal receipts without rows both fail without changing persisted scope."
+    ],
+    "finalVerdict": "PASS - independent Luna x-high read-only review found no remaining actionable issue."
+  },
+  "safetyState": {
+    "03B": "DISABLED_BY_DEFAULT",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "trustedActions": "DISABLED",
+    "privateB2": "DISABLED",
+    "scope": "Full 112-ticket scope preserved; no early completion."
+  },
+  "result": "READY_FOR_RECLOSURE"
+}

@@ -1,0 +1,38 @@
+{
+  "promptVersion": "book-unit-json-v1",
+  "schemaVersion": "prd0062.unit_activity_import.v1",
+  "bookId": "book-mt8qk3rj",
+  "unitKey": "unit-real-3",
+  "slots": [
+    {
+      "activityKey": "activity-prd0062-full-unit-3",
+      "content": {
+        "schemaVersion": 1,
+        "title": "IELTS Vocabulary Unit 3: Keeping fit",
+        "taskProfile": null,
+        "presentationMode": "source-assisted",
+        "contextRequirement": { "mode": "required", "acceptedKinds": ["book-pages"] },
+        "instructions": [{ "text": "Review the Unit 3 source pages before responding." }],
+        "stimulus": null,
+        "assetRefs": [],
+        "interaction": { "family": "choice", "variant": "v1" },
+        "answerRule": { "defaultPoints": 1, "normalization": "exact", "requiredSelectionCount": 1 },
+        "interactions": [{
+          "prompt": "Select the reviewed source response for Keeping fit.",
+          "options": ["Source page evidence", "Needs teacher review"],
+          "acceptedOptionIndexes": [0],
+          "sourceAssisted": {
+            "questionLabel": "Unit 3",
+            "sourceExerciseLabel": "IELTS Vocabulary Unit 3: Keeping fit",
+            "accessiblePrompt": "Choose the reviewed source response for Unit 3.",
+            "responseShape": "single-choice"
+          }
+        }],
+        "scoring": { "mode": "auto-where-possible" }
+      },
+      "evidenceRefs": ["import:activity-prd0062-full-unit-3", "pageGroup:page-group-real-unit-3", "source:full:page:9"],
+      "sourceEvidenceRefs": ["pageGroup:page-group-real-unit-3", "source:full:page:9"],
+      "answerEvidenceRefs": ["pageGroup:page-group-real-unit-3", "source:full:page:9"]
+    }
+  ]
+}

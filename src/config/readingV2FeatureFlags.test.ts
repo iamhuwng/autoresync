@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -55,11 +56,34 @@ describe('readingV2FeatureFlags', () => {
     vi.resetModules();
   });
 
-  it('defaults rollout not-public while product decisions remain unresolved', () => {
-    expect(READING_V2_ROLLOUT_MODE).not.toBe('public');
-    expect(isReadingV2PublicRollout()).toBe(false);
+  it('defaults rollout to public for full student access', () => {
+    expect(READING_V2_ROLLOUT_MODE).toBe('public');
+    expect(isReadingV2PublicRollout()).toBe(true);
     // Route exposure depends on env; verify the normalizer denies 'off' explicitly
     expect(isReadingV2TeacherRouteExposureAllowed('off')).toBe(false);
+  });
+
+  it('initializes with closed defaults in a native non-Vite module environment', () => {
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        '-e',
+        "import('./src/config/readingV2FeatureFlags.ts').then((flags) => console.log(JSON.stringify([flags.READING_V2_ROLLOUT_MODE, flags.READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY, flags.TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE, flags.ADMIN_CONFIGURABLE_TEST_TYPES_MODE, flags.READING_PASSAGE_LIBRARY_MODE, flags.READING_PASSAGE_HOMEWORK_MODE, flags.MATERIAL_BOOKS_MODE, flags.MATERIAL_BOOK_EDITOR_MODE])))",
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf8' },
+    );
+
+    expect(JSON.parse(output)).toEqual([
+      'off',
+      'hidden',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+      'disabled',
+    ]);
   });
 
   it('normalizes rollout config with strict closed fallback', () => {
@@ -171,8 +195,8 @@ describe('readingV2FeatureFlags', () => {
     expect(flags.MATERIAL_BOOK_EDITOR_MODE).toBe('disabled');
   });
 
-  it('keeps standalone passage assets hidden from broad Teacher Lobby exposure by default', () => {
-    expect(READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY).toBe('hidden');
+  it('exposes standalone passage assets in Teacher Lobby via opt-in visibility', () => {
+    expect(READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY).toBe('opt-in');
   });
 
   it('normalizes passage asset lobby visibility with hidden fallback', () => {

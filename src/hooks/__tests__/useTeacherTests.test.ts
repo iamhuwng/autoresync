@@ -2,8 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 const values = new Map<string, unknown>();
-const mockGet = vi.fn(async (target: { path?: string }) => {
-  const value = values.get(target.path ?? '');
+type QueryTarget = { path?: string; constraints?: Array<{ kind: string; value?: string | number; key?: string }> };
+const mockGet = vi.fn(async (target: QueryTarget) => {
+  const path = target.path ?? '';
+  let value = values.get(path);
+  if (target.constraints?.length && value && typeof value === 'object') {
+    const cursor = target.constraints.find((constraint) => constraint.kind === 'endBefore');
+    const limit = target.constraints.find((constraint) => constraint.kind === 'limitToLast');
+    const entries = Object.entries(value).sort(([leftKey, left], [rightKey, right]) => {
+      const a = (left as { updatedAt: string }).updatedAt;
+      const b = (right as { updatedAt: string }).updatedAt;
+      return a < b ? -1 : a > b ? 1 : leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+    }).filter(([key, row]) => !cursor ||
+      (row as { updatedAt: string }).updatedAt < cursor.value! ||
+      ((row as { updatedAt: string }).updatedAt === cursor.value && key < cursor.key!));
+    value = Object.fromEntries(entries.slice(-(limit?.value as number ?? entries.length)));
+  }
   return {
     exists: () => value !== undefined && value !== null,
     val: () => value,
@@ -25,7 +39,11 @@ const mockOnValue = vi.fn((
 
 vi.mock('firebase/database', () => ({
   ref: (_database: unknown, path?: string) => ({ path }),
-  get: (target: { path?: string }) => mockGet(target),
+  query: (target: QueryTarget, ...constraints: QueryTarget['constraints']) => ({ ...target, constraints }),
+  orderByChild: (value: string) => ({ kind: 'orderByChild', value }),
+  limitToLast: (value: number) => ({ kind: 'limitToLast', value }),
+  endBefore: (value: string, key: string) => ({ kind: 'endBefore', value, key }),
+  get: (target: QueryTarget) => mockGet(target),
   update: (...args: unknown[]) => mockUpdate(...args),
   onValue: (...args: any[]) => mockOnValue(...args),
 }));
@@ -33,7 +51,11 @@ vi.mock('firebase/database', () => ({
 const deleteDoc = vi.fn().mockResolvedValue(undefined);
 vi.mock('firebase/firestore', () => ({
   deleteDoc: (...args: unknown[]) => deleteDoc(...args),
-  doc: (_db: unknown, collection: string, id: string) => ({ collection, id }),
+  doc: (_db: unknown, ...segments: string[]) => ({
+    collection: segments.slice(0, -1).join('/'),
+    id: segments[segments.length - 1],
+    path: segments.join('/'),
+  }),
 }));
 
 vi.mock('../../services/firebase', () => ({
@@ -69,27 +91,105 @@ describe('useTeacherTests universal material summaries', () => {
     realtimeError = undefined;
   });
 
-  it('loads all owned private and public material kinds from one universal index', async () => {
+  it('loads owned test material kinds from the universal index without passages or books', async () => {
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
       {
-        test: summary(),
-        publicTest: summary({
+        'material-1': summary(),
+        'public-test': summary({
           materialId: 'public-test',
           visibility: 'public',
         }),
-        passage: summary({
-          materialId: 'passage-1',
-          producerId: 'reading-v2-passage',
-          materialKind: 'reading-passage',
-          surfaceFamily: 'passage',
+        'writing-1': summary({
+          materialId: 'writing-1',
+          producerId: 'writing',
+          materialKind: 'writing-prompt',
+          skillId: 'writing',
         }),
-        book: summary({
-          materialId: 'book-1',
-          producerId: 'material-book',
-          materialKind: 'book',
-          surfaceFamily: 'book',
-          skillId: undefined,
+        'thcs-1': summary({
+          materialId: 'thcs-1',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+        }),
+        'listening-1': summary({
+          materialId: 'listening-1',
+          producerId: 'listening',
+          materialKind: 'listening-part',
+          skillId: 'listening',
+        }),
+      },
+    );
+
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/book', {
+      'book-1': summary({ materialId: 'book-1', producerId: 'material-book', materialKind: 'book', surfaceFamily: 'book' }),
+    });
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/passage', {
+      'passage-1': summary({ materialId: 'passage-1', producerId: 'reading-v2-passage', materialKind: 'reading-passage', surfaceFamily: 'passage' }),
+    });
+
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      realtime: false,
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.tests.map((row) => row.materialKind)).toEqual(expect.arrayContaining([
+      'full-test',
+      'listening-part',
+      'thcs-thpt-test',
+      'writing-prompt',
+    ]));
+    expect(result.current.tests.map((row) => row.materialKind)).not.toContain('book');
+    expect(result.current.tests.map((row) => row.materialKind)).not.toContain('reading-passage');
+    expect(result.current.tests.map((row) => row.materialId)).toEqual(expect.arrayContaining([
+      'material-1',
+      'public-test',
+      'writing-1',
+      'thcs-1',
+      'listening-1',
+    ]));
+    expect(result.current.tests.map((row) => row.visibility).sort()).toEqual([
+      'private',
+      'private',
+      'private',
+      'private',
+      'public',
+    ]);
+    expect(result.current.error).toBeNull();
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+    }));
+    expect(mockGet.mock.calls.map(([target]) => target.path)).toEqual([
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+    ]);
+  });
+
+  it('keeps My Content owned-only even when other teachers have public tests', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      {
+        'owned-thcs': summary({
+          materialId: 'owned-thcs',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+        }),
+      },
+    );
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment',
+      {
+        'other-public-thcs': summary({
+          materialId: 'other-public-thcs',
+          ownerId: 'teacher-2',
+          producerId: 'thcs-thpt',
+          materialKind: 'thcs-thpt-test',
+          skillId: 'thcs',
+          testTypeIds: ['thcs-thpt'],
+          visibility: 'public',
         }),
       },
     );
@@ -100,34 +200,66 @@ describe('useTeacherTests universal material summaries', () => {
     }));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.tests.map((row) => row.materialKind)).toEqual(expect.arrayContaining([
-      'book',
-      'full-test',
-      'reading-passage',
-    ]));
-    expect(result.current.tests.map((row) => row.materialId)).toEqual(expect.arrayContaining([
-      'material-1',
-      'public-test',
-      'passage-1',
-      'book-1',
-    ]));
-    expect(result.current.tests.map((row) => row.visibility).sort()).toEqual([
-      'private',
-      'private',
-      'private',
-      'public',
-    ]);
-    expect(result.current.error).toBeNull();
-    expect(mockGet).toHaveBeenCalledWith({
-      path: 'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
+    expect(result.current.tests.map((row) => row.materialId)).toEqual(['owned-thcs']);
+    expect(result.current.tests.map((row) => row.ownerId)).toEqual(['teacher-1']);
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+    }));
+    expect(mockGet).not.toHaveBeenCalledWith(expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment',
+    }));
+  });
+
+  it('preserves Reading V2 readiness fields so My Content rows can be assigned', async () => {
+    values.set(
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      {
+        'reading-v2-full': summary({
+          materialId: 'reading-v2-full',
+          producerId: 'reading-v2-full-test',
+          materialKind: 'full-test',
+          skillId: 'reading',
+          questionCount: 40,
+          sourceSnapshotVersionId: 'snapshot-v2',
+          hasStudentSafeProjection: true,
+          deliveryProjectionReady: true,
+          studentSafeProjectionReady: true,
+          passageRefCount: 3,
+        }),
+      },
+    );
+
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      realtime: false,
+    }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.tests).toHaveLength(1);
+    expect(result.current.tests[0]).toMatchObject({
+      id: 'reading-v2-full',
+      deliveryEngine: 'reading-v2',
+      questionCount: 40,
+      publishedSnapshotVersionId: 'snapshot-v2',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 3,
+      metadata: {
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 3,
+      },
     });
+    expect(result.current.error).toBeNull();
   });
 
   it('loads Public Library from the public summary index', async () => {
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_visibility/public',
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment',
       {
-        ownedPublic: summary({ visibility: 'public' }),
+        'material-1': summary({ visibility: 'public' }),
       },
     );
     const { result } = renderHook(() => useTeacherTests({
@@ -143,8 +275,8 @@ describe('useTeacherTests universal material summaries', () => {
 
   it('surfaces malformed rows and missing owner instead of believable empties', async () => {
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
-      { malformed: { title: 'Missing contract' } },
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      { malformed: { title: 'Missing contract', updatedAt: '2026-07-07T00:00:00.000Z' } },
     );
     const malformed = renderHook(() => useTeacherTests({
       ownerId: 'teacher-1',
@@ -161,12 +293,12 @@ describe('useTeacherTests universal material summaries', () => {
 
   it('clears stale rows when a new material scope fails to load', async () => {
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
-      { owned: summary() },
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      { 'material-1': summary() },
     );
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_visibility/public',
-      { malformed: { title: 'Missing contract' } },
+      'material_catalog/material_summary_indexes/v1/by_visibility_family/public/assessment',
+      { malformed: { title: 'Missing contract', updatedAt: '2026-07-07T00:00:00.000Z' } },
     );
 
     const { result, rerender } = renderHook(
@@ -189,8 +321,8 @@ describe('useTeacherTests universal material summaries', () => {
 
   it('surfaces realtime listener failures and unsubscribes', async () => {
     values.set(
-      'material_catalog/material_summary_indexes/v1/by_owner/teacher-1',
-      { owned: summary() },
+      'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      { 'material-1': summary() },
     );
     const { result, unmount } = renderHook(() => useTeacherTests({
       ownerId: 'teacher-1',
@@ -204,6 +336,70 @@ describe('useTeacherTests universal material summaries', () => {
     expect(result.current.loadedScope).toBeNull();
     unmount();
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('loads bounded pages without repeating tied-timestamp rows', async () => {
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      Object.fromEntries(Array.from({ length: 27 }, (_, index) => {
+        const materialId = `item-${String(index).padStart(2, '0')}`;
+        return [materialId, summary({ materialId })];
+      })));
+    const { result } = renderHook(() => useTeacherTests({ ownerId: 'teacher-1', realtime: false }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.tests).toHaveLength(25);
+    expect(result.current.hasMore).toBe(true);
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
+      constraints: expect.arrayContaining([{ kind: 'limitToLast', value: 26 }]),
+    }));
+
+    await act(async () => result.current.loadMore());
+    expect(result.current.tests.map((row) => row.materialId)).toHaveLength(27);
+    expect(new Set(result.current.tests.map((row) => row.materialId)).size).toBe(27);
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.loadingMore).toBe(false);
+    expect(mockGet).toHaveBeenLastCalledWith(expect.objectContaining({
+      constraints: expect.arrayContaining([expect.objectContaining({
+        kind: 'endBefore', key: 'item-02',
+      })]),
+    }));
+  });
+
+  it('changes to a type index and clears stale rows if that page is malformed', async () => {
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment',
+      { 'material-1': summary() });
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/assessment/toeic',
+      { malformed: { title: 'Missing contract', updatedAt: '2026-07-07T00:00:00.000Z' } });
+    const { result, rerender } = renderHook(
+      ({ testTypeId }: { testTypeId?: string }) => useTeacherTests({ ownerId: 'teacher-1', testTypeId, realtime: false }),
+      { initialProps: { testTypeId: undefined as string | undefined } },
+    );
+    await waitFor(() => expect(result.current.tests).toHaveLength(1));
+    rerender({ testTypeId: 'toeic' });
+    await waitFor(() => expect(result.current.error).toMatch(/shared listing contract/i));
+    expect(result.current.tests).toEqual([]);
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.loadedScope).toBeNull();
+    expect(mockGet).toHaveBeenLastCalledWith(expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/assessment/toeic',
+    }));
+  });
+
+  it('ignores a prior type response that finishes after the new type', async () => {
+    let finishOld!: (value: { exists: () => boolean; val: () => unknown }) => void;
+    mockGet.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    values.set('material_catalog/material_summary_indexes/v1/by_owner_family_type/teacher-1/assessment/toeic',
+      { 'toeic-1': summary({ materialId: 'toeic-1', testTypeIds: ['toeic'] }) });
+    const { result, rerender } = renderHook(
+      ({ testTypeId }: { testTypeId: string }) => useTeacherTests({ ownerId: 'teacher-1', testTypeId, realtime: false }),
+      { initialProps: { testTypeId: 'ielts' } },
+    );
+    rerender({ testTypeId: 'toeic' });
+    await waitFor(() => expect(result.current.tests.map((row) => row.materialId)).toEqual(['toeic-1']));
+    await act(async () => finishOld({
+      exists: () => true,
+      val: () => ({ 'ielts-1': summary({ materialId: 'ielts-1' }) }),
+    }));
+    expect(result.current.tests.map((row) => row.materialId)).toEqual(['toeic-1']);
   });
 
   it('atomically removes a legacy runtime record and active summary rows', async () => {
@@ -235,10 +431,93 @@ describe('useTeacherTests universal material summaries', () => {
           expect.objectContaining({ lifecycleState: 'removed' }),
       }),
     );
-    expect(deleteDoc).toHaveBeenCalledWith({
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'writing_drafts',
       id: 'draft-1',
+    }));
+  });
+
+  it('keeps a THCS removal successful when Firestore sidecar cleanup is denied', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const current = {
+      id: 'thcs-1',
+      ownerId: 'teacher-1',
+      title: 'THCS',
+      testType: 'THCS-THPT',
+      skill: 'thcs',
+      sourceDraftId: 'draft-1',
+      updatedAt: 1_700_000_000_000,
+    };
+    values.set('tests/thcs-1', current);
+    deleteDoc.mockRejectedValueOnce(new Error('Permission denied'));
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
+
+    await act(async () => {
+      await result.current.deleteTest(current);
     });
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      { path: undefined },
+      expect.objectContaining({
+        'tests/thcs-1': null,
+        'material_catalog/material_summary_indexes/v1/by_owner/teacher-1/thcs-1':
+          null,
+        'material_catalog/material_summary_indexes/v1/by_id/thcs-1':
+          expect.objectContaining({ lifecycleState: 'removed' }),
+      }),
+    );
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_library',
+      id: 'thcs-1',
+    }));
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_drafts',
+      id: 'draft-1',
+    }));
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[TeacherMaterials] Sidecar cleanup failed after material removal.',
+      expect.objectContaining({ materialId: 'thcs-1', failures: 1 }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('uses the runtime sourceDraftId when a THCS summary card omits it', async () => {
+    const current = {
+      id: 'thcs-2',
+      ownerId: 'teacher-1',
+      title: 'THCS',
+      testType: 'THCS-THPT',
+      skill: 'thcs',
+      sourceDraftId: 'runtime-draft-2',
+      updatedAt: 1_700_000_000_000,
+    };
+    values.set('tests/thcs-2', current);
+    const { result } = renderHook(() => useTeacherTests({
+      ownerId: 'teacher-1',
+      enabled: false,
+    }));
+
+    await act(async () => {
+      await result.current.deleteTest({
+        id: 'thcs-2',
+        ownerId: 'teacher-1',
+        title: 'THCS',
+        testType: 'THCS-THPT',
+        skill: 'thcs',
+      });
+    });
+
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_library',
+      id: 'thcs-2',
+    }));
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'thcs_drafts',
+      id: 'runtime-draft-2',
+    }));
   });
 
   it('blocks legacy Listening deletion until the audited removal flow exists', async () => {

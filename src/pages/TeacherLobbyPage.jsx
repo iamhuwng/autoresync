@@ -1,11 +1,15 @@
 // TeacherLobbyPage composition layer (PRD-0033 refactor)
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { get, ref, remove, set, update as updateDb } from 'firebase/database';
+import { endBefore, get, limitToLast, orderByChild, query as dbQuery, ref, remove, set, update as updateDb } from 'firebase/database';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import {
+  BOOK_ACTIVITY_ROLLOUT_GATES,
+  isBookActivityRolloutGateEnabled,
+} from '../config/bookActivityRolloutGates';
 import { buildRoute } from '../constants/routes';
 import {
   getTeacherMaterialsCapabilities,
@@ -31,13 +35,15 @@ import {
 import {
   createBookDraft,
   createMaterialBooksRepository,
-  listTeacherBooks,
+  listTeacherBooksPage,
   updateBookMetadata,
 } from '../services/materialCatalog/materialBooks.service';
+import { createBookSuccessorClient } from '../services/materialCatalog/bookSuccessor.service';
 import { database } from '../services/firebase';
+import { getThcsTestFromFirebase } from '../services/thcsTestStorage';
 import {
   archiveReadingV2PassageMaterial,
-  listTeacherReadingPassages,
+  listTeacherReadingPassagesPage,
 } from '../services/reading-v2/readingV2PassageLibrary.service';
 import { restoreReadingV2PassageMaterial } from '../services/reading-v2/readingV2PassageArchive.service';
 import { writeReadingV2AuditEvent } from '../services/reading-v2/readingV2AuditTrail.service';
@@ -76,6 +82,7 @@ import SearchFilterBar from '../components/modern/SearchFilterBar';
 import TestTypeBlockModule from '../components/modern/TestTypeBlockModule';
 import TestTypePreferenceModal from '../components/modern/TestTypePreferenceModal';
 import MaterialListView from '../components/modern/MaterialListView';
+import MaterialPagination from '../components/modern/MaterialPagination';
 import BookCardGrid from '../components/modern/BookCardGrid';
 import MaterialSelectionToolbar from '../components/modern/MaterialSelectionToolbar';
 import { buildTestMaterialListRow, toReadingPassageRowModel } from '../components/modern/materialListAdapter';
@@ -84,6 +91,7 @@ import ClassSelectionModal from '../components/ClassSelectionModal';
 import UseAsIsModal from '../components/UseAsIsModal';
 import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal';
 import CreateBookModal from '../components/books/CreateBookModal';
+import CreateBookSuccessorModal from '../components/books/CreateBookSuccessorModal';
 import BookEditorModal from '../components/books/BookEditorModal';
 import './TeacherLobbyPage.css';
 
@@ -238,13 +246,38 @@ const isRecord = (value) => value !== null && typeof value === 'object' && !Arra
 
 const resolveReadingV2MasterModalRecord = async (material, repository) => {
   const base = toReadingV2MasterModalRecord(material);
-  const compositionId = base.compositionId;
   const existingRefs = Array.isArray(base.passageRefs) ? base.passageRefs : base.passages;
 
-  if (!compositionId || (Array.isArray(existingRefs) && existingRefs.length > 0) || !repository?.read) {
+  if ((Array.isArray(existingRefs) && existingRefs.length > 0) || !repository?.read) {
     return {
       ...base,
       compositionLoadState: Array.isArray(existingRefs) && existingRefs.length > 0 ? 'ready' : 'not-required',
+    };
+  }
+
+  const explicitCompositionId =
+    material?.compositionId ||
+    material?.fullTestCompositionId ||
+    material?.metadata?.compositionId;
+  let compositionId = explicitCompositionId;
+
+  if (!compositionId && base.materialId) {
+    try {
+      const metadata = await repository.read(readingV2StoragePaths.materialMetadata(base.materialId));
+      if (isRecord(metadata) && typeof metadata.compositionId === 'string' && metadata.compositionId.trim()) {
+        compositionId = metadata.compositionId.trim();
+      }
+    } catch {
+      // Metadata enrichment is a compatibility lookup. Fall through to the
+      // deterministic legacy/selected-master identity already derived on base.
+    }
+  }
+
+  compositionId = compositionId || base.compositionId;
+  if (!compositionId) {
+    return {
+      ...base,
+      compositionLoadState: 'not-required',
     };
   }
 
@@ -253,6 +286,7 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
     if (!isRecord(composition) || !Array.isArray(composition.passageRefs)) {
       return {
         ...base,
+        compositionId,
         compositionLoadState: 'missing-composition',
       };
     }
@@ -270,6 +304,7 @@ const resolveReadingV2MasterModalRecord = async (material, repository) => {
   } catch (error) {
     return {
       ...base,
+      compositionId,
       compositionLoadState: 'load-failed',
       compositionLoadError: error instanceof Error ? error.message : String(error),
     };
@@ -449,8 +484,10 @@ const TeacherLobbyPage = () => {
   // ---------- Local UI State ----------
   const [contentFilter, setContentFilter] = useState('my'); // 'my' | 'public' | 'drafts' | 'reading-passage' | 'book'
   const [searchTerm, setSearchTerm] = useState('');
-  const [testTypeFilter, setTestTypeFilter] = useState('all');
   const [activeTestTypeId, setActiveTestTypeId] = useState(null);
+  const testTypeFilter = activeTestTypeId || 'all';
+  const [skillFilter, setSkillFilter] = useState('all');
+  const [visibilityFilter, setVisibilityFilter] = useState('all');
   const [testTypeConfigs, setTestTypeConfigs] = useState(DEFAULT_MATERIAL_TEST_TYPES);
   const [pinnedTestTypeIds, setPinnedTestTypeIds] = useState(null);
   const [testTypePreferencesOpen, setTestTypePreferencesOpen] = useState(false);
@@ -458,6 +495,9 @@ const TeacherLobbyPage = () => {
   const [readingPassageRows, setReadingPassageRows] = useState([]);
   const [readingPassageLoading, setReadingPassageLoading] = useState(false);
   const [readingPassageError, setReadingPassageError] = useState(null);
+  const [readingCursor, setReadingCursor] = useState(null);
+  const [readingHasMore, setReadingHasMore] = useState(false);
+  const [readingLoadingMore, setReadingLoadingMore] = useState(false);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState([]);
   const [readingV2MasterModalState, setReadingV2MasterModalState] = useState({
     open: false,
@@ -482,17 +522,27 @@ const TeacherLobbyPage = () => {
   const [bookRows, setBookRows] = useState([]);
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState(null);
+  const [bookCursor, setBookCursor] = useState(null);
+  const [bookHasMore, setBookHasMore] = useState(false);
+  const [bookLoadingMore, setBookLoadingMore] = useState(false);
+  const [readingPageRequest, setReadingPageRequest] = useState(null);
+  const [bookPageRequest, setBookPageRequest] = useState(null);
   const [bookListVersion, setBookListVersion] = useState(0);
   const [createBookModalOpen, setCreateBookModalOpen] = useState(false);
+  const [bookSuccessorPredecessor, setBookSuccessorPredecessor] = useState(null);
   const [bookEditorOpen, setBookEditorOpen] = useState(false);
   const [bookEditorBookId, setBookEditorBookId] = useState(null);
+  const [bookEditorIntent, setBookEditorIntent] = useState('edit');
   const [, setBookEditorDirty] = useState(false);
   const [thcsGradeFilter, setThcsGradeFilter] = useState('all');
   const [thcsExamTypeFilter, setThcsExamTypeFilter] = useState('all');
   const [editingWritingDraft, setEditingWritingDraft] = useState(null);
   const testTypeConfigsRef = useRef(DEFAULT_MATERIAL_TEST_TYPES);
-  const consumedRouteBookOpenRef = useRef(null);
   const bookEditorLauncherRef = useRef(null);
+  const readingQueryKey = JSON.stringify([user?.uid, readingPassageScope, activeTestTypeId, searchTerm]);
+  const bookQueryKey = JSON.stringify([user?.uid, bookScope, activeTestTypeId, searchTerm, bookListVersion]);
+  const requestedReadingCursor = readingPageRequest?.key === readingQueryKey ? readingPageRequest.cursor : null;
+  const requestedBookCursor = bookPageRequest?.key === bookQueryKey ? bookPageRequest.cursor : null;
 
   // ---------- Hooks ----------
   const modals = useModalManager();
@@ -502,6 +552,9 @@ const TeacherLobbyPage = () => {
     loading: contentLoading,
     error: contentError,
     loadedScope,
+    hasMore: testsHasMore,
+    loadingMore: testsLoadingMore,
+    loadMore: loadMoreTests,
     deleteTest,
     refresh: refreshTests,
   } = useTeacherTests({
@@ -509,8 +562,10 @@ const TeacherLobbyPage = () => {
     ownerId: user?.uid,
     userRole: profile?.role,
     contentFilter,
+    testTypeId: activeTestTypeId,
   });
-  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts } = useTeacherDrafts({
+  const { drafts, loading: draftsLoading, error: draftsError, deleteDraft, refreshDrafts,
+    hasMore: draftsHasMore, loadingMore: draftsLoadingMore, loadMore: loadMoreDrafts } = useTeacherDrafts({
     userId: user?.uid || '',
     enabled: contentFilter === 'drafts',
   });
@@ -531,6 +586,8 @@ const TeacherLobbyPage = () => {
     testTypeFilter,
     thcsGradeFilter,
     thcsExamTypeFilter,
+    skillFilter,
+    visibilityFilter: contentFilter === 'my' ? visibilityFilter : 'all',
   });
   const visibleTests = useMemo(() => (
     filteredTests
@@ -553,9 +610,7 @@ const TeacherLobbyPage = () => {
   ), [visibleTests]);
   const activeTestScope = contentFilter === 'public'
     ? 'public'
-    : profile?.role === 'super_admin' && contentFilter === 'my'
-      ? 'all'
-      : 'owned';
+    : 'owned';
   const shouldLogTestGridRender = contentFilter === 'my' || contentFilter === 'public';
   const teacherTestTypePreferenceRepository = useMemo(() => createTeacherTestTypePreferenceRepository({
     read: async (path) => {
@@ -576,6 +631,11 @@ const TeacherLobbyPage = () => {
     },
   }), []);
   const materialBooksRepository = useMemo(() => createMaterialBooksRepository({
+    readPage: async (path, limit, cursor) => {
+      const snapshot = await get(dbQuery(ref(database, path), orderByChild('updatedAt'),
+        ...(cursor ? [endBefore(cursor.updatedAt, cursor.materialId)] : []), limitToLast(limit)));
+      return snapshot.exists() ? snapshot.val() : null;
+    },
     read: async (path) => {
       const snapshot = await get(ref(database, path));
       return snapshot.val();
@@ -590,6 +650,17 @@ const TeacherLobbyPage = () => {
       await updateDb(ref(database), payload);
     },
   }), []);
+  const bookSuccessorClient = useMemo(() => createBookSuccessorClient({
+    baseUrl: import.meta.env.VITE_BOOK_SUCCESSOR_WORKER_URL
+      || import.meta.env.VITE_R2_UPLOAD_WORKER_URL
+      || '',
+    getIdToken: async () => {
+      if (typeof user?.getIdToken !== 'function') {
+        throw new Error('Book successor authorization is unavailable.');
+      }
+      return user.getIdToken();
+    },
+  }), [user]);
   const activeBookEditorBook = useMemo(
     () => bookRows.find((book) => (book.bookId || book.id) === bookEditorBookId) ?? null,
     [bookEditorBookId, bookRows],
@@ -802,7 +873,13 @@ const TeacherLobbyPage = () => {
 
     let cancelled = false;
     const startedAt = getTeacherMaterialsDiagnosticTime();
-    setReadingPassageLoading(true);
+    setReadingPassageLoading(!requestedReadingCursor);
+    setReadingLoadingMore(Boolean(requestedReadingCursor));
+    if (!requestedReadingCursor) {
+      setReadingPassageRows([]);
+      setReadingCursor(null);
+      setReadingHasMore(false);
+    }
     setReadingPassageError(null);
     logTeacherMaterialsDiagnostic('reading_passage_list_requested', {
       scope: readingPassageScope,
@@ -832,16 +909,19 @@ const TeacherLobbyPage = () => {
       return undefined;
     }
 
-    listTeacherReadingPassages({
+    listTeacherReadingPassagesPage({
       teacherId: user.uid,
       scope: readingPassageScope,
       searchTerm,
       testTypeId: activeTestTypeId,
       testTypeConfigs,
-    })
-      .then((rows) => {
+    }, requestedReadingCursor || undefined)
+      .then(({ rows, cursor, hasMore }) => {
         if (!cancelled) {
-          setReadingPassageRows(rows);
+          setReadingPassageRows((current) => requestedReadingCursor
+            ? [...current, ...rows.filter((row) => !current.some((item) => item.id === row.id))] : rows);
+          setReadingCursor(cursor);
+          setReadingHasMore(hasMore);
           logTeacherMaterialsDiagnostic('reading_passage_list_succeeded', safeListDiagnostic({
             scope: readingPassageScope,
             rows,
@@ -855,6 +935,8 @@ const TeacherLobbyPage = () => {
         if (!cancelled) {
           console.error('Failed to load Reading Passages:', error);
           setReadingPassageRows([]);
+          setReadingCursor(null);
+          setReadingHasMore(false);
           setReadingPassageError('Failed to load Reading Passages.');
           logTeacherMaterialsDiagnostic('reading_passage_list_failed', {
             scope: readingPassageScope,
@@ -866,6 +948,7 @@ const TeacherLobbyPage = () => {
       .finally(() => {
         if (!cancelled) {
           setReadingPassageLoading(false);
+          setReadingLoadingMore(false);
         }
       });
 
@@ -880,6 +963,8 @@ const TeacherLobbyPage = () => {
     teacherMaterialsCapabilities.canUseReadingPassageLibrary,
     testTypeConfigs,
     user?.uid,
+    requestedReadingCursor,
+    readingQueryKey,
   ]);
 
   useEffect(() => {
@@ -899,7 +984,13 @@ const TeacherLobbyPage = () => {
 
     let cancelled = false;
     const startedAt = getTeacherMaterialsDiagnosticTime();
-    setBookLoading(true);
+    setBookLoading(!requestedBookCursor);
+    setBookLoadingMore(Boolean(requestedBookCursor));
+    if (!requestedBookCursor) {
+      setBookRows([]);
+      setBookCursor(null);
+      setBookHasMore(false);
+    }
     setBookError(null);
     logTeacherMaterialsDiagnostic('book_list_requested', {
       scope: bookScope,
@@ -929,17 +1020,20 @@ const TeacherLobbyPage = () => {
       return undefined;
     }
 
-    listTeacherBooks({
+    listTeacherBooksPage({
       teacherId: user.uid,
       scope: bookScope,
       searchTerm,
       testTypeId: activeTestTypeId,
       repository: materialBooksRepository,
       testTypeConfigs,
-    })
-      .then((rows) => {
+    }, requestedBookCursor || undefined)
+      .then(({ rows, cursor, hasMore }) => {
         if (!cancelled) {
-          setBookRows(rows);
+          setBookRows((current) => requestedBookCursor
+            ? [...current, ...rows.filter((row) => !current.some((item) => item.id === row.id))] : rows);
+          setBookCursor(cursor);
+          setBookHasMore(hasMore);
           logTeacherMaterialsDiagnostic('book_list_succeeded', safeListDiagnostic({
             scope: bookScope,
             rows,
@@ -953,6 +1047,8 @@ const TeacherLobbyPage = () => {
         if (!cancelled) {
           console.error('Failed to load Books:', error);
           setBookRows([]);
+          setBookCursor(null);
+          setBookHasMore(false);
           setBookError('Failed to load Books.');
           logTeacherMaterialsDiagnostic('book_list_failed', {
             scope: bookScope,
@@ -964,6 +1060,7 @@ const TeacherLobbyPage = () => {
       .finally(() => {
         if (!cancelled) {
           setBookLoading(false);
+          setBookLoadingMore(false);
         }
       });
 
@@ -980,43 +1077,13 @@ const TeacherLobbyPage = () => {
     teacherMaterialsCapabilities.canUseMaterialBooks,
     testTypeConfigs,
     user?.uid,
-  ]);
-
-  useEffect(() => {
-    const routeBookId = location.state?.teacherMaterialsOpenBookId;
-
-    if (!routeBookId || consumedRouteBookOpenRef.current === routeBookId) {
-      return;
-    }
-
-    consumedRouteBookOpenRef.current = routeBookId;
-    setContentFilter('book');
-    setBookScope('private');
-    setBookEditorBookId(routeBookId);
-    bookEditorLauncherRef.current = null;
-    setBookEditorOpen(true);
-    trackAction('openBook', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    trackAction('teacher_materials_book_editor_opened', {
-      bookId: routeBookId,
-      source: location.state?.teacherMaterialsOpenBookSource || 'legacy-book-route',
-    });
-    navigateTo('LOBBY', {}, {
-      reason: 'teacher_materials_book_route_state_consumed',
-      replace: true,
-      force: true,
-      state: {},
-    });
-  }, [
-    location.state?.teacherMaterialsOpenBookId,
-    location.state?.teacherMaterialsOpenBookSource,
-    navigateTo,
-    trackAction,
+    requestedBookCursor,
+    bookQueryKey,
   ]);
 
   const handleContentFilterChange = useCallback((nextTab) => {
+    setReadingPageRequest(null);
+    setBookPageRequest(null);
     setContentFilter((currentTab) => {
       if (currentTab !== nextTab) {
         trackAction('teacher_materials_tab_changed', {
@@ -1029,21 +1096,11 @@ const TeacherLobbyPage = () => {
     });
   }, [trackAction]);
 
-  const handleTestTypeFilterChange = useCallback((nextFilter) => {
-    setTestTypeFilter(nextFilter);
-    trackAction(
-      nextFilter === 'all'
-        ? 'teacher_materials_test_type_filter_cleared'
-        : 'teacher_materials_test_type_filter_selected',
-      {
-        source: 'teacher_materials_search_filter_bar',
-        testTypeId: nextFilter === 'all' ? null : nextFilter,
-      },
-    );
-  }, [trackAction]);
-
   const handleActiveTestTypeChange = useCallback((nextTestTypeId) => {
     setActiveTestTypeId(nextTestTypeId);
+    setSkillFilter('all');
+    setThcsGradeFilter('all');
+    setThcsExamTypeFilter('all');
     trackAction(
       nextTestTypeId
         ? 'teacher_materials_test_type_filter_selected'
@@ -1293,7 +1350,20 @@ const TeacherLobbyPage = () => {
         skill: 'thcs',
         testId: test.id,
       });
-      modals.openEditThcsTest(test);
+      void getThcsTestFromFirebase(test.id)
+        .then((result) => {
+          if (!result.success || !result.data) {
+            throw new Error(result.error || 'Could not load the test.');
+          }
+          if (!Array.isArray(result.data.sections) || result.data.sections.length === 0) {
+            throw new Error('This test has no editable sections in its stored record.');
+          }
+          modals.openEditThcsTest(result.data);
+        })
+        .catch((error) => {
+          console.error('Failed to load THCS test for editing:', error);
+          toast.error(error instanceof Error ? error.message : 'Could not load the test.');
+        });
       return;
     }
 
@@ -1496,8 +1566,13 @@ const TeacherLobbyPage = () => {
   const handleDeleteDraft = useCallback(async (draft) => {
     const draftTitle = draft.metadata?.title || 'Untitled Draft';
     if (!window.confirm(`Delete draft "${draftTitle}"? This cannot be undone.`)) return;
-    await deleteDraft(draft.id);
-  }, [deleteDraft]);
+    trackAction('deleteDraft', { draftId: draft.id, draftKind: draft.draftKind });
+    if (await deleteDraft(draft.id)) {
+      toast.success(`Deleted draft "${draftTitle}".`);
+    } else {
+      toast.error('Could not delete draft. Refresh Drafts and try again.');
+    }
+  }, [deleteDraft, trackAction]);
 
   const handleStartTest = useCallback((testId) => {
     session.startSession(testId, 'test');
@@ -2036,9 +2111,17 @@ const TeacherLobbyPage = () => {
       throw new Error('You must be signed in to create a Book.');
     }
 
+    if (
+      value.bookMode === 'pdf' &&
+      !isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)
+    ) {
+      throw new Error('PDF Book creation is safely unavailable right now.');
+    }
+
     const createdBook = await createBookDraft(
       {
         ...value,
+        bookMode: value.bookMode,
         ownerId: user.uid,
       },
       materialBooksRepository,
@@ -2046,20 +2129,32 @@ const TeacherLobbyPage = () => {
     );
     trackAction('createBook', {
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeIds: value.testTypeIds,
       visibility: value.visibility,
     });
     trackAction('teacher_materials_book_created', {
       bookId: createdBook.bookId,
       source: 'teacher_materials_book_modal',
+      bookMode: value.bookMode,
       testTypeCount: value.testTypeIds.length,
       visibility: value.visibility,
     });
+    toast.success(`Created "${createdBook.title}".`);
 
     setCreateBookModalOpen(false);
     setContentFilter('book');
     setBookScope(value.visibility === 'private' ? 'private' : 'public');
     setBookListVersion((version) => version + 1);
+    setBookEditorBookId(createdBook.bookId);
+    setBookEditorIntent(createdBook.bookMode === 'pdf' ? 'create' : 'edit');
+    bookEditorLauncherRef.current = null;
+    setBookEditorOpen(true);
+    trackAction('teacher_materials_book_editor_opened', {
+      bookId: createdBook.bookId,
+      bookMode: createdBook.bookMode,
+      source: 'teacher_materials_book_created',
+    });
   }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid]);
 
   const handleOpenBook = useCallback((book, launcher) => {
@@ -2076,6 +2171,7 @@ const TeacherLobbyPage = () => {
     trackAction('teacher_materials_book_editor_opened', { bookId, source: 'teacher_materials_book_card' });
     setContentFilter('book');
     setBookEditorBookId(bookId);
+    setBookEditorIntent('edit');
     bookEditorLauncherRef.current = launcher || null;
     setBookEditorOpen(true);
   }, [teacherMaterialsCapabilities.canUseMaterialBookEditor, trackAction]);
@@ -2083,7 +2179,74 @@ const TeacherLobbyPage = () => {
   const handleCloseBookEditor = useCallback(() => {
     setBookEditorDirty(false);
     setBookEditorOpen(false);
+    setBookEditorIntent('edit');
   }, []);
+
+  const handleOpenBookSuccessor = useCallback((book) => {
+    if (!book?.isOwner) {
+      return;
+    }
+    setBookSuccessorPredecessor(book);
+    trackAction('teacher_materials_book_successor_opened', {
+      bookId: book.bookId || book.id,
+      fromMode: book.bookMode || 'materials',
+      source: 'teacher_materials_book_card',
+    });
+  }, [trackAction]);
+
+  const handleCloseBookSuccessor = useCallback(() => {
+    if (bookSuccessorPredecessor) {
+      trackAction('teacher_materials_book_successor_canceled', {
+        bookId: bookSuccessorPredecessor.bookId || bookSuccessorPredecessor.id,
+        source: 'teacher_materials_book_successor_modal',
+      });
+    }
+    setBookSuccessorPredecessor(null);
+  }, [bookSuccessorPredecessor, trackAction]);
+
+  const handleCreateBookSuccessor = useCallback(async ({ reason, targetMode }) => {
+    const predecessor = bookSuccessorPredecessor;
+    const predecessorBookId = predecessor?.bookId || predecessor?.id;
+    if (!predecessorBookId || !predecessor?.updatedAt) {
+      throw new Error('The original Book must be reloaded before changing mode.');
+    }
+
+    try {
+      const result = await bookSuccessorClient.create({
+        predecessorBookId,
+        expectedUpdatedAt: predecessor.updatedAt,
+        targetMode,
+        reason,
+        operationId: crypto.randomUUID(),
+      });
+      trackAction('teacher_materials_book_successor_created', {
+        predecessorBookId,
+        successorBookId: result.successor.bookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        replayed: result.status === 'replayed',
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.success(`Created "${result.successor.title}" as a ${targetMode === 'pdf' ? 'PDF source' : 'Materials'} successor.`);
+      setBookSuccessorPredecessor(null);
+      setContentFilter('book');
+      setBookScope('private');
+      setBookListVersion((version) => version + 1);
+      setBookEditorBookId(result.successor.bookId);
+      setBookEditorIntent(targetMode === 'pdf' ? 'create' : 'edit');
+      bookEditorLauncherRef.current = null;
+      setBookEditorOpen(true);
+    } catch (error) {
+      trackAction('teacher_materials_book_successor_failed', {
+        predecessorBookId,
+        fromMode: predecessor.bookMode || 'materials',
+        toMode: targetMode,
+        source: 'teacher_materials_book_successor_modal',
+      });
+      toast.error(error instanceof Error ? error.message : 'Could not create the successor Book.');
+      throw error;
+    }
+  }, [bookSuccessorClient, bookSuccessorPredecessor, trackAction]);
 
   const handleArchiveBook = useCallback(async (book) => {
     const bookId = book?.bookId || book?.id;
@@ -2336,10 +2499,17 @@ const TeacherLobbyPage = () => {
     });
 
     try {
-      await Promise.all(selectedDrafts.map((draft) => deleteDraft(draft.id)));
+      const results = await Promise.all(selectedDrafts.map((draft) => deleteDraft(draft.id)));
+      const deletedCount = results.filter(Boolean).length;
       setSelectedMaterialIds([]);
       await refreshDrafts();
-      toast.success(`Deleted ${selectedDrafts.length} drafts.`);
+      if (deletedCount === selectedDrafts.length) {
+        toast.success(`Deleted ${deletedCount} draft${deletedCount === 1 ? '' : 's'}.`);
+      } else if (deletedCount === 0) {
+        toast.error('Could not delete selected drafts. Refresh Drafts and try again.');
+      } else {
+        toast.warning(`Deleted ${deletedCount} of ${selectedDrafts.length} selected drafts. Refresh Drafts before retrying.`);
+      }
     } catch (error) {
       console.error('Failed to delete selected drafts:', error);
       toast.error('Failed to delete selected drafts.');
@@ -2824,6 +2994,30 @@ const TeacherLobbyPage = () => {
   }));
   const createLabel = contentFilter === 'book' ? 'Create New Book' : 'Create New Test';
   const showCreateButton = contentFilter !== 'reading-passage';
+  const currentHasMore = contentFilter === 'drafts' ? draftsHasMore
+    : contentFilter === 'reading-passage' ? readingHasMore
+      : contentFilter === 'book' ? bookHasMore : testsHasMore;
+  const hasMaterialSearch = Boolean(searchTerm.trim() || activeTestTypeId);
+  const hasAssessmentFilters = hasMaterialSearch || skillFilter !== 'all' || visibilityFilter !== 'all'
+    || thcsGradeFilter !== 'all' || thcsExamTypeFilter !== 'all';
+  const currentLoadingMore = contentFilter === 'drafts' ? draftsLoadingMore
+    : contentFilter === 'reading-passage' ? readingLoadingMore
+      : contentFilter === 'book' ? bookLoadingMore : testsLoadingMore;
+  const currentCount = contentFilter === 'drafts' ? visibleDrafts.length
+    : contentFilter === 'reading-passage' ? readingPassageRows.length
+      : contentFilter === 'book' ? bookRows.length : materialListRows.length;
+  const currentUnavailable = contentFilter === 'drafts' ? draftsLoading || draftsError
+    : contentFilter === 'reading-passage' ? readingPassageLoading || readingPassageError
+      : contentFilter === 'book' ? bookLoading || bookError : contentLoading || contentError;
+  const paginationScopeKey = JSON.stringify([contentFilter, readingQueryKey, bookQueryKey,
+    activeTestTypeId, searchTerm, skillFilter, visibilityFilter, thcsGradeFilter, thcsExamTypeFilter]);
+  const handleLoadMore = (source) => {
+    trackAction('teacher_materials_load_more', { tab: contentFilter, testTypeId: activeTestTypeId, source });
+    if (contentFilter === 'drafts') void loadMoreDrafts();
+    else if (contentFilter === 'reading-passage') setReadingPageRequest({ key: readingQueryKey, cursor: readingCursor });
+    else if (contentFilter === 'book') setBookPageRequest({ key: bookQueryKey, cursor: bookCursor });
+    else void loadMoreTests();
+  };
 
   // ---------- Render ----------
   return (
@@ -2940,11 +3134,16 @@ const TeacherLobbyPage = () => {
                         onSearchChange={setSearchTerm}
                         contentFilter={contentFilter}
                         testTypeFilter={testTypeFilter}
-                        onTestTypeFilterChange={handleTestTypeFilterChange}
                         thcsGradeFilter={thcsGradeFilter}
-                        onThcsGradeFilterChange={setThcsGradeFilter}
+                        onThcsGradeFilterChange={(value) => {
+                          setThcsGradeFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'grade', value });
+                        }}
                         thcsExamTypeFilter={thcsExamTypeFilter}
-                        onThcsExamTypeFilterChange={setThcsExamTypeFilter}
+                        onThcsExamTypeFilterChange={(value) => {
+                          setThcsExamTypeFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'exam', value });
+                        }}
                         onCreateNew={handleOpenCreateAction}
                         showCreateButton={false}
                       />
@@ -3026,11 +3225,27 @@ const TeacherLobbyPage = () => {
                         onSearchChange={setSearchTerm}
                         contentFilter={contentFilter}
                         testTypeFilter={testTypeFilter}
-                        onTestTypeFilterChange={handleTestTypeFilterChange}
+                        activeTestTypeId={activeTestTypeId}
+                        skillFilter={skillFilter}
+                        onSkillFilterChange={(value) => {
+                          setSkillFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'skill', value });
+                        }}
+                        visibilityFilter={visibilityFilter}
+                        onVisibilityFilterChange={(value) => {
+                          setVisibilityFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'visibility', value });
+                        }}
                         thcsGradeFilter={thcsGradeFilter}
-                        onThcsGradeFilterChange={setThcsGradeFilter}
+                        onThcsGradeFilterChange={(value) => {
+                          setThcsGradeFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'grade', value });
+                        }}
                         thcsExamTypeFilter={thcsExamTypeFilter}
-                        onThcsExamTypeFilterChange={setThcsExamTypeFilter}
+                        onThcsExamTypeFilterChange={(value) => {
+                          setThcsExamTypeFilter(value);
+                          trackAction('teacher_materials_context_filter_changed', { filter: 'exam', value });
+                        }}
                         onCreateNew={handleOpenCreateAction}
                         createLabel={createLabel}
                         showCreateButton={showCreateButton}
@@ -3101,14 +3316,15 @@ const TeacherLobbyPage = () => {
                     ) : readingPassageRows.length === 0 ? (
                       <Card variant="glass" style={{ padding: '3rem', textAlign: 'center', marginTop: '1.5rem' }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                          No Reading Passages yet
+                          {readingHasMore ? 'No matches in loaded Reading Passages' : 'No Reading Passages found'}
                         </h3>
                         <p style={{ color: '#64748b' }}>
-                          Passages will appear after Reading V2 full tests are published or imported.
+                            {hasMaterialSearch ? 'Try another search or Test Type.' : 'Passages will appear after Reading V2 full tests are published or imported.'}
                         </p>
                       </Card>
                     ) : (
                       <MaterialListView
+                        showLoadedCount={false}
                         rows={readingPassageListRows}
                         itemLabel="Reading Passages"
                       />
@@ -3138,13 +3354,14 @@ const TeacherLobbyPage = () => {
                     ) : (
                       <BookCardGrid
                         books={bookRows}
-                        emptyTitle={bookScope === 'public' ? 'No public Books found' : 'No Books yet'}
-                        emptyDescription={bookScope === 'public' ? 'No public Books match this view.' : 'Create a Book draft to start organizing materials.'}
+                        emptyTitle={bookHasMore ? 'No matches in loaded Books' : hasMaterialSearch ? 'No matching Books' : bookScope === 'public' ? 'No public Books found' : 'No Books yet'}
+                        emptyDescription={hasMaterialSearch ? 'Try another search or Test Type.' : bookScope === 'public' ? 'No public Books match this view.' : 'Create a Book draft to start organizing materials.'}
                         canOpenBookEditor={teacherMaterialsCapabilities.canUseMaterialBookEditor}
                         selectedBookIds={selectedMaterialIds}
                         isBookSelectable={canBulkSelectBook}
                         onToggleBookSelection={handleToggleBookSelection}
                         onOpenBook={handleOpenBook}
+                        onCreateSuccessor={handleOpenBookSuccessor}
                         onArchiveBook={handleArchiveBook}
                       />
                     )
@@ -3175,21 +3392,26 @@ const TeacherLobbyPage = () => {
                         {contentFilter === 'public' ? '🌐' : '📝'}
                       </div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                        {contentFilter === 'public' ? 'No public materials found' : 'No materials yet'}
+                        {testsHasMore ? 'No matches in loaded materials' : hasAssessmentFilters ? 'No matching materials' : contentFilter === 'public' ? 'No public materials found' : 'No materials yet'}
                       </h3>
                       <p style={{ color: '#64748b' }}>
-                        {contentFilter === 'public'
+                        {hasAssessmentFilters ? 'Try another search or filter.' : contentFilter === 'public'
                           ? 'No public materials match this view.'
                           : 'Create your first material to get started.'}
                       </p>
                     </Card>
                   ) : (
                     <MaterialListView
+                      showLoadedCount={false}
                       rows={materialListRows}
                       itemLabel={contentFilter === 'public' ? 'public materials' : 'materials'}
                     />
                   )}
                 </>
+              )}
+              {!currentUnavailable && (currentCount > 0 || currentHasMore) && (
+                <MaterialPagination count={currentCount} hasMore={currentHasMore}
+                  loading={currentLoadingMore} scopeKey={paginationScopeKey} onLoadMore={handleLoadMore} />
               )}
             </div>
           )}
@@ -3521,12 +3743,25 @@ const TeacherLobbyPage = () => {
           opened={createBookModalOpen}
           title="Create Book"
           testTypes={testTypeConfigs}
+          pdfModeEnabled={isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)}
           onClose={handleCloseCreateBookModal}
+          onModeSelect={(bookMode) => trackAction('teacher_materials_book_mode_selected', {
+            bookMode,
+            source: 'teacher_materials_book_modal',
+          })}
           onSave={handleSaveBook}
+        />
+
+        <CreateBookSuccessorModal
+          opened={Boolean(bookSuccessorPredecessor)}
+          predecessor={bookSuccessorPredecessor}
+          onClose={handleCloseBookSuccessor}
+          onCreate={handleCreateBookSuccessor}
         />
 
         <BookEditorModal
           opened={bookEditorOpen}
+          intent={bookEditorIntent}
           bookId={bookEditorBookId}
           initialBook={activeBookEditorBook}
           repository={materialBooksRepository}

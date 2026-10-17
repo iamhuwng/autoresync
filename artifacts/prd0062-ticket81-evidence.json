@@ -1,0 +1,76 @@
+{
+  "ticket": 81,
+  "title": "PRD0062 33A — Model frozen Book Homework manifest",
+  "selection": {
+    "artifact": "artifacts/prd0062-selection-20260728-continue-ticket81.json",
+    "graphArtifact": "artifacts/prd0062-graph-20260728-continue-live.json",
+    "issueHash": "b44c8ade503faff60902386987c5996d30e3fa96819368b4412ed410544f8b5c",
+    "completeTransitivePrerequisitesClosed": true,
+    "directPrerequisites": [32, 34, 72]
+  },
+  "implementation": {
+    "types": [
+      "src/types/homework.types.ts",
+      "src/services/book-delivery/bookDelivery.types.ts"
+    ],
+    "manifestOwner": "src/services/book-homework/bookHomeworkManifest.service.ts",
+    "tests": [
+      "src/services/book-homework/bookHomeworkManifest.service.test.ts",
+      "src/services/book-homework/bookHomeworkDependencyBoundary.test.ts"
+    ],
+    "contract": [
+      "book_activity_bundle discriminator",
+      "published Book/Delivery context and immutable manifest identity",
+      "whole Book, structural subtree, and Activity target selection",
+      "deterministic structural/binding order",
+      "Activity/source version and component/page context pins",
+      "required/excluded binding state",
+      "independent Activity binding advancement",
+      "Section/Chapter/Unit/Test and unambiguous Activity target matrix",
+      "parsed target/outline/binding scope validation",
+      "later immutable Activity Version enforcement",
+      "student-safe projection and JSON round-trip",
+      "legacy one-material Homework compatibility",
+      "disabled-capability rollback boundary"
+    ]
+  },
+  "verification": [
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-homework/bookHomeworkManifest.service.test.ts src/services/book-homework/bookHomeworkDependencyBoundary.test.ts --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "PASS: 2 files, 13 tests"
+    },
+    {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/book-delivery/bookDelivery.schema.test.ts src/services/book-delivery/bookDelivery.service.test.ts src/services/book-delivery/bookDelivery.entitlementLifecycle.test.ts src/services/homeworkManager.test.ts src/services/homeworkSubmissionService.test.ts src/services/book-homework/bookHomeworkManifest.service.test.ts src/services/book-homework/bookHomeworkDependencyBoundary.test.ts --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "PASS: 7 files, 51 tests"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/types/homework.types.ts src/services/book-delivery/bookDelivery.types.ts src/services/book-homework/bookHomeworkManifest.service.ts src/services/book-homework/bookHomeworkManifest.service.test.ts src/services/book-homework/bookHomeworkDependencyBoundary.test.ts",
+      "result": "PASS: targeted #81 source, tests, and imported types"
+    },
+    {
+      "command": "node node_modules/eslint/bin/eslint.js src/types/homework.types.ts src/services/book-delivery/bookDelivery.types.ts src/services/book-homework/bookHomeworkManifest.service.ts src/services/book-homework/bookHomeworkManifest.service.test.ts src/services/book-homework/bookHomeworkDependencyBoundary.test.ts",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run build",
+      "result": "PASS: 9433 modules transformed; bundle budget OK (x64 harness)"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false -p tsconfig.json",
+      "result": "FAIL outside #81-owned paths: existing dirty-worktree diagnostics in Book Assembly UI/runtime/import modules; no #81-owned diagnostics remain"
+    }
+  ],
+  "destinationBoundaries": {
+    "browser": "#33B; no independent #81 browser proof claimed",
+    "deployment": "No deployment or remote activation claimed",
+    "assembledRules": "#118",
+    "trustedActions": "Remain disabled",
+    "legacy": "Existing one-material records/readers remain unchanged"
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "full112TicketScope": "preserved"
+  }
+}

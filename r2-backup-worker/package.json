@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "test": "vitest run"
+    "dev": "node ../scripts/tooling-where.mjs --exec r2-wrangler dev",
+    "deploy": "node ../scripts/tooling-where.mjs --exec r2-wrangler deploy",
+    "test": "node ../scripts/tooling-where.mjs --exec r2-vitest run"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +19,7 @@
     "fflate": "^0.8.2",
     "jose": "^6.1.3",
     "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
     "wrangler": "^4.68.1"
   },
   "dependencies": {

@@ -50,6 +50,15 @@ Reading V2 student delivery paths:
 - live-session projection: `reading_v2/projections/session_test_payloads/{sessionCode}:{snapshotVersionId}`
 - review projection: `reading_v2/projections/review/{materialId}:{snapshotVersionId}`
 
+The student Public Library lists only launchable Reading V2 full tests from
+`material_catalog/material_summary_indexes/v1/by_visibility/public`. It uses
+the summary's active/public state and student-safe projection readiness facts;
+it does not read owner-only material metadata or hydrate projections per card.
+Opening a listed full test uses its public `/tests/{materialId}` compatibility
+bridge to resolve the pinned snapshot and then reads the namespaced student-safe
+projection. Reading Passage summaries are not Public Library launch rows until
+the student solo-launch path supports their passage projection contract.
+
 Full-test publish also creates canonical snapshots for generated Reading Passage materials. A generated passage is not launchable just because it has metadata or list indexes; it must have the namespaced student-safe projection and the canonical published snapshot expected by the trusted submit path.
 
 Composition-first full-test publish must also create master projections at those same namespaced student-safe, session-safe, and review paths. Missing master projections are launch blockers, not optional convenience rows.
@@ -165,5 +174,5 @@ Current focused tests:
 ## Related Reading V2 Contract
 
 See:
-- `documentation/architecture/reading-v2-material-publish-and-passage-library.md` for the PRD-0052 publish, Material Catalog, generated Reading Passage, homework, and review contract.
-- `documentation/architecture/reading-v2-runtime-integrations.md` for Reading V2 anti-cheat, trusted submit, feedback, and admin monitor integration.
+- `documentation/architecture/changelog/reading-v2-material-publish-and-passage-library.md` for the PRD-0052 publish, Material Catalog, generated Reading Passage, homework, and review contract.
+- `documentation/architecture/changelog/reading-v2-runtime-integrations.md` for Reading V2 anti-cheat, trusted submit, feedback, and admin monitor integration.

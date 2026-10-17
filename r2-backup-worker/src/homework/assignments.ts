@@ -183,9 +183,9 @@ async function readRtdb<T>(env: WorkerEnv, accessToken: string, path: string): P
     return body as T | null;
 }
 
-async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, value: unknown): Promise<void> {
+async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, value: unknown, method: 'PUT' | 'PATCH' = 'PUT'): Promise<void> {
     const response = await fetch(rtdbUrl(env, path), {
-        method: 'PUT',
+        method,
         headers: {
             Authorization: 'Bearer ' + accessToken,
             'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ async function writeRtdb(env: WorkerEnv, accessToken: string, path: string, valu
     const body = parseJsonBody(text);
 
     if (!response.ok) {
-        throw new Error('Firebase RTDB PUT ' + path + ' failed (' + response.status + '): ' + firebaseErrorMessage(body));
+        throw new Error('Firebase RTDB ' + method + ' ' + path + ' failed (' + response.status + '): ' + firebaseErrorMessage(body));
     }
 }
 
@@ -497,7 +497,9 @@ async function resolveTarget(
                 className: target.className || classData.name,
             },
             totalAssigned: Object.keys(students).length,
-            authorizedStudentIds: [],
+            authorizedStudentIds: [...new Set(Object.entries(students).flatMap(([studentKey, entry]) =>
+                isRecord(entry) && typeof entry.uid === 'string' ? [studentKey, entry.uid] : [studentKey]
+            ))],
         };
     }
 
@@ -510,6 +512,7 @@ async function resolveTarget(
         }
 
         const allowedStudentIds = new Set<string>();
+        const canonicalStudentIds = new Map<string, string>();
 
         if (role === 'super_admin') {
             studentIds.forEach((studentId) => allowedStudentIds.add(studentId));
@@ -532,6 +535,7 @@ async function resolveTarget(
                     allowedStudentIds.add(studentKey);
                     if (isRecord(entry) && typeof entry.uid === 'string') {
                         allowedStudentIds.add(entry.uid);
+                        canonicalStudentIds.set(studentKey, entry.uid);
                     }
                 });
             });
@@ -558,14 +562,16 @@ async function resolveTarget(
             return assignmentError('TARGET_NOT_ALLOWED', 'Teacher cannot assign to one or more students.', 403);
         }
 
+        const canonicalIds = studentIds.map((studentId) => canonicalStudentIds.get(studentId) ?? studentId);
+
         return {
             target: {
                 type: 'students',
-                studentIds,
+                studentIds: [...new Set(canonicalIds)],
                 studentNames: Array.isArray(target.studentNames) ? target.studentNames : undefined,
             },
-            totalAssigned: new Set(studentIds).size,
-            authorizedStudentIds: [...new Set(studentIds)],
+            totalAssigned: new Set(canonicalIds).size,
+            authorizedStudentIds: [...new Set(canonicalIds)],
         };
     }
 
@@ -816,6 +822,20 @@ async function resolveReadingV2FullTestContent(
         return accessError;
     }
 
+    if (lowerText(metadata.materialKind ?? metadata.kind ?? metadata.type) === 'reading-passage') {
+        return resolveReadingPassageContent(
+            env,
+            accessToken,
+            {
+                ...contentRef,
+                contentKind: 'reading_passage',
+                source: contentRef.source ?? 'reading-v2',
+            },
+            uid,
+            role
+        );
+    }
+
     if (!isReadingV2FullTestMetadata(metadata)) {
         return assignmentError('UNSUPPORTED_CONTENT_KIND', 'Reading V2 source is not a full reading test.', 400);
     }
@@ -1004,6 +1024,15 @@ function isAssignmentError(value: unknown): value is AssignmentError {
         typeof value.message === 'string';
 }
 
+function isBookHomeworkPayload(value: Record<string, unknown>): boolean {
+    const contentRef = isRecord(value.contentRef) ? value.contentRef : null;
+    return value.assignmentKind === 'book_activity_bundle'
+        || Object.hasOwn(value, 'bookManifest')
+        || value.mode === 'book'
+        || contentRef?.contentKind === 'book_activity_bundle'
+        || contentRef?.contentKind === 'book';
+}
+
 export async function handleCreateHomeworkAssignment(
     request: Request,
     env: WorkerEnv
@@ -1020,6 +1049,13 @@ export async function handleCreateHomeworkAssignment(
         }
 
         const body = parsedBody as CreateHomeworkAssignmentRequest;
+        if (isBookHomeworkPayload(parsedBody)) {
+            return errorResponse(assignmentError(
+                'WHOLE_BOOK_ASSIGNMENT_NOT_SUPPORTED',
+                'Book Homework must use the canonical Book Worker route.',
+                400,
+            ));
+        }
         const accessToken = await getFirebaseAccessToken(env.GOOGLE_SA_KEY);
         const user = await readRtdb<Record<string, any>>(env, accessToken, 'users/' + auth.uid);
         const role = String(user?.role ?? '').trim();
@@ -1078,7 +1114,7 @@ export async function handleCreateHomeworkAssignment(
                     materialTitle: content.materialTitle,
                 }),
             );
-            if (target.authorizedStudentIds.length > 0) {
+            if (target.target.type === 'students' && target.authorizedStudentIds.length > 0) {
                 await writeRtdb(
                     env,
                     accessToken,
@@ -1088,7 +1124,25 @@ export async function handleCreateHomeworkAssignment(
             }
         }
 
-        await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);
+        const thcsGrantUpdates = Object.fromEntries(
+            (content.contentRef.contentKind === 'thcs_test' ? target.authorizedStudentIds : [])
+                .map(studentId => [studentId + '/' + assignmentId, true]),
+        );
+        const thcsGrantPath = 'homework_test_access/' + content.materialId;
+        const hasThcsGrants = Object.keys(thcsGrantUpdates).length > 0;
+        if (hasThcsGrants) {
+            await writeRtdb(env, accessToken, thcsGrantPath, thcsGrantUpdates, 'PATCH');
+        }
+
+        try {
+            await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);
+        } catch (error) {
+            if (hasThcsGrants) {
+                await writeRtdb(env, accessToken, thcsGrantPath,
+                    Object.fromEntries(Object.keys(thcsGrantUpdates).map(path => [path, null])), 'PATCH');
+            }
+            throw error;
+        }
 
         return jsonResponse({
             assignmentId,

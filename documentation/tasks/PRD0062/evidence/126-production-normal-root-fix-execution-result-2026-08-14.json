@@ -1,0 +1,67 @@
+{
+  "artifactKind": "prd0062-126-production-normal-root-fix-execution-result",
+  "schemaVersion": 1,
+  "status": "failed-safe-rolled-back",
+  "createdAt": "2026-08-13T19:41:34Z",
+  "consumedApprovalPacket": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-root-fix-approval-packet-2026-08-14.json",
+    "sha256": "7b609aa7aaa7298f4ad30604a6fa5d2c3d8a766e2c0b17fb2bb5a4ed4759da9e"
+  },
+  "execution": {
+    "inactiveVersionsUploadedBeforeMutation": true,
+    "inactiveRollbackWorkerVersion": "9727e42c-8854-4e66-9b5f-85d8aab7b73f",
+    "inactiveActivationWorkerVersion": "0925cd0e-3767-44c5-8b4c-9ed4e68a7030",
+    "generatedRules": {
+      "sha256": "da74d7441c03d19562a3d558ab31ff55a53d7d3ad1cb4b3b49528a624ecab669",
+      "deployedAndReadBackExactBeforeActivation": true
+    },
+    "activationDeployment": {
+      "deploymentId": "7fe592df-84df-4417-877c-4cb1e740b11d",
+      "percentage": 100,
+      "createdOn": "2026-08-13T19:14:16.548928Z"
+    },
+    "retainedVerifiedSourceAttachmentReplay": "succeeded",
+    "wrongSourceCandidate": {
+      "httpStatus": 422,
+      "status": "invalid",
+      "disposition": "denied"
+    },
+    "normalCandidate": {
+      "httpStatus": 200,
+      "status": "created",
+      "candidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+      "revision": 1
+    },
+    "validate": {
+      "httpStatus": 500,
+      "response": {
+        "code": "book_assembly_failed"
+      }
+    },
+    "stopGate": {
+      "triggered": true,
+      "before": [
+        "Activity authoring",
+        "preview",
+        "approval",
+        "publication",
+        "assignment",
+        "delivery"
+      ]
+    }
+  },
+  "rootCause": "RTDB erased root-node parentNodeKey:null and valid-result errors:[] from both candidate and nested create operation result; repository rejected its own successfully written domain record on reload.",
+  "rollback": {
+    "deploymentId": "db2cf382-454b-4b53-99b6-54e97cb509f6",
+    "version": "9727e42c-8854-4e66-9b5f-85d8aab7b73f",
+    "percentage": 100,
+    "createdOn": "2026-08-13T19:21:09.274347Z",
+    "rulesCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0"
+  },
+  "remoteStateRetained": {
+    "verifiedSourceAndMaterialBook": "ready at revisions 2/2",
+    "draftCandidate": "revision 1",
+    "operations": "one created and one invalid",
+    "downstreamDurableObjects": "none"
+  }
+}

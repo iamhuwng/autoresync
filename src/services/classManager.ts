@@ -24,6 +24,7 @@ import type {
   ClassStatus,
   TestAssignmentStatus,
 } from '../types/class.types';
+import { notifyCommittedEvent } from './notificationProducerClient';
 
 // ============================================================================
 // CONSTANTS
@@ -369,19 +370,6 @@ async function getStudentClassesByLegacyScan(studentUid: string): Promise<ClassS
   return enrolledClasses.sort((left, right) => right.createdAt - left.createdAt);
 }
 
-function mergeClassSummaries(...classLists: ClassSummary[][]): ClassSummary[] {
-  const merged = new Map<string, ClassSummary>();
-
-  classLists.flat().forEach((summary) => {
-    const existing = merged.get(summary.id);
-    if (!existing || summary.createdAt > existing.createdAt) {
-      merged.set(summary.id, summary);
-    }
-  });
-
-  return Array.from(merged.values()).sort((left, right) => right.createdAt - left.createdAt);
-}
-
 // ============================================================================
 // CLASS CRUD OPERATIONS
 // ============================================================================
@@ -506,16 +494,19 @@ export async function removeStudentFromClass(
 
     const now = Date.now();
 
-    const membershipUpdates: Record<string, unknown> = {
-      [`${CLASSES_REF}/${classId}/students/${studentId}`]: null,
-      [`${GAME_SESSIONS_REF}/${classId}/players/${studentId}`]: null,
-    };
+    await update(classRef, {
+      [`students/${studentId}`]: null,
+    });
 
     if (student.uid) {
-      membershipUpdates[`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`] = null;
+      try {
+        await update(ref(database), {
+          [`${STUDENT_CLASSES_REF}/${student.uid}/${classId}`]: null,
+        });
+      } catch (cleanupError) {
+        console.warn(`[ClassManager] Failed to clean up student class projection for ${studentId}:`, cleanupError);
+      }
     }
-
-    await update(ref(database), membershipUpdates);
 
     // Clean up class-based course enrollments for this student
     try {
@@ -531,11 +522,15 @@ export async function removeStudentFromClass(
       const totalStudents = classData.stats?.totalStudents ?? Object.keys(classData.students || {}).length;
       const activeStudents = classData.stats?.activeStudents ?? Object.values(classData.students || {}).filter((s) => s.isOnline).length;
 
-      await update(classRef, {
-        'stats/totalStudents': Math.max(totalStudents - 1, 0),
-        'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
-        updatedAt: now,
-      });
+      try {
+        await update(classRef, {
+          'stats/totalStudents': Math.max(totalStudents - 1, 0),
+          'stats/activeStudents': Math.max(activeStudents - (student.isOnline ? 1 : 0), 0),
+          updatedAt: now,
+        });
+      } catch (statsError) {
+        console.warn(`[ClassManager] Failed to update class stats after removing ${studentId}:`, statsError);
+      }
     }
 
     return { success: true };
@@ -922,15 +917,30 @@ export async function enrollStudent(
       return { success: false, error: 'Class is full' };
     }
 
-    const now = Date.now();
     const approvalMode = options.approvalMode ?? 'pending';
+    const actorUid = await getCurrentActorUid();
+    if (approvalMode === 'pending' && actorUid !== studentUid) {
+      return { success: false, error: 'Class membership action is not authorized' };
+    }
+    if (approvalMode === 'active' && actorUid !== classData.createdBy) {
+      const role = actorUid ? (await get(ref(database, `users/${actorUid}/role`))).val() : null;
+      if (role !== 'super_admin') {
+        return { success: false, error: 'Class membership action is not authorized' };
+      }
+    }
+    const previousJoinedAt = (classData as ClassSession & { membershipDecisions?: Record<string, { joinedAt: number }> })
+      .membershipDecisions?.[studentUid]?.joinedAt;
+    const now = Math.max(Date.now(), typeof previousJoinedAt === 'number' && Number.isFinite(previousJoinedAt) ? previousJoinedAt + 1 : 0);
+    if (now > Date.now() + 5000) {
+      return { success: false, error: 'Please retry joining this class in a few seconds' };
+    }
     const status: ClassStudent['status'] = approvalMode === 'active' ? 'active' : 'pending_approval';
 
     const student: ClassStudent = {
-      id: studentUid, // Use UID as student ID for authenticated users
-      uid: studentUid, // Store UID for reference
+      id: studentUid,
+      uid: studentUid,
       name: studentName,
-      email: studentEmail,
+      ...(studentEmail ? { email: studentEmail } : {}),
       status,
       joinedAt: now,
       lastActiveAt: now,
@@ -940,17 +950,22 @@ export async function enrollStudent(
 
     await update(ref(database), {
       [`${CLASSES_REF}/${classCode}/students/${studentUid}`]: student,
-      [`${GAME_SESSIONS_REF}/${classCode}/players/${studentUid}`]: {
-        name: studentName,
-        score: 0,
-        joinedAt: now,
-        uid: studentUid,
-      },
       [`${STUDENT_CLASSES_REF}/${studentUid}/${classCode}`]: buildStudentClassMembershipRow(student),
+    });
+    void notifyCommittedEvent({
+      eventKind: 'class-membership',
+      action: approvalMode === 'pending' ? 'join-pending' : 'direct-add',
+      classId: classCode,
+      studentId: studentUid,
+      occurredAt: now,
     });
 
     // Update class stats
-    await updateEnrollmentStatsIfAuthorized(classCode, classData, now);
+    try {
+      await updateEnrollmentStatsIfAuthorized(classCode, classData, Date.now());
+    } catch (statsError) {
+      console.warn('[ClassManager] Enrollment stats update failed after class action:', statsError);
+    }
 
     if (approvalMode === 'active') {
       // Teacher/admin additions are effective immediately.
@@ -964,55 +979,6 @@ export async function enrollStudent(
 
     // NOTE: Student-teacher assignment is NOT auto-created here for self-join.
     // Pending self-joins only become student-visible after teacher approval.
-
-    if (approvalMode === 'pending') {
-      // PRD-0002: Dashboard feed notification for student
-      try {
-        const { createNotification } = await import('./notificationService');
-        await createNotification({
-          userId: studentUid,
-          type: 'info',
-          title: '🏫 Joined Class — Pending Approval',
-          message: `You've requested to join ${classData.name || classCode}. Waiting for teacher approval.`,
-          link: '/student/dashboard',
-          metadata: { className: classData.name || classCode, classCode }
-        });
-      } catch (notifError) {
-        console.warn('⚠️ [ClassManager] Failed to send join-class notification (non-blocking):', notifError);
-      }
-
-      // Notify the class owner (teacher) about the pending student
-      try {
-        const { createNotification } = await import('./notificationService');
-        const teacherId = classData.createdBy;
-        if (teacherId && teacherId !== 'unknown') {
-          await createNotification({
-            userId: teacherId,
-            type: 'info',
-            title: '👋 New Student Request',
-            message: `${studentName} wants to join your class "${classData.name || classCode}". Review in class management.`,
-            link: `/teacher/classes/${classCode}`,
-            metadata: { studentName, studentUid, classCode, className: classData.name || classCode }
-          });
-        }
-      } catch (notifError) {
-        console.warn('⚠️ [ClassManager] Failed to send teacher notification (non-blocking):', notifError);
-      }
-    } else {
-      try {
-        const { createNotification } = await import('./notificationService');
-        await createNotification({
-          userId: studentUid,
-          type: 'success',
-          title: '✅ Added to Class',
-          message: `You've been added to ${classData.name || classCode}.`,
-          link: '/student/dashboard',
-          metadata: { className: classData.name || classCode, classCode }
-        });
-      } catch (notifError) {
-        console.warn('⚠️ [ClassManager] Failed to send active enrollment notification (non-blocking):', notifError);
-      }
-    }
 
     return { success: true, classId: classCode };
   } catch (error) {
@@ -1037,19 +1003,31 @@ export async function approveClassStudent(
     if (!classData) {
       return { success: false, error: 'Class not found' };
     }
+    if (teacherId !== classData.createdBy || await getCurrentActorUid() !== classData.createdBy) {
+      return { success: false, error: 'Class owner mismatch' };
+    }
 
     // Verify student exists in class
     const student = classData.students?.[studentId];
     if (!student) {
       return { success: false, error: 'Student not found in this class' };
     }
+    if (student.status !== 'pending_approval') {
+      return { success: false, error: 'Student does not have a pending class request' };
+    }
 
+    const approvedAt = Date.now();
     await update(ref(database), {
       [`${CLASSES_REF}/${classCode}/students/${studentId}/status`]: 'active',
+      [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedAt`]: approvedAt,
+      [`${CLASSES_REF}/${classCode}/students/${studentId}/approvedBy`]: classData.createdBy,
       [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: buildStudentClassMembershipRow({
         joinedAt: student.joinedAt,
         status: 'active',
       }),
+    });
+    void notifyCommittedEvent({
+      eventKind: 'class-membership', action: 'approve', classId: classCode, studentId, occurredAt: approvedAt,
     });
 
     try {
@@ -1068,21 +1046,6 @@ export async function approveClassStudent(
       }
     } catch (assignError) {
       console.warn('⚠️ [ClassManager] Failed to create assignment during approval (non-blocking):', assignError);
-    }
-
-    // Notify the student
-    try {
-      const { createNotification } = await import('./notificationService');
-      await createNotification({
-        userId: studentId,
-        type: 'success',
-        title: '✅ Approved!',
-        message: `You've been approved to join ${classData.name || classCode}.`,
-        link: '/student/dashboard',
-        metadata: { className: classData.name || classCode, classCode }
-      });
-    } catch (notifError) {
-      console.warn('⚠️ [ClassManager] Failed to send approval notification:', notifError);
     }
 
     return { success: true };
@@ -1106,37 +1069,42 @@ export async function rejectClassStudent(
     if (!classData) {
       return { success: false, error: 'Class not found' };
     }
+    if (await getCurrentActorUid() !== classData.createdBy) {
+      return { success: false, error: 'Class owner mismatch' };
+    }
 
     const student = classData.students?.[studentId];
     if (!student) {
       return { success: false, error: 'Student not found in this class' };
     }
+    if (student.status !== 'pending_approval') {
+      return { success: false, error: 'Student does not have a pending class request' };
+    }
 
+    const decidedAt = Math.max(Date.now(), student.joinedAt);
+    await update(ref(database), {
+      [`${CLASSES_REF}/${classCode}/students/${studentId}`]: null,
+      [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: null,
+      [`${CLASSES_REF}/${classCode}/membershipDecisions/${studentId}`]: {
+        status: 'rejected',
+        studentId,
+        joinedAt: student.joinedAt,
+        decidedBy: classData.createdBy,
+        decidedAt,
+      },
+    });
+    void notifyCommittedEvent({
+      eventKind: 'class-membership', action: 'reject', classId: classCode, studentId, occurredAt: decidedAt,
+    });
     try {
       await cleanupClassBasedCourseEnrollments(classCode, student.uid || studentId);
     } catch (cleanupError) {
-      console.warn(`[ClassManager] Failed to clean up stale class-based enrollments for rejected student ${studentId}:`, cleanupError);
+      console.warn(`[ClassManager] Failed to clean up class-based enrollments for rejected student ${studentId}:`, cleanupError);
     }
-
-    await update(ref(database), {
-      [`${CLASSES_REF}/${classCode}/students/${studentId}`]: null,
-      [`${GAME_SESSIONS_REF}/${classCode}/players/${studentId}`]: null,
-      [`${STUDENT_CLASSES_REF}/${studentId}/${classCode}`]: null,
-    });
-
-    // Notify the student
     try {
-      const { createNotification } = await import('./notificationService');
-      await createNotification({
-        userId: studentId,
-        type: 'info',
-        title: '❌ Request Declined',
-        message: `Your request to join ${classData.name || classCode} was not approved.`,
-        link: '/student/dashboard',
-        metadata: { className: classData.name || classCode, classCode }
-      });
-    } catch (notifError) {
-      console.warn('⚠️ [ClassManager] Failed to send rejection notification:', notifError);
+      await set(ref(database, `${GAME_SESSIONS_REF}/${classCode}/players/${studentId}`), null);
+    } catch (cleanupError) {
+      console.warn(`[ClassManager] Failed to clean up legacy session player for ${studentId}:`, cleanupError);
     }
 
     return { success: true };
@@ -1153,21 +1121,11 @@ export async function rejectClassStudent(
 export async function getStudentClasses(studentUid: string): Promise<ClassSummary[]> {
   try {
     const indexedClasses = await getStudentClassesFromMembershipIndex(studentUid);
-    if (indexedClasses === null) {
-      return getStudentClassesByLegacyScan(studentUid);
+    if (indexedClasses !== null) {
+      return indexedClasses;
     }
 
-    const scannedClasses = await getStudentClassesByLegacyScan(studentUid);
-    const mergedClasses = mergeClassSummaries(indexedClasses, scannedClasses);
-
-    if (mergedClasses.length !== indexedClasses.length) {
-      console.warn(
-        `[Courses DEBUG] getStudentClasses: membership index was incomplete for uid="${studentUid}" ` +
-        `(${indexedClasses.length} indexed vs ${mergedClasses.length} merged)`
-      );
-    }
-
-    return mergedClasses;
+    return getStudentClassesByLegacyScan(studentUid);
   } catch (error) {
     console.error('Error getting student classes:', error);
     return [];

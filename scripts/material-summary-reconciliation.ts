@@ -16,7 +16,7 @@ import {
 } from '../src/services/materialCatalog/materialSummaryReconciliation.service';
 
 const execFileAsync = promisify(execFile);
-const firebaseBinary = process.platform === 'win32' ? 'cmd' : 'firebase';
+const firebaseBinary = process.execPath;
 
 export interface MaterialSummaryReconciliationCliOptions {
   readonly projectId: string;
@@ -120,27 +120,33 @@ export const parseMaterialSummaryReconciliationArgs = (
 };
 
 const firebaseArgs = (args: readonly string[]): string[] =>
-  process.platform === 'win32' ? ['/c', 'firebase', ...args] : [...args];
+  [resolve('node_modules/firebase-tools/lib/bin/firebase.js'), ...args];
 
 const runFirebase = async (args: readonly string[]): Promise<string> => {
-  const { stdout } = await execFileAsync(firebaseBinary, firebaseArgs(args), {
-    cwd: process.cwd(),
-    maxBuffer: 100 * 1024 * 1024,
-  });
-  return stdout.trim();
+  const startedAt = Date.now();
+  try {
+    const { stdout } = await execFileAsync(firebaseBinary, firebaseArgs(args), {
+      cwd: process.cwd(),
+      maxBuffer: 100 * 1024 * 1024,
+      timeout: 600_000,
+    });
+    return stdout.trim();
+  } catch (error) {
+    const failure = error as Error & { code?: string | number; signal?: string; killed?: boolean; stdout?: string; stderr?: string };
+    throw new Error(
+      `Firebase CLI ${args[0]} failed: code=${failure.code ?? 'none'} signal=${failure.signal ?? 'none'} killed=${failure.killed ?? false} elapsedMs=${Date.now() - startedAt} stdoutBytes=${Buffer.byteLength(failure.stdout || '')} stderrBytes=${Buffer.byteLength(failure.stderr || '')}`,
+      { cause: error },
+    );
+  }
 };
 
 const readFirebaseJson = async (
   path: string,
   projectId: string,
 ): Promise<unknown> => {
-  const output = await runFirebase([
-    'database:get',
-    `/${path}`,
-    '--project',
-    projectId,
-  ]);
-  return output ? JSON.parse(output) : null;
+  const output = await runFirebase(['database:get', `/${path}`, '--project', projectId, '--json']);
+  const statusMarker = output.lastIndexOf('\n{\n  "status"');
+  return JSON.parse(statusMarker >= 0 ? output.slice(0, statusMarker) : output);
 };
 
 const updateFirebaseRoot = async (
@@ -274,9 +280,10 @@ export const runMaterialSummaryReconciliationCli = async (
       return null;
     }
   };
-  const [tests, readingMetadata, books, currentIndex] = await Promise.all([
+  const [tests, readingMetadata, readingProjections, books, currentIndex] = await Promise.all([
     read('tests'),
     read('reading_v2/material_metadata'),
+    read('reading_v2/projections/student_safe_tests'),
     read('material_catalog/books'),
     read('material_catalog/material_summary_indexes/v1'),
   ]);
@@ -287,6 +294,7 @@ export const runMaterialSummaryReconciliationCli = async (
       Object.entries(recordMap(readingMetadata))
         .map(([id, value]) => [id, normalizeReadingMetadata(value)]),
     ),
+    readingV2StudentSafeProjections: recordMap(readingProjections),
     books: Object.fromEntries(
       Object.entries(recordMap(books))
         .map(([id, value]) => [id, normalizeBook(value)]),

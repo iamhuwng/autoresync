@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "issue": 92,
+  "title": "PRD0062 37B — Link integrity signals to submission and teacher review",
+  "focusedVerification": [
+    {
+      "command": "npm --prefix cloudflare test -- --run test/book-integrity-report.test.ts test/book-route-manifest.test.ts test/book-router.test.ts test/book-activity-integrity.test.ts test/book-runtime-terminal-submit.test.ts test/book-runtime-canonical-composition.test.ts",
+      "result": "6 files passed, 71 tests passed"
+    },
+    {
+      "command": "npm test -- --run src/components/results/BookActivityIntegrityPanel.test.tsx src/pages/TeacherHomeworkDetailPage.test.tsx",
+      "result": "2 files passed, 9 tests passed"
+    },
+    {
+      "command": "eslint changed #92 TypeScript files",
+      "result": "passed"
+    },
+    {
+      "command": "JSON.parse cloudflare/src/upload-worker/book-rules/fragments/37B.json",
+      "result": "passed"
+    },
+    {
+      "command": "npm --prefix cloudflare run check",
+      "result": "Wrangler production-equivalent dry-run passed; 1288.65 KiB upload / 241.94 KiB gzip; integrity route and linkage gates disabled"
+    }
+  ],
+  "productionEquivalentPreview": {
+    "worker": "cloudflare/src/upload-worker/book-activity-integrity/ticket92-preview-worker.ts",
+    "endpoint": "/proof",
+    "proves": [
+      "exact terminal signal references and counts",
+      "immutable replay with no duplicate seal events",
+      "teacher owner read",
+      "student and cross-owner denial",
+      "non-punitive academic outcome preservation"
+    ]
+  },
+  "rollbackPreview": {
+    "worker": "cloudflare/src/upload-worker/book-activity-integrity/ticket92-preview-rollback-worker.ts",
+    "endpoint": "/rollback",
+    "proves": [
+      "report hidden",
+      "new linkage disabled",
+      "attempts, results, signals, grading, completion, and submission preserved"
+    ]
+  },
+  "browserEvidence": "artifacts/prd0062-ticket-92/browser/role-port-proof.json"
+}

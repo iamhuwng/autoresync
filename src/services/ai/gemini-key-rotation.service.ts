@@ -11,7 +11,7 @@ export interface GeminiKeyAttemptContext {
   attemptNumber: number;
   totalAvailableKeys: number;
   totalConfiguredKeys: number;
-  GoogleGenerativeAI: typeof import('@google/generative-ai').GoogleGenerativeAI;
+  GoogleGenerativeAI: typeof import('./browser-provider-clients').GoogleGenerativeAI;
 }
 
 export type GeminiKeyAttemptResult<T> =
@@ -106,7 +106,7 @@ export async function executeGeminiWithKeyRotation<T>({
       };
     }
 
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const { GoogleGenerativeAI } = await import('./browser-provider-clients');
 
     for (let i = 0; i < availableKeys.length; i += 1) {
       const currentKey = availableKeys[i]!;

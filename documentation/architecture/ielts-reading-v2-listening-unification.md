@@ -28,7 +28,7 @@ Use sources in this order:
 1. This file for unification boundary, dependency direction, and current allowed sharing.
 2. `documentation/architecture/reading-v2-runtime-integrations.md` for Reading V2 host/runtime/platform authority.
 3. `documentation/architecture/mobile-ielts-listening-audio-navigation.md` for Listening mobile navigation and audio-switch rules.
-4. `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md` for Listening diagnostics boundaries and hot-path logging context.
+4. `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md` for Listening diagnostics boundaries and hot-path logging context.
 5. `documentation/architecture/upload-storage-authority.md` for current R2-only upload and obsolete Google Drive status.
 6. Historical artifacts listed later in this file for strategy, research, audit, and implementation evidence.
 
@@ -169,7 +169,7 @@ These remain Listening authority and must not be generalized into neutral shared
 - `src/hooks/audio/useAudioSync.ts`
 - `src/hooks/monitor/useMonitorControls.ts`
 - `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
-- `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md`
+- `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md`
 
 Protected behavior includes:
 
@@ -319,7 +319,7 @@ Current verification anchors:
 
 - `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
-- `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md`
+- `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md`
 - `documentation/architecture/reading-v2-studio-review-issues-contract.md`
 - `documentation/architecture/teacher-test-creation-parsing-and-review.md`
 - `documentation/architecture/ui-design-standards.md`

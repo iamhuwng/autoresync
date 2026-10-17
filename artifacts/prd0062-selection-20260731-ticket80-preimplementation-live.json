@@ -1,0 +1,69 @@
+{
+  "recordedAt": "2026-07-31T16:36:19.2817328Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-ticket80-preimplementation-live.json",
+  "graphHash": "68509c1b18348d5d8314334bf93c3132a878856630fc3d6eeb889a1595ede0da",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 45,
+    "closedCount": 67,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Runtime result review",
+  "selectedTicket": {
+    "number": 80,
+    "title": "PRD0062 32 — Preserve exact historical source context",
+    "closedDirectPrerequisites": [
+      77,
+      79
+    ],
+    "closedTransitivePrerequisiteCount": 41,
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 4,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "Earliest graph-clear continuation in the current result-review phase. Live state incorporates #77's d213b701 grouped-identity repair and consumes #79's authorized component navigation without substituting current source authority.",
+    "requiredAuthority": [
+      "attempt/source-context projection and result/runtime review integration",
+      "attempt-bound historical Book Delivery authorization",
+      "student and teacher localhost browser proof",
+      "bounded production-equivalent preview and rollback proof",
+      "no current-source substitution or broader PDF entitlement"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "number": 80,
+      "decision": "SELECTED",
+      "reason": "Earliest current-phase graph-clear ticket; both direct prerequisites and all 41 unique transitive prerequisites are closed."
+    },
+    {
+      "numbers": [
+        87,
+        91,
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_LATER_PHASE",
+      "reason": "Graph-clear but scheduled after the current result-review continuation."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "Integration/final-closure proof owners are not selected ahead of the current producer."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}

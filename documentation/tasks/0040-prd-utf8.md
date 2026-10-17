@@ -1,11 +1,11 @@
-﻿# PRD-0040: Unified Result View Architecture and Governance
+# PRD-0040: Unified Result View Architecture and Governance
 
 > **Status:** Draft v5 (Reassessed against live workflows; verification pack published; writing-toolchain appendix preserved)
 > **Created:** 2026-03-24
 > **Updated:** 2026-03-24
 > **Related Research:** `C:/Users/The Lord/Desktop/component_overlap_analysis.md`
 > **Related PRDs:** `0039-prd-test-results-slide-panel.md`, `0016-prd-rbac-security-hardening.md`
-> **Related Closure Docs:** `documentation/architecture/result-view-map.md`, `documentation/architecture/result-view-permission-matrix.md`, `documentation/rules/result-view-reuse.md`, `documentation/architecture/result-view-fr-closure-matrix.md`
+> **Related Closure Docs:** `documentation/architecture/changelog/result-view-map.md`, `documentation/architecture/changelog/result-view-permission-matrix.md`, `documentation/rules/result-view-reuse.md`, `documentation/architecture/changelog/result-view-fr-closure-matrix.md`
 > **Audience:** Junior developer implementing result-view architecture without inventing new patterns
 
 ---
@@ -146,14 +146,14 @@ If a fourth active saved-result shell is discovered during the pre-implementatio
 
 | ID | Requirement |
 |----|-------------|
-| FR-001 | Create `documentation/architecture/result-view-map.md` as the living structural map for all result surfaces. |
-| FR-002 | Create `documentation/architecture/result-view-permission-matrix.md` as the living access/action matrix for all roles and result shells. |
+| FR-001 | Create `documentation/architecture/changelog/result-view-map.md` as the living structural map for all result surfaces. |
+| FR-002 | Create `documentation/architecture/changelog/result-view-permission-matrix.md` as the living access/action matrix for all roles and result shells. |
 | FR-003 | Create `documentation/rules/result-view-reuse.md` as the reuse-before-new-view rule for all future result work. |
 | FR-004 | The result-view map must classify every known result-related surface as `active`, `legacy`, `unwired`, or `demo-only`. |
 | FR-005 | The result-view map must record domain type: saved-result, session/post-test, guest-result/claim, writing, live-monitoring, or unwired/demo. |
 | FR-005A | For the writing domain, the result-view map must also record lifecycle role for each active surface: `draft`, `monitor`, `queue`, `editor`, `result`, or `alternate/dormant`. |
 | FR-006 | Every future result-related change must update the result-view map and permission matrix in the same change set. |
-| FR-007 | Every future result-related deviation from the PRD must also be recorded in the team�s existing change-tracking habit: conversation log in `documentation`, or Knowns, or Antigravity Knowledge. |
+| FR-007 | Every future result-related deviation from the PRD must also be recorded in the team?s existing change-tracking habit: conversation log in `documentation`, or Knowns, or Antigravity Knowledge. |
 | FR-008 | Reviewer guidance must state that a result-related merge is blocked if the map, matrix, and required change record are missing. |
 | FR-009 | The reuse rule must require each result-related PRD/task to name the canonical surface, target roles, target entry points, and explicit non-goals before coding starts. |
 | FR-010 | The reuse rule must require a usage/import/route/test audit before any component is treated as active migration scope. |
@@ -364,8 +364,8 @@ Phase 1 must preserve these working entry owners even when the shared core is ex
 
 | File | Purpose |
 |------|---------|
-| `documentation/architecture/result-view-map.md` | Permanent result architecture map |
-| `documentation/architecture/result-view-permission-matrix.md` | Permanent role/action matrix |
+| `documentation/architecture/changelog/result-view-map.md` | Permanent result architecture map |
+| `documentation/architecture/changelog/result-view-permission-matrix.md` | Permanent role/action matrix |
 | `documentation/rules/result-view-reuse.md` | Reuse-before-new-view rule |
 | Change record in conversation log and/or Knowns/Antigravity Knowledge | Required rationale trail |
 

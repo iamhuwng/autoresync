@@ -14,6 +14,7 @@ describe('featureRegistry', () => {
   describe('resolveFeatureFromRoute', () => {
     it('maps known student test routes to testTaking', () => {
       expect(resolveFeatureFromRoute('/student-test/ABC123')).toBe('testTaking');
+      expect(resolveFeatureFromRoute('/__smoke/book-runtime')).toBe('testTaking');
     });
 
     it('maps known homework routes to homework', () => {
@@ -25,7 +26,11 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/teacher/reading-v2/import')).toBe('readingV2Studio');
       expect(resolveFeatureFromRoute('/teacher/reading-v2/drafts/draft-123')).toBe('readingV2Studio');
       expect(resolveFeatureFromRoute('/teacher/reading-v2/materials/material-123/revise')).toBe('readingV2Studio');
-      expect(resolveFeatureFromRoute('/teacher/materials/books/book-123')).toBe('readingV2Studio');
+    });
+
+    it('maps Book authoring routes to bookAuthoring', () => {
+      expect(resolveFeatureFromRoute('/teacher/materials/books/book-123')).toBe('bookAuthoring');
+      expect(resolveFeatureFromRoute('/__smoke/book-assembly-activity-revision')).toBe('bookAuthoring');
     });
 
     it('maps wildcard admin routes to adminPanel', () => {
@@ -46,6 +51,13 @@ describe('featureRegistry', () => {
     it('returns null for unknown routes', () => {
       expect(resolveFeatureFromRoute('/unknown/page')).toBeNull();
     });
+  });
+
+  it('registers the dedicated Book authoring tracking boundary', () => {
+    const bookAuthoring = FEATURE_REGISTRY.find((feature) => feature.id === FEATURE_IDS.bookAuthoring);
+    expect(bookAuthoring).toMatchObject({ name: 'Book Authoring' });
+    expect(bookAuthoring?.routes).toEqual(expect.arrayContaining(['/teacher/materials/books/:bookId', '/__smoke/book-assembly']));
+    expect(bookAuthoring?.actions).toEqual(expect.arrayContaining(['teacher_materials_book_pdf_workflow_step_changed', 'teacher_materials_book_assembly_saved', 'teacher_materials_book_replacement_plan_created']));
   });
 
   it('registers Reading V2 master modal workflow actions', () => {
@@ -121,6 +133,16 @@ describe('featureRegistry', () => {
         'reading_v2_assignment_refresh_opened',
         'reading_v2_assignment_refresh_submitted',
         'reading_v2_assignment_refresh_blocked_started',
+        'bookHomeworkStudentDetailOpened',
+        'bookHomeworkStudentLaunchRequested',
+        'bookHomeworkTeacherDetailOpened',
+        'bookActivityGradingOpened',
+        'bookActivityEvaluationLoaded',
+        'bookActivityGradeSubmitted',
+        'bookActivityRegradeSubmitted',
+        'bookActivityEvaluationConflict',
+        'bookActivityEvaluationRetried',
+        'bookActivityResultOpened',
       ]));
       expect(liveSessions?.actions).toContain('viewIntegrityDetails');
       expect(results?.actions).toContain('viewIntegrityDetails');
@@ -137,6 +159,11 @@ describe('featureRegistry', () => {
           'openCreateBookModal',
           'createBook',
           'openBook',
+          'book_source_pdf_inspection_started',
+          'book_source_pdf_inspection_completed',
+          'book_source_pdf_inspection_failed',
+          'book_source_pdf_inspection_canceled',
+          'book_source_pdf_inspection_retried',
           'editBookMetadata',
           'archiveBook',
           'changeBookScope',
@@ -192,8 +219,17 @@ describe('featureRegistry', () => {
           'teacher_materials_reading_passage_homework_submitted',
           'reading_v2_assignment_payload_missing',
           'reading_v2_frozen_runtime_launched',
+          'bookRuntimePageGroupSelected',
+          'bookRuntimeActivitySelected',
+          'bookRuntimeActivityNavigated',
+          'bookRuntimePdfFocused',
+          'bookRuntimeSplitRestored',
+          'bookRuntimeNavigatorToggled',
+          'bookRuntimeTabSwitched',
+          'bookRuntimeResponseChanged',
         ]),
       );
+      expect(new Set(testTaking?.actions).size).toBe(testTaking?.actions.length);
       expect(results?.actions).toEqual(
         expect.arrayContaining([
           'openReadingV2Review',
@@ -202,6 +238,8 @@ describe('featureRegistry', () => {
           'submitReadingV2Feedback',
           'createReadingV2Regrade',
           'readingV2OperationalError',
+          'bookActivityResultBack',
+          'bookActivityResultRetried',
         ]),
       );
       expect(antiCheat?.actions).toEqual(

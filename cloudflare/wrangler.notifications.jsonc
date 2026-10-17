@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-notification-command",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "notification-release/notification-command-public.js",
+  "compatibility_date": "2026-09-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "head_sampling_rate": 1,
+    "enabled": true
+  },
+  "triggers": {
+    "crons": []
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NOTIFICATION_BRIDGE_OBJECT",
+        "class_name": "NotificationBridgeObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "notification-bridge-v1",
+      "new_sqlite_classes": [
+        "NotificationBridgeObject"
+      ]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "NOTIFICATION_RATE_LIMITER",
+      "namespace_id": "205512",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "secrets": {
+    "required": [
+      "FIREBASE_WEB_API_KEY",
+      "NOTIFICATION_COMMAND_GOOGLE_SA_KEY"
+    ]
+  },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "NOTIFICATION_COMMAND_SERVICE_IDENTITY": "notification-command-runtime@temp-a1437.iam.gserviceaccount.com",
+    "NOTIFICATION_RETRY_BATCH": "class-homework",
+    "NOTIFICATION_BRIDGE_QA_ACTOR": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "NOTIFICATION_BRIDGE_QA_EVENT_ID": "homework-89df8956-470b-4a5f-8565-4f22cbbc19ea",
+    "HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID": "disabled",
+    "HOMEWORK_RESULT_AUTHORITY_QA_ACTOR": "disabled",
+    "WRITING_PRODUCT_SOURCE_CUTOFF": "disabled",
+    "WRITING_PRODUCT_QA_ACTOR": "disabled",
+    "WRITING_PRODUCT_QA_SUBMISSION_ID": "disabled",
+    "HOMEWORK_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
+    "WRITING_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
+    "COURSE_ENROLLMENT_APPROVAL_ENABLED": "true"
+  },
+  "no_bundle": true,
+  "find_additional_modules": true,
+  "base_dir": "notification-release",
+  "rules": [
+    {
+      "fallthrough": true,
+      "globs": [
+        "*.mjs",
+        "*.js"
+      ],
+      "type": "ESModule"
+    }
+  ]
+}

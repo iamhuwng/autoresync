@@ -29,6 +29,8 @@ import type { CompletenessCheck } from '../components/test-creation/CompletionCh
 import type { UncertainItem } from '../services/test-creation/validator.service';
 import type { QuestionType } from '../types/QuestionSchema';
 import { saveTestToFirebase, type TestMetadata } from '../services/testStorage';
+import r2StorageService from '../services/r2Storage';
+import { toast } from '../components/modern/ToastNotification';
 import type {
     Passage,
     ParsedQuestion as StorageQuestion,
@@ -266,9 +268,9 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
                 id: 'images',
                 label: 'Diagram Images',
                 description: 'Diagram-labeling questions require images',
-                status: 'warning', // Always warning until images are uploaded
-                count: { current: 0, required: diagramQuestions.length },
-                details: diagramQuestions.map(q => `Q${q.questionNumber}: Needs diagram image`),
+                status: diagramQuestions.every(q => q.diagramImage) ? 'complete' : 'warning',
+                count: { current: diagramQuestions.filter(q => q.diagramImage).length, required: diagramQuestions.length },
+                details: diagramQuestions.filter(q => !q.diagramImage).map(q => `Q${q.questionNumber}: Needs diagram image`),
             });
         }
 
@@ -613,20 +615,15 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
 
     const uploadDiagramImage = useCallback(async (questionNumber: number, file: File) => {
         try {
-            // Create object URL for preview
-            const imageUrl = URL.createObjectURL(file);
-
-            // Update question with diagram image
+            const { url: imageUrl } = await r2StorageService.uploadImage(file);
             setQuestions(prev => prev.map(q =>
                 q.questionNumber === questionNumber
                     ? { ...q, diagramImage: imageUrl, diagramRequired: false }
                     : q
             ));
-
-            // TODO: Upload to Firebase Storage and get permanent URL
-            console.log(`Diagram uploaded for question ${questionNumber}:`, file.name);
         } catch (error) {
             console.error('Diagram upload error:', error);
+            toast.error('Could not upload the diagram image. Please try again.');
         }
     }, []);
 
@@ -700,6 +697,7 @@ export function useTestCreation(): [TestCreationState, TestCreationActions] {
                     confidence: q.confidence || 80,
                     points: 1,
                     wordLimit: q.wordLimit,
+                    imageUrl: q.diagramImage,
                 };
             });
 

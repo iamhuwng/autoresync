@@ -1,0 +1,338 @@
+# Traceability: PRD0062 Book-Based Interactive Activity Runtime and Assembly Workspace
+
+Status: append-only traceability baseline; active acceptance state is the latest
+dated consolidation below.
+Created: 2026-07-09
+
+Primary PRD requirement body:
+- `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Accepted current amendment:
+- `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`
+
+Master orchestration:
+- `documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md`
+
+Findings:
+- `documentation/tasks/PRD0062/findings-book-activity-baseline.md`
+
+## Rules
+
+- Keep this file current as implementation proceeds. It is active truth, not an after-the-fact summary.
+- Do not mark a taskbox complete while its traceability row is missing or stale.
+- Do not begin Packet 1 source changes until every Packet 1-relevant `AC-*` and `T-*` row below has exact source owner path or explicit N/A, rules/security boundary or explicit N/A, test file + exact test title or explicit N/A, negative/mutation proof requirement, architecture/current-state doc target, findings row target, the Packet 1 contract completed, the storage-design packet completed, and relevant baseline findings resolved or explicitly blocked.
+- Use `Historical evidence`, `Current live contract`, `Superseded claim`, or `Open blocker` in notes when a row changes meaning across packets.
+- A row may be `PLANNED`, `IMPLEMENTING`, `IMPLEMENTED_UNREVIEWED`, `REVIEW_BLOCKED`, `VERIFIED`, `CLOSURE_BLOCKED`, `CLOSED`, or `BLOCKED`.
+- `CLOSED` requires source behavior, tests, negative proof where applicable, findings, architecture/current-state docs, and taskboxes to agree.
+
+## 2026-08-16 native Windows status overlay (historical)
+
+The baseline rows below retain packet provenance and are not rewritten as if
+their historical status had always been current. This overlay records the
+native Windows checkpoint interpretation. Later committed #126 browser evidence
+and #127 source-conformance authority supersede it where they conflict; #126 is
+actively blocked at the trusted-projection and rollback/readback boundary, and
+#128 remains held.
+
+| Requirement area | Historical checkpoint status | Evidence boundary |
+|---|---|---|
+| Accepted Book Homework amendment rows AM-001â€“AM-004 and handoff sequencing AM-007 | `VERIFIED_REPRESENTATIVE_HANDOFF` | Current source, rule-enforced composition, and the #126 production-normal/browser handoff; full V1 closure remains open. |
+| #111/#113/#114 update executors | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current Worker executors and focused tests; final deployed/browser proof remains downstream. |
+| #115/#116/#117 replacement plan/saga/context | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current source and service/route tests; provider/deployed lifecycle proof remains downstream. |
+| #118 and #120â€“#125 rules/recovery | `VERIFIED_REPRESENTATIVE_PATH` | Accepted all-green rules/recovery artifacts and the current #126 handoff; no broad recovery reopening. |
+| #127 / 51A acceptance authority | `HISTORICAL_SOURCE_CONFORMANT_ARTIFACT_PRESENT_SEMANTIC_RERUN_BLOCKED` | Schema/matrix/cleanup checks passed at the checkpoint; superseded by the committed 2026-08-17 semantic authority evidence. |
+| #128â€“#133 final local acceptance | `LOCAL_PROVISIONAL_WITH_BOUNDARIES` | Current provisional evidence files; #131 still has a manual native screen-reader gate. |
+
+These overlays keep local, browser, deployed, and pilot proof classes separate;
+they do not mark PRD0062 fully accepted.
+
+## 2026-08-20 traceability consolidation (historical)
+
+| Requirement area | Active status | Evidence boundary |
+|---|---|---|
+| #111/#113/#114 update executors | `IMPLEMENTED_UNREVIEWED_PENDING_FINAL_PROOF` | Current source and focused tests preserve resumable, idempotent update behavior; final deployed/browser proof remains downstream. |
+| #126 / 50B activation | `BLOCKED_DEPENDENCY_AND_APPROVAL` | Trusted teacher-projection browser proof failed and rollback/readback requires reauthorization; no assignment replay. |
+| #127 / 51A acceptance definition | `SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED` | `evidence/51A-acceptance-authority-2026-08-17.json` records semantic PASS for the source/registry/fixture-conformant definition. Final acceptance suites remain separate. |
+| #128 / 51B1 teacher acceptance | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The 51A definition is corrected; positive activated execution remains held by #126. |
+
+This historical overlay records the 2026-08-20 checkpoint and is preserved
+append-only. It does not promote local or definition-only proof to deployed,
+browser, pilot, or Full V1 completion.
+
+## 2026-08-23 #126 active traceability overlay
+
+| Requirement area | Active status | Evidence boundary |
+|---|---|---|
+| #126 / 50B activation | `LOCAL_RULE_ENFORCED_PASS_REMOTE_PROOF_BLOCKED` | The unchanged default composition passed the exact rule-enforced emulator path at clean docs-only source `2c77efff`, whose test/config blobs match product source `36ce82eb`: 1/1 files and 4/4 tests, zero failed/skipped, including committed-row retention with derived completion unavailable. No assignment replay or remote mutation occurred. Wrangler reauthorization plus authorized exact-artifact deployment/readback/browser proof remains open. |
+| #128 / 51B1 teacher acceptance | `DEFERRED_FINAL_PROOF_HELD_BY_126` | The local #126 causal boundary is closed; positive activated execution remains held by the authorized deployment/readback/browser gate. |
+
+This is the current traceability overlay. It supersedes the #126 interpretation
+in the preserved 2026-08-20 checkpoint without rewriting that history.
+
+## Packet Owner Map
+
+| Packet | Component task list | Contract | Handoff | Status |
+|---|---|---|---|---|
+| 0 | `findings-book-activity-baseline.md` | storage-design packet + Packet 1 contract | `handoff-book-activity-packet-0.md` | PLANNED |
+| 1 | `tasks-book-activity-01-domain-security-foundation.md` | `contracts-book-activity-packet-1.md` | `handoff-book-activity-packet-1.md` | CLOSED |
+| 2 | `tasks-book-activity-02-source-pdf-delivery.md` | `contracts-book-activity-packet-2.md` | `handoff-book-activity-packet-2.md` | PLANNED |
+| 3 | `tasks-book-activity-03-book-assembly-workspace.md` | `contracts-book-activity-packet-3.md` | `handoff-book-activity-packet-3.md` | PLANNED |
+| 4 | `tasks-book-activity-04-activity-runtime.md` | `contracts-book-activity-packet-4.md` | `handoff-book-activity-packet-4.md` | PLANNED |
+| 5 | `tasks-book-activity-05-book-homework.md` | `contracts-book-activity-packet-5.md` | `handoff-book-activity-packet-5.md` | PLANNED |
+| 6 | `tasks-book-activity-06-updates-checkpoints-notifications.md` | `contracts-book-activity-packet-6.md` | `handoff-book-activity-packet-6.md` | PLANNED |
+| 7 | `tasks-book-activity-07-cross-feature-delivery-results.md` | `contracts-book-activity-packet-7.md` | `handoff-book-activity-packet-7.md` | PLANNED |
+| 8 | `tasks-book-activity-08-pilot-hardening-release.md` | `contracts-book-activity-packet-8.md` | `handoff-book-activity-packet-8.md` | PLANNED |
+
+## Requirement Traceability Table
+
+The `AC-*` table below provides one row per PRD V1 acceptance criterion. Packet 0 must copy/update relevant rows into packet contracts with exact source owner path, rules/security boundary, test title, negative proof, architecture/current-state doc, and findings row before Packet 1 starts.
+
+| ID | Requirement / invariant | PRD section | Packet | Source owner path | Rules/security boundary | Test file + test title | Negative/mutation proof | Browser proof | Architecture/current-state doc | Findings row | Taskbox ID | Status | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| T-000 | Extend existing Book system; do not create parallel `ActivityBook` product. | 2, 6 | 0-8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Product-boundary negative proof required | Browser proof required where UI creates/launches Book Activities | `documentation/architecture/book-activity-runtime-and-assembly.md` | Packet findings required | Master global stop conditions | PLANNED | Current live contract. |
+| AM-001 / AC-AMEND-01 | Book Homework compatibility is an additive anti-corruption boundary over unchanged ordinary Homework; Book shells remain derived and must not gain fake legacy authority. | Amendment §§2-3 | 5, 8 | `src/services/homeworkManager.ts`; `src/services/book-homework/bookHomeworkCompatibilityProjection.service.ts`; `src/services/book-homework/bookHomeworkStudentList.service.ts`; teacher/student Homework pages | `firestore.rules` compatibility-shell read boundary; Book authority remains separate | `src/services/homeworkManager.test.ts`; `src/services/book-homework/bookHomeworkStudentList.service.test.ts`; Teacher/Student Homework page tests | Strict Book discrimination before legacy normalization; ordinary-only mutation/submission/status/attempt regressions; shell lacks synthetic `stats`/status/submission/attempt authority | Teacher/student Book Homework browser path plus ordinary Homework regression/smoke where fixture exists | `documentation/tasks/PRD0062/PRD0062-architecture-and-delivery-amendment-2026-08-15.md`; `documentation/tasks/PRD0062/PRD0062-book-homework-bridge-contract.md` | #126 recovery evidence | Component 05 / 10.0; Component 08 / 10.10 | IMPLEMENTING | Architecture locally proven/reviewed; final deployed browser handoff still required. |
+| AM-002 / AC-AMEND-02 | Homework-originated Book actions use authenticated actor + bounded locator/intent and reload strict Book context from authoritative sources; missing/crossed provenance fails closed. | Amendment §3.3 | 5, 8 | `cloudflare/src/upload-worker/book-homework/context-resolver.ts`; `cloudflare/src/upload-worker/book-homework/worker.ts`; `cloudflare/src/upload-worker/book-homework/bridge.ts` | Exact root/authority/Delivery/publication/Activity rules and service claims | `cloudflare/test/book-homework-context-resolver.test.ts`; `cloudflare/test/book-homework-route.test.ts`; `cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts` | Wrong owner/recipient/authority/binding/revision/placement/version fails closed; shell cannot substitute Book authority | Student Homework detail → Open Book Activities → Runtime | same amendment + bridge contract | #126 M1 rule-enforced evidence | Component 05 / 10.3, 10.7 | IMPLEMENTING | Locator-to-Runtime path proven locally/rule-enforced; deployed browser gate pending. |
+| AM-003 / AC-AMEND-03 | Authoritative recipient identity is separate from derived completion/progress; unavailable enrichment cannot erase a valid row, while identity mismatch stays fail-closed and Retry performs a fresh read. | Amendment §4 | 5, 8 | `cloudflare/src/upload-worker/book-homework/saga.ts`; `cloudflare/src/upload-worker/book-homework/worker.ts`; `src/services/homeworkSubmissionService.ts`; `src/pages/TeacherHomeworkDetailPage.tsx` | Same exact Book authority/Delivery/completion claim boundaries; no legacy fallback authority | `cloudflare/test/book-homework-route.test.ts`; `cloudflare/test/book-homework-saga.test.ts`; `src/services/homeworkSubmissionService.test.ts`; `src/pages/TeacherHomeworkDetailPage.test.tsx`; rule-enforced M1 emulator proof | Unavailable completion yields trusted row + unavailable completion only; crossed authority/binding/revision still denied; resolved null/error cache must be evicted for Retry | Teacher Book detail shows assigned row and trusted progress/unavailable state without legacy controls | same amendment | #126 trusted-projection/cache evidence | Component 05 / 10.6-10.9 | IMPLEMENTING | Local focused + rule-enforced composition proof passed; final production browser proof pending. |
+| AM-004 / AC-AMEND-04 | Default Book Homework production composition is accepted only after Worker-generated service UID/custom claims are evaluated by the real RTDB/Firestore rules engine against production-shaped state, without assignment replay or unintended writes for the shell-present read gate. | Amendment §5 | 8 | `cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts`; `cloudflare/vitest.prd0062-m1-rule-enforced-composition.config.mjs` | Exact activation `database.rules.json` + `firestore.rules` sources under emulators | `cloudflare/test/prd0062-m1-rule-enforced-composition.emulator.test.ts` full shell-present teacher/student/Runtime read path | Assert all Worker Firebase operations are authenticated reads; no command/projector/shell write; wrong claims and binding revision fail closed | N/A for local composition gate; deployed browser proof remains separate | amendment; recovery/completion plan §9.3.8 | #126 rule-enforced composition freeze evidence | Component 08 / 4.12-4.13 | VERIFIED | Rule-enforced M1 composition passed locally; this is a predeployment gate, not production completion. |
+| AM-005 / AC-AMEND-05 | After the rule-enforced composition gate is green, a different production result is diagnosed first as deployment artifact/config/claims/rules/state divergence rather than as permission to redesign product code. | Amendment §5.2 | 8 | Release/deployment composition; no new product owner | Worker/Hosting/Firebase active identity and rules readback | Deployment preflight/readback plus rule-enforced composition evidence | Production may not be reused as the next integration test for the same covered boundary; tooling/auth/transport failures do not authorize product-semantic changes | Real-site gate after exact deployment identity readback | amendment; recovery/completion plan | #126 deployment/rollback evidence | Component 08 / 4.12-5.19 | IMPLEMENTING | Governing release rule; next production deployment must follow it. |
+| AM-006 / AC-AMEND-06 | Independent Standards/Spec review is a method/scope/risk/validation gate, not a dependency on a particular reviewer account/session; equivalent independent review may replace a failed reviewer tool session without weakening review. | Amendment §6 | 8 | Documentation/review process only | N/A | Reviewer record must capture method, inspected scope, governing requirements, risk model, validation rerun/not rerun, residual risk, and disposition | A revoked/expired reviewer session cannot itself be treated as a product defect or justify source mutation | N/A | amendment; master Review And Closure Protocol | #126 frozen-candidate review record/evidence | Component 08 review gate | IMPLEMENTING | Accepted governance rule; durable reviewer evidence must accompany the relevant freeze/closure record. |
+| AM-007 / AC-AMEND-07 | Once the representative production-normal path is safely active, hand the real site to the user before broad remaining-acceptance audit; then return to the complete PRD0062 acceptance delta rather than adapter completion. | Amendment §7 | 8 | `documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md` sequencing; product surfaces remain owned by their components | Existing release/browser safety gates | Representative path must already satisfy automated/rule-enforced gates; no extra product framework required | Do not delay handoff for cleanup/evidence polish; no adapter Milestone 2; user observations supplement rather than replace canonical acceptance | Real site teacher Book detail + student Book detail → Runtime; report ordinary Homework smoke or fixture unavailability | amendment; recovery/completion plan §2.1.1 | #126 browser-handoff evidence | Component 08 / 5.19, 7.9 | IMPLEMENTING | User-visible M1 handoff remains pending final operational deployment. |
+
+The 2026-08-23 unchanged-lineage reproduction records are
+`evidence/126-production-normal-local-reproduction-2026-08-23.md` and
+`evidence/126-production-normal-rule-enforced-rerun-2026-08-23.json`. The
+captured rerun passed 1/1 files and 4/4 tests with zero failed/skipped, selects
+no local causal source change, and leaves deployed readback/browser proof
+blocked on Wrangler reauthorization. Any older active reference to the removed
+`book-homework-current-production-composition.workerd.test.ts` is stale; the
+current route owner is `cloudflare/test/book-homework-route.test.ts`.
+| T-001 | Central Material Capability Registry precedes `interactive-activity` support in UI, assignment, launch, result, or security flows. | 6, 7, 9, 29 | 1 | `src/services/materialCatalog/materialCapabilityRegistry.service.ts`; `src/types/materialCatalog.types.ts`; `src/services/materialCatalog/materialIntegrationRegistry.ts`; `src/services/materialCatalog/materialSummaryPort.service.ts` | Activity data uses `database.rules.json` RTDB `book_activity/*` | `src/services/materialCatalog/materialCapabilityRegistry.service.test.ts` `returns complete interactive-activity capabilities and fails closed when adapter is missing` | Missing capability/adapter fails closed before picker/assignment/launch/result/projection use | N/A | `documentation/architecture/book-activity-runtime-and-assembly.md`; `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-001` | Component 01 / 1.0 | CLOSED | Current live Packet 1 implementation. |
+| T-002 | Activity Materials are independently versioned and published versions are immutable. | 6, 9 | 1 | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityCandidate.service.ts`; `src/services/book-activity/activityPublish.service.ts` | `database.rules.json` RTDB `book_activity/materials`, `drafts`, `candidates`, `versions` | `src/services/book-activity/activityPublish.service.test.ts` `publishes immutable Activity versions and rejects version mutation` | Version mutation rejected; invalid candidates cannot mutate current draft or published version | N/A | `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-002` | Component 01 / 2.0, 4.0 | CLOSED | Current live Packet 1 implementation. |
+| T-003 | Student-safe Activity projections exclude answer keys, authoring data, provenance internals, and teacher-only fields. | 9, 24, 31 | 1 | `src/services/book-activity/activityProjection.service.ts` | `database.rules.json` RTDB `book_activity/student_safe_projections/$activityId/$versionId`; canonical `book_activity/materials`, `drafts`, `candidates`, `versions` deny student/cross-owner access | `src/services/book-activity/activityProjection.service.test.ts` `generates student-safe Activity projections without answer keys or author-only fields`; `src/__tests__/security/bookActivityFirebaseRules.test.ts` `denies student and cross-owner access to Activity authoring records while allowing safe projections` | Projection leak mutation denied; student canonical read denied | N/A for Packet 1; no runtime UI | `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-004` | Component 01 / 5.0 | CLOSED | Current live Packet 1 implementation. |
+| T-004 | Source PDFs are immutable and students receive only authorized Unit excerpts, never full source PDFs. | 6, 15, 24, 31 | 2 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Full-source/arbitrary-page negative proof required | Browser proof required for source delivery UX | Packet contract required | Packet findings required | Component 02 / 1.0-6.0 | PLANNED | Current live contract. |
+| T-005 | Existing prohibited PDF parser paths remain unused by PRD0062. | 2.6, 6, 28, 34 | 0-8 | N/A | N/A | `src/services/book-activity/bookActivityDependencyBoundary.test.ts` `keeps Book Activity independent from legacy PDF parser paths` | Production Book Activity owner files must not import or reference `src/services/file-extractor/file.extractor.ts` or `src/parsers/pdfParser.js` | N/A | `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-009` | Master global stop conditions | CLOSED | Packet 1 boundary proof exists; future packets must keep it green. |
+| T-006 | Assembly imports are candidate/staged and invalid import cannot mutate current draft or publication. | 11, 12, 31 | 3 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Invalid-candidate mutation proof required | Browser proof required for import/reconcile UX | Packet contract required | Packet findings required | Component 03 / 2.0, 4.0, 5.0 | PLANNED | Current live contract. |
+| T-007 | Runtime consumes Book Delivery student-safe projection and never reads authoring records directly. | 14, 23, 24, 29, 31 | 4, 7 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Authoring-read negative proof required | Browser proof required for runtime launch | Packet contract required | Packet findings required | Component 04 / 1.0; Component 07 / 1.0 | PLANNED | Current live contract. |
+| T-008 | Activity autosave/submission is context-scoped by student, Activity, Activity Version, surface, exact placement/delivery, and draft/attempt revision. | 14, 23, 31 | 4, 7 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Cross-context/stale-binding negative proof required | Browser proof required for autosave/reload | Packet contract required | Packet findings required | Component 04 / 8.0-9.0; Component 07 / 5.0 | PLANNED | Current live contract. |
+| T-009 | Book Homework uses a frozen manifest and Activity-level completion; no whole-Book submit or aggregate academic grade. | 16, 17, 31, 33 | 5 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Whole-Book-submit/legacy-grade negative proof required | Browser proof required for homework UX | Packet contract required | Packet findings required | Component 05 / 1.0-6.0 | PLANNED | Current live contract. |
+| T-010 | Book Homework integrity is signals-only and cannot auto-submit, auto-lock, auto-zero, nullify attempts, or block completion. | 14.14, 16, 31 | 5, 8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | No-auto-submit/no-lock/no-zero/no-nullify proof required | Browser proof required for warning/report UX | Packet contract required | Packet findings required | Component 05 / 7.0; Component 08 / 4.10 | PLANNED | Current live contract. |
+| T-011 | Active-homework updates are explicit, audited, idempotent, and preserve historical student work. | 20, 21, 22, 31, 33 | 6 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Silent-update/idempotency/audit-tamper proof required | Browser proof required for affected-homework UX | Packet contract required | Packet findings required | Component 06 / 1.0-10.0 | PLANNED | Current live contract. |
+| T-012 | Review Checkpoints never reveal hidden answers or feedback before release policy allows it. | 21, 22, 24, 31 | 6, 8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Hidden-answer/feedback-leak proof required | Browser proof required for previous-version UX | Packet contract required | Packet findings required | Component 06 / 5.0, 8.0; Component 08 / 1.0 | PLANNED | Current live contract. |
+| T-013 | Course/Class Book placement resolves exact placement context, not bare `materialId`. | 23, 30, 31 | 7 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Ambiguous-materialId negative proof required | Browser proof required for Course/Class launch | Packet contract required | Packet findings required | Component 07 / 2.0, 8.0 | PLANNED | Current live contract. |
+| T-014 | Result attempts are globally unique and `studentId + activityId` is viewer grouping only, not persistence identity or completion authority. | 14, 23, 31 | 4, 7, 8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Completion-transfer/attempt-collision proof required | Browser proof required for result dropdown UX | Packet contract required | Packet findings required | Component 04 / 9.0; Component 07 / 6.0; Component 08 / 10.9 | PLANNED | Current live contract. |
+| T-015 | Public Book states enforce source rights and public-safe projections. | 23, 24, 31, 33 | 7, 8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Public-rights/source-assisted negative proof required | Browser proof required for public launch states | Packet contract required | Packet findings required | Component 07 / 9.0; Component 08 / 1.10, 5.15, 10.7 | PLANNED | Current live contract. |
+| T-016 | Book Live Session execution remains out of V1 scope. | 23, 34 | 7, 8 | N/A | Packet contract required | Boundary scan/test required | Live-execution-disabled proof required | N/A | Packet contract required | Packet findings required | Component 07 / 11.0; Component 08 / 10.1 | PLANNED | Current live contract. |
+| T-017 | Full V1 closure reconciles all acceptance criteria against source/test/browser/findings evidence or approved deferral. | 33, 36 | 8 | Packet 0 owner map required before Packet 1 | Packet contract required | Packet contract required | Missing-criterion/skipped-proof proof required | Browser proof required where criteria touch UI/runtime | Packet contract required | Packet findings required | Component 08 / 7.0-10.0 | PLANNED | Current live contract. |
+
+## Packet 2 Source-Change Gates
+
+<a id="g-p2b0-001"></a>
+
+| ID | Requirement / invariant | PRD | Exact owner path | Proof boundary | Findings | Taskbox | Status |
+|---|---|---|---|---|---|---|---|
+| P2-GATE-001 / `G-P2B0-001` | Source Version is immutable; original remains private; replacement creates new version. | 6, 15, 31 | `src/types/bookSource.types.ts`; `src/services/book-source-delivery/sourceVersion.service.ts`; `sourceUpload.service.ts`; `database.rules.json` | service immutability/replacement tests; RTDB emulator denies student/cross-owner/browser mutation; direct private R2 deny remote proof | [D-P2B0-002](contracts-book-activity-packet-2.md#d-p2b0-002); `F-P2-001`; [Packet 2B0.3 closure blocker](findings-packet-2B0-private-r2-boundary.md#f-p2b0-007) | `T-P2B0-001`; 1.0, 2.0, 6.0 | BLOCKED |
+| P2-GATE-002 | Production rendition waits for PDF engine spike evidence and prohibited parser boundary. | 6, 28, 34, 35 | `src/services/book-source-delivery/pdfExcerptAdapter.ts`; isolated disposable spike path only until selected | fixture matrix, deploy-fit evidence, and forbidden parser scan; no production engine selected in 2A | `F-P2-002` | 3.0 | BLOCKED |
+| P2-GATE-003 | Student receives Worker-served authorized Unit excerpt only, never full source/private R2 authority. | 15, 24, 31 | `sourceRendition.service.ts`; `sourceGrant.service.ts`; `cloudflare/src/upload-worker/book-source-delivery.ts`; `cloudflare/worker.js` | Worker harness and remote allow/deny proof for wrong student/book/unit/source/page range, expiry/refresh, direct R2, full PDF | `F-P2-003` | 4.0-6.0 | BLOCKED |
+| P2-GATE-004 | Source metadata/rendition backup, restore, retry, and proof classification are explicit. | 31, 33 | `r2-backup-worker/src/backup/data-backup.ts`; `src/backup/media-delta.ts`; `src/restore/restore-execute.ts` | backup/restore fixture, retry/cleanup proof; remote claims separately recorded | `F-P2-004` | 1.5, 2.7, 3.6-3.11, 8.0 | PLANNED |
+
+## V1 Acceptance Traceability Row Index
+
+These `AC-*` rows give one traceability row per PRD section 33 V1 acceptance criterion. They are a baseline/index, not proof. Packet 0 must copy/update the relevant rows into packet contracts with exact source owner path, rules/security boundary, test title, negative proof, architecture/current-state doc, and findings row before Packet 1 source changes.
+
+| ID | Category | Requirement | Packet | Taskbox | Status |
+|---|---|---|---|---|---|
+| AC-ASM-01 | Assembly | Existing Book system can create/host the new Book without parallel storage. | 0, 1, 3 | Master global stop conditions; Component 01 / 1.0; Component 03 / 1.0 | CLOSED |
+| AC-ASM-02 | Assembly | Central Material Capability Registry exists before `interactive-activity` enters UI, assignment, launch, result, or security flows. | 1 | Component 01 / 1.0 | CLOSED |
+| AC-ASM-03 | Assembly | `unit` is added to Book node taxonomy and structural readiness/status logic while legacy `test` Books still work. | 3, 8 | Component 03 / 1.0; Component 08 / 3.9 | PLANNED |
+| AC-ASM-04 | Assembly | Source PDF upload creates an immutable version. | 2 | Component 02 / 1.0-2.0 | PLANNED |
+| AC-ASM-05 | Assembly | Manifest import creates a validated proposed Content Tree. | 3 | Component 03 / 2.0 | PLANNED |
+| AC-ASM-06 | Assembly | Stable node and Activity keys bind to immutable internal IDs. | 1, 3 | Component 01 / 4.0; Component 03 / 2.0, 4.0 | CLOSED |
+| AC-ASM-07 | Assembly | Unit Activity JSON imports atomically. | 3 | Component 03 / 4.0 | PLANNED |
+| AC-ASM-08 | Assembly | Invalid import cannot alter current draft or publication. | 3 | Component 03 / 4.0 | PLANNED |
+| AC-ASM-09 | Assembly | Actual student runtime preview is available before publish. | 3, 4 | Component 03 / 6.0; Component 04 / 11.0 | PLANNED |
+| AC-ASM-10 | Assembly | Unit can publish while later Units remain missing. | 3 | Component 03 / 6.0 | PLANNED |
+| AC-ASM-11 | Assembly | Page mapping can be repaired without editing Activity JSON. | 3 | Component 03 / 3.0, 5.0 | PLANNED |
+| AC-ASM-12 | Assembly | Source replacement reconciles links without reimporting unchanged Activities. | 3 | Component 03 / 5.0 | PLANNED |
+| AC-ASM-13 | Assembly | Source-assisted source/page-label/context changes require teacher preview approval even when Activity JSON is unchanged. | 3 | Component 03 / 5.0 | PLANNED |
+| AC-ASM-14 | Assembly | Unit and revision prompt-copy flows work with fallback. | 3 | Component 03 / 7.0 | PLANNED |
+| AC-ASM-15 | Assembly | Copied Unit prompt requires namespaced Task Profiles where applicable, one interaction family, context requirement, and presentation mode. | 3 | Component 03 / 7.0 | PLANNED |
+| AC-ASM-16 | Assembly | Copied Unit prompt explains structured versus source-assisted selection with examples and forbids unsupported visual approximation. | 3 | Component 03 / 7.0 | PLANNED |
+| AC-ASM-17 | Assembly | App validates prompt-produced declarations; it does not silently generate or semantically guess Activity content. | 1, 3 | Component 01 / 4.0; Component 03 / 4.0, 7.0 | CLOSED |
+| AC-RUN-01 | Runtime | Activity is the atomic generic reusable/submission/update unit; no generic Task Group or Task Set layer exists. | 1, 4 | Component 01 / 2.0; Component 04 / 3.0 | CLOSED |
+| AC-RUN-02 | Runtime | One Activity has one interaction family and shared answer rule. | 1, 4 | Component 01 / 3.0; Component 04 / 3.0 | CLOSED |
+| AC-RUN-03 | Runtime | Local stimuli version with Activity; V1 adds no first-class Resource domain. | 1, 4 | Component 01 / 3.0; Component 04 / 3.0 | CLOSED |
+| AC-RUN-04 | Runtime | Optional Task Profile preserves exam taxonomy without coupling generic runtime identity to IELTS/SAT/TOEFL/TOEIC. | 1, 3, 4 | Component 01 / 3.0; Component 03 / 7.0; Component 04 / 3.0 | CLOSED |
+| AC-RUN-05 | Runtime | Context requirement supports none, optional, and required. | 1, 4 | Component 01 / 3.0; Component 04 / 4.0 | CLOSED |
+| AC-RUN-06 | Runtime | Hidden Interaction IDs support autosave/results and safe regrading without appearing in editable JSON. | 1, 4, 6 | Component 01 / 3.0; Component 04 / 8.0-9.0; Component 06 / 6.0 | CLOSED |
+| AC-RUN-07 | Runtime | Both structured and source-assisted presentation modes work. | 4 | Component 04 / 4.0 | PLANNED |
+| AC-RUN-08 | Runtime | Source-assisted controls include accessible prompt/label/response-shape metadata and are understandable without relying only on the PDF image. | 4, 8 | Component 04 / 4.0; Component 08 / 5.14 | PLANNED |
+| AC-RUN-09 | Runtime | Student receives only authorized Unit pages. | 2, 4 | Component 02 / 4.0-6.0; Component 04 / 5.0 | PLANNED |
+| AC-RUN-10 | Runtime | Full PDF and answer-key pages are inaccessible. | 2, 4, 8 | Component 02 / 5.0-6.0; Component 04 / 1.0, 5.0; Component 08 / 1.0 | PLANNED |
+| AC-RUN-11 | Runtime | Single-page navigation is deterministic. | 4 | Component 04 / 5.0 | PLANNED |
+| AC-RUN-12 | Runtime | Many-to-many Page Group examples work. | 3, 4 | Component 03 / 3.0; Component 04 / 6.0 | PLANNED |
+| AC-RUN-13 | Runtime | Reference-only page uses one full-width PDF viewer. | 4 | Component 04 / 7.0 | PLANNED |
+| AC-RUN-14 | Runtime | Right panel stacks mapped Activities. | 4 | Component 04 / 6.0 | PLANNED |
+| AC-RUN-15 | Runtime | Sticky navigator moves to the correct Activity/question. | 4 | Component 04 / 6.0 | PLANNED |
+| AC-RUN-16 | Runtime | Desktop panel collapse preserves state. | 4 | Component 04 / 7.0 | PLANNED |
+| AC-RUN-17 | Runtime | Mobile tabs preserve state. | 4 | Component 04 / 10.0 | PLANNED |
+| AC-RUN-18 | Runtime | Autosave survives reload and page changes. | 4 | Component 04 / 8.0 | PLANNED |
+| AC-RUN-19 | Runtime | Stale autosave with old Activity Version or assignment binding revision cannot overwrite a newer binding. | 4, 7, 8 | Component 04 / 8.0; Component 07 / 5.0; Component 08 / 3.11 | PLANNED |
+| AC-RUN-20 | Runtime | Activity submit/result/review works. | 4, 7 | Component 04 / 9.0; Component 07 / 6.0-7.0 | PLANNED |
+| AC-RUN-21 | Runtime | No enforced timer exists; optional personal timer has no academic effect. | 4, 5 | Component 04 / 7.0; Component 05 / 6.0 | PLANNED |
+| AC-HW-01 | Homework | Teacher can assign whole Book or eligible subtree. | 5 | Component 05 / 1.0-2.0 | PLANNED |
+| AC-HW-02 | Homework | Assignment preview lists inclusions/exclusions. | 5 | Component 05 / 1.0-2.0 | PLANNED |
+| AC-HW-03 | Homework | Assignment pins Activity and Source versions independently. | 5 | Component 05 / 3.0 | PLANNED |
+| AC-HW-04 | Homework | Required final deadline works. | 5 | Component 05 / 4.0 | PLANNED |
+| AC-HW-05 | Homework | Optional nested deadlines inherit correctly. | 5 | Component 05 / 4.0 | PLANNED |
+| AC-HW-06 | Homework | Open and scheduled access modes work. | 5 | Component 05 / 4.0 | PLANNED |
+| AC-HW-07 | Homework | Student submits each Activity independently. | 5 | Component 05 / 5.0 | PLANNED |
+| AC-HW-08 | Homework | Book completion aggregates current required Activities. | 5 | Component 05 / 5.0 | PLANNED |
+| AC-HW-09 | Homework | No whole-Book submit exists. | 5 | Component 05 / 5.0 | PLANNED |
+| AC-HW-10 | Homework | No unapproved aggregate Book grade is shown. | 5 | Component 05 / 5.0 | PLANNED |
+| AC-HW-11 | Homework | Book completion progress is never written into legacy academic score/percentage fields. | 5, 8 | Component 05 / 5.0; Component 08 / 3.10, 10.8 | PLANNED |
+| AC-HW-12 | Homework | `maxAttempts`, feedback timing, and late policy apply per Activity/delivery. | 5 | Component 05 / 6.0 | PLANNED |
+| AC-HW-13 | Homework | Teacher can configure Book Homework anti-cheat/integrity mode. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-14 | Homework | Book Homework requires an explicit `accountable` or `practice` assignment intent. | 5 | Component 05 / 7.0-8.0 | PLANNED |
+| AC-HW-15 | Homework | Accountable Book Homework enables anti-cheat/integrity mode by default. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-16 | Homework | Practice Book Homework disables anti-cheat/integrity mode by default. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-17 | Homework | Teacher can override the anti-cheat default only through explicit assignment setting. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-18 | Homework | Anti-cheat records focus/tab/paste/session events per Activity attempt. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-19 | Homework | Anti-cheat warns student but never blocks completion, auto-locks, auto-zeroes, nullifies attempts, or force-submits. | 5, 8 | Component 05 / 7.0; Component 08 / 4.10 | PLANNED |
+| AC-HW-20 | Homework | Teacher result page shows integrity report and severity after submission. | 5, 8 | Component 05 / 7.0-8.0; Component 08 / 5.6 | PLANNED |
+| AC-HW-21 | Homework | Book Homework V1 has no live teacher integrity monitoring while students are working. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-22 | Homework | V1 adds no special post-homework action buttons or consequence workflow for flagged work. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-HW-23 | Homework | Student does not see post-submission integrity log/status/count/severity. | 5 | Component 05 / 7.0 | PLANNED |
+| AC-XF-01 | Cross-feature delivery | Existing Student Practice launcher mounts Book through one Book dispatch path without breaking existing material types. | 4, 7, 8 | Component 04 / 2.0; Component 07 / 1.0; Component 08 / 3.5 | PLANNED |
+| AC-XF-02 | Cross-feature delivery | Book Delivery owns access, pinned versions, page/source projection, schedule state, result state, and reload-safe launch restoration. | 4, 7 | Component 04 / 1.0-2.0; Component 07 / 1.0 | PLANNED |
+| AC-XF-03 | Cross-feature delivery | Solo Book Practice Run works as navigation/progress container. | 4, 7 | Component 04 / 11.0; Component 07 / 1.0 | PLANNED |
+| AC-XF-04 | Cross-feature delivery | Course/Class can place a Book subtree or Activity as one material item. | 7 | Component 07 / 8.0 | PLANNED |
+| AC-XF-05 | Cross-feature delivery | Course/Class placement resolves exact context, not ambiguous `materialId`. | 7 | Component 07 / 2.0, 8.0 | PLANNED |
+| AC-XF-06 | Cross-feature delivery | Course/Class Book placement stores or resolves selected subtree/Activity placement, pinned versions, binding revision, and completion aggregation policy. | 7 | Component 07 / 8.0 | PLANNED |
+| AC-XF-07 | Cross-feature delivery | Activity attempts/results are grouped by student plus Activity with an attempt dropdown. | 7 | Component 07 / 6.0 | PLANNED |
+| AC-XF-08 | Cross-feature delivery | Drafts, attempts, completion, and feedback gates remain context-scoped. | 7 | Component 07 / 5.0-7.0 | PLANNED |
+| AC-XF-09 | Cross-feature delivery | Teacher result visibility never exposes private Solo attempts. | 7, 8 | Component 07 / 7.0; Component 08 / 1.8 | PLANNED |
+| AC-XF-10 | Cross-feature delivery | Delayed/manual-feedback assignment warns when Activities may already be visible in Solo or prior feedback. | 7 | Component 07 / 7.0 | PLANNED |
+| AC-XF-11 | Cross-feature delivery | Assignment preview is the V1 fork/copy entry point when secrecy matters. | 7 | Component 07 / 7.0 | PLANNED |
+| AC-XF-12 | Cross-feature delivery | V1 does not automatically lock Solo access; secrecy uses fork/copy. | 7 | Component 07 / 7.0 | PLANNED |
+| AC-XF-13 | Cross-feature delivery | Archived Books block new placement while preserving already pinned deliveries. | 5, 7 | Component 05 / 1.0; Component 07 / 3.0 | PLANNED |
+| AC-XF-14 | Cross-feature delivery | Live Session data contract is prepared, but Book Activity execution in Live is not required for V1. | 7, 8 | Component 07 / 9.0, 11.0; Component 08 / 10.1 | PLANNED |
+| AC-UPD-01 | Updates | Publishing a change shows Affected Homework Review. | 6 | Component 06 / 1.0-2.0 | PLANNED |
+| AC-UPD-02 | Updates | No homework updates silently or by default. | 6 | Component 06 / 2.0-4.0 | PLANNED |
+| AC-UPD-03 | Updates | Teacher can select target homework and affected Activities. | 6 | Component 06 / 2.0, 4.0 | PLANNED |
+| AC-UPD-04 | Updates | Not-started, in-progress, submitted, and mixed cases behave as specified. | 6 | Component 06 / 5.0, 9.0 | PLANNED |
+| AC-UPD-05 | Updates | Review Checkpoint contains only affected prior work. | 6 | Component 06 / 5.0 | PLANNED |
+| AC-UPD-06 | Updates | Unchanged Activities remain valid. | 6 | Component 06 / 4.0-5.0, 9.0 | PLANNED |
+| AC-UPD-07 | Updates | Point/key/rubric changes regrade without redo. | 6 | Component 06 / 6.0 | PLANNED |
+| AC-UPD-08 | Updates | Removal excludes historical row without deleting it or reopening work. | 6 | Component 06 / 4.0, 9.0 | PLANNED |
+| AC-UPD-09 | Updates | Reorder does not reset work. | 6 | Component 06 / 4.0, 9.0 | PLANNED |
+| AC-UPD-10 | Updates | New content requires a valid future deadline per affected student's effective deadline, including per-student extensions. | 6 | Component 06 / 2.0, 8.0-9.0 | PLANNED |
+| AC-UPD-11 | Updates | One case-specific persistent notification is created per student/update action. | 6 | Component 06 / 7.0 | PLANNED |
+| AC-UPD-12 | Updates | Update retry is idempotent. | 6 | Component 06 / 4.0, 7.0, 10.0 | PLANNED |
+| AC-QS-01 | Quality and safety | New UI follows design, shell, mobile, and accessibility rules. | 3, 4, 5, 6, 7, 8 | Component 03 / 8.0; Component 04 / 10.0; Component 05 / 8.0; Component 08 / 5.0, 7.6 | PLANNED |
+| AC-QS-02 | Quality and safety | New actions use shared announcements. | 3, 5, 6, 8 | Component 03 / 8.0; Component 05 / 8.0; Component 06 / 2.0; Component 08 / 2.0, 7.6 | PLANNED |
+| AC-QS-03 | Quality and safety | New routes/actions are observable. | 3, 8 | Component 03 / 8.0; Component 08 / 2.0, 7.6 | PLANNED |
+| AC-QS-04 | Quality and safety | Telemetry contains no content or sensitive payload. | 2, 6, 8 | Component 02 / 2.0; Component 06 / 7.0, 10.0; Component 08 / 2.0, 7.6 | PLANNED |
+| AC-QS-05 | Quality and safety | Rules and negative authorization tests pass. | 1, 2, 4, 5, 6, 7, 8 | Component 01 / 6.0; Component 02 / 5.0-6.0; Component 04 / 1.0; Component 05 / 7.0; Component 06 / 10.0; Component 07 / 1.0, 7.0; Component 08 / 1.0, 7.6 | CLOSED |
+| AC-QS-06 | Quality and safety | Existing Book, homework, runtime, result, and notification regressions pass. | 3, 4, 5, 7, 8 | Component 03 / 1.0; Component 04 / 2.0, 12.0; Component 05 / 9.0; Component 07 / 10.0; Component 08 / 3.0, 7.6 | CLOSED |
+| AC-QS-07 | Quality and safety | Legacy PDF parser is not referenced by the new feature. | 0-8 | Master global stop conditions; Component 08 / 10.5 | CLOSED |
+
+## Packet 1 Source-Change Gate Rows
+
+Status: Current live Packet 1 gate. These rows resolve Packet 1-relevant owner paths, rule boundaries, exact existing test titles or explicit N/A, negative proof requirements, architecture/current-state doc targets, and findings rows.
+
+| Trace row | Requirement / invariant | Exact source owner path or N/A | Rules/security boundary or N/A | Test file + exact test title or explicit N/A | Negative/mutation proof requirement | Architecture/current-state doc target | Findings row target | Packet 1 status |
+|---|---|---|---|---|---|---|---|---|
+| T-001 / AC-ASM-02 | Central capability registry exists before `interactive-activity` is exposed. | `src/services/materialCatalog/materialCapabilityRegistry.service.ts` | N/A; pure registry module until `interactive-activity` rows are written through `database.rules.json` `book_activity/*` paths below | Existing adjacent: `src/services/materialCatalog/materialIntegrationRegistry.test.ts` `covers every material kind in taxonomy with expected public boundaries`; Packet 1 new: `src/services/materialCatalog/materialCapabilityRegistry.service.test.ts` `returns complete interactive-activity capabilities and fails closed when adapter is missing` | Missing capability/adapter must deny picker, assignment, launch, result, and projection lookup; direct hard-coded kind checks must be rejected by review/scan | `documentation/architecture/book-activity-runtime-and-assembly.md`; `documentation/tasks/PRD0062/contracts-book-activity-packet-1.md` | `F-P1-001` | CLOSED |
+| T-002 / AC-RUN-01 | Activity is atomic reusable/editable/submitted/graded unit; versions immutable. | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityPublish.service.ts` | `database.rules.json` RTDB paths: `book_activity/materials/$activityId`, `book_activity/versions/$activityId/$versionId` | Packet 1 new: `src/services/book-activity/activityPublish.service.test.ts` `publishes immutable Activity versions and rejects version mutation` | Published version update/delete denied; generic Task Group/Task Set payload rejected | same | `F-P1-002` | CLOSED |
+| T-002 / AC-ASM-06 | Stable Activity keys bind to immutable internal IDs. | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityPublish.service.ts` | `database.rules.json` RTDB paths: `book_activity/materials/$activityId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/versions/$activityId/$versionId` | Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `generates internal Activity identity outside editable JSON` | Editable JSON containing `activityId`, `materialId`, `versionId`, `placementId`, owner/provenance rejected | same | `F-P1-002`; `F-P1-003` | CLOSED |
+| T-002 / AC-RUN-02 | One Activity has one interaction family and one shared answer rule. | `src/services/book-activity/activitySchema.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId` | Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `rejects mixed interaction families and multiple answer rules` | Mixed families, mixed answer rules, unsupported families fail closed and do not mutate draft/version | same | `F-P1-002` | CLOSED |
+| T-002 / AC-RUN-03 | Local stimuli version with Activity; no first-class Resource domain. | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/versions/$activityId/$versionId` | Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `accepts embedded stimuli and rejects first-class Resource payloads` | `resource`, `resourceId` registry/domain payloads rejected for V1 | same | `F-P1-002` | CLOSED |
+| T-002 / AC-RUN-04 | Optional Task Profile preserves namespaced taxonomy without runtime identity coupling. | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/versions/$activityId/$versionId` | Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `validates optional namespaced Task Profile without making taxonomy identity authoritative` | Unknown taxonomy rejected; Activity ID/version not derived from exam taxonomy | same | `F-P1-002` | CLOSED |
+| T-002 / AC-RUN-05 | Context requirement supports only `none`, `optional`, `required`. | `src/types/bookActivity.types.ts`; `src/services/book-activity/activitySchema.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/versions/$activityId/$versionId` | Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `rejects unsupported context requirement values` | Unsupported context modes rejected; source-assisted publish without required source metadata blocked | same | `F-P1-002` | CLOSED |
+| T-002 / AC-RUN-06 | Hidden Interaction IDs support autosave/results/regrading and are not editable JSON. | `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityPublish.service.ts`; `src/services/book-activity/activityDiff.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/versions/$activityId/$versionId`, `book_activity/student_safe_projections/$activityId/$versionId` | Existing adjacent: `src/services/reading-v2/readingV2ResultAdapter.service.test.ts` `captures attempts with snapshot binding, stable interaction IDs, and visible numbers`; Packet 1 new: `src/services/book-activity/activitySchema.service.test.ts` `rejects hidden Interaction IDs in editable JSON and preserves IDs only for exact-structure-safe revisions` | Teacher JSON cannot set hidden IDs; reorder/add/remove/material change generates new IDs and redo classification | same | `F-P1-003` | CLOSED |
+| T-003 | Student-safe Activity projections exclude answers, authoring data, provenance internals, teacher-only fields. | `src/services/book-activity/activityProjection.service.ts` | `database.rules.json` RTDB path: `book_activity/student_safe_projections/$activityId/$versionId`; canonical `book_activity/materials`, `drafts`, `candidates`, `versions` denied to students | Existing adjacent: `src/services/reading-v2/readingV2Projection.service.test.ts` `generates student-safe and session-safe projections without answer keys or author-only fields`; Packet 1 new: `src/services/book-activity/activityProjection.service.test.ts` `generates student-safe Activity projections without answer keys or author-only fields` | Unsafe fields manually injected into projection fail safety; student canonical read denied | same | `F-P1-004` | CLOSED |
+| T-005 / AC-QS-07 | Forbidden legacy PDF parser remains unused by PRD0062. | N/A | N/A | Packet 1 new: `src/services/book-activity/bookActivityDependencyBoundary.test.ts` `keeps Book Activity independent from legacy PDF parser paths` | Scan/import test rejects forbidden parser paths under production Book Activity modules | same | `F-P1-009` | CLOSED |
+| AC-ASM-17 | App validates prompt-produced declarations; no silent semantic generation/guessing. | `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityCandidate.service.ts` | `database.rules.json` RTDB paths: `book_activity/candidates/$candidateId`, `book_activity/drafts/$activityId/$draftId` | Packet 1 new: `src/services/book-activity/activityCandidate.service.test.ts` `validates declared Activity schema without semantic guessing or silent generation` | Missing/unsupported declarations fail candidate validation and leave current draft/publication unchanged | same | `F-P1-002` | CLOSED |
+| AC-QS-05 | Rules and negative authorization tests pass for Activity paths. | `src/services/book-activity/activityCandidate.service.ts`; `src/services/book-activity/activityPublish.service.ts`; `src/services/book-activity/activityProjection.service.ts`; `database.rules.json` | `database.rules.json` RTDB paths: `book_activity/materials/$activityId`, `book_activity/drafts/$activityId/$draftId`, `book_activity/candidates/$candidateId`, `book_activity/versions/$activityId/$versionId`, `book_activity/student_safe_projections/$activityId/$versionId` | Packet 1 new: `src/__tests__/security/bookActivityFirebaseRules.test.ts` `denies student and cross-owner access to Activity authoring records while allowing safe projections` | cross-owner write/read, student canonical read, unsafe projection injection, and direct owner browser creation of versions/projections denied | same; `documentation/rules/infrastructure.md` | `F-P1-006`, `F-P1-010` | CLOSED |
+| AC-QS-06 | Existing Book/material regressions pass. | `src/types/materialCatalog.types.ts`; `src/services/materialCatalog/bookValidation.service.ts`; `src/services/materialCatalog/materialBooks.service.ts`; `src/components/books/*` | `database.rules.json` `material_catalog` rules if touched | Existing exact titles: `src/types/materialCatalog.types.test.ts` `models Book metadata, nodes, and material refs without nested child arrays`; `src/services/materialCatalog/bookValidation.service.test.ts` `allows all node types to contain child nodes and material refs`; `src/services/materialCatalog/materialBooks.service.test.ts` `writes initial nodes and marks structural Books ready`; `src/components/books/CreateBookModal.test.tsx` `saves an empty draft Book with required metadata only` | Existing public/private Book rules still reject hidden fields and unsafe public refs; legacy `test` behavior remains | same | `F-P1-008` | CLOSED |
+| Component 01 / 8.0 | New invariants must not live in untyped Material Catalog seams. | `src/services/materialCatalog/bookActivityBookIntegration.service.ts` | N/A | Packet 1 new: `src/services/materialCatalog/bookActivityBookIntegration.service.test.ts` `rejects invalid Activity-capable Book integration shapes through typed boundary` | `@ts-nocheck` scan currently finds `bookEditor.service.ts` and `materialBooks.service.ts`; Packet 1 routes Activity-specific Book integration through the typed wrapper above | same | `F-P1-007` | CLOSED |
+| Component 01 / 6.0 | Objective scoring covers supported non-rubric Activity families without silent zero. | `src/services/book-activity/activitySchema.service.ts`; `src/services/book-activity/activityScoring.service.ts` | N/A | Packet 1 new: `src/services/book-activity/activityScoring.service.test.ts` `scores supported objective Activity families and requires review for long-response rubric scoring`; `rejects malformed objective versions instead of silently returning zero` | complete/in-range objective keys required; malformed persisted objective versions throw; long-response rubric requires teacher review | same | `F-P1-005`, `F-P1-011` | CLOSED |
+
+## Stale Claim Log
+
+Use this table whenever a packet finds active docs that still present old or contradicted evidence as current truth.
+
+| Date | Packet | File | Stale claim | Current truth | Action | Status |
+|---|---|---|---|---|---|---|
+| 2026-08-09 | Post-#104 integration | `scripts/__tests__/prd0062b-dormant-plan.test.mjs` | Active Book product paths must remain absent. | The dormant archive remains historical, while approved PRD0062 implementation now exists on the active lineage. | Scope the dormant absence assertion to its retired reset baseline; do not delete active source or promote archived taskboxes. | OPEN_CHECKER_SCOPE_DRIFT |
+| 2026-08-09 | Post-#104 integration | `scripts/__tests__/prd0062-acceptance-matrix.test.mjs` | The Full V1 acceptance fixture modules and validator CLI are available. | Required E2E fixture modules and the referenced CLI are absent, so the matrix test cannot collect. | #127 restores one source-conformant acceptance artifact and executable harness before #128–#133 final proof. | ACCEPTANCE_HARNESS_BLOCKED |
+| 2026-08-09 | Post-#104 integration | `scripts/validate-prd0062-102-readiness.mjs` | Any downstream path outside the frozen #102 successor allowlist makes the current baseline stale. | Accepted #103/#104/#106/#107 integration legitimately adds paths beyond the frozen #102 packet. | Retain the validator as historical #102 evidence or version a post-integration checker; do not treat downstream paths as a #102 regression. | OPEN_CHECKER_SCOPE_DRIFT |
+
+## 2026-08-23 #126 deployed-proof overlay
+
+The exact-artifact production proof was attempted under the active PRD0062
+recovery authority and was rolled back safely. Local AC-AMEND-04 rule-enforced
+proof remains green, but the deployed student reference-only/PDF document gate
+returned HTTP 503 `document_configuration_unavailable`. The deployed
+artifact/configuration boundary is therefore not accepted as production proof.
+
+- AC-AMEND-04: local rule-enforced composition passed; deployed document
+  composition did not pass.
+- AC-AMEND-05: production divergence was diagnosed at the default document
+  repository composition, which omits the Firebase Web API key from the
+  constructed homework-store environment. No product-source change was made.
+- AC-AMEND-07: the representative path was not left active; the deny-only
+  rollback was deployed and read back at 100%.
+- Release taskboxes 5.0, 5.8, 5.19, and 7.9 remain open. #128 and later
+  acceptance work remain held.
+
+Evidence: `evidence/126-production-proof-gate-2026-08-23.json` and its
+redacted Markdown companion. The durable assignment/recipient state was read
+back unchanged; no replay or projector mutation occurred.
+
+The earlier #126 row under the traceability table's “Active status” column is
+historical pre-deployment local-proof context. This dated overlay supersedes it
+as current truth: #126 is `BLOCKED_ROLLED_BACK`, and the deployed
+reference-only/PDF gate plus dependent acceptance remain open.
+
+## Append-only #126 correction-cycle overlay — 2026-08-23
+
+The source-composition root fix is implemented and independently reviewed at
+candidate commit `31496c20d0abaf5e56e8a2dade24339aa5413a9c`; its owning
+regression and adjacent Worker proof are green. The exact candidate was
+activated and then rolled back because the browser-control runtime could not
+initialize, so no deployed browser claim is made. #126 remains
+`BLOCKED_ROLLED_BACK`; #128 and later remain deferred. Evidence:
+`evidence/126-production-normal-document-composition-cycle-2026-08-23.json`.
+
+## Append-only current #126 browser status — 2026-08-24
+
+Current live truth for the #126 traceability row is
+`CURRENT_CANDIDATE_VERIFIED_REMOTE_BROWSER_PASS`. Evidence:
+`evidence/126-production-browser-proof-2026-08-24.md` and
+`evidence/126-production-browser-proof-2026-08-24.json`.
+
+The exact bounded Worker/Hosting candidate was read back; authenticated direct
+document requests returned `HEAD 200` and ranged `GET 206`; the fresh Codex
+in-app Browser teacher flow reached Book Homework detail, and the fresh
+student flow reached Book Runtime and rendered pages 1 and 2 of the immutable
+full PDF in Reference-only mode. The earlier rollback/browser-runtime failure
+remains historical and is not erased. Downstream #127–#136 rows are unchanged
+until their own gates are proven.
+
+## Append-only current source-owner reconciliation — 2026-08-24
+
+The Packet 1 rows above retain historical provenance, but their references to
+`activityPublish.service.ts`, its test, and the old
+`book_activity/materials`/`drafts`/`candidates` roots are not current source
+owners. The active split-root implementation is owned by
+`src/services/book-activity/activityAuthoring.service.ts`,
+`activityAuthoring.repository.ts`, `activityRevisionPublish.service.ts`, the
+current Activity projection/runtime services, and the generated rule composer
+at `cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts`.
+Current rule proof is in `src/__tests__/security/bookActivityFirebaseRules.test.ts`,
+`bookActivityRevisionRuleFragment.test.ts`, and
+`bookAssemblyPublicationRuleFragment.test.ts`; the assembled matrix passed
+89/89. The deleted Packet 1 service slice is therefore historical/superseded,
+not an unverified missing production dependency. Current #128–#136 acceptance
+rows remain open or approval-gated as recorded in the latest reconciliation.

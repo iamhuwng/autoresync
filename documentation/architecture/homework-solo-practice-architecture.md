@@ -29,8 +29,8 @@ Canonical visibility governance for homework and solo-practice results lives in:
 ## 2026-05-10 Amendment - Homework Result Access Revoked Repair
 
 Teacher homework detail access failures with `permission_denied` at `/test_results/{resultId}` are governed by:
-- `documentation/architecture/homework-result-visibility-repair.md`
 - `documentation/architecture/result-visibility-ownership-governance.md`
+- `documentation/architecture/changelog/homework-result-visibility-repair.md`
 
 Rules:
 - `ResultDetailModal` is a consumer shell and must not invent fallback ownership.

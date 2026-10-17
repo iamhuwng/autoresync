@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-30T17:54:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket50-capacity-scheduler-reclosed.json",
+  "graphHash": "5e9392031d6e7ea3d53013e36010864b6a8a7e2f9a25b0840d1cfcec585768e3",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 51,
+    "closedCount": 61,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [
+    49,
+    59,
+    65,
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 49,
+    "title": "PRD0062 06C - Provision and prove private B2 direct upload",
+    "directPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "closedPrerequisites": [
+      47,
+      48,
+      50
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      44,
+      45,
+      46,
+      47,
+      48,
+      50
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 2,
+    "acceptanceReadiness": "The closed #50 producer now maintains the mandatory healthy provider snapshot. The live #49 disposable-preview authority permits an exact teacher, Book, environment, prefix, and bounded expiry for reserve/begin acceptance without advancing #50A or any production/trusted gate. Chrome teacher quick-login, the canonical preview Worker, exact B2 identities, protected Firebase state, cleanup/reconciliation, deployment readback, and rollback authority are available.",
+    "requiredAuthority": [
+      "ticket-scoped disposable #49 preview gate for one teacher, Book, prefix, environment, and <=24-hour expiry",
+      "canonical preview Worker upload [writeFiles], metadata [readFiles,listFiles], and document read [readFiles] identities",
+      "separate #50 capacity [listFiles] and cleanup [deleteFiles] identities",
+      "private B2 bucket with exact localhost:5173 CORS and account-scope free-tier controls",
+      "authenticated teacher Chrome session and controlled disposable tiny/500-MiB browser proof",
+      "rollback authority that disables #49 begin first and preserves completion/status/reconciliation until settlement"
+    ],
+    "selectionReason": "#49 is the earliest unresolved Foundation storage/security-boundary activation ticket. Every direct and transitive prerequisite is formally CLOSED, the #50 freshness blocker is repaired and deployed, its ticket-scoped positive acceptance authority is explicit and executable, and no unresolved ownership boundary remains. Later Runtime, Teacher-workflow, and final-suite candidates cannot bypass this Foundation gate despite greater raw downstream leverage."
+  },
+  "candidateRejections": [
+    {
+      "number": 59,
+      "reason": "Graph-clear but rejected by roadmap phase: canonical route composition is Runtime work and cannot precede the unresolved Foundation private-B2 activation boundary."
+    },
+    {
+      "numbers": [
+        65,
+        66,
+        68
+      ],
+      "reason": "Graph-clear but rejected by roadmap phase: publication/revision tickets are Teacher-workflow work, later than the current Foundation storage/security boundary."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear but ineligible by roadmap phase and acceptance readiness: final browser/regression suites require assembled and activated surfaces and may not run merely because #127 is closed while #50A remains all-six-deny/default-deny."
+    }
+  ],
+  "historicalProvenance": {
+    "capacityContract": "d9392d00",
+    "reconciliationClosure": "8aac1324",
+    "freshnessConsumerGate": "41949316",
+    "schedulerRepair": "uncommitted closure repair for #50",
+    "finding": "Historical comparison preserved the earlier ticket implementations and repaired only the later integration gap: the scheduled reconciliation deployment now invokes the bounded capacity producer required by the current #49 freshness gate."
+  },
+  "governingSafety": {
+    "privateB2": "DISABLED except for the bounded #49 disposable-preview acceptance gate when explicitly enabled",
+    "03B": "DISABLED",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny",
+    "masterKey": "offline provisioning-only; never a runtime binding"
+  }
+}

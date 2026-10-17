@@ -55,6 +55,7 @@ export class MaterialIntegrationRegistryContractError extends Error {
 const MATERIAL_SUMMARY_SURFACE_FAMILIES = [
   'assessment',
   'passage',
+  'activity',
   'book',
   'draft',
   'resource',
@@ -96,6 +97,10 @@ const MATERIAL_KIND_TAXONOMY = {
   },
   'grammar-worksheet': {
     surfaceFamily: 'resource',
+    publicEligible: false,
+  },
+  'interactive-activity': {
+    surfaceFamily: 'activity',
     publicEligible: false,
   },
   video: {
@@ -217,6 +222,16 @@ const MATERIAL_PRODUCER_REGISTRATIONS = [
       'src/components/TestEditor.tsx',
     ],
     reconciliationSource: 'tests',
+  },
+  {
+    producerId: 'book-activity',
+    canonicalFamily: 'book-activity',
+    materialKinds: ['interactive-activity'],
+    surfaceFamilies: ['activity'],
+    skillIds: ['reading', 'listening', 'writing', 'thcs'],
+    lifecycleOwner: 'book-activity',
+    canonicalRootPaths: ['book_activity/materials', 'book_activity/versions'],
+    integrationMode: 'legacy-bridge',
   },
   {
     producerId: 'listening',

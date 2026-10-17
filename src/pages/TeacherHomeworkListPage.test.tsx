@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseHomeworkListReturn } from '../hooks/useHomeworkList';
 import type { HomeworkAssignment } from '../types/homework.types';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import { TeacherHomeworkListPage } from './TeacherHomeworkListPage';
 
 const {
@@ -18,6 +19,7 @@ const {
     mockSelectHomeworkForBulkOperation,
     mockSetSort,
     mockSetTagFilter,
+    mockTrackAction,
     mockToggle,
     useBulkSelectionMock,
     useHomeworkListMock,
@@ -37,6 +39,7 @@ const {
     mockSelectHomeworkForBulkOperation: vi.fn(async () => []),
     mockSetSort: vi.fn(),
     mockSetTagFilter: vi.fn(),
+    mockTrackAction: vi.fn(),
     mockToggle: vi.fn(),
     useBulkSelectionMock: vi.fn(),
     useHomeworkListMock: vi.fn(),
@@ -64,6 +67,10 @@ vi.mock('../hooks/useNavigation', () => ({
     useNavigation: () => ({
         navigateTo: mockNavigateTo,
     }),
+}));
+
+vi.mock('../hooks/useFeatureTracking', () => ({
+    useFeatureTracking: () => ({ trackAction: mockTrackAction }),
 }));
 
 vi.mock('../hooks/useHomeworkList', () => ({
@@ -388,6 +395,50 @@ const allHomework: HomeworkAssignment[] = [
     }),
 ];
 
+const bookHomework = {
+    schemaVersion: 1,
+    assignmentKind: 'book_homework_compatibility',
+    id: 'hw-book',
+    createdBy: 'teacher-123',
+    createdAt: NOW - 2 * 24 * 60 * 60 * 1000,
+    updatedAt: NOW,
+    materialId: 'book-material-1',
+    materialTitle: 'Book bridge assignment',
+    materialType: 'book',
+    materialSkill: 'mixed',
+    title: 'Book bridge assignment',
+    target: {
+        type: 'students',
+        studentIds: ['student-1'],
+    },
+    scheduling: {
+        dueDate: NOW + 48 * 60 * 60 * 1000,
+    },
+    config: {
+        timerMinutes: null,
+        maxAttempts: null,
+        feedbackTiming: 'never',
+        lateSubmissionAllowed: false,
+    },
+    visibility: {
+        showTimer: false,
+        showAttempts: false,
+        showDueDate: true,
+        showDuration: false,
+        showQuestionCount: false,
+    },
+    archived: false,
+    tags: [],
+    bookHomeworkCompatibility: {
+        schemaVersion: 1,
+        assignmentId: 'hw-book',
+        sourceSagaRevision: 4,
+        sourceFingerprint: 'fingerprint-book',
+    },
+} as unknown as HomeworkAssignment;
+
+allHomework.push(bookHomework);
+
 const targetCards = [
     {
         targetId: 'class-a',
@@ -434,7 +485,7 @@ function matchesSearch(homework: HomeworkAssignment, query: string): boolean {
 }
 
 function buildStatusCounts(items: HomeworkAssignment[]): Record<string, number> {
-    return items.reduce<Record<string, number>>((counts, homework) => {
+    return items.filter((homework) => !isBookHomeworkCompatibilityProjection(homework)).reduce<Record<string, number>>((counts, homework) => {
         counts[homework.status] = (counts[homework.status] ?? 0) + 1;
         return counts;
     }, {});
@@ -550,6 +601,48 @@ describe('TeacherHomeworkListPage', () => {
         expect(screen.getByText('Class B')).toBeInTheDocument();
         expect(screen.getByText('Alex')).toBeInTheDocument();
         expect(screen.queryByTestId('homework-card-hw-active')).not.toBeInTheDocument();
+        const bookCard = screen.getByTestId('book-homework-card-hw-book');
+        expect(bookCard).toBeInTheDocument();
+        expect(screen.getByText('Book Homework')).toBeInTheDocument();
+        expect(bookCard).not.toHaveTextContent(/active|past due|completion|average|attempts|stats/i);
+        expect(screen.getByText('Total: 5')).toBeInTheDocument();
+        expect(useTargetGridMock).toHaveBeenLastCalledWith(allHomework.slice(0, 5), '');
+    });
+
+    it('routes the marker-aware Book row to teacher detail without legacy card actions', () => {
+        renderPage();
+
+        fireEvent.click(screen.getByRole('button', { name: 'View details' }));
+
+        expect(mockNavigateTo).toHaveBeenCalledWith(
+            'TEACHER_HOMEWORK_DETAIL',
+            { homeworkId: 'hw-book' },
+            { reason: 'teacher_open_homework_detail' },
+        );
+        expect(mockTrackAction).toHaveBeenCalledWith(
+            'bookHomeworkTeacherDetailOpened',
+            {
+                homeworkId: 'hw-book',
+                source: 'teacher_homework_list',
+            },
+        );
+        expect(screen.queryByTestId('homework-card-hw-book')).not.toBeInTheDocument();
+    });
+
+    it('excludes a selected Book shell from bulk mutations', async () => {
+        useBulkSelectionMock.mockReturnValue({
+            selected: new Set(['hw-book']),
+            selectedCount: 1,
+            toggle: mockToggle,
+            selectAll: mockSelectAll,
+            deselectAll: mockDeselectAll,
+            isSelected: mockIsSelected,
+        });
+
+        renderPage();
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        expect(mockBulkCloseHomework).not.toHaveBeenCalled();
     });
 
     it('debounces the search input and filters timeline results', async () => {
@@ -569,7 +662,7 @@ describe('TeacherHomeworkListPage', () => {
                 searchQuery: 'english',
             })
         );
-        expect(useTargetGridMock).toHaveBeenLastCalledWith(allHomework, 'english');
+        expect(useTargetGridMock).toHaveBeenLastCalledWith(allHomework.slice(0, 5), 'english');
 
         fireEvent.click(screen.getByText('Timeline'));
         expect(screen.getByTestId('homework-card-hw-active')).toBeInTheDocument();

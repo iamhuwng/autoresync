@@ -81,20 +81,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             )}
 
             {/* Mobile: Sidebar in Drawer */}
-            {isMobile && (
+            {isMobile && mobileDrawerOpen && (
                 <>
-                    {mobileDrawerOpen && (
-                        <div
-                            style={{
-                                position: 'fixed',
-                                inset: 0,
-                                background: 'rgba(15, 23, 42, 0.45)',
-                                zIndex: 999,
-                            }}
-                            onClick={() => setMobileDrawerOpen(false)}
-                            aria-hidden="true"
-                        />
-                    )}
+                    <div
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(15, 23, 42, 0.45)',
+                            zIndex: 999,
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                        aria-hidden="true"
+                    />
                     <div
                         role="dialog"
                         aria-modal="true"

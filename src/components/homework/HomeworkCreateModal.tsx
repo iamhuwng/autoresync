@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { HomeworkConfigPanel } from './HomeworkConfigPanel';
 import { HomeworkTagChips } from './HomeworkTagChips';
@@ -13,22 +13,40 @@ import {
     type ReadingPassageHomeworkCandidate,
 } from '../../services/reading-v2/readingV2PassageHomework.service';
 import type {
-    HomeworkConfig,
+  HomeworkConfig,
     HomeworkContentRef,
     HomeworkMaterialSkill,
     HomeworkMaterialType,
     HomeworkTarget,
     ReadingPassageHomeworkSet,
-    ReadingPassageHomeworkSnapshot,
+  ReadingPassageHomeworkSnapshot,
 } from '../../types/homework.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
+import { FEATURE_IDS } from '../../config/featureRegistry';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import BookHomeworkPreviewPanel, {
+    type BookHomeworkScheduleEditor,
+} from './BookHomeworkPreviewPanel';
+import BookScheduleEditor from './BookScheduleEditor';
+import type {
+    BookHomeworkPreviewDraft,
+} from '../../services/book-homework/bookHomeworkPreview.service';
+import {
+    createBookHomeworkAssignmentIntent,
+    type BookHomeworkAssignmentPreviewSource,
+    type BookHomeworkAssignmentIntentCommand,
+} from '../../services/book-homework/bookHomeworkAssignmentIntent';
+import {
+    createBookHomeworkAssignmentViaWorker,
+    createBookHomeworkPreviewSource,
+} from '../../services/homeworkAssignmentClient';
 import { resolvePreset, getContextDefaults } from '../../utils/antiCheatPresets';
 // @ts-ignore - JS service
 import queryOptimizer from '../../services/firebaseQueryOptimizer';
 import { getClasses, getClass } from '../../services/classManager';
 import { THCSHomeworkAssignDialog } from '../thcs-editor/THCSHomeworkAssignDialog';
 import TemplateSaveModal from './TemplateSaveModal';
-import ToastNotification from '../modern/ToastNotification';
+import ToastNotification, { toast } from '../modern/ToastNotification';
 import { hasGoogleDriveAudio } from '../../services/retirement/retiredMaterialClassifier';
 import './HomeworkCreateModal.css';
 
@@ -47,7 +65,35 @@ interface HomeworkCreateModalProps {
     };
     preselectedContentRef?: HomeworkContentRef;
     createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
+    preselectedBookHomework?: BookHomeworkAssignmentPreviewSource;
+    bookHomeworkHandoff?: {
+        bookId: string;
+        unitKey: string;
+        bookTitle: string;
+    };
+    loadBookHomeworkPreviewSource?: typeof createBookHomeworkPreviewSource;
+    onBookHomeworkConfirm?: (draft: BookHomeworkPreviewDraft) => Promise<void> | void;
+    onBookHomeworkForkBeforeAssign?: () => void;
+    bookHomeworkRecovery?: BookHomeworkRecoveryState | null;
+    onBookHomeworkRecoveryChange?: (state: BookHomeworkRecoveryState | null) => void;
 }
+
+export type BookHomeworkRecoveryState = {
+    readonly ownerId: string;
+    readonly bookId: string;
+    readonly assignmentId: string;
+    readonly command: BookHomeworkAssignmentIntentCommand;
+    readonly draft: BookHomeworkPreviewDraft;
+    readonly source: BookHomeworkAssignmentPreviewSource;
+    readonly contextKey: string;
+    readonly outcome: 'pending' | 'ambiguous' | 'committed_projection_pending';
+    readonly notice: string;
+};
+
+const isDefinitiveBookHomeworkRejection = (error: unknown): boolean => {
+    const status = (error as { status?: unknown } | null)?.status;
+    return typeof status === 'number' && status >= 400 && status < 500;
+};
 
 type Step = 'material' | 'target' | 'config' | 'review';
 
@@ -127,6 +173,23 @@ const mapReadingPassageCandidate = (candidate: ReadingPassageHomeworkCandidate):
     };
 };
 
+const normalizeHomeworkContentRef = (
+    material: Material,
+    contentRef: HomeworkContentRef | undefined,
+): HomeworkContentRef | undefined => {
+    if (material.type === 'reading-passage' && material.readingPassageSnapshot) {
+        return {
+            contentKind: 'reading_passage',
+            contentId: material.readingPassageSnapshot.passageMaterialId,
+            version: material.readingPassageSnapshot.snapshotVersionId,
+            title: material.readingPassageSnapshot.titleSnapshot,
+            source: 'reading-v2',
+        };
+    }
+
+    return contentRef;
+};
+
 const mapReadingPassageSet = (input: {
     title: string;
     passages: readonly ReadingPassageHomeworkCandidate[];
@@ -155,9 +218,17 @@ export function HomeworkCreateModal({
     preselectedReadingPassageSet,
     preselectedContentRef,
     createHomeworkAssignment,
+    preselectedBookHomework,
+    bookHomeworkHandoff,
+    loadBookHomeworkPreviewSource = createBookHomeworkPreviewSource,
+    onBookHomeworkConfirm,
+    onBookHomeworkForkBeforeAssign,
+    bookHomeworkRecovery,
+    onBookHomeworkRecoveryChange,
 }: HomeworkCreateModalProps) {
     const { user } = useAuth();
     const { tags: availableTags } = useHomeworkTags();
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
 
     // Step management
     const [currentStep, setCurrentStep] = useState<Step>('material');
@@ -179,6 +250,9 @@ export function HomeworkCreateModal({
     const [classes, setClasses] = useState<Class[]>([]);
     const [students, setStudents] = useState<Student[]>([]);
     const [showStudentSelector, setShowStudentSelector] = useState(false);
+    const [bookHomeworkSource, setBookHomeworkSource] = useState<BookHomeworkAssignmentPreviewSource | null>(null);
+    const [bookStudentsLoading, setBookStudentsLoading] = useState(false);
+    const [bookPreviewLoading, setBookPreviewLoading] = useState(false);
 
     // Configuration
     const [config, setConfig] = useState<HomeworkConfig>({
@@ -207,6 +281,12 @@ export function HomeworkCreateModal({
     const [error, setError] = useState<string | null>(null);
     const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
     const [templateSubmitting, setTemplateSubmitting] = useState(false);
+    const bookHomeworkCommandIds = useRef<BookHomeworkRecoveryState | null>(null);
+    const bookStudentsRequestId = useRef(0);
+    const bookPreviewRequestId = useRef(0);
+    const bookHomeworkSubmitInFlight = useRef(false);
+    const bookHomeworkRetryReady = useRef(false);
+    const [bookHomeworkRetryAvailable, setBookHomeworkRetryAvailable] = useState(false);
     const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
     const [existingTemplateNames, setExistingTemplateNames] = useState<string[]>([]);
     const [templateToast, setTemplateToast] = useState<{
@@ -215,14 +295,81 @@ export function HomeworkCreateModal({
         tone: 'success' | 'error';
     } | null>(null);
 
+    const recoveredBookHomework = bookHomeworkRecovery === undefined
+        ? bookHomeworkCommandIds.current
+        : bookHomeworkRecovery;
+    const contextBookId = preselectedBookHomework?.delivery.book.bookId ?? bookHomeworkHandoff?.bookId;
+    const canUseRecoveredBookHomework = Boolean(
+        recoveredBookHomework
+        && user?.uid
+        && recoveredBookHomework.ownerId === user.uid
+        && recoveredBookHomework.bookId === contextBookId
+        && recoveredBookHomework.command.assignmentId === recoveredBookHomework.assignmentId
+        && recoveredBookHomework.command.intent.bookId === recoveredBookHomework.bookId,
+    );
+    const activeBookHomeworkRecovery = canUseRecoveredBookHomework ? recoveredBookHomework : null;
+    const setBookHomeworkRecovery = (next: BookHomeworkRecoveryState | null): void => {
+        bookHomeworkCommandIds.current = next;
+        if (bookHomeworkRecovery !== undefined) {
+            onBookHomeworkRecoveryChange?.(next);
+        }
+        const retryable = Boolean(next);
+        bookHomeworkRetryReady.current = false;
+        setBookHomeworkRetryAvailable(retryable && isOpen);
+    };
+
+    const bookHomeworkContextKey = preselectedBookHomework
+        ? [
+            'source',
+            preselectedBookHomework.identity.createdByCommandId,
+            preselectedBookHomework.identity.manifestVersionId,
+            preselectedBookHomework.delivery.bindingId,
+            preselectedBookHomework.delivery.bindingRevision,
+            preselectedBookHomework.classId || '',
+            (preselectedBookHomework.selectedRecipientIds || []).join(','),
+        ].join(':')
+        : bookHomeworkHandoff
+            ? ['handoff', bookHomeworkHandoff.bookId, bookHomeworkHandoff.unitKey, bookHomeworkHandoff.bookTitle].join(':')
+            : 'none';
+
     // Load materials
     useEffect(() => {
         if (isOpen) {
-            loadMaterials();
-            loadClasses();
-            loadStudents();
+            if (!preselectedBookHomework && !bookHomeworkHandoff) {
+                loadMaterials();
+                loadClasses();
+                loadStudents();
+            } else if (bookHomeworkHandoff) {
+                loadClasses();
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, preselectedBookHomework, bookHomeworkHandoff]);
+
+    useEffect(() => {
+        if (bookHomeworkRecovery === undefined
+            && bookHomeworkCommandIds.current?.contextKey !== bookHomeworkContextKey) {
+            bookHomeworkCommandIds.current = null;
+        }
+        const recovery = bookHomeworkRecovery === undefined
+            ? bookHomeworkCommandIds.current
+            : activeBookHomeworkRecovery;
+        setBookHomeworkRetryAvailable(Boolean(isOpen && recovery));
+        bookPreviewRequestId.current += 1;
+        setBookHomeworkSource(null);
+        setBookPreviewLoading(false);
+        return () => {
+            bookPreviewRequestId.current += 1;
+        };
+    }, [activeBookHomeworkRecovery, bookHomeworkContextKey, bookHomeworkRecovery, isOpen]);
+
+    useEffect(() => {
+        const source = preselectedBookHomework || bookHomeworkSource;
+        if (!isOpen || !source) return;
+        trackAction('bookHomeworkPreviewOpened', {
+            bookId: source.delivery.book.bookId,
+            publicationId: source.delivery.book.publicationId,
+        });
+    }, [isOpen, preselectedBookHomework, bookHomeworkSource, trackAction]);
 
     const effectivePreselectedMaterialId = preselectedMaterial
         ? preselectedMaterial.id
@@ -362,10 +509,11 @@ export function HomeworkCreateModal({
                 const fullClass = await getClass(cls.id);
                 if (fullClass?.students) {
                     for (const [studentId, studentData] of Object.entries(fullClass.students)) {
-                        if (!studentMap.has(studentId)) {
-                            studentMap.set(studentId, {
-                                id: studentId,
-                                name: studentData.name || studentData.uid || studentId,
+                        const canonicalStudentId = studentData.uid || studentId;
+                        if (!studentMap.has(canonicalStudentId)) {
+                            studentMap.set(canonicalStudentId, {
+                                id: canonicalStudentId,
+                                name: studentData.name || canonicalStudentId,
                                 email: studentData.email || '',
                             });
                         }
@@ -458,7 +606,10 @@ export function HomeworkCreateModal({
             if (createHomeworkAssignment) {
                 await createHomeworkAssignment({
                     ...homeworkInput,
-                    contentRef: preselectedContentRef,
+                    contentRef: normalizeHomeworkContentRef(
+                        selectedMaterial,
+                        preselectedContentRef,
+                    ),
                 });
             } else {
                 await createHomework(homeworkInput);
@@ -476,9 +627,208 @@ export function HomeworkCreateModal({
         }
     };
 
+    const renderBookScheduleEditor: BookHomeworkScheduleEditor = (props) => (
+        <BookScheduleEditor {...props} />
+    );
+
+    const invalidateBookHomeworkPreview = (): void => {
+        bookPreviewRequestId.current += 1;
+        setBookHomeworkSource(null);
+        setBookPreviewLoading(false);
+    };
+
+    const handleBookClassChange = async (classId: string): Promise<void> => {
+        invalidateBookHomeworkPreview();
+        const requestId = ++bookStudentsRequestId.current;
+        const nextClass = classes.find((entry) => entry.id === classId) || null;
+        setSelectedClass(nextClass);
+        setSelectedStudents([]);
+        setStudents([]);
+        setError(null);
+        if (!nextClass) {
+            setBookStudentsLoading(false);
+            return;
+        }
+
+        setBookStudentsLoading(true);
+        try {
+            const fullClass = await getClass(nextClass.id);
+            if (requestId !== bookStudentsRequestId.current) return;
+            const activeStudents = Object.entries(fullClass?.students || {})
+                .filter(([, student]) => !student.status || student.status === 'active')
+                .map(([studentId, student]) => ({
+                    id: student.id || student.uid || studentId,
+                    name: student.name || student.uid || studentId,
+                    email: student.email || '',
+                }));
+            setStudents(activeStudents);
+        } catch (err) {
+            if (requestId !== bookStudentsRequestId.current) return;
+            console.error('Error loading Book Homework students:', err);
+            setError(err instanceof Error ? err.message : 'Failed to load class students');
+        } finally {
+            if (requestId === bookStudentsRequestId.current) {
+                setBookStudentsLoading(false);
+            }
+        }
+    };
+
+    const handleBookStudentToggle = (studentId: string, checked: boolean): void => {
+        invalidateBookHomeworkPreview();
+        setSelectedStudents((current) => checked
+            ? current.filter((id) => id !== studentId)
+            : current.length < 30 ? [...current, studentId] : current);
+    };
+
+    const handleBookHomeworkPreviewLoad = async (): Promise<void> => {
+        if (!bookHomeworkHandoff || !selectedClass || selectedStudents.length === 0) return;
+
+        const requestId = ++bookPreviewRequestId.current;
+        const classId = selectedClass.id;
+        const recipientIds = [...selectedStudents];
+        setBookPreviewLoading(true);
+        setError(null);
+        try {
+            const source = await loadBookHomeworkPreviewSource({
+                bookId: bookHomeworkHandoff.bookId,
+                target: { kind: 'unit', bookId: bookHomeworkHandoff.bookId, nodeKey: bookHomeworkHandoff.unitKey },
+                classId,
+                selectedRecipientIds: recipientIds,
+                title: bookHomeworkHandoff.bookTitle,
+            });
+            if (requestId !== bookPreviewRequestId.current) return;
+            setBookHomeworkSource(source);
+        } catch (err) {
+            if (requestId !== bookPreviewRequestId.current) return;
+            const message = err instanceof Error ? err.message : 'Failed to load Book Homework preview.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            if (requestId === bookPreviewRequestId.current) {
+                setBookPreviewLoading(false);
+            }
+        }
+    };
+
+    const renderLegacyScheduleEditor = ({
+        value,
+        onChange,
+    }: Pick<Parameters<BookHomeworkScheduleEditor>[0], 'value' | 'onChange'>) => (
+        <div className="additional-fields">
+            <div className="field-group">
+                <label className="field-label">📅 Available From</label>
+                <input
+                    aria-label="Available From"
+                    type="datetime-local"
+                    className="config-input"
+                    value={value.availableFrom}
+                    onChange={(event) => onChange({ ...value, availableFrom: event.target.value })}
+                />
+                <p className="config-hint">Leave empty to make available immediately</p>
+            </div>
+            <div className="field-group">
+                <label className="field-label">⏰ Due Date *</label>
+                <input
+                    aria-label="Due Date"
+                    type="datetime-local"
+                    className="config-input"
+                    value={value.dueDate}
+                    onChange={(event) => onChange({ ...value, dueDate: event.target.value })}
+                    required
+                />
+            </div>
+        </div>
+    );
+
+    const handleBookHomeworkCancel = (): void => {
+        if (bookHomeworkSubmitInFlight.current) return;
+        toast.info('Book Homework preview canceled; no assignment or Delivery binding changed.');
+        handleClose();
+    };
+
+    const handleBookHomeworkConfirm = async (draft: BookHomeworkPreviewDraft): Promise<void> => {
+        if (bookHomeworkSubmitInFlight.current) return;
+        bookHomeworkSubmitInFlight.current = true;
+        setSubmitting(true);
+        setError(null);
+        try {
+            if (onBookHomeworkConfirm) {
+                await onBookHomeworkConfirm(draft);
+            } else {
+                const source = preselectedBookHomework || bookHomeworkSource || activeBookHomeworkRecovery?.source;
+                if (!source || !user?.uid) {
+                    throw new Error('Book Homework assignment requires an authenticated teacher and trusted preview context.');
+                }
+                if (source.identity.ownerId !== user.uid) {
+                    throw new Error('Book Homework preview belongs to a different teacher. No assignment was created.');
+                }
+                const cached = activeBookHomeworkRecovery;
+                if (cached && cached.outcome !== 'pending'
+                    && !bookHomeworkRetryReady.current
+                    && JSON.stringify(draft) !== JSON.stringify(cached.draft)) {
+                    throw new Error('The previous Book Homework assignment outcome is uncertain. Retry the exact same policy and schedule before changing intent.');
+                }
+                const command = cached?.command ?? createBookHomeworkAssignmentIntent({
+                    source,
+                    draft,
+                });
+                const recovery: BookHomeworkRecoveryState = cached ?? {
+                    ownerId: user.uid,
+                    bookId: source.delivery.book.bookId,
+                    assignmentId: command.assignmentId,
+                    command,
+                    draft,
+                    source,
+                    contextKey: bookHomeworkContextKey,
+                    outcome: 'pending',
+                    notice: 'Book Homework assignment is being submitted.',
+                };
+                setBookHomeworkRecovery(recovery);
+                const result = await createBookHomeworkAssignmentViaWorker(command);
+                if (result.status === 'committed_projection_pending') {
+                    const notice = 'Book Homework assignment committed, delivery sync pending. Retry synchronization before treating it as student-ready.';
+                    setBookHomeworkRecovery({ ...recovery, outcome: 'committed_projection_pending', notice });
+                    setError(notice);
+                    toast.warning(notice);
+                    return;
+                }
+            }
+            setBookHomeworkRecovery(null);
+            toast.success(onBookHomeworkConfirm
+                ? 'Book Homework preview confirmed for assignment handoff.'
+                : 'Book Homework assignment created.');
+            onSuccess();
+            handleClose(true);
+        } catch (err) {
+            const message = err instanceof Error && err.message
+                ? err.message
+                : 'Book Homework assignment handoff failed.';
+            setError(message);
+            toast.error(message);
+            const previous = activeBookHomeworkRecovery ?? bookHomeworkCommandIds.current;
+            if (previous) {
+                const retryNotice = 'The previous Book Homework assignment is still unresolved. Retry the exact submitted command.';
+                bookHomeworkRetryReady.current = false;
+                setBookHomeworkRecovery(previous.outcome !== 'pending'
+                    || !isDefinitiveBookHomeworkRejection(err)
+                    ? { ...previous, outcome: 'ambiguous', notice: retryNotice }
+                    : null);
+            }
+        } finally {
+            bookHomeworkSubmitInFlight.current = false;
+            setSubmitting(false);
+        }
+    };
+
     const handleSaveAsTemplate = () => {
         setTemplateSaveError(null);
         setShowTemplateSaveModal(true);
+    };
+
+    const handleExactBookHomeworkRetry = (): void => {
+        const cached = activeBookHomeworkRecovery;
+        if (!cached || bookHomeworkSubmitInFlight.current) return;
+        void handleBookHomeworkConfirm(cached.draft);
     };
 
     const toggleTagSelection = (tagId: string) => {
@@ -538,6 +888,16 @@ export function HomeworkCreateModal({
     };
 
     const resetFormState = () => {
+        bookStudentsRequestId.current += 1;
+        bookPreviewRequestId.current += 1;
+        if (bookHomeworkRecovery === undefined
+            && bookHomeworkCommandIds.current?.outcome !== 'ambiguous'
+            && bookHomeworkCommandIds.current?.outcome !== 'committed_projection_pending') {
+            bookHomeworkCommandIds.current = null;
+        }
+        setBookHomeworkSource(null);
+        setBookStudentsLoading(false);
+        setBookPreviewLoading(false);
         setCurrentStep('material');
         setSelectedMaterial(null);
         setMaterialFilter('all');
@@ -568,7 +928,8 @@ export function HomeworkCreateModal({
         setError(null);
     };
 
-    const handleClose = () => {
+    const handleClose = (force = false) => {
+        if (!force && bookHomeworkSubmitInFlight.current) return;
         resetFormState();
         onClose();
     };
@@ -580,18 +941,20 @@ export function HomeworkCreateModal({
         const matchesFilter = materialFilter === 'all' || m.type === materialFilter;
         return matchesSearch && matchesFilter;
     });
+    const activeBookHomeworkSource = preselectedBookHomework || bookHomeworkSource || activeBookHomeworkRecovery?.source;
+    const isBookHomeworkFlow = Boolean(activeBookHomeworkSource || bookHomeworkHandoff);
 
     return (
-        <div className="homework-create-modal-overlay" onClick={handleClose}>
+        <div className="homework-create-modal-overlay" onClick={() => handleClose()}>
             <div className="homework-create-modal" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="modal-header">
                     <h2 className="modal-title">➕ Create Homework Assignment</h2>
-                    <button className="close-btn" onClick={handleClose}>✕</button>
+                    <button className="close-btn" onClick={() => handleClose()} disabled={submitting}>✕</button>
                 </div>
 
                 {/* Progress Steps */}
-                <div className="progress-steps">
+                {!isBookHomeworkFlow && <div className="progress-steps">
                     <div className={`step ${currentStep === 'material' ? 'active' : ''} ${['target', 'config', 'review'].includes(currentStep) ? 'completed' : ''}`}>
                         <div className="step-number">1</div>
                         <div className="step-label">Material</div>
@@ -611,7 +974,7 @@ export function HomeworkCreateModal({
                         <div className="step-number">4</div>
                         <div className="step-label">Review</div>
                     </div>
-                </div>
+                </div>}
 
                 {/* Error Display */}
                 {error && (
@@ -622,6 +985,88 @@ export function HomeworkCreateModal({
 
                 {/* Step Content */}
                 <div className="modal-content">
+                    {bookHomeworkRetryAvailable && activeBookHomeworkRecovery && (
+                        <div role="status" className="error-banner">
+                            {activeBookHomeworkRecovery.notice}
+                            <button type="button" onClick={handleExactBookHomeworkRetry} disabled={submitting}>
+                                {activeBookHomeworkRecovery.outcome === 'committed_projection_pending'
+                                    ? 'Retry delivery synchronization'
+                                    : 'Retry exact assignment'}
+                            </button>
+                        </div>
+                    )}
+                    {activeBookHomeworkSource ? (
+                        <BookHomeworkPreviewPanel
+                            source={activeBookHomeworkSource}
+                            renderScheduleEditor={renderBookScheduleEditor}
+                            onConfirm={handleBookHomeworkConfirm}
+                            onCancel={handleBookHomeworkCancel}
+                            onForkBeforeAssign={onBookHomeworkForkBeforeAssign}
+                            onAction={trackAction}
+                            loadTargetPreview={bookHomeworkHandoff && selectedClass ? (target) => loadBookHomeworkPreviewSource({
+                                bookId: bookHomeworkHandoff.bookId,
+                                target,
+                                classId: selectedClass.id,
+                                selectedRecipientIds: selectedStudents,
+                                title: bookHomeworkHandoff.bookTitle,
+                            }) : undefined}
+                        />
+                    ) : bookHomeworkHandoff ? (
+                        <div className="step-content">
+                            <h3 className="step-title">📚 Assign Book Homework</h3>
+                            <div className="field-group">
+                                <label className="field-label" htmlFor="book-homework-class">Class</label>
+                                <select
+                                    id="book-homework-class"
+                                    aria-label="Book Homework class"
+                                    className="config-select"
+                                    value={selectedClass?.id || ''}
+                                    onChange={(event) => void handleBookClassChange(event.target.value)}
+                                >
+                                    <option value="">Select a class</option>
+                                    {classes.map((entry) => (
+                                        <option key={entry.id} value={entry.id}>{entry.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedClass && (
+                                <fieldset className="field-group">
+                                    <legend className="field-label">Students (select up to 30)</legend>
+                                    {bookStudentsLoading ? <div className="loading-state">Loading students...</div> : students.length === 0 ? (
+                                        <div className="empty-state">No active students found</div>
+                                    ) : students.map((student) => {
+                                        const checked = selectedStudents.includes(student.id);
+                                        const limitReached = selectedStudents.length >= 30 && !checked;
+                                        return (
+                                            <label key={student.id} className="config-checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    aria-label={student.name}
+                                                    checked={checked}
+                                                    disabled={limitReached}
+                                                    onChange={() => handleBookStudentToggle(student.id, checked)}
+                                                />
+                                                <span className="checkbox-label">{student.name}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </fieldset>
+                            )}
+
+                            <div className="modal-footer">
+                                <button className="cancel-btn" onClick={() => handleClose()} disabled={submitting}>Cancel</button>
+                                <button
+                                    className="next-btn"
+                                    onClick={() => void handleBookHomeworkPreviewLoad()}
+                                    disabled={bookPreviewLoading || bookStudentsLoading || selectedStudents.length === 0}
+                                >
+                                    {bookPreviewLoading ? 'Loading preview...' : 'Load Preview →'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
                     {/* Step 1: Material Selection */}
                     {currentStep === 'material' && (
                         <div className="step-content">
@@ -768,30 +1213,13 @@ export function HomeworkCreateModal({
                             <h3 className="step-title">⚙️ Configure Settings</h3>
 
                             {/* ── Scheduling (all materials) ─────────────── */}
-                            <div className="additional-fields">
-                                <div className="field-group">
-                                    <label className="field-label">📅 Available From</label>
-                                    <input
-                                        aria-label="Available From"
-                                        type="datetime-local"
-                                        className="config-input"
-                                        value={availableFrom}
-                                        onChange={(e) => setAvailableFrom(e.target.value)}
-                                    />
-                                    <p className="config-hint">Leave empty to make available immediately</p>
-                                </div>
-                                <div className="field-group">
-                                    <label className="field-label">⏰ Due Date *</label>
-                                    <input
-                                        aria-label="Due Date"
-                                        type="datetime-local"
-                                        className="config-input"
-                                        value={dueDate}
-                                        onChange={(e) => setDueDate(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                            </div>
+                            {renderLegacyScheduleEditor({
+                                value: { availableFrom, dueDate, scheduleRules: [] },
+                                onChange: (next) => {
+                                    setAvailableFrom(next.availableFrom);
+                                    setDueDate(next.dueDate);
+                                },
+                            })}
 
                             {/* ── Writing-specific config ────────────────── */}
                             {selectedMaterial?.skill === 'writing' && (
@@ -1039,13 +1467,15 @@ export function HomeworkCreateModal({
                             </div>
                         </div>
                     )}
+                        </>
+                    )}
                 </div>
 
                 {/* Footer */}
-                <div className="modal-footer">
+                {!isBookHomeworkFlow && <div className="modal-footer">
                     <button
                         className="cancel-btn"
-                        onClick={handleClose}
+                        onClick={() => handleClose()}
                         disabled={submitting}
                     >
                         Cancel
@@ -1084,7 +1514,7 @@ export function HomeworkCreateModal({
                             </button>
                         )}
                     </div>
-                </div>
+                </div>}
             </div>
 
             {/* Student Selector Modal */}

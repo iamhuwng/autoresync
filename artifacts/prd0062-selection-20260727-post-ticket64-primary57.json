@@ -1,0 +1,132 @@
+{
+  "selectedAt": "2026-07-27T02:40:00.000Z",
+  "basis": "Fresh live graph after #64 closure plus live issue body reads for #57/#65/#66 and prior reads for #49/#50/#129-#133.",
+  "graphArtifact": "artifacts/prd0062-graph-20260727-post-ticket64-closed.json",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 79,
+    "closedCount": 33,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "issueHash": "c1388683dd88dac987f5d6e5d6e3beb65f8d2f59e8db013efb5760e9bcbbaa4c"
+  },
+  "graphClearFrontier": [
+    49,
+    50,
+    57,
+    65,
+    66,
+    129,
+    130,
+    131,
+    132,
+    133
+  ],
+  "candidateRejections": [
+    {
+      "issue": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "directPrerequisites": [47, 48],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "runtime",
+      "downstreamLeverage": 2,
+      "rejection": "Graph-clear but low current critical-path leverage and closure requires remote B2 provisioning/deployed disposable-object authority. #57 has stronger unblock value and fully executable local/teacher-browser gates."
+    },
+    {
+      "issue": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "directPrerequisites": [29, 47, 48],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "runtime",
+      "downstreamLeverage": 16,
+      "rejection": "Graph-clear but lower leverage and remote B2 lifecycle/reconciliation authority dominates closure. It is independent and remains available, but not the strongest eligible root/enabler."
+    },
+    {
+      "issue": 65,
+      "title": "PRD0062 16 — Publish one full-PDF Unit atomically",
+      "directPrerequisites": [64],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "teacher workflow",
+      "downstreamLeverage": 60,
+      "rejection": "Graph-clear after #64, but functionally downstream of the Page Group/source-qualified mapping root. Starting publication before #57 would bypass an unresolved root/enabler."
+    },
+    {
+      "issue": 66,
+      "title": "PRD0062 17 — Publish one component-PDF Unit atomically",
+      "directPrerequisites": [32, 64],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "teacher workflow",
+      "downstreamLeverage": 60,
+      "rejection": "Graph-clear after #64, but functionally downstream of the component mapping root. Starting component publication before #57 would bypass source-qualified mapping ownership."
+    },
+    {
+      "issue": 129,
+      "title": "PRD0062 51B2 — Run teacher updates, replacement, and results browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Final/regression evidence only; graph-clear from #127 does not make it acceptance-ready while upstream runtime/teacher/student/operations scope and #50A boundary remain unresolved."
+    },
+    {
+      "issue": 130,
+      "title": "PRD0062 51C1 — Run student runtime and persistence browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Final student runtime/persistence evidence; not acceptance-ready before assembled runtime and persistence tickets close."
+    },
+    {
+      "issue": 131,
+      "title": "PRD0062 51C2 — Run student accessibility and device browser suite",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Final accessibility/device evidence; not acceptance-ready before assembled student runtime states exist."
+    },
+    {
+      "issue": 132,
+      "title": "PRD0062 51D1 — Run contract and security regressions",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Final contract/security sweep; cannot precede unresolved producer tickets and #50A-preserved activation boundary."
+    },
+    {
+      "issue": 133,
+      "title": "PRD0062 51D2 — Run legacy, backup, and recovery regressions",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "roadmapPhase": "final closure",
+      "downstreamLeverage": 2,
+      "rejection": "Final legacy/backup/recovery sweep; not acceptance-ready before recovery/replacement/operations scope closes."
+    }
+  ],
+  "selected": {
+    "issue": 57,
+    "title": "PRD0062 13C — Build Page Group and Activity mapping workspace",
+    "roadmapPhase": "teacher workflow / Assembly root",
+    "directPrerequisites": [56],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 69,
+    "acceptanceReadiness": "Executable under current authority: local Page Group/source-context services, mapping workspace UI, 13A fixture-backed CAS save/reload/conflict proof, accessibility/responsive tests, and teacher role-port browser proof without PDF fetch, viewer transport, deployed route, or assembled rules claims.",
+    "requiredAuthority": "Local repository edits, focused tests, teacher localhost:5173 browser proof with dev quick-login, GitHub closure after gates. No B2, viewer, PDF.js, 50A activation, 03B enablement, #59 deployed route, or #118 generated-rules proof."
+  },
+  "selectionRuleChecks": {
+    "onePrimaryTicket": true,
+    "allDirectAndTransitivePrerequisitesClosed": true,
+    "rootOrEnablerBeforeDescendants": true,
+    "acceptanceGatesExecutable": true,
+    "ownershipAndAuthorityAvailable": true,
+    "strongestEligibleCurrentRootLeverage": true,
+    "doNotSelect128To133MerelyBecause127Closed": true,
+    "preserve50AAllDenyAnd03BDisabled": true,
+    "preserveFull112TicketScope": true
+  }
+}

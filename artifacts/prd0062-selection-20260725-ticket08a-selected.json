@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-07-25",
+  "event": "ticket-04-closed-and-foundation-reselected",
+  "roadmapPhase": "foundation",
+  "primary": 30,
+  "primaryTitle": "PRD0062 08A — Define the immutable Book Delivery binding schema",
+  "graphSnapshot": "artifacts/prd0062-selection-20260725-post-ticket04.json",
+  "graph": {
+    "ticketCount": 112,
+    "open": 97,
+    "closed": 15,
+    "edgeCount": 309,
+    "missingReferences": 0,
+    "cycles": 0,
+    "topologicalTraversal": "112/112",
+    "transitiveChainsCalculatedForEveryOpenTicket": true,
+    "graphClearFrontier": [30, 35, 38, 39, 40, 41, 42, 47, 69, 129, 130, 131, 132, 133]
+  },
+  "selection": {
+    "directPrerequisites": [25, 26, 29],
+    "transitivePrerequisites": [25, 26, 29],
+    "closedPrerequisites": [25, 26, 29],
+    "downstreamLeverage": 74,
+    "acceptanceReadiness": [
+      "Foundation schema/enabler work; no browser capability or remote deployment mutation is required by the ticket.",
+      "Local focused schema/factory/compatibility/negative tests and scoped typecheck are executable.",
+      "Owned proof has no unresolved ownership or authority boundary."
+    ],
+    "requiredAuthority": [
+      "Current live GitHub issue body and 112-ticket graph.",
+      "Local repository source and test harness only."
+    ]
+  },
+  "candidateRejections": [
+    {
+      "tickets": [35, 38, 39, 40, 41, 47, 69, 129, 130, 131, 132, 133],
+      "reason": "Not selected: descendants/enablers are later than #30 in the Foundation roadmap or belong to later phases; graph-clear does not establish acceptance eligibility. #47 additionally depends on the preserved #50A boundary."
+    },
+    {
+      "ticket": 42,
+      "reason": "Not selected: Operations roadmap phase; current phase is Foundation."
+    },
+    {
+      "tickets": [31, 51, 52, 53, 54, 58, 59, 60, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 134, 135, 136],
+      "reason": "INELIGIBLE: direct or transitive prerequisite chain contains an OPEN ticket; mandatory dependency gate forbids inspection, implementation, and acceptance work."
+    }
+  ],
+  "decision": "#30 is the sole Foundation primary: all direct and transitive prerequisites are CLOSED, its acceptance gates are executable under current authority, and it has the strongest verified closure leverage among eligible Foundation candidates. Preserve 50A all-six-deny/default-deny and 03B disabled."
+}

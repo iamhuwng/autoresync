@@ -1,0 +1,73 @@
+{
+  "ticket": 97,
+  "title": "PRD0062 38B3B - Migrate Writing, THCS, session, and monitor notification producers",
+  "status": "PASS_LOCAL_DESTINATION_TRANSFERRED",
+  "generatedAt": "2026-07-29T17:08:00+07:00",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260729-post-ticket97-closed.json",
+    "issueHash": "a8fb4077a19553e6aba8b3cec7f8128e15883a2b53fd490e311bb7d875c1ce15",
+    "issues": 112,
+    "open": 49,
+    "closed": 63,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "frontier": [49, 50, 76, 106, 129, 130, 131, 132, 133]
+  },
+  "prerequisites": {
+    "direct": [94],
+    "transitiveClosed": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66, 72, 74, 93, 94],
+    "openTransitive": []
+  },
+  "contractRepair": {
+    "source": 97,
+    "destination": 134,
+    "transferred": [
+      "integrated Writing/THCS/session/monitor role-port rendering and safe destination proof",
+      "staging/deployed producer persistence and notification readback",
+      "active route/configuration/identity/gate readback",
+      "deployed/canary idempotency, cleanup, and producer-command rollback"
+    ],
+    "reimbursement": "#134 live body now owns the transferred integrated/deployed notification drill; #97 retains local trusted-command, compatibility-reader, negative, and regression proof.",
+    "hardDependencyChanged": false,
+    "safety": "#50A all-deny/default-deny, #03B disabled, private-B2 disabled, trusted activation disabled"
+  },
+  "ownedProof": {
+    "families": ["writing", "thcs-grading", "thcs-practice", "session", "monitor"],
+    "paths": [
+      "src/services/writingSubmissionService.ts",
+      "src/services/thcsWritingGrading.service.ts",
+      "src/hooks/monitor/useMonitorControls.ts",
+      "src/services/sessionManager.js",
+      "src/components/writing-practice/WritingPracticeView.tsx",
+      "src/components/practice/THCSPracticeView.tsx",
+      "src/components/thcs-student/THCSTestLayout.tsx",
+      "src/components/thcs-editor/THCSHomeworkAssignDialog.tsx",
+      "src/services/notificationProducerClient.ts",
+      "src/services/notificationProducerInventory.test.ts"
+    ],
+    "claims": [
+      "every owned producer uses a bounded typed #94 trusted command",
+      "recipient and authority values derive from authenticated or persisted domain records",
+      "legacy visible title/message meaning and safe route semantics remain compatible",
+      "deterministic operation identity and legacy THCS ten-second grade batching are preserved",
+      "no owned producer imports raw notification RTDB create/write helpers",
+      "disabled trusted route leaves domain writes successful and legacy readers/read-state intact"
+    ]
+  },
+  "verification": {
+    "focusedHarness": "PASS: 10 files, 82 tests",
+    "eslint": "PASS: all #97 source and test paths",
+    "mantineBoundary": "PASS: 17 changed source files checked; pre-existing imports in THCSPracticeView.tsx were unchanged and separately audited",
+    "utf8": "PASS: 20 text files",
+    "diffCheck": "PASS: no whitespace errors",
+    "rawWriteScan": "PASS: no owned path contains notificationService/createNotification/createBulkNotifications",
+    "pinnedTypecheck": "Pre-existing/shared Book Assembly and runtime diagnostics only; no #97-path diagnostics",
+    "productionBuild": "PASS: exact x64 harness build; 9,448 modules transformed; built in 2m 40s",
+    "browserAndDeployment": "Destination-owned by #134; not claimed by #97",
+    "rollback": "Local trusted route remains disabled; domain writes succeed when command route is unavailable; legacy readers/read-state remain; #134 owns integrated disable/cleanup drill"
+  },
+  "closureReady": true
+}

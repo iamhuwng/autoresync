@@ -16,7 +16,58 @@ import { normalizeAnswer } from './thcsAutoMarking.service';
 import { aiService } from './ai/router.service';
 import { ref, update } from 'firebase/database';
 import { database } from './firebase';
-import { sendThcsGradeUpdatedNotification } from './notificationService';
+import { buildRoute } from '../constants/routes';
+import { createTrustedNotification } from './notificationProducerClient';
+
+const TRUSTED_NOTIFICATION_ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const isTrustedNotificationIdentifier = (value: unknown): value is string =>
+    typeof value === 'string' && TRUSTED_NOTIFICATION_ID.test(value);
+
+type GradeNotificationBatch = {
+    readonly questionPoints: Map<number, number>;
+    timer: ReturnType<typeof setTimeout> | null;
+};
+
+const gradeNotificationBatches = new Map<string, GradeNotificationBatch>();
+
+const queueGradeUpdatedNotification = (
+    studentId: string,
+    resultId: string,
+    questionNumber: number,
+    pointsEarned: number,
+): void => {
+    const batchKey = `${studentId}:${resultId}`;
+    const existing = gradeNotificationBatches.get(batchKey);
+    const batch = existing ?? { questionPoints: new Map<number, number>(), timer: null };
+    batch.questionPoints.set(questionNumber, pointsEarned);
+    if (batch.timer) clearTimeout(batch.timer);
+    gradeNotificationBatches.set(batchKey, batch);
+
+    batch.timer = setTimeout(() => {
+        const current = gradeNotificationBatches.get(batchKey);
+        if (!current) return;
+        gradeNotificationBatches.delete(batchKey);
+
+        const questionNumbers = [...current.questionPoints.keys()].sort((left, right) => left - right);
+        const isBatch = questionNumbers.length > 1;
+        const operationKey = `thcs-grade-updated:${resultId}:questions:${questionNumbers.join(',')}`;
+        const firstQuestion = questionNumbers[0];
+        const firstPoints = current.questionPoints.get(firstQuestion) ?? 0;
+
+        void createTrustedNotification({
+            producerFamily: 'thcs-grading',
+            authorityRecordId: resultId,
+            recipientId: studentId,
+            operationKey,
+            type: 'success',
+            title: isBatch ? '📝 Grades Updated' : '📝 Grade Updated',
+            message: isBatch
+                ? `${questionNumbers.length} answers in "THCS Test" have been graded.`
+                : `Your answer for Q${firstQuestion} in "THCS Test" has been graded: ${firstPoints} points.`,
+            link: buildRoute('RESULT_DETAIL', { resultId }),
+        }).catch(err => console.warn('[WritingGrading] Grade notification failed:', err));
+    }, 10000);
+};
 
 // ═══════════════════════════════════════════════════════════════
 // Levenshtein distance (in-house — per PRD §7.1, no external lib)
@@ -234,7 +285,15 @@ export async function gradeWritingQuestions(
     sections: THCSSection[],
     sessionCode: string,
     studentId: string,
+    resultId = sessionCode,
 ): Promise<void> {
+    if (
+        !isTrustedNotificationIdentifier(sessionCode)
+        || !isTrustedNotificationIdentifier(studentId)
+        || !isTrustedNotificationIdentifier(resultId)
+        || gradingResult.studentId !== studentId
+    ) return;
+
     // Build question lookup
     const questionMap = new Map(
         sections.flatMap(s => s.questions).map(q => [q.questionNumber, q])
@@ -249,7 +308,8 @@ export async function gradeWritingQuestions(
     console.info(`[WritingGrading] Processing ${pendingEntries.length} writing question(s)...`);
 
     for (const [qNumStr, qr] of pendingEntries) {
-        const qNum = parseInt(qNumStr);
+        const qNum = Number(qNumStr);
+        if (!Number.isInteger(qNum)) continue;
         const question = questionMap.get(qNum);
         if (!question) continue;
 
@@ -295,14 +355,8 @@ export async function gradeWritingQuestions(
 
             console.info(`[WritingGrading] Q${qNum}: graded as ${result.gradingTier} (score: ${result.aiScore})`);
 
-            // Phase 3 Task 3.2: Send grade updated notification (debounced in notificationService)
-            sendThcsGradeUpdatedNotification(
-                studentId,
-                'THCS Test', // Title not available here; service debounces by studentId+sessionCode
-                qNum,
-                pointsEarned,
-                sessionCode
-            ).catch(err => console.warn(`[WritingGrading] Grade notification failed for Q${qNum}:`, err));
+            // Fire-and-forget: preserve the legacy 10-second batching window without raw RTDB writes.
+            queueGradeUpdatedNotification(studentId, resultId, qNum, pointsEarned);
         } catch (err) {
             console.warn(`[WritingGrading] Q${qNum}: grading failed`, err);
             // Leave as 'pending' — teacher will grade manually

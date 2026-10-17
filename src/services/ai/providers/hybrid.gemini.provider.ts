@@ -70,7 +70,7 @@ class HybridGeminiProvider {
     key: string,
     keyIndex: number,
     documentText: string,
-    GoogleGenerativeAI: typeof import('@google/generative-ai').GoogleGenerativeAI,
+    GoogleGenerativeAI: typeof import('../browser-provider-clients').GoogleGenerativeAI,
   ): Promise<Result<HybridAIResponse>> {
     const client = new GoogleGenerativeAI(key);
 

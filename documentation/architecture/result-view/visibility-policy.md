@@ -2,6 +2,13 @@
 
 This file is the canonical policy for who can see a result, who owns it, and when teacher actions are allowed.
 
+## PRD0062 #104 Observability Note
+
+The Book runtime action names added to `src/config/featureRegistry.ts` are
+observability metadata for launch, denial, and return behavior. They do not
+read or write result records, grant result visibility, or change any student,
+teacher, or administrator ownership rule in this policy.
+
 ## Two-Step Gate
 
 A teacher can access a result only when both conditions are true:

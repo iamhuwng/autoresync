@@ -8,7 +8,7 @@
  *   - Never loads result records, never checks ownership, never decides access.
  *   - Receives a loaded TestResultRecord, rendering callbacks, and optional delivery boundaries via props.
  *   - Shells own chrome, data loading, ownership, open/close.
- *   - See documentation/architecture/prd0040-preflight-ledger.md §SharedSavedResultCore Contract
+ *   - See documentation/architecture/changelog/prd0040-preflight-ledger.md §SharedSavedResultCore Contract
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';

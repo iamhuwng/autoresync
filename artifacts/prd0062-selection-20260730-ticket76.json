@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "SUPERSEDED_BY_TICKET_74_CLOSURE_REPAIR",
+  "supersededBy": "artifacts/prd0062-selection-20260730-ticket74-repair.json",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket76-selection.json",
+  "graphHash": "a44b1dc4119556bed8f9e8c9e21596c9a0e92c3e2aad98e4e027f5a73cc92905",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 48,
+    "closedCount": 64,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 76, 106, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow",
+  "selectedTicket": {
+    "number": 76,
+    "title": "PRD0062 28C — Submit terminal Activity attempts and immutable results",
+    "closedDirectPrerequisites": [74, 75],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 40,
+    "acceptanceReadiness": "READY_AFTER_DESTINATION_FIRST_DEPLOYMENT_PROOF_TRANSFER",
+    "requiredAuthority": [
+      "local repository and Worker implementation",
+      "localhost:5174 Student quick-login",
+      "no deployed/canary or trusted-action activation authority"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "number": 49,
+      "decision": "REJECTED_BLOCKED",
+      "reason": "Positive live upload requires #126/50B rollout authority; #50A remains all-six-deny/default-deny."
+    },
+    {
+      "number": 76,
+      "decision": "SELECTED",
+      "reason": "Graph-clear, independently eligible, different blocker family from #49, and the earliest root in #126's transitive prerequisite chain with the strongest downstream leverage."
+    },
+    {
+      "number": 106,
+      "decision": "REJECTED_PRIORITY",
+      "reason": "Graph-clear but lower downstream leverage and does not unblock #80/#92/#118/#125/#126 as directly as #76."
+    },
+    {
+      "numbers": [129, 130, 131, 132, 133],
+      "decision": "REJECTED_PHASE",
+      "reason": "Integration/final-suite tickets remain later-phase and cannot be selected while prerequisite/runtime/student-workflow roots remain open."
+    }
+  ],
+  "ownershipRepair": {
+    "destinationFirst": 134,
+    "source": 76,
+    "transferredProof": "deployed/canary disposable terminal-submission drill, identity/config/generated-rules readback, telemetry, cleanup, and operational rollback",
+    "retainedProof": "local terminal service/Worker, transaction/idempotency/crash proof, fragment denial, localhost:5174 Student submission, and local rollback"
+  },
+  "safetyState": {
+    "03B": "DISABLED",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "privateB2": "DISABLED_PENDING_ACCEPTANCE",
+    "trustedActions": "DISABLED_BY_DEFAULT"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "task": "PRD0062 #118 / 09E",
+  "status": "ACCEPTED_ALL_GREEN",
+  "generatedAt": "2026-08-12",
+  "authoritativeProof": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+  "sourceCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+  "identities": {
+    "fragmentManifest": {
+      "path": "documentation/tasks/PRD0062/evidence/118-final-fragment-manifest-2026-08-12.json",
+      "sha256": "9f720df1bce39e88d169749e491a28e1bc3fec89902508ca2d24a2ec81b5b831"
+    },
+    "baseRules": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    },
+    "composer": {
+      "path": "cloudflare/src/upload-worker/book-rules/generated-fragment-composer.ts",
+      "sha256": "61fb5d0b1bc00e0ff40d00b9d602e41948a00985d71cc3e77dba4029262a3d10",
+      "version": "prd0062-118-composer-v2"
+    },
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b"
+    },
+    "emulatorSuite": {
+      "path": "scripts/prd0062-118-assembled-rules-matrix.mjs",
+      "sha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+      "version": "prd0062-118-assembled-rules-matrix-v4"
+    },
+    "rollbackArtifact": {
+      "path": "firebase.prd0062-118-rules.rollback.json",
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6"
+    }
+  },
+  "composition": {
+    "fragmentCount": 38,
+    "rawOperationCount": 373,
+    "composedLocationCount": 368,
+    "fragmentOrderIncludes": ["04", "08B", "12C", "13A", "16", "16A", "17", "18", "19", "20A", "20C", "21", "28A", "29", "33C", "35", "36", "37A", "37B", "38B5", "39B", "39C", "40A", "40B", "41B", "41C", "42A", "42B", "43", "44", "45", "46A", "46B", "47", "49A", "49B", "49C", "49D"],
+    "approvedConflictGroups": 4,
+    "deterministicRegenerationByteMatch": true,
+    "changedOutsideManifestOwnedLocations": 0,
+    "producerFragmentBytesChanged": false,
+    "denyByDefaultUniversalSummaryOtherValidators": "boolean false at all five row schemas"
+  },
+  "legacyBaseConvergence": {
+    "normalProductParent": "b849f82630dc955c31ccd168eccafe378768b7ef",
+    "lostAtMerge": "b8cd836c08ad68cf1a1c7513f8af813e31f11d4a",
+    "restoredScalarLeaves": 25,
+    "acceptedSourceCommits": [
+      "01d5dd124c77b28c0fe9b00e73a820bc2fd3ec2c",
+      "5de8590b7aeab01a32265a46dfadbef6deb72e22",
+      "c7941b878d6e3319a6901a49fae4a54df192d09f"
+    ],
+    "nonProducerScalarDiffAfterConvergence": 0,
+    "readingV2ProductFilesChanged": false
+  },
+  "verification": {
+    "focusedComposer": {
+      "sidecarSha256": "f5079d8fee46e8c8a6bb04cf782c2a7d88f6280a2bf0b3b06b2df0336ff2c290",
+      "counts": { "executed": 13, "passed": 13, "failed": 0, "skipped": 0 }
+    },
+    "assembledMatrix": {
+      "sidecarSha256": "e8175c5144cb4f7e0c2a137d349860da7304c74cdd82b86cf6a8078cfcab3468",
+      "resultSha256": "5505352c25e3eb3af8e528ab854a67b16c1564f1b96a88a2aa68ab9dfb902144",
+      "files": 7,
+      "tests": 85,
+      "passed": 85,
+      "failed": 0,
+      "skipped": 0,
+      "pending": 0,
+      "todo": 0,
+      "exitCode": 0
+    }
+  },
+  "rollback": {
+    "artifact": "firebase.prd0062-118-rules.rollback.json",
+    "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "authority": "Original pre-composition rollback plus the exact accepted normal-product rules lost at the producer-lineage merge."
+  },
+  "remoteProof": {
+    "deployed": false,
+    "remoteReadbackVerified": false,
+    "statement": "No deploy, activation, push, PR, remote mutation, or remote readback was performed."
+  }
+}

@@ -2,7 +2,6 @@ import R2UploadClient, {
     type AssetGrantUploadAuthorization,
     type MoveResult,
     type R2UploadClientContract,
-    type UploadOptions,
     type UploadOperationKind,
     type UploadProgress,
     type UploadResult,
@@ -11,25 +10,11 @@ import {
     WorkerListeningUploadSessionApi,
     type ListeningUploadAssetResponse,
     type ListeningUploadAssetProbeResponse,
-    type ListeningUploadCancelResponse,
-    type ListeningUploadCleanupReason,
-    type ListeningUploadRequestOptions,
     type ListeningUploadSessionApi,
     type ListeningUploadSessionResponse,
 } from '../features/assessment/listening/storage/listeningUploadSessionApi';
 
 export const R2_PUBLIC_URL = 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
-
-const LISTENING_CLEANUP_CANCEL_ATTEMPTS = 3;
-const LISTENING_CLEANUP_BACKOFF_MS = [50, 150] as const;
-
-export interface R2StorageServiceOptions {
-    sleep?: (delayMs: number) => Promise<void>;
-}
-
-const defaultSleep = (delayMs: number): Promise<void> => new Promise((resolve) => {
-    setTimeout(resolve, delayMs);
-});
 
 export interface ListeningAuthoringUploadInput {
     sessionIdempotencyKey: string;
@@ -78,25 +63,18 @@ const permanentOperationForHint = (hint: string): UploadOperationKind => {
 };
 
 class R2StorageService {
-    private readonly sleep: (delayMs: number) => Promise<void>;
-
     constructor(
         private readonly client: R2UploadClientContract = new R2UploadClient(),
         private readonly listeningUploadSessionApi: ListeningUploadSessionApi = new WorkerListeningUploadSessionApi(),
-        options: R2StorageServiceOptions = {},
-    ) {
-        this.sleep = options.sleep ?? defaultSleep;
-    }
+    ) {}
 
     createListeningUploadSession(input: {
         idempotencyKey: string;
         draftId?: string;
         testId?: string;
         revisionId?: string;
-    }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadSessionResponse> {
-        return options
-            ? this.listeningUploadSessionApi.createSession(input, options)
-            : this.listeningUploadSessionApi.createSession(input);
+    }): Promise<ListeningUploadSessionResponse> {
+        return this.listeningUploadSessionApi.createSession(input);
     }
 
     issueListeningUploadAsset(input: {
@@ -105,124 +83,41 @@ class R2StorageService {
         fileName: string;
         declaredMimeType: string;
         sizeBytes: number;
-    }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetResponse> {
-        return options
-            ? this.listeningUploadSessionApi.issueAsset(input, options)
-            : this.listeningUploadSessionApi.issueAsset(input);
+    }): Promise<ListeningUploadAssetResponse> {
+        return this.listeningUploadSessionApi.issueAsset(input);
     }
 
     probeListeningAuthoringAudio(input: {
         uploadSessionId: string;
         assetId: string;
-    }, options?: ListeningUploadRequestOptions): Promise<ListeningUploadAssetProbeResponse> {
-        return options
-            ? this.listeningUploadSessionApi.probeAsset(input, options)
-            : this.listeningUploadSessionApi.probeAsset(input);
-    }
-
-    cancelListeningAuthoringUpload(input: {
-        uploadSessionId: string;
-        assetId?: string;
-        reason: ListeningUploadCleanupReason;
-    }): Promise<ListeningUploadCancelResponse> {
-        return this.retryListeningAuthoringCleanup(input);
-    }
-
-    private async retryListeningAuthoringCleanup(input: {
-        uploadSessionId: string;
-        assetId?: string;
-        reason: ListeningUploadCleanupReason;
-    }): Promise<ListeningUploadCancelResponse> {
-        let lastError: unknown;
-        for (let attempt = 0; attempt < LISTENING_CLEANUP_CANCEL_ATTEMPTS; attempt += 1) {
-            try {
-                return await this.listeningUploadSessionApi.cancelSession(input);
-            } catch (error) {
-                lastError = error;
-                if (!this.isRetryableCleanupError(error) || attempt === LISTENING_CLEANUP_CANCEL_ATTEMPTS - 1) {
-                    throw error;
-                }
-                await this.sleep(
-                    LISTENING_CLEANUP_BACKOFF_MS[attempt]
-                    ?? LISTENING_CLEANUP_BACKOFF_MS[LISTENING_CLEANUP_BACKOFF_MS.length - 1],
-                );
-            }
-        }
-        throw lastError;
-    }
-
-    private isRetryableCleanupError(error: unknown): boolean {
-        if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') {
-            return false;
-        }
-        if (error && typeof error === 'object' && 'retryable' in error) {
-            return (error as { retryable?: unknown }).retryable === true;
-        }
-        // An injected transport can only expose a generic rejection. The cancel
-        // contract is idempotent, so retrying that rejection is safe.
-        return true;
+    }): Promise<ListeningUploadAssetProbeResponse> {
+        return this.listeningUploadSessionApi.probeAsset(input);
     }
 
     async uploadListeningAuthoringAudio(
         file: File,
         input: ListeningAuthoringUploadInput,
         onProgress?: UploadProgress,
-        options?: UploadOptions,
     ): Promise<ListeningAuthoringUploadResult> {
         const contentType = listeningContentType(file);
         const session = await this.createListeningUploadSession({
             idempotencyKey: input.sessionIdempotencyKey,
             ...(input.draftId ? { draftId: input.draftId } : {}),
-        }, options);
-        let asset: ListeningUploadAssetResponse;
-        try {
-            asset = await this.issueListeningUploadAsset({
-                idempotencyKey: input.assetIdempotencyKey,
-                uploadSessionId: session.uploadSessionId,
-                fileName: file.name,
-                declaredMimeType: contentType,
-                sizeBytes: file.size,
-            }, options);
-        } catch (error) {
-            if (options?.signal?.aborted) {
-                try {
-                    await this.cancelListeningAuthoringUpload({
-                        uploadSessionId: session.uploadSessionId,
-                        reason: 'upload-aborted',
-                    });
-                } catch {
-                    // The session authority remains the fallback expiry/cleanup owner.
-                }
-            }
-            throw error;
-        }
+        });
+        const asset = await this.issueListeningUploadAsset({
+            idempotencyKey: input.assetIdempotencyKey,
+            uploadSessionId: session.uploadSessionId,
+            fileName: file.name,
+            declaredMimeType: contentType,
+            sizeBytes: file.size,
+        });
         const authorization: AssetGrantUploadAuthorization = {
             assetGrant: asset.assetGrant,
             key: asset.tempKey,
             publicUrl: `${R2_PUBLIC_URL}/${asset.tempKey}`,
             contentType,
         };
-        let uploaded: UploadResult;
-        try {
-            uploaded = await this.client.uploadWithAssetGrant(file, authorization, onProgress, options);
-        } catch (error) {
-            const aborted = options?.signal?.aborted
-                || (error && typeof error === 'object' && 'code' in error
-                    && (error as { code?: unknown }).code === 'upload_aborted');
-            if (aborted) {
-                try {
-                    await this.cancelListeningAuthoringUpload({
-                        uploadSessionId: asset.uploadSessionId,
-                        assetId: asset.assetId,
-                        reason: 'upload-aborted',
-                    });
-                } catch {
-                    // Cleanup is best-effort. Preserve the original upload abort
-                    // so callers can update UI without an unhandled rejection.
-                }
-            }
-            throw error;
-        }
+        const uploaded = await this.client.uploadWithAssetGrant(file, authorization, onProgress);
         return {
             ...uploaded,
             assetId: asset.assetId,
@@ -286,7 +181,17 @@ class R2StorageService {
     }
 
     async uploadImage(file: File, folderName = 'images'): Promise<UploadResult> {
-        return this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        const uploaded = await this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        const moved = await this.moveToPermanent(uploaded.key);
+        if (!moved.success) throw new Error('Image move failed');
+        return {
+            ...uploaded,
+            url: moved.newUrl,
+            streamUrl: moved.newUrl,
+            directUrl: moved.newUrl,
+            key: moved.newKey,
+            isTemp: false,
+        };
     }
 
     async uploadImageReplacement(
@@ -294,7 +199,7 @@ class R2StorageService {
         _currentUrl?: string | null,
         folderName = 'images',
     ): Promise<UploadResult> {
-        return this.client.upload(file, tempOperationForFolder(folderName), undefined);
+        return this.uploadImage(file, folderName);
     }
 
     async uploadFilePermanent(
@@ -338,13 +243,10 @@ export type {
     AssetGrantUploadAuthorization,
     ListeningUploadAssetResponse,
     ListeningUploadAssetProbeResponse,
-    ListeningUploadCancelResponse,
-    ListeningUploadCleanupReason,
     ListeningUploadSessionApi,
     ListeningUploadSessionResponse,
     MoveResult,
     R2UploadClientContract,
-    UploadOptions,
     UploadOperationKind,
     UploadProgress,
     UploadResult,

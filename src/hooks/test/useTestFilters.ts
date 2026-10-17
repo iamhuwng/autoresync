@@ -8,6 +8,8 @@ interface FilterParams {
   testTypeFilter: string;
   thcsGradeFilter: string;
   thcsExamTypeFilter: string;
+  skillFilter?: string;
+  visibilityFilter?: string;
 }
 
 const ownedContentFilters = new Set(['my', 'reading-passage', 'book']);
@@ -36,6 +38,10 @@ const matchesMaterialTab = (item: any, contentFilter: FilterParams['contentFilte
     return getMaterialKinds(item).some((kind) => bookKinds.has(kind));
   }
 
+  if (contentFilter === 'my' || contentFilter === 'public') {
+    return !getMaterialKinds(item).some((kind) => readingPassageKinds.has(kind) || bookKinds.has(kind));
+  }
+
   return true;
 };
 
@@ -48,16 +54,16 @@ const materialTimestamp = (item: any): number => {
 };
 
 export function useTestFilters(tests: any[], filters: FilterParams) {
-  const { userId, contentFilter, searchTerm, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter } = filters;
+  const { userId, contentFilter, searchTerm, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter,
+    skillFilter = 'all', visibilityFilter = 'all' } = filters;
 
   const filterByOwnership = useCallback((items: any[]) => {
     if (!userId) return items;
 
     if (ownedContentFilters.has(contentFilter)) {
       return items.filter(item => {
-        const hasOwnership = item.ownerId || item.createdBy;
         const isOwned = item.ownerId === userId || item.createdBy === userId;
-        return isOwned || !hasOwnership;
+        return isOwned;
       });
     }
 
@@ -74,16 +80,17 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
 
     // Search filter
     let searchFiltered = ownershipFiltered.filter(test => {
-      const title = test.metadata?.title || test.title;
-      return (title || '').toLowerCase().includes(searchTerm.toLowerCase());
+      return [test.title, test.metadata?.title, test.description, ...(test.tags || [])]
+        .filter(Boolean).join(' ').toLowerCase().includes(searchTerm.trim().toLowerCase());
     });
 
     searchFiltered = searchFiltered.filter((test) => matchesMaterialTab(test, contentFilter));
 
-    // Type filter — only in public library mode
-    if (contentFilter === 'public' && testTypeFilter !== 'all') {
-      if (testTypeFilter === 'THCS-THPT') {
-        searchFiltered = searchFiltered.filter((t: any) => t.testType === 'THCS-THPT');
+    searchFiltered = searchFiltered.filter((test) =>
+      (skillFilter === 'all' || String(test.skillId || test.skill || '').toLowerCase() === skillFilter) &&
+      (visibilityFilter === 'all' || test.visibility === visibilityFilter));
+
+    if (/thcs|thpt/i.test(testTypeFilter)) {
         if (thcsGradeFilter !== 'all') {
           const grade = parseInt(thcsGradeFilter, 10);
           searchFiltered = searchFiltered.filter((t: any) => t.metadata?.gradeLevel === grade);
@@ -91,9 +98,6 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
         if (thcsExamTypeFilter !== 'all') {
           searchFiltered = searchFiltered.filter((t: any) => t.metadata?.examType === thcsExamTypeFilter);
         }
-      } else if (testTypeFilter === 'IELTS') {
-        searchFiltered = searchFiltered.filter((t: any) => t.testType !== 'THCS-THPT');
-      }
     }
 
     // Sort by publishedAt (newest first) in public library
@@ -106,7 +110,7 @@ export function useTestFilters(tests: any[], filters: FilterParams) {
     }
 
     return searchFiltered;
-  }, [tests, filterByOwnership, searchTerm, contentFilter, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter]);
+  }, [tests, filterByOwnership, searchTerm, contentFilter, testTypeFilter, thcsGradeFilter, thcsExamTypeFilter, skillFilter, visibilityFilter]);
 
   return { filteredTests };
 }

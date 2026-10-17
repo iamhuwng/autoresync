@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-15T02:50:26Z",
+  "status": "independent_review_pending",
+  "mission": "PRD0062 Milestone-1 browser handoff release authentication only",
+  "controllingPlan": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md#936-hosting-authentication-gate-after-the-2026-08-15-browser-delivery-freeze",
+  "supersedesFailure": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-browser-delivery-hosting-auth-failure-result-2026-08-15.json",
+  "productFreeze": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-browser-delivery-freeze-checkpoint-v2-2026-08-15.json",
+  "classification": "RELEASE_ENGINEERING_IDENTITY_REGENERATION_ONLY",
+  "authentication": {
+    "mechanism": "existing authenticated Firebase CLI account",
+    "identity": "iamhuwng@gmail.com",
+    "identityEvidence": "same established Firebase CLI identity recorded as creator/finalizer of current Hosting version 31a9052843c443c5",
+    "configSourceClass": "explicit existing Firebase CLI configstore",
+    "applicationDefaultCredentials": "ABSENT; not fabricated",
+    "googleApplicationCredentials": "NOT USED",
+    "firebaseToken": "FORBIDDEN_AND_REMOVED",
+    "userTokenOverridesRemoved": [
+      "FIREBASE_TOKEN",
+      "FIREBASE_AUTH_TOKEN",
+      "GOOGLE_OAUTH_ACCESS_TOKEN",
+      "GCLOUD_ACCESS_TOKEN",
+      "CLOUDSDK_AUTH_ACCESS_TOKEN",
+      "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
+      "GOOGLE_GHA_CREDS_PATH"
+    ],
+    "credentialContentsPrintedOrPersisted": false,
+    "credentialOrIamMutation": false,
+    "newServiceAccount": false,
+    "newPrivateKey": false,
+    "iamRoleChange": false
+  },
+  "readOnlyAuthorizationProof": {
+    "project": {
+      "commandClass": "firebase projects:list --json",
+      "exitStatus": 0,
+      "projectId": "temp-a1437",
+      "projectNumber": "171016256749",
+      "displayName": "Temp"
+    },
+    "site": {
+      "commandClass": "firebase hosting:sites:list --project temp-a1437 --json",
+      "exitStatus": 0,
+      "siteName": "projects/temp-a1437/sites/kahut1",
+      "siteId": "kahut1",
+      "defaultUrl": "https://kahut1.web.app",
+      "type": "USER_SITE"
+    },
+    "liveChannel": {
+      "commandClass": "firebase hosting:channel:list --site kahut1 --project temp-a1437 --json",
+      "exitStatus": 0,
+      "channelName": "projects/temp-a1437/sites/kahut1/channels/live",
+      "releaseName": "projects/temp-a1437/sites/kahut1/channels/live/releases/1784390955725000",
+      "versionName": "projects/temp-a1437/sites/kahut1/versions/31a9052843c443c5",
+      "releaseTime": "2026-07-18T16:09:15.725Z"
+    }
+  },
+  "frozenFrontend": {
+    "rebuilt": false,
+    "changed": false,
+    "files": 441,
+    "bytes": 11872235,
+    "manifestSha256": "88f4b8cffec0f8e108b3be308c82703875a1a59ce14362d4504a9960963abcab",
+    "entry": "/assets/index-rR9ze86f.js",
+    "entrySha256": "6fe80c6b833b8ef0aac3b70066cbce02bf720749c3c1bbaefc11bd1a59ccf3d7"
+  },
+  "productionBaseline": {
+    "worker": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39 at 100% rollback",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "hostingVersion": "sites/kahut1/versions/31a9052843c443c5",
+    "rootRevision": 7,
+    "authorityRevision": 2,
+    "delivery": "active revision 1",
+    "compatibilityShell": "PRESENT",
+    "assignmentCommandPermitted": false
+  },
+  "executionOrder": [
+    "keep backend rollback active",
+    "deploy exact reviewed Hosting artifact only",
+    "read back new live Hosting release/version and expected entry asset",
+    "activate reviewed Firestore and RTDB rules plus Worker v121",
+    "reread durable state with zero assignment commands",
+    "run teacher, student Runtime, and ordinary Homework browser gates"
+  ],
+  "hostingDeployment": {
+    "scope": "hosting:kahut1 only",
+    "project": "temp-a1437",
+    "credentialEnvironment": "same explicit Firebase CLI config source as read-only proof; all token overrides absent",
+    "unrelatedFirebaseProducts": "must not deploy",
+    "failureBoundary": "if Hosting deployment fails, do not activate Worker or rules; preserve current live release and stop"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-07-26T03:25:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260726-post-ticket06b.json",
+  "graphIssueHash": "1dbcb6dc36be97a71208b6f134d8539e06153fe416be742cc238e7bb064daa11",
+  "roadmapPhase": "runtime",
+  "selectionContract": {
+    "ticketCount": 112,
+    "requireClosedTransitivePrerequisites": true,
+    "requireExecutableAcceptanceGates": true,
+    "rootsAndEnablersBeforeDescendants": true,
+    "exactlyOnePrimary": true,
+    "recomputeAfterClosure": true,
+    "preserve03BDisabled": true,
+    "preserve50AAllSixDeny": true
+  },
+  "graphSnapshot": {
+    "issueCount": 112,
+    "openCount": 90,
+    "closedCount": 22,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": "112/112",
+    "graphClearFrontier": [38, 39, 40, 41, 49, 50, 51, 55, 129, 130, 131, 132, 133]
+  },
+  "candidateEvaluation": [
+    {
+      "ticket": 55,
+      "title": "PRD0062 13A — Build Assembly candidate command API",
+      "status": "selected",
+      "phase": "runtime",
+      "directPrerequisites": [32, 35, 48],
+      "transitivePrerequisites": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 74,
+      "acceptanceReadiness": {
+        "executable": true,
+        "basis": "Published acceptance requires API/repository/CAS/rules/emulator/security tests and disposable preview candidate save/reload; required authority is available.",
+        "browserGate": "Not independently required; 13B/13C exercise commands through teacher UI."
+      },
+      "requiredAuthority": ["Firebase/RTDB scoped Assembly service identity", "Worker preview deployment", "rules/emulator test harness"],
+      "selectionReason": "Earliest eligible runtime assembly enabler with the strongest verified downstream-unblock leverage."
+    },
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C — Provision and prove private B2 direct upload",
+      "status": "rejected",
+      "directPrerequisites": [47, 48],
+      "transitivePrerequisites": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "rejectionReason": "Eligible but later within runtime delivery ordering and materially lower closure/downstream-unblock leverage than #55."
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 — Reconcile failed and unfinished direct-B2 uploads",
+      "status": "rejected",
+      "directPrerequisites": [29, 47, 48],
+      "transitivePrerequisites": [25, 26, 27, 29, 44, 45, 46, 47, 48],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 16,
+      "rejectionReason": "Eligible but operations/recovery work follows runtime assembly and delivery foundations."
+    },
+    {
+      "ticket": 51,
+      "title": "PRD0062 09A — Authorize current Book document requests and retire document ledgers",
+      "status": "rejected",
+      "directPrerequisites": [31, 47],
+      "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 72,
+      "rejectionReason": "Eligible but teacher-workflow phase; runtime assembly enabler #55 precedes it in the roadmap."
+    },
+    {
+      "tickets": [38, 39, 40, 41],
+      "status": "rejected",
+      "rejectionReason": "Graph-clear and their transitive prerequisites are closed, but they are renderers/adapters downstream of the current runtime assembly enabler and have lower phase precedence than #55."
+    },
+    {
+      "tickets": [129, 130, 131, 132, 133],
+      "status": "rejected",
+      "rejectionReason": "Do not select final browser/regression descendants merely because graph-clear; final-closure phase is not current and their shared #127 boundary is not the current runtime root."
+    }
+  ],
+  "selectedPrimary": {
+    "ticket": 55,
+    "title": "PRD0062 13A — Build Assembly candidate command API",
+    "roadmapPhase": "runtime",
+    "closedPrerequisites": [25, 26, 27, 29, 32, 33, 34, 35, 44, 45, 46, 47, 48],
+    "downstreamLeverage": 74,
+    "acceptanceReadiness": "Executable under current authority and safety policy.",
+    "requiredAuthority": ["Firebase/RTDB scoped Assembly service identity", "Worker preview deployment", "rules/emulator test harness"]
+  },
+  "decision": "Work exactly #55 as the single runtime primary. Rebuild all 112 issue bodies and recompute the complete graph after closure or record blocker owner/action/evidence/impact before any switch."
+}

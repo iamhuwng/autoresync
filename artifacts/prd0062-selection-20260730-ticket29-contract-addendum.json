@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-07-30T14:49:30.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket29-contract-addendum.json",
+  "graphIssueHash": "40ae695e6f7e92538e3cf72c57a263538c8a60d5c7bb385628d02e5c964779e3",
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [
+    29,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 29,
+    "ticket": "04",
+    "title": "Reserve Source Version capacity",
+    "closedPrerequisites": [
+      25,
+      27
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 86,
+    "acceptanceReadiness": "Executable: both #29-owned reservation implementations, lifecycle regression proof, adjacent control/Worker suites, emulator proof, dry-run proof, and preserve-ledger rollback are available under current authority.",
+    "requiredAuthority": "Ordinary repository implementation, tests, issue evidence, closure, exact-path commit, and push under the active PRD0062 goal.",
+    "selectionReason": "Commit-history review showed the original #29 closure introduced account-wide sourceKey uniqueness in both its RTDB repository and trusted Cloudflare capacity ledger. Later #50 lifecycle rows exposed the latent defect. #29 remains the earliest unresolved Foundation root and blocks #47 and #49 transitively."
+  },
+  "rejectedCandidates": [
+    {
+      "number": 49,
+      "reason": "Dependency-ineligible: transitive prerequisite #29 is OPEN."
+    },
+    {
+      "number": 129,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 131,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 132,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    },
+    {
+      "number": 133,
+      "reason": "Roadmap-ineligible: final-closure ticket while Foundation #29 is unresolved; positive acceptance also remains constrained by the preserved #50A boundary."
+    }
+  ],
+  "primaryCount": 1
+}

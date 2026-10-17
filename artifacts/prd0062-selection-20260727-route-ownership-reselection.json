@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-07-27T11:12:00Z",
+  "supersedes": "artifacts/prd0062-selection-20260727-post-ticket63-route-ownership-repair.json",
+  "correction": "#59 is graph-clear but not acceptance-ready: its newly added #63 composition gate requires the still-open #63 handler contribution. Per producer rule, later integration cannot block #63 local producer closure. #59 remains reopened but ineligible until #63 contribution is complete.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket63-route-ownership-repair.json",
+    "hash": "0d74c11c2f3ed72069aec1062bc3173fc4a8d8b84f1ea41183cd3edda92bb6cd",
+    "issues": 112,
+    "open": 74,
+    "closed": 38,
+    "edges": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 63, 65, 66, 67, 70, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Teacher workflow - preview producer, with Runtime composition explicitly destination-owned",
+  "candidates": [
+    {
+      "ticket": 49,
+      "state": "ineligible",
+      "reason": "Private-B2 provisioning authority unavailable; owner Cloudflare/B2 provisioning."
+    },
+    {
+      "ticket": 50,
+      "state": "ineligible",
+      "reason": "Shares #49 private-B2 provisioning/lifecycle blocker."
+    },
+    {
+      "ticket": 59,
+      "state": "ineligible",
+      "reason": "Graph-clear but not acceptance-ready. Its #63 route-composition gate needs #63 handler descriptor/factory contribution, which is still open. Selecting #59 would make later integration falsely block #63 producer work."
+    },
+    {
+      "ticket": 63,
+      "state": "selected",
+      "directPrerequisites": [36, 38, 39, 40, 41, 60, 62],
+      "transitivePrerequisitesClosed": true,
+      "downstreamLeverage": 24,
+      "acceptanceReadiness": "Local candidate projection, approval record, handler behavior, frame/registry parity, isolated state, fixture host, security, accessibility, and rollback proof are executable. Canonical route/browser/deployed classes now have destination owners #59/#128/#134.",
+      "authority": "Existing #58 teacher document seam, shared renderer frame/registry, local x64 test harness; no 50A/50B/03B activation.",
+      "selectionReason": "Earliest acceptance-ready Teacher-workflow producer. Preserve #59 as a later composition destination rather than bypassing or duplicating it."
+    },
+    {
+      "ticket": "65-67",
+      "state": "ineligible",
+      "reason": "Positive preview contribution remains unfinished; no duplicate host or bypass."
+    },
+    {
+      "ticket": 70,
+      "state": "deferred-eligible",
+      "reason": "Independent but lower critical-path leverage than #63 preview producer."
+    },
+    {
+      "ticket": "128-134",
+      "state": "ineligible",
+      "reason": "Activation/final/deployed phase with open transitive chains and preserved default-deny gates."
+    }
+  ],
+  "primary": 63,
+  "nextRequiredEvent": "Finish #63 producer-owned local proof only; then #59 becomes acceptance-ready for canonical composition."
+}

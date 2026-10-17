@@ -1,0 +1,81 @@
+{
+  "ticket": 86,
+  "date": "2026-07-29",
+  "selectionGraphHash": "ec27748b8cdec05a1787de1f0a0dd61182512c441e923c8444a929cb665317fa",
+  "surface": {
+    "kind": "non-production disposable preview",
+    "workerName": "r2-upload-signer-prd0062-ticket86-preview",
+    "firebaseProjectId": "prd0062-86-huwng-260729",
+    "productionWorkerChanged": false,
+    "productionFirebaseChanged": false
+  },
+  "identity": {
+    "homeworkService": "prd0062-ticket86-homework@prd0062-86-huwng-260729.iam.gserviceaccount.com",
+    "homeworkProjectRole": "roles/datastore.user",
+    "deliveryService": "prd0062-ticket86-delivery@prd0062-86-huwng-260729.iam.gserviceaccount.com",
+    "deliveryProjectRoles": [],
+    "rtdbAuthorization": "path-scoped Firebase custom claims"
+  },
+  "deploymentReadback": {
+    "positiveVersionId": "699d747e-0c03-4bbb-8a21-2731cf140a4b",
+    "rollbackVersionId": "32544ba1-4aaa-426b-acc4-10f009abd169",
+    "rollbackVersionNumber": 11,
+    "rollbackScriptEtag": "fd1cc9bc1fb1e446a11ceb665ae9a04a2af8b239a8d53ad285c34c7b9f7bb5a9",
+    "rollbackCommandGate": "disabled",
+    "rollbackSafeReadGate": "enabled",
+    "rulesReadbackSha256": "ed92cbec51681162fcc9a07bb4767c5d082945cfda2e639dafd1f0fa95a23452"
+  },
+  "teacherBrowser": {
+    "origin": "http://localhost:5173",
+    "authenticatedRole": "teacher",
+    "commitStatus": 200,
+    "operationId": "98981b74-79de-4256-b16b-ec27f2d1a98c",
+    "state": "committed",
+    "visibility": "committed",
+    "recipientCount": 1,
+    "committedRecipientCount": 1,
+    "revision": 7,
+    "exactReplayStatus": 200,
+    "exactReplayRevision": 7
+  },
+  "studentBrowser": {
+    "origin": "http://localhost:5174",
+    "authenticatedRole": "student",
+    "projectionStatus": 200,
+    "assignmentId": "prd0062-ticket86-assignment",
+    "manifestVersionId": "ticket86-manifest-v1",
+    "deliveryStatus": "active",
+    "privateFieldsPresent": false,
+    "directFirestoreReadStatus": 403,
+    "directRtdbDeliveryReadStatus": 401
+  },
+  "rollback": {
+    "teacherCommandStatus": 503,
+    "teacherCommandCode": "book_route_disabled",
+    "studentSafeProjectionStatus": 200,
+    "recordsPreserved": true
+  },
+  "cleanup": {
+    "previewWorkerReadback": "Cloudflare API code 10007: Worker does not exist",
+    "firebaseProjectLifecycle": "DELETE_REQUESTED",
+    "localCredentialDirectoryExists": false,
+    "localDryRunDirectoryExists": false,
+    "teacherPortListening": false,
+    "studentPortListening": false
+  },
+  "productionReadback": {
+    "workerName": "r2-upload-signer",
+    "versionId": "62b5dacb-cc25-452e-ad27-333b915daa2e",
+    "bookHomeworkCommandGate": "disabled",
+    "bookHomeworkReadGate": "disabled",
+    "trustedGatesEnabled": false
+  },
+  "localVerification": {
+    "focusedVitest": "5 files, 55 tests passed",
+    "canonicalClientVitest": "1 file, 6 tests passed",
+    "legacyBackupWorkerVitest": "1 file, 28 tests passed",
+    "scopedEslint": "passed",
+    "previewWranglerDryRun": "passed",
+    "gitDiffCheck": "passed"
+  }
+}

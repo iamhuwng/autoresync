@@ -235,7 +235,7 @@ const cleanupTestData = async () => {
     await remove(ref(database, 'test_results'));
     await remove(ref(database, 'test_results_by_session'));
     await remove(ref(database, 'test_results_by_student'));
-    await remove(ref(database, 'test_results_by_teacher'));
+    await remove(ref(database, 'teacher_result_keys'));
   } catch (error) {
     console.error('Cleanup error:', error);
   }
@@ -336,6 +336,42 @@ describe('Results Service - Teacher Access Control', () => {
     expect(session?.averagePercentage).toBe(80);
     expect(session?.highestScore).toBe(80);
     expect(session?.lowestScore).toBe(80);
+  });
+
+  it('reads distinct keyed sessions and keeps canonical results when session metadata is denied', async () => {
+    await set(ref(database, 'test_results/foreign-result'), {
+      resultId: 'foreign-result',
+      sessionCode: teacherBSessionCode,
+      studentId: 'foreign-student',
+      studentName: 'Canonical Student',
+      testTitle: 'Canonical Title',
+      testType: 'test',
+      totalScore: 75,
+      percentage: 75,
+      createdAt: 123,
+      visibility: { visibilityOwnerTeacherId: TEST_TEACHER_UID },
+    });
+
+    const denyBroadAndForeignSession = async (refObj: { __path: string }) => {
+      if (refObj.__path === 'game_sessions' || refObj.__path === `game_sessions/${teacherBSessionCode}`) {
+        throw new Error('PERMISSION_DENIED');
+      }
+      const parts = refObj.__path.split('/').filter(Boolean);
+      let value: any = mockDatabaseStore;
+      for (const part of parts) value = value?.[part];
+      return { exists: () => value !== undefined && value !== null, val: () => value };
+    };
+
+    mockGet.mockClear();
+    await mockGet.withImplementation(denyBroadAndForeignSession, async () => {
+      const results = await getTeacherResults(TEST_TEACHER_UID);
+
+      expect(results.map((result) => result.sessionCode)).toContain(teacherASessionCode);
+      expect(results.find((result) => result.sessionCode === teacherBSessionCode)?.testTitle).toBe('Canonical Title');
+      expect(mockGet.mock.calls.map(([refObj]) => refObj.__path).filter((path) => path.startsWith('game_sessions')))
+        .toEqual(expect.arrayContaining([`game_sessions/${teacherASessionCode}`, `game_sessions/${teacherBSessionCode}`]));
+      expect(mockGet.mock.calls.map(([refObj]) => refObj.__path)).not.toContain('game_sessions');
+    });
   });
 });
 

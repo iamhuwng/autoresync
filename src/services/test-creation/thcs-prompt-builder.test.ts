@@ -116,6 +116,7 @@ describe('buildCompromisePrompt', () => {
         const prompt = buildCompromisePrompt('matching', 'match section', 'orig input');
         expect(prompt).toContain('match section');
         expect(prompt).toContain('orig input');
+        expect(prompt).toContain('keep its letter aligned with the converted options');
     });
 
     it('includes compromise tag format', () => {

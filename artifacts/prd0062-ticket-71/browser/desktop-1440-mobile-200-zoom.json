@@ -1,0 +1,18 @@
+{
+  "project": "desktop-1440",
+  "route": "http://localhost:5173/__smoke/book-assembly-successor?fixture=ticket71-full",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "mobile viewport 375x900",
+    "successor controls remain visible at 200% browser zoom",
+    "no horizontal document overflow"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

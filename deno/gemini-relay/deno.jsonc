@@ -1,0 +1,6 @@
+{
+  "deploy": {
+    "org": "hocthem",
+    "app": "gemini-us-relay"
+  }
+}

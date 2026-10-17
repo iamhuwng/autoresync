@@ -1,0 +1,30 @@
+{
+  "recordedAt": "2026-07-27T10:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-post-ticket61-closed.json",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 74,
+    "closedCount": 38,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 62, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "candidates": [
+    { "ticket": 49, "eligible": false, "reason": "B2 remote provisioning, cost, and rollback authority is unavailable." },
+    { "ticket": 50, "eligible": false, "reason": "B2 remote provisioning, cost, and rollback authority is unavailable." },
+    { "ticket": 62, "eligible": true, "phase": "teacher-workflow", "closedPrerequisites": [61], "downstreamLeverage": 26, "acceptanceReadiness": "local service, 13A CAS, teacher UI, and browser gates are executable", "requiredAuthority": "existing 13A Assembly identity" },
+    { "ticket": 65, "eligible": false, "reason": "Preview-approval path #63 remains unresolved." },
+    { "ticket": 66, "eligible": false, "reason": "Preview-approval path #63 remains unresolved." },
+    { "ticket": 70, "eligible": false, "reason": "Later teacher workflow; lower current foundation leverage." },
+    { "ticket": 129, "eligible": false, "reason": "Wrong roadmap phase; #127 closure does not override shared #50A boundary." },
+    { "ticket": 130, "eligible": false, "reason": "Wrong roadmap phase; #127 closure does not override shared #50A boundary." },
+    { "ticket": 131, "eligible": false, "reason": "Wrong roadmap phase; #127 closure does not override shared #50A boundary." },
+    { "ticket": 132, "eligible": false, "reason": "Wrong roadmap phase; #127 closure does not override shared #50A boundary." },
+    { "ticket": 133, "eligible": false, "reason": "Wrong roadmap phase; #127 closure does not override shared #50A boundary." }
+  ],
+  "selectedPrimary": 62,
+  "selectionReason": "Earliest eligible teacher-workflow enabler after #61. All direct and transitive prerequisites are formally closed; acceptance gates are local and authorized."
+}

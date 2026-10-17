@@ -1,0 +1,49 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-attempt-result",
+  "schemaVersion": 1,
+  "status": "publication-reconciled-cleaned-then-rolled-back-on-assignment",
+  "createdAt": "2026-08-13T23:30:00Z",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v16-reconciliation-checkpoint-2026-08-14.json",
+  "successfulRecovery": {
+    "workerVersionId": "e7ec5c5f-6896-46b4-bf5c-378fa89e0e65",
+    "approvalId": "d2fc1ecb-848b-4db5-8082-57d77ddd6d24",
+    "reconciliationHttpStatus": 200,
+    "reconciliationStatus": "replayed",
+    "operationId": "842f671d-ae7f-4cc7-b08c-2beb922e0b5d",
+    "publicationId": "publication-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-b17dcb46-bce6-4727-8101-30cd7ab69862",
+    "manifestVersionId": "manifest-version-candidate-176b795f-6c37-457f-a41f-0a42e287eed0-649d4936-1777-4127-9b6a-86af6102c2e5",
+    "bindingActivityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928",
+    "bindingActivityVersion": 1,
+    "thirdCanonicalVersionCreated": false
+  },
+  "boundedCleanup": {
+    "deletedPath": "book_activity/versions/activity-42c03a70-acfb-48d2-bfcb-9c6faeddbbe3/activity-version-activity-vocab-u1-38ddde86-1165-41c4-8c27-e558d685347e",
+    "deleteHttpStatus": 200,
+    "preconditions": "unreferenced across publication, binding, homework, delivery, and runtime roots",
+    "canonicalVersionCountAfter": 1,
+    "remainingActivityVersionId": "activity-version-activity-vocab-u1-73e638c7-4db6-49ca-9352-bc37f2add928"
+  },
+  "assignmentFailure": {
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "operationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "httpStatus": 500,
+    "code": "book_homework_command_failed",
+    "assignmentRootAfterFailure": null,
+    "operationRootAfterFailure": null,
+    "homeworkRootAfterFailure": null
+  },
+  "rootCause": {
+    "file": "cloudflare/src/upload-worker/book-homework/runtime.ts",
+    "finding": "The production canonical resolver created FirebaseRestBookAssemblyPublicationRepository with a one-argument injected token callback and no ownerId. Repository compatibility logic consequently bound scope validation to BOOK_ASSEMBLY_SERVICE_IDENTITY, then rejected the teacher-owned publication scope before any homework write.",
+    "correction": "Pass command.ownerId as the repository owner and as the exact publication token owner through the two-argument callback."
+  },
+  "rollback": {
+    "workerVersionId": "ec126063-d96e-41c3-a8c9-77dd2726fa7c",
+    "deploymentId": "a322c8cb-5e4b-48a8-9aa9-8718efcccd5c",
+    "workerPercentage": 100,
+    "rulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rulesReadbackByteEqual": true,
+    "order": "Worker first, rules second"
+  },
+  "nextAction": "Validate the command-owner publication reader locally, freeze fresh inactive Worker identities, reactivate generated rules and the corrected Worker, then submit the unchanged frozen assignment once."
+}

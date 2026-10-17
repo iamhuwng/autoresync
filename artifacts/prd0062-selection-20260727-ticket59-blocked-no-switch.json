@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-07-27T06:20:00.000Z",
+  "selectionStatus": "blocked_no_independent_switch",
+  "blockedPrimary": {
+    "issue": 59,
+    "ticket": "09D",
+    "title": "PRD0062 09D - Integrate Book Worker route dispatch",
+    "roadmapPhase": "runtime canonical route, identity, delivery, and rollback integration",
+    "blocker": {
+      "owner": "Cloudflare media-account authentication/profile authority",
+      "requiredAction": "Provide supported non-interactive Wrangler authentication for the media account, or update the account-routing procedure for Wrangler 4.103.0 because this binary rejects --profile.",
+      "evidence": [
+        "Focused isolated x64 #59 suite passed: 3 files, 37 tests.",
+        "Wrangler 4.103.0 dry-run passed and enumerated all Book route gates as disabled.",
+        "wrangler r2 bucket list --profile media failed with Unknown argument: profile.",
+        "wrangler whoami with XDG_CONFIG_HOME=$env:LOCALAPPDATA\\wrangler-config reported not authenticated.",
+        "wrangler r2 bucket list without a token required CLOUDFLARE_API_TOKEN.",
+        "No CLOUDFLARE* or WRANGLER* environment variable names are present in this shell."
+      ],
+      "impact": "Cannot prove deployed Worker-to-Firebase identity/config integration, active Worker version/config readback, deployed route reachability, or route-level rollback. #59 remains open."
+    },
+    "githubBlockerComment": "https://github.com/iamhuwng/autoresync/issues/59#issuecomment-5087935468"
+  },
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260727-ticket59-blocked.json",
+    "issueHash": "bf9d0183391b3d2178fe8954756004587fecd0282f1f37e486ca66156885d863",
+    "issueCount": 112,
+    "openCount": 77,
+    "closedCount": 35,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 59, 60, 61, 65, 66, 70, 129, 130, 131, 132, 133]
+  },
+  "candidateDisposition": [
+    {
+      "issue": 59,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Current primary is implementation-advanced but closure-blocked by missing Cloudflare media-account deployed/current and rollback proof."
+    },
+    {
+      "issue": 49,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Shares same Cloudflare/B2 remote-state authority blocker family; cannot verify media profile, private bucket policy, deployed B2/CORS state, disposable object drill, billing/cap result, or rollback."
+    },
+    {
+      "issue": 50,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Shares same Cloudflare/B2 remote-state authority blocker family; deployment and disposable-object reconciliation proof are not executable without media-account auth/provider authority."
+    },
+    {
+      "issue": 60,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Downstream teacher mapping viewer host depends on real 09C/09B/10A/10B route/deployment proof; selecting it would bypass #59's unresolved canonical route deployment blocker."
+    },
+    {
+      "issue": 61,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Later teacher import workflow; preview deployment through trusted Activity/Assembly commands shares Cloudflare/Firebase deployment authority blocker and is not an independent runtime root."
+    },
+    {
+      "issues": [65, 66],
+      "eligible": false,
+      "selected": false,
+      "rejection": "Later teacher publication adapters; deployment proof shares Cloudflare/Firebase authority blocker and roadmap order still requires unresolved runtime route proof first."
+    },
+    {
+      "issue": 70,
+      "eligible": false,
+      "selected": false,
+      "rejection": "Later migration workflow; trusted-command deployment proof shares the same Cloudflare/Firebase deployment authority blocker and is not a root/enabler before #59 closure."
+    },
+    {
+      "issues": [129, 130, 131, 132, 133],
+      "eligible": false,
+      "selected": false,
+      "rejection": "Final-suite tickets remain phase-ineligible; graph-clear does not override unresolved runtime, teacher, student, operations, activation, rollback, and #50A-boundary work."
+    }
+  ],
+  "selectionRuleChecks": {
+    "onePrimary": true,
+    "allDirectAndTransitivePrerequisitesClosedForSelectedTicket": false,
+    "currentRoadmapPhaseRespected": true,
+    "acceptanceGatesExecutableForSelectedTicket": false,
+    "ownershipAndAuthorityAvailableForSelectedTicket": false,
+    "independentDifferentBlockerSwitchAvailable": false,
+    "preservesFull112TicketScope": true,
+    "noDescendantBypass": true,
+    "no50AOr03BActivation": true
+  }
+}

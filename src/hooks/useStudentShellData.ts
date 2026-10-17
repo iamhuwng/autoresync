@@ -52,7 +52,7 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
     const [classLiveSessions, setClassLiveSessions] = useState<StudentShellLiveSession[]>([]);
     const [isClassesLoading, setIsClassesLoading] = useState(enabled && Boolean(user?.uid));
     const membershipProjectionSignatureRef = useRef<string | null>(null);
-    const previousMembershipSignatureRef = useRef<string | null>(null);
+    const [classesOwnerStudentId, setClassesOwnerStudentId] = useState<string | null>(null);
     const {
         homeworkItems = [],
         isLoading: isHomeworkLoading,
@@ -62,23 +62,29 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
         inProgress = [],
         completed = [],
         overdue = [],
-    } = useStudentHomeworkList(user?.uid || '', { enabled });
+    } = useStudentHomeworkList(user?.uid || '', {
+        enabled: enabled && Boolean(user?.uid) && classesOwnerStudentId === user?.uid,
+        studentClasses: enrolledClasses,
+    });
 
     const refreshClasses = useCallback(async () => {
         if (!enabled || !user?.uid) {
             setEnrolledClasses([]);
+            setClassesOwnerStudentId(null);
             setIsClassesLoading(false);
             return;
         }
 
+        const studentId = user.uid;
         setIsClassesLoading(true);
         try {
-            const classes = await getStudentClasses(user.uid);
+            const classes = await getStudentClasses(studentId);
             setEnrolledClasses(classes || []);
         } catch (error) {
             console.error('Error loading student shell classes:', error);
             setEnrolledClasses([]);
         } finally {
+            setClassesOwnerStudentId(studentId);
             setIsClassesLoading(false);
         }
     }, [enabled, user?.uid]);
@@ -90,6 +96,7 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
         }
 
         setEnrolledClasses([]);
+        setClassesOwnerStudentId(null);
         setClassLiveSessions([]);
         setIsClassesLoading(false);
     }, [enabled, refreshClasses]);
@@ -127,38 +134,6 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
             unsubscribe();
         };
     }, [enabled, refreshClasses, user?.uid]);
-
-    const classMembershipSignature = useMemo(() => {
-        if (!enabled || !user?.uid) {
-            return null;
-        }
-
-        const sortedClassIds = enrolledClasses
-            .map((cls) => cls.id)
-            .sort((left, right) => left.localeCompare(right));
-
-        return `${user.uid}:${sortedClassIds.join('|')}`;
-    }, [enabled, enrolledClasses, user?.uid]);
-
-    useEffect(() => {
-        if (classMembershipSignature === null) {
-            previousMembershipSignatureRef.current = null;
-            return;
-        }
-
-        if (isClassesLoading) {
-            return;
-        }
-
-        const previousSignature = previousMembershipSignatureRef.current;
-        previousMembershipSignatureRef.current = classMembershipSignature;
-
-        if (previousSignature === null || previousSignature === classMembershipSignature) {
-            return;
-        }
-
-        void refreshHomeworkData();
-    }, [classMembershipSignature, isClassesLoading, refreshHomeworkData]);
 
     useEffect(() => {
         if (!enabled || !enrolledClasses.length) {
@@ -312,6 +287,11 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
             ),
         [inProgress, notStarted, overdue],
     );
+    const isHomeworkOwnerPending = Boolean(
+        enabled
+        && user?.uid
+        && classesOwnerStudentId !== user.uid,
+    );
 
     return {
         enrolledClasses,
@@ -322,7 +302,7 @@ export function useStudentShellData(options: UseStudentShellDataOptions = {}): S
         completed,
         overdue,
         sortedAssignments,
-        isHomeworkLoading,
+        isHomeworkLoading: isHomeworkOwnerPending || isHomeworkLoading,
         homeworkError,
         isClassesLoading,
         refreshClasses,

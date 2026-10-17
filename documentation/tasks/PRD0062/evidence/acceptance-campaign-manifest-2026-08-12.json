@@ -1,0 +1,515 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "prd0062-acceptance-campaign-manifest",
+  "status": "PROVISIONAL",
+  "generatedBy": "scripts/prd0062-acceptance-campaign.mjs",
+  "generatedByMode": "--manifest",
+  "sourcePolicy": "product-source-read-only",
+  "repository": {
+    "head": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "branch": "codex/prd0062-lane-c-campaign",
+    "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "mergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "latestEvidenceCommit": "20f039959a815385697b8a9aa652f9297e3d0a34",
+    "latestToolingCommit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+    "cleanBeforeCampaignChanges": true,
+    "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987"
+  },
+  "frozenTuple": {
+    "appCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "campaignMergeCommit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+    "campaignCheckpointCommit": "b39712d1c318a1e706a9399515f2918ab21e7ec3",
+    "toolingBaseCommit": "83c1eb7d4254abe33281b5c3aace000ae5f17b59",
+    "latestEvidenceCommit": "20f039959a815385697b8a9aa652f9297e3d0a34",
+    "toolingContract": {
+      "name": "luyentap-windows-arm64-harness",
+      "version": "3.4.0",
+      "protocol": 2,
+      "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
+    },
+    "applicationBaselineBefore126": "f710653948462bcd948d59a7db007bc2a870e987",
+    "generatedRules": {
+      "path": "database.rules.json",
+      "sha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b"
+    },
+    "assembledRulesSuite": {
+      "path": "scripts/prd0062-118-assembled-rules-matrix.mjs",
+      "sha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+      "version": "prd0062-118-assembled-rules-matrix-v4"
+    },
+    "ticket126": {
+      "status": "EXACT_SCOPE_FROZEN_NOT_APPROVED_OR_ACTIVE",
+      "commit": "44aeded7bc86cc04225ac8f157d4d1bc3389a128",
+      "activationIdentitySha256": "457abda7a50584445c2dee9dbbdf13873d0458506b148906b2c70f33743c5da0"
+    },
+    "featureGateTemplate": {
+      "path": "documentation/tasks/PRD0062/evidence/126-bounded-pilot-scope.template.json",
+      "sha256": "e703f4ea369eb84643f4f687a9b32a53611eefcd651d0141deba77e41cea70b8"
+    },
+    "trustedWorkerConfigManifest": {
+      "algorithm": "sha256(JSON.stringify(ordered [{path, sha256}] entries))",
+      "sha256": "93e4cdc71cba87853397c68db902ba02faac0bc3cae3af18dfb5e8b5672ae0a4",
+      "paths": [
+        { "path": "cloudflare/src/upload-worker/book-activity-authoring/worker.ts", "sha256": "257bab428346d6dfd05ee12c1f27e7015dd5fe164a09ec027c530c3ed3bd1b38" },
+        { "path": "cloudflare/src/upload-worker/book-source/worker.ts", "sha256": "79c3092fa729c12d152ab1bb6f74f4a0338a34173cf5b0784e607ed077472836" },
+        { "path": "cloudflare/src/book-source-worker/control-host.ts", "sha256": "d643a1cfcf0c409a45a93c2e68fbbb76d9a10a5c8afe6dba19606659c41d2944" },
+        { "path": "cloudflare/src/book-source-worker/control-worker.ts", "sha256": "442d463bf2ef21058eef7befaf90dcc247c202805b157c001bf9bb603852d36e" },
+        { "path": "cloudflare/src/book-source-worker/reconciliation-worker.ts", "sha256": "3a3a66459caaee11b88fce09fba51b8284fc3197676b66ef02a7ed2960619246" },
+        { "path": "cloudflare/src/upload-worker/book-assembly/worker.ts", "sha256": "3cb10453114e830738fee7093c8396219f6c2879a8de3940572e2c7fe17101e6" },
+        { "path": "cloudflare/src/upload-worker/book-assembly/publication-route-handlers.ts", "sha256": "18548c00f06fbdd2bc59a4b97100e804d0f68402a131c4524432050f55cdb679" },
+        { "path": "cloudflare/src/upload-worker/book-delivery/worker.ts", "sha256": "b2eba75fbf721a46b2d4d4c30b2eecfc69ddb94b1deb6757df5f50f319f27829" },
+        { "path": "cloudflare/src/upload-worker/book-homework/worker.ts", "sha256": "aac3c0ce29949baca786e56b853f573bcad546a51b7f07c6a3ec32de7fb2fc59" },
+        { "path": "cloudflare/src/upload-worker/book-runtime/worker.ts", "sha256": "74ab7b31357acede6ef818c0a29103cab3877e063731a58e5620d4e8b4cbe2de" },
+        { "path": "cloudflare/src/upload-worker/book-runtime-launch/worker.ts", "sha256": "26a6551df7ed68cec8a2b059588c0e5aa2147b6dbad8aa37b7120e679a05bda5" },
+        { "path": "cloudflare/src/upload-worker/book-router.ts", "sha256": "803323d497bfe932c2cc84255a869df8ff64df88420076d2e24c216fd79f5e7c" },
+        { "path": "cloudflare/src/upload-worker/book-route-handlers.ts", "sha256": "012a21f7c25aeab1361b5b9b647388aa940bade72ab61cfa37a34d57805657d3" },
+        { "path": "cloudflare/src/book-pilot-scope.ts", "sha256": "ca0cb51ff4cb8cc7f65279f6ab7a4e34d81093821feacbcee87800cb17f4158e" },
+        { "path": "src/config/bookActivityRolloutGates.ts", "sha256": "8f6e0d1ab03fa9e325d6a57d8359d670394bfdb5a36cea5e01b6cf0fb56b3aca" }
+      ]
+    },
+    "ticket127": {
+      "status": "PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "commit": "66b63ba733e8532ed6e4c9aa284cef27d00a4fb9",
+      "sha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+      "fixtureManifest": {
+        "path": "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+        "sha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+      },
+      "candidateMatrix": {
+        "path": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+        "sha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+        "state": "PRIMARY_ACCEPTED_DEFINITION_ONLY"
+      }
+    }
+  },
+  "accounts": {
+    "teacher": {
+      "email": "teacher@test.com",
+      "auth": "built-in dev quick-login: Teacher",
+      "origin": "http://localhost:5173"
+    },
+    "student": {
+      "email": "student@test.com",
+      "auth": "built-in dev quick-login: Student",
+      "origin": "http://localhost:5174"
+    },
+    "credentialPolicy": "No password or token is stored in source or evidence."
+  },
+  "fixturePolicy": {
+    "seed": "prd0062-acceptance-seed-v1",
+    "cleanupRoot": "prd0062_acceptance/",
+    "artifactRoot": "artifacts/prd0062-acceptance/<case-id>/<execution-id>/",
+    "pdfBytes": "not stored",
+    "idGeneration": "SHA-256(seed|case-id|fixture-id), no clock or randomness",
+    "cleanupMode": "plan-only; no fixture state was written",
+    "fixtureCount": 8,
+    "acceptedManifestEntryCount": 33,
+    "acceptedManifestVersion": "2026-08-12.1",
+    "cleanupTargetCount": 40,
+    "determinismCheck": "PASS"
+  },
+  "cases": [
+    { "id": "AC-TA-001", "ticket": "#128", "fixture": "F-GRAMMAR-65", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TA-002", "ticket": "#128", "fixture": "F-VOCAB-60", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TU-001", "ticket": "#129", "fixture": "F-VOCAB-65", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-TR-001", "ticket": "#129", "fixture": "F-PDF-EDGE", "role": "teacher", "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS" },
+    { "id": "AC-SR-001", "ticket": "#130", "fixture": "F-VOCAB-60", "role": "student", "status": "HARNESS_BLOCKED_NOT_EXECUTED" },
+    { "id": "AC-AD-001", "ticket": "#131", "fixture": "F-VOCAB-65", "role": "student", "status": "PASS_LOCAL_AUTOMATED_MANUAL_AND_COMPANION_GAPS_REMAIN" },
+    { "id": "AC-SC-001", "ticket": "#132", "fixture": "F-PDF-EDGE", "role": "service", "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE" },
+    { "id": "AC-LR-001", "ticket": "#133", "fixture": "F-GRAMMAR-65", "role": "service", "status": "PASS_BOUNDED_LOCAL_RECOVERY_ASSERTIONS_NOT_TICKET_ACCEPTANCE" }
+  ],
+  "harnessInventory": {
+    "windows": "win32 arm64 host; isolated verification Node v24.18.0 x64",
+    "applicationToolingIdentity": "frozen campaign product evidence remains application commit 2b60ead5ad8cf9e75f291cf4453b2f791dd5c5a2 under Harness 3.4.0 protocol 2; current c50d HEAD 7de9c270078839f3cdb25f13f96385ddf5adcb59 integrates Harness 3.5.0 protocol 3 for future invocations; latest evidence checkpoint is 20f039959a815385697b8a9aa652f9297e3d0a34",
+    "missingPaths": [],
+    "presentPaths": [
+      "scripts/harness/run-tool.mjs",
+      "scripts/harness/run-x64.ps1",
+      "scripts/validate-prd0062-acceptance-matrix.mjs",
+      "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+      "scripts/fixtures/prd0062-51a-acceptance-fixtures.mjs",
+      "scripts/cleanup-prd0062-acceptance-fixtures.mjs",
+      "e2e/prd0062-acceptance-fixtures.mjs",
+      "e2e/prd0062-teacher-authoring-assignment.fixture.mjs",
+      "e2e/prd0062-teacher-updates-replacement-results.fixture.mjs",
+      "e2e/prd0062-student-runtime-persistence.fixture.mjs",
+      "e2e/prd0062-student-accessibility-device.fixture.mjs",
+      "e2e/prd0062-student-runtime-persistence.spec.ts",
+      "playwright.prd0062-acceptance.config.mjs",
+      "e2e/prd0062-teacher-authoring-assignment.spec.ts",
+      "e2e/prd0062-teacher-updates-replacement-results.spec.ts",
+      "e2e/prd0062-student-accessibility-device.spec.ts",
+      "src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "package.json#scripts.test:prd0062:legacy-backup-recovery"
+    ],
+      "dependencies": {
+      "node_modules": true,
+      "firebaseCli": true,
+      "vitestCli": true
+    },
+    "nodeModulesState": {
+      "root": "pre-existing junction created 2026-08-12 04:26:58; target C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules; invalid external dependency context under 3.4 live-Vite doctor",
+      "cloudflare": "absent",
+      "dependencyContextDisposition": "DEPENDENCY_CONTEXT_EXTERNAL_LINK is invalid dependency context, not a cleanup target; no unlink or removal is required or proposed",
+      "serverStarted": false
+    },
+      "acceptanceCli": "PRESENT: scripts/validate-prd0062-acceptance-matrix.mjs",
+    "playwrightRoleSelector": "PRD0062_ACCEPTANCE_ROLE=teacher|student for execution; --list without selector exposes all projects without starting a server",
+    "downstreamFixtureModules": "PRESENT: accepted #127 fixture modules and campaign consumer specs"
+  },
+  "execution": [
+    {
+      "name": "accepted #127 matrix validator",
+      "command": "node --input-type=module -e import/load/validate candidate matrix",
+      "status": "PASS_PRIMARY_ACCEPTED_DEFINITION_ONLY",
+      "discovered": "matrix JSON and validator library loaded",
+      "executed": "schema/source/coverage/case checks",
+      "skipped": "browser and product execution; #126 stacked commit convergence"
+    },
+    {
+      "name": "accepted #127 conformance suite",
+      "command": "node --test scripts/__tests__/prd0062-acceptance-conformance.test.mjs",
+      "status": "HARNESS_BLOCKED_SHARED_MIRROR_ACCESS",
+      "failure": "Five of eight tests failed before project-code load: x64 mirror could not read the parent directory and emitted empty/invalid JSON protocol output; no product or #127 failure inferred",
+      "discovered": "definition-only conformance process completed",
+      "executed": "TAP 8 tests: 3 passed, 5 failed; failures were pre-product shared-mirror access/protocol failures",
+      "skipped": "no broad product/browser execution; no rerun in this timebox"
+    },
+    {
+      "name": "accepted Stage-0 lineage validator",
+      "command": "node scripts/validate-prd0062-stage-0-baseline.mjs --repo . --manifest documentation/tasks/PRD0062/supporting/stage-0-accepted-baseline.manifest.json",
+      "status": "PASS",
+      "discovered": "5 settled commits and 6 required paths",
+      "executed": "ancestry and Git-tree checks",
+      "skipped": "browser, remote and activation"
+    },
+    {
+      "name": "Stage-0 validator tests",
+      "command": "node --test scripts/__tests__/validate-prd0062-stage-0-baseline.test.mjs",
+      "status": "PASS",
+      "counts": { "tests": 4, "passed": 4, "failed": 0, "skipped": 0 }
+    },
+    {
+      "name": "pre-#127 Full-V1 acceptance test (historical)",
+      "command": "node --test scripts/__tests__/prd0062-acceptance-matrix.test.mjs",
+      "status": "HARNESS_BLOCKED",
+      "failure": "ERR_MODULE_NOT_FOUND: e2e/prd0062-acceptance-fixtures.mjs",
+      "historicalAt": "f710653948462bcd948d59a7db007bc2a870e987 before accepted #127 fixture addition",
+      "discovered": "0 test suites; collection failed",
+      "executed": 0,
+      "skipped": "all acceptance assertions"
+    },
+    {
+      "name": "pre-campaign #118 assembled-rules runner (historical)",
+      "command": "node scripts/prd0062-118-assembled-rules-matrix.mjs",
+      "status": "HARNESS_BLOCKED",
+      "failure": "Required repository test dependencies are missing",
+      "historicalAt": "f710653948462bcd948d59a7db007bc2a870e987 before task-local dependency junction",
+      "discovered": "runner preflight only",
+      "executed": 0,
+      "skipped": "all emulator assertions"
+    },
+    {
+      "name": "campaign-owned AC-LR-001 focused runner",
+      "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+      "runtime": "Windows ARM64 host; x64 Node v24.18.0; Vitest v3.2.4",
+      "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "duration": "2.68s",
+      "discovered": "campaign-owned runner collected under the root src/** include glob",
+      "executed": "one file, one test, one passed",
+      "supersededHarnessHistory": [
+        { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts scripts/prd0062-legacy-backup-recovery.test.ts", "status": "NO_TEST_FILES_FOUND", "currentBlocker": false },
+        { "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts", "environment": "Luna sandbox", "status": "PRELOAD_SHARED_MIRROR_ACCESS_DENIED", "currentBlocker": false }
+      ],
+      "skipped": "no AC-LR-001 assertions; historical harness failures are superseded"
+    },
+    {
+      "name": "campaign-owned syntax checks",
+      "command": "node --check playwright.prd0062-acceptance.config.mjs; node --check scripts/prd0062-acceptance-campaign.mjs; node --check e2e/prd0062-acceptance-fixtures.mjs and accepted fixture modules",
+      "status": "PASS",
+      "executed": "all checked JavaScript modules parsed successfully",
+      "skipped": "TypeScript/browser execution"
+    },
+    {
+      "name": "campaign Playwright collection history",
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --list",
+      "status": "PASS_COLLECTION_9_TESTS_4_FILES",
+      "observed": "0 tests because e2e/prd0062-student-runtime-persistence.spec.ts imported nonexistent ./prd0062-student-runtime-persistence-fixtures.mjs; the subsequent collection exposed obsolete buildStudentRuntimeFixturePlan/STUDENT_RUNTIME_* exports",
+      "correction": "spec now imports createPrd0062StudentRuntimePersistenceFixture and asserts the exact AC-SR-001 normal-use fields",
+      "counts": { "tests": 9, "files": 4 },
+      "supersededConcurrentServerHistory": {
+        "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs",
+        "status": "TIMEOUT_SUPERSEDED",
+        "duration": "604s",
+        "cause": "teacher and student webServer commands started concurrently against one shared x64 mirror",
+        "artifactsCompleted": false,
+        "ownedProcessesStopped": true,
+        "portsClear": [5173, 5174],
+        "currentBlocker": false
+      },
+      "currentBlocker": false,
+      "browserExecuted": false,
+      "browserExecutionPending": "primary serial teacher/student runs"
+    },
+    {
+      "name": "primary serial teacher campaign run",
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --project=teacher-chromium",
+      "environment": "PRD0062_ACCEPTANCE_ROLE=teacher",
+      "status": "AUTH_ENV_BLOCKED_NO_PRODUCT_ASSERTIONS",
+      "counts": { "tests": 4, "passed": 0, "failed": 4, "skipped": 0 },
+      "failures": ["app rendered and quick-login was found/clicked in all four tests, but URL stayed / for 60s because dummy Firebase could not authenticate; no product assertions completed"],
+      "productDefect": null,
+      "supersededCampaignDefects": ["lowercase cleanupRoot expectations", "missing seven dummy VITE_FIREBASE_* web-server values"],
+      "rerun": "pending with inherited credential environment"
+    },
+    {
+      "name": "merged 3.3.0 focused harness suite",
+      "command": "npm run test:harness",
+      "status": "PASS_COMPLETED",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "toolingContract": "luyentap-windows-arm64-harness 3.3.0 protocol 1",
+      "counts": { "collected": 20, "executed": 20, "passed": 20, "failed": 0, "skipped": 0 },
+      "duration": "61.77s",
+      "classification": "completed",
+      "productExecution": false,
+      "evidence": "package route completed; no product/browser campaign was run in this turn"
+    },
+    {
+      "name": "merged root doctor",
+      "command": "node scripts/harness/run-tool.mjs --doctor . vite vitest playwright firebase",
+      "status": "PASS_EXIT_0",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "counts": { "failed": 0, "skipped": 0 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/0ff42504-615e-43a7-a85d-41a0c9794163.json",
+      "runtime": "x64 Node v24.18.0; clean fingerprint e3b0c442...b855"
+    },
+    {
+      "name": "merged Cloudflare doctor",
+      "command": "node scripts/harness/run-tool.mjs --doctor cloudflare vitest wrangler",
+      "status": "PASS_EXIT_0",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "counts": { "failed": 0, "skipped": 0 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/41499bd4-9754-4c41-b4aa-87c356490b6d.json",
+      "runtime": "x64 Node v24.18.0; clean source identity"
+    },
+    {
+      "name": "merged package/node_modules mutation check",
+      "command": "read-only package and lock hash comparison before/after verification",
+      "status": "PASS_HASHES_UNCHANGED",
+      "commit": "55d41b95890f3b2d99c7700fb402b177e7f69870",
+      "classification": "completed",
+      "manifestHashesSha256": {
+        "package.json": "E5679E0135CC47B54A4220914A7F9091B2C6D9C4935339D949DBD21B32CB154C",
+        "package-lock.json": "29653D348FFC03AFE0F8605E107C2F9199CC637736AF0F3A878DCFA1C089E885",
+        "cloudflare/package.json": "97B776A5CAAF90299BBD46BE9388D88E4A751CDF7C0AF7D306136CE378965A88",
+        "cloudflare/package-lock.json": "67866A79CAAA309CC7433E85E5BECDEF8FCCBBE6205433D4EDB78B8C26076DE0"
+      },
+      "nodeModules": { "cloudflare": "absent", "root": "pre-existing external junction; not used; invalid live-Vite dependency context, not a cleanup target" }
+    },
+    {
+      "name": "exact-commit Playwright collection",
+      "command": "node scripts/harness/run-tool.mjs playwright . test --config playwright.prd0062-acceptance.config.mjs --list",
+      "status": "PASS_COLLECTION_9_TESTS_4_FILES",
+      "commit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+      "classification": "completed_collection_auth_blocked_for_product_run",
+      "counts": { "tests": 9, "files": 4, "failed": 0, "skipped": 0 },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/3c12eaeb-4e3d-4872-b2c0-12aae350fbf1.json",
+      "configRoute": "direct live-checkout npm run dev -- --host localhost --port <role-port> --strictPort",
+      "browserExecuted": false,
+      "blocker": "pre-existing external root node_modules junction is an invalid live-Vite dependency context; no unlink or removal is required or proposed"
+    },
+    {
+      "name": "exact-commit AC-LR-001 package route",
+      "command": "npm run test:prd0062:legacy-backup-recovery",
+      "status": "PASS_LOCAL_RECOVERY_ASSERTIONS",
+      "commit": "48bf9b384924e6a5a990a53d4a49a0be6f136e88",
+      "classification": "completed",
+      "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "duration": "59.14s",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/98f71299-6088-49c0-b981-e5587729f450.json",
+      "supersedes": "prior campaign-owned AC-LR-001 focused run",
+      "ticketStatus": "#133 PASS_LOCAL_ACCEPTANCE; its unaffected 1/1 recovery slice is reused and all three transferred legacy-rule cases pass in the corrected #118 85/85 matrix. #126 remains inactive as a separate campaign gate."
+    },
+    {
+      "name": "3.5 repository harness lineage acceptance",
+      "status": "PASS_COMPLETED",
+      "commit": "7de9c270078839f3cdb25f13f96385ddf5adcb59",
+      "publishedSourceCommit": "aeac957cf8e09c8f28e59f932d1be738edd210d0",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "commands": ["node scripts/harness/run-tool.mjs --contract", "npm.cmd run test:harness", "git diff --check"],
+      "counts": { "collected": 30, "executed": 30, "passed": 30, "failed": 0, "skipped": 0 },
+      "classification": "completed tooling self-test; no product execution",
+      "scope": "complete repository-local 3.5 lineage only; historical 3.4 evidence retained unchanged and #132 not rerun"
+    },
+    {
+      "name": "3.4 focused Node harness suite",
+      "status": "PASS_COMPLETED",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "counts": { "collected": 26, "executed": 26, "passed": 26, "failed": 0, "skipped": 0 },
+      "duration": "31.47s",
+      "classification": "completed",
+      "productExecution": false
+    },
+    {
+      "name": "3.4 root doctor",
+      "status": "PASS_EXIT_0",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "classification": "completed",
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/bee529f7-badd-47e7-a21f-55bd4ae9f884.json",
+      "evidenceSha256Prefix": "e456c043...ef1c",
+      "validator": { "expectedCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "expectClean": true }
+    },
+    {
+      "name": "3.4 Cloudflare doctor and Wrangler",
+      "status": "PASS_EXIT_0",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "classification": "completed",
+      "cloudflareDoctor": { "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/394a2ea6-66ea-42c5-8c00-5c2a6c2ca235.json", "sha256Prefix": "a02a4a1b...cd66" },
+      "wrangler": { "version": "4.103.0", "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/c7fe197e-4ece-4a26-8612-f4bcbc4d2e95.json", "sha256Prefix": "4fd92ca5...d601" },
+      "validator": { "expectedCommit": "63e20716587a7a958620a30b61ea5144ecbd2b9b", "expectClean": true }
+    },
+    {
+      "name": "3.4 Playwright collection and live-Vite readiness",
+      "status": "COLLECTION_PASS_BROWSER_BLOCKED",
+      "commit": "63e20716587a7a958620a30b61ea5144ecbd2b9b",
+      "classification": "collection_completed_live_vite_preflight_blocked",
+      "collection": { "phase": "collection", "collected": 9, "executed": 0, "passed": 0, "failed": 0, "skipped": 0, "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/e234fc42-7629-4648-a284-e2de6d18acf9.json", "sha256Prefix": "cc2b6aba...3691", "protectedRootLink": "unchanged" },
+      "liveViteDoctor": { "project": ".", "script": "dev", "failureCode": "DEPENDENCY_CONTEXT_EXTERNAL_LINK", "classification": "invalid dependency context; not a cleanup target", "dependency": "link resolves outside project to C:/Users/The Lord/Desktop/luyentap-writing-import-rebased/node_modules", "tcpAttempted": false, "httpAttempted": false, "serverStarted": false },
+      "browserExecuted": false,
+      "blocker": "The pre-existing external node_modules junction is invalid dependency context under the 3.4 skill; authenticated teacher/student execution remains held. No unlink or removal is proposed."
+    },
+    {
+      "name": "3.4 #133 bounded legacy-backup-recovery slice",
+      "status": "PASS_BOUNDED_LOCAL_RECOVERY_ASSERTIONS_NOT_TICKET_ACCEPTANCE",
+      "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "phase": "execution",
+      "counts": { "collected": 1, "executed": 1, "passed": 1, "failed": 0, "skipped": 0 },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+      "evidenceSha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840",
+      "protectedState": "unchanged",
+      "scope": "bounded #133 recovery slice only; not full AC-LR-001 or ticket acceptance"
+    },
+    {
+      "name": "3.4 #132 bounded contract-security retry diagnostic",
+      "status": "HISTORICAL_SUPERSEDED_HARNESS_PREFLIGHT_FAILURE_NO_PRODUCT_EXECUTION",
+      "commit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+      "worktreeClean": false,
+      "phase": "execution",
+      "failureCode": "EPERM",
+      "failureBoundary": "dependency-cache staging rename before Firebase, emulator, Vitest, or product-code startup",
+      "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
+      "evidence": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/4986ad64-18e1-44df-bd29-bc3262bd62e5.json",
+      "scope": "historical diagnostic failure evidence only; not clean proof, full AC-SC-001, or ticket acceptance",
+      "supersededBy": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-doctor.json and firebase-execution.json"
+    },
+    {
+      "name": "3.4 #132 fresh-root Firebase doctor",
+      "status": "PASS_EXIT_0_CACHE_PUBLICATION_RECOVERED",
+      "commit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+      "worktreeClean": true,
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "phase": "doctor",
+      "command": "node scripts/harness/run-tool.mjs --doctor . firebase",
+      "externalCache": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/dependencies/d5e92ac96a2897a0c39bfd06648f04f0ac44dff5d2c22f9026bf8bb6fbd49761",
+      "evidence": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-doctor.json",
+      "evidenceSha256": "2bb7c0cd5c4709e7a3b8efee85a19a9c4acfd06adfd4462e327879fc185bab87",
+      "classification": "clean completed doctor; cache publication recovered"
+    },
+    {
+      "name": "3.4 #132 bounded Firebase execution",
+      "status": "HARNESS_TRANSPORT_FAILURE_NO_AUTHORITATIVE_PRODUCT_VERDICT",
+      "commit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+      "worktreeClean": true,
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.4.0", "protocol": 2 },
+      "phase": "execution",
+      "command": "node scripts/harness/run-tool.mjs firebase . emulators:exec --only database,firestore \"node node_modules/vitest/vitest.mjs run src/__tests__/security/prd0040-security.emulator.test.ts --maxWorkers=1 --passWithNoTests=false\"",
+      "externalCache": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/dependencies/d5e92ac96a2897a0c39bfd06648f04f0ac44dff5d2c22f9026bf8bb6fbd49761",
+      "failureCode": "TOOL_TIMEOUT",
+      "exitCode": 124,
+      "counts": { "collected": null, "executed": null, "passed": null, "failed": null, "skipped": null },
+      "evidence": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/evidence/firebase-execution.json",
+      "evidenceSha256": "940a5f917ff765f5db3110cb8081d3701c1383908e501e96921e2321fbbb9445",
+      "classification": "Sidecar proves harness transport timeout with null counts; separately hashed logs corroborate Firebase/emulator/Vitest startup only. No product verdict is authoritative; not full AC-SC-001 or ticket closure."
+    },
+    {
+      "name": "3.4 #132 timeout read-only discovery",
+      "status": "DIAGNOSTIC_ONLY_NO_RERUN",
+      "commit": "6da465608e0d3dfd6fe35ce8d3150bfa6ac2135e",
+      "executionWorkspace": "C:/Users/The Lord/AppData/Local/ch34/6da465608e0d-01/runs/9dbf474f-6a05-48f2-a32c-e2fdcf25c825",
+      "logSha256": { "firebase": "f5bb77ba7500724b4dc5d02db6a292a26e61c315efde2e316ad4f39dc1262998", "firestore": "85723bf25fc05cac7fc67c39446abb2764d4a08fa79cda9b2f255a466f2e2516", "database": "222b175aaea3c77ed3c15da0c955841521ab9b35b8db968b74d5ae8ee5de3320" },
+      "partialTerminalOutputArtifact": null,
+      "processAndPortReadback": "no run-owned process and no listener on 4400, 8080, 9000, or 9150",
+      "classification": "default jsdom/MSW setup is a repository verification-configuration confounder; warnings are neither a product assertion result nor proof of timeout cause"
+    },
+    {
+      "name": "3.5 authenticated local #128-#131 campaign checkpoint",
+      "status": "LOCAL_AUTOMATED_CASES_COMPLETE_WITH_EXTERNAL_GATES",
+      "finalApplicationCommit": "6f7767d92b6c53a840dc20ad188128079b2ba878",
+      "toolingContract": { "name": "luyentap-windows-arm64-harness", "version": "3.5.0", "protocol": 3 },
+      "worktree": "C:/Users/The Lord/.codex/worktrees/prd0062-campaign-clean/luyentap-writing-import-rebased",
+      "dependencyContext": "project-local npm ci directory; package and lock hashes unchanged",
+      "ticketVerdicts": {
+        "128": "PASS_LOCAL_NON_ACTIVATION_CASES; positive activated workflow held for #126",
+        "129": "PASS_LOCAL_ACCEPTANCE",
+        "130": "PASS_LOCAL_ACCEPTANCE",
+        "131": "PASS_LOCAL_AUTOMATED; native screen-reader verification pending"
+      },
+      "acceptedSidecarSha256": {
+        "128": "5d17528fbf5a0caa02f7a4bc31f381ab0c4ab61fe7a560a4b4c95283766b645b",
+        "129Update": "28c439e285302e2b75d266a969c3a14a527c5c11d2335ca97ca48e5d2393586e",
+        "129Replacement": "33efff64c3cf9d863bdae8c82726e41b4bff2271983378d87292fb8478745b16",
+        "130Runtime": "f08a5ec245864ecf8427ab14f47787a3386670faf6ffdb883b8dad24d5433682",
+        "130Preflight": "c8fcf1868aa1fd8876a503b96766bc39c1c68fd262544d5b7a3b97f02603a127",
+        "130Timer": "f7fbe05c69193e02ac7b30b747c5756395570078d1c88bce94909cb5b277250f",
+        "131Automated": "2778490996ccf2ae9e1018e294a26841a83e75270ffdcdd69f1319a722f833c6"
+      },
+      "identityReuse": "Later commits were limited to student runtime/accessibility and acceptance orchestration. Earlier teacher cases were not rerun because their affected slices and #118/#127 identities did not change.",
+      "externalGates": [
+        "#126 exact teacher/book/assignment/student identities are frozen, but required authoring/homework/runtime service identities are not provisioned and activation is not approved or active",
+        "#131 native screen-reader/true-zoom verification remains manual and the attempted companion automation stopped at a Harness transport timeout before assertions",
+        "#134 remains separately approval-gated"
+      ],
+      "remoteMutation": false,
+      "deployment": false,
+      "activation": false
+    },
+    {
+      "name": "3.5 integrated #132 bounded security acceptance and #131 gap audit",
+      "status": "PARTIAL_GROUP3_CONVERGENCE",
+      "applicationCommit": "64c20fde088077207f095ccf305867eae83f5a79",
+      "ticket132": {
+        "status": "PASS_LOCAL_BOUNDED_SECURITY_ACCEPTANCE",
+        "command": "Firebase RTDB+Firestore emulators with vitest.prd0040-security-emulator.config.ts",
+        "counts": { "files": 1, "executed": 9, "passed": 9, "failed": 0, "skipped": 0 },
+        "sidecarSha256": "7b56b5aacd361ad639a60e5f733ff38cd676e56da65538b8a09d61b45e7b75ca",
+        "rulesReuse": "#118 tuple reused unchanged; no duplicate rules matrix run",
+        "readingV2Touched": false
+      },
+      "ticket131": {
+        "acceptedAutomated": "existing 1/1 sidecar retained",
+        "companionCollection": "1 test collected, 0 executed",
+        "companionExecution": "two Harness 3.5 TOOL_TIMEOUT results at approximately 180.7s, counts null, no assertion result; unverified changes reverted and no commit",
+        "remaining": "AX-tree/keyboard-order/320-375/touch/true-zoom companion proof plus native screen-reader verification"
+      },
+      "remoteMutation": false,
+      "deployment": false,
+      "activation": false
+    }
+  ],
+  "executionPolicy": {
+    "positiveActivation": "HOLD_UNTIL_126_APPROVED_AND_ACTIVE",
+    "downstreamCases": "PROVISIONAL_UNTIL_126_FINAL_STACKED_APPLICATION",
+    "remoteMutation": false,
+    "deployment": false,
+    "push": false,
+    "ticket134": "OUT_OF_SCOPE"
+  }
+}

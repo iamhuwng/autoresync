@@ -1,0 +1,183 @@
+{
+  "ticket": 88,
+  "title": "PRD0062 35 — Aggregate context-scoped Book completion",
+  "recordedAt": "2026-08-01T20:00:13+07:00",
+  "acceptanceStatus": "acceptance-passed",
+  "authoritativeSelection": {
+    "liveIssue88State": "OPEN",
+    "liveIssue87State": "CLOSED",
+    "liveIssue76State": "CLOSED",
+    "boundedLiveVerificationAt": "2026-08-01T19:51:00+07:00"
+  },
+  "implementation": {
+    "scope": "One exact recipient, Homework context, delivery binding, binding revision, Placement, Activity, and Activity Version.",
+    "authority": "Current required manifest placements plus persisted trusted terminal-submission facts.",
+    "completionSeparation": "Completion is derived only from submitted current required Activities. Grading state, pending review, Activity scores, historical exclusions, and legacy aggregate-grade fields remain separate.",
+    "manifestEvolution": "Current-manifest additions and removals are projected without rewriting or discarding historical terminal facts.",
+    "idempotency": "Duplicate terminal submission keys replay the existing fact and do not increment completion.",
+    "contextIsolation": "Solo and Course/Class runtime contexts do not invoke or populate Homework completion."
+  },
+  "localProof": {
+    "completionPreviewContract": {
+      "files": 1,
+      "tests": 2,
+      "status": "passed"
+    },
+    "rootFocused": {
+      "files": 5,
+      "tests": 34,
+      "status": "passed"
+    },
+    "cloudflareFocused": {
+      "files": 8,
+      "tests": 83,
+      "status": "passed"
+    },
+    "wranglerDryRuns": {
+      "preview": {
+        "status": "passed",
+        "uploadKiB": 132.46,
+        "gzipKiB": 27.35
+      },
+      "rollback": {
+        "status": "passed",
+        "uploadKiB": 0.51,
+        "gzipKiB": 0.30
+      }
+    },
+      "buildHarness": {
+      "status": "inconclusive-harness-stall",
+      "command": "npm run build",
+      "observed": "The Windows x64 source-mirroring harness emitted no product diagnostics before timing out.",
+      "classification": "harness, not product failure"
+    }
+  },
+  "studentDataLoadingReview": {
+    "surface": "StudentHomeworkDetailPage Book Homework progress panel",
+    "canonicalOwner": "BookHomeworkCompletionRepository via the Worker completion projection route",
+    "contract": "Student consumes the bounded summary projection; no canonical authority record or per-Activity enrichment is loaded.",
+    "readPath": "GET /book-homework/assignments/{homeworkId}/students/{studentId}/projection",
+    "secondaryEnrichment": "None; Activity rows and historical rows are included in the one summary projection.",
+    "refreshPolicy": "One request per homework/student key; cached in-flight request prevents duplicate loads, and the effect resets only when the key or eligibility changes.",
+    "writeOnRead": "None; current-manifest projection is derived in memory from persisted terminal facts.",
+    "citations": [
+      "documentation/rules/student-data-loading.md sections 0, 4, 5, 7, and 8",
+      "documentation/architecture/student-shell-right-rail-architecture.md"
+    ],
+    "verification": [
+      "StudentHomeworkDetailPage tests cover loading/error/success projection rendering.",
+      "homeworkSubmissionService tests cover one bounded request and exact context/recipient validation.",
+      "Student browser proof passes at localhost:5174 after two sequential submits."
+    ],
+    "nonGoals": [
+      "No right-rail or shell dataset is added.",
+      "No broad RTDB scan, per-card fetch, or mount-time backfill is introduced."
+    ]
+  },
+  "roleBrowserProof": {
+    "student": {
+      "url": "http://localhost:5174/__smoke/book-homework-completion",
+      "status": "passed",
+      "tests": 1,
+      "durationSeconds": 96,
+      "screenshot": "artifacts/prd0062-ticket-88/browser/student-completion-distinct.png"
+    },
+    "teacher": {
+      "url": "http://localhost:5173/__smoke/book-homework-completion",
+      "status": "passed",
+      "tests": 1,
+      "durationSeconds": 28.8,
+      "screenshot": "artifacts/prd0062-ticket-88/browser/teacher-completion-distinct.png"
+    },
+    "distinctPresentation": [
+      "2 of 2 required Activities complete",
+      "1 pending subjective review",
+      "1 separately scored Activity",
+      "removed Placement shown only as historical",
+      "no aggregate Homework score, percentage, band, or grade"
+    ]
+  },
+  "productionEquivalentPreview": {
+    "profile": "media",
+    "accountSentinel": "kahoot-media",
+    "worker": "r2-upload-signer-prd0062-ticket88-preview",
+    "workerUrl": "https://r2-upload-signer-prd0062-ticket88-preview.iamhuwng.workers.dev",
+    "passingVersionId": "a3219b8e-5098-42f1-a77e-243d63e504ec",
+    "passingReadback": {
+      "httpStatus": 200,
+      "proofKind": "prd0062-ticket88-production-equivalent",
+      "indexedScope": "ticket88-student/ticket88-homework",
+      "productionRepository": {
+        "kind": "firebase-rest-cas",
+        "protectedRoot": "book_runtime/homework_completion",
+        "conditionalWriteCount": 2,
+        "readCount": 7
+      },
+      "firstSubmission": {
+        "submittedCount": 1,
+        "requiredCount": 2,
+        "pendingReviewCount": 1,
+        "scoredCount": 0
+      },
+      "duplicateSubmission": {
+        "outcome": "replayed",
+        "terminalFactCountAfterBothDistinctSubmissions": 2
+      },
+      "secondSubmission": {
+        "submittedCount": 2,
+        "requiredCount": 2,
+        "isComplete": true,
+        "pendingReviewCount": 1,
+        "scoredCount": 1
+      },
+      "legacyAggregateFieldsPresent": false,
+      "manifestChange": {
+        "submittedCount": 1,
+        "requiredCount": 2,
+        "historicalReasons": [
+          "removed-binding"
+        ],
+        "terminalFactsPreserved": true
+      },
+      "crossContextCode": "homework_completion_manifest_context_mismatch",
+      "pass": true
+    },
+    "rollback": {
+      "versionId": "95a3a8d2-2b16-4178-80c6-9ed73fa01dc3",
+      "trafficPercent": 100,
+      "proofHttpStatus": 503,
+      "code": "ticket88_preview_rollback_fail_closed",
+      "writable": false
+    },
+    "cleanup": {
+      "workerDeleted": true,
+      "postDeleteHttpStatus": 404
+    },
+    "runtime": {
+      "node": "x64 v24.18.0",
+      "wrangler": "4.103.0",
+      "accountId": "e41db829dabe9993f03674afdfd56510"
+    }
+  },
+  "ownershipBoundaries": {
+    "rules": "Fragment 35 declares the exact service-only completion root. Ticket #118 retains generated-rule assembly and deployment ownership.",
+    "backup": "The existing backup worker discovers top-level RTDB roots dynamically, so the book_runtime root is included without a #88 backup-code change.",
+    "readPath": "Current completion projection is derived in memory from persisted facts; reads do not write or reproject persisted state."
+  },
+  "independentReview": {
+    "status": "PASS",
+    "reviewedAt": "2026-08-01T20:45:00+07:00",
+    "finding": "Independent staged-diff review passed after Activity-boundary enforcement, repeated-attempt compaction, retry/observability repairs, and ownership-scope reconciliation.",
+    "provider": {
+      "ticket": 76,
+      "state": "CLOSED_REPAIRED",
+      "classification": "original provider omission, confirmed by issue contract and runtime interactionId records",
+      "requiredAction": "Completed in reachable commits ed3cd7f6 and a21a9e89.",
+      "impact": "Resolved. #88 accepts only trusted Activity-scoped terminal bundles with exact required/submitted interaction sets."
+    },
+    "residualNotes": [
+      "Student detail projection cache is component-local; a full route remount may show a first-load state.",
+      "Completion facts compact repeated attempts per Activity slot; immutable attempt history remains owned by #76 runtime records."
+    ]
+  }
+}

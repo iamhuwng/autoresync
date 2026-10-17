@@ -1,0 +1,97 @@
+{
+  "kind": "prd0062-51a-acceptance-authority-hash-evidence",
+  "generatedAt": "2026-08-17",
+  "authority": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+  "authorityStatus": "SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED",
+  "matrixSha256": "3b0cc0480fed901848e89eadf2d9a0189cc596e593fb15d2b214ff33b80d7206",
+  "sourceSnapshot": {
+    "commit": "7b2e7f3b74c1cabb78e12f4e28a7ff6a49d1ee04",
+    "adapterManifest": "src/services/book-activity/runtime/activityRendererManifest.json",
+    "adapterManifestSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
+    "timerSource": "src/components/book-runtime/PersonalTimer.tsx",
+    "timerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842"
+  },
+  "acceptedSourceHashes": {
+    "adapterCommit": "a7522986597c816283c8fc68b1b251384b67ff91",
+    "adapterManifest": "src/services/book-activity/runtime/activityRendererManifest.json",
+    "adapterManifestSha256": "ca3ab67ccf36da978ff4a19e4fb3af89b42b4147c89c922a8c6fff25c38cb389",
+    "timerCommit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70",
+    "timerSource": "src/components/book-runtime/PersonalTimer.tsx",
+    "timerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842"
+  },
+  "fixtureManifest": {
+    "path": "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+    "sha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+  },
+  "counts": {
+    "capabilityRows": 32,
+    "currentProfiledRegistrations": 32,
+    "activityCoverageRows": 32,
+    "fixtureManifestEntries": 33,
+    "legacyCaseRows": 9
+  },
+  "verification": {
+    "harnessDoctor": {
+      "command": "node scripts/harness/run-tool.mjs --doctor . vite-node",
+      "result": "PASS",
+      "runtime": "Windows x64 Node through the repository 3.5.0 harness against the selected WSL worktree"
+    },
+    "schemaCommand": "node scripts/validate-prd0062-acceptance-matrix.mjs --schema",
+    "schemaResult": "PASS",
+    "semanticCommand": "node scripts/validate-prd0062-acceptance-matrix.mjs --semantic",
+    "semanticResult": "PASS",
+    "semanticChecks": [
+      "current adapter manifest hash and 32 profiled registrations",
+      "current adapter registry profile ownership",
+      "activity coverage correspondence",
+      "material and feature registry correspondence",
+      "deterministic fixture module and manifest correspondence",
+      "current PersonalTimer UI-only source hash and invariants",
+      "scoped cleanup and harness command contract"
+    ],
+    "matrixTests": {
+      "command": "node --test scripts/__tests__/prd0062-acceptance-matrix.test.mjs",
+      "tests": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0
+    },
+    "coverageTests": {
+      "command": "node --test scripts/__tests__/prd0062-reading-listening-coverage.test.mjs",
+      "tests": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    },
+    "cleanupTests": {
+      "command": "node --test scripts/__tests__/prd0062-cleanup.test.mjs",
+      "tests": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "cleanupCliDryRun": {
+      "command": "node scripts/cleanup-prd0062-acceptance-fixtures.mjs --root prd0062_acceptance/reading-sentence-completion",
+      "result": "PASS_ALREADY_ABSENT"
+    },
+    "focusedConformanceTest": {
+      "command": "node --test --test-name-pattern 'semantic authority rejects source registry adapter drift' scripts/__tests__/prd0062-acceptance-conformance.test.mjs",
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "harnessContractTests": {
+      "command": "node --test --test-name-pattern 'harness dispatchers|harness contract validation|semantic checker dispatcher dependencies' scripts/__tests__/prd0062-acceptance-conformance.test.mjs",
+      "tests": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "executionBoundary": {
+    "browserProductExecution": "NOT_RUN",
+    "deploymentOrRemoteMutation": "NOT_RUN",
+    "consumerTickets": "execute after authority acceptance"
+  }
+}

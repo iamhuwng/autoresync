@@ -5,13 +5,13 @@ const {
   mockRef,
   mockUpdate,
   mockExecuteGeminiWithKeyRotation,
-  mockGetDecryptedKeys,
+  mockGetActiveKeyIds,
 } = vi.hoisted(() => ({
   mockGet: vi.fn(),
   mockRef: vi.fn((_database: unknown, path: string) => ({ path })),
   mockUpdate: vi.fn(),
   mockExecuteGeminiWithKeyRotation: vi.fn(),
-  mockGetDecryptedKeys: vi.fn(),
+  mockGetActiveKeyIds: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -30,7 +30,7 @@ vi.mock('./ai/gemini-key-rotation.service', () => ({
 }));
 
 vi.mock('./api-keys.service', () => ({
-  getDecryptedKeys: (...args: unknown[]) => mockGetDecryptedKeys(...args),
+  getActiveKeyIds: (...args: unknown[]) => mockGetActiveKeyIds(...args),
 }));
 
 vi.mock('../config/env.config', () => ({
@@ -100,7 +100,7 @@ describe('generateFormativeFeedback single-write guard', () => {
       error: 'Gemini disabled in generation test',
       allKeysExhausted: true,
     });
-    mockGetDecryptedKeys.mockResolvedValue([]);
+    mockGetActiveKeyIds.mockResolvedValue([]);
   });
 
   it('reuses stored feedback without overwriting the result payload', async () => {

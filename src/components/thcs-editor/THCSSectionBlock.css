@@ -1,0 +1,125 @@
+.thcs-section-name,
+.thcs-section-points input,
+.thcs-section-field input,
+.thcs-section-textarea,
+.thcs-section-field textarea {
+    box-sizing: border-box;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 6px 10px;
+    background: #fff;
+    color: #1e293b;
+    font: inherit;
+}
+
+.thcs-section-name { width: 200px; font-size: 1rem; font-weight: 700; }
+.thcs-section-points { display: grid; gap: 2px; width: 90px; font-size: 0.75rem; }
+.thcs-section-points input { width: 100%; }
+.thcs-section-textarea { width: 100%; min-height: 64px; resize: vertical; }
+.thcs-section-field { display: grid; gap: 4px; font-size: 0.75rem; font-weight: 600; }
+.thcs-section-field textarea { min-height: 120px; resize: vertical; }
+
+.thcs-section-segmented { display: inline-flex; padding: 3px; border-radius: 4px; background: #f1f3f5; }
+.thcs-section-segmented label { position: relative; cursor: pointer; }
+.thcs-section-segmented input { position: absolute; opacity: 0; }
+.thcs-section-segmented span { display: block; padding: 4px 8px; border-radius: 3px; font-size: 0.75rem; }
+.thcs-section-segmented input:checked + span { background: #fff; box-shadow: 0 1px 3px #0002; }
+.thcs-section-segmented input:focus-visible + span { outline: 2px solid #8b5cf6; }
+
+.thcs-section-icon { border: 0; background: transparent; color: #475569; cursor: pointer; padding: 4px; }
+.thcs-section-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+.thcs-section-icon--delete { color: #dc2626; }
+
+.thcs-question-list {
+    max-height: 70vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 4px 4px 0;
+    scroll-behavior: auto;
+}
+
+.thcs-question-list__items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 24px;
+}
+
+.thcs-question-list__count {
+    padding: 0.375rem 0 0.375rem 24px;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.thcs-delete-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(400px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0;
+    color: #1e293b;
+    background: #fff;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+.thcs-delete-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.thcs-delete-dialog h2 {
+    margin: 0;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid #ede9fe;
+    background: #faf9ff;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.thcs-delete-dialog p {
+    margin: 0;
+    padding: 18px 20px 20px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.thcs-delete-dialog p strong {
+    color: #1e293b;
+}
+
+.thcs-delete-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 20px 20px;
+}
+
+.thcs-delete-dialog__actions button {
+    min-height: 40px;
+    border: 1px solid #dbe1ea;
+    border-radius: 6px;
+    padding: 8px 16px;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.thcs-delete-dialog__actions button:focus-visible {
+    outline: 2px solid #7c3aed;
+    outline-offset: 2px;
+}
+
+.thcs-delete-dialog__actions .thcs-delete-dialog__confirm {
+    border-color: #dc2626;
+    background: #dc2626;
+    color: #fff;
+}

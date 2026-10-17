@@ -1,14 +1,13 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import { TeacherNavigation } from './TeacherNavigation';
 import { ROUTES } from '../../constants/routes';
 
 // Mock NotificationBell component
 vi.mock('../notifications/NotificationBell', () => ({
-    NotificationBell: ({ userId }: { userId: string }) => (
-        <div data-testid="notification-bell">{userId}</div>
+    NotificationBell: ({ userId, role }: { userId: string; role: string }) => (
+        <div data-testid="notification-bell" data-role={role}>{userId}</div>
     ),
 }));
 
@@ -22,18 +21,16 @@ describe('TeacherNavigation', () => {
 
     const renderComponent = (props = {}, route = '/lobby') => {
         return render(
-            <MantineProvider>
-                <MemoryRouter initialEntries={[route]}>
-                    <TeacherNavigation
-                        userId="test-user-123"
-                        userDisplayName="Ms Linh"
-                        userEmail="ms.linh@example.com"
-                        onNavigate={mockOnNavigate}
-                        onLogout={mockOnLogout}
-                        {...props}
-                    />
-                </MemoryRouter>
-            </MantineProvider>
+            <MemoryRouter initialEntries={[route]}>
+                <TeacherNavigation
+                    userId="test-user-123"
+                    userDisplayName="Ms Linh"
+                    userEmail="ms.linh@example.com"
+                    onNavigate={mockOnNavigate}
+                    onLogout={mockOnLogout}
+                    {...props}
+                />
+            </MemoryRouter>
         );
     };
 
@@ -51,6 +48,12 @@ describe('TeacherNavigation', () => {
     it('renders notification bell when userId is provided', () => {
         renderComponent({ userId: 'user-123' });
         expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
+        expect(screen.getByTestId('notification-bell')).toHaveAttribute('data-role', 'teacher');
+    });
+
+    it('passes admin notification role for super-admin navigation', () => {
+        renderComponent({ userId: 'admin-123', userRole: 'super_admin' });
+        expect(screen.getByTestId('notification-bell')).toHaveAttribute('data-role', 'admin');
     });
 
     it('does not render notification bell when userId is not provided', () => {

@@ -1,0 +1,21 @@
+{
+  "project": "mobile-375",
+  "route": "http://localhost:5173/__smoke/book-assembly-activity-revision?fixture=ticket68",
+  "viewport": {
+    "width": 375,
+    "height": 900
+  },
+  "proof": [
+    "teacher quick-login",
+    "complete editable replacement import with presentationMode correction",
+    "manual-copy prompt includes current JSON and evidence references",
+    "exact source-context preview precedes publish",
+    "immutable old/new Activity Versions and compatible Placement lineage retained",
+    "candidate reload/conflict recovery control"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

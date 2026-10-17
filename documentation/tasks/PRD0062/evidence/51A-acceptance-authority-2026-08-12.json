@@ -1,0 +1,43 @@
+{
+  "kind": "prd0062-51a-acceptance-authority-hash-evidence",
+  "generatedAt": "2026-08-12",
+  "authority": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+  "authorityStatus": "SOURCE_CONFORMANT_DEFINED_NOT_EXECUTED",
+  "matrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+  "fixtureManifest": "scripts/fixtures/prd0062-51a-acceptance-fixture-manifest.json",
+  "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0",
+  "acceptedSourceHashes": {
+    "adapterCommit": "a7522986597c816283c8fc68b1b251384b67ff91",
+    "adapterManifest": "src/services/book-activity/runtime/activityRendererManifest.json",
+    "adapterManifestSha256": "ca3ab67ccf36da978ff4a19e4fb3af89b42b4147c89c922a8c6fff25c38cb389",
+    "timerCommit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70",
+    "timerSource": "src/components/book-runtime/PersonalTimer.tsx",
+    "timerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842"
+  },
+  "counts": {
+    "capabilityRows": 32,
+    "acceptedRegistrations": 32,
+    "activityCoverageRows": 32,
+    "fixtureManifestEntries": 33,
+    "legacyCaseRows": 9
+  },
+  "verification": {
+    "schemaCommand": "node scripts/validate-prd0062-acceptance-matrix.mjs --schema",
+    "schemaResult": "PASS",
+    "semanticCommand": "node scripts/validate-prd0062-acceptance-matrix.mjs --semantic",
+    "semanticHarnessCommand": "node scripts/harness/run-tool.mjs vite-node . scripts/lib/prd0062-acceptance-conformance.ts documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+    "semanticResult": "PASS",
+    "commandHarnessConformance": "PASS",
+    "matrixTests": {"command":"node --test scripts/__tests__/prd0062-acceptance-matrix.test.mjs","tests":15,"passed":15,"failed":0,"skipped":0},
+    "conformanceTests": {"command":"node --test scripts/__tests__/prd0062-acceptance-conformance.test.mjs","tests":8,"passed":8,"failed":0,"skipped":0},
+    "cleanupTests": {"command":"node --test scripts/__tests__/prd0062-cleanup.test.mjs","tests":6,"passed":6,"failed":0,"skipped":0},
+    "totalFocusedTests": 29,
+    "cleanupCliDryRun": "PASS",
+    "diffCheck": "PASS"
+  },
+  "executionBoundary": {
+    "browserProductExecution": "NOT_RUN",
+    "deploymentOrRemoteMutation": "NOT_RUN",
+    "consumerTickets": "execute after authority acceptance"
+  }
+}

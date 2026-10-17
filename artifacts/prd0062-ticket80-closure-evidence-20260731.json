@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "ticket": 80,
+  "title": "Preserve exact historical source context",
+  "recordedAt": "2026-07-31T18:13:00Z",
+  "authoritativeStart": {
+    "roadmapTickets": 112,
+    "open": 45,
+    "closed": 67,
+    "edges": 310,
+    "graphDefects": {
+      "missingReferences": 0,
+      "duplicateEdges": 0,
+      "cycles": 0,
+      "topologicalCoverage": 112
+    },
+    "selectedPrimary": 80,
+    "graphArtifact": "artifacts/prd0062-graph-20260731-ticket80-preimplementation-live.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260731-ticket80-preimplementation-live.json"
+  },
+  "implementation": {
+    "projection": "Immutable attempt-source-context metadata preserves component/source identity, Source Version, one-based local physical page, Page Group, Placement, Activity/Version, Interaction focus, and reference-only/source-assisted correspondence. Missing, ambiguous, malformed, deleted, replaced, invalidated, revoked, or unauthorized context fails closed without a document resource.",
+    "atomicSwitch": "The result adapter retains the previously committed attempt detail while the selected detail is read and validated, then commits result, response, Activity Version, source, page, correspondence, and focus in one React update.",
+    "authorization": "Historical document authorization consumes immutable attempt projection plus the trusted current viewer role. Students are self-only; teachers require current owned Homework authority and student membership; teacher access to private Solo is denied. Current Delivery resolution is not used.",
+    "unavailableSource": "Deleted/replaced sources render metadata and the exact 'Historical PDF unavailable' status while answer, result, provenance, and permitted feedback remain visible; no PDF host or substitute request is emitted.",
+    "privacy": "No answer key, private provider/storage identity, direct database/runtime read, or broader PDF capability is added."
+  },
+  "verification": [
+    {
+      "gate": "projection, wire, result adapter, exact-focus UI, malformed/missing context, deletion/replacement, query-budget, dialog, PDF route, and transport regressions",
+      "command": "node scripts/harness/run-tool.mjs vitest . run <11 #80-owned root test files>",
+      "result": "11 files passed; 68 tests passed"
+    },
+    {
+      "gate": "historical authorization, real projection-to-manifest-to-byte integration, result ownership/visibility/query budgets, preview, route manifest, and existing document-response regressions",
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run <7 #80-owned Cloudflare test files>",
+      "result": "7 files passed; 97 tests passed"
+    },
+    {
+      "gate": "Student and Teacher authenticated browser proof",
+      "command": "playwright test --config=playwright.prd0062-ticket77.config.mjs",
+      "result": "Local Student http://localhost:5174 and Teacher http://localhost:5173 passed; enabled remote canonical byte proof passed; disabled remote rollback proof passed"
+    },
+    {
+      "gate": "production build and bundle budget",
+      "command": "npm run build",
+      "result": "9,462 modules transformed; build passed; bundle budget passed"
+    },
+    {
+      "gate": "targeted lint and patch hygiene",
+      "result": "Targeted ESLint passed; scoped git diff --check passed"
+    }
+  ],
+  "browserProof": {
+    "student": "Quick-login reviewed available Homework component-homework-browser-proof/source-version-homework-exact/page 3, switched to deleted Solo component-solo-browser-proof/source-version-deleted/page 3, preserved answer and withheld-feedback state, and emitted no current or neighboring document request.",
+    "teacher": "Quick-login returned one currently owned Homework attempt, exact source-assisted context, and no private Solo result.",
+    "responsive": "Compact Book Page/Activity tabs were keyboard-operable; focus moved to the selected panel; 200% zoom produced no document-level horizontal overflow."
+  },
+  "previewReadback": {
+    "accountProfile": "media",
+    "accountSentinel": "kahoot-media",
+    "workerName": "r2-upload-signer-prd0062-ticket80-preview",
+    "workerUrl": "https://r2-upload-signer-prd0062-ticket80-preview.iamhuwng.workers.dev",
+    "dryRun": "Profile-aware x64 Wrangler bundle compiled; version readback confirmed exact canonical gate propagation before each browser probe.",
+    "positive": {
+      "versionId": "1f2821f6-269b-4e6c-9feb-e741d5417162",
+      "traffic": "100%",
+      "result": "Authenticated Student/Teacher proof streamed application/pdf bytes through the canonical manifest/contributor/handler for exact historical/current attempts and passed deleted-source denial, copied-resource denial, and private-Solo teacher denial."
+    },
+    "rollback": {
+      "versionId": "30bc1416-a719-4900-b0cd-ef869d00e731",
+      "traffic": "100%",
+      "result": "BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED=disabled read back from the deployed version and the canonical route returned 503 book_route_disabled, preserving metadata-only review."
+    },
+    "cleanup": {
+      "workerDeleted": true,
+      "absenceReadbackCode": 10007
+    }
+  },
+  "boundaries": {
+    "mode1AndNonBook": "unchanged",
+    "attemptsAndResults": "immutable",
+    "defaultDeny": "preserved; preview proof configuration is committed disabled",
+    "generatedRules": "No assembled generated-rules proof is claimed; that remains owned by another ticket."
+  },
+  "independentReview": {
+    "status": "passed",
+    "scope": "Final inspectable #80 diff traced the real request from immutable attempt provenance through canonical route authorization to exact historical PDF bytes or metadata-only UI.",
+    "result": "PASS after remediation: trusted encoded route identifiers, full binding/context/source/page/placement scope reconciliation, immutable wire-provenance reconciliation, and actual interaction-node focus were verified. No blocking findings remain.",
+    "deferred": "Optional student /homework/:homeworkId routing and provider MIME/size/content checks do not violate the live #80 acceptance contract or affect the shipped #80 path."
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-failure-result",
+  "schemaVersion": 1,
+  "status": "rolled-back-root-cause-fixed-locally",
+  "createdAt": "2026-08-13T22:56:45Z",
+  "checkpoint": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-checkpoint-2026-08-14.json",
+    "sha256": "6c79f4beefab65a6d3598be70cf9f0fe888ea2711be863696ebc15efd8af000a"
+  },
+  "activated": {
+    "rulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "workerVersionId": "d253f19d-bce1-46c4-a28c-98f98b0f2452",
+    "deploymentId": "9175bcad-1439-4d49-b6f3-b39055a4715a"
+  },
+  "failure": {
+    "action": "replay exact save/bind operation 62e20638-b575-4f12-8d10-243a356103c3",
+    "httpStatus": 500,
+    "code": "unit_activity_binding_receipt_invalid",
+    "bindingAfterFailure": null,
+    "operationChanged": false,
+    "duplicateActivityCreated": false,
+    "duplicateCandidateCreated": false
+  },
+  "rollback": {
+    "workerVersionId": "46da3a52-b763-4654-8420-f96a6c21eaad",
+    "workerDeploymentId": "c7d301dd-aa49-476d-9201-77d20a903055",
+    "workerPercentage": 100,
+    "rulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "workerFirst": true,
+    "rulesSecond": true
+  },
+  "rootCause": {
+    "owner": "book-activity-authoring save/bind replay",
+    "detail": "The historical durable operation fingerprint contains the exact binding request, but its pre-fix saved result predates the binding receipt field. The current replay required that receipt and rejected before binding.",
+    "fix": "One-way same-operation receipt upgrade after exact operation fingerprint, owner, Book, saved candidate, candidate revision, Activity identity, and Activity ownership validation; then normal exact-leaf bind and durable phase completion.",
+    "authorityWidened": false
+  },
+  "localVerification": {
+    "historicalReceiptRegression": "28/28",
+    "ticket59": "57/57",
+    "focusedCanonicalTokenComposer": "34/34",
+    "defaultWorkerRealRtdbEmulator": "2/2"
+  },
+  "nextAction": "regenerate all invalidated source, bundle, config, inactive-version, and checkpoint identities before retry"
+}

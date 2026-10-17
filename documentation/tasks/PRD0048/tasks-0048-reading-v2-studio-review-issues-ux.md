@@ -17,7 +17,7 @@ Canonical contracts:
 
 - `documentation/architecture/reading-v2-studio-review-issues-contract.md`
 - `documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`
-- `documentation/architecture/reading-v2-auto-source-ledger-and-repair.md`
+- `documentation/architecture/changelog/reading-v2-auto-source-ledger-and-repair.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-v4-source-authoritative-group-repair.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-v4-canonical-anchor-foundation.md`
 

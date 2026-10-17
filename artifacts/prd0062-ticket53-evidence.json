@@ -1,0 +1,65 @@
+{
+  "ticket": 53,
+  "title": "PRD0062 10A - Build authenticated range transport with abort and bounded memory",
+  "date": "2026-07-27",
+  "retainedOwner": "#53",
+  "retainedProof": [
+    "browser-only document transport implementation",
+    "transport-local role-port fixture proof on http://localhost:5173 and http://localhost:5174",
+    "Firebase token per HEAD, full GET, open range, closed range, suffix range, and forced-refresh retry",
+    "metadata validation before exposing ReadableStream to PDF.js",
+    "bounded streaming without Response.arrayBuffer(), Response.blob(), Blob assembly, or whole-document concatenation",
+    "abort, timeout, source switch, destroy, and stream cancellation cleanup",
+    "redacted typed failure mapping for auth, route, range, server, metadata, abort, and network failures",
+    "no token, opaque route, provider identity, signed authority, private storage name, PDF bytes, direct B2, iframe, or bearer URL fallback"
+  ],
+  "destinationOwnedProof": {
+    "#59": [
+      "deployed canonical document-route composition",
+      "live route reachability",
+      "active Worker version/configuration/readback",
+      "route-level rollback",
+      "deployed probes for the #52 document-byte responder"
+    ],
+    "#73": [
+      "assembled student runtime proof through #53/#54 transport and viewer",
+      "Student quick-login at http://localhost:5174",
+      "Delivery projection, production route/CSP, and registry integration",
+      "redacted HEAD/bounded 206 behavior, forced retry, abort/resume, direct-B2/copied/anonymous denial, and console review"
+    ]
+  },
+  "liveIssueContractRepair": {
+    "#53": "Appended source-side transfer ledger: #53 retains transport-local proof; #59/#73 own deployed/integrated proof.",
+    "#59": "Existing destination ledger owns deployed #52 document-route composition and deployed probes.",
+    "#73": "Existing destination ledger owns assembled #53/#54 transport/viewer runtime proof."
+  },
+  "verification": [
+    {
+      "command": "npx vitest run src/services/book-delivery/bookDocumentTransport.browser.test.ts src/services/book-delivery/bookDelivery.browser.test.ts --reporter=dot",
+      "result": "PASS - 2 files, 10 tests"
+    },
+    {
+      "command": "npx vitest run src/services/book-delivery/bookDocumentTransport.browser.test.ts src/services/book-delivery/bookDelivery.browser.test.ts src/services/book-delivery/bookDelivery.schema.test.ts src/services/book-delivery/bookDelivery.entitlementLifecycle.test.ts src/services/book-delivery/bookContextAdapterRegistry.service.test.ts --reporter=dot",
+      "result": "PASS - 5 files, 35 tests"
+    },
+    {
+      "command": "npx eslint src/services/book-delivery/bookDocumentTransport.browser.ts src/services/book-delivery/bookDelivery.browser.ts src/services/book-delivery/bookDocumentTransport.browser.test.ts src/services/book-delivery/bookDelivery.browser.test.ts e2e/prd0062-ticket53-document-transport.spec.ts playwright.prd0062-ticket53.config.mjs",
+      "result": "PASS"
+    },
+    {
+      "command": "npx tsc --noEmit --pretty false",
+      "result": "PASS"
+    },
+    {
+      "command": "npx playwright test --config playwright.prd0062-ticket53.config.mjs",
+      "result": "PASS - 2 tests on localhost:5173 and localhost:5174"
+    }
+  ],
+  "capabilitySafety": [
+    "50A remains all-deny/default-deny",
+    "03B remains disabled",
+    "no deployed Worker change",
+    "no Firebase rules change",
+    "no private B2 capability enabled"
+  ]
+}

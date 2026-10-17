@@ -1,0 +1,520 @@
+import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import type { NormalizedActivity } from '../../../../src/types/bookActivity.types.ts';
+import type {
+  BookRuntimeAttemptPolicy,
+  BookRuntimeCommandResult,
+} from '../../../../src/services/book-activity/activityRuntimeAttempt.types.ts';
+import {
+  createFirebaseBookResultProjectionWriter,
+  projectCommittedBookResult,
+} from '../book-results/production-projection.ts';
+import type {
+  BookHomeworkAuthorityScope,
+} from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
+import {
+  assertCanonicalPublishedActivityVersion,
+} from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
+import {
+  CANONICAL_ACTIVITY_VERSION_ROOT,
+  hydrateCanonicalActivityVersionFromRtdb,
+} from '../book-assembly/canonical-activity-version-repository.ts';
+import {
+  FirebaseRestBookDeliveryRepository,
+  type BookDeliveryRepositoryEnv,
+} from '../book-delivery/repository.ts';
+import { createClassBookRuntimeSchedulePolicy } from '../class-book-placement/runtime-schedule-policy.ts';
+import { authorizePublicBookBinding } from '../book-public/production.ts';
+import { createCourseBookRuntimeSchedulePolicy } from '../course-book-placement/runtime-schedule-policy.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
+import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+import {
+  FirebaseRestBookRuntimeRepository,
+  type BookRuntimeRepository,
+  type BookRuntimeRepositoryEnv,
+} from './repository.ts';
+import {
+  createBookRuntimeWorkerHandlers,
+  type BookRuntimeWorkerEnv,
+} from './worker.ts';
+import {
+  type BookRuntimeSchedulePolicy,
+} from './authorization.ts';
+import {
+  FirebaseRestBookHomeworkDocumentStore,
+} from '../book-homework/repository.ts';
+import {
+  createBookHomeworkActivitySchedulePolicyResolver,
+  createBookHomeworkScheduleEnforcement,
+  type BookHomeworkActivitySchedulePolicyResolver,
+} from '../book-homework/schedule-enforcement.ts';
+import {
+  FirebaseRestBookHomeworkCompletionRepository,
+  BookHomeworkCompletionRepositoryError,
+} from '../book-homework/completion-repository.ts';
+import {
+  bookHomeworkRecipientAuthorityId,
+  readBookHomeworkRecipientAuthority,
+} from '../book-homework/identity.ts';
+import {
+  FirebaseRestBookIntegrityReportRepository,
+} from '../book-activity-integrity/report-repository.ts';
+import {
+  createTrustedBookIntegrityReportService,
+} from '../../../../src/services/book-activity/bookIntegrityReport.service.ts';
+import {
+  deriveBookIntegrityCaptureSlotId,
+} from '../../../../src/services/book-activity/bookIntegrityCapture.service.ts';
+import type {
+  BookIntegrityTerminalAttempt,
+} from '../../../../src/services/book-activity/bookIntegrityReport.types.ts';
+
+export type BookRuntimeCanonicalEnv =
+  & BookRuntimeWorkerEnv
+  & BookRuntimeRepositoryEnv
+  & BookDeliveryRepositoryEnv
+  & {
+    readonly BOOK_RESULT_PROJECTION_ENABLED?: string;
+    readonly BOOK_RESULT_READ_GOOGLE_SA_KEY?: string;
+    readonly BOOK_RESULT_READ_SERVICE_IDENTITY?: string;
+  };
+
+export interface BookRuntimeCanonicalDependencies {
+  readonly repository: BookRuntimeRepository;
+  readonly resolveBinding: (input: {
+    readonly bindingId: string;
+    readonly recipientId: string;
+    readonly contextId: string;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<BookDeliveryBinding | null>;
+  readonly schedulePolicy: BookRuntimeSchedulePolicy;
+  readonly resolveActivity?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly interactionId: string;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<NormalizedActivity | null>;
+  readonly resolveAttemptPolicy?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly placementId: string;
+    readonly activityId: string;
+    readonly activityVersion: number;
+    readonly interactionId: string;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<BookRuntimeAttemptPolicy | null>;
+  readonly projectHomeworkCompletion?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
+  readonly projectBookResult?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
+  readonly linkIntegrityReport?: (input: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }) => Promise<void>;
+}
+
+export interface BookRuntimeCanonicalHandlersOptions {
+  readonly createDependencies?: (
+    env: BookRuntimeCanonicalEnv,
+  ) => BookRuntimeCanonicalDependencies;
+  readonly schedulePolicy?: BookRuntimeSchedulePolicy;
+  readonly activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
+}
+
+const CANONICAL_ACTIVITY_PATH_ID = '[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}';
+const CANONICAL_ACTIVITY_READ_PATH = new RegExp(
+  `^${CANONICAL_ACTIVITY_VERSION_ROOT}/(${CANONICAL_ACTIVITY_PATH_ID})/(${CANONICAL_ACTIVITY_PATH_ID})$`,
+  'u',
+);
+
+export const createBookRuntimeProductionDependencies = (
+  env: BookRuntimeCanonicalEnv,
+  schedulePolicy: BookRuntimeSchedulePolicy | undefined,
+  activitySchedulePolicy: BookHomeworkActivitySchedulePolicyResolver | undefined,
+): BookRuntimeCanonicalDependencies => {
+  const runtimeRepository = new FirebaseRestBookRuntimeRepository({ env });
+  const deliveryRepository = new FirebaseRestBookDeliveryRepository({ env });
+  const activityClaimTokenProvider = env.readDatabaseValue
+    ? undefined
+    : createFirebaseClaimTokenProvider({
+      serviceAccountJson: env.BOOK_RUNTIME_GOOGLE_SA_KEY?.trim() ?? '',
+      serviceIdentity: env.BOOK_RUNTIME_SERVICE_IDENTITY?.trim() ?? '',
+      firebaseProjectId: env.FIREBASE_PROJECT_ID?.trim() ?? '',
+      firebaseWebApiKey: env.FIREBASE_WEB_API_KEY?.trim() ?? '',
+      fetchImpl: globalThis.fetch,
+    });
+  const activityReaderFor = (binding: BookDeliveryBinding): FirebaseRtdbRestClient => {
+    const clientOptions = {
+      env,
+      fetchImpl: globalThis.fetch,
+    };
+    if (!activityClaimTokenProvider) return new FirebaseRtdbRestClient(clientOptions);
+    return new FirebaseRtdbRestClient({
+      ...clientOptions,
+      firebaseAuthToken: true,
+      getFirebaseAuthToken: async ({ path } = { path: '' }) => {
+        const match = CANONICAL_ACTIVITY_READ_PATH.exec(path);
+        if (!match) throw new Error('book_activity_runtime_reader_path_invalid');
+        return activityClaimTokenProvider({
+          service: 'book_activity_runtime_reader',
+          ownerId: binding.issuer.ownerId,
+          bookId: binding.book.bookId,
+          manifestVersionId: binding.book.manifestVersionId,
+          activityId: match[1]!,
+          activityVersionId: match[2]!,
+        });
+      },
+    });
+  };
+  const authorityStore = {
+    read: (scope: BookHomeworkAuthorityScope) =>
+      new FirebaseRestBookHomeworkDocumentStore({ env }).read(scope),
+  };
+  const effectiveActivitySchedulePolicy = activitySchedulePolicy
+    ?? createBookHomeworkActivitySchedulePolicyResolver({
+      authorityStore,
+      runtimeRepository,
+    });
+  const homeworkSchedulePolicy = createBookHomeworkScheduleEnforcement({
+    authorityStore,
+    activityPolicy: effectiveActivitySchedulePolicy,
+  }).policy;
+  const courseSchedulePolicy = createCourseBookRuntimeSchedulePolicy(env);
+  const classSchedulePolicy = createClassBookRuntimeSchedulePolicy(env);
+  const publicSchedulePolicy: BookRuntimeSchedulePolicy = {
+    async authorize(input) {
+      return input.actorUid === input.binding.context.recipientId
+        && await authorizePublicBookBinding(env, input.binding)
+        ? { outcome: 'allowed' }
+        : { outcome: 'denied', code: 'public_book_unavailable' };
+    },
+    revalidate(input) { return this.authorize(input); },
+  };
+  const effectiveSchedulePolicy = schedulePolicy ?? {
+    authorize(input) {
+      if (input.binding.context.kind === 'public') return publicSchedulePolicy.authorize(input);
+      if (input.binding.context.kind === 'course') {
+        return courseSchedulePolicy.authorize(input);
+      }
+      if (input.binding.context.kind === 'class') {
+        return classSchedulePolicy.authorize(input);
+      }
+      return homeworkSchedulePolicy.authorize(input);
+    },
+    revalidate(input) {
+      if (input.binding.context.kind === 'public') return publicSchedulePolicy.revalidate!(input);
+      if (input.binding.context.kind === 'course') {
+        return courseSchedulePolicy.revalidate!(input);
+      }
+      if (input.binding.context.kind === 'class') {
+        return classSchedulePolicy.revalidate!(input);
+      }
+      return homeworkSchedulePolicy.revalidate?.(input)
+        ?? { outcome: 'unavailable', code: 'runtime_schedule_authority_unavailable' };
+    },
+  };
+  const projectBookResult = async ({ binding, result, env: runtimeEnv }: {
+    readonly binding: BookDeliveryBinding;
+    readonly result: BookRuntimeCommandResult;
+    readonly env: BookRuntimeCanonicalEnv;
+  }): Promise<void> => {
+    if (runtimeEnv.BOOK_RESULT_PROJECTION_ENABLED !== 'enabled'
+      || !['solo', 'public', 'homework', 'course', 'class'].includes(binding.context.kind)) return;
+    if (!result.attempt || !result.result || !result.completion || !result.index) {
+      throw new Error('book_result_projection_terminal_reader_unavailable');
+    }
+    await projectCommittedBookResult({
+      binding,
+      terminal: {
+        attempt: result.attempt,
+        result: result.result,
+        completion: result.completion,
+        index: result.index,
+      },
+      writer: createFirebaseBookResultProjectionWriter(runtimeEnv),
+    });
+  };
+  return {
+    repository: runtimeRepository,
+    projectBookResult,
+    resolveBinding: async ({ bindingId, recipientId, contextId }) => {
+      const resolved = await deliveryRepository.resolveCurrent(recipientId, contextId);
+      if (!resolved || resolved.record.binding.bindingId !== bindingId) return null;
+      return resolved.record.binding;
+    },
+    schedulePolicy: effectiveSchedulePolicy,
+    resolveActivity: async ({
+      binding,
+      placementId,
+      activityId,
+      activityVersion,
+    }) => {
+      const placement = binding.placements.find((candidate) => (
+        candidate.placementId === placementId
+        && candidate.activityId === activityId
+        && candidate.activityVersion === activityVersion
+      ));
+      if (!placement) return null;
+      const value = await activityReaderFor(binding).readValue(
+        `${CANONICAL_ACTIVITY_VERSION_ROOT}/${activityId}/${placement.activityVersionId}`,
+      );
+      try {
+        const record = assertCanonicalPublishedActivityVersion(
+          hydrateCanonicalActivityVersionFromRtdb(value),
+        );
+        if (record.activityId !== activityId
+          || record.activityVersionId !== placement.activityVersionId
+          || record.activityVersion !== activityVersion
+          || record.ownerId !== binding.issuer.ownerId
+          || !record.placementIds.includes(placementId)) return null;
+        return record.activity;
+      } catch {
+        return null;
+      }
+    },
+    resolveAttemptPolicy: async ({ binding, placementId }) => {
+      if (binding.context.kind === 'solo' || binding.context.kind === 'public') return { maxAttempts: null };
+      if (binding.context.kind === 'course' || binding.context.kind === 'class') {
+        return { maxAttempts: null };
+      }
+      if (binding.context.kind !== 'homework') return null;
+      const policy = await effectiveActivitySchedulePolicy.resolve({
+        assignmentId: binding.context.contextId,
+        recipientId: binding.recipient.recipientId,
+        ownerId: binding.issuer.ownerId,
+        bindingId: binding.bindingId,
+        bindingRevision: binding.revision,
+        policyId: binding.schedulePolicy.policyId,
+        policyRevision: binding.schedulePolicy.policyRevision,
+        placementId,
+      });
+      return policy
+        ? {
+          maxAttempts: policy.maxAttempts,
+          feedbackPolicy: policy.feedbackPolicy,
+        }
+        : null;
+    },
+    projectHomeworkCompletion: async ({ binding, result }) => {
+      if (binding.context.kind !== 'homework'
+        || env.BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED !== 'enabled') return;
+      const completionRepository = new FirebaseRestBookHomeworkCompletionRepository({ env });
+      if (!result.attempt || !result.result || !result.completion || !result.index) {
+        throw new BookHomeworkCompletionRepositoryError('homework_completion_terminal_missing');
+      }
+      const stored = await readBookHomeworkRecipientAuthority(
+        authorityStore,
+        {
+          authorityId: bookHomeworkRecipientAuthorityId(
+            binding.context.contextId,
+            binding.context.recipientId,
+          ),
+          assignmentId: binding.context.contextId,
+          ownerId: binding.issuer.ownerId,
+        },
+        binding.context.recipientId,
+      );
+      if (!stored || stored.value.visibility.status !== 'committed') {
+        throw new BookHomeworkCompletionRepositoryError('homework_completion_authority_unavailable');
+      }
+      await completionRepository.project({
+        authority: stored.value,
+        binding,
+        terminal: {
+          attempt: result.attempt,
+          result: result.result,
+          completion: result.completion,
+          index: result.index,
+        },
+      });
+    },
+    linkIntegrityReport: async ({ binding, result, env: runtimeEnv }) => {
+      if (runtimeEnv.BOOK_INTEGRITY_LINKAGE_ENABLED !== 'enabled'
+        || binding.context.kind !== 'homework'
+        || !result.attempt
+        || !result.result
+        || !result.completion) return;
+      const attempt = result.attempt;
+      const terminalResult = result.result;
+      const completion = result.completion;
+      const index = result.index;
+      const placement = binding.placements.find((entry) => entry.placementId === attempt.placementId);
+      if (!index
+        || !placement
+        || binding.bindingId !== attempt.bindingId
+        || binding.revision !== attempt.bindingRevision
+        || binding.context.kind !== 'homework'
+        || binding.context.contextId !== attempt.contextId
+        || binding.context.recipientId !== attempt.recipientId
+        || binding.recipient.recipientId !== attempt.recipientId
+        || binding.issuer.ownerId !== binding.context.ownerId
+        || placement.activityId !== attempt.activityId
+        || placement.activityVersion !== attempt.activityVersion
+        || placement.activityVersionId !== attempt.activityVersionId
+        || terminalResult.attemptId !== attempt.attemptId
+        || terminalResult.resultId !== `${attempt.attemptId}:result`
+        || completion.attemptId !== attempt.attemptId
+        || completion.completionId !== `${attempt.attemptId}:completion`
+        || completion.resultId !== terminalResult.resultId
+        || index.attemptId !== attempt.attemptId
+        || index.resultId !== terminalResult.resultId
+        || terminalResult.bindingId !== attempt.bindingId
+        || completion.bindingId !== attempt.bindingId
+        || index.bindingId !== attempt.bindingId
+        || terminalResult.bindingRevision !== attempt.bindingRevision
+        || completion.bindingRevision !== attempt.bindingRevision
+        || index.bindingRevision !== attempt.bindingRevision
+        || terminalResult.recipientId !== attempt.recipientId
+        || completion.recipientId !== attempt.recipientId
+        || index.recipientId !== attempt.recipientId
+        || terminalResult.contextId !== attempt.contextId
+        || completion.contextId !== attempt.contextId
+        || index.contextId !== attempt.contextId
+        || terminalResult.placementId !== attempt.placementId
+        || completion.placementId !== attempt.placementId
+        || index.placementId !== attempt.placementId
+        || terminalResult.activityId !== attempt.activityId
+        || completion.activityId !== attempt.activityId
+        || index.activityId !== attempt.activityId
+        || terminalResult.activityVersion !== attempt.activityVersion
+        || completion.activityVersion !== attempt.activityVersion
+        || index.activityVersion !== attempt.activityVersion
+        || terminalResult.activityVersionId !== attempt.activityVersionId
+        || completion.activityVersionId !== attempt.activityVersionId
+        || index.activityVersionId !== attempt.activityVersionId
+        || terminalResult.attemptNumber !== attempt.attemptNumber
+        || completion.attemptNumber !== attempt.attemptNumber
+        || index.attemptNumber !== attempt.attemptNumber
+        || attempt.submissionScope !== 'activity'
+        || terminalResult.submissionScope !== 'activity'
+        || completion.submissionScope !== 'activity'
+        || index.submissionScope !== 'activity'
+        || terminalResult.createdAt !== attempt.createdAt
+        || completion.createdAt !== attempt.createdAt
+        || index.createdAt !== attempt.createdAt
+        || (terminalResult.status !== 'pending_review' && terminalResult.status !== 'submitted')
+        || completion.status !== 'completed') return;
+      const terminal: BookIntegrityTerminalAttempt = {
+        attemptId: attempt.attemptId,
+        terminalId: completion.completionId,
+        resultId: terminalResult.resultId,
+        completionId: completion.completionId,
+        attemptNumber: attempt.attemptNumber,
+        captureSlotId: await deriveBookIntegrityCaptureSlotId({
+          target: {
+            bookId: binding.book.bookId,
+            bindingId: attempt.bindingId,
+            bindingRevision: attempt.bindingRevision,
+            contextKind: 'homework',
+            contextId: attempt.contextId,
+            placementId: attempt.placementId,
+            activityId: attempt.activityId,
+            activityVersion: attempt.activityVersion,
+          },
+          recipientId: attempt.recipientId,
+          attemptNumber: attempt.attemptNumber,
+        }),
+        submittedAt: completion.createdAt,
+        recipientId: attempt.recipientId,
+        ownerId: binding.context.ownerId,
+        bookId: binding.book.bookId,
+        bindingId: attempt.bindingId,
+        bindingRevision: attempt.bindingRevision,
+        contextKind: 'homework',
+        contextId: attempt.contextId,
+        placementId: attempt.placementId,
+        activityId: attempt.activityId,
+        activityVersion: attempt.activityVersion,
+        activityVersionId: attempt.activityVersionId,
+        submissionScope: 'activity',
+        resultStatus: terminalResult.status,
+        completionStatus: completion.status,
+      };
+      const repository = new FirebaseRestBookIntegrityReportRepository({ env: runtimeEnv });
+      const service = createTrustedBookIntegrityReportService({ repository });
+      await service.sealSubmittedAttempt({
+        ownerId: binding.context.ownerId,
+        terminal,
+      });
+    },
+  };
+};
+
+const unavailable = () => ({
+  body: { code: 'book_runtime_dependencies_unavailable' },
+  init: { status: 503 },
+});
+
+export const createBookRuntimeCanonicalHandlers = (
+  options: BookRuntimeCanonicalHandlersOptions = {},
+) => {
+  const schedulePolicy = options.schedulePolicy;
+  const createDependencies = options.createDependencies
+    ?? ((env: BookRuntimeCanonicalEnv) => createBookRuntimeProductionDependencies(
+      env,
+      schedulePolicy,
+      options.activitySchedulePolicy,
+    ));
+
+  const withDependencies = async <T>(
+    env: BookRuntimeCanonicalEnv,
+    run: (dependencies: BookRuntimeCanonicalDependencies) => Promise<T>,
+  ): Promise<T | ReturnType<typeof unavailable>> => {
+    try {
+      return await run(createDependencies(env));
+    } catch {
+      return unavailable();
+    }
+  };
+
+  return {
+    command: (input: {
+      readonly request: Request;
+      readonly env: BookRuntimeCanonicalEnv;
+      readonly uid: string;
+    }) => withDependencies(input.env, async (dependencies) =>
+      createBookRuntimeWorkerHandlers({
+        ...dependencies,
+        ...(dependencies.resolveActivity ? { resolveActivity: dependencies.resolveActivity } : {}),
+        ...(dependencies.resolveAttemptPolicy
+          ? { resolveAttemptPolicy: dependencies.resolveAttemptPolicy }
+          : {}),
+        requireCanonicalDraftForSubmit: true,
+      }).command(input)),
+    readDraft: (input: {
+      readonly request: Request;
+      readonly env: BookRuntimeCanonicalEnv;
+      readonly uid: string;
+      readonly bindingId: string;
+      readonly bindingRevision: string;
+      readonly contextId: string;
+      readonly placementId: string;
+      readonly activityId: string;
+      readonly activityVersion: string;
+      readonly interactionId: string;
+    }) => withDependencies(input.env, async (dependencies) =>
+      createBookRuntimeWorkerHandlers(dependencies).readDraft(input)),
+    readTerminal: (input: {
+      readonly request: Request;
+      readonly env: BookRuntimeCanonicalEnv;
+      readonly uid: string;
+      readonly bindingId: string;
+      readonly bindingRevision: string;
+      readonly contextId: string;
+      readonly placementId: string;
+      readonly activityId: string;
+      readonly activityVersion: string;
+      readonly interactionId: string;
+    }) => withDependencies(input.env, async (dependencies) =>
+      createBookRuntimeWorkerHandlers(dependencies).readTerminal(input)),
+  };
+};
+
+export default createBookRuntimeCanonicalHandlers;

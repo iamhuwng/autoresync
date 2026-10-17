@@ -5,6 +5,7 @@ import {
 } from '../../config/readingV2FeatureFlags';
 import { readingV2Ids } from '../../types/readingV2.types';
 import type { ReadingV2MaterialMetadata } from '../reading-v2/readingV2MaterialMetadata.service';
+import { READING_V2_PROJECTION_FIXTURES } from '../reading-v2/fixtures/readingV2ProjectionFixtures';
 import { assertMaterialSummary } from './materialSummaryPort.service';
 import { createReadingV2MaterialSummary } from './materialSummaryAdapters.service';
 
@@ -38,6 +39,29 @@ describe('materialSummaryAdapters.service', () => {
       producerId: 'reading-v2-full-test',
       tags: ['reading'],
       testTypeIds: ['custom'],
+    });
+    assertMaterialSummary(summary);
+  });
+
+  it('stores Reading V2 assignment-readiness facts on full-test summaries', () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+    const summary = createReadingV2MaterialSummary(
+      fullTestMetadata({
+        publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+      }),
+      projection,
+    );
+
+    expect(summary).toMatchObject({
+      materialId: 'material-1',
+      producerId: 'reading-v2-full-test',
+      materialKind: 'full-test',
+      questionCount: 2,
+      sourceSnapshotVersionId: projection.sourceSnapshotVersionId,
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
     });
     assertMaterialSummary(summary);
   });

@@ -40,14 +40,14 @@ describe('ReadingV2MetadataPanel', () => {
     render(<ReadingV2MetadataPanel metadata={metadata} validationIssues={[]} onMetadataChange={onMetadataChange} />);
 
     fireEvent.change(screen.getByLabelText('Material kind'), {
-      target: { value: 'extracted-task-group-material' },
+      target: { value: 'reading-passage' },
     });
     fireEvent.change(screen.getByLabelText('Visibility'), {
       target: { value: 'assigned-only' },
     });
 
     expect(onMetadataChange).toHaveBeenCalledWith(
-      expect.objectContaining({ materialKind: 'extracted-task-group-material' }),
+      expect.objectContaining({ materialKind: 'reading-passage' }),
     );
     expect(onMetadataChange).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'assigned-only' }));
   });

@@ -53,6 +53,7 @@ describe('materialCatalog.types', () => {
       'note-placeholder',
       'section',
       'chapter',
+      'unit',
       'test',
     ]);
     expect(MATERIAL_REF_AVAILABILITIES).toEqual([

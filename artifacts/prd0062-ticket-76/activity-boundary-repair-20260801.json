@@ -1,0 +1,42 @@
+{
+  "ticket": 76,
+  "title": "PRD0062 28C — Submit terminal Activity attempts and immutable results",
+  "repair": "Trusted Activity-scoped terminal boundary",
+  "status": "verified",
+  "scope": {
+    "anchor": "first canonical interaction",
+    "requiredInteractionIds": "all canonical Activity interactions",
+    "draftAuthority": "Hook flushes interaction drafts, then the client atomically acknowledges one full ActivitySubmission draft at the canonical anchor; Worker requires an exact payload/revision match",
+    "boundary": [
+      "submissionScope=activity",
+      "requiredInteractionIds",
+      "submittedInteractionIds",
+      "acknowledgedDraftRevision"
+    ],
+    "legacy": "interaction-only terminal rows remain historical and are rejected by the Homework completion adapter"
+  },
+  "tests": [
+    "cloudflare/test/book-runtime-terminal-submit.test.ts",
+    "cloudflare/test/book-runtime-repository.test.ts",
+    "cloudflare/test/book-homework-completion-repository.test.ts",
+    "src/services/book-activity/activityRuntime.browser.test.ts",
+    "src/hooks/book-runtime/useBookActivityRuntime.test.tsx",
+    "src/__tests__/security/bookRuntimeRuleFragment.test.ts"
+  ],
+  "results": {
+    "terminalSubmit": "9 passed",
+    "repository": "17 passed",
+    "homeworkCompletionRepository": "7 passed",
+    "browserClientAndHook": "19 passed",
+    "runtimeRuleFragment": "2 passed",
+    "typecheck": "inconclusive; pre-existing unrelated errors remain outside owned paths"
+  },
+  "browserProof": {
+    "url": "http://localhost:5174/__smoke/book-runtime?window=available",
+    "role": "Student Test",
+    "journey": "selected Statement A, submitted the canonical Activity draft bundle, observed Activity submitted, success announcement, and disabled submit control",
+    "consoleErrors": 0,
+    "fixtureRepair": "terminal acknowledgement now includes the required positive attemptNumber"
+  },
+  "evidenceDate": "2026-08-01"
+}

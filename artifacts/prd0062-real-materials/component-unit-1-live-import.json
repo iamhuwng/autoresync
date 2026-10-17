@@ -1,0 +1,38 @@
+{
+  "promptVersion": "book-unit-json-v1",
+  "schemaVersion": "prd0062.unit_activity_import.v1",
+  "bookId": "book-mt8hq47o",
+  "unitKey": "unit-6bd4717d1cd0",
+  "slots": [
+    {
+      "activityKey": "activity-457164c01391",
+      "content": {
+        "schemaVersion": 1,
+        "title": "IELTS Vocabulary Unit 1: Growing up",
+        "taskProfile": null,
+        "presentationMode": "source-assisted",
+        "contextRequirement": { "mode": "required", "acceptedKinds": ["book-pages"] },
+        "instructions": [{ "text": "Review the Unit 1 component PDF before responding." }],
+        "stimulus": null,
+        "assetRefs": [],
+        "interaction": { "family": "choice", "variant": "v1" },
+        "answerRule": { "defaultPoints": 1, "normalization": "exact", "requiredSelectionCount": 1 },
+        "interactions": [{
+          "prompt": "Select the reviewed source response for Growing up.",
+          "options": ["Source page evidence", "Needs teacher review"],
+          "acceptedOptionIndexes": [0],
+          "sourceAssisted": {
+            "questionLabel": "Unit 1",
+            "sourceExerciseLabel": "IELTS Vocabulary Unit 1: Growing up",
+            "accessiblePrompt": "Choose the reviewed source response for Unit 1.",
+            "responseShape": "single-choice"
+          }
+        }],
+        "scoring": { "mode": "auto-where-possible" }
+      },
+      "evidenceRefs": ["import:activity-457164c01391", "pageGroup:pages-cbb8359b0dd5", "source:component-1:page:1"],
+      "sourceEvidenceRefs": ["pageGroup:pages-cbb8359b0dd5", "source:component-1:page:1"],
+      "answerEvidenceRefs": ["pageGroup:pages-cbb8359b0dd5", "source:component-1:page:1"]
+    }
+  ]
+}

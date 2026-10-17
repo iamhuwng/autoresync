@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "42B",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "42B",
+    "issue": 103,
+    "serviceIdentity": "class_book_authority_103",
+    "generatedRuleLocations": [
+      "class_book_authority/copies/$classId/$copyId/.write",
+      "class_book_authority/placements/current/$contextId/.write",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/.write",
+      "book_delivery/bindings/class-course/$bindingId/.write",
+      "class_book_authority/progress/$progressKey/.write",
+      "class_book_authority/results/$resultKey/.write",
+      "classes/$classId/book_locks/$classPlacementId/.write",
+      "class_book_authority/operations/$operationId/.write",
+      "/.validate",
+      "class_book_authority/copies/$classId/$copyId/$field/.validate",
+      "class_book_authority/placements/current/$contextId/$field/.validate",
+      "class_book_authority/placements/current/$contextId/pins/$pin/.validate",
+      "class_book_authority/placements/current/$contextId/selection/$selectionField/.validate",
+      "class_book_authority/placements/current/$contextId/selection/nodeKeys/$index/.validate",
+      "class_book_authority/placements/current/$contextId/selection/placementIds/$index/.validate",
+      "class_book_authority/placements/current/$contextId/activities/$index/$activityField/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/$field/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/pins/$pin/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/selection/$selectionField/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/selection/nodeKeys/$index/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/selection/placementIds/$index/.validate",
+      "class_book_authority/placements/versions/$contextId/$placementRevision/activities/$index/$activityField/.validate",
+      "classes/$classId/book_locks/$classPlacementId/$field/.validate",
+      "class_book_authority/operations/$operationId/outcome/$field/.validate",
+      "class_book_authority/operations/$operationId/outcome/pins/$pin/.validate",
+      "class_book_authority/operations/$operationId/outcome/selection/$selectionField/.validate",
+      "class_book_authority/operations/$operationId/outcome/selection/nodeKeys/$index/.validate",
+      "class_book_authority/operations/$operationId/outcome/selection/placementIds/$index/.validate",
+      "class_book_authority/operations/$operationId/outcome/activities/$index/$activityField/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "class_book_authority/copies/$classId/$copyId",
+      "class_book_authority/placements/current/$contextId",
+      "class_book_authority/placements/versions/$contextId/$placementRevision",
+      "book_delivery/bindings/class-course/$bindingId",
+      "class_book_authority/progress/$progressKey",
+      "class_book_authority/results/$resultKey",
+      "classes/$classId/book_locks/$classPlacementId",
+      "class_book_authority/operations/$operationId"
+    ]
+  },
+  "operations": [
+    {
+      "path": "class_book_authority/copies/$classId/$copyId",
+      "rule": ".write",
+      "merge": "owner-cas-immutable-copy",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && auth.token.classBookOperation === 'copy' && auth.token.classId === $classId && auth.token.copyId === $copyId && !data.exists() && newData.exists() && newData.child('schemaVersion').val() === 1 && newData.child('copyId').val() === $copyId && newData.child('classId').val() === $classId && newData.child('ownerId').val() === auth.token.actorUid && newData.child('copyRevision').val() === auth.token.nextRevision && newData.hasChildren(['schemaVersion','copyId','classId','classCourseId','sourceCourseId','sourceCourseMaterialId','ownerId','status','copyRevision','createdAt','createdBy','updatedAt','updatedBy'])"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId",
+      "rule": ".write",
+      "merge": "current-pointer-revision-cas",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && (auth.token.classBookOperation === 'place' || auth.token.classBookOperation === 'sync') && auth.token.contextId === $contextId && newData.exists() && newData.child('schemaVersion').val() === 1 && newData.child('classId').val() === auth.token.classId && newData.child('copyId').val() === auth.token.copyId && newData.child('classPlacementId').val() === auth.token.classPlacementId && newData.child('courseMaterialId').val() === auth.token.courseMaterialId && newData.child('placementRevision').val() === auth.token.nextRevision && ((!data.exists() && auth.token.classBookOperation === 'place' && auth.token.expectedRevision === 0) || (data.child('placementRevision').val() === auth.token.expectedRevision && auth.token.classBookOperation === 'sync')) && newData.hasChildren(['schemaVersion','classPlacementId','classId','copyId','classCourseId','sourceCourseId','courseMaterialId','sourceCourseMaterialId','ownerId','sourcePlacementRevision','placementRevision','status','pins','selection','sourceFingerprint','title','createdAt','createdBy','updatedAt','updatedBy']) && newData.child('pins').hasChildren(['bookId','publicationId','publicationRevision','unitStableKey','unitVersionId','manifestVersionId','sourceVersionId','bindingRevision']) && newData.child('selection').child('kind').isString()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision",
+      "rule": ".write",
+      "merge": "immutable-version-and-receipt",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && (auth.token.classBookOperation === 'place' || auth.token.classBookOperation === 'sync') && auth.token.contextId === $contextId && auth.token.nextRevision + '' === $placementRevision && !data.exists() && newData.exists() && newData.child('placementRevision').val() === auth.token.nextRevision && newData.child('classPlacementId').val() === auth.token.classPlacementId && newData.hasChildren(['schemaVersion','classPlacementId','classId','copyId','classCourseId','sourceCourseId','courseMaterialId','sourceCourseMaterialId','ownerId','sourcePlacementRevision','placementRevision','status','pins','selection','sourceFingerprint','title','createdAt','createdBy','updatedAt','updatedBy']) && newData.child('pins').hasChildren(['bookId','publicationId','publicationRevision','unitStableKey','unitVersionId','manifestVersionId','sourceVersionId','bindingRevision']) && newData.child('selection').child('kind').isString()"
+    },
+    {
+      "path": "book_delivery/bindings/class-course/$bindingId",
+      "rule": ".write",
+      "merge": "immutable-class-delivery-binding",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.token.bindingId === $bindingId && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewIssuance').val() !== true && !data.exists() && newData.child('schemaVersion').val() === 1 && newData.child('context').child('surface').val() === 'class-course' && newData.child('studentId').val() === auth.token.studentId"
+    },
+    {
+      "path": "class_book_authority/progress/$progressKey",
+      "rule": ".write",
+      "merge": "student-scoped-progress-cas",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.uid === auth.token.studentId && auth.token.classBookAuthority103 === true && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && newData.child('scope').child('surface').val() === 'class-course' && newData.child('scope').child('studentId').val() === auth.uid && newData.child('revision').val() === data.child('revision').val() + 1"
+    },
+    {
+      "path": "class_book_authority/results/$resultKey",
+      "rule": ".write",
+      "merge": "immutable-student-result",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.uid === auth.token.studentId && auth.token.classBookAuthority103 === true && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.exists() && newData.child('scope').child('surface').val() === 'class-course' && newData.child('scope').child('studentId').val() === auth.uid"
+    },
+    {
+      "path": "classes/$classId/book_locks/$classPlacementId",
+      "rule": ".write",
+      "merge": "class-owner-lock-cas",
+      "requiresExistingRule": true,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && auth.token.classBookOperation === 'lock' && auth.token.classId === $classId && auth.token.classPlacementId === $classPlacementId && newData.exists() && newData.child('classId').val() === $classId && newData.child('classPlacementId').val() === $classPlacementId && newData.child('revision').val() === auth.token.nextRevision && newData.child('changedBy').val() === auth.token.actorUid && newData.child('operationId').val() === auth.token.operationId && (newData.child('state').val() === 'locked' || newData.child('state').val() === 'unlocked') && newData.hasChildren(['classId','classPlacementId','state','revision','changedBy','changedAt','operationId'])"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && auth.token.operationId === $operationId && !data.exists() && newData.exists() && newData.child('schemaVersion').val() === 1 && newData.child('operationId').val() === $operationId && newData.child('kind').val() === auth.token.classBookOperation && newData.child('actorUid').val() === auth.token.actorUid && newData.child('classId').val() === auth.token.classId && newData.child('inputFingerprint').val() === auth.token.inputFingerprint && newData.child('payloadFingerprint').val() === auth.token.payloadFingerprint"
+    },
+    {
+      "path": "",
+      "rule": ".validate",
+      "merge": "root-post-write-coupling",
+      "requiresExistingRule": false,
+      "expression": "!(auth != null && auth.token.classBookAuthority103 === true && auth.token.classBookOperation != null) || (auth != null && auth.token.classBookAuthority103 === true && auth.uid === auth.token.actorUid && root.child('users').child(auth.token.actorUid).child('role').val() === 'teacher' && root.child('classes').child(auth.token.classId).child('createdBy').val() === auth.token.actorUid && root.child('classes').child(auth.token.classId).child('status').val() === 'active' && root.child('system_flags').child('restore_in_progress').val() !== true && root.child('class_book_authority').child('rollback').child('denyNewWrites').val() !== true && !data.child('class_book_authority/operations').child(auth.token.operationId).exists() && newData.child('class_book_authority/operations').child(auth.token.operationId).exists() && newData.child('class_book_authority/operations').child(auth.token.operationId).child('schemaVersion').val() === 1 && newData.child('class_book_authority/operations').child(auth.token.operationId).child('operationId').val() === auth.token.operationId && newData.child('class_book_authority/operations').child(auth.token.operationId).child('kind').val() === auth.token.classBookOperation && newData.child('class_book_authority/operations').child(auth.token.operationId).child('actorUid').val() === auth.token.actorUid && newData.child('class_book_authority/operations').child(auth.token.operationId).child('classId').val() === auth.token.classId && newData.child('class_book_authority/operations').child(auth.token.operationId).child('inputFingerprint').val() === auth.token.inputFingerprint && newData.child('class_book_authority/operations').child(auth.token.operationId).child('payloadFingerprint').val() === auth.token.payloadFingerprint && ((auth.token.classBookOperation === 'copy' && auth.token.expectedRevision === 0 && auth.token.nextRevision === 1 && !data.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).exists() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).exists() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('copyRevision').val() === auth.token.nextRevision && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('schemaVersion').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('schemaVersion').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('copyId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('copyId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('classId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('classCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classCourseId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('sourceCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('sourceCourseMaterialId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseMaterialId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('ownerId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('ownerId').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('status').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('status').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('copyRevision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('copyRevision').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('createdAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdAt').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('createdBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdBy').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('updatedAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedAt').val() && newData.child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('updatedBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedBy').val()) || ((auth.token.classBookOperation === 'place' || auth.token.classBookOperation === 'sync') && auth.token.contextId === 'class-' + auth.token.classId + '-copy-' + auth.token.copyId + '-material-' + auth.token.courseMaterialId && auth.token.nextRevision === auth.token.expectedRevision + 1 && ((auth.token.classBookOperation === 'place' && auth.token.expectedRevision === 0 && !data.child('class_book_authority/placements/current').child(auth.token.contextId).exists()) || (auth.token.classBookOperation === 'sync' && data.child('class_book_authority/placements/current').child(auth.token.contextId).child('placementRevision').val() === auth.token.expectedRevision)) && !data.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').exists() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).exists() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').exists() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('placementRevision').val() === auth.token.nextRevision && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('schemaVersion').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('schemaVersion').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('classPlacementId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classPlacementId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('classId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('copyId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('copyId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('classCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classCourseId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('sourceCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('courseMaterialId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('courseMaterialId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('sourceCourseMaterialId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseMaterialId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('ownerId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('ownerId').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('sourcePlacementRevision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourcePlacementRevision').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('placementRevision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('placementRevision').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('status').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('status').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('sourceFingerprint').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceFingerprint').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('title').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('title').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('createdAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdAt').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('createdBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdBy').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('updatedAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedAt').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('updatedBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedBy').val() && newData.child('class_book_authority/placements/current').child(auth.token.contextId).child('supersededByPlacementId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('supersededByPlacementId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('schemaVersion').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('schemaVersion').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('classPlacementId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classPlacementId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('classId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('copyId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('copyId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('classCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classCourseId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('sourceCourseId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('courseMaterialId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('courseMaterialId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('sourceCourseMaterialId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceCourseMaterialId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('ownerId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('ownerId').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('sourcePlacementRevision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourcePlacementRevision').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('placementRevision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('placementRevision').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('status').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('status').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('sourceFingerprint').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('sourceFingerprint').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('title').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('title').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('createdAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdAt').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('createdBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('createdBy').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('updatedAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedAt').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('updatedBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('updatedBy').val() && newData.child('class_book_authority/placements/versions').child(auth.token.contextId).child(auth.token.nextRevision+'').child('supersededByPlacementId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('supersededByPlacementId').val()) || (auth.token.classBookOperation === 'lock' && auth.token.nextRevision === auth.token.expectedRevision + 1 && ((auth.token.expectedRevision === 0 && !data.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).exists()) || data.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('revision').val() === auth.token.expectedRevision) && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).exists() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('revision').val() === auth.token.nextRevision && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('classId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classId').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('classPlacementId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('classPlacementId').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('state').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('state').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('revision').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('revision').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('changedBy').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('changedBy').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('changedAt').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('changedAt').val() && newData.child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('operationId').val() === newData.child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('operationId').val())))"
+    },
+    {
+      "path": "class_book_authority/copies/$classId/$copyId/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child($field).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child($field).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/pins/$pin",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('pins').child($pin).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/selection/$selectionField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child($selectionField).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/selection/nodeKeys/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('nodeKeys').child($index).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/selection/placementIds/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('placementIds').child($index).val()"
+    },
+    {
+      "path": "class_book_authority/placements/current/$contextId/activities/$index/$activityField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('activities').child($index).child($activityField).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child($field).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/pins/$pin",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('pins').child($pin).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/selection/$selectionField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child($selectionField).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/selection/nodeKeys/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('nodeKeys').child($index).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/selection/placementIds/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('selection').child('placementIds').child($index).val()"
+    },
+    {
+      "path": "class_book_authority/placements/versions/$contextId/$placementRevision/activities/$index/$activityField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child('activities').child($index).child($activityField).val()"
+    },
+    {
+      "path": "classes/$classId/book_locks/$classPlacementId/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && newData.val() === newData.parent().parent().parent().parent().parent().child('class_book_authority/operations').child(auth.token.operationId).child('outcome').child($field).val()"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child($field).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child($field).val() : newData.val() === newData.parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child($field).val())"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/pins/$pin",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('pins').child($pin).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('pins').child($pin).val() : newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child('pins').child($pin).val())"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/selection/$selectionField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('selection').child($selectionField).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('selection').child($selectionField).val() : newData.val() === newData.parent().parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child('selection').child($selectionField).val())"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/selection/nodeKeys/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('selection').child('nodeKeys').child($index).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('selection').child('nodeKeys').child($index).val() : newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child('selection').child('nodeKeys').child($index).val())"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/selection/placementIds/$index",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('selection').child('placementIds').child($index).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('selection').child('placementIds').child($index).val() : newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child('selection').child('placementIds').child($index).val())"
+    },
+    {
+      "path": "class_book_authority/operations/$operationId/outcome/activities/$index/$activityField",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "(newData.isString() || newData.isNumber() || newData.isBoolean()) && (auth.token.classBookOperation === 'copy' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/copies').child(auth.token.classId).child(auth.token.copyId).child('activities').child($index).child($activityField).val() : auth.token.classBookOperation === 'lock' ? newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('classes').child(auth.token.classId).child('book_locks').child(auth.token.classPlacementId).child('activities').child($index).child($activityField).val() : newData.val() === newData.parent().parent().parent().parent().parent().parent().parent().child('class_book_authority/placements/current').child(auth.token.contextId).child('activities').child($index).child($activityField).val())"
+    }
+  ]
+}

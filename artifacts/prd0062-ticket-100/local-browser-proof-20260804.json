@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "ticket": 100,
+  "capturedAt": "2026-08-04T03:34:00Z",
+  "classification": "local Worker/database and localhost browser proof only",
+  "environment": {
+    "studentOrigin": "http://localhost:5174",
+    "databaseEmulator": "localhost:9002",
+    "namespace": "temp-a1437-default-rtdb",
+    "appBindingReadback": "[Firebase] Database emulator connected at localhost:9002",
+    "rules": "artifacts/prd0062-ticket-99/browser-rules.json",
+    "rulesFragment": "cloudflare/src/upload-worker/book-rules/fragments/38B5.json",
+    "rulesEquivalenceChecked": true,
+    "credentialHandling": "TICKET100_STUDENT_PASSWORD supplied ephemerally; no credential value is stored in Git or evidence",
+    "remoteStateClaimed": false
+  },
+  "trustedFixture": {
+    "producer": "existing Book Homework Worker handler -> committed-saga resolver -> Book notification emitter -> FirebaseRestNotificationCommandRepository",
+    "assignmentId": "ticket100-local-book-homework",
+    "operationId": "10000000-0000-4000-8000-000000000100",
+    "notificationId": "e6403923-c65e-504b-af7a-ab54a096e417",
+    "recipientBoundary": "one frozen recipient from the durable committed saga",
+    "firstEmission": {
+      "handlerStatus": 200,
+      "beforeRow": null,
+      "createdRows": 1,
+      "read": false
+    },
+    "content": {
+      "title": "New Book homework",
+      "message": "A Book homework assignment is ready.",
+      "destination": "/student/homework/ticket100-local-book-homework",
+      "metadata": {
+        "schemaVersion": 1,
+        "kind": "book",
+        "contextType": "book-homework",
+        "contextId": "ticket100-local-book-homework",
+        "updateActionId": "10000000-0000-4000-8000-000000000100",
+        "checkpointAvailable": false,
+        "deadlineClass": "none",
+        "actionClass": "open"
+      },
+      "privacyScan": "no answers, roster, manifest/publication fingerprints, credentials, or tokens"
+    }
+  },
+  "browser": {
+    "account": "student@test.com via built-in dev quick login",
+    "visibleTitle": "New Book homework",
+    "visibleMessage": "A Book homework assignment is ready.",
+    "finalUrl": "http://localhost:5174/student/homework/ticket100-local-book-homework",
+    "readTransition": "only read changed from false to true",
+    "denialStatuses": {
+      "creation": 401,
+      "contentMutation": 401,
+      "destinationMutation": 401,
+      "deletion": 401,
+      "ancestorMutation": 401,
+      "anonymousRead": 401,
+      "crossUserRead": 401,
+      "crossUserWrite": 401
+    },
+    "notificationErrors": [],
+    "knownHarnessNoise": [
+      "unseeded class, homework, result, audit, reporting, and prefetch paths were denied by the intentionally notification-only rules harness",
+      "notification index warning remains downstream generated-rules evidence owned by #118"
+    ]
+  },
+  "replay": {
+    "handlerStatus": 200,
+    "rowCountBefore": 1,
+    "rowCountAfter": 1,
+    "rowBeforeEqualsRowAfter": true,
+    "readStatePreserved": true,
+    "defectFoundAndFixed": "Firebase metadata key reordering previously caused a false idempotency conflict; semantic comparison now recursively canonicalizes object keys"
+  },
+  "rollback": {
+    "emissionEnabled": false,
+    "handlerStatus": 200,
+    "committedActionPreserved": true,
+    "rowCountBefore": 1,
+    "rowCountAfter": 1,
+    "existingRowAndReadStatePreserved": true,
+    "bellReadsPreserved": true
+  },
+  "downstreamHandoff": {
+    "ticket118": "compose and activate 38B5 in generated rules; assembled emulator, active hash/readback, and rules rollback",
+    "ticket134": "repeat this exact action/recipient/notification identity and destination in the deployed canary; verify replay, role journey, cleanup, and operational rollback"
+  }
+}

@@ -131,10 +131,11 @@
         right: 0 !important;
         top: auto !important;
         width: 100vw !important;
-        max-height: 60vh;
+        max-height: 60vh !important;
+        overflow-y: auto;
         border-radius: 1rem 1rem 0 0 !important;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15) !important;
-        z-index: 10001;
+        z-index: 10001 !important;
         animation: slideUpSheet 0.25s ease-out;
     }
 

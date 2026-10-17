@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-15T02:57:17Z",
+  "mission": "PRD0062 Milestone-1 browser handoff",
+  "classification": "HOSTING_FILE_UPLOAD_TRANSPORT_FAILURE_AFTER_VERSION_CREATE_BEFORE_FINALIZE_OR_RELEASE",
+  "checkpoint": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-hosting-auth-readonly-checkpoint-2026-08-15.json",
+    "sha256": "fd7027ec73f7c6c8a718e113f032c7dfb237f4d7bcfc87cbe0d00815d8e22f5b",
+    "standardsReview": "PASS",
+    "specReview": "PASS"
+  },
+  "firebaseCliAuthentication": {
+    "mechanism": "existing authenticated Firebase CLI account",
+    "identity": "iamhuwng@gmail.com",
+    "firebaseTokenOrAccessTokenOverrideUsed": false,
+    "credentialOrIamMutation": false,
+    "readOnlyProjectSiteAndLiveChannelProof": "PASS"
+  },
+  "frozenFrontend": {
+    "rebuilt": false,
+    "changed": false,
+    "files": 441,
+    "bytes": 11872235,
+    "manifestSha256": "88f4b8cffec0f8e108b3be308c82703875a1a59ce14362d4504a9960963abcab",
+    "entry": "/assets/index-rR9ze86f.js",
+    "entrySha256": "6fe80c6b833b8ef0aac3b70066cbce02bf720749c3c1bbaefc11bd1a59ccf3d7"
+  },
+  "hostingAttempt": {
+    "scope": "hosting:kahut1",
+    "project": "temp-a1437",
+    "result": "FAILED",
+    "clientError": "Task 5a792cb4f1bf08fb0765e79ced0275e0c13241d7efd0af93ad1828181324cd55 failed: retries exhausted after 6 attempts, with error: Failed to make request to https://upload-firebasehosting.googleapis.com/upload/sites/kahut1/versions/c4f60a9e9eca95a5/files/5a792cb4f1bf08fb0765e79ced0275e0c13241d7efd0af93ad1828181324cd55",
+    "createdVersion": {
+      "name": "sites/kahut1/versions/c4f60a9e9eca95a5",
+      "status": "CREATED",
+      "createTime": "2026-08-15T02:55:47.916387Z",
+      "createUser": "iamhuwng@gmail.com",
+      "finalized": false,
+      "released": false
+    },
+    "unrelatedFirebaseProductsDeployed": false
+  },
+  "liveHostingReadback": {
+    "unchanged": true,
+    "channel": "projects/temp-a1437/sites/kahut1/channels/live",
+    "release": "projects/temp-a1437/sites/kahut1/channels/live/releases/1784390955725000",
+    "version": "projects/temp-a1437/sites/kahut1/versions/31a9052843c443c5",
+    "versionStatus": "FINALIZED",
+    "releaseTime": "2026-07-18T16:09:15.725Z"
+  },
+  "backend": {
+    "activationAttempted": false,
+    "worker": "rollback ca50f6c9-713b-4159-8fa9-cc2a6c9fec39 remains active",
+    "firestoreRuleset": "rollback projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6 remains active",
+    "rtdbRulesSha256": "rollback 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6 remains active",
+    "assignmentCommandRequests": 0
+  },
+  "browserGate": {
+    "teacher": "NOT_RUN",
+    "studentDetailAndRuntime": "NOT_RUN",
+    "ordinaryHomeworkSmoke": "NOT_RUN",
+    "reason": "Hosting deployment did not finalize or release the reviewed frontend"
+  },
+  "durableStatePreserved": {
+    "rootRevision": 7,
+    "authorityRevision": 2,
+    "delivery": "active revision 1",
+    "compatibilityShell": "PRESENT"
+  },
+  "disposition": "STOPPED; backend activation prohibited after Hosting deployment failure; previous live Hosting release retained; partial unfinalized Hosting version left non-live; no assignment command; NOT READY FOR USER BROWSER HANDOFF"
+}

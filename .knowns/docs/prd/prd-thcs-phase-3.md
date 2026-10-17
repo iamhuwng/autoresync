@@ -317,6 +317,12 @@ When a THCS test from the public library is shown, its card has two action butto
 └──────────────────────────────────────────────────────────────┘
 ```
 
+> 2026-07-08 supersession: linked/use-as-is THCS references are not My
+> Content. The old linked-reference My Content rule below is retired. My
+> Content is current-account owned MaterialSummary `by_owner/{uid}` rows only;
+> linked references need a separate Saved/Linked surface if the product needs
+> them.
+
 #### 4.3.2 "Use as-is" Flow
 
 1. Teacher clicks "Use as-is"

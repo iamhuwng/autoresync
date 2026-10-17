@@ -6,6 +6,7 @@ import { createFirebaseVerifier } from '../src/upload-worker/firebase-verificati
 const BASE_URL = 'https://r2-upload-signer.test';
 const APPROVED_ORIGINS = [
   'https://kahut1.web.app',
+  'https://hocthem.net',
   'http://localhost:5173',
   'http://localhost:5174',
 ];

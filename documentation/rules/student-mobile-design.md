@@ -146,7 +146,7 @@ Before review, prove all relevant items below:
 - focused route regressions are updated when a routed student page or alias path changes placement or shell behavior
 
 Recommended live check sequence on this repo:
-1. open `http://localhost:5173/`
+1. open `http://localhost:5174/`
 2. use the Student quick-login from the index page
 3. verify the touched route at `1440px` if desktop relationship changed
 4. verify the touched route at `375px`

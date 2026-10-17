@@ -13,6 +13,8 @@
 import type {
     WorkerEnv,
     RestoreResult,
+    RestorePreview,
+    BookMetadataRestorePreview,
 } from '../types';
 import type { BackupR2Client } from '../utils/r2-client';
 import type { StatusTracker } from '../backup/status-tracker';
@@ -21,13 +23,107 @@ import { extractBackupZip } from '../utils/zip';
 import { createBackupZip } from '../utils/zip';
 import { buildBackupManifest, buildMediaManifest } from '../utils/manifest';
 import { filterGdprEntities } from './gdpr-filter';
+import {
+    BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS,
+    BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS,
+    BOOK_METADATA_INVENTORY_NODE,
+    BOOK_METADATA_CANONICAL_ROOTS,
+    buildBookMetadataRestorePreview,
+    prepareBookSourceRestore,
+    readBookMetadataRoots,
+    restoreBookMetadataRoots,
+} from './book-source-restore';
+import { BookMetadataRestoreValidationError } from './book-source-restore';
+import type { BookMetadataValidationOptions, BookMetadataRestorePlan } from './book-source-restore';
+import {
+    RecoveryOperationLedger,
+    type RecoveryOperationRecord,
+} from './recovery-operation-ledger';
+import type { RecoverySuppressionContext } from './recovery-suppression';
+import {
+    assertRecoveryEnvelope,
+    type RecoveryEnvelopeIntegrityVerifier,
+    type RecoveryRuntimeIdentity,
+} from './recovery-envelope';
+
+export interface RecoveryPhaseRunnerInput {
+    readonly operationId: string;
+    readonly phase: 'restoring_canonical_authority' | 'rebuilding' | 'reconciling';
+    /** Adapters must pass this context to every external-effect boundary. */
+    readonly suppression: RecoverySuppressionContext;
+}
+
+export type RecoveryPhaseRunner = (input: RecoveryPhaseRunnerInput) => Promise<void>;
+
+/**
+ * Execute one deterministic control-plane operation. When phase runners are
+ * supplied, only the unfinished phase is invoked and a crash is converted to
+ * a retryable record that resumes at that same phase. This function does not
+ * release any side-effect family; #125 owns that final gate.
+ */
+export async function executeRecovery(input: {
+    readonly envelope: unknown;
+    readonly runtime: RecoveryRuntimeIdentity;
+    readonly verifier: RecoveryEnvelopeIntegrityVerifier;
+    readonly ledger: RecoveryOperationLedger;
+    readonly runners?: Partial<Record<RecoveryPhaseRunnerInput['phase'], RecoveryPhaseRunner>>;
+    readonly now?: string;
+}): Promise<RecoveryOperationRecord> {
+    const envelope = await assertRecoveryEnvelope(input.envelope, {
+        expectedPhase: 'execute',
+        runtime: input.runtime,
+        verifier: input.verifier,
+        now: input.now,
+    });
+    let current = (await input.ledger.authorizeExecute({
+        envelope,
+        runtime: input.runtime,
+        verifier: input.verifier,
+        now: input.now,
+    })).operation;
+    if (current.state === 'completed' || current.state === 'failed_terminal') return current;
+
+    while (current.state !== 'completed' && current.state !== 'failed_terminal') {
+        const started = await input.ledger.beginNextPhase(current.operationId, input.now);
+        const phase = started.state as RecoveryPhaseRunnerInput['phase'];
+        const runner = input.runners?.[phase];
+        if (!runner) return started;
+        try {
+            await runner({
+                operationId: started.operationId,
+                phase,
+                suppression: { recoveryOperationId: started.operationId, operation: started },
+            });
+            current = await input.ledger.completePhase({
+                operationId: started.operationId,
+                expectedState: started.state,
+                expectedRevision: started.stateRevision,
+                phase,
+                now: input.now,
+            });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Recovery phase failed.';
+            return input.ledger.failRetryable({
+                operationId: started.operationId,
+                expectedState: started.state,
+                expectedRevision: started.stateRevision,
+                code: 'phase-failed',
+                message,
+                now: input.now,
+            });
+        }
+    }
+    return current;
+}
+
+export const executeRecoveryOperation = executeRecovery;
 
 // ─── Constants ─────────────────────────────────────────────────────────
 
 /** Known dependency order for RTDB restore (PRD §4.16.3) */
 const RTDB_RESTORE_ORDER = [
     'users', 'media_asset_upload_sessions', 'media_assets', 'media_asset_events',
-    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'tests', 'quizzes', 'classes', 'courses',
+    'media_asset_metrics', 'media_asset_sweeps', 'listening_authoring', 'book_activity', 'tests', 'quizzes', 'classes', 'courses',
     'course_enrollments', 'class_course_links', 'course_materials', 'course_progress',
     'test_results', 'game_sessions', 'deleted_users', 'guest_results',
     'invitations', 'badges', 'course_attendance', 'audit_logs',
@@ -35,223 +131,78 @@ const RTDB_RESTORE_ORDER = [
     'test_results_by_course', 'test_results_by_class',
 ];
 
-const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring'];
-const LISTENING_MEDIA_MUTATION_LEASE_FIELD = 'listening_media_mutation_lease';
-const LISTENING_AUTHORING_CLEANUP_LEASE_FIELD = 'temp_cleanup_lease';
-const RESTORE_LEASE_MS = 24 * 60 * 60 * 1000;
-const RESTORE_LEASE_RETRIES = 5;
+const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring', 'book_activity'];
 
 /** Nodes excluded from restore by default (prevent spam) */
 const RTDB_SKIP_ON_RESTORE = ['notifications'];
 
-interface RestoreOptions {
+export interface RestoreOptions extends BookMetadataValidationOptions {
     scope: string[];
     mode: 'smart_auto' | 'per_entity';
     perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>;
     mergeFirestoreFromBackupId?: string;
+    bookMetadataPreview?: BookMetadataRestorePreview;
+    /** Compatibility alias for callers that pass the complete preview object. */
+    preview?: RestorePreview;
+    /** #121 recovery identity is transport metadata, never product payload data. */
+    recoveryOperationId?: string;
 }
 
-interface RestoreCoordinationLease {
-    schemaVersion: 1;
-    leaseId: string;
-    kind: 'restore';
-    backupId: string;
-    claimedAt: number;
-    expiresAt: number;
-}
+const scopeIncludesBookMetadata = (scope: readonly string[]): boolean => (
+    scope.includes('all')
+    || scope.includes('book')
+    || scope.includes('book_metadata')
+    || scope.includes(BOOK_METADATA_INVENTORY_NODE)
+    || scope.some((entry) => BOOK_METADATA_CANONICAL_ROOTS.includes(entry as typeof BOOK_METADATA_CANONICAL_ROOTS[number]))
+);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    value !== null && typeof value === 'object' && !Array.isArray(value);
+const inventoryFromPreview = (options: RestoreOptions): BookMetadataRestorePreview | undefined => (
+    options.bookMetadataPreview ?? options.preview?.bookMetadata
+);
 
-const systemFlagsUrl = (env: WorkerEnv, token: string): string =>
-    `${env.FIREBASE_DB_URL}/system_flags.json?access_token=${token}`;
+const BOOK_METADATA_MIXED_TOP_LEVEL_ROOTS = new Set(['classes', 'material_catalog']);
+const BOOK_METADATA_MATERIAL_CHILDREN = new Set([
+    'book_indexes',
+    'book_nodes',
+    'book_successor_operations',
+    'books',
+    'public_book_projections',
+]);
 
-const authoringRootUrl = (env: WorkerEnv, token: string): string =>
-    `${env.FIREBASE_DB_URL}/listening_authoring.json?access_token=${token}`;
+const isPlainRecord = (value: unknown): value is Record<string, unknown> => (
+    value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+);
 
-const readSystemFlags = async (env: WorkerEnv, token: string): Promise<{
-    flags: Record<string, unknown>;
-    etag: string;
-}> => {
-    const response = await fetch(systemFlagsUrl(env, token), {
-        headers: { 'X-Firebase-ETag': 'true' },
-    });
-    if (!response.ok) throw new Error(`restore_coordination_read_failed:${response.status}`);
-    const etag = response.headers.get('etag');
-    if (!etag) throw new Error('restore_coordination_etag_missing');
-    const body = await response.json() as unknown;
-    return { flags: isRecord(body) ? body : {}, etag };
-};
-
-const writeSystemFlags = async (
-    env: WorkerEnv,
-    token: string,
-    flags: Record<string, unknown>,
-    etag: string,
-): Promise<boolean> => {
-    const response = await fetch(systemFlagsUrl(env, token), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'if-match': etag },
-        body: JSON.stringify(flags),
-    });
-    if (response.status === 412) return false;
-    if (!response.ok) throw new Error(`restore_coordination_write_failed:${response.status}`);
-    return true;
-};
-
-const readAuthoringRoot = async (env: WorkerEnv, token: string): Promise<{
-    root: Record<string, unknown>;
-    etag: string;
-}> => {
-    const response = await fetch(authoringRootUrl(env, token), {
-        headers: { 'X-Firebase-ETag': 'true' },
-    });
-    if (!response.ok) throw new Error(`restore_authoring_coordination_read_failed:${response.status}`);
-    const etag = response.headers.get('etag');
-    if (!etag) throw new Error('restore_authoring_coordination_etag_missing');
-    const body = await response.json() as unknown;
-    return { root: isRecord(body) ? body : {}, etag };
-};
-
-const writeAuthoringRoot = async (
-    env: WorkerEnv,
-    token: string,
-    root: Record<string, unknown>,
-    etag: string,
-): Promise<boolean> => {
-    const response = await fetch(authoringRootUrl(env, token), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'if-match': etag },
-        body: JSON.stringify(root),
-    });
-    if (response.status === 412) return false;
-    if (!response.ok) throw new Error(`restore_authoring_coordination_write_failed:${response.status}`);
-    return true;
-};
-
-const acquireRestoreCoordinationLease = async (
-    env: WorkerEnv,
-    token: string,
-    backupId: string,
-): Promise<RestoreCoordinationLease> => {
-    const claimedAt = Date.now();
-    const lease: RestoreCoordinationLease = {
-        schemaVersion: 1,
-        leaseId: `restore:${backupId}:${claimedAt}`,
-        kind: 'restore',
-        backupId,
-        claimedAt,
-        expiresAt: claimedAt + RESTORE_LEASE_MS,
-    };
-    let authoringAcquired = false;
-    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-        const { root, etag } = await readAuthoringRoot(env, token);
-        const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
-        if (isRecord(existing) && Number(existing.expiresAt) > claimedAt) {
-            throw new Error('listening_authoring_mutation_in_progress');
-        }
-        if (await writeAuthoringRoot(env, token, {
-            ...root,
-            [LISTENING_AUTHORING_CLEANUP_LEASE_FIELD]: lease,
-        }, etag)) {
-            authoringAcquired = true;
-            break;
-        }
+/** Keep mixed legacy nodes useful for non-Book state without re-writing fenced Book paths. */
+const stripBookMetadataFromLegacyNode = (
+    nodeName: string,
+    value: unknown,
+): Record<string, unknown> => {
+    if (!BOOK_METADATA_MIXED_TOP_LEVEL_ROOTS.has(nodeName) || !isPlainRecord(value)) {
+        return (isPlainRecord(value) ? value : {}) as Record<string, unknown>;
     }
-    if (!authoringAcquired) throw new Error('restore_authoring_coordination_retries_exhausted');
-
-    try {
-        for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-            const { flags, etag } = await readSystemFlags(env, token);
-            const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
-            const restore = flags.restore_in_progress;
-            if ((isRecord(existing) && Number(existing.expiresAt) > claimedAt)
-                || restore === true
-                || (isRecord(restore) && restore.active === true)) {
-                throw new Error('listening_media_mutation_in_progress');
-            }
-            if (await writeSystemFlags(env, token, {
-                ...flags,
-                restore_in_progress: { active: true, startedAt: claimedAt, backupId },
-                [LISTENING_MEDIA_MUTATION_LEASE_FIELD]: lease,
-            }, etag)) return lease;
+    if (nodeName === 'material_catalog') {
+        const filtered = { ...value };
+        for (const child of BOOK_METADATA_MATERIAL_CHILDREN) delete filtered[child];
+        if (isPlainRecord(filtered.material_summary_indexes)) {
+            const summaryIndexes = { ...filtered.material_summary_indexes };
+            delete summaryIndexes.v1;
+            if (Object.keys(summaryIndexes).length === 0) delete filtered.material_summary_indexes;
+            else filtered.material_summary_indexes = summaryIndexes;
         }
-        throw new Error('restore_coordination_retries_exhausted');
-    } catch (error) {
-        await releaseRestoreCoordinationLease(env, token, lease);
-        throw error;
+        return filtered;
     }
-};
-
-const releaseRestoreCoordinationLease = async (
-    env: WorkerEnv,
-    token: string,
-    lease: RestoreCoordinationLease,
-    releaseAuthoring = true,
-): Promise<void> => {
-    if (releaseAuthoring) {
-        for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-            const { root, etag } = await readAuthoringRoot(env, token);
-            const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
-            if (!isRecord(existing) || existing.leaseId !== lease.leaseId) break;
-            const next = { ...root };
-            delete next[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
-            if (await writeAuthoringRoot(env, token, next, etag)) break;
-            if (attempt === RESTORE_LEASE_RETRIES - 1) {
-                throw new Error('restore_authoring_coordination_release_failed');
-            }
-        }
+    const filtered = { ...value };
+    for (const [classId, classValue] of Object.entries(filtered)) {
+        if (!isPlainRecord(classValue) || !Object.prototype.hasOwnProperty.call(classValue, 'book_locks')) continue;
+        const classMetadata = { ...classValue };
+        delete classMetadata.book_locks;
+        filtered[classId] = classMetadata;
     }
-    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-        const { flags, etag } = await readSystemFlags(env, token);
-        const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
-        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) return;
-        const next = { ...flags };
-        delete next.restore_in_progress;
-        delete next[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
-        if (await writeSystemFlags(env, token, next, etag)) return;
-    }
-    throw new Error('restore_coordination_release_failed');
-};
-
-const renewRestoreCoordinationLease = async (
-    env: WorkerEnv,
-    token: string,
-    lease: RestoreCoordinationLease,
-): Promise<RestoreCoordinationLease> => {
-    const renewedAt = Date.now();
-    const renewed = { ...lease, expiresAt: renewedAt + RESTORE_LEASE_MS };
-    let authoringRenewed = false;
-    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-        const { root, etag } = await readAuthoringRoot(env, token);
-        const existing = root[LISTENING_AUTHORING_CLEANUP_LEASE_FIELD];
-        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) {
-            throw new Error('restore_authoring_coordination_lease_lost');
-        }
-        if (await writeAuthoringRoot(env, token, {
-            ...root,
-            [LISTENING_AUTHORING_CLEANUP_LEASE_FIELD]: renewed,
-        }, etag)) {
-            authoringRenewed = true;
-            break;
-        }
-    }
-    if (!authoringRenewed) throw new Error('restore_authoring_coordination_renew_failed');
-
-    for (let attempt = 0; attempt < RESTORE_LEASE_RETRIES; attempt += 1) {
-        const { flags, etag } = await readSystemFlags(env, token);
-        const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
-        if (!isRecord(existing) || existing.leaseId !== lease.leaseId) {
-            throw new Error('restore_coordination_lease_lost');
-        }
-        const restore = isRecord(flags.restore_in_progress) ? flags.restore_in_progress : {};
-        if (await writeSystemFlags(env, token, {
-            ...flags,
-            restore_in_progress: { ...restore, active: true, heartbeatAt: renewedAt },
-            [LISTENING_MEDIA_MUTATION_LEASE_FIELD]: renewed,
-        }, etag)) return renewed;
-    }
-    throw new Error('restore_coordination_renew_failed');
+    return filtered;
 };
 
 /**
@@ -271,13 +222,120 @@ export async function executeRestore(
     let entitiesRestored = 0;
     let entitiesSkipped = 0;
     let entitiesFailed = 0;
-    let restoreLease: RestoreCoordinationLease | null = null;
+    let bookMetadataResult: RestoreResult['bookMetadata'];
+
+    // Book metadata is preflighted before the legacy restore flag, snapshot,
+    // or any product write. Malformed inventory and stale/missing ETag cases
+    // therefore fail atomically at the affected Book scope.
+    let bookMetadataPreflight: {
+        readonly plan: BookMetadataRestorePlan;
+        readonly preview: BookMetadataRestorePreview;
+    } | null = null;
+    if (scopeIncludesBookMetadata(options.scope)) {
+        const zipData = await r2.getObject(`backups/${backupId}.zip`);
+        if (!zipData) throw new Error(`Backup not found: ${backupId}`);
+        const candidate = extractBackupZip(zipData);
+        const inventory = candidate.rtdb[BOOK_METADATA_INVENTORY_NODE];
+        if (inventory === undefined) {
+            const explicitBookScope = options.scope.some((entry) => (
+                entry === 'book'
+                || entry === 'book_metadata'
+                || entry === BOOK_METADATA_INVENTORY_NODE
+                || (BOOK_METADATA_CANONICAL_ROOTS as readonly string[]).includes(entry)
+            ));
+            if (explicitBookScope) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'missing-required-root',
+                    path: `rtdb.${BOOK_METADATA_INVENTORY_NODE}`,
+                    message: 'Book metadata restore requires the versioned exhaustive inventory.',
+                });
+            }
+        } else {
+            const preview = inventoryFromPreview(options);
+            if (!preview) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'missing-etag',
+                    path: '$.bookMetadataPreview',
+                    message: 'Book metadata execute requires a write-free preview with current ETag fences.',
+                });
+            }
+            if (preview.backupId !== backupId || preview.allowed !== true) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'preview-drift',
+                    path: '$.bookMetadataPreview',
+                    message: 'Book metadata preview does not authorize this backup and scope.',
+                });
+            }
+            const plan = prepareBookSourceRestore({
+                snapshot: inventory,
+                ...options,
+                expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+                requireExternalSourceVersionProof: true,
+            });
+            const currentRoots = await readBookMetadataRoots(
+                env.FIREBASE_DB_URL,
+                await tokenCache.getToken(),
+                fetch,
+                true,
+            );
+            const recalculatedPreview = buildBookMetadataRestorePreview(
+                inventory,
+                backupId,
+                currentRoots.map((root) => ({
+                    path: root.path,
+                    etag: root.etag,
+                    revision: root.revision,
+                })),
+                {
+                    ...options,
+                    expectedFirebaseProject: env.FIREBASE_PROJECT_ID,
+                    requireExternalSourceVersionProof: true,
+                },
+            );
+            const sameFences = BOOK_METADATA_CANONICAL_ROOTS.every((path) => {
+                const expected = preview.rootFences[path];
+                const actual = recalculatedPreview.rootFences[path];
+                return expected?.etag === actual?.etag && expected?.revision === actual?.revision;
+            });
+            const previewZeroByteProof = preview.zeroByteProof;
+            const samePreviewShape = preview.valid === true
+                && preview.inventoryVersion === recalculatedPreview.inventoryVersion
+                && preview.rootCount === recalculatedPreview.rootCount
+                && JSON.stringify(preview.orderedRoots) === JSON.stringify(recalculatedPreview.orderedRoots)
+                && JSON.stringify(preview.delegatedRoots) === JSON.stringify(recalculatedPreview.delegatedRoots)
+                && JSON.stringify(preview.sourceVersionIds) === JSON.stringify(recalculatedPreview.sourceVersionIds)
+                && Array.isArray(preview.missingSourceVersionIds)
+                && preview.missingSourceVersionIds.length === 0
+                && Array.isArray(preview.diagnostics)
+                && preview.diagnostics.length === 0
+                && previewZeroByteProof?.pdfBodyReads === 0
+                && previewZeroByteProof?.pdfBodyWrites === 0
+                && previewZeroByteProof?.providerOperations === 0;
+            if (!recalculatedPreview.allowed || preview.inventoryFingerprint !== recalculatedPreview.inventoryFingerprint || !sameFences || !samePreviewShape) {
+                throw new BookMetadataRestoreValidationError({
+                    code: 'preview-drift',
+                    path: '$.bookMetadataPreview',
+                    message: recalculatedPreview.diagnostics.map((entry) => entry.message).join('; ') || 'Current Book metadata roots drifted from the preview fences.',
+                });
+            }
+            bookMetadataPreflight = { plan, preview };
+        }
+    }
 
     try {
         // ── Step 1: Set RTDB restore flag ───────────────────────────
         await tracker.update('snapshot', 2, 'Setting restore flag...');
         const token = await tokenCache.getToken();
-        restoreLease = await acquireRestoreCoordinationLease(env, token, backupId);
+        const flagUrl = `${env.FIREBASE_DB_URL}/system_flags/restore_in_progress.json?access_token=${token}`;
+        await fetch(flagUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                active: true,
+                startedAt: Date.now(),
+                backupId,
+            }),
+        });
 
         // ── Step 2: Pre-restore snapshot ────────────────────────────
         await tracker.update('snapshot', 5, 'Creating pre-restore safety snapshot...');
@@ -316,7 +374,37 @@ export async function executeRestore(
 
         // ── Step 5: Restore RTDB ────────────────────────────────────
         // Build final restore order: known first, unknown last
-        const allBackupNodes = Object.keys(extracted.rtdb);
+        if (bookMetadataPreflight) {
+            await tracker.update('restoring_book_metadata', 24, 'Restoring canonical Book metadata...');
+            const currentToken = await tokenCache.getToken();
+            bookMetadataResult = await restoreBookMetadataRoots(
+                env.FIREBASE_DB_URL,
+                currentToken,
+                bookMetadataPreflight.plan,
+                bookMetadataPreflight.preview.rootFences,
+                fetch,
+                options.recoveryOperationId
+                    ? { recoveryOperationId: options.recoveryOperationId, phase: 'restoring_canonical_authority' }
+                    : undefined,
+            );
+            entitiesRestored += bookMetadataResult.restoredRoots;
+            entitiesSkipped += bookMetadataResult.skippedRoots;
+            entitiesFailed += bookMetadataResult.failedRoots;
+            details.book_metadata = {
+                restored: bookMetadataResult.restoredRoots,
+                skipped: bookMetadataResult.skippedRoots,
+                failed: bookMetadataResult.failedRoots,
+            };
+        }
+
+        const allBackupNodes = Object.keys(extracted.rtdb).filter((nodeName) => (
+            nodeName !== BOOK_METADATA_INVENTORY_NODE
+            && (!bookMetadataPreflight
+                || (
+                    !BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_EXCLUSIVE_TOP_LEVEL_ROOTS[number])
+                    && !BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS.includes(nodeName as typeof BOOK_METADATA_DELEGATED_TOP_LEVEL_ROOTS[number])
+                ))
+        ));
         const knownNodes = RTDB_RESTORE_ORDER.filter(n => allBackupNodes.includes(n));
         const unknownNodes = allBackupNodes.filter(
             n => !RTDB_RESTORE_ORDER.includes(n) && !RTDB_SKIP_ON_RESTORE.includes(n)
@@ -333,11 +421,6 @@ export async function executeRestore(
         let currentIndex = 0;
 
         for (const nodeName of nodesToRestore) {
-            restoreLease = await renewRestoreCoordinationLease(
-                env,
-                await tokenCache.getToken(),
-                restoreLease,
-            );
             currentIndex++;
             const progress = 25 + Math.floor((currentIndex / totalEntities) * 50);
             await tracker.update(
@@ -346,7 +429,9 @@ export async function executeRestore(
                 `Restoring ${nodeName}... (${currentIndex}/${totalEntities})`
             );
 
-            const nodeData = extracted.rtdb[nodeName];
+            const nodeData = bookMetadataPreflight
+                ? stripBookMetadataFromLegacyNode(nodeName, extracted.rtdb[nodeName])
+                : extracted.rtdb[nodeName];
             if (!nodeData || typeof nodeData !== 'object') {
                 entitiesSkipped++;
                 details[nodeName] = { restored: 0, skipped: 1, failed: 0 };
@@ -361,14 +446,7 @@ export async function executeRestore(
                     nodeData as Record<string, unknown>,
                     currentToken,
                     options.mode,
-                    options.perEntityDecisions,
-                    async () => {
-                        restoreLease = await renewRestoreCoordinationLease(
-                            env,
-                            await tokenCache.getToken(),
-                            restoreLease!,
-                        );
-                    },
+                    options.perEntityDecisions
                 );
 
                 entitiesRestored += nodeResult.restored;
@@ -384,11 +462,6 @@ export async function executeRestore(
 
         // ── Step 6: Restore Firestore ───────────────────────────────
         if (firestoreData) {
-            restoreLease = await renewRestoreCoordinationLease(
-                env,
-                await tokenCache.getToken(),
-                restoreLease,
-            );
             const firestoreCollections = Object.keys(firestoreData);
             const firestoreToRestore = scopeIsAll
                 ? firestoreCollections
@@ -412,14 +485,7 @@ export async function executeRestore(
                         env,
                         collName,
                         collData,
-                        currentToken,
-                        async () => {
-                            restoreLease = await renewRestoreCoordinationLease(
-                                env,
-                                await tokenCache.getToken(),
-                                restoreLease!,
-                            );
-                        },
+                        currentToken
                     );
 
                     entitiesRestored += collResult.restored;
@@ -465,14 +531,18 @@ export async function executeRestore(
             entitiesFailed,
             notificationsSkipped: true,
             details,
+            ...(bookMetadataResult ? { bookMetadata: bookMetadataResult } : {}),
         };
     } finally {
         // ── Step 8: Clear RTDB flag (ALWAYS, even on failure) ───────
         try {
             const finalToken = await tokenCache.getToken();
-            if (restoreLease) {
-                await releaseRestoreCoordinationLease(env, finalToken, restoreLease);
-            }
+            const flagUrl = `${env.FIREBASE_DB_URL}/system_flags/restore_in_progress.json?access_token=${finalToken}`;
+            await fetch(flagUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: 'null',
+            });
         } catch (err: unknown) {
             console.error('[Restore] CRITICAL: Failed to clear restore flag:', err);
         }
@@ -487,23 +557,11 @@ async function restoreRtdbNode(
     backupData: Record<string, unknown>,
     token: string,
     mode: 'smart_auto' | 'per_entity',
-    perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>,
-    renewLease?: () => Promise<void>,
+    perEntityDecisions?: Record<string, 'skip' | 'overwrite' | 'duplicate'>
 ): Promise<{ restored: number; skipped: number; failed: number }> {
     let restored = 0;
     let skipped = 0;
     let failed = 0;
-    const protectedCoordinationKeys = nodeName === 'listening_authoring'
-        ? new Set([LISTENING_AUTHORING_CLEANUP_LEASE_FIELD, 'deleted_temp_assets'])
-        : nodeName === 'system_flags'
-            ? new Set(['restore_in_progress', LISTENING_MEDIA_MUTATION_LEASE_FIELD])
-            : new Set<string>();
-    const restorableEntries = Object.entries(backupData)
-        .filter(([key]) => {
-            if (!protectedCoordinationKeys.has(key)) return true;
-            skipped += 1;
-            return false;
-        });
 
     if (mode === 'smart_auto') {
         // ⚠️ CRITICAL: Do NOT make individual HTTP requests per entity key.
@@ -516,7 +574,7 @@ async function restoreRtdbNode(
 
         // Find entities that need restoring (don't exist in live data)
         const entitiesToRestore: Record<string, unknown> = {};
-        for (const [key, value] of restorableEntries) {
+        for (const [key, value] of Object.entries(backupData)) {
             if (liveKeys[key]) {
                 skipped++;
             } else {
@@ -542,8 +600,7 @@ async function restoreRtdbNode(
         }
     } else {
         // Per-entity mode
-        for (const [key, value] of restorableEntries) {
-            await renewLease?.();
+        for (const [key, value] of Object.entries(backupData)) {
             const decision = perEntityDecisions?.[`${nodeName}/${key}`] ?? 'skip';
 
             if (decision === 'skip') {
@@ -588,15 +645,13 @@ async function restoreFirestoreCollection(
     env: WorkerEnv,
     collectionId: string,
     docsData: Record<string, unknown>,
-    token: string,
-    renewLease?: () => Promise<void>,
+    token: string
 ): Promise<{ restored: number; skipped: number; failed: number }> {
     let restored = 0;
     const skipped = 0;
     let failed = 0;
 
     for (const [docId, fields] of Object.entries(docsData)) {
-        await renewLease?.();
         try {
             // PATCH creates or overwrites the document
             const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collectionId}/${docId}`;

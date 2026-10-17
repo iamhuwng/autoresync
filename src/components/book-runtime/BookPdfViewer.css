@@ -1,0 +1,118 @@
+.book-pdf-viewer {
+  display: grid;
+  gap: 16px;
+  color: var(--sv-text-primary, #2b3437);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.book-pdf-viewer__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.book-pdf-viewer__eyebrow {
+  margin: 0 0 4px;
+  color: var(--sv-text-secondary, #586064);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.book-pdf-viewer__header h2,
+.book-pdf-viewer__status,
+.book-pdf-viewer__toolbar,
+.book-pdf-viewer__state p {
+  margin: 0;
+}
+
+.book-pdf-viewer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--sv-text-secondary, #586064);
+  font-size: 0.875rem;
+}
+
+.book-pdf-viewer__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.book-pdf-viewer__toolbar button,
+.book-pdf-viewer__toolbar input {
+  min-height: 44px;
+  border: 1px solid var(--sv-outline-soft, #abb3b7);
+  border-radius: var(--sv-radius-soft, 8px);
+  background: var(--sv-bg-surface, #fff);
+  color: var(--sv-text-primary, #2b3437);
+}
+
+.book-pdf-viewer__toolbar button {
+  min-width: 44px;
+  padding: 0 12px;
+}
+
+.book-pdf-viewer__toolbar button:focus-visible,
+.book-pdf-viewer__toolbar input:focus-visible,
+.book-pdf-viewer__state button:focus-visible {
+  outline: 3px solid var(--sv-accent, #4d44e3);
+  outline-offset: 2px;
+}
+
+.book-pdf-viewer__page-input {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.book-pdf-viewer__page-input input {
+  width: 84px;
+}
+
+.book-pdf-viewer__zoom {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--sv-accent-soft, #e2dfff);
+  color: var(--sv-accent, #4d44e3);
+  font-weight: 600;
+}
+
+.book-pdf-viewer__canvas-host {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--sv-outline-soft, #abb3b7);
+  border-radius: var(--sv-radius-panel, 12px);
+  background: var(--sv-bg-surface, #fff);
+}
+
+.book-pdf-viewer__canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.book-pdf-viewer__state {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+
+.book-pdf-viewer__status {
+  color: var(--sv-text-secondary, #586064);
+}
+
+@media (max-width: 720px) {
+  .book-pdf-viewer__canvas-host {
+    min-height: 320px;
+    padding: 12px;
+  }
+}

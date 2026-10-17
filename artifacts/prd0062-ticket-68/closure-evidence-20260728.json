@@ -1,0 +1,77 @@
+{
+  "ticket": 68,
+  "issue": 68,
+  "title": "PRD0062 19 — Revise one Activity safely",
+  "stateBeforeClose": "OPEN",
+  "primarySelection": {
+    "roadmapPhase": "teacher workflow",
+    "directPrerequisitesClosed": [35, 63, 64],
+    "transitivePrerequisiteCount": 35,
+    "graphArtifact": "artifacts/prd0062-graph-20260728-post-ticket68-contract-repair.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket68-contract-repair.json"
+  },
+  "verification": {
+    "focusedApp": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/services/book-activity/activityDomain.service.test.ts src/services/book-activity/activityAuthoring.service.test.ts src/services/book-activity/activityAuthoring.repository.test.ts src/services/book-activity/activityRevisionPublish.service.test.ts src/services/book-assembly/unitPrompt.service.test.ts src/components/books/assembly/BookActivityRevisionPanel.test.tsx src/__tests__/security/bookActivityRevisionRuleFragment.test.ts --typecheck --reporter=dot",
+      "result": "39 tests passed; no type errors"
+    },
+    "worker": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-activity-revision-worker.test.ts --typecheck --reporter=dot",
+      "result": "12 tests passed; no type errors"
+    },
+    "lint": {
+      "command": "rtk npm exec -- eslint <ticket-68-owned-files>",
+      "result": "ok"
+    },
+    "browser": {
+      "command": "rtk npm exec -- playwright test --config=playwright.prd0062-ticket68.config.mjs",
+      "result": "4 tests passed: desktop and mobile teacher quick-login, complete replacement import, exact preview, publish, immutable lineage, persisted candidate reload, and 200% zoom",
+      "url": "http://localhost:5173/__smoke/book-assembly-activity-revision?fixture=ticket68",
+      "artifacts": [
+        "artifacts/prd0062-ticket-68/browser/desktop-1440-publish-conflict-recovery.json",
+        "artifacts/prd0062-ticket-68/browser/mobile-375-publish-conflict-recovery.json",
+        "artifacts/prd0062-ticket-68/browser/desktop-1440-mobile-200-zoom.json",
+        "artifacts/prd0062-ticket-68/browser/mobile-375-mobile-200-zoom.json"
+      ]
+    },
+    "productionBuild": {
+      "command": "rtk npm run build",
+      "result": "Vite production build passed; bundle budget passed"
+    },
+    "fullTypecheck": {
+      "command": "rtk npm exec -- tsc --noEmit --pretty false",
+      "result": "fails only on pre-existing unrelated assembly/mapping/import diagnostics; no ticket-68-owned diagnostic"
+    }
+  },
+  "ownedProof": [
+    "complete editable replacement prompt and direct import",
+    "CAS candidate persistence, reload, stale conflict, idempotent replay, and crash-safe no-write path",
+    "exact-topology hidden identity preservation and remint on topology change",
+    "source-assisted validation, trusted source-context and Placement lineage",
+    "immutable Activity Version, answer-safe projection, current pointer, evidence, and operation metadata",
+    "worker disabled-by-default, verified-auth seam, strict request validation, approval binding, and safe response filtering",
+    "local rules fragment and negative assertions",
+    "teacher browser proof and local rollback/pointer preservation"
+  ],
+  "destinationProof": {
+    "118": [
+      "generated database.rules.json composition",
+      "assembled emulator enforcement",
+      "active generated-rules hash/readback",
+      "generated-rules rollback and legacy preservation"
+    ],
+    "134": [
+      "approved activation deployed/canary publication",
+      "identity/config/version readback",
+      "cleanup/recovery and emergency gate rollback"
+    ],
+    "73": ["assembled Student old-version/current-context proof"]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "reopenedTickets": []
+  }
+}

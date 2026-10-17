@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "r2-upload-signer-prd0062-ticket20a-preview",
+  "main": "src/upload-worker/book-rules/successor/preview-worker.ts",
+  "compatibility_date": "2026-01-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "BOOK_SUCCESSOR_SERVICE_IDENTITY": "r2-upload-signer-prd0056a@temp-a1437.iam.gserviceaccount.com"
+  }
+}

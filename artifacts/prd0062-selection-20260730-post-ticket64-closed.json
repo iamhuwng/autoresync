@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-07-30T12:58:28.6560741Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-post-ticket64-closed.json",
+  "issueHash": "a2852a0907a823c96616706092fef7e4679f6e5d73b00cae683a1a8b9ba8990d",
+  "issueCount": 112,
+  "openCount": 51,
+  "closedCount": 61,
+  "uniqueEdgeCount": 310,
+  "missingReferences": 0,
+  "duplicateEdges": 0,
+  "cycles": 0,
+  "topologicalCoverage": 112,
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [49, 59, 65, 66, 68, 129, 131, 132, 133],
+  "selectedPrimary": {
+    "issue": 49,
+    "ticket": "06C",
+    "directPrerequisites": [47, 48, 50],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 2,
+    "acceptanceReadiness": "Private-B2 activation is the earliest unresolved storage/security boundary. Native API authorization, exact-capability provisioning, signed-in Chrome, controlled preview/deployment authority, disposable data, cleanup, and rollback authority are available; every live acceptance gate is executable without enabling #50A.",
+    "requiredAuthority": [
+      "user-approved offline Master-key provisioning for exact scoped runtime keys only",
+      "approved non-production preview Worker, exact preview CORS, secure secret injection, version/config/binding readback, and disposable B2 data",
+      "approved teacher Chrome browser acceptance, 500 MiB no-cost proof, cleanup, and activation rollback"
+    ],
+    "selectionReason": "Earliest unresolved Foundation storage/security activation owner. All direct and transitive prerequisites are CLOSED, acceptance authority is available, and the governing activation registry forbids leaving production-required private B2 implicitly disabled."
+  },
+  "candidateDecisions": [
+    {
+      "issue": 49,
+      "decision": "selected",
+      "reason": "All direct/transitive prerequisites are CLOSED; it is the unresolved Foundation private-storage/security activation root and its controlled acceptance gates are executable under current authority."
+    },
+    {
+      "issue": 59,
+      "decision": "ineligible",
+      "reason": "Graph-clear Runtime integration root, but the current roadmap phase remains Foundation until #49's explicit activation or evidence-backed rollback decision."
+    },
+    {
+      "issue": 65,
+      "decision": "ineligible",
+      "reason": "Graph-clear teacher-workflow adapter; roadmap phase does not yet allow it, and its positive private-source publication proof consumes the unresolved #49 boundary."
+    },
+    {
+      "issue": 66,
+      "decision": "ineligible",
+      "reason": "Graph-clear teacher-workflow adapter; roadmap phase does not yet allow it, and its positive private-source publication proof consumes the unresolved #49 boundary."
+    },
+    {
+      "issue": 68,
+      "decision": "ineligible",
+      "reason": "Graph-clear teacher-workflow revision owner; roadmap phase does not yet allow it."
+    },
+    {
+      "issue": 129,
+      "decision": "ineligible",
+      "reason": "Final-closure browser suite; roadmap phase and unresolved product/activation work exclude selection."
+    },
+    {
+      "issue": 131,
+      "decision": "ineligible",
+      "reason": "Final-closure accessibility/device suite; roadmap phase and unresolved product/activation work exclude selection."
+    },
+    {
+      "issue": 132,
+      "decision": "ineligible",
+      "reason": "Final-closure contract/security suite; roadmap phase and unresolved product/activation work exclude selection."
+    },
+    {
+      "issue": 133,
+      "decision": "ineligible",
+      "reason": "Final-closure legacy/recovery suite; roadmap phase and unresolved product/activation work exclude selection."
+    }
+  ],
+  "safetyState": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "privateB2": "disabled pending explicit #49 gate progression",
+    "trustedActions": "disabled"
+  }
+}

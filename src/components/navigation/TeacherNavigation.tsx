@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '../modern';
-import { NotificationBell } from '../notifications/NotificationBell';
+import { NotificationBell, type NotificationBellHandle } from '../notifications/NotificationBell';
 import { ROUTES } from '../../constants/routes';
 
 export interface TeacherNavigationProps {
@@ -53,6 +53,8 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
     const currentPath = location.pathname;
     const [menuOpen, setMenuOpen] = useState(false);
     const [navMenuOpen, setNavMenuOpen] = useState(false);
+    const profileTriggerRef = useRef<HTMLButtonElement>(null);
+    const notificationBellRef = useRef<NotificationBellHandle>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
     const navMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -365,7 +367,11 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                 {userId && (
                     <div style={{ marginRight: '0.25rem' }}>
-                        <NotificationBell userId={userId} />
+                        <NotificationBell
+                            ref={notificationBellRef}
+                            userId={userId}
+                            role={userRole === 'super_admin' ? 'admin' : 'teacher'}
+                        />
                     </div>
                 )}
 
@@ -376,6 +382,7 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                         aria-haspopup="menu"
                         aria-expanded={menuOpen ? 'true' : 'false'}
                         aria-label="Open profile menu"
+                        ref={profileTriggerRef}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -489,6 +496,15 @@ export const TeacherNavigation: React.FC<TeacherNavigationProps> = ({
                             >
                                 Profile
                             </button>
+
+                            {userId && <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => { setMenuOpen(false); notificationBellRef.current?.openHistory(profileTriggerRef.current ?? undefined); }}
+                                style={{ width: '100%', minHeight: 44, border: 'none', background: 'transparent', padding: '0.625rem', textAlign: 'left', cursor: 'pointer', color: '#1e293b', fontSize: '0.875rem' }}
+                            >
+                                Notification history
+                            </button>}
 
                             <button
                                 type="button"

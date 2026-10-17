@@ -71,30 +71,30 @@ export const normalizePrd0052FeatureFlagMode = (value: unknown): Prd0052FeatureF
 };
 
 export const READING_V2_ROLLOUT_MODE: ReadingV2RolloutMode =
-  normalizeReadingV2RolloutMode(import.meta.env.VITE_READING_V2_ROLLOUT_MODE);
+  normalizeReadingV2RolloutMode(import.meta.env?.VITE_READING_V2_ROLLOUT_MODE);
 
 export const READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: ReadingV2PassageAssetLobbyVisibility =
   normalizeReadingV2PassageAssetLobbyVisibility(
-    import.meta.env.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY,
+    import.meta.env?.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY,
   );
 
 export const TEACHER_MATERIALS_TEST_TYPE_BLOCKS_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_TEACHER_MATERIALS_TEST_TYPE_BLOCKS);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_TEACHER_MATERIALS_TEST_TYPE_BLOCKS);
 
 export const ADMIN_CONFIGURABLE_TEST_TYPES_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_ADMIN_CONFIGURABLE_TEST_TYPES);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_ADMIN_CONFIGURABLE_TEST_TYPES);
 
 export const READING_PASSAGE_LIBRARY_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_READING_PASSAGE_LIBRARY);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_READING_PASSAGE_LIBRARY);
 
 export const READING_PASSAGE_HOMEWORK_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_READING_PASSAGE_HOMEWORK);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_READING_PASSAGE_HOMEWORK);
 
 export const MATERIAL_BOOKS_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_MATERIAL_BOOKS);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_MATERIAL_BOOKS);
 
 export const MATERIAL_BOOK_EDITOR_MODE: Prd0052FeatureFlagMode =
-  normalizePrd0052FeatureFlagMode(import.meta.env.VITE_MATERIAL_BOOK_EDITOR);
+  normalizePrd0052FeatureFlagMode(import.meta.env?.VITE_MATERIAL_BOOK_EDITOR);
 
 export const READING_V2_PRODUCT_LABEL = 'Reading V2';
 

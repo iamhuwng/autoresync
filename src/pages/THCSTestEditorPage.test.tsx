@@ -1,14 +1,16 @@
 import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '../test/test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MantineProvider } from '@mantine/core';
-import { BrowserRouter } from 'react-router-dom';
+import { ToastContainer, toast } from '../components/modern';
 
-const mockNotificationsShow = vi.fn();
 const mockParseThcsText = vi.fn();
-const mockConvertParsedToThcsDraft = vi.fn();
+const mockCreateThcsDraft = vi.fn();
+const mockSaveNow = vi.fn();
+const { mockValidationState } = vi.hoisted(() => ({
+    mockValidationState: { enforceMetadata: false },
+}));
 
 vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
@@ -40,30 +42,32 @@ vi.mock('../hooks/thcs/useThcsAutoSave', () => ({
         isSaving: false,
         lastSavedAt: null,
         error: null,
-        saveNow: vi.fn(),
+        saveNow: mockSaveNow,
     }),
+}));
+
+vi.mock('../hooks/useFeatureTracking', () => ({
+    useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
 vi.mock('../hooks/thcs/useThcsValidation', () => ({
-    useThcsValidation: () => ({
-        errors: [],
-        warnings: [],
-        isValid: true,
-    }),
-}));
-
-vi.mock('@mantine/hooks', () => ({
-    useMediaQuery: () => false,
-}));
-
-vi.mock('@mantine/notifications', () => ({
-    notifications: {
-        show: (...args: unknown[]) => mockNotificationsShow(...args),
+    useThcsValidation: ({ metadata }: {
+        metadata: { title?: string; duration?: number; gradeLevel?: number; examType?: string };
+    }) => {
+        const metadataErrors = mockValidationState.enforceMetadata
+            ? [
+                !metadata.title?.trim() ? 'Test title is required.' : '',
+                !metadata.duration || metadata.duration <= 0 ? 'Test duration must be greater than 0.' : '',
+                !metadata.gradeLevel ? 'Grade level is required.' : '',
+                !metadata.examType?.trim() ? 'Exam type is required.' : '',
+            ].filter(Boolean)
+            : [];
+        return { metadataErrors, errors: metadataErrors, warnings: [], isValid: metadataErrors.length === 0 };
     },
 }));
 
 vi.mock('../services/thcsDraftService', () => ({
-    createThcsDraft: vi.fn(),
+    createThcsDraft: (...args: unknown[]) => mockCreateThcsDraft(...args),
 }));
 
 vi.mock('../services/thcsTestStorage', () => ({
@@ -75,8 +79,8 @@ vi.mock('../services/r2Storage', () => ({
     default: {},
 }));
 
-vi.mock('../services/test-creation/thcsDocumentParser.service', () => ({
-    convertParsedToThcsDraft: (...args: unknown[]) => mockConvertParsedToThcsDraft(...args),
+vi.mock('../services/test-creation/thcsDocumentParser.service', async () => ({
+    convertParsedToThcsDraft: (await import('../services/test-creation/thcs-draft-converter')).convertParsedToThcsDraft,
     parseThcsText: (...args: unknown[]) => mockParseThcsText(...args),
 }));
 
@@ -152,14 +156,18 @@ vi.mock('../components/thcs-editor/THCSSetupStep', () => ({
                     onChange={(event) => onMetadataChange?.('examType', event.target.value)}
                 />
             </label>
-            <button onClick={onStartPasteText}>Paste Text</button>
+            <button onClick={onStartPasteText}>Paste Test</button>
             <button onClick={onStartBlank}>Start Blank</button>
         </div>
     ),
 }));
 
 vi.mock('../components/thcs-editor/THCSQuestionsStep', () => ({
-    default: () => <div>Questions Step</div>,
+    default: ({ sections }: { sections: THCSSection[] }) => <div>
+        Questions Step
+        {sections.map(section => <div key={section.id}>{section.questions.map(question =>
+            <div key={question.id}>{question.questionText}</div>)}</div>)}
+    </div>,
 }));
 
 vi.mock('../components/thcs-editor/THCSAnswerKeyStep', () => ({
@@ -169,14 +177,8 @@ vi.mock('../components/thcs-editor/THCSAnswerKeyStep', () => ({
 vi.mock('../components/thcs-editor/THCSReviewStep', () => ({
     default: ({
         metadata,
-        parsedMetadataConflicts,
-        onApplyParsedMetadata,
-        onDismissParsedMetadataConflicts,
     }: {
         metadata: { title?: string; duration?: number; gradeLevel?: number; examType?: string };
-        parsedMetadataConflicts?: Array<{ field: string; label: string; currentValue: string; parsedValue: string }>;
-        onApplyParsedMetadata?: () => void;
-        onDismissParsedMetadataConflicts?: () => void;
     }) => (
         <div>
             <div>Review Step</div>
@@ -184,14 +186,6 @@ vi.mock('../components/thcs-editor/THCSReviewStep', () => ({
             <div data-testid="review-duration">{metadata?.duration}</div>
             <div data-testid="review-grade">{metadata?.gradeLevel}</div>
             <div data-testid="review-exam-type">{metadata?.examType}</div>
-            <div data-testid="review-conflict-count">{parsedMetadataConflicts?.length || 0}</div>
-            {parsedMetadataConflicts?.map((conflict) => (
-                <div key={conflict.field}>
-                    {conflict.label}: {conflict.currentValue} {'->'} {conflict.parsedValue}
-                </div>
-            ))}
-            <button onClick={onDismissParsedMetadataConflicts}>Keep Current Setup</button>
-            <button onClick={onApplyParsedMetadata}>Apply Parsed Values</button>
         </div>
     ),
 }));
@@ -200,15 +194,51 @@ vi.mock('../components/thcs-editor/THCSPreviewOverlay', () => ({
     THCSPreviewOverlay: () => null,
 }));
 
-vi.mock('../components/thcs-editor/THCSParseReviewPanel', () => ({
-    THCSParseReviewPanel: () => <div>Parse Review Step</div>,
-}));
-
 vi.mock('../components/ai/AIMaintenanceBanner', () => ({
     default: () => null,
 }));
 
-import { THCSTestEditorSurface } from './THCSTestEditorPage';
+import { getMissingVisualQuestionImages, THCSTestEditorSurface } from './THCSTestEditorPage';
+import type { ParsedTest } from '../services/test-creation/thcsDocumentParser.service';
+import type { THCSSection } from '../types/thcs-test.types';
+
+const visualSection = (imageUrl?: string, imageCaption?: string): THCSSection => ({
+    id: 'signs',
+    name: 'Signs',
+    order: 0,
+    totalPoints: 1,
+    pointMode: 'auto',
+    instructionText: 'Look at the sign.',
+    isCustomInstruction: false,
+    layout: 'single-column',
+    questions: [{
+        id: 'q1',
+        questionNumber: 1,
+        type: 'mcq-sign-notice',
+        intent: 'mcq-sign-notice',
+        questionText: 'What does it mean?',
+        options: ['A', 'B', 'C', 'D'],
+        correctAnswer: 'A',
+        imageUrl,
+        imageCaption,
+    }],
+});
+
+describe('THCS visual prompt requirement', () => {
+    it('accepts either an uploaded image or a teacher-entered text alternative', () => {
+        expect(getMissingVisualQuestionImages([visualSection()])).toHaveLength(1);
+        expect(getMissingVisualQuestionImages([visualSection('https://example.test/sign.png')])).toHaveLength(0);
+        expect(getMissingVisualQuestionImages([visualSection(undefined, 'NO PARKING')])).toHaveLength(0);
+    });
+});
+
+const parsedTest = (overrides: Partial<ParsedTest> = {}): ParsedTest => ({
+    metadata: { title: 'Imported test', duration: 60, gradeLevel: 8, examType: 'midterm' },
+    sections: [{ name: 'Multiple choice', instructionText: 'Choose the best answer.', startLine: 0, endLine: 2,
+        detectedType: 'mcq-grammar', typeConfidence: 1,
+        questions: [{ questionNumber: 1, text: 'Choose a word.', type: 'mcq-grammar', options: ['A', 'B', 'C', 'D'], correctAnswer: 'A' }] }],
+    answerKey: { 1: 'A' }, warnings: [], overallConfidence: 1, ...overrides,
+});
 
 const renderSurface = (props: Partial<React.ComponentProps<typeof THCSTestEditorSurface>> = {}) => {
     const defaultProps = {
@@ -218,51 +248,75 @@ const renderSurface = (props: Partial<React.ComponentProps<typeof THCSTestEditor
         onWideLayoutChange: vi.fn(),
     };
 
-    return render(
-        <BrowserRouter>
-            <MantineProvider>
-                <THCSTestEditorSurface {...defaultProps} {...props} />
-            </MantineProvider>
-        </BrowserRouter>
-    );
+    return render(<>
+        <ToastContainer />
+        <THCSTestEditorSurface {...defaultProps} {...props} />
+    </>);
 };
 
 describe('THCSTestEditorSurface', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockConvertParsedToThcsDraft.mockReset();
+        toast.clear();
+        mockParseThcsText.mockReset();
+        mockValidationState.enforceMetadata = false;
     });
 
-    it('advances the shared wizard progress when Paste Text starts', async () => {
+    it('keeps Step 1 active until all publish-required metadata is complete', async () => {
+        mockValidationState.enforceMetadata = true;
         const user = userEvent.setup();
-        const onStepChange = vi.fn();
-
-        renderSurface({ onStepChange });
-
-        await user.click(screen.getByText('Paste Text'));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('wizard-step')).toHaveTextContent('1');
-            expect(screen.getByTestId('wizard-label')).toHaveTextContent('Paste Text');
-            expect(screen.getByText('Paste Test Content')).toBeInTheDocument();
-        });
-
-        expect(onStepChange).toHaveBeenLastCalledWith(1);
-    });
-
-    it('uses the shared footer action for paste parsing instead of inline parse buttons', async () => {
-        const user = userEvent.setup();
-
         renderSurface();
 
-        await user.click(screen.getByText('Paste Text'));
+        const next = screen.getByRole('button', { name: /Next: Build Test/i });
+        expect(next).toBeDisabled();
+        expect(screen.getByText(/Test title is required.*Exam type is required/)).toBeInTheDocument();
 
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'Parse & Review' })).toBeInTheDocument();
-        });
+        await user.click(screen.getByText('Start Blank'));
+        expect(screen.queryByText('Questions Step')).not.toBeInTheDocument();
 
-        expect(screen.getByRole('button', { name: /Back: Setup/i })).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: 'Parse & Import' })).not.toBeInTheDocument();
+        await user.type(screen.getByLabelText('Test Title'), 'Grade 9 Midterm');
+        await user.type(screen.getByLabelText('Exam Type'), 'midterm');
+        await waitFor(() => expect(next).toBeEnabled());
+        await user.click(next);
+        expect(screen.getByText('Questions Step')).toBeInTheDocument();
+    });
+
+    it('persists the test content into a newly created draft before announcing success', async () => {
+        mockCreateThcsDraft.mockResolvedValue({ success: true, data: { draftId: 'draft-new' } });
+        mockSaveNow.mockResolvedValue({ success: true });
+        const user = userEvent.setup();
+        renderSurface();
+
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => expect(mockSaveNow).toHaveBeenCalledWith('draft-new'));
+        expect(screen.getByRole('status')).toHaveTextContent('Saved draft');
+    });
+
+    it('shows the save failure and retains the draft for retry', async () => {
+        mockSaveNow.mockResolvedValue({ success: false, error: 'Permission denied' });
+        const user = userEvent.setup();
+        renderSurface({ initialDraftId: 'draft-existing' });
+
+        await user.click(screen.getByText('Start Blank'));
+        await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Permission denied'));
+        expect(screen.queryByText('Saved draft')).not.toBeInTheDocument();
+    });
+
+    it('keeps Paste Test in Test Setup and parses from the shared footer', async () => {
+        const user = userEvent.setup();
+        const onStepChange = vi.fn();
+        renderSurface({ onStepChange });
+        await user.click(screen.getByText('Paste Test'));
+        expect(screen.getByTestId('wizard-step')).toHaveTextContent('0');
+        expect(screen.getByTestId('wizard-label')).toHaveTextContent('Test Setup');
+        expect(screen.getByRole('heading', { name: 'Paste Test' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Parse Test' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Back: Setup/i })).toBeEnabled();
+        expect(onStepChange).toHaveBeenLastCalledWith(0);
     });
 
     it('only requests wide layout for the questions editor step', async () => {
@@ -298,107 +352,77 @@ describe('THCSTestEditorSurface', () => {
         expect(onWideLayoutChange).toHaveBeenLastCalledWith(false);
     });
 
-    it('restores the standard step label after continuing from paste text into questions', async () => {
+    it('locks paste actions while parsing and sends a clean import straight to Build Test', async () => {
         const user = userEvent.setup();
-
-        mockParseThcsText.mockResolvedValueOnce({
-            success: true,
-            data: {
-                metadata: { title: 'Imported test', duration: 45, gradeLevel: 9, examType: 'midterm' },
-                sections: [],
-            },
-        });
-        mockConvertParsedToThcsDraft.mockReturnValue({
-            metadata: { title: 'Imported test', duration: 45, gradeLevel: 9, examType: 'midterm' },
-            sections: [],
-        });
-
+        let complete!: (value: { success: true; data: ParsedTest }) => void;
+        mockParseThcsText.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
         renderSurface();
-
-        await user.click(screen.getByText('Paste Text'));
-
-        await waitFor(() => {
-            expect(screen.getByTestId('wizard-label')).toHaveTextContent('Paste Text');
-        });
-
-        await user.type(screen.getByPlaceholderText(/I\. MULTIPLE CHOICE QUESTIONS/i), 'Question 1');
-        await user.click(screen.getByRole('button', { name: 'Parse & Review' }));
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /Continue to Questions/i })).toBeInTheDocument();
-        });
-
-        await user.click(screen.getByRole('button', { name: /Continue to Questions/i }));
-
-        await waitFor(() => {
-            expect(screen.getByText('Questions Step')).toBeInTheDocument();
-            expect(screen.getByTestId('wizard-label')).toHaveTextContent('Build Test');
-        });
+        await user.click(screen.getByText('Paste Test'));
+        await user.type(screen.getByLabelText('Test source'), 'Question 1. Choose a word.');
+        await user.click(screen.getByRole('button', { name: 'Parse Test' }));
+        expect(screen.getByRole('status')).toHaveTextContent(/Parsing/);
+        expect(screen.getByLabelText('Test source')).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Back: Setup/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Parsing/ })).toBeDisabled();
+        complete({ success: true, data: parsedTest() });
+        await waitFor(() => expect(screen.getByText('Questions Step')).toBeInTheDocument());
+        expect(screen.getByTestId('wizard-step')).toHaveTextContent('1');
+        expect(screen.getByTestId('wizard-label')).toHaveTextContent('Build Test');
+        expect(screen.queryByText('Import needs attention')).not.toBeInTheDocument();
     });
 
-    it('preserves setup metadata after paste import and defers mismatches to review', async () => {
+    it('keeps setup metadata authoritative without Review conflict choices', async () => {
         const user = userEvent.setup();
-
-        mockParseThcsText.mockResolvedValueOnce({
-            success: true,
-            data: {
-                metadata: { title: 'Imported test', duration: 60, gradeLevel: 8, examType: 'midterm' },
-                sections: [],
-            },
-        });
-        mockConvertParsedToThcsDraft.mockReturnValue({
-            metadata: { title: 'Imported test', duration: 60, gradeLevel: 8, examType: 'midterm' },
-            sections: [],
-        });
-
+        mockParseThcsText.mockResolvedValueOnce({ success: true, data: parsedTest() });
         renderSurface();
-
         await user.type(screen.getByLabelText('Test Title'), 'Teacher Setup Title');
-        await user.clear(screen.getByLabelText('Test Duration'));
-        await user.type(screen.getByLabelText('Test Duration'), '45');
-        await user.clear(screen.getByLabelText('Grade Level'));
-        await user.type(screen.getByLabelText('Grade Level'), '9');
         await user.type(screen.getByLabelText('Exam Type'), 'final');
-
-        await user.click(screen.getByText('Paste Text'));
-        await user.type(screen.getByPlaceholderText(/I\. MULTIPLE CHOICE QUESTIONS/i), 'Question 1');
-        await user.click(screen.getByRole('button', { name: 'Parse & Review' }));
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /Continue to Questions/i })).toBeInTheDocument();
-        });
-
-        await user.click(screen.getByRole('button', { name: /Continue to Questions/i }));
-        await waitFor(() => {
-            expect(screen.getByText('Questions Step')).toBeInTheDocument();
-        });
-
+        await user.click(screen.getByText('Paste Test'));
+        await user.type(screen.getByLabelText('Test source'), 'Question 1. Choose a word.');
+        await user.click(screen.getByRole('button', { name: 'Parse Test' }));
+        await waitFor(() => expect(screen.getByText('Questions Step')).toBeInTheDocument());
         await user.click(screen.getByRole('button', { name: /Next: Answer Key/i }));
-        await waitFor(() => {
-            expect(screen.getByText('Answer Key Step')).toBeInTheDocument();
-        });
-
         await user.click(screen.getByRole('button', { name: /Next: Review/i }));
-        await waitFor(() => {
-            expect(screen.getByText('Review Step')).toBeInTheDocument();
-        });
-
         expect(screen.getByTestId('review-title')).toHaveTextContent('Teacher Setup Title');
         expect(screen.getByTestId('review-duration')).toHaveTextContent('45');
         expect(screen.getByTestId('review-grade')).toHaveTextContent('9');
         expect(screen.getByTestId('review-exam-type')).toHaveTextContent('final');
-        expect(screen.getByTestId('review-conflict-count')).toHaveTextContent('4');
-        expect(screen.getByText(/Title: Teacher Setup Title -> Imported test/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Apply Parsed Values' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Keep Current Setup' })).not.toBeInTheDocument();
+    });
 
-        await user.click(screen.getByRole('button', { name: 'Apply Parsed Values' }));
+    it.each(['keep-source', 'discard'] as const)('resolves exceptional import using %s before entering Studio', async (resolution) => {
+        const user = userEvent.setup();
+        const source = 'Question 1. Choose a word.\nQuestion 2. Unsupported content.';
+        mockParseThcsText.mockResolvedValueOnce({ success: true, data: parsedTest() });
+        renderSurface();
+        await user.click(screen.getByText('Paste Test'));
+        await user.type(screen.getByLabelText('Test source'), source);
+        await user.click(screen.getByRole('button', { name: 'Parse Test' }));
+        await waitFor(() => expect(screen.getByText('Import needs attention')).toBeInTheDocument());
+        expect(screen.getByTestId('wizard-step')).toHaveTextContent('0');
+        expect(screen.getByRole('button', { name: 'Keep as editable text' })).toHaveAttribute('aria-pressed', 'true');
+        if (resolution === 'discard') await user.click(screen.getByRole('button', { name: 'Leave this content out' }));
+        await user.click(screen.getByRole('button', { name: /Continue to Studio/i }));
+        await waitFor(() => expect(screen.getByText('Questions Step')).toBeInTheDocument());
+        expect(screen.getByText('Choose a word.')).toBeInTheDocument();
+        if (resolution === 'keep-source') expect(screen.getByText(/Question 2. Unsupported content/)).toBeInTheDocument();
+        else expect(screen.queryByText(/Question 2. Unsupported content/)).not.toBeInTheDocument();
+    });
 
-        await waitFor(() => {
-            expect(screen.getByTestId('review-title')).toHaveTextContent('Imported test');
-        });
-
-        expect(screen.getByTestId('review-duration')).toHaveTextContent('60');
-        expect(screen.getByTestId('review-grade')).toHaveTextContent('8');
-        expect(screen.getByTestId('review-exam-type')).toHaveTextContent('midterm');
-        expect(screen.getByTestId('review-conflict-count')).toHaveTextContent('0');
-    }, 10000);
+    it('retains the source after parse failure and allows a retry', async () => {
+        const user = userEvent.setup();
+        mockParseThcsText.mockResolvedValueOnce({ success: false, error: 'Parser unavailable' })
+            .mockResolvedValueOnce({ success: true, data: parsedTest() });
+        renderSurface();
+        await user.click(screen.getByText('Paste Test'));
+        await user.type(screen.getByLabelText('Test source'), 'Question 1. Choose a word.');
+        await user.click(screen.getByRole('button', { name: 'Parse Test' }));
+        await waitFor(() => expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Could not import this test'));
+        expect(screen.getByLabelText('Test source')).toHaveValue('Question 1. Choose a word.');
+        expect(screen.getByLabelText('Test source')).toBeEnabled();
+        await user.click(screen.getByRole('button', { name: 'Parse Test' }));
+        await waitFor(() => expect(screen.getByText('Questions Step')).toBeInTheDocument());
+        expect(mockParseThcsText).toHaveBeenCalledTimes(2);
+    });
 });

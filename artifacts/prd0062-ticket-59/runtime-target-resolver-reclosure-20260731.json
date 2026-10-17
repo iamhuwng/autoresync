@@ -1,0 +1,135 @@
+{
+  "ticket": 59,
+  "recordedAt": "2026-07-31T06:31:00Z",
+  "classification": "destination-owned integration omission exposed by the later ticket-74 target-aware authorization repair",
+  "implementation": {
+    "commit": "671b8499",
+    "files": [
+      "cloudflare/src/upload-worker/book-runtime/canonical.ts",
+      "cloudflare/test/book-runtime-canonical-composition.test.ts"
+    ],
+    "summary": [
+      "Default production composition reads the exact immutable Activity Version pinned by the active Delivery placement with the scoped Book Runtime identity.",
+      "The existing canonical Activity Version validator rejects malformed records.",
+      "Activity, version, owner, placement membership, and requested Interaction membership are checked before schedule policy or runtime repository access.",
+      "Remote read failures remain resolver-unavailable; malformed or mismatched immutable records remain not-found.",
+      "Solo submissions receive the existing unlimited attempt policy while later Homework policy remains unavailable and fail closed."
+    ]
+  },
+  "verification": {
+    "focusedRuntimeSuite": {
+      "result": "passed",
+      "files": 7,
+      "tests": 66,
+      "typeErrors": 0
+    },
+    "postReviewFocusedSuite": {
+      "result": "passed",
+      "files": 3,
+      "tests": 20,
+      "typeErrors": 0
+    },
+    "lint": "passed",
+    "diffCheck": "passed",
+    "productionBuild": {
+      "result": "passed",
+      "modules": 9448,
+      "bundleBudget": "passed"
+    },
+    "wranglerDryRun": {
+      "result": "passed",
+      "wranglerVersion": "4.112.0",
+      "profile": "media",
+      "sentinelBucket": "kahoot-media",
+      "bookRuntimeRoutesEnabled": "disabled"
+    },
+    "review": {
+      "standards": "no findings",
+      "spec": "no findings",
+      "note": "The existing Harvey subagent was consumed and closed; its report concerned superseded ticket-49 transport work. New independent review agents were unavailable because the account subagent quota was exhausted."
+    }
+  },
+  "deployment": {
+    "worker": "r2-upload-signer",
+    "url": "https://r2-upload-signer.iamhuwng.workers.dev",
+    "profile": "media",
+    "versionId": "5cdecbb3-9869-4a11-acc6-d2b760ffffea",
+    "tag": "prd0062-ticket59-runtime-resolver",
+    "createdAt": "2026-07-31T06:28:27.918Z",
+    "sourceCommit": "671b8499",
+    "sourceOverlayReason": "The selected branch imports six prerequisite files that exist in the shared workspace but are not reachable from this branch. A clean isolated worktree correctly failed before upload. The deployed bundle used only these six pre-existing dependency files as a hash-recorded overlay; none was staged, edited, or claimed by ticket 59.",
+    "sourceOverlay": [
+      {
+        "path": "src/services/book-source-delivery/sourceProvider.port.ts",
+        "sha256": "8550ac77564a0ee5d60301ce921e65ca95ea7e0b8c3cd25d80e478d6ad4ebfc4"
+      },
+      {
+        "path": "cloudflare/src/book-rollout-gate.ts",
+        "sha256": "4337429a2f911e9099bece14282584d4df30e3f0f506af75bf4abe7c733830ae"
+      },
+      {
+        "path": "cloudflare/src/book-rollout-seams.ts",
+        "sha256": "56ef31d173e98d240cc92ab1979a924f82aaea0ed8f1a6a97405f3847f73a5ac"
+      },
+      {
+        "path": "src/services/book-assembly/manifestCandidate.service.ts",
+        "sha256": "26e1d68f4aa24eff9e918fee6c1b16789a3d17bdef3708c03e78e9c3afe14606"
+      },
+      {
+        "path": "src/services/book-assembly/sourceSet.service.ts",
+        "sha256": "0f43b64c64c96412b5ce9844f23eeea18603b968f6c4d17ff73359b40fd67586"
+      },
+      {
+        "path": "src/services/book-assembly/sourcePageAuthority.service.ts",
+        "sha256": "4711567fb08f25f85a440ede41b3ac908edb591e8a8b71e51bbf5dc74e1bb97c"
+      }
+    ],
+    "readback": {
+      "activePercent": 100,
+      "bookRuntimeRoutesEnabled": "disabled",
+      "allBookRouteGates": "disabled",
+      "publicationActionGates": "false",
+      "runtimeIdentityProvisioned": false,
+      "secretValuesRecorded": false
+    }
+  },
+  "browser": {
+    "surface": "OpenAI bundled in-app Browser",
+    "anonymousDraftGet": {
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/book-runtime/drafts/binding-1/1/context-1/placement-1/activity-1/1/interaction-1",
+      "status": 401,
+      "code": "unauthorized"
+    },
+    "wrongMethodCommandGet": {
+      "url": "https://r2-upload-signer.iamhuwng.workers.dev/book-runtime/commands",
+      "status": 405,
+      "code": "method_not_allowed"
+    },
+    "claim": "The runtime seam is registered at the canonical origin and authentication/method enforcement precede handler access. Positive authenticated runtime behavior remains ticket-134-owned.",
+    "tabsClosed": true
+  },
+  "rollback": {
+    "currentState": "BOOK_RUNTIME_ROUTES_ENABLED remains disabled, so new runtime access is denied without reverting unrelated routes.",
+    "priorDispatcherDrill": {
+      "rollbackVersion": "1cb4452a-3efd-4822-9156-2490196a3acf",
+      "restoredVersion": "62b5dacb-cc25-452e-ad27-333b915daa2e",
+      "restoredAt": "2026-07-27T06:31:30.428Z"
+    },
+    "repeatedRemoteRollback": false
+  },
+  "safety": {
+    "ticket50A": "all-six-deny/default-deny",
+    "privateB2And03B": "disabled",
+    "trustedActions": "default-deny",
+    "runtimeRoutes": "disabled",
+    "unrelatedWorkspaceFilesCommitted": false,
+    "remoteDataMutated": false,
+    "secretsExposed": false
+  },
+  "ownership": {
+    "ticket59": "canonical production target-resolver injection and disabled route composition/readback",
+    "ticket74": "target-aware authorization port, ordering, failure envelope, and repository conformance",
+    "ticket118": "assembled generated Firebase rules",
+    "ticket134": "activated deployed/canary identity, disposable rows, telemetry, cleanup, and operational rollback"
+  }
+}

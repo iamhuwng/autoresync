@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  READING_V2_ENGINE,
+  READING_V2_PRODUCT_LABEL,
+} from '../../config/readingV2FeatureFlags';
+import { READING_V2_PROJECTION_FIXTURES } from '../reading-v2/fixtures/readingV2ProjectionFixtures';
+import {
   buildExpectedMaterialSummaries,
   buildMaterialSummaryParityReport,
   buildMaterialSummaryReconciliationUpdatePayload,
@@ -75,6 +80,21 @@ describe('materialSummaryReconciliation', () => {
 
     expect(second.operationCount).toBe(0);
     expect(second.operationDigest).toMatch(/^fnv1a-/);
+
+    repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'] = {
+      ...repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'], title: 'Stale title',
+    };
+    const drift = planMaterialSummaryReconciliation({
+      legacyTests: { 'test-1': legacyTest }, currentIndex: repairedSnapshot,
+    });
+    expect(drift.operations).toEqual([expect.objectContaining({
+      path: 'material_catalog/material_summary_indexes/v1/by_owner_family/teacher-1/assessment/test-1',
+      reason: 'stale',
+    })]);
+    repairedSnapshot.by_owner_family['teacher-1'].assessment['test-1'] = drift.operations[0].value;
+    expect(planMaterialSummaryReconciliation({
+      legacyTests: { 'test-1': legacyTest }, currentIndex: repairedSnapshot,
+    }).operationCount).toBe(0);
   });
 
   it('replaces malformed expected rows and fails closed on malformed canonical data', () => {
@@ -163,6 +183,51 @@ describe('materialSummaryReconciliation', () => {
     });
   });
 
+  it('rebuilds Reading V2 full-test summaries with student-safe readiness facts from projections', () => {
+    const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
+    const materialId = 'reading-v2-full';
+    const [summary] = buildExpectedMaterialSummaries({
+      readingV2Metadata: {
+        [materialId]: {
+          materialId,
+          ownerId: 'teacher-1',
+          state: 'published',
+          deliveryEngine: READING_V2_ENGINE,
+          productLabel: READING_V2_PRODUCT_LABEL,
+          title: 'Reading V2 Full Test',
+          materialKind: 'full-test',
+          durationMinutes: 60,
+          difficulty: 'intermediate',
+          description: '',
+          tags: [],
+          visibility: 'private',
+          testTypeIds: ['ielts'],
+          updatedAt: '2026-07-07T00:00:00.000Z',
+          relationshipSurfaces: [],
+          publishedSnapshotVersionId: projection.sourceSnapshotVersionId,
+        },
+      },
+      readingV2StudentSafeProjections: {
+        [`${materialId}:${projection.sourceSnapshotVersionId}`]: {
+          ...projection,
+          materialId,
+          ownerId: 'teacher-1',
+        },
+      },
+    });
+
+    expect(summary).toMatchObject({
+      materialId,
+      producerId: 'reading-v2-full-test',
+      questionCount: 2,
+      sourceSnapshotVersionId: projection.sourceSnapshotVersionId,
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 1,
+    });
+  });
+
   it('ignores valid inactive by-id summaries when reporting active parity', () => {
     const expected = buildExpectedMaterialSummaries({
       legacyTests: { 'test-1': legacyTest },
@@ -175,7 +240,7 @@ describe('materialSummaryReconciliation', () => {
       updatedAt: '2026-01-02T00:00:00.000Z',
     };
 
-    expect(buildMaterialSummaryParityReport(expected, {
+    expect(buildMaterialSummaryParityReport([...expected, inactiveSummary], {
       'test-1': expected[0],
       'archived-test': inactiveSummary,
     })).toMatchObject({
@@ -183,6 +248,7 @@ describe('materialSummaryReconciliation', () => {
       missingIds: [],
       orphanIds: [],
       currentCount: 1,
+      expectedCount: 1,
     });
   });
 });

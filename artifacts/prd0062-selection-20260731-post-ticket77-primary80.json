@@ -1,0 +1,76 @@
+{
+  "recordedAt": "2026-07-31T15:37:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260731-post-ticket77-closed.json",
+  "graphHash": "68509c1b18348d5d8314334bf93c3132a878856630fc3d6eeb889a1595ede0da",
+  "roadmapState": {
+    "issueCount": 112,
+    "openCount": 45,
+    "closedCount": 67,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": [],
+    "duplicateEdges": [],
+    "cycles": [],
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Runtime result review",
+  "selectedTicket": {
+    "number": 80,
+    "title": "PRD0062 32 — Preserve exact historical source context",
+    "closedDirectPrerequisites": [
+      77,
+      79
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 4,
+    "acceptanceReadiness": "READY_FOR_IMPLEMENTATION",
+    "selectionReason": "Earliest graph-clear continuation in the current result-review phase. It consumes the now-closed #77 grouped-result projection and #79 authorized component navigation to preserve exact attempt-bound historical source context without substituting current source authority.",
+    "requiredAuthority": [
+      "attempt/source-context projection and result/runtime review integration",
+      "attempt-bound historical Book Delivery authorization",
+      "student and teacher localhost browser proof",
+      "bounded production-equivalent preview and rollback proof",
+      "no current-source substitution or broader PDF entitlement"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "number": 80,
+      "decision": "SELECTED",
+      "reason": "Earliest current-phase graph-clear ticket; both direct prerequisites and all 42 transitive prerequisites are closed."
+    },
+    {
+      "number": 87,
+      "decision": "DEFERRED_LATER_PHASE",
+      "reason": "Higher downstream leverage, but effective Homework-window enforcement follows the current result-review continuation in roadmap phase order."
+    },
+    {
+      "number": 91,
+      "decision": "DEFERRED_LATER_PHASE",
+      "reason": "Integrity capture is independently graph-clear but belongs to a later accountable-runtime/operations phase."
+    },
+    {
+      "numbers": [
+        102,
+        103,
+        106
+      ],
+      "decision": "DEFERRED_LATER_PHASE",
+      "reason": "Course, Class, and public-content integration tickets follow the current result-review phase."
+    },
+    {
+      "numbers": [
+        129,
+        130,
+        131,
+        132,
+        133
+      ],
+      "decision": "DEFERRED_FINAL_PROOF",
+      "reason": "Browser/security/recovery suite tickets remain integration/final-closure proof owners."
+    }
+  ],
+  "secondaryTickets": [],
+  "selectedPrimaryCount": 1,
+  "implementationStarted": false
+}

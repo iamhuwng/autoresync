@@ -41,7 +41,7 @@
 - `documentation/tasks/findings-of-tasks-0049-reconcile-live-main-source-of-truth.md` - Append-only evidence trail for branch state, safety artifacts, decisions, verification, and rollback notes.
 - `scripts/branch-doctor.mjs` - Future helper to report branch/base/live-source drift before new work starts.
 - `scripts/__tests__/branch-doctor.test.mjs` - Minimal node:test coverage for branch doctor parsing, warnings, hosting target extraction, and recommendations.
-- `documentation/architecture/repo-branch-source-of-truth.md` - Future durable policy doc for branch roles, deploy source, worktree creation, and recovery process.
+- `documentation/rules/repo-branch-source-of-truth.md` - Future durable policy doc for branch roles, deploy source, worktree creation, and recovery process.
 
 ### Existing Files To Inspect Or Modify
 
@@ -140,7 +140,7 @@
 
 ### 8. Durable Policy Docs
 
-- [x] 8.1 Create `documentation/architecture/repo-branch-source-of-truth.md`.
+- [x] 8.1 Create `documentation/rules/repo-branch-source-of-truth.md`.
 - [x] 8.2 Define branch roles: `origin/main`, local `main`, `codex/*`, `backup/*`, `wip/*`.
 - [x] 8.3 Define allowed new-worktree base after reconcile: `origin/main` after `branch:doctor` passes.
 - [x] 8.4 Define temporary exception before reconcile: local `main` is the safer base than `origin/main`.

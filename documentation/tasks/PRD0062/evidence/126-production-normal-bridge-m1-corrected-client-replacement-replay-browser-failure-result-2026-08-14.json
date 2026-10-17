@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T18:46:58Z",
+  "status": "rolled_back_browser_handoff_blocked",
+  "mission": "PRD0062 completion",
+  "classification": "BROWSER_HOMEWORK_COMPATIBILITY_CONSUMPTION_FAILURE",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-corrected-client-replacement-replay-checkpoint-2026-08-14.json",
+  "priorFailure": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-replacement-replay-failure-result-2026-08-14.json",
+  "independentReview": {
+    "standards": "PASS; no blocking findings",
+    "spec": "PASS; no blocking findings"
+  },
+  "correctedClient": {
+    "path": "tmp/prd0062-bridge-m1-replacement-replay-client.mjs",
+    "bytes": 5818,
+    "sha256": "43e2ccffe8b776a76c8d0000fb0f0594353bc6c235887236322a03d4edc64d85",
+    "releaseGate": "PASS; exact SEND parsed as iterator result and released the command once"
+  },
+  "productionActivation": {
+    "workerVersionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-14T18:36:41.040Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreUpdateTime": "2026-08-14T18:36:22.064738Z",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f"
+  },
+  "gateSensitiveProbes": [
+    {
+      "index": 1,
+      "requestedAt": "2026-08-14T18:37:13.562Z",
+      "respondedAt": "2026-08-14T18:37:13.978Z",
+      "httpStatus": 413,
+      "body": { "code": "body_too_large" },
+      "canonicalHeaders": "PASS",
+      "cfRay": "a2b211d0ed10e2f5-HKG",
+      "colo": "HKG",
+      "reusedSocket": false
+    },
+    {
+      "index": 2,
+      "requestedAt": "2026-08-14T18:37:13.986Z",
+      "respondedAt": "2026-08-14T18:37:14.057Z",
+      "httpStatus": 413,
+      "body": { "code": "body_too_large" },
+      "canonicalHeaders": "PASS",
+      "cfRay": "a2b211d23f3de2f5-HKG",
+      "colo": "HKG",
+      "reusedSocket": true
+    }
+  ],
+  "preCommandReadback": {
+    "workerVersionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+    "workerTrafficPercent": 100,
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rootSaga": "committed and visible; revision 7; exact operation and idempotency; one committed recipient",
+    "authority": "HTTP 200; committed and visible; revision 2",
+    "delivery": "exact current binding and record HTTP 200; active",
+    "compatibilityShell": "HTTP 404 NOT_FOUND"
+  },
+  "command": {
+    "requestCount": 1,
+    "automaticRetry": false,
+    "secondAttempt": false,
+    "requestedAt": "2026-08-14T18:38:18.954Z",
+    "respondedAt": "2026-08-14T18:38:24.803Z",
+    "httpStatus": 200,
+    "status": "committed",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "revision": 7,
+    "recipientCount": 1,
+    "committedRecipientCount": 1,
+    "cfRay": "a2b213680d7ae2f5-HKG",
+    "colo": "HKG",
+    "reusedSocket": true
+  },
+  "postCommandReadback": {
+    "rootSaga": "HTTP 200; committed and visible; revision 7; exact operation and idempotency; one committed recipient",
+    "authority": "HTTP 200; committed and visible; revision 2; unchanged exact authority identity",
+    "delivery": "exact current binding and record HTTP 200; active; record revision 1",
+    "compatibilityShell": "HTTP 200; assignmentKind book_homework_compatibility; schema version 1; source saga revision 7; exact locator; no stats authority",
+    "duplicateRootAuthorityOrDelivery": false
+  },
+  "trustedServiceConsumption": {
+    "teacherStudentProjection": "HTTP 200; exact assignment, authority, and Delivery binding",
+    "studentProjection": "HTTP 200; exact recipient and Delivery binding; authoritative completion not_started, 0 of 1",
+    "locatorOnlyStudentLaunch": "HTTP 200; one Activity; exact Activity ID and Activity Version ID; student-safe projection schema version 1 titled Vocab Unit 1",
+    "runtimeAuthoritySource": "root, authority, Delivery, publication, canonical Activity Version, and student-safe projection; compatibility shell did not supply Book authority"
+  },
+  "browser": {
+    "origin": "https://kahut1.web.app",
+    "teacher": {
+      "authentication": "PASS via exact teacher dev quick login",
+      "route": "/teacher/homework",
+      "result": "FAIL",
+      "failure": "Error boundary rendered because TeacherHomeworkListPage read completionRate from undefined stats while consuming the compatibility shell",
+      "error": "TypeError: Cannot read properties of undefined (reading 'completionRate')",
+      "sourceObservation": "src/pages/TeacherHomeworkListPage.tsx:522 dereferences hw.stats.completionRate"
+    },
+    "student": {
+      "authentication": "PASS via exact student dev quick login",
+      "listRoute": "/student/homework",
+      "discovery": "PASS; Vocabulary U1 and Book Homework are visible",
+      "detailRoute": "/student/homework/assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+      "detailResult": "FAIL; rendered legacy mixed-book details and Start Homework rather than Book Homework progress and Open Book Activities",
+      "runtimeBrowserLaunch": "not reachable from the real Homework detail UI"
+    },
+    "handoff": "NOT READY"
+  },
+  "rollback": {
+    "reason": "teacher/student browser delivery failure under the production failure rule",
+    "workerVersionId": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-14T18:45:57.394Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreUpdateTime": "2026-08-14T18:46:15.390107Z",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "readback": "PASS"
+  },
+  "durableStateAfterRollback": {
+    "rootRevision": 7,
+    "authorityRevision": 2,
+    "delivery": "active; record revision 1",
+    "compatibilityShell": "present; intended successful repair from the exactly-once command",
+    "unexpectedDurableMutation": false
+  },
+  "disposition": {
+    "browserHandoff": "blocked",
+    "adapterExpansion": "not performed",
+    "milestone2": "not started",
+    "nextOwnerBoundary": "existing Homework teacher/list-detail compatibility consumption; reproduce the exact browser failure and correct only the named PRD0062 browser-handoff blocker before any further activation"
+  }
+}

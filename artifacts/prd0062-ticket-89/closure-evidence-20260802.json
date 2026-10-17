@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "issue": 89,
+  "ticket": "PRD0062 36",
+  "capturedAt": "2026-08-02T00:20:00+07:00",
+  "localVerification": {
+    "focusedContractAndPreview": {
+      "filesPassed": 2,
+      "testsPassed": 53
+    },
+    "ruleFragmentStatic": {
+      "filesPassed": 1,
+      "testsPassed": 4
+    },
+    "firebaseRulesEmulator": {
+      "filesPassed": 1,
+      "testsPassed": 2,
+      "proved": [
+        "teacher direct-write denial",
+        "cross-teacher direct-write denial",
+        "super-admin direct-write denial",
+        "overwrite and delete denial",
+        "correction and aggregate forgery denial",
+        "ancestor and multi-location atomic denial"
+      ]
+    },
+    "targetedEslint": "passed",
+    "browserTeacherDirectWrite": {
+      "actor": "Teacher Test",
+      "operation": "PUT exact evaluation current path",
+      "status": 401,
+      "response": "Permission denied",
+      "writeOccurred": false
+    }
+  },
+  "productionEquivalentPreview": {
+    "worker": "r2-upload-signer-prd0062-ticket89-preview",
+    "bindings": [],
+    "previewVersionId": "ba81ea3b-5a3c-4bfb-aefe-a2c88bfc88eb",
+    "proofStatus": 200,
+    "proofPassed": true,
+    "repository": "firebase-rest-cas",
+    "conditionalWrites": 2,
+    "indexedHistoryQueries": 1,
+    "proved": [
+      "trusted objective revision 1",
+      "duplicate replay returns revision 1",
+      "stale command rejection",
+      "authorized teacher regrade revision 2",
+      "cross-owner denial",
+      "ordered immutable history revisions 1 and 2",
+      "submission facts preserved",
+      "visibility-neutral persisted facts"
+    ],
+    "rollback": {
+      "versionId": "b1c7526e-16f9-43f7-9a2b-74a9d65ac077",
+      "status": 503,
+      "commandAcceptance": "disabled",
+      "writable": false,
+      "boundDataStores": 0
+    },
+    "cleanup": {
+      "deletedWorker": "r2-upload-signer-prd0062-ticket89-preview",
+      "postDeleteStatus": 404
+    }
+  },
+  "ownershipBoundaries": {
+    "canonicalScorerModified": false,
+    "topLevelWorkerModified": false,
+    "routeManifestModified": false,
+    "generatedDatabaseRulesModified": false,
+    "capabilityActivated": false
+  }
+}

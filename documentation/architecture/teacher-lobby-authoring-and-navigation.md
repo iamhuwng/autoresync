@@ -69,6 +69,12 @@ Required rules:
 - Do not use emoji search icons in the input.
 - The icon must be visually inside the search input chrome, not hidden under the text caret or left padding.
 - `Create New Test` remains in the same row so the search/filter action area stays one coherent control band.
+- Test Type blocks are the category control. Do not reintroduce the coarse
+  IELTS/THCS-THPT dropdown. Assessment results expose Skill/Visibility context;
+  THCS/THPT Test Types expose Grade/Exam Type context.
+- Lists and grids expose Load More for bounded summary pages. Counts describe
+  loaded rows rather than claiming a total catalog count. Search/filter context
+  explicitly states when older rows remain available to load.
 
 ## Material Grid Card Contract
 
@@ -85,6 +91,20 @@ Required rules:
 List mode is not a widened card implementation. It must follow `documentation/architecture/teacher-materials-list-view-contract.md` for grid columns, action slots, typography, and desktop overflow gates.
 
 Selected-material actions must stay inside the Materials content area. Do not move selection toolbar controls into `TeacherHeader`, and do not let bulk action state rewrite card/list loading contracts.
+
+## Reading V2 Master Removal Contract
+
+Teacher Lobby owns the Reading V2 master removal review modal, but it does not invent canonical ownership.
+
+Required rules:
+
+- Before removing a Reading V2 master, resolve `reading_v2/material_metadata/{materialId}` and prefer its `ownerId` and `compositionId` over card/index fields.
+- After resolving canonical metadata, load `reading_v2/full_test_compositions/{compositionId}` and use that canonical ref-only composition payload for the removal write and linked-passage archive review. Summary-card `passageRefs` are not authoritative.
+- Never fall back from a missing card `ownerId` to the acting teacher UID for the removal write. A missing owner or composition id must block or use canonical metadata.
+- Emit `reading_v2_master_remove_preflight` before the write with actor, card owner, canonical owner, resolved owner, card composition, canonical composition, resolved composition, published version, canonical composition loaded/count state, owner source, linked-passage intent, and canonical load errors when present.
+- If ownership, canonical composition identity, published-version identity, or canonical composition payload cannot be verified, or ownership does not match the actor, block before RTDB write, emit `reading_v2_master_remove_blocked`, and show the shared announcement error. Thin legacy composition payloads with no `passageRefs` may still be removed as master-only rows; they cannot supply linked-passage archive targets.
+- Master removal writes `reading_v2/full_test_compositions/{compositionId}` at the full-node boundary with required ref-only fields intact and `state: removed`; it must not write only `full_test_compositions/{compositionId}/state` because RTDB rules validate the parent node.
+- Linked passage removal still requires linked passage ownership review. Master removal and linked passage archive writes remain separate service calls and separate audit events.
 
 ## Teacher Header Responsive Contract
 

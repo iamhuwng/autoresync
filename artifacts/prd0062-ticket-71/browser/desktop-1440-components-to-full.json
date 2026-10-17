@@ -1,0 +1,20 @@
+{
+  "project": "desktop-1440",
+  "route": "http://localhost:5173/__smoke/book-assembly-successor?fixture=ticket71-component&state=published",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "proof": [
+    "ticket71-component: full_pdf",
+    "teacher successor review requires explicit Source Version and local-page remap",
+    "publish creates a separately identified successor",
+    "predecessor remains active, immutable, and readable",
+    "reload preserves successor state and predecessor proof"
+  ],
+  "errors": {
+    "console": [],
+    "page": [],
+    "request": []
+  }
+}

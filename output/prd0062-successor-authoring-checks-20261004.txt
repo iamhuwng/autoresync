@@ -1,0 +1,9 @@
+
+ RUN  v4.1.9 C:/Users/The Lord/repos/luyentap-prd0062/cloudflare
+
+
+ Test Files  3 passed (3)
+      Tests  28 passed (28)
+   Start at  02:30:58
+   Duration  6.38s (transform 8.57s, setup 0ms, import 10.77s, tests 345ms, environment 1ms)
+

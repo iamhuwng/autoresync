@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
@@ -17,6 +17,8 @@ const LoginPage = () => {
   const { user, profile, loading, login, loginWithEmail } = useAuth();
   const { trackAction } = useFeatureTracking('authentication');
   const [loginError, setLoginError] = useState(null);
+  const [googleLoginPending, setGoogleLoginPending] = useState(false);
+  const googleLoginInFlight = useRef(false);
   const [devLoading, setDevLoading] = useState(null); // 'teacher' | 'student' | null
   const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
 
@@ -57,6 +59,10 @@ const LoginPage = () => {
   };
 
   const handleGoogleSignIn = async () => {
+    if (googleLoginInFlight.current) return;
+
+    googleLoginInFlight.current = true;
+    setGoogleLoginPending(true);
     setLoginError(null);
     trackAction('login', { method: 'google' });
     try {
@@ -64,6 +70,9 @@ const LoginPage = () => {
     } catch (error) {
       console.error('Login error:', error);
       setLoginError(getLoginErrorMessage(error));
+    } finally {
+      googleLoginInFlight.current = false;
+      setGoogleLoginPending(false);
     }
   };
 
@@ -224,6 +233,7 @@ const LoginPage = () => {
                 size="lg"
                 fullWidth
                 onClick={handleGoogleSignIn}
+                disabled={googleLoginPending}
               >
                 <IconBrandGoogle size={20} style={{ marginRight: '0.5rem' }} />
                 Sign in with Google

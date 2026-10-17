@@ -114,7 +114,7 @@ Manual live-test evidence from 2026-05-11:
 ## Related Docs
 
 - `documentation/tasks/tasks-0045-prd-mobile-ielts-listening-test-taking-interface.md`
-- `documentation/architecture/mobile-ielts-listening-runtime-diagnostics.md`
+- `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md`
 - `documentation/architecture/student-test-delivery-projections.md`
 - `documentation/architecture/homework-solo-practice-architecture.md`
 - `documentation/architecture/ielts-reading-v2-listening-unification.md`

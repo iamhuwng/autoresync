@@ -10,6 +10,7 @@
 export const ROUTES = {
   // Authentication
   LOGIN: '/',
+  LOGIN_PAGE: '/login',
   PROFILE: '/profile',
 
   // Teacher Routes
@@ -98,6 +99,9 @@ export const ROUTES = {
   STUDENT_LIBRARY: '/student/library',
   STUDENT_ACADEMIC_RECORD: '/student/academic-record',
   STUDENT_PRACTICE: '/student/practice/:materialId',
+  BOOK_RUNTIME_SMOKE: '/__smoke/book-runtime',
+  BOOK_HOMEWORK_COMPLETION_SMOKE: '/__smoke/book-homework-completion',
+  BOOK_ACTIVITY_EVALUATION_SMOKE: '/__smoke/book-activity-evaluation',
   RESULT_DETAIL: '/result/:resultId',
   MATERIAL_UNAVAILABLE: '/material-unavailable/:materialId',
 } as const;

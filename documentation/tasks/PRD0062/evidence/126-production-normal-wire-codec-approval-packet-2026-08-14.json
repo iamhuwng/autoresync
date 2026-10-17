@@ -1,0 +1,154 @@
+{
+  "artifactKind": "prd0062-126-production-normal-wire-codec-approval-packet",
+  "schemaVersion": 1,
+  "status": "awaiting-explicit-production-execution-approval",
+  "createdAt": "2026-08-13T19:41:34Z",
+  "expiresAt": "2026-08-13T22:41:34.000Z",
+  "supersedes": {
+    "path": "documentation/tasks/PRD0062/evidence/126-production-normal-root-fix-approval-packet-2026-08-14.json",
+    "sha256": "7b609aa7aaa7298f4ad30604a6fa5d2c3d8a766e2c0b17fb2bb5a4ed4759da9e",
+    "reason": "its authority was consumed by the failed-safe v9 execution and its Worker bundle identity predates the wire-codec repair"
+  },
+  "consumes": [
+    {
+      "path": "documentation/tasks/PRD0062/evidence/126-production-normal-root-fix-execution-result-2026-08-14.json",
+      "sha256": "8b9e302e45f2c010450361b66a7df831985f541a0203c0feaab9dff02502218a"
+    }
+  ],
+  "structuralDecision": {
+    "architecture": "retain",
+    "repositoryWireCodecBoundary": "#59 owns repair",
+    "ruleChange118": false,
+    "solAdvisorVerdict": "ship",
+    "solAdvisorP0P1Findings": [],
+    "reviewerRuntime": "unrestricted/permission disabled and behaviorally read-only, not OS-enforced"
+  },
+  "currentProduction": {
+    "worker": "r2-upload-signer",
+    "deploymentId": "db2cf382-454b-4b53-99b6-54e97cb509f6",
+    "version": "9727e42c-8854-4e66-9b5f-85d8aab7b73f",
+    "percentage": 100,
+    "rollbackMessage": "prd0062-126-production-normal-rootfix-auto-rollback-v9",
+    "observedAt": "2026-08-13T19:41:34Z",
+    "rollbackRulesCanonicalEquality": true,
+    "rollbackRulesCanonicalSha256": "e813cef379c9246db6492ad9ee7dd7e3697fb66e133b7f7d644db4b273a7ffc0",
+    "productionMutationPerformedByThisPacket": false
+  },
+  "scope": {
+    "teacherId": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "studentId": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "classId": "2NE3KY",
+    "classStatus": "active",
+    "classContainsStudent": true,
+    "bookId": "book-vocab-u1-d43935c735245dc8",
+    "unitKey": "unit-vocab-u1",
+    "activityKey": "activity-vocab-u1",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "sourceVersion": "source-version-70f2ccf7d1a42d67",
+    "account": "book_b2_primary",
+    "sourceKey": "full",
+    "existingCandidate": {
+      "candidateId": "candidate-176b795f-6c37-457f-a41f-0a42e287eed0",
+      "revision": 1
+    },
+    "pdf": {
+      "path": "C:\\Users\\The Lord\\Downloads\\Documents\\Vocab-U1.pdf",
+      "sha256": "d43935c735245dc82de93ae7068f4a556560be366299a7609649d2f0960a0266",
+      "sizeBytes": 977013,
+      "pageCount": 4
+    }
+  },
+  "reuseAndForbiddenMutation": {
+    "reuseRetainedSourceAndExistingCandidate": true,
+    "uploadBytes": false,
+    "createSecondNormalCandidate": false,
+    "reuseProvenWrongSource422Receipt": true,
+    "createAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "otherTickets": false
+  },
+  "frozenIdentities": {
+    "gitCommit": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "repositoryFileSha256": "92e5668873c7f8b867c140f251eb12e2191d0fb724c9d48ee660126fc74c46ac",
+    "repositoryTestSha256": "4dec1aa0402802c5f9606b9d78e48d3fad82e554cde26f3d51d7b6668f6913c8",
+    "generatedRulesSha256": "da74d7441c03d19562a3d558ab31ff55a53d7d3ad1cb4b3b49528a624ecab669",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rollbackRulesConfigSha256": "73f6db450456437e7359f2002fe08dc5b5d7d94424de610de3f4970e125283fb",
+    "activationConfigSha256": "02309fc938a934bf1497df7b99dfe67ed8a098177fb09fb7a2426d7b1151c00b",
+    "workerRollbackConfigSha256": "47dbcdb70e681e42d0f60016effae5bd998cff9d862e4ad8b14dcf7ef59a43c8",
+    "bundleActivationRollbackSha256": "d8dbbfb89c9b5024fc89baca8bdc75d945e7a168b98d444d685fcd4cdaea29b2",
+    "bundleSizeBytes": 1764912,
+    "bundleUploadKiB": 1723.55,
+    "bundleGzipKiB": 323.48,
+    "wranglerVersion": "4.103.0",
+    "rootLockSha256": "29653d348ffc03afe0f8605e107c2f9199cc637736af0f3a878dcfa1c089e885",
+    "cloudflareLockSha256": "67866a79caaa309cc7433e85e5becdef8fccbbe6205433d4edb78b8c26076de0",
+    "expiresAt": "2026-08-13T22:41:34.000Z"
+  },
+  "verification": {
+    "focusedRepository": "6/6",
+    "ticket59": "57/57",
+    "tsc": "exit 0",
+    "diffCheck": "exit 0",
+    "ticket118Matrix": "88/88 reused because rules identity unchanged",
+    "activationDryRun": "exit 0",
+    "rollbackDryRun": "exit 0",
+    "solAdvisor": "ship"
+  },
+  "requestedAuthority": {
+    "uploadInactiveRollbackWorkerVersion": true,
+    "uploadInactiveActivationWorkerVersion": true,
+    "deployGeneratedRules": true,
+    "activateExactWorkerAt100Percent": true,
+    "executeExactExistingTeacherWorkflow": true,
+    "createScopedDurableRevocationMarker": true,
+    "rollbackRulesAndWorker": true,
+    "createAccounts": false,
+    "widenIam": false,
+    "push": false,
+    "pullRequest": false,
+    "otherTickets": false
+  },
+  "runbookOrder": [
+    "verify hashes, expiry, PDF, current rollback, and current candidate",
+    "upload both inactive versions and validate exact bindings",
+    "deploy the same generated rules and read back",
+    "activate",
+    "validate existing candidate revision 1 as the live RTDB roundtrip gate",
+    "stage, validate, and save Activity and exact tuple binding",
+    "preview",
+    "deny stale preview",
+    "approval A",
+    "create the exact revocation marker at its scoped leaf using existing trusted operator authority; require publication deny 422 and leave marker",
+    "approval B",
+    "publication",
+    "assignment for class and student",
+    "teacher and student delivery readback",
+    "record identities",
+    "rollback on any failure"
+  ],
+  "stopGates": [
+    "exact hash, expiry, or state mismatch",
+    "inactive deployability or binding failure",
+    "rules or traffic mismatch",
+    "candidate validation anything other than HTTP 200 validated revision 2",
+    "stale or revoked denial fails",
+    "any workflow failure",
+    "any scope expansion"
+  ],
+  "wrongSourceNegative": "reuse the consumed v9 evidence; do not add another live operation",
+  "approvalBoundary": {
+    "deployment": false,
+    "activation": false,
+    "remoteMutation": false,
+    "decision": "stop for explicit approval against packet SHA"
+  },
+  "forbiddenExpansion": [
+    "other identities, Books, files, or routes",
+    "component PDF, migrations, deletion, recovery, or notifications",
+    "accounts, IAM, or public source"
+  ]
+}

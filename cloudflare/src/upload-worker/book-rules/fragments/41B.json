@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "41B",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "41B",
+    "issue": 113,
+    "serviceIdentity": "book_update_action_service",
+    "generatedRuleLocations": [
+      "book_update_action_recovery/removal_receipts/.read",
+      "book_update_action_recovery/removal_receipts/.write",
+      "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId/.read",
+      "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId/.write",
+      "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId/.validate"
+    ],
+    "leastPrivilegePaths": [
+      "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_update_action_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_update_action_recovery/removal_receipts",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/removal_receipts",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.a == $actionId && auth.token.bua.b == $bookId && auth.token.bua.contextKey == $contextKey && auth.token.bua.contextId == $contextId && auth.token.bua.studentId == $studentId && auth.token.bua.dl >= now"
+    },
+    {
+      "path": "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bua.s == true && auth.token.bua.o == $ownerId && auth.token.bua.a == $actionId && auth.token.bua.b == $bookId && auth.token.bua.contextKey == $contextKey && auth.token.bua.contextId == $contextId && auth.token.bua.studentId == $studentId && auth.token.bua.dl >= now && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('bookId').val() == $bookId && newData.child('contextKey').val() == $contextKey && newData.child('contextId').val() == $contextId && newData.child('studentId').val() == $studentId && ((!data.exists() && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1)) && !newData.child('history').exists() && !newData.child('attempt').exists() && !newData.child('result').exists() && !newData.child('checkpoint').exists()"
+    },
+    {
+      "path": "book_update_action_recovery/removal_receipts/$ownerId/$actionId/$bookId/$contextKey/$contextId/$studentId",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.exists() && newData.child('schemaVersion').val() == 1 && newData.child('ownerId').val() == $ownerId && newData.child('actionId').val() == $actionId && newData.child('bookId').val() == $bookId && newData.child('contextKey').val() == $contextKey && newData.child('contextId').val() == $contextId && newData.child('studentId').val() == $studentId && newData.child('phases').exists() && !newData.child('historicalRecords').exists() && !newData.child('currentGrade').exists()"
+    }
+  ]
+}

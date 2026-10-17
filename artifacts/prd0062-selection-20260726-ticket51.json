@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-07-26",
+  "graphArtifact": "artifacts/prd0062-graph-20260726-post-ticket27-closed.json",
+  "issueHash": "451815f16841550a2b8f89d7916d09ba4d1abed69da839be42df94d6c52567c2",
+  "issueCount": 112,
+  "openCount": 86,
+  "closedCount": 26,
+  "transitiveGate": {
+    "unresolvedTicketCount": 86,
+    "completeChainsCalculatedInGraph": true,
+    "openTransitivePrerequisiteCount": 0,
+    "graphClearFrontier": [40, 49, 50, 51, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "runtime",
+  "selectedTicket": 51,
+  "closedPrerequisites": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47],
+  "transitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 44, 45, 46, 47],
+  "downstreamLeverage": 67,
+  "acceptanceReadiness": {
+    "status": "eligible-pending-live-contract-and-seam-audit",
+    "retainedProof": [
+      "Book document authorization before Delivery/source lookup",
+      "current Firebase identity, entitlement, publication, pinned Source Version, and revocation re-resolution",
+      "opaque route non-capability and document-ledger retirement",
+      "safe denial classes and log-safety",
+      "local Worker, repository, route, and rollback proof"
+    ],
+    "destinationOwnedProof": [
+      "#59 fixed top-level route composition and deployed Worker identity/config readback",
+      "#54/#73 viewer, transport, and assembled browser proof",
+      "#118 assembled generated-rules deployment/readback/rollback"
+    ],
+    "requiredAuthority": [
+      "live #51 issue contract",
+      "closed #31 Book Delivery binding contract",
+      "Cloudflare media profile and `kahoot-media` sentinel account",
+      "Firebase token-verification configuration names",
+      "localhost:5173 teacher browser session only if browser proof is reached"
+    ],
+    "authorityCheck": {
+      "node": "x64 C:\\Users\\The Lord\\Tools\\node-x64\\node.exe",
+      "wrangler": "4.112.0",
+      "profile": "media",
+      "sentinelBuckets": ["kahoot-media", "luyentap-book-source-private"],
+      "remoteMutationPerformed": false
+    }
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 40,
+      "decision": "ineligible",
+      "reason": "Acceptance/ownership contradiction remains: no supported long-response matrix row; #37 rejects required registration. Blocker recorded; do not start descendant or integrated proof."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Operations/provisioning phase; lower leverage 2; not current Runtime phase."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Operations/reconciliation phase; leverage 16; #51 is earlier Runtime delivery authorization enabler."
+    },
+    {
+      "ticket": 51,
+      "decision": "selected",
+      "reason": "Earliest eligible Runtime delivery root/enabler with closed direct/transitive chain and leverage 67; blocker family is independent from #40."
+    },
+    {
+      "ticket": 56,
+      "decision": "rejected",
+      "reason": "Teacher Workflow phase; leverage 70 but phase follows Runtime."
+    },
+    {
+      "ticket": 64,
+      "decision": "rejected",
+      "reason": "Teacher Workflow/publication phase; leverage 64; phase follows Runtime delivery authorization."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final Closure phase and preserved #50A boundary."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final Closure phase and preserved #50A boundary."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final Closure phase and preserved #50A boundary."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final Closure phase and preserved #50A boundary."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final Closure phase and preserved #50A boundary."
+    }
+  ]
+}

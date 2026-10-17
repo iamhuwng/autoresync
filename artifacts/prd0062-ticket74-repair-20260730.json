@@ -1,0 +1,47 @@
+{
+  "ticket": 74,
+  "generatedAt": "2026-07-30",
+  "result": "LOCAL_REPAIR_READY_FOR_CLOSURE",
+  "closureContradiction": {
+    "evidence": [
+      "Before repair, only InMemoryBookRuntimeRepository existed.",
+      "Canonical default runtime handler construction had no durable repository and returned book_runtime_repository_unavailable.",
+      "Closed #74's original emulator/deployed proof mixed fragment-owned and destination-owned evidence."
+    ],
+    "repairs": [
+      "Added FirebaseRestBookRuntimeRepository with scoped book_runtime/scopes/{recipient}/{context}/{placement}/{interaction} aggregate storage.",
+      "Added bounded REST timeout, ETag-CAS retry, operation retention, scope-size/entry limits, and exact service-identity validation before each durable write.",
+      "Added atomic draft, attempt, result, completion, index, and idempotency receipt persistence.",
+      "Transferred assembled Firebase emulator/generated-rules proof to #118 destination-first.",
+      "Confirmed canonical production repository/binding-resolver injection remains #59-owned; deployed/canary proof remains #134-owned."
+    ]
+  },
+  "verification": {
+    "cloudflareRuntimeSuite": {
+      "files": 6,
+      "tests": 42,
+      "typeErrors": 0,
+      "status": "PASS"
+    },
+    "fragmentSecuritySuite": {
+      "files": 1,
+      "tests": 2,
+      "typeErrors": 0,
+      "status": "PASS"
+    },
+    "scopedEslint": "PASS",
+    "jsonParse": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "destinationProof": {
+    "118": "assembled rules/emulator/hash/readback/rollback remains open",
+    "59": "canonical durable repository and binding injection remains open only if absent after #74",
+    "134": "deployed/canary runtime proof remains open"
+  },
+  "safetyState": {
+    "03B": "DISABLED",
+    "50A": "ALL_SIX_DENY_DEFAULT_DENY",
+    "privateB2": "DISABLED_PENDING_ACCEPTANCE",
+    "trustedActions": "DISABLED_BY_DEFAULT"
+  }
+}

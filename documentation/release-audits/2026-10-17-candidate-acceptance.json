@@ -1,0 +1,63 @@
+{
+  "observedAt": "2026-10-17T12:12:26.743Z",
+  "sourceFilesCompared": 2509,
+  "sourceContentFingerprint": "c0e09431eb3aa7290dff174fbca03084e3625b371a9360fc41fdcd1e5641dac3",
+  "build": {
+    "mode": "acceptance",
+    "environment": "fake disposable emulators",
+    "normalMinification": true,
+    "entry": "assets/index-BVk7wWnG.js",
+    "entryBytes": 268693,
+    "entrySha256": "ee7cfc62e6f172ae3386199c76980676491b1e5d8ad4f30d9de43b59b7ca0eda",
+    "javascriptAssetsScanned": 392,
+    "credentialShapes": false
+  },
+  "browser": {
+    "passed": true,
+    "roles": [
+      {
+        "role": "teacher",
+        "loginEntry": "http://localhost:5173/login",
+        "destination": "/teacher/classes/class1",
+        "readPersisted": true,
+        "browser": "Chromium",
+        "fixture": "disposable source-shaped notice; consumer proof, not provider delivery proof"
+      },
+      {
+        "role": "student",
+        "loginEntry": "http://localhost:5174/login",
+        "destination": "/student/dashboard",
+        "readPersisted": true,
+        "browser": "Chromium",
+        "fixture": "disposable source-shaped notice; consumer proof, not provider delivery proof"
+      },
+      {
+        "role": "admin",
+        "loginEntry": "http://localhost:5173/login",
+        "destination": "/admin/settings",
+        "authenticatedGatewayMetadataRendered": true,
+        "fixture": "metadata-only local gateway stub; deployed admin API compatibility not proven"
+      }
+    ],
+    "remoteBackendConnections": 0,
+    "gatewayCalls": [
+      {
+        "method": "GET",
+        "path": "/ai/keys",
+        "authenticated": true
+      }
+    ],
+    "ignoredDiagnostics": [
+      "Blocked Google Fonts requests",
+      "Request cancellation on navigation/reload/context close"
+    ],
+    "loopbackPermissionGranted": true,
+    "originalServersReplaced": false
+  },
+  "limits": [
+    "Seeded ordinary notices prove browser consumers, not deployed provider delivery.",
+    "AI settings rendered authenticated metadata from a local stub; deployed administrator API compatibility and real provider execution were not exercised.",
+    "Built artifact uses disposable configuration, not the missing reviewed production environment.",
+    "Historical Hosting has no exact Git source manifest. No main promotion, push, or deployment."
+  ]
+}

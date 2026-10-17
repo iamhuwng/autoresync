@@ -1,0 +1,12 @@
+{
+  "project": "mobile-320",
+  "route": "http://localhost:5173/__smoke/book-assembly?fixture=ticket63-preview",
+  "proof": [
+    "teacher quick-login local fixture",
+    "candidate-scoped source-assisted shared runtime frame",
+    "keyboard response selection and isolated response clear on exit/reload",
+    "mobile 44px target and 200%-reflow overflow safety",
+    "no canonical route, delivery, publication, or persistence claim"
+  ],
+  "consoleErrors": []
+}

@@ -1,0 +1,47 @@
+{
+  "docPath": "architecture/book-activity-runtime-and-assembly",
+  "currentVersion": 1,
+  "versions": [
+    {
+      "id": "v1",
+      "docPath": "architecture/book-activity-runtime-and-assembly",
+      "version": 1,
+      "timestamp": "2026-07-09T00:00:00.0000000Z",
+      "changes": [
+        {
+          "field": "title",
+          "oldValue": null,
+          "newValue": "Book Activity Runtime And Assembly Architecture"
+        },
+        {
+          "field": "description",
+          "oldValue": null,
+          "newValue": "PRD0062 planning architecture for Book Activity domain, Assembly Workspace, runtime, homework, updates, delivery, and obsolete parser boundaries."
+        },
+        {
+          "field": "tags",
+          "oldValue": null,
+          "newValue": [
+            "architecture",
+            "book-activity",
+            "prd0062",
+            "book-runtime",
+            "homework"
+          ]
+        }
+      ],
+      "snapshot": {
+        "title": "Book Activity Runtime And Assembly Architecture",
+        "description": "PRD0062 planning architecture for Book Activity domain, Assembly Workspace, runtime, homework, updates, delivery, and obsolete parser boundaries.",
+        "tags": [
+          "architecture",
+          "book-activity",
+          "prd0062",
+          "book-runtime",
+          "homework"
+        ],
+        "content": "Mirror: .knowns/docs/architecture/book-activity-runtime-and-assembly.md"
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-07-27T13:00:00.000Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260727-selection-after-64.json",
+  "issueHash": "e2557a89f85d2ea877f186a38028491cd0be20c39bdd27b9c3c39a6779c222e0",
+  "issueCount": 112,
+  "openCount": 72,
+  "closedCount": 40,
+  "uniqueEdgeCount": 308,
+  "graphClearFrontier": [49, 50, 65, 66, 67, 68, 70, 129, 130, 131, 132, 133],
+  "roadmapPhase": "Runtime",
+  "selectedPrimary": {
+    "issue": 65,
+    "title": "PRD0062 16 - Publish one full-PDF Unit atomically",
+    "closedPrerequisites": [25, 26, 27, 29, 30, 31, 64],
+    "downstreamLeverage": 60,
+    "acceptanceReadiness": "Executable as #65-owned local full-PDF adapter, trusted-ID allocation facade, transaction/rules tests, and fixture-backed teacher workflow. Deployed/canary, activated private-B2, generated-rules, assembled student-shell, and final-suite proof remain destination-owned.",
+    "requiredAuthority": "Local source/tests plus live GitHub evidence. No #50A, #03B, trusted-action, private-B2, generated-rules deployment, or production route activation."
+  },
+  "candidateRejections": [
+    {
+      "issue": 66,
+      "reason": "Graph-clear Runtime sibling with same leverage, but #65 full-PDF strategy is earlier roadmap adapter and current selected primary. Work exactly one primary."
+    },
+    {
+      "issue": 67,
+      "reason": "Graph-clear but downstream repair workflow; lower current critical-path leverage than initial full-PDF publication root."
+    },
+    {
+      "issue": 68,
+      "reason": "Graph-clear but Activity revision workflow; depends on publication primitive and has lower leverage than #65 initial full-PDF publication."
+    },
+    {
+      "issue": 70,
+      "reason": "Graph-clear but unpublished strategy migration path; lower leverage than #65 and not the earliest publication adapter root."
+    },
+    {
+      "issue": 49,
+      "reason": "Graph-clear B2 provisioning root, but private-B2 remains disabled and #65 local proof does not require activation; lower leverage."
+    },
+    {
+      "issue": 50,
+      "reason": "Graph-clear B2 cleanup/reconcile ticket, but not required for #65 local adapter proof and lower leverage."
+    },
+    {
+      "issue": 129,
+      "reason": "Final/browser regression ticket; not current Runtime phase and not acceptance-ready before producer chain closure."
+    },
+    {
+      "issue": 130,
+      "reason": "Final/browser regression ticket; not current Runtime phase and not acceptance-ready before producer chain closure."
+    },
+    {
+      "issue": 131,
+      "reason": "Final/browser regression ticket; not current Runtime phase and not acceptance-ready before producer chain closure."
+    },
+    {
+      "issue": 132,
+      "reason": "Final/security regression ticket; not current Runtime phase and not acceptance-ready before producer chain closure."
+    },
+    {
+      "issue": 133,
+      "reason": "Final/recovery regression ticket; not current Runtime phase and not acceptance-ready before producer chain closure."
+    }
+  ]
+}

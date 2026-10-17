@@ -1,0 +1,105 @@
+{
+  "ticket": 93,
+  "ticketCode": "38A",
+  "recordedAt": "2026-07-29T06:40:00Z",
+  "proofClass": "local implementation, authenticated localhost product journeys, authenticated browser module denial proof, and finalized preview deployment readback",
+  "selection": {
+    "graphArtifact": "artifacts/prd0062-graph-20260729-ticket93-preclosure.json",
+    "graphHash": "1e77826dd7c999b0a2c533cc3ba8591311761e9f95f8d5a77dcc5c633cc4a86a",
+    "selectionArtifact": "artifacts/prd0062-selection-20260729-post-ticket105.json",
+    "primaryTicket": 93
+  },
+  "implementation": {
+    "legacyReadCompatibility": true,
+    "boundedVersionedBookMetadata": true,
+    "structuredBookWritesEnabled": false,
+    "storedArbitraryUrlsTrusted": false,
+    "clickTimeAuthorizationAndStateValidation": true,
+    "rawRouteNavigationInPanel": false,
+    "producerMigrationPerformed": false,
+    "newQueueOrFanoutLedger": false
+  },
+  "verification": {
+    "focusedTests": {
+      "command": "node scripts/harness/run-tool.mjs vitest . run src/services/notificationMetadata.test.ts src/services/notificationDestinationResolver.test.ts src/services/notificationService.test.ts src/components/notifications/NotificationBell.test.tsx src/components/notifications/NotificationPanel.test.tsx src/components/navigation/TeacherNavigation.test.tsx",
+      "result": "PASS",
+      "files": 6,
+      "tests": 65
+    },
+    "eslint": "PASS for all #93 source and test paths",
+    "mantineBoundary": "PASS",
+    "diffCheck": "PASS",
+    "productionBuild": {
+      "command": "node scripts/harness/run-tool.mjs vite . build --outDir <repository>/dist --emptyOutDir && node scripts/check-bundle-budget.mjs",
+      "result": "PASS",
+      "modules": 9446,
+      "bundleBudget": "PASS"
+    },
+    "independentReview": {
+      "model": "gpt-5.6-luna",
+      "reasoning": "x-high",
+      "result": "PASS after legacy Book URL fail-closed repair"
+    },
+    "browser": {
+      "teacher": {
+        "url": "http://localhost:5173",
+        "authenticatedUser": "teacher@test.com",
+        "result": "PASS",
+        "observed": "Real New Writing Submission notification opened canonical teacher grading destination and displayed student submission."
+      },
+      "student": {
+        "url": "http://localhost:5174",
+        "authenticatedUser": "student@test.com",
+        "result": "PASS",
+        "observed": "Real New Session Available notification opened canonical student waiting-room destination."
+      },
+      "bookDenial": {
+        "classification": "authenticated localhost browser module proof; not a normal product journey",
+        "result": "PASS",
+        "observed": [
+          "missing trusted reader returns destination-state-unavailable",
+          "stale destination returns stale-destination",
+          "unauthorized destination returns unauthorized"
+        ]
+      }
+    },
+    "previewDeployment": {
+      "url": "https://kahut1--prd0062-ticket93-lw29qcsx.web.app",
+      "project": "temp-a1437",
+      "site": "kahut1",
+      "release": "sites/kahut1/releases/1785306728862000",
+      "version": "projects/temp-a1437/sites/kahut1/versions/d855eb712cee3a4b",
+      "status": "FINALIZED",
+      "expiresAt": "2026-07-29T07:31:55.697107090Z",
+      "bundleReadback": [
+        {
+          "asset": "notificationService-DnI8Wk9_.js",
+          "sha256": "2AC3D45812C187790F3F68A026326C706B3D626BC71B090ADE4AB9206B796BBA",
+          "localAndDeployedMatch": true,
+          "structuredBookWriteDenialPresent": true
+        },
+        {
+          "asset": "TeacherHeader-BuR8XGUS.js",
+          "sha256": "6884D03352122D9A25B15F05A607DAD4993FF4CF3D00D2A51C3527695EE41B8B",
+          "localAndDeployedMatch": true,
+          "compatibilityAndFailClosedResolverPresent": true
+        }
+      ],
+      "authenticatedPreviewJourney": "NOT CLAIMED: preview quick-login failed with network/referrer configuration error"
+    },
+    "rollback": {
+      "result": "PASS",
+      "structuredBookWritesEnabled": false,
+      "legacyReaderRetained": true,
+      "existingNotificationsRewritten": false,
+      "firebaseMutationAttemptedForDeniedStructuredWrites": false
+    }
+  },
+  "safety": {
+    "productionDeployPerformed": false,
+    "trustedActionGatesEnabled": false,
+    "ticket50AChanged": false,
+    "ticket03BChanged": false,
+    "privateB2Changed": false
+  }
+}

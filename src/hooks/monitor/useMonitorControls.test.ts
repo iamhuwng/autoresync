@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMonitorControls } from './useMonitorControls';
 
@@ -10,6 +10,7 @@ const {
   autoSubmitDisconnectedStudentsMock,
   identifyDisconnectedStudentsMock,
   identifyUnsubmittedStudentsMock,
+  createTrustedBulkNotificationsMock,
 } = vi.hoisted(() => ({
   mockNavigateTo: vi.fn(),
   getMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   autoSubmitDisconnectedStudentsMock: vi.fn(),
   identifyDisconnectedStudentsMock: vi.fn(),
   identifyUnsubmittedStudentsMock: vi.fn(),
+  createTrustedBulkNotificationsMock: vi.fn(),
 }));
 
 vi.mock('../useNavigation', () => ({
@@ -44,6 +46,10 @@ vi.mock('../../utils/monitor', () => ({
   identifyUnsubmittedStudents: (...args: any[]) => identifyUnsubmittedStudentsMock(...args),
 }));
 
+vi.mock('../../services/notificationProducerClient', () => ({
+  createTrustedBulkNotifications: (...args: any[]) => createTrustedBulkNotificationsMock(...args),
+}));
+
 const TEST_DATA = {
   title: 'Canonical Test',
   type: 'quiz',
@@ -64,6 +70,7 @@ describe('useMonitorControls', () => {
     autoSubmitDisconnectedStudentsMock.mockResolvedValue([]);
     identifyDisconnectedStudentsMock.mockReturnValue([]);
     identifyUnsubmittedStudentsMock.mockReturnValue([]);
+    createTrustedBulkNotificationsMock.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -87,6 +94,37 @@ describe('useMonitorControls', () => {
         reviewReleaseState: 'review-released',
       })
     );
+  });
+
+  it('uses monitor authority and stable retry identity for end-session notifications', async () => {
+    getMock.mockResolvedValue({
+      exists: () => true,
+      val: () => ({ 'student-1': { uid: 'student-1' }, 'student-2': { uid: 'student-2' } }),
+    });
+
+    const { result } = renderHook(() => useMonitorControls(
+      'SESSION-END-1',
+      { linkedClassId: 'class-1', testId: 'test-1', startTime: 1722220000000 } as any,
+      { ...TEST_DATA, title: 'Monitor Test' } as any,
+      null,
+    ));
+
+    await act(async () => {
+      await result.current.endFullSession(false, true);
+    });
+
+    await waitFor(() => expect(createTrustedBulkNotificationsMock).toHaveBeenCalledWith(
+      ['student-1', 'student-2'],
+      {
+        producerFamily: 'monitor',
+        authorityRecordId: 'SESSION-END-1',
+        operationKey: 'test-ended:SESSION-END-1:test-1:1722220000000',
+        type: 'success',
+        title: '✅ Test Completed',
+        message: '"Monitor Test" session has ended. View your results.',
+        link: '/student/academic-record',
+      },
+    ));
   });
 
   it('preserves feedback-released when the session is already fully released', async () => {

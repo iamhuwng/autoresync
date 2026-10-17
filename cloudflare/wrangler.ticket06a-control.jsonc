@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-book-source-control-ticket06a-preview",
+  "main": "src/book-source-worker/control-worker.ts",
+  "compatibility_date": "2026-07-22",
+  "workers_dev": false,
+  "vars": {
+    "BOOK_SOURCE_UPLOAD_CONTROL_STATE": "disabled",
+    "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173"
+  }
+
+  // Ticket 09D/#59 owns live route and identity composition.
+  // Provision only dedicated bindings there:
+  // BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY
+  // BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY (secret)
+  // FIREBASE_PROJECT_ID
+  // FIREBASE_DB_URL
+  //
+  // Never provision generic GOOGLE_SA_KEY, browser-readable Firebase
+  // credentials, permanent provider credentials, or PDF bodies here.
+}

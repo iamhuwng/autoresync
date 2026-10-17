@@ -118,20 +118,6 @@ interface AudioSection {
   uploadETA?: number; // Estimated time remaining in seconds
 }
 
-type ListeningTempCleanupTarget = {
-  sectionNumber: number;
-  uploadSessionId: string;
-  assetId: string;
-  tempKey: string;
-};
-
-type ListeningTempCleanupReason =
-  | 'builder-cancel'
-  | 'discard-draft'
-  | 'section-removed'
-  | 'replacement-cancelled'
-  | 'navigation-away';
-
 interface ListeningTestMetadata {
   title: string;
   type: TestType;
@@ -323,6 +309,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   // Display mode: 'text' for IELTS-like full-width, 'image' for two-column with question images
   const [displayMode, setDisplayMode] = useState<ListeningDisplayMode>(initialDisplayMode);
   const [questionImages, setQuestionImages] = useState<QuestionImage[]>([]);
+  const [uploadingQuestionImages, setUploadingQuestionImages] = useState(0);
   const [activeAnswerSectionNumber, setActiveAnswerSectionNumber] = useState(1);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<ParsedQuestion[]>([]);
@@ -375,15 +362,6 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   const initialFingerprintRef = useRef<string | null>(null);
   const pendingNavigationRef = useRef<null | (() => void)>(null);
   const uploadAttemptIdsRef = useRef<Record<number, string>>({});
-  const uploadAbortControllersRef = useRef<Record<number, AbortController>>({});
-  const uploadingSectionsRef = useRef<Set<number>>(new Set());
-  const metadataRef = useRef(metadata);
-  metadataRef.current = metadata;
-  const cleanupQueueRef = useRef<Map<string, {
-    target: ListeningTempCleanupTarget;
-    reason: ListeningTempCleanupReason;
-  }>>(new Map());
-  const cleanupInFlightRef = useRef<Set<string>>(new Set());
   const createAuthoringWorkflow = () => createListeningAuthoringWorkflow({
     onObservabilityEvent: (actionName, metadata) => trackAction(actionName, metadata),
   });
@@ -545,111 +523,6 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     setDraftStatusMessage(undefined);
     setDuplicateAction(null);
   };
-
-  const cleanupTargetForSection = (section: AudioSection): ListeningTempCleanupTarget | null => {
-    const { uploadSessionId, assetId, tempKey } = section;
-    if (!uploadSessionId || !assetId || !tempKey || !tempKey.startsWith('temp/listening/')) return null;
-    const segments = tempKey.split('/');
-    if (segments.length < 5 || segments[3] !== uploadSessionId || !segments[4].startsWith(`${assetId}-`)) {
-      return null;
-    }
-    return { sectionNumber: section.number, uploadSessionId, assetId, tempKey };
-  };
-
-  const collectTempCleanupTargets = (sections: readonly AudioSection[]): ListeningTempCleanupTarget[] =>
-    sections
-      .map(cleanupTargetForSection)
-      .filter((target): target is ListeningTempCleanupTarget => target !== null);
-
-  const syncUploadingSection = () => {
-    const next = uploadingSectionsRef.current.values().next().value as number | undefined;
-    setUploadingSection(next ?? null);
-  };
-
-  const markUploadStarted = (sectionNumber: number) => {
-    uploadingSectionsRef.current.add(sectionNumber);
-    syncUploadingSection();
-  };
-
-  const markUploadFinished = (sectionNumber: number) => {
-    uploadingSectionsRef.current.delete(sectionNumber);
-    syncUploadingSection();
-  };
-
-  const abortUploadForSection = (sectionNumber: number) => {
-    const controller = uploadAbortControllersRef.current[sectionNumber];
-    if (controller) {
-      controller.abort();
-      delete uploadAbortControllersRef.current[sectionNumber];
-    }
-    uploadAttemptIdsRef.current[sectionNumber] = createListeningUploadAttemptId(sectionNumber);
-    markUploadFinished(sectionNumber);
-  };
-
-  const abortAllUploads = () => {
-    Object.keys(uploadAbortControllersRef.current).forEach((sectionNumber) => {
-      abortUploadForSection(Number(sectionNumber));
-    });
-  };
-
-  const flushListeningTempCleanup = async () => {
-    const entries = Array.from(cleanupQueueRef.current.entries())
-      .filter(([key]) => !cleanupInFlightRef.current.has(key));
-    await Promise.allSettled(entries.map(async ([key, entry]) => {
-      cleanupInFlightRef.current.add(key);
-      try {
-        await r2StorageService.cancelListeningAuthoringUpload({
-          uploadSessionId: entry.target.uploadSessionId,
-          assetId: entry.target.assetId,
-          reason: entry.reason,
-        });
-        if (cleanupQueueRef.current.get(key) === entry) cleanupQueueRef.current.delete(key);
-      } catch (error) {
-        // Keep the unique target queued for the next lifecycle opportunity. This
-        // never blocks navigation or changes the saved section state.
-        console.warn('[listening-builder] Listening temp cleanup failed', {
-          reason: entry.reason,
-          retryable: Boolean(error && typeof error === 'object' && 'retryable' in error
-            && (error as { retryable?: unknown }).retryable),
-        });
-      } finally {
-        cleanupInFlightRef.current.delete(key);
-      }
-    }));
-  };
-
-  const enqueueListeningTempCleanup = (
-    targets: readonly ListeningTempCleanupTarget[],
-    reason: ListeningTempCleanupReason,
-  ) => {
-    for (const target of targets) {
-      const key = `${target.uploadSessionId}:${target.assetId}`;
-      if (!cleanupQueueRef.current.has(key)) {
-        cleanupQueueRef.current.set(key, { target, reason });
-      }
-    }
-    void flushListeningTempCleanup().catch(() => {
-      // flushListeningTempCleanup uses allSettled; this guard protects against
-      // unexpected transport/mocking failures without an unhandled rejection.
-    });
-  };
-
-  const leaveBuilder = (callback?: () => void) => {
-    abortAllUploads();
-    enqueueListeningTempCleanup(
-      collectTempCleanupTargets(metadataRef.current.sections),
-      'navigation-away',
-    );
-    callback?.();
-  };
-
-  useEffect(() => () => {
-    abortAllUploads();
-    enqueueListeningTempCleanup(
-      collectTempCleanupTargets(metadataRef.current.sections),
-      'navigation-away',
-    );
-  }, []);
 
   const handleDuplicateAction = (action: 'saveDraft' | 'publish') => {
     setDuplicateAction(action);
@@ -950,13 +823,6 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   useAppLifecycle({
     onBeforeUnload: () => {
-      if (canDiscard) {
-        abortAllUploads();
-        enqueueListeningTempCleanup(
-          collectTempCleanupTargets(metadataRef.current.sections),
-          'navigation-away',
-        );
-      }
       if (!canDiscard) return undefined;
       return 'You have unsaved listening draft changes. Save draft or discard before leaving.';
     },
@@ -1006,16 +872,9 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       delete nextErrors[`section${sectionNumber}`];
       return nextErrors;
     });
-    const previousCleanupTarget = cleanupTargetForSection(
-      metadataRef.current.sections.find((section) => section.number === sectionNumber)
-        ?? createDefaultSection(),
-    );
-    abortUploadForSection(sectionNumber);
+    setUploadingSection(sectionNumber);
     const uploadAttemptId = createListeningUploadAttemptId(sectionNumber);
-    const uploadAbortController = new AbortController();
-    uploadAbortControllersRef.current[sectionNumber] = uploadAbortController;
     uploadAttemptIdsRef.current[sectionNumber] = uploadAttemptId;
-    markUploadStarted(sectionNumber);
     const startTime = Date.now();
 
     updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
@@ -1047,8 +906,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
               uploadETA: eta,
             });
           }
-        },
-        { signal: uploadAbortController.signal },
+        }
       );
 
       updateSectionForUploadAttempt(sectionNumber, uploadAttemptId, {
@@ -1064,15 +922,10 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         uploadETA: 0,
       });
 
-      if (previousCleanupTarget && previousCleanupTarget.assetId !== result.assetId) {
-        enqueueListeningTempCleanup([previousCleanupTarget], 'replacement-cancelled');
-      }
-
       console.log(`✅ Section ${sectionNumber} audio uploaded successfully`);
     } catch (error) {
       console.error('Upload error:', error);
       if (uploadAttemptIdsRef.current[sectionNumber] !== uploadAttemptId) return;
-      if (uploadAbortController.signal.aborted) return;
       setErrors((currentErrors) => ({
         ...currentErrors,
         [`section${sectionNumber}`]: 'Failed to upload audio file. Please try again.',
@@ -1086,11 +939,8 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         setIsAuthenticated(false);
       }
     } finally {
-      if (uploadAbortControllersRef.current[sectionNumber] === uploadAbortController) {
-        delete uploadAbortControllersRef.current[sectionNumber];
-      }
       if (uploadAttemptIdsRef.current[sectionNumber] === uploadAttemptId) {
-        markUploadFinished(sectionNumber);
+        setUploadingSection(null);
       }
     }
   };
@@ -1154,25 +1004,13 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   // Remove a section by number
   const removeSection = (sectionNumber: number) => {
-    const currentSections = metadataRef.current.sections;
-    if (currentSections.length <= 1) return;
-
-    const cleanupTarget = cleanupTargetForSection(
-      currentSections.find((section) => section.number === sectionNumber) ?? createDefaultSection(),
-    );
-    // Renumbering would otherwise let a stale completion write into the next
-    // section. Abort the removed section and every section that will shift.
-    Object.keys(uploadAbortControllersRef.current)
-      .map(Number)
-      .filter((number) => number >= sectionNumber)
-      .forEach(abortUploadForSection);
-    if (cleanupTarget) enqueueListeningTempCleanup([cleanupTarget], 'section-removed');
+    if (metadata.sections.length <= 1) return;
 
     trackAction('listeningSectionRemoved', {
       source: 'listening_builder',
       step: currentStep,
       sectionNumber,
-      sectionCount: currentSections.length - 1,
+      sectionCount: metadata.sections.length - 1,
     });
     setQuestionImages(prev => prev
       .filter(image => image.sectionNumber !== sectionNumber)
@@ -1311,7 +1149,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     if (currentStep === 'mode-select') {
       if (isEmbedded && onExit) {
         trackStepNavigation('back', currentStep, 'listening-mode');
-        leaveBuilder(onExit);
+        onExit();
         return;
       }
       if (canDiscard) {
@@ -1322,12 +1160,12 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         return;
       }
       trackStepNavigation('back', currentStep, 'sessions');
-      leaveBuilder(() => navigateTo('SESSIONS', {}, { reason: 'listening_builder_back' }));
+      navigateTo('SESSIONS', {}, { reason: 'listening_builder_back' });
     }
     else if (currentStep === 'audio') {
       if (isEmbedded && initialStep === 'audio' && onExit) {
         trackStepNavigation('back', currentStep, 'listening-mode');
-        leaveBuilder(onExit);
+        onExit();
         return;
       }
       trackStepNavigation('back', currentStep, 'mode-select');
@@ -1576,8 +1414,6 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     try {
       const navigationTarget = pendingNavigationRef.current;
       const discardReason = discardContext;
-      const cleanupTargets = collectTempCleanupTargets(metadataRef.current.sections);
-      abortAllUploads();
 
       if (draftId) {
         const result = await createAuthoringWorkflow().discardDraft({
@@ -1600,10 +1436,8 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           conflictToken: result.conflictToken ?? draftConflictToken,
         });
         setDraftConflictToken(result.conflictToken ?? draftConflictToken);
-        enqueueListeningTempCleanup(cleanupTargets, 'discard-draft');
       } else {
         resetBuilderState();
-        enqueueListeningTempCleanup(cleanupTargets, 'builder-cancel');
       }
       setDraftStatusMode('discarded');
       announceListeningDraftDiscarded();
@@ -2033,6 +1867,19 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
     });
   };
 
+  const uploadQuestionImage = async (section: AudioSection, file: File) => {
+    setUploadingQuestionImages(count => count + 1);
+    try {
+      const uploaded = await r2StorageService.uploadImage(file);
+      handleAddImage(section, uploaded.url);
+    } catch (error) {
+      console.error('Question image upload failed:', error);
+      toast.error('Could not upload the question image. Please try again.');
+    } finally {
+      setUploadingQuestionImages(count => count - 1);
+    }
+  };
+
   // Global paste handler for image mode
   useEffect(() => {
     if (currentStep !== 'questions-images') return;
@@ -2068,12 +1915,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         // If we have a file, and there's only one section with valid audio, use it
         const validSections = metadata.sections.filter(s => s.audioUrl);
         if (validSections.length === 1) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            handleAddImage(validSections[0], event.target?.result as string);
-          };
-          reader.readAsDataURL(file);
-          // Image paste succeeds silently because the section preview updates immediately.
+          await uploadQuestionImage(validSections[0], file);
         } else {
           // If multiple sections, we can't guess. 
           // Maybe show a modal? 
@@ -3649,7 +3491,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               <input
                                 type="file"
                                 accept="image/*,.png,.jpg,.jpeg,.gif,.webp"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
                                     trackAction('listeningQuestionImageUploadRequested', {
@@ -3659,12 +3501,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                                       fileType: file.type,
                                       fileSizeBytes: file.size,
                                     });
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                      const dataUrl = event.target?.result as string;
-                                      handleAddImage(section, dataUrl);
-                                    };
-                                    reader.readAsDataURL(file);
+                                    await uploadQuestionImage(section, file);
                                   }
                                   e.target.value = '';
                                 }}
@@ -3690,12 +3527,11 @@ Write NO MORE THAN TWO WORDS for each answer.
                                       if (imageType) {
                                         foundImage = true;
                                         const blob = await item.getType(imageType);
-                                        const reader = new FileReader();
-                                        reader.onload = (event) => {
-                                          const dataUrl = event.target?.result as string;
-                                          handleAddImage(section, dataUrl);
-                                        };
-                                        reader.readAsDataURL(blob);
+                                        await uploadQuestionImage(section, new File(
+                                          [blob],
+                                          `pasted-image.${imageType.slice(6).replace('jpeg', 'jpg')}`,
+                                          { type: imageType },
+                                        ));
                                         break; // Only paste one image at a time
                                       }
                                     }
@@ -3749,6 +3585,7 @@ Write NO MORE THAN TWO WORDS for each answer.
                               >
                                 Paste
                               </button>
+                              {uploadingQuestionImages > 0 && <span role="status">Uploading image…</span>}
 
                               <button
                                 type="button"
@@ -4672,7 +4509,7 @@ Write NO MORE THAN TWO WORDS for each answer.
               pendingAction={pendingAction}
               canDiscard={canDiscard}
               showNext={currentStep !== 'review' && currentStep !== 'questions-text'}
-              actionsDisabled={Boolean(discardedDraft) || lifecyclePendingAction !== null}
+              actionsDisabled={Boolean(discardedDraft) || lifecyclePendingAction !== null || uploadingQuestionImages > 0}
               trailingContent={(
                 <ListeningLifecycleActions
                   canRestore={Boolean(discardedDraft)}

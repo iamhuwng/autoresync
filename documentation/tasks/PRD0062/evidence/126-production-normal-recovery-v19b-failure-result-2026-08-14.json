@@ -1,0 +1,54 @@
+{
+  "artifactKind": "prd0062-126-production-normal-recovery-failure-result",
+  "schemaVersion": 1,
+  "status": "rolled-back-circuit-breaker-stop",
+  "createdAt": "2026-08-14T01:59:51Z",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-recovery-v19b-checkpoint-2026-08-14.json",
+  "attempt": {
+    "activationRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "activationWorkerVersionId": "4cd8e081-5183-4717-b93f-f1549ccbf0ee",
+    "assignmentId": "assignment-vocab-u1-d43935c735245dc8",
+    "operationId": "b751bf00-e142-4338-9b93-7081d3572ef0",
+    "httpStatus": 409,
+    "response": {
+      "status": "compensated",
+      "state": "compensated",
+      "visibility": "hidden",
+      "recipientCount": 1,
+      "committedRecipientCount": 0,
+      "revision": 5
+    }
+  },
+  "durableReadback": {
+    "sagaPath": "book_homework/operations/assignment-vocab-u1-d43935c735245dc8",
+    "sagaState": "compensated",
+    "sagaRevision": 5,
+    "lastError": "book_homework_firestore_write_failed:403",
+    "recipientState": "compensated",
+    "firestoreAuthority": null,
+    "deliveryIndex": null,
+    "deliveryScope": null
+  },
+  "classification": {
+    "class": "REAL_PRODUCT_DEFECT",
+    "family": "book-homework-production-composition-auth-owner-config",
+    "reason": "The production-shaped workerd harness accepted the simulated Firestore wire contract, but the converged production Firestore write rejected the Homework service request with 403 before any authority or Delivery commit. This is another failure in the same bounded Homework authentication/authority composition family."
+  },
+  "rollback": {
+    "workerFirst": {
+      "versionId": "99fc954e-41bf-47c6-9e9c-724d37a422e9",
+      "trafficPercent": 100,
+      "deploymentId": "d2dc9eb1-cc0d-4471-911a-860df1eaa270"
+    },
+    "rulesSecond": {
+      "sha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+      "readbackExact": true
+    },
+    "partialStatePreserved": true
+  },
+  "circuitBreaker": {
+    "active": true,
+    "newCandidateForbidden": true,
+    "nextAction": "Stop production recovery attempts. Redesign and deterministically reproduce the Homework Firestore authentication/claim/owner composition boundary before any future activation; do not create V20 from the current source."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "r2-upload-signer-prd0062-ticket86-preview",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "src/upload-worker/book-homework/preview-worker.ts",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "ratelimits": [
+    {
+      "name": "BOOK_ROUTE_RATE_LIMITER",
+      "namespace_id": "860086",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "TICKET86_DATA_PROJECT_ID": "prd0062-86-huwng-260729",
+    "FIREBASE_DB_URL": "https://prd0062-86-huwng-260729-default-rtdb.firebaseio.com",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_SERVICE_IDENTITY": "prd0062-ticket86-homework@prd0062-86-huwng-260729.iam.gserviceaccount.com",
+    "BOOK_DELIVERY_SERVICE_IDENTITY": "prd0062-ticket86-delivery@prd0062-86-huwng-260729.iam.gserviceaccount.com",
+    "TICKET86_TEACHER_UID": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "TICKET86_STUDENT_UID": "x3hDfjYVN7cJtSbwq0ChIjl1Bk62",
+    "TICKET86_ASSIGNMENT_ID": "prd0062-ticket86-assignment"
+  },
+  "secrets": {
+    "required": [
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "TICKET86_HOMEWORK_RTDB_TOKEN",
+      "TICKET86_DELIVERY_RTDB_TOKEN"
+    ]
+  }
+}

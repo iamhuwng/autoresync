@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StudentCoursesPage from './StudentCoursesPage';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import '@testing-library/jest-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
 import { getCourse, getMaterialsByCourse, getStudentCourseProgress } from '../services/courseManager';
 import { getUserById } from '../services/userService';
-import { getRequestsByStudent } from '../services/courseRequestManager';
+import { createCourseRequest, getRequestsByStudent } from '../services/courseRequestManager';
 import { useResolvedStudentHomeworkList, useResolvedStudentShellData } from '../context/StudentShellDataContext';
 
 // Mock dependencies
@@ -103,9 +102,7 @@ describe('StudentCoursesPage', () => {
     const renderPage = () => {
         return render(
             <BrowserRouter>
-                <MantineProvider>
-                    <StudentCoursesPage />
-                </MantineProvider>
+                <StudentCoursesPage />
             </BrowserRouter>
         );
     };
@@ -195,5 +192,20 @@ describe('StudentCoursesPage', () => {
         await waitFor(() => {
             expect(screen.queryByText('Unenroll')).not.toBeInTheDocument();
         });
+    });
+
+    it('persists a protected-course unenrollment request before announcing success', async () => {
+        const enrollment = { ...mockEnrollments[0], id: 'direct-1', courseId: 'c_protected', enrollmentType: 'individual' };
+        (getEnrollmentsByStudent as any).mockResolvedValue([enrollment]);
+        (getCourse as any).mockResolvedValue({ ...mockCourse1, id: 'c_protected', name: 'Protected course', visibility: 'protected' });
+        (createCourseRequest as any).mockResolvedValue({ success: true, requestId: 'request-1' });
+
+        renderPage();
+        const requestButton = await screen.findByRole('button', { name: /Request Unenroll/i });
+        fireEvent.click(requestButton);
+
+        await waitFor(() => expect(createCourseRequest).toHaveBeenCalledWith(
+            's1', 'Student User', 'c_protected', 'Protected course', 't1', 'unenroll',
+        ));
     });
 });

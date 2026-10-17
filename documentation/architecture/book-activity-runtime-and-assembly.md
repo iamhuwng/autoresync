@@ -1,0 +1,244 @@
+# Book Activity Runtime And Assembly Architecture
+
+Status: Planning architecture
+Created: 2026-07-09
+Scope: PRD0062 Book-based interactive Activity runtime, Book Assembly Workspace, Book Homework, and cross-feature delivery
+
+## Purpose
+
+This document is the durable architecture authority for PRD0062 implementation planning.
+
+It converts the PRD and packet task lists into stable system boundaries so future implementation does not have to reconstruct the feature shape from task prose. It is not evidence that the feature is implemented.
+
+Primary requirement source:
+
+- `documentation/tasks/prd-book-based-interactive-activity-runtime-and-assembly.md`
+
+Implementation orchestration:
+
+- `documentation/tasks/PRD0062/tasks-book-activity-master-orchestration.md`
+- `documentation/tasks/PRD0062/findings-book-activity-baseline.md`
+
+## Product Boundary
+
+Book Activity extends the existing Book system. It must not create a second `ActivityBook` product, a separate Book runtime family, or a parallel content catalog.
+
+The canonical student experience is:
+
+```text
+immutable source PDF excerpt
+  + Book content tree and placement/page-group manifest
+  + versioned JSON Activity Materials
+  -> Book Delivery projection
+  -> Book Runtime with PDF/context on the left and Activity work on the right
+```
+
+The existing Book editor remains the Book authoring shell. PRD0062 adds an Assembly Workspace capability to that Book system; it does not replace the modal shell contract in `documentation/architecture/book-editor-authoring-modal-architecture.md`.
+
+## Domain Model
+
+- Book remains the ordered learning container.
+- Book Node remains structural. PRD0062 adds `unit` support while preserving legacy `section`, `chapter`, `test`, and placeholder behavior.
+- Activity Material is the atomic reusable, versioned, submitted, graded, and updateable unit.
+- Placement positions one Activity Material version inside a Book, Unit, Course/Class placement, or future composition context.
+- Page Group maps authorized PDF pages to one or more Activity Placements, or marks pages reference-only.
+- Source Version is one immutable uploaded PDF and its delivery metadata.
+- Manifest Version is one immutable imported Book structure/page mapping description.
+- Activity Revision is one immutable published Activity version under the same Activity id.
+- Assignment Manifest freezes Book nodes, Activity versions, page/source bindings, and schedule rules for one homework assignment.
+- Review Checkpoint is a student-specific review-only record for old work affected by one explicit update action.
+
+Display order is never identity. Activity ids, version ids, placement ids, source ids, owner ids, provenance, and publish timestamps stay outside editable Activity JSON.
+
+## Activity Contract
+
+One generic Activity has:
+
+- one coherent interaction family;
+- one shared answer rule;
+- optional namespaced `taskProfile`;
+- `structured` or `source-assisted` presentation mode;
+- `none`, `optional`, or `required` context requirement;
+- local embedded stimulus or existing asset refs where needed;
+- hidden app-managed Interaction IDs for autosave, scoring, regrading, and result replay.
+
+V1 supported interaction families are:
+
+- `choice`
+- `text-entry`
+- `matching`
+- `ordering`
+- `long-response`
+
+Activity JSON must not contain `activityId`, `materialId`, `versionId`, `placementId`, `bookId`, `nodeId`, owner identity, source provenance, publish timestamps, or hidden Interaction IDs.
+
+## Storage And Ownership Boundaries
+
+Exact paths are implementation-owned by PRD0062 Packet 1 and Packet 0 findings, but these ownership rules are fixed:
+
+- existing `material_catalog` Book services remain Book metadata and node integration seams;
+- new Activity schema, candidate, draft, publish, projection, diff, scoring, and delivery logic belongs under a Book Activity-owned module;
+- Book nodes store structure and refs, not full Activity content;
+- student runtimes consume Book Delivery projections, not authoring records;
+- source PDFs are private immutable inputs; students receive only authorized excerpts;
+- Book Homework uses Activity-level submission/progress plus assignment aggregation, not one whole-Book submission;
+- Course/Class delivery resolves exact placement/context, never ambiguous bare `materialId`;
+- result attempts group by student plus Activity identity with attempt dropdowns while visibility remains context-scoped.
+
+Every new RTDB node, Firestore collection, R2/Worker path, route, notification, and observable action needs rules, indexes where needed, backup coverage where needed, and tests before implementation can close.
+
+### Public Books Catalog Data Owner
+
+`StudentLibraryPage` owns the dedicated Books tab through `usePublicBookCatalog`;
+`StudentPublicBooksPanel` only renders summaries and dispatches navigation/actions.
+The dataset is separate from the generic material tabs and shared right-rail data.
+Its only list read is `material_catalog/public_book_readiness`, ordered by
+`updatedAt` with a 12-row page plus one sentinel and an exact timestamp/Book-key
+cursor. Firebase snapshot iteration order is authoritative for equal timestamps.
+Cards do not read or enrich canonical Books, sources, publications, or entitlement
+details. Identity-keyed cached rows remain visible while revisits refresh; late
+responses from a previous identity are discarded. Mount, tab selection and retry
+never repair persistent readiness.
+
+Canonical publication/moderation writers maintain this derived safe index.
+Publication transitions clear readiness before pointer CAS, then refresh after
+commit or owning replay; visibility-only moderation preserves the content
+revision and clears readiness atomically. Approval explicitly refreshes through
+authenticated owner/admin authority. A committed approval with a failed refresh
+is announced as approved with availability unavailable. Launch reauthorizes live
+publication/source/document pins and creates an authenticated Public entitlement;
+the catalog row alone is never delivery authority. External privileged deletion
+can leave stale catalog rows, so it cannot establish an always-current catalog
+claim. Public practice results remain private and ungraded.
+
+Focused hook/adapter tests cover bounded reads, Firebase tie ordering, retained
+refresh and identity changes. Browser proof must additionally exercise the real
+Books tab, launch, PDF, autosave/submission and Results; substituted external
+transports qualify that evidence as local integration. These requirements do not
+claim lane acceptance or deployed state. Student host ownership and refresh rules
+follow `documentation/rules/student-data-loading.md` and shell composition follows
+`documentation/architecture/student-shell-right-rail-architecture.md`.
+
+## Source PDF Delivery
+
+Book Activity must deliver only authorized page excerpts for the current Unit or delivery context.
+
+Allowed:
+
+- private source upload;
+- immutable Source Versions;
+- authorized Unit/page excerpt generation;
+- runtime single-page navigation over permitted pages;
+- reference-only pages where no Activity response is expected.
+
+Forbidden:
+
+- exposing the full source PDF to students;
+- exposing answer-key pages, teacher notes, authoring data, source provenance, or full diff payloads;
+- using screenshot/browser proof as substitute for security, rules, or Worker authorization tests.
+
+## Runtime Boundary
+
+The student Book Runtime visual authority is the user-approved [D2 mockup amendment](../tasks/PRD0062/component-pdf-recovery-execution-plan-2026-09-14.md) and [cleanroom reference](../mockups/prd0062-student-book-runtime-cleanroom-prd0063.html). Its warm outlined appearance, stacked page-mapped Activity cards, physical-page navigation, splitter, question flags, native submission confirmation, and compact countdown override conflicting general student visual guidance for this Runtime surface only. Delivery, persistence, submission, integrity, and read-only teacher preview authority remain owned by their existing Book contracts.
+
+`StudentPracticePage` remains the shared asynchronous launcher pattern. Book may add one thin dispatch branch, then hand off to Book-owned delivery/runtime modules.
+
+Book Runtime owns:
+
+- Book Delivery access resolution;
+- pinned Activity and Source versions;
+- page/source projection;
+- schedule state;
+- autosave/reload restoration;
+- Activity submission and review;
+- mobile tab state;
+- desktop split view state.
+
+Book Runtime must not accumulate Homework, Course, Class, Solo, or Live access rules directly. Those rules resolve into Book Delivery projections before runtime.
+
+Book Live Session execution is not part of V1. V1 may prepare data contracts for future Live integration only.
+
+## Homework And Update Boundary
+
+Book Homework can assign a whole Book or eligible subtree. The assignment pins Activity versions and Source versions independently.
+
+Rules:
+
+- no whole-Book submit action;
+- no aggregate Book academic grade in V1;
+- required final deadline plus optional inherited nested deadlines;
+- Open and Scheduled access modes;
+- Activity-level attempts, completion, integrity events, and feedback gates;
+- explicit teacher review before active homework adopts published changes;
+- no silent update of assigned work;
+- affected old work preserved in Review Checkpoints;
+- unchanged work remains valid;
+- redo boundary is the Activity.
+
+Book Homework anti-cheat/integrity mode is on by default, can be disabled only through explicit casual-practice setting, warns and records events, never blocks completion or force-submits, and appears to teachers after submission rather than as live monitoring in V1.
+
+## Cross-Feature Boundary
+
+Book Activity may reuse existing features only through stable unchanged interfaces or Book-owned adapters.
+
+It must not refactor Reading V2, Listening, Writing, THCS, Homework, Course, Class, or result storage merely to support Books.
+
+Reading V2 Task Groups remain Reading V2 concepts. Listening audio/navigation remains Listening-owned. Existing result visibility remains governed by result visibility architecture and receives Book Activity attempts through context-scoped ownership inputs.
+
+## Obsolete Interpretations
+
+Treat these as obsolete for PRD0062:
+
+- "Book Activity should use a new `ActivityBook` product."
+- "Existing Book `test` nodes are enough; no `unit` node support is needed."
+- "One whole-Book homework submission can represent all Activity work."
+- "Course/Class Book access can resolve by bare `materialId`."
+- "Activity JSON should expose stable ids for teachers to reconcile."
+- "The app should infer source-assisted versus structured presentation semantically."
+- "Book Activity should import, call, extend, or depend on the legacy PDF parser."
+- "Book Activity implementation may rewrite Reading V2 or Listening contracts to get shared pieces."
+- "Source PDF delivery can be validated by browser screenshots instead of negative authorization tests."
+
+## Retired Parser Boundary
+
+The following parser path is obsolete for Book Activity:
+
+- `src/services/file-extractor/file.extractor.ts`
+- `src/parsers/pdfParser.js`
+
+These files may remain for unrelated legacy flows until separately retired. Any PRD0062 implementation path that imports, calls, extends, wraps, or depends on them must stop.
+
+## Related Docs
+
+- `documentation/architecture/book-editor-authoring-modal-architecture.md`
+- `documentation/architecture/student-test-delivery-projections.md`
+- `documentation/architecture/course-class-management.md`
+- `documentation/architecture/result-visibility-ownership-governance.md`
+- `documentation/architecture/result-view/visibility-policy.md`
+- `documentation/architecture/upload-storage-authority.md`
+- `documentation/rules/announcements.md`
+- `documentation/rules/observability.md`
+- `documentation/rules/infrastructure.md`
+
+## Current PRD0062b Source Delivery Authority — 2026-08-24
+
+The original excerpt-only Source PDF boundary in this planning document is
+superseded for PRD0062b by the approved student-safe full-document decision in
+`documentation/tasks/PRD0062b/approval-record-2026-07-17-student-safe-full-pdf-streaming.md`.
+That decision authorizes delivery of one complete immutable student-safe PDF
+through the authenticated Book Delivery Worker, with native PDF.js owning
+normal streaming and byte-range loading. The student-safe boundary remains
+mandatory: the pinned PDF must exclude teacher notes, answer keys, unpublished
+authoring material, and other teacher-only content; students receive neither
+R2 authority nor storage credentials.
+
+Earlier excerpt, rendition, per-page-grant, and Browser Run statements in this
+planning document remain historical requirements and do not override the
+approved PRD0062b source-delivery contract. Authorization, entitlement,
+revocation, reload safety, range behavior, and negative security checks remain
+active acceptance obligations; this authority correction does not close those
+gates or promote local evidence to deployed proof.
+
+## Gate 0 Reference Boundary — 2026-09-14
+
+The [Gate 0 decision](../tasks/PRD0062b/approval-record-2026-09-14-component-combination-gate-0.md) is dormant authority only. It does not close taskboxes or claim implementation, browser, Worker, emulator, deployment, or protected-state proof. Apply it with the [reconciliation ledger](../tasks/PRD0062b/reconciliation-ledger.md), [traceability](../tasks/PRD0062b/traceability-book-activity-v1.md), and [packet-exit contract](../tasks/PRD0062b/tasks-book-activity-master-orchestration.md#packet-exit-contract).

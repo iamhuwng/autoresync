@@ -1,3 +1,5 @@
+import type { SourceSetCandidate } from './bookAssembly.types';
+
 declare const materialCatalogIdBrand: unique symbol;
 
 export type MaterialCatalogId<K extends string> = string & {
@@ -8,6 +10,8 @@ export type MaterialTestTypeId = MaterialCatalogId<'testTypeId'>;
 export type MaterialBookId = MaterialCatalogId<'bookId'>;
 export type MaterialBookNodeId = MaterialCatalogId<'bookNodeId'>;
 export type MaterialBookRefId = MaterialCatalogId<'bookRefId'>;
+export type MaterialActivityId = MaterialCatalogId<'activityId'>;
+export type MaterialActivityVersionId = MaterialCatalogId<'activityVersionId'>;
 
 const asMaterialCatalogId =
   <K extends string>() =>
@@ -26,6 +30,8 @@ export const materialCatalogIds = {
   bookId: asMaterialCatalogId<'bookId'>(),
   nodeId: asMaterialCatalogId<'bookNodeId'>(),
   refId: asMaterialCatalogId<'bookRefId'>(),
+  activityId: asMaterialCatalogId<'activityId'>(),
+  activityVersionId: asMaterialCatalogId<'activityVersionId'>(),
 } as const;
 
 export const MATERIAL_CATALOG_MATERIAL_KINDS = [
@@ -37,6 +43,7 @@ export const MATERIAL_CATALOG_MATERIAL_KINDS = [
   'writing-prompt',
   'vocabulary-set',
   'grammar-worksheet',
+  'interactive-activity',
   'video',
   'file-attachment',
   'thcs-thpt-test',
@@ -44,6 +51,81 @@ export const MATERIAL_CATALOG_MATERIAL_KINDS = [
 
 export type MaterialCatalogMaterialKind =
   (typeof MATERIAL_CATALOG_MATERIAL_KINDS)[number];
+
+/**
+ * Identity/provenance is system-owned. Activity revision JSON is deliberately
+ * not represented here: it must never be able to replace these fields.
+ */
+export type ActivityMaterialOriginalProvenance =
+  | {
+      readonly kind: 'original';
+      readonly createdFrom: 'manual';
+      readonly createdAt: string;
+      readonly createdBy: string;
+    }
+  | {
+      readonly kind: 'original';
+      readonly createdFrom: 'import';
+      readonly originalActivityKey: string;
+      readonly sourceBookId: MaterialBookId;
+      readonly sourceVersionId: string;
+      readonly manifestVersionId: string;
+      readonly createdFromNodeKey: string;
+      readonly createdAt: string;
+      readonly createdBy: string;
+    };
+
+export type ActivityMaterialProvenance =
+  | ActivityMaterialOriginalProvenance
+  | {
+      readonly kind: 'fork';
+      readonly forkedFromMaterialId: MaterialActivityId;
+      readonly forkedFromVersionId: MaterialActivityVersionId;
+      readonly createdAt: string;
+      readonly createdBy: string;
+    };
+
+export interface ActivityMaterialIdentity {
+  readonly materialId: MaterialActivityId;
+  readonly activityId: MaterialActivityId;
+  readonly materialKind: 'interactive-activity';
+  readonly ownerId: string;
+  readonly provenance: ActivityMaterialProvenance;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly currentDraftVersionId?: MaterialActivityVersionId;
+  readonly currentPublishedVersionId?: MaterialActivityVersionId;
+}
+
+export interface ActivityMaterialVersionIdentity {
+  readonly materialId: MaterialActivityId;
+  readonly activityId: MaterialActivityId;
+  readonly activityVersionId: MaterialActivityVersionId;
+  readonly revisionOfVersionId?: MaterialActivityVersionId;
+  readonly createdAt: string;
+  readonly createdBy: string;
+}
+
+/** Fields forbidden from editable Activity JSON and candidate imports. */
+export const ACTIVITY_EDITABLE_JSON_FORBIDDEN_IDENTITY_FIELDS = [
+  'activityId',
+  'materialId',
+  'versionId',
+  'activityVersionId',
+  'currentDraftVersionId',
+  'currentPublishedVersionId',
+  'snapshotVersionId',
+  'placementId',
+  'bookId',
+  'nodeId',
+  'pageGroupIds',
+  'ownerId',
+  'createdAt',
+  'createdBy',
+  'publishedAt',
+  'publishedBy',
+  'provenance',
+] as const;
 
 export interface MaterialTestTypeConfig {
   readonly testTypeId: MaterialTestTypeId;
@@ -98,11 +180,89 @@ export const MATERIAL_BOOK_STATUSES = [
 
 export type MaterialBookStatus = (typeof MATERIAL_BOOK_STATUSES)[number];
 
+export const MATERIAL_BOOK_MODES = ['materials', 'pdf'] as const;
+
+export type MaterialBookMode = (typeof MATERIAL_BOOK_MODES)[number];
+
+export const isMaterialBookMode = (value: unknown): value is MaterialBookMode =>
+  typeof value === 'string' && MATERIAL_BOOK_MODES.includes(value as MaterialBookMode);
+
+export const resolveMaterialBookMode = (value: unknown): MaterialBookMode => {
+  if (value === undefined) {
+    return 'materials';
+  }
+
+  if (isMaterialBookMode(value)) {
+    return value;
+  }
+
+  throw new Error(`Invalid Material Book mode: ${String(value)}`);
+};
+
 export type MaterialBookPublicReviewStatus =
   | 'pending-review'
   | 'approved'
   | 'rejected'
   | 'returned-private';
+
+export interface MaterialBookModeSuccessorLineage {
+  readonly kind: 'mode-successor';
+  readonly predecessorBookId: MaterialBookId;
+  readonly fromMode: MaterialBookMode;
+  readonly toMode: MaterialBookMode;
+  readonly reason: string;
+  readonly actorId: string;
+  readonly createdAt: string;
+}
+
+export interface MaterialBookReusedActivityRef {
+  readonly activityId: string;
+  readonly versionId: string;
+}
+
+export interface MaterialBookSetupActivation {
+  readonly schemaVersion: 1;
+  readonly operationId: string;
+  readonly inputFingerprint: string;
+  readonly ownerId: string;
+  readonly bookId: MaterialBookId;
+  readonly bookRevision: number;
+  readonly sourceSetRevision: number;
+  readonly sourceSet: SourceSetCandidate;
+  readonly unitCandidates: readonly {
+    readonly unitKey: string;
+    readonly candidateId: string;
+    readonly candidateRevision: number;
+    readonly manifestFingerprint: string;
+  }[];
+  readonly studentDocument: {
+    readonly sourceVersionId: string;
+    readonly descriptorRevision: number;
+    readonly descriptorFingerprint: string;
+  };
+  readonly activities: readonly {
+    readonly unitKey: string;
+    readonly activityKey: string;
+    readonly activityId: string;
+    readonly activityCandidateId: string;
+    readonly activityCandidateRevision: number;
+    readonly activityPayloadFingerprint: string;
+  }[];
+  readonly activatedAt: string;
+}
+
+/** Trusted publication provenance; never a browser-controlled mode mutation. */
+export interface MaterialBookSourceStrategySuccessorLineage {
+  readonly kind: 'source-strategy-successor';
+  readonly predecessorBookId: MaterialBookId;
+  readonly predecessorPublicationId: string;
+  readonly predecessorManifestVersionId: string;
+  readonly fromStrategy: 'full_pdf' | 'component_pdfs';
+  readonly toStrategy: 'full_pdf' | 'component_pdfs';
+  readonly actorId: string;
+  readonly createdByCommandId: string;
+  readonly createdAt: string;
+}
 
 export interface MaterialBookPublicReviewState {
   readonly status: MaterialBookPublicReviewStatus;
@@ -115,6 +275,22 @@ export interface MaterialBookPublicReviewState {
 
 export interface MaterialBookMetadata {
   readonly bookId: MaterialBookId;
+  /** Optional only for legacy records; repository reads resolve it to `materials`. */
+  readonly bookMode?: MaterialBookMode;
+  /** Canonical PDF Book authority revision; absent on legacy/materials rows. */
+  readonly bookRevision?: number;
+  /** Canonical PDF Source Set authority revision; absent until the source set is owned. */
+  readonly sourceSetRevision?: number;
+  /** Trusted PDF Source Set authority; source attach/replace owns its lifecycle elsewhere. */
+  readonly sourceSet?: SourceSetCandidate;
+  /** Bounded A0 replay history; only the last tuple-matching receipt is visible. */
+  readonly setupActivations?: readonly MaterialBookSetupActivation[];
+  /** Trusted-command provenance. Browser clients cannot create or retarget it. */
+  readonly modeSuccessorLineage?: MaterialBookModeSuccessorLineage;
+  /** Identity/version only; never carries predecessor placement or delivery state. */
+  readonly reusedActivityRefs?: readonly MaterialBookReusedActivityRef[];
+  /** Publication successor provenance; it never carries context bindings. */
+  readonly sourceStrategySuccessorLineage?: MaterialBookSourceStrategySuccessorLineage;
   readonly ownerId: string;
   readonly title: string;
   readonly subtitle?: string;
@@ -146,6 +322,7 @@ export const MATERIAL_BOOK_NODE_TYPES = [
   'note-placeholder',
   'section',
   'chapter',
+  'unit',
   'test',
 ] as const;
 
@@ -223,6 +400,8 @@ export interface MaterialBookPublicProjectionNode {
 
 export interface MaterialBookPublicProjection {
   readonly bookId: MaterialBookId;
+  /** Optional only for legacy records; repository reads resolve it to `materials`. */
+  readonly bookMode?: MaterialBookMode;
   readonly title: string;
   readonly subtitle?: string;
   readonly authors: readonly string[];
@@ -237,4 +416,51 @@ export interface MaterialBookPublicProjection {
   readonly approvedAt: string;
   readonly approvedBy: string;
   readonly nodes: readonly MaterialBookPublicProjectionNode[];
+}
+
+export type ContentCatalogSelection =
+  | { readonly kind: 'catalog' }
+  | { readonly kind: 'book'; readonly bookId: string }
+  | {
+      readonly kind: 'section' | 'chapter' | 'unit';
+      readonly bookId: string;
+      readonly nodeId: string;
+    }
+  | {
+      readonly kind: 'activity';
+      readonly bookId: string;
+      readonly nodeId: string;
+      readonly placementId: string;
+      readonly activityId: string;
+      readonly activityVersionId: string;
+    };
+
+export type ContentCatalogPublicState =
+  | 'metadata-only'
+  | 'tree-public-runtime-blocked'
+  | 'playable';
+
+export interface ContentCatalogSafeCapabilities {
+  readonly preview: boolean;
+  readonly launch: boolean;
+  readonly sourceAssisted: boolean;
+}
+
+export interface ContentCatalogSafeReadiness {
+  readonly publication: 'trusted' | 'untrusted' | 'revoked' | 'replaced';
+  readonly source: 'ready' | 'blocked' | 'revoked' | 'replaced';
+  readonly entitlement: 'active' | 'none' | 'revoked';
+}
+
+export interface ContentCatalogResolvedSelection {
+  readonly selection: Exclude<ContentCatalogSelection, { readonly kind: 'catalog' }>;
+  readonly title: string;
+  readonly parent: ContentCatalogSelection;
+  readonly state: ContentCatalogPublicState;
+  readonly capabilities: ContentCatalogSafeCapabilities;
+  readonly readiness: ContentCatalogSafeReadiness;
+  readonly provenance: {
+    readonly adapterId: string;
+    readonly adapterVersion: number;
+  };
 }

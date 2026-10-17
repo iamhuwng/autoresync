@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-07-29T17:15:00+07:00",
+  "roadmapPhase": "foundation",
+  "selectedPrimary": null,
+  "decision": "PAUSE_NO_ELIGIBLE_PRIMARY",
+  "selectionContract": "Require every direct and transitive prerequisite CLOSED, current roadmap phase, executable acceptance gates, available ownership/authority, and strongest verified closure leverage. Graph-clear alone is insufficient.",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260729-post-ticket97-closed.json",
+    "issueHash": "a8fb4077a19553e6aba8b3cec7f8128e15883a2b53fd490e311bb7d875c1ce15",
+    "issues": 112,
+    "open": 49,
+    "closed": 63,
+    "rawEdges": 309,
+    "uniqueEdges": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 76, 106, 129, 130, 131, 132, 133]
+  },
+  "candidates": [
+    {
+      "ticket": 49,
+      "title": "PRD0062 06C - Provision and prove private B2 direct upload",
+      "state": "OPEN",
+      "directPrerequisites": [47, 48],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 2,
+      "roadmapPhase": "foundation",
+      "acceptanceReadiness": "FAIL",
+      "requiredAuthority": [
+        "controlled disposable private-B2 preview/deployment surface",
+        "scoped upload/metadata and lifecycle-cleanup identities",
+        "teacher port-5173 browser proof",
+        "remote configuration, provider-version, capacity, and billing readback"
+      ],
+      "availableAuthority": false,
+      "rejectionReason": "Foundation root is graph-clear but its required B2 deployment, browser, provider, and rollback gates are not executable under the current safety policy. Private-B2 and trusted activation remain disabled.",
+      "blocker": {
+        "owner": "B2/infrastructure operator and canonical PRD0062 authority",
+        "requiredAction": "Approve a disposable preview surface and scoped identities/readback for #49 without enabling production or trusted gates.",
+        "evidence": "Live #49 acceptance, browser, deployment, secure-provisioning, and rollback contract.",
+        "impact": "#49 cannot close; the private-B2 foundation boundary remains unresolved."
+      }
+    },
+    {
+      "ticket": 50,
+      "title": "PRD0062 07 - Reconcile failed and unfinished direct-B2 uploads",
+      "state": "OPEN",
+      "directPrerequisites": [29, 47, 48],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 16,
+      "roadmapPhase": "foundation",
+      "acceptanceReadiness": "FAIL",
+      "requiredAuthority": [
+        "controlled disposable private-B2 preview/deployment surface",
+        "dedicated lifecycle-cleanup identity",
+        "provider exact-version deletion/readback",
+        "teacher interrupt/reload/reconcile browser proof"
+      ],
+      "availableAuthority": false,
+      "rejectionReason": "Foundation enabler shares the unresolved private-B2/06A authority boundary with #49. Its cleanup, capacity, Worker, deployment, and rollback gates are not executable while private-B2/trusted activation remains disabled.",
+      "blocker": {
+        "owner": "B2/infrastructure operator and canonical PRD0062 authority",
+        "requiredAction": "Approve the same disposable B2 reconciliation surface and least-privilege cleanup authority, without changing #50A all-deny/default-deny.",
+        "evidence": "Live #50 state-machine, Worker/security, browser, deployment, and rollback contract.",
+        "impact": "#50 cannot close safely; choosing it would not be an independent alternative to #49."
+      }
+    },
+    {
+      "ticket": 76,
+      "title": "PRD0062 28C - Submit terminal Activity attempts and immutable results",
+      "state": "OPEN",
+      "directPrerequisites": [74, 75],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 40,
+      "roadmapPhase": "student workflow",
+      "acceptanceReadiness": "FAIL_PHASE",
+      "rejectionReason": "Not eligible while the foundation phase has unresolved private-B2 authority. Selecting this student descendant would work around the blocked foundation root; its Worker, rules/emulator, browser, deployment, and rollback gates also require authority not currently released."
+    },
+    {
+      "ticket": 106,
+      "title": "PRD0062 44 - Reference or fork public Book content",
+      "state": "OPEN",
+      "directPrerequisites": [33, 35, 42, 86, 105],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 24,
+      "roadmapPhase": "teacher workflow",
+      "acceptanceReadiness": "FAIL_PHASE",
+      "rejectionReason": "Not eligible while the foundation phase has unresolved private-B2 authority. Selecting this teacher descendant would bypass the blocked foundation root; its reference/fork, ownership, browser, deployment, and rollback gates are not the current phase."
+    },
+    {
+      "ticket": 129,
+      "title": "PRD0062 51B2 - Run teacher updates, replacement, and results browser suite",
+      "state": "OPEN",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 2,
+      "roadmapPhase": "final closure",
+      "acceptanceReadiness": "FAIL_PHASE_AND_BOUNDARY",
+      "rejectionReason": "#127 is CLOSED, but final-closure phase is not active and the positive canary/deployed acceptance shares the unresolved #50A/private-B2 boundary. Do not select merely because #127 closed."
+    },
+    {
+      "ticket": 130,
+      "title": "PRD0062 51C1 - Run student runtime and persistence browser suite",
+      "state": "OPEN",
+      "directPrerequisites": [75, 127],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 2,
+      "roadmapPhase": "final closure",
+      "acceptanceReadiness": "FAIL_PHASE_AND_BOUNDARY",
+      "rejectionReason": "#75 and #127 are CLOSED, but final-closure phase is not active and assembled runtime positive/deployed acceptance shares the unresolved #50A/private-B2 boundary. Do not select merely because #127 closed."
+    },
+    {
+      "ticket": 131,
+      "title": "PRD0062 51C2 - Run student accessibility and device browser suite",
+      "state": "OPEN",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 2,
+      "roadmapPhase": "final closure",
+      "acceptanceReadiness": "FAIL_PHASE_AND_BOUNDARY",
+      "rejectionReason": "#127 is CLOSED, but final-closure phase is not active and positive student canary/device acceptance remains coupled to unresolved #50A/private-B2 boundary. Do not select merely because #127 closed."
+    },
+    {
+      "ticket": 132,
+      "title": "PRD0062 51D1 - Run contract and security regressions",
+      "state": "OPEN",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "graphClear": true,
+      "downstreamLeverage": 2,
+      "roadmapPhase": "final closure",
+      "acceptanceReadiness": "FAIL_PHASE_AND_BOUNDARY",
+      "rejectionReason": "#127 is CLOSED, but final-closure phase is not active and production-equivalent rules/Worker/canary proof still shares the unresolved #50A/private-B2 boundary. Do not select merely because #127 closed."
+    },
+    {
+      "ticket": 133,
+      "title": "PRD0062 51D2 - Run legacy, backup, and recovery regressions",
+      "state": "OPEN",
+      "directPrerequisites": [127],
+      "openTransitivePrerequisites": [],
+      "downstreamLeverage": 2,
+      "graphClear": true,
+      "roadmapPhase": "final closure",
+      "acceptanceReadiness": "FAIL_PHASE_AND_BOUNDARY",
+      "rejectionReason": "#127 is CLOSED, but final-closure phase is not active and recovery/deployment positive proof still shares the unresolved #50A/private-B2 boundary. Do not select merely because #127 closed."
+    }
+  ],
+  "blockedFoundation": {
+    "owner": "B2/infrastructure operator and canonical PRD0062 authority",
+    "requiredAction": "Release only a disposable, least-privilege preview/deployment surface for the #49/#50 private-B2 foundation gates; retain #50A all-six-deny/default-deny, #03B disabled, and trusted/private-B2 production activation disabled.",
+    "evidence": "Live #49/#50 contracts plus current graph and goal safety policy.",
+    "impact": "Both remaining foundation roots share one blocker family; no independent foundation/enabler candidate remains. Selecting #76, #106, or #129-#133 would violate the transitive/roadmap gate."
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "trustedActivation": "disabled",
+    "full112TicketScopePreserved": true
+  }
+}

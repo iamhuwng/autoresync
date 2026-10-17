@@ -2,7 +2,7 @@ import React from 'react';
 import MaterialListRow from './MaterialListRow';
 import './MaterialListView.css';
 
-const MaterialListView = ({ rows, itemLabel = 'tests' }) => {
+const MaterialListView = ({ rows, itemLabel = 'tests', showLoadedCount = true }) => {
   return (
     <section className="material-list-view" aria-label="Materials list view">
       <div className="material-list-view__header" role="row">
@@ -18,11 +18,11 @@ const MaterialListView = ({ rows, itemLabel = 'tests' }) => {
         ))}
       </div>
 
-      <div className="material-list-view__footer">
+      {showLoadedCount && <div className="material-list-view__footer">
         <span>
-          Showing {rows.length === 0 ? 0 : 1} to {rows.length} of {rows.length} {itemLabel}
+          {rows.length} {itemLabel} loaded
         </span>
-      </div>
+      </div>}
     </section>
   );
 };

@@ -10,7 +10,7 @@ const {
     mockThcsResultToTestMarkingResult,
     mockSaveTestResult,
     mockGradeWritingQuestions,
-    mockSendThcsFullyGradedNotification,
+    mockNotifyCommittedEvent,
     mockGetSubmissionById,
     mockSubmitHomework,
     mockGetHomeworkById,
@@ -21,6 +21,10 @@ const {
     mockUseBeforeUnloadWarning,
     mockTriggerFormativeFeedbackForSavedResult,
     mockUpdateThcsProgress,
+    mockReadSoloProgress,
+    mockBuildSoloProgressStorageKey,
+    mockRemoveSoloProgress,
+    mockSetStorage,
 } = vi.hoisted(() => ({
     mockNavigate: vi.fn(),
     mockGetThcsTestFromFirebase: vi.fn(),
@@ -29,7 +33,7 @@ const {
     mockThcsResultToTestMarkingResult: vi.fn(),
     mockSaveTestResult: vi.fn(),
     mockGradeWritingQuestions: vi.fn(),
-    mockSendThcsFullyGradedNotification: vi.fn(),
+    mockNotifyCommittedEvent: vi.fn(),
     mockGetSubmissionById: vi.fn(),
     mockSubmitHomework: vi.fn(),
     mockGetHomeworkById: vi.fn(),
@@ -40,6 +44,29 @@ const {
     mockUseBeforeUnloadWarning: vi.fn(),
     mockTriggerFormativeFeedbackForSavedResult: vi.fn(),
     mockUpdateThcsProgress: vi.fn(),
+    mockReadSoloProgress: vi.fn(),
+    mockBuildSoloProgressStorageKey: vi.fn(),
+    mockRemoveSoloProgress: vi.fn(),
+    mockSetStorage: vi.fn(),
+}));
+
+vi.mock('../../services/firebase', () => ({ database: {} }));
+
+vi.mock('firebase/database', async () => {
+    const actual = await vi.importActual<typeof import('firebase/database')>('firebase/database');
+    return {
+        ...actual,
+        ref: vi.fn((_database: unknown, path: string) => ({ path })),
+        push: vi.fn(() => ({ key: '-P2vOtvgXx1Vn6A5Ueku' })),
+    };
+});
+
+vi.mock('../../core/platform/storage', () => ({ storage: { set: mockSetStorage } }));
+
+vi.mock('../../services/soloProgress.service', () => ({
+    buildSoloProgressStorageKey: (...args: unknown[]) => mockBuildSoloProgressStorageKey(...args),
+    readSoloProgress: (...args: unknown[]) => mockReadSoloProgress(...args),
+    removeSoloProgress: (...args: unknown[]) => mockRemoveSoloProgress(...args),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -50,15 +77,8 @@ vi.mock('react-router-dom', async () => {
     };
 });
 
-vi.mock('@mantine/core', () => ({
-    Container: ({ children }: any) => <div>{children}</div>,
-    Text: ({ children }: any) => <div>{children}</div>,
-    Alert: ({ children }: any) => <div>{children}</div>,
-}));
-
-vi.mock('@mantine/hooks', () => ({
-    useMediaQuery: () => false,
-}));
+vi.mock('../../hooks/useMediaQuery', () => ({ useMediaQuery: () => false }));
+vi.mock('../../services/studentResume.service', () => ({ studentResumeService: { clearResume: vi.fn().mockResolvedValue(undefined) } }));
 
 vi.mock('../../hooks/useAuth', () => ({
     useAuth: () => ({
@@ -124,8 +144,8 @@ vi.mock('../../services/testResults.service', () => ({
     saveTestResult: (...args: unknown[]) => mockSaveTestResult(...args),
 }));
 
-vi.mock('../../services/notificationService', () => ({
-    sendThcsFullyGradedNotification: (...args: unknown[]) => mockSendThcsFullyGradedNotification(...args),
+vi.mock('../../services/notificationProducerClient', () => ({
+    notifyCommittedEvent: (...args: unknown[]) => mockNotifyCommittedEvent(...args),
 }));
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
@@ -245,9 +265,13 @@ describe('THCSPracticeView', () => {
         });
         mockSaveTestResult.mockResolvedValue('result-1');
         mockGradeWritingQuestions.mockResolvedValue(undefined);
-        mockSendThcsFullyGradedNotification.mockResolvedValue(undefined);
+        mockNotifyCommittedEvent.mockResolvedValue({ success: true });
         mockTriggerFormativeFeedbackForSavedResult.mockResolvedValue(undefined);
         mockUpdateThcsProgress.mockResolvedValue(undefined);
+        mockBuildSoloProgressStorageKey.mockReturnValue('solo-progress-homework-key');
+        mockReadSoloProgress.mockResolvedValue({ progress: null, matchedKey: null });
+        mockRemoveSoloProgress.mockResolvedValue(undefined);
+        mockSetStorage.mockResolvedValue(undefined);
         mockGetSubmissionById.mockResolvedValue(null);
         mockSubmitHomework.mockResolvedValue(undefined);
         mockGetHomeworkById.mockResolvedValue(null);
@@ -261,7 +285,19 @@ describe('THCSPracticeView', () => {
         });
     });
 
-    const submitPracticeAttempt = async (practiceContext: any, testDataOverride?: any) => {
+    const submitPracticeAttempt = async (
+        practiceContext: any,
+        testDataOverride?: any,
+        useDefaultHomeworkAttempt = true,
+    ) => {
+        if (practiceContext.type === 'homework' && useDefaultHomeworkAttempt) {
+            mockGetSubmissionById.mockResolvedValue({
+                id: practiceContext.submissionId,
+                homeworkId: practiceContext.homeworkId,
+                studentId: 'student-1',
+                status: 'in_progress',
+            });
+        }
         mockGetThcsTestFromFirebase.mockResolvedValueOnce({
             success: true,
             data: {
@@ -304,6 +340,7 @@ describe('THCSPracticeView', () => {
                 }),
             }),
         );
+        expect(mockNotifyCommittedEvent).not.toHaveBeenCalled();
     }, 15000);
 
     it('submits via saveTestResult with canonical homework context', async () => {
@@ -313,7 +350,7 @@ describe('THCSPracticeView', () => {
             submissionId: 'submission-1',
         } as any);
 
-        expect(saveCall[0]).toMatch(/^practice_material-1_/);
+        expect(saveCall[0]).toBe('homework_practice_submission-1');
         expect(saveCall[7]).toBeUndefined();
         expect(saveCall[10]).toBeUndefined();
         expect(saveCall[11]).toEqual(
@@ -331,6 +368,81 @@ describe('THCSPracticeView', () => {
                 }),
             }),
         );
+        expect(saveCall[14]).toEqual({
+            stableResultId: '-P2vOtvgXx1Vn6A5Ueku',
+            submissionOperationId: 'submission-1__submit',
+            studentPrivateHomework: true,
+        });
+        expect(mockSetStorage).toHaveBeenCalledWith('solo-progress-homework-key', expect.objectContaining({
+            acceptedResultId: '-P2vOtvgXx1Vn6A5Ueku',
+            submissionOperationId: 'submission-1__submit',
+            attemptId: 'submission-1',
+            submitPhase: 'submitting',
+        }));
+    }, 15000);
+
+    it('reuses the saved result identity and keeps the UI incomplete until the homework transaction is verified', async () => {
+        mockReadSoloProgress.mockResolvedValue({
+            matchedKey: 'solo-progress-homework-key',
+            progress: {
+                acceptedResultId: '-P2vOtvgXx1Vn6A5Ueku',
+                submissionOperationId: 'submission-1__submit',
+                attemptId: 'submission-1',
+                answers: {},
+                currentQuestion: 0,
+                timeElapsed: 0,
+            },
+        });
+        mockGetSubmissionById.mockResolvedValueOnce({
+            id: 'submission-1', homeworkId: 'homework-1', studentId: 'student-1', status: 'in_progress',
+        }).mockResolvedValueOnce({
+            id: 'submission-1', homeworkId: 'homework-1', studentId: 'student-1', status: 'in_progress',
+        }).mockResolvedValueOnce(null);
+        mockSubmitHomework.mockRejectedValueOnce(new Error('Firestore unavailable'));
+        mockSaveTestResult.mockResolvedValueOnce('-P2vOtvgXx1Vn6A5Ueku');
+
+        await submitPracticeAttempt(
+            { type: 'homework', homeworkId: 'homework-1', submissionId: 'submission-1' } as any,
+            undefined,
+            false,
+        );
+        await waitFor(() => expect(mockSubmitHomework).toHaveBeenCalledTimes(1));
+        expect(mockSaveTestResult.mock.calls[0]?.[14]).toEqual({
+            stableResultId: '-P2vOtvgXx1Vn6A5Ueku',
+            submissionOperationId: 'submission-1__submit',
+            studentPrivateHomework: true,
+        });
+        expect(mockNavigate).not.toHaveBeenCalled();
+        expect(mockRemoveSoloProgress).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument();
+    }, 15000);
+
+    it('accepts an uncertain Firestore reply only when reread links the same result to this attempt', async () => {
+        mockGetSubmissionById.mockResolvedValueOnce({
+            id: 'submission-1', homeworkId: 'homework-1', studentId: 'student-1', status: 'in_progress',
+        }).mockResolvedValueOnce({
+            id: 'submission-1', homeworkId: 'homework-1', studentId: 'student-1', status: 'in_progress',
+        }).mockResolvedValueOnce({
+            id: 'submission-1', homeworkId: 'homework-1', studentId: 'student-1',
+            status: 'submitted', resultId: '-P2vOtvgXx1Vn6A5Ueku',
+        });
+        mockSubmitHomework.mockRejectedValueOnce(new Error('reply lost after commit'));
+        mockSaveTestResult.mockResolvedValueOnce('-P2vOtvgXx1Vn6A5Ueku');
+
+        await submitPracticeAttempt(
+            { type: 'homework', homeworkId: 'homework-1', submissionId: 'submission-1' } as any,
+            undefined,
+            false,
+        );
+        await waitFor(() => expect(mockSubmitHomework).toHaveBeenCalledTimes(1));
+        await waitFor(
+            () => expect(mockNavigate).toHaveBeenCalledWith('/student/homework', expect.objectContaining({ replace: true })),
+            { timeout: 6000 },
+        );
+        expect(mockRemoveSoloProgress).toHaveBeenCalledWith(expect.objectContaining({
+            materialId: 'material-1', studentId: 'student-1',
+            scopeContext: { mode: 'homework', homeworkId: 'homework-1', submissionId: 'submission-1' },
+        }));
     }, 15000);
 
     it('submits via saveTestResult with canonical course-material context', async () => {

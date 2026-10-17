@@ -61,7 +61,7 @@ describe('SearchFilterBar', () => {
       <SearchFilterBar
         {...defaultProps}
         contentFilter="public"
-        testTypeFilter="THCS-THPT"
+        activeTestTypeId="thcs"
       />
     );
 

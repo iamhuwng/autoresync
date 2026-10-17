@@ -19,7 +19,7 @@
  * - Settings cascade: material > module > course > defaults
  */
 
-import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
+import React, { useState, useEffect, Suspense, lazy, useCallback, useMemo, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ref, get } from 'firebase/database';
 import { database } from '../services/firebase';
@@ -31,6 +31,7 @@ import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useNavigation } from '../hooks/useNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
+import { BOOK_ACTIVITY_ROLLOUT_GATES, isBookActivityRolloutGateEnabled } from '../config/bookActivityRolloutGates';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import {
@@ -70,6 +71,14 @@ import { useFullscreenMode } from '../hooks/test/useFullscreenMode';
 import { useTestIntegrity } from '../hooks/test/useTestIntegrity';
 import type { AntiCheatConfig } from '../types/integrity.types';
 import { storage } from '../core/platform/storage';
+import {
+    isExplicitBookPlacementLaunch,
+    parseBookPlacementLaunchQuery,
+    resolveBookPlacementLaunch,
+    type BookPlacementLaunchQuery,
+    type ValidBookPlacementLaunch,
+} from '../services/book-delivery/bookPlacementLaunch.browser';
+import { BookPlacementRuntimeHost } from '../components/book-runtime/BookPlacementRuntimeHost';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -257,6 +266,249 @@ const resolveReadingPassageHomeworkProjection = async (input: {
 
 const isExplicitReadingV2Launch = (testData: unknown): boolean =>
     isReadingV2LaunchCandidate(testData);
+
+const bookLaunchStateStyle = {
+    minHeight: '100vh',
+    padding: 24,
+    background: '#f8f9fa',
+    color: '#2b3437',
+    boxSizing: 'border-box' as const,
+};
+
+const BookPlacementLaunchState = ({
+    title,
+    message,
+    onReturn,
+    error = false,
+}: {
+    readonly title: string;
+    readonly message: string;
+    readonly onReturn: () => void;
+    readonly error?: boolean;
+}) => (
+    <main style={bookLaunchStateStyle} data-testid="book-placement-launch-state">
+        <section
+            role={error ? 'alert' : 'status'}
+            aria-live="polite"
+            style={{ maxWidth: 560, margin: '48px auto', padding: 24, background: '#fff', border: '1px solid #e1e6e8', borderRadius: 12 }}
+        >
+            <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>{title}</h1>
+            <p>{message}</p>
+            <button
+                type="button"
+                onClick={() => onReturn()}
+                style={{ minHeight: 44, padding: '10px 16px', border: 0, borderRadius: 8, background: '#4d44e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+            >
+                Return
+            </button>
+        </section>
+    </main>
+);
+
+const BookPlacementLaunchPage: React.FC<{
+    launch: Exclude<BookPlacementLaunchQuery, { readonly kind: 'none' }>;
+}> = ({ launch }) => {
+    const { user } = useAuth();
+    const { navigateTo } = useNavigation('student');
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
+    const [projection, setProjection] = useState<import('../services/book-delivery/bookDelivery.types').BookRuntimeDeliveryProjection | null>(null);
+    const [loading, setLoading] = useState(launch.kind !== 'invalid');
+    const [error, setError] = useState<string | null>(launch.kind === 'invalid' ? 'The Book launch link is invalid.' : null);
+    const requestGeneration = useRef(0);
+    const launchRequest = useRef<{
+        launchIdentity: string;
+        promise: ReturnType<typeof resolveBookPlacementLaunch>;
+    } | null>(null);
+    const launchIdentity = JSON.stringify(launch);
+    const refreshState = useRef<{
+        launchIdentity: string;
+        attempted: boolean;
+        inFlight: Promise<void> | null;
+    }>({ launchIdentity, attempted: false, inFlight: null });
+
+    const returnToEntry = useCallback((source: 'launch-state' | 'runtime' = 'launch-state') => {
+        if (source === 'launch-state') {
+            trackAction('bookRuntimeReturn', {
+                surface: launch.kind === 'invalid' ? 'unknown' : launch.surface,
+                reason: launch.kind === 'invalid' ? launch.reason : 'user_requested',
+                destination: launch.kind === 'class'
+                    ? 'class-detail'
+                    : launch.kind === 'homework' ? 'homework'
+                        : launch.kind === 'solo' ? 'library' : 'courses',
+                outcome: 'returned',
+            });
+        }
+        if (launch.kind === 'class') {
+            navigateTo('STUDENT_CLASS_DETAIL', { classId: launch.classId }, {
+                force: true,
+                reason: 'book_runtime_return_class',
+            });
+            return;
+        }
+        if (launch.kind === 'homework') {
+            navigateTo('STUDENT_HOMEWORK', undefined, {
+                force: true,
+                reason: 'book_runtime_return_homework',
+            });
+            return;
+        }
+        if (launch.kind === 'solo') {
+            navigateTo('STUDENT_LIBRARY', undefined, {
+                force: true,
+                reason: 'book_runtime_return_solo',
+            });
+            return;
+        }
+        navigateTo('STUDENT_COURSES', undefined, {
+            force: true,
+            reason: 'book_runtime_return_course',
+        });
+    }, [launch, navigateTo, trackAction]);
+
+    useEffect(() => {
+        if (launch.kind === 'invalid') return;
+        if (!isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.launchDelivery)) {
+            trackAction('bookRuntimeLaunchBlocked', {
+                surface: launch.surface,
+                reason: 'rollout-disabled',
+                outcome: 'blocked',
+            });
+            setError('This Book is not available.');
+            setLoading(false);
+            return;
+        }
+        if (!user?.uid) {
+            setError('Sign in again to open this Book.');
+            setLoading(false);
+            return;
+        }
+
+        const generation = ++requestGeneration.current;
+        setLoading(true);
+        setError(null);
+        setProjection(null);
+        const request = launchRequest.current?.launchIdentity === launchIdentity
+            ? launchRequest.current.promise
+            : resolveBookPlacementLaunch({
+                launch: launch as ValidBookPlacementLaunch,
+                studentId: user.uid,
+            });
+        launchRequest.current = { launchIdentity, promise: request };
+        void request.then((result) => {
+            if (generation !== requestGeneration.current) return;
+            if (result.status !== 'resolved') {
+                trackAction('bookRuntimeLaunchBlocked', {
+                    surface: launch.surface,
+                    reason: result.reason,
+                    ...(launch.kind === 'course'
+                        ? { courseMaterialId: launch.courseMaterialId, bindingId: launch.bindingId }
+                        : launch.kind === 'class'
+                            ? {
+                            classId: launch.classId,
+                            copyId: launch.copyId,
+                            classPlacementId: launch.classPlacementId,
+                            classCourseMaterialId: launch.classCourseMaterialId,
+                            bindingId: launch.bindingId,
+                            }
+                            : launch.kind === 'homework'
+                                ? { homeworkId: launch.homeworkId }
+                                : {}),
+                    outcome: 'blocked',
+                });
+                setError('This Book launch is no longer available for your account.');
+                setLoading(false);
+                return;
+            }
+            trackAction('launchBookRuntime', {
+                surface: launch.surface,
+                bindingId: result.projection.bindingId,
+                bindingRevision: result.projection.bindingRevision,
+                contextId: result.projection.context.contextId,
+                recipientId: result.projection.recipientId,
+                outcome: 'success',
+            });
+            setProjection(result.projection);
+            setLoading(false);
+        }).catch((reason: unknown) => {
+            if (generation !== requestGeneration.current) return;
+            trackAction('bookRuntimeLaunchBlocked', {
+                surface: launch.surface,
+                reason: reason instanceof Error ? reason.name : 'unknown',
+                outcome: 'blocked',
+            });
+            setError('This Book launch could not be resolved.');
+            setLoading(false);
+        }).finally(() => {
+            if (launchRequest.current?.promise === request) launchRequest.current = null;
+        });
+        return () => {
+            requestGeneration.current += 1;
+        };
+    }, [launch, launchIdentity, trackAction, user?.uid]);
+
+    const refreshProjection = useCallback((reason: 'not-found' | 'stale-binding'): Promise<void> | undefined => {
+        if (launch.kind === 'invalid' || !user?.uid || !projection) return;
+        if (refreshState.current.launchIdentity !== launchIdentity) {
+            refreshState.current = { launchIdentity, attempted: false, inFlight: null };
+        }
+        if (refreshState.current.inFlight) return refreshState.current.inFlight;
+        if (refreshState.current.attempted) return;
+        refreshState.current.attempted = true;
+        const generation = requestGeneration.current;
+        const expected = {
+            contextId: projection.context.contextId,
+            kind: projection.context.kind,
+            recipientId: projection.recipientId,
+        };
+        const refresh = resolveBookPlacementLaunch({
+            launch: launch as ValidBookPlacementLaunch,
+            studentId: user.uid,
+        }).then((result) => {
+            if (generation !== requestGeneration.current) return;
+            if (result.status !== 'resolved'
+                || result.projection.context.contextId !== expected.contextId
+                || result.projection.context.kind !== expected.kind
+                || result.projection.recipientId !== expected.recipientId) {
+                setError('This Book launch is no longer available for your account.');
+                return;
+            }
+            trackAction('bookRuntimeProjectionRefreshed', {
+                surface: launch.surface,
+                reason,
+                bindingId: result.projection.bindingId,
+                bindingRevision: result.projection.bindingRevision,
+                outcome: 'success',
+            });
+            setProjection(result.projection);
+        }).catch(() => {
+            if (generation === requestGeneration.current) {
+                setError('This Book launch could not be refreshed.');
+            }
+        }).finally(() => {
+            if (refreshState.current.launchIdentity === launchIdentity
+                && refreshState.current.inFlight === refresh) {
+                refreshState.current.inFlight = null;
+            }
+        });
+        refreshState.current.inFlight = refresh;
+        return refresh;
+    }, [launch, launchIdentity, projection, trackAction, user?.uid]);
+
+    if (loading) {
+        return <BookPlacementLaunchState title="Loading Book" message="Resolving your published Book access." onReturn={returnToEntry} />;
+    }
+    if (error || !projection) {
+        return <BookPlacementLaunchState title="Book unavailable" message={error || 'This Book is not available.'} onReturn={returnToEntry} error />;
+    }
+    return (
+        <BookPlacementRuntimeHost
+            onAction={(action, metadata) => trackAction(action, metadata)}
+            onReturn={() => returnToEntry('runtime')}
+            onProjectionExpired={refreshProjection}
+            projection={projection}
+        />
+    );
+};
 
 // ── Router Content ─────────────────────────────────────────────────────────────
 
@@ -986,6 +1238,18 @@ const StudentPracticePageContent: React.FC = () => {
 
 export const StudentPracticePage: React.FC = () => {
     const { materialId } = useParams<{ materialId: string }>();
+    const location = useLocation();
+    const bookLaunch = useMemo(
+        () => parseBookPlacementLaunchQuery(location.search),
+        [location.search],
+    );
+    if (isExplicitBookPlacementLaunch(bookLaunch)) {
+        return (
+            <TestErrorBoundary sessionCode={materialId}>
+                <BookPlacementLaunchPage launch={bookLaunch} />
+            </TestErrorBoundary>
+        );
+    }
     return (
         <TestErrorBoundary sessionCode={materialId}>
             <StudentPracticePageContent />

@@ -1,0 +1,70 @@
+{
+  "selectedAt": "2026-07-27T20:35:00+07:00",
+  "graphArtifact": "artifacts/prd0062-graph-20260727-selection-after-65.json",
+  "graphHash": "1adbd4fb1ce96f13e67f95628778700b428f560b85b2b967aa5470086856de6b",
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 71,
+    "closedCount": 41,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 66, 67, 68, 70, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "Runtime",
+  "selectedPrimary": {
+    "issue": 66,
+    "ticket": "17",
+    "title": "Publish one component-PDF Unit atomically",
+    "directPrerequisites": [32, 64],
+    "transitivePrerequisites": [25, 26, 27, 29, 30, 31, 32, 64],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 60,
+    "acceptanceReadiness": "Executable under current authority with local adapter/command/Worker/rules tests and teacher localhost:5173 fixture browser proof. No 50A, 03B, private-B2, assembled-rules, deployed, or student-shell activation required for #66 closure.",
+    "requiredAuthority": "Repository writes, local harness, localhost teacher quick-login fixture, GitHub issue comment/close after gates pass."
+  },
+  "candidateRejections": [
+    {
+      "issue": 49,
+      "reason": "Graph-clear but not selected: private-B2 provisioning/deployed negative proof requires remote-state authority and deployment/private bucket evidence. Lower Runtime leverage than #66 and capability safety keeps private B2 disabled."
+    },
+    {
+      "issue": 50,
+      "reason": "Graph-clear but not selected: direct-B2 lifecycle cleanup/reconciliation depends on provider/deployed disposable-object authority. Lower Runtime leverage than #66 and different private-B2 blocker family."
+    },
+    {
+      "issue": 67,
+      "reason": "Graph-clear and Runtime-eligible, but depends conceptually on published Unit repair path after publication adapters. Lower leverage than #66; not bypassed permanently."
+    },
+    {
+      "issue": 68,
+      "reason": "Graph-clear and Runtime-eligible, but Activity revision publication is downstream of publication adapter coverage. Lower leverage than #66."
+    },
+    {
+      "issue": 70,
+      "reason": "Graph-clear and Runtime-eligible, but unpublished migration is less critical-path than completing component-PDF publication adapter parity. Lower leverage than #66."
+    },
+    {
+      "issue": 129,
+      "reason": "Graph-clear only. Rejected by roadmap phase: final teacher browser suite before producer Runtime/Teacher/Student work would bypass incomplete prerequisites by phase."
+    },
+    {
+      "issue": 130,
+      "reason": "Graph-clear only. Rejected by roadmap phase: final student runtime suite before producer Runtime/Teacher/Student work would bypass incomplete prerequisites by phase."
+    },
+    {
+      "issue": 131,
+      "reason": "Graph-clear only. Rejected by roadmap phase: final student accessibility/device suite before producer Runtime/Teacher/Student work would bypass incomplete prerequisites by phase."
+    },
+    {
+      "issue": 132,
+      "reason": "Graph-clear only. Rejected by roadmap phase: final contract/security regressions before producer Runtime/Teacher/Student work would bypass incomplete prerequisites by phase."
+    },
+    {
+      "issue": 133,
+      "reason": "Graph-clear only. Rejected by roadmap phase: final legacy/backup/recovery regressions before producer Runtime/Teacher/Student work would bypass incomplete prerequisites by phase."
+    }
+  ]
+}

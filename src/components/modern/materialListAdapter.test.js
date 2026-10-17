@@ -301,6 +301,47 @@ describe('materialListAdapter', () => {
     expect(ownedListening.actions.map((item) => item.key)).toContain('assign-homework');
   });
 
+  it('shows Assign HW on owned Reading V2 full-test summary rows with readiness fields', () => {
+    const row = buildTestMaterialListRow({
+      id: 'reading-v2-full',
+      materialId: 'reading-v2-full',
+      title: 'Reading V2 Full Test',
+      deliveryEngine: 'reading-v2',
+      testType: 'IELTS',
+      skill: 'Reading',
+      materialKind: 'full-test',
+      ownerId: 'teacher-1',
+      lifecycleState: 'active',
+      isComplete: true,
+      questionCount: 40,
+      publishedSnapshotVersionId: 'snapshot-v2',
+      hasStudentSafeProjection: true,
+      deliveryProjectionReady: true,
+      studentSafeProjectionReady: true,
+      passageRefCount: 3,
+      metadata: {
+        materialKind: 'full-test',
+        publishedSnapshotVersionId: 'snapshot-v2',
+        hasStudentSafeProjection: true,
+        deliveryProjectionReady: true,
+        studentSafeProjectionReady: true,
+        passageRefCount: 3,
+      },
+    });
+
+    expect(row.itemLabel).toBe('40 questions');
+    expect(row.assignability).toMatchObject({
+      assignable: true,
+      contentRef: {
+        contentKind: 'ielts_reading',
+        contentId: 'reading-v2-full',
+        version: 'snapshot-v2',
+        source: 'reading-v2',
+      },
+    });
+    expect(row.actions.map((item) => item.key)).toContain('assign-homework');
+  });
+
   it('shows Assign HW on thin owned legacy Reading/Listening rows when safe projection is proven', () => {
     const thinReading = buildTestMaterialListRow({
       id: 'reading-thin-owned',

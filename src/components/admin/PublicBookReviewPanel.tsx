@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
-import { Button, Card } from '../modern';
+import { Button, Card, toast } from '../modern';
 import {
   approvePublicBook,
+  PublicBookReadinessRefreshError,
   listPublicBookReviewQueue,
   rejectPublicBookReview,
   returnPublicBookToPrivate,
@@ -102,8 +103,6 @@ export const PublicBookReviewPanel: React.FC<PublicBookReviewPanelProps> = ({
   const [reasons, setReasons] = useState<ReasonState>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
@@ -148,14 +147,12 @@ export const PublicBookReviewPanel: React.FC<PublicBookReviewPanelProps> = ({
     const reason = getReasons(reasons, bookId)[decision].trim();
 
     if (!reason) {
-      setActionError('Review reason is required.');
+      toast.error('Review reason is required.');
       return;
     }
 
     const actionName = decisionActionName(decision);
     setBusyAction(`${actionName}:${bookId}`);
-    setActionError(null);
-    setActionMessage(null);
     onTrackAction?.(actionName, { bookId });
 
     try {
@@ -168,9 +165,13 @@ export const PublicBookReviewPanel: React.FC<PublicBookReviewPanelProps> = ({
       }
 
       setRows((current) => current.filter((entry) => entry.bookId !== bookId));
-      setActionMessage(successMessage(decision, row.title));
+      toast.success(successMessage(decision, row.title));
     } catch (decisionError) {
-      setActionError(getErrorMessage(decisionError));
+      if (decisionError instanceof PublicBookReadinessRefreshError && decisionError.committedBook.bookId === bookId) {
+        setRows((current) => current.filter((entry) => entry.bookId !== bookId));
+        toast.warning(`${row.title} approved for public library. Book availability could not be refreshed.`);
+        onTrackAction?.(actionName, { bookId, outcome: 'approved-readiness-unavailable' });
+      } else toast.error(getErrorMessage(decisionError));
     } finally {
       setBusyAction(null);
     }
@@ -238,17 +239,6 @@ export const PublicBookReviewPanel: React.FC<PublicBookReviewPanelProps> = ({
           </Button>
         </div>
       </Card>
-
-      {actionMessage ? (
-        <p role="status" style={{ color: '#047857', fontSize: '0.9rem', fontWeight: 800 }}>
-          {actionMessage}
-        </p>
-      ) : null}
-      {actionError ? (
-        <p role="alert" style={{ color: '#b91c1c', fontSize: '0.9rem', fontWeight: 800 }}>
-          {actionError}
-        </p>
-      ) : null}
 
       {rows.length === 0 ? (
         <Card variant="glass" style={{ padding: '1.5rem' }}>

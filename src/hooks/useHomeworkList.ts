@@ -5,6 +5,7 @@ import {
     getHomeworkForStudent,
     permanentlyDeleteHomework,
 } from '../services/homeworkManager';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 import type { HomeworkAssignment, HomeworkStatus } from '../types/homework.types';
 
 export type HomeworkListSort =
@@ -52,6 +53,10 @@ export interface UseHomeworkListReturn {
 
 function normalizeSearchValue(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function isBookHomework(homework: HomeworkAssignment): boolean {
+    return isBookHomeworkCompatibilityProjection(homework);
 }
 
 function getCompletionRate(homework: HomeworkAssignment): number {
@@ -217,7 +222,9 @@ export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkLis
     }, []);
 
     const filteredHomeworkPool = useMemo(() => {
-        let nextItems = [...homework];
+        const legacyHomework = homework.filter((currentHomework) => !isBookHomework(currentHomework));
+        const bookHomework = homework.filter((currentHomework) => isBookHomework(currentHomework));
+        let nextItems = [...legacyHomework];
 
         if (archivedOnly) {
             nextItems = nextItems.filter((currentHomework) => currentHomework.archived === true);
@@ -270,7 +277,30 @@ export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkLis
             });
         }
 
-        return sortHomework(nextItems, sort);
+        const sortedLegacyHomework = sortHomework(nextItems, sort);
+        const hasLegacyStatusFilter = (statusFilter?.length ?? 0) > 0 || currentStatusFilter !== null;
+        const filteredBookHomework = hasLegacyStatusFilter
+            ? []
+            : bookHomework.filter((currentHomework) => {
+                if (archivedOnly && currentHomework.archived !== true) return false;
+                if (shouldExcludeArchived && currentHomework.archived === true) return false;
+                if (activeTagFilter && !(currentHomework.tags ?? []).includes(activeTagFilter)) return false;
+                if (!searchQuery?.trim()) return true;
+
+                const normalizedQuery = normalizeSearchValue(searchQuery.trim());
+                const searchableValues = [
+                    currentHomework.title ?? '',
+                    currentHomework.materialTitle ?? '',
+                    currentHomework.description ?? '',
+                    ...(currentHomework.tags ?? []),
+                ];
+                return searchableValues.some((value) => normalizeSearchValue(value).includes(normalizedQuery));
+            });
+
+        const bookSort = sort === 'completionRate_desc' || sort === 'completionRate_asc'
+            ? 'dueDate_desc'
+            : sort;
+        return [...sortedLegacyHomework, ...sortHomework(filteredBookHomework, bookSort)];
     }, [
         homework,
         archivedOnly,
@@ -302,7 +332,10 @@ export function useHomeworkList(options: UseHomeworkListOptions): UseHomeworkLis
         [filteredHomeworkPool, displayCount]
     );
 
-    const statusCounts = useMemo(() => buildStatusCounts(homework), [homework]);
+    const statusCounts = useMemo(
+        () => buildStatusCounts(homework.filter((currentHomework) => !isBookHomework(currentHomework))),
+        [homework],
+    );
 
     const loadMore = useCallback(async () => {
         setDisplayCount((currentCount) => currentCount + pageSize);

@@ -49,7 +49,7 @@ export interface THCSQuestion {
     correctAnswer: 'A' | 'B' | 'C' | 'D'; // Single correct answer (MCQ only)
     points?: number;                     // undefined = auto-calculated from section. Only set when section pointMode === 'manual'
     imageUrl?: string;                   // Optional image for question prompt
-    imageCaption?: string;               // Alt text for image — accessibility per PRD §6.3
+    imageCaption?: string;               // Image alt text, or visible visual-prompt alternative when imageUrl is absent
 
     // Pronunciation-specific: underline markup in options
     // `options` stores PLAIN TEXT (e.g., "drink"). `optionUnderlines` stores
@@ -124,6 +124,7 @@ export interface THCSSection {
     shuffleOptions?: boolean;              // true = also shuffle MCQ options A↔B↔C↔D (only meaningful when shuffle === true, default false)
 
     // FR-12: Raw text fallback fields (set when compromise conversion fails)
+    importSourceNeedsReview?: boolean;    // Preserved import source must be reviewed before publication.
     rawText?: string;                      // Original raw section text preserved as-is
     isRawTextFallback?: boolean;           // true when this section failed compromise
 }

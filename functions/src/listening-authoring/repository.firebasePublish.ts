@@ -2,8 +2,6 @@ import * as admin from 'firebase-admin';
 
 import {
   LISTENING_AUTHORING_ROOT,
-  assertNoActiveListeningTempCleanupLease,
-  assertNoDeletedListeningTempAssets,
   cloneDraftRecord,
   cloneRecord,
   cloneVersionRecord,
@@ -16,7 +14,6 @@ import {
 import {
   cloneOperationRecord,
   createOperationScopeKey,
-  deriveAssetIds,
 } from './repository.operationRecords';
 import { runPublishDraftMutation } from './repository.publishMutation';
 
@@ -40,16 +37,10 @@ export const firebasePublishDraftTransaction = async (
   const transaction = await rootRef.transaction((currentValue) => {
     const current: ListeningAuthoringRootState =
       currentValue !== null ? cloneRootState(currentValue as ListeningAuthoringRootState) : {};
-    assertNoActiveListeningTempCleanupLease(current, Date.now());
     const drafts = new Map<string, ListeningAuthoringDraftRecord>([
       ...Object.entries(current.drafts ?? {}),
       ...Object.entries(current.revision_drafts ?? {}),
     ]);
-    const currentDraft = drafts.get(input.draftId);
-    if (currentDraft) {
-      assertNoDeletedListeningTempAssets(current, currentDraft.assetIds);
-      assertNoDeletedListeningTempAssets(current, deriveAssetIds(currentDraft.document));
-    }
     const versions = new Map<string, ListeningPublishedVersionRecord>(
       Object.entries(current.versions ?? {}),
     );

@@ -1,0 +1,42 @@
+{
+  "ticket": 64,
+  "title": "PRD0062 16A - Provide the trusted common publication primitive",
+  "stateBeforeClose": "OPEN",
+  "roadmapPhase": "foundation-runtime",
+  "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket64-durable-repository.json",
+  "graphArtifact": "artifacts/prd0062-graph-20260728-reopen64.json",
+  "proof": {
+    "durableRepository": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-assembly-publication-repository.test.ts --typecheck --reporter=dot",
+      "result": "5 tests passed; no type errors",
+      "covers": [
+        "complete aggregate read/write with Manifest Versions, Activity Versions, safe projections, Placements, Unit projections, Delivery plans, pointer, operations, and audit",
+        "book-level ETag CAS retry",
+        "no-write replay outcome",
+        "unsafe path/identity/credential rejection",
+        "malformed nested and replay-result rejection",
+        "sensitive payload rejection",
+        "failed durable commit leaves prior aggregate unchanged"
+      ]
+    },
+    "commonPrimitive": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/services/book-assembly/publicationTransaction.service.test.ts --typecheck --reporter=dot",
+      "result": "5 tests passed; no type errors",
+      "ownership": "CAS, replay, immutable history, pointer rollback, and strategy-neutral aggregate validation"
+    }
+  },
+  "destinationBoundaries": {
+    "59": "canonical Full-PDF/component-PDF route composition and repository injection",
+    "65": "Full-PDF strategy adapter and local teacher proof",
+    "66": "component-PDF strategy adapter and local teacher proof",
+    "118": "generated database.rules.json and assembled emulator/deployment readback",
+    "134": "deployed/canary publication, identity, cleanup, readback, and rollback drill"
+  },
+  "safety": {
+    "trustedActionGates": "disabled",
+    "50A": "all-six-deny/default-deny",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "remoteDeployment": "not claimed"
+  }
+}

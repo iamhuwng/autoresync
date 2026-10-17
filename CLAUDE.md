@@ -16,47 +16,18 @@ Before writing to a conversation log file (`conversation_*.md`):
 
 ## Student View Design Standard (MANDATORY)
 
-> **Read `documentation/design/student-view-design-standard.md` before modifying ANY student-facing page.**
+Read `documentation/design/student-view-design-standard.md` before modifying
+ANY student-facing page. It is the canonical v2 standard and supersedes older
+dashboard/feed-era wording.
 
-### Enforced Rules (No Exceptions)
-
-1. **NO purple gradients** — `#667eea`, `#764ba2`, `linear-gradient` are **BANNED** on student pages
-2. **NO glassmorphism** — No `.glass`, `.glass-card`, `backdrop-filter` on cards/panels
-3. **NO AppShell** — Student pages use custom 3-column HTML/CSS layout
-4. **NO emoji icons** in navigation — Use inline SVG icons (24×24, `currentColor`)
-5. **Flat gray background** — `#f3f4f6` page background, `body { background: #f3f4f6 !important; }`
-6. **Inter font** — All student pages must load and use Inter from Google Fonts
-7. **Pill-shaped buttons** — `border-radius: 999px` on all buttons
-8. **Feed-style layout** — Twitter/X social feed paradigm for dashboard and activity views
-
-### Color Tokens (Student Pages Only)
-- Page bg: `#f3f4f6` | Surface: `#ffffff` | Hover: `#e5e7eb`
-- Text: `#111827` (bold), `#374151` (body), `#6b7280` (muted), `#9ca3af` (dim)
-- Accent: `#4f46e5` (primary), `#4338ca` (hover), `#6366f1` (badge)
-
-### Reference Implementation
-The canonical example is `src/pages/StudentDashboardPage.jsx`. All student pages must match its design language.
-
-### Code-Level Enforcement (Cannot Be Bypassed)
-- **CSS Override Layer:** `src/styles/student-view-override.css` imported globally in `index.css`
-- **Root Class:** Every student page wrapper MUST use `className="student-view-root"`
-- This class **automatically neutralizes** all `.glass`, `.gradient-bg`, and legacy styles via CSS specificity
-- Even if old Mantine components are still used, the CSS override makes them visually flat
-
-### Legacy Student Files
-13 existing student files still use old patterns. They ALL have deprecation banners:
-```
-⚠️ STUDENT VIEW DESIGN STANDARD v1.0 — ACTIVE
-🚫 DO NOT copy styles from this file.
-✅ Reference: src/pages/StudentDashboardPage.jsx
-```
-**When editing these files:** Do NOT copy their styling patterns. Use the dashboard as reference.
-
-### Before ANY Student Page Edit
-1. Read `documentation/design/student-view-design-standard.md`
-2. Check if the file uses banned patterns (purple, glass, AppShell)
-3. If it does → migrate to the new standard as part of the edit
-4. Ensure `className="student-view-root"` is on the root wrapper
+- Use the Academic Record-led editorial academic workspace language and v2
+  tokens defined by the canonical document.
+- Preserve the real 3-part shell, route semantics, interaction contracts, and
+  structurally present right rail; keep mobile as a compressed presentation.
+- Preserve the bans on `AppShell`, new `@mantine/*` imports, gradients,
+  glassmorphism, decorative hover lift, and emoji navigation icons.
+- Use `className="student-view-root"` on student page roots and follow the
+  canonical mobile touch-target, overflow, drawer, and alignment contracts.
 
 ---
 

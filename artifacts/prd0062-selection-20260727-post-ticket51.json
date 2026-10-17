@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-07-27",
+  "roadmapPhase": "runtime",
+  "primaryTicket": null,
+  "selectionStatus": "paused-no-acceptance-ready-candidate",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260727-post-ticket51-closed.json",
+    "issueHash": "be79b284af7c24ca17263192de338f8c7b28a3e26b3972acb3fc80c6381a686a",
+    "issueCount": 112,
+    "openCount": 85,
+    "closedCount": 27,
+    "uniqueEdges": 307,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [40, 49, 50, 52, 56, 64, 129, 130, 131, 132, 133]
+  },
+  "mandatoryGate": {
+    "transitivePrerequisitesCalculatedForEveryUnresolvedTicket": true,
+    "candidateRule": "All direct and transitive prerequisites must be CLOSED; roadmap phase, executable acceptance, authority, ownership, and critical-path leverage must also pass."
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 40,
+      "decision": "rejected",
+      "reason": "Foundation/runtime acceptance blocker: long-response registration has no supported canonical coverage row; #37 rejects unsupported registration."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected",
+      "reason": "Operations phase; not eligible while current Runtime phase has a candidate under review."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected",
+      "reason": "Operations phase; not eligible while current Runtime phase has a candidate under review."
+    },
+    {
+      "ticket": 52,
+      "decision": "rejected",
+      "reason": "All direct/transitive prerequisites are CLOSED and leverage is 65, but required positive private-B2 deployment/probe gates are not executable under current authority and safety policy: 03B remains disabled, 50A remains all-deny/default-deny, and no explicit Cloudflare preview-deployment approval is present. Do not activate either gate merely to satisfy acceptance."
+    },
+    {
+      "ticket": 56,
+      "decision": "rejected",
+      "reason": "Teacher-workflow phase; not eligible before Runtime phase is acceptance-ready."
+    },
+    {
+      "ticket": 64,
+      "decision": "rejected",
+      "reason": "Teacher-workflow phase; not eligible before Runtime phase is acceptance-ready."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected",
+      "reason": "Final-closure phase and shared #50A boundary; do not select merely because #127 is CLOSED."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected",
+      "reason": "Final-closure phase and shared #50A boundary; do not select merely because #127 is CLOSED."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected",
+      "reason": "Final-closure phase and shared #50A boundary; do not select merely because #127 is CLOSED."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected",
+      "reason": "Final-closure phase and shared #50A boundary; do not select merely because #127 is CLOSED."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected",
+      "reason": "Final-closure phase and shared #50A boundary; do not select merely because #127 is CLOSED."
+    }
+  ],
+  "authorityNeededToResume": [
+    "Explicit approval for the exact preview Cloudflare deployment/probe required by #52, with 03B and 50A constraints preserved."
+  ],
+  "scope": {
+    "preserve112Tickets": true,
+    "threeB": "disabled",
+    "fiftyA": "all-six-deny/default-deny",
+    "completionDeclared": false
+  }
+}

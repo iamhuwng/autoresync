@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T18:00:21Z",
+  "status": "rolled_back_stopped",
+  "classification": "CLIENT_RELEASE_GATE_FAILURE_BEFORE_COMMAND_REQUEST",
+  "checkpoint": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-replacement-replay-checkpoint-2026-08-14.json",
+  "authority": "The bounded replacement production replay authorized by the user under recovery-plan section 9.3.4",
+  "independentReview": {
+    "standards": "PASS; no blocking findings",
+    "spec": "PASS; no blocking findings"
+  },
+  "activation": {
+    "workerVersionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-14T17:57:31.412Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreUpdateTime": "2026-08-14T17:57:06.232573Z",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f"
+  },
+  "probe": {
+    "path": "tmp/prd0062-bridge-m1-route-gate-probe-262145.json",
+    "bytes": 262145,
+    "sha256": "502349597c660a57dad41305293197bd4066267a476cd0a6b2071e60f5e9598e",
+    "compression": "none",
+    "client": "one Node process, one verified exact-teacher Firebase ID token, one keep-alive https.Agent",
+    "results": [
+      {
+        "index": 1,
+        "requestedAt": "2026-08-14T17:58:02.181Z",
+        "respondedAt": "2026-08-14T17:58:02.571Z",
+        "httpStatus": 413,
+        "body": { "code": "body_too_large" },
+        "cfRay": "a2b1d8683ed2e2f5-HKG",
+        "colo": "HKG",
+        "reusedSocket": false,
+        "canonicalRouterHeaders": "PASS"
+      },
+      {
+        "index": 2,
+        "requestedAt": "2026-08-14T17:58:02.578Z",
+        "respondedAt": "2026-08-14T17:58:02.684Z",
+        "httpStatus": 413,
+        "body": { "code": "body_too_large" },
+        "cfRay": "a2b1d86989cde2f5-HKG",
+        "colo": "HKG",
+        "reusedSocket": true,
+        "canonicalRouterHeaders": "PASS"
+      }
+    ],
+    "sameColo": true
+  },
+  "preCommandReadback": {
+    "workerVersionId": "bbca331f-68cb-49a2-bb03-a65ae5ac3603",
+    "workerTrafficPercent": 100,
+    "firestoreRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "rtdbRulesSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rootSaga": "committed, visible, revision 7, exact operation and idempotency, one committed recipient",
+    "authority": "HTTP 200, committed and visible, revision 2",
+    "delivery": "exact current binding and record HTTP 200, active",
+    "compatibilityShell": "HTTP 404 NOT_FOUND"
+  },
+  "failure": {
+    "releasedInstruction": "SEND",
+    "error": "TypeError: (intermediate value) is not iterable",
+    "location": "tmp/prd0062-bridge-m1-replacement-replay-client.mjs:136",
+    "cause": "The result of input[Symbol.asyncIterator]().next() is an iterator-result object, but the frozen client destructured it as an iterable array.",
+    "commandPostReached": false,
+    "commandHttpRequestCount": 0,
+    "automaticRetry": false,
+    "secondCommandAttempt": false,
+    "disposition": "Terminal fail-stop. No replacement client or command attempt is permitted under this authorization."
+  },
+  "rollback": {
+    "workerVersionId": "ca50f6c9-713b-4159-8fa9-cc2a6c9fec39",
+    "workerTrafficPercent": 100,
+    "workerDeploymentCreatedAt": "2026-08-14T17:59:54.405Z",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "firestoreUpdateTime": "2026-08-14T17:59:59.249737Z",
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "readback": "PASS"
+  },
+  "postRollbackState": {
+    "rootSaga": "HTTP 200; committed, visible, revision 7; exact operation and idempotency; one committed recipient",
+    "authority": "HTTP 200; committed and visible; revision 2",
+    "delivery": "exact current binding and record HTTP 200; active",
+    "compatibilityShell": "HTTP 404 NOT_FOUND",
+    "durableMutationFromReplacementReplay": false
+  },
+  "browserHandoff": "not performed because the command was not sent and rollback was mandatory",
+  "milestone2": "not started"
+}

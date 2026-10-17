@@ -1,0 +1,53 @@
+{
+  "selectedAt": "2026-07-28T03:46:35.730Z",
+  "governingPolicy": "Deterministic roadmap plus mandatory complete-transitive-prerequisite and acceptance-readiness gates.",
+  "graphSnapshot": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket74-reopened.json",
+    "issueHash": "a363f58db22b93cd2196b62270935113e7966ae71a045c512261bd412ee59265",
+    "issueCount": 112,
+    "openCount": 61,
+    "closedCount": 51,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 72, 129, 131, 132, 133]
+  },
+  "reopenedContract": {
+    "issue": 74,
+    "state": "OPEN",
+    "reason": "Closed #74 rejects new #72 schema-v3 bindings at both runtime authorization paths; current closure evidence is false for the repaired producer contract.",
+    "requiredAction": "Add schema-v3 binding authorization and fixture proof while preserving supported legacy v2 behavior. Keep route disabled.",
+    "eligibility": "INELIGIBLE while #72 is OPEN; do not implement or begin acceptance work before #72 closure and graph refresh."
+  },
+  "selectedTicket": {
+    "issue": 72,
+    "ticket": "21",
+    "title": "Resolve server Book Delivery projection",
+    "roadmapPhase": "runtime",
+    "directPrerequisites": [31, 59, 65, 66],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 44, 45, 46, 47, 48, 51, 52, 55, 56, 57, 58, 59, 64, 65, 66],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 59,
+    "acceptanceReadiness": "Executable under current authority: complete #72 strict schema, service, Worker, repository, rules-fragment, query-budget, component-scope, stable-reload, and local authenticated integration gates. Assembled generated-rules/emulator proof is #118-owned; deployed/canary proof is #134-owned. No deployment, private-B2 activation, #50A change, or trusted-action activation required.",
+    "requiredAuthority": ["local repository implementation and tests", "live issue reclosure after owned evidence", "no remote deployment or private capability activation"],
+    "ownedClosureGaps": [
+      "Carry selected student-safe outline, immutable activityVersionId, Page Group pins, and source correspondence through publication, binding validation/factory, resolver, Worker hydration, and tests.",
+      "Validate current/record/operation/index payloads at child boundaries because whole-scope CAS grants the ancestor write path.",
+      "Limit placement-scoped component delivery to selected source keys.",
+      "Prove repeated-resolution identity, revoke fail-closed behavior, bounded exact reads, pointer-change visibility, and oversized-scope rejection."
+    ],
+    "destinationOwnedProof": {
+      "118": "Generated database.rules.json, complete assembled Firebase emulator enforcement, active rules hash/readback, generated-rules rollback, and legacy-path preservation.",
+      "134": "Deployed/canary Delivery projection, identity/configuration, cleanup, and operational rollback."
+    }
+  },
+  "candidateRejections": [
+    {"issues": [49, 50], "rule": "authority-and-safety", "reason": "Graph-clear, but private-B2 provisioning/lifecycle and deployed disposable-object proof are not executable while private-B2 and trusted actions remain disabled."},
+    {"issues": [129, 131, 132, 133], "rule": "roadmap-phase-and-acceptance-readiness", "reason": "Graph-clear only; integration/final-closure suites are outside Runtime and share unresolved activation/deployment/final-proof boundaries, including preserved #50A deny."},
+    {"issues": [74], "rule": "mandatory-complete-transitive-prerequisite", "reason": "Reopened for concrete schema-v3 compatibility evidence; directly blocked by #72 and ineligible until #72 formally closes."},
+    {"issues": [76, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 128, 130, 134, 135, 136], "rule": "mandatory-complete-transitive-prerequisite", "reason": "Ineligible because at least one direct or transitive prerequisite is OPEN; exact chains remain in graph artifact records.openTransitivePrerequisites."}
+  ],
+  "selectionDecision": "Keep exactly one Runtime primary: #72. #74 remains reopened downstream repair and cannot start while #72 is OPEN. Keep peer #93→#94→#97 read-only and ineligible. Do not inspect or implement descendants until #72 closes and complete 112-ticket graph is rebuilt."
+}

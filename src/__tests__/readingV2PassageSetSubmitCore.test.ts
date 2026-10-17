@@ -120,7 +120,10 @@ const buildRecords = () => composeReadingPassageSetTrustedRecords({
 });
 
 describe('Reading Passage set trusted submission core', () => {
-  it('scores assigned set passages through the trusted Reading V2 plan', () => {
+  it.each([
+    ['answer b', 2, 9],
+    ['wrong', 1, 5.5],
+  ])('scores answer %s with %s points and IELTS band %s', (secondAnswer, totalScore, expectedBand) => {
     const numbering = composeReadingV2CompositionNumbering({
       passages: [
         {
@@ -153,7 +156,7 @@ describe('Reading Passage set trusted submission core', () => {
           interactionId: 'passage-2:interaction_1',
           taskGroupId: 'passage-2:task_group_1',
           displayNumber: numbering.interactionDisplayNumbers['passage-2:interaction_1']!,
-          value: 'answer b',
+          value: secondAnswer,
         },
       ],
       context: {
@@ -175,10 +178,11 @@ describe('Reading Passage set trusted submission core', () => {
     });
 
     expect(plan.response).toEqual(expect.objectContaining({
-      totalScore: 2,
+      totalScore,
       maxScore: 2,
-      percentage: 100,
+      percentage: totalScore * 50,
     }));
+    expect(plan.savedResult.bandScore).toBe(expectedBand);
     expect(plan.savedResult.readingV2.reviewPayload).toEqual(expect.objectContaining({
       materialKind: 'reading-passage-set',
       materialLabel: 'Reading Passage Set',

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "kind": "prd0062-51a-source-conformance",
+  "status": "PASS",
+  "executionState": "DEFINED_NOT_EXECUTED",
+  "acceptedProducerRef": "origin/codex/prd0062-39b",
+  "acceptedProducerCommit": "973ffa10ab61f87509eb21168b4039659ec09cee",
+  "acceptedAdapterCommit": "a7522986597c816283c8fc68b1b251384b67ff91",
+  "acceptedTimerCommit": "ba8b2d59d9ccaae2b6cc7a74a34b55b32e1b1c70",
+  "matrixAuthority": "documentation/tasks/PRD0062/supporting/prd0062-v1-acceptance-matrix.json",
+  "supersedesAbsentFilename": "51a-acceptance.matrix.json",
+  "coverage": {
+    "readingResearchedTypes": 16,
+    "listeningResearchedTypes": 12,
+    "source": "accepted Git activityRendererManifest.json"
+  },
+  "personalTimer": {
+    "status": "accepted-ui-only",
+    "invariants": [
+      "no-teacher-enforcement-or-visibility",
+      "no-telemetry-effect",
+      "no-grade-effect",
+      "no-deadline-effect",
+      "no-submission-effect",
+      "no-attempt-effect",
+      "no-autosave-effect",
+      "no-integrity-effect",
+      "no-completion-effect"
+    ]
+  },
+  "claims": {
+    "sourceConformance": "PASS",
+    "browserExecution": "DEFINED_NOT_EXECUTED",
+    "deploymentEvidence": "DEFINED_NOT_EXECUTED",
+    "productExecution": "DEFINED_NOT_EXECUTED"
+  }
+}

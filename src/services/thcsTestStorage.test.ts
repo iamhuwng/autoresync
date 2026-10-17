@@ -81,8 +81,8 @@ describe('thcsTestStorage material summary lifecycle', () => {
             materialKind: 'thcs-thpt-test',
             lifecycleState: 'active',
           }),
-        'material_catalog/material_summary_indexes/v1/by_test_type/thcs-thpt/thcs-1':
-          expect.objectContaining({ producerId: 'thcs-thpt' }),
+        'material_catalog/material_summary_indexes/v1/by_test_type/thcs/thcs-1':
+          expect.objectContaining({ producerId: 'thcs-thpt', testTypeIds: ['thcs'] }),
       }),
     );
   });

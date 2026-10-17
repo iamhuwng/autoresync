@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TeacherTestResultsPage from './TeacherTestResultsPage';
+import { toast } from '../components/modern/ToastNotification';
 
 const {
   refMock,
@@ -61,26 +62,6 @@ vi.mock('../components/modern', () => ({
   Card: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   CardBody: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 }));
-
-vi.mock('@mantine/core', () => {
-  const Box = ({ children, ...props }: any) => <div {...props}>{children}</div>;
-  const Tabs = ({ children }: any) => <div>{children}</div>;
-  Tabs.List = Box;
-  Tabs.Tab = ({ children, ...props }: any) => <button {...props}>{children}</button>;
-  Tabs.Panel = Box;
-
-  return {
-    Center: Box,
-    Loader: () => <div>Loading...</div>,
-    Modal: ({ opened, children }: any) => (opened ? <div>{children}</div> : null),
-    Stack: Box,
-    Title: Box,
-    Text: Box,
-    Tabs,
-    Badge: ({ children }: any) => <span>{children}</span>,
-    Group: Box,
-  };
-});
 
 vi.mock('../components/results/QuestionAnalytics', () => ({
   QuestionAnalytics: () => <div>Question Analytics</div>,
@@ -455,6 +436,7 @@ describe('TeacherTestResultsPage', () => {
     renderPage();
 
     await screen.findByText('Student One');
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     fireEvent.click(screen.getAllByText('Feedback')[0]);
 
     const overallSaveButton = await screen.findByRole('button', { name: 'Save Overall Feedback' });
@@ -469,6 +451,8 @@ describe('TeacherTestResultsPage', () => {
       );
     });
 
+    await screen.findByText('Student One');
+    fireEvent.click(screen.getByRole('button', { name: 'Per-Question Feedback' }));
     const questionSaveButton = await screen.findByRole('button', { name: 'Save Question Feedback 1' });
     fireEvent.click(questionSaveButton);
 
@@ -500,6 +484,20 @@ describe('TeacherTestResultsPage', () => {
     fireEvent.click(screen.getAllByText('Re-mark')[0]);
 
     expect(await screen.findByTestId('remark-modal')).toHaveTextContent('Re-mark question count 1');
+  });
+
+  it('announces a completed review without promising student notification', async () => {
+    const success = vi.spyOn(toast, 'success');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    getSessionResultsMock.mockResolvedValue(canonicalResults.map((result) => ({ ...result, markingStatus: 'pending-review' })));
+    renderPage();
+    await screen.findByText('Student One');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Mark Reviewed' })[0]);
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Student One's test marked as reviewed."));
+    expect(markAsReviewedMock).toHaveBeenCalledWith('result-visible', 'teacher-1');
+    expect(confirm.mock.calls[0][0]).not.toMatch(/notify/iu);
+    confirm.mockRestore();
+    success.mockRestore();
   });
 
   it('hands writing sessions off to the dedicated writing results surface', async () => {

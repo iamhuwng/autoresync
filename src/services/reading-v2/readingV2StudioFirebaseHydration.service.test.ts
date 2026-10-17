@@ -75,6 +75,32 @@ describe('readingV2StudioFirebaseHydration.service', () => {
     expect(ref).toHaveBeenCalledWith({}, 'reading_v2/published_snapshots/material-v2/snapshot-live');
   });
 
+  it('restores an omitted interaction review label from a Firebase-loaded published snapshot', async () => {
+    const document = createReadingV2CanonicalFixture('sentence-completion') as any;
+    const [interactionId, interaction] = Object.entries(document.interactions)[0] as [string, any];
+    delete interaction.reviewLabel;
+
+    vi.mocked(get).mockImplementation(async (target: string) => {
+      const value = target === 'reading_v2/material_metadata/material-v2'
+        ? { materialId: 'material-v2', ownerId: 'teacher-1', title: 'Published title', publishedSnapshotVersionId: 'snapshot-live' }
+        : {
+            snapshotVersionId: 'snapshot-live',
+            materialId: 'material-v2',
+            ownerId: 'teacher-1',
+            document,
+            publishedAt: '2026-04-29T00:00:00.000Z',
+            publishedBy: 'teacher-1',
+          };
+
+      return { exists: () => true, val: () => value } as any;
+    });
+
+    const source = await loadReadingV2PublishedRevisionSource('material-v2');
+
+    expect(source.status).toBe('loaded');
+    expect(source.snapshot?.document.interactions[interactionId].reviewLabel).toEqual({});
+  });
+
   it('fails closed when metadata does not point to a published snapshot version', async () => {
     vi.mocked(get).mockResolvedValue({
       exists: () => true,

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "15B",
+  "owner": {
+    "ticketId": "15B",
+    "issue": 63,
+    "serviceIdentity": "book_assembly_service",
+    "generatedRuleLocations": [
+      "book_assembly_preview_approvals/.read",
+      "book_assembly_preview_approvals/.write",
+      "book_assembly_preview_approvals/books/$bookId/.read",
+      "book_assembly_preview_approvals/books/$bookId/.write",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/.read",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/.write",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/.read",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId/.write",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId/.read",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "users/$ownerId",
+      "book_assembly_preview_approvals/books/$bookId/units/$unitKey"
+    ]
+  },
+  "operations": [
+    {
+      "path": "book_assembly_preview_approvals",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && ((auth.token.book_assembly_preview_approval_service == true && auth.uid == auth.token.book_assembly_preview_approval_ownerId && auth.token.book_assembly_preview_approval_bookId == $bookId && auth.token.book_assembly_preview_approval_unitKey == $unitKey && auth.token.book_assembly_preview_approval_approvalId == $approvalId && (!data.exists() || auth.token.book_assembly_preview_approval_ownerId == data.child('actorId').val())) || (auth.token.book_assembly_publication_approval_service == true && auth.uid == auth.token.book_assembly_publication_approval_ownerId && auth.token.book_assembly_publication_approval_bookId == $bookId && auth.token.book_assembly_publication_approval_unitKey == $unitKey && auth.token.book_assembly_publication_approval_approvalId == $approvalId && auth.token.book_assembly_publication_approval_ownerId == data.child('actorId').val())) && (!data.exists() || (data.child('approvalId').val() == $approvalId && data.child('bookId').val() == $bookId && data.child('unitKey').val() == $unitKey))"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/approvals/$approvalId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_preview_approval_service == true && auth.token.book_assembly_preview_approval_bookId == $bookId && auth.token.book_assembly_preview_approval_unitKey == $unitKey && auth.token.book_assembly_preview_approval_approvalId == $approvalId && auth.token.book_assembly_preview_approval_ownerId == newData.child('actorId').val() && !data.exists() && newData.child('approvalId').val() == $approvalId && newData.child('bookId').val() == $bookId && newData.child('unitKey').val() == $unitKey && newData.child('actorId').isString() && newData.child('candidateId').isString() && newData.child('bookRevision').isNumber() && newData.child('bookRevision').val() >= 0 && newData.child('candidateRevision').isNumber() && newData.child('candidateRevision').val() >= 0 && newData.child('sourceSetRevision').isNumber() && newData.child('sourceSetRevision').val() >= 0 && newData.child('registryVersion').isString() && newData.child('inputFingerprint').isString() && newData.child('approvalRevision').isNumber() && newData.child('approvalRevision').val() >= 1 && newData.child('approvedAt').isString() && newData.child('expiresAt').isString() && newData.child('expiresAt').val() > newData.child('approvedAt').val() && newData.child('canonicalActivityFingerprintsByKey').exists() && newData.child('canonicalActivityFingerprintsByKey').numChildren() <= 500 && newData.numChildren() == 14 && !newData.child('answer').exists() && !newData.child('answerKey').exists() && !newData.child('answers').exists() && !newData.child('credentials').exists() && !newData.child('providerAuthority').exists() && !newData.child('providerUrl').exists() && !newData.child('providerUrls').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('privateObjectUrl').exists() && !newData.child('signedUrl').exists() && !newData.child('sourceBytes').exists() && !newData.child('pdfBytes').exists() && !newData.child('rawContent').exists() && !newData.child('rawPayload').exists() && !newData.child('authoring').exists() && !newData.child('teacherNotes').exists() && !newData.child('hiddenAnswers').exists()"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && ((auth.token.book_assembly_preview_approval_service == true && auth.uid == auth.token.book_assembly_preview_approval_ownerId && auth.token.book_assembly_preview_approval_bookId == $bookId && auth.token.book_assembly_preview_approval_unitKey == $unitKey && auth.token.book_assembly_preview_approval_approvalId == $approvalId && (!data.exists() || auth.token.book_assembly_preview_approval_ownerId == data.child('actorId').val())) || (auth.token.book_assembly_publication_approval_service == true && auth.uid == auth.token.book_assembly_publication_approval_ownerId && auth.token.book_assembly_publication_approval_bookId == $bookId && auth.token.book_assembly_publication_approval_unitKey == $unitKey && auth.token.book_assembly_publication_approval_approvalId == $approvalId && (!data.exists() || auth.token.book_assembly_publication_approval_ownerId == data.child('actorId').val()))) && (!data.exists() || (data.child('approvalId').val() == $approvalId && data.child('bookId').val() == $bookId && data.child('unitKey').val() == $unitKey))"
+    },
+    {
+      "path": "book_assembly_preview_approvals/books/$bookId/units/$unitKey/revocations/$approvalId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_assembly_preview_approval_service == true && auth.token.book_assembly_preview_approval_bookId == $bookId && auth.token.book_assembly_preview_approval_unitKey == $unitKey && auth.token.book_assembly_preview_approval_approvalId == $approvalId && auth.token.book_assembly_preview_approval_ownerId == newData.child('actorId').val() && !data.exists() && newData.child('approvalId').val() == $approvalId && newData.child('bookId').val() == $bookId && newData.child('unitKey').val() == $unitKey && newData.child('actorId').isString() && newData.child('revokedAt').isString() && newData.numChildren() == 5 && !newData.child('answer').exists() && !newData.child('answerKey').exists() && !newData.child('answers').exists() && !newData.child('credentials').exists() && !newData.child('providerAuthority').exists() && !newData.child('providerUrl').exists() && !newData.child('providerUrls').exists() && !newData.child('objectKey').exists() && !newData.child('privateObjectKey').exists() && !newData.child('privateObjectUrl').exists() && !newData.child('signedUrl').exists() && !newData.child('sourceBytes').exists() && !newData.child('pdfBytes').exists() && !newData.child('rawContent').exists() && !newData.child('rawPayload').exists() && !newData.child('authoring').exists() && !newData.child('teacherNotes').exists() && !newData.child('hiddenAnswers').exists()"
+    }
+  ]
+}

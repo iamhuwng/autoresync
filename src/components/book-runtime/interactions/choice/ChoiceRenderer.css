@@ -1,0 +1,48 @@
+.book-choice {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--sv-outline-soft, #abb3b7);
+  border-radius: var(--sv-radius-soft, 8px);
+  color: var(--sv-text-primary, #2b3437);
+  background: var(--sv-bg-surface, #ffffff);
+  overflow-wrap: anywhere;
+}
+
+.book-choice legend {
+  max-inline-size: 100%;
+  padding-inline: 0.25rem;
+  font-weight: 700;
+}
+
+.book-choice__source {
+  color: var(--sv-text-secondary, #586064);
+  font-size: 0.875rem;
+}
+
+.book-choice__option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 2.75rem;
+  padding-block: 0.25rem;
+  cursor: pointer;
+}
+
+.book-choice__option input {
+  flex: 0 0 auto;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  accent-color: var(--sv-accent, #4d44e3);
+}
+
+.book-choice__option span {
+  min-inline-size: 0;
+}
+
+@media (max-width: 48rem) {
+  .book-choice {
+    padding: 0.75rem;
+  }
+}

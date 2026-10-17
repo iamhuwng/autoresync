@@ -1,0 +1,65 @@
+{
+  "ticket": 41,
+  "issue": 41,
+  "title": "PRD0062 27 — Add Book-owned Reading/Listening adapters",
+  "stateBeforeClose": "OPEN",
+  "repairReason": "Concrete failure found in the closed adapter-registration boundary: generic profile:null long-response renderer registration was incorrectly treated as a native Reading/Listening adapter.",
+  "selection": {
+    "roadmapPhase": "student-workflow",
+    "directPrerequisitesClosed": [36, 37],
+    "completeTransitivePrerequisiteChain": [25, 33, 34, 36, 37],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 46,
+    "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket41-reopened.json",
+    "selectionArtifact": "artifacts/prd0062-selection-20260728-ticket41-repair.json"
+  },
+  "repair": {
+    "owner": "#41 adapter-registration boundary",
+    "change": "Filter unprofiled generic renderer registrations from the native adapter list; preserve profiled supported Reading/Listening matrix rows.",
+    "preservedBoundary": "Generic profile:null long-response remains available through the shared renderer registry and does not imply IELTS coverage or native adapter ownership."
+  },
+  "verification": {
+    "focusedRendererAndAdapterSuite": {
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/components/book-runtime/interactions/ActivityRendererHost.test.tsx src/components/book-runtime/interactions/choice/ChoiceRenderer.test.tsx src/components/book-runtime/interactions/text-entry/TextEntryRenderer.test.tsx src/components/book-runtime/interactions/matching/MatchingRenderer.test.tsx src/components/book-runtime/interactions/ordering/OrderingRenderer.test.tsx src/components/book-runtime/interactions/long-response/LongResponseRenderer.test.tsx src/services/book-activity/runtime/registrations/activityRendererRegistrations.test.ts src/services/book-activity/runtime/registrations/bookActivityAdapterRegistrations.test.ts src/services/book-activity/runtime/registrations/choiceTextEntryHostIntegration.test.tsx src/services/book-activity/runtime/registrations/matchingOrderingRendererRegistrations.test.ts --reporter=dot --maxWorkers=1",
+      "result": "10 files passed; 31 tests passed"
+    },
+    "lint": {
+      "command": "node_modules/.bin/eslint <#41-owned registration files>",
+      "result": "passed"
+    },
+    "utf8": {
+      "command": "rtk node scripts/check-utf8.mjs <#41-owned registration files>",
+      "result": "passed"
+    },
+    "productionBuild": {
+      "command": "rtk node scripts/harness/run-tool.mjs vite . build",
+      "result": "Vite production build passed; 9429 modules transformed"
+    },
+    "postClosureGraph": {
+      "artifact": "artifacts/prd0062-graph-20260728-post-ticket41-closed.json",
+      "issueHash": "58f68cbe2831eea2d4577bd1e5f2825303b1920a2586afb583c7b8d98637be5a",
+      "issueCount": 112,
+      "openCount": 63,
+      "closedCount": 49,
+      "uniqueEdgeCount": 309,
+      "missingReferences": 0,
+      "duplicateEdges": 0,
+      "cycles": 0,
+      "topologicalCoverage": 112
+    }
+  },
+  "destinationProof": {
+    "73": ["assembled Student quick-login and integrated adapted-fixture browser proof"],
+    "75": ["browser autosave/resume client and state-machine proof after #41 is closed"],
+    "118": ["assembled generated-rules proof"],
+    "134": ["deployed/canary adapter identity, cleanup, and rollback proof"]
+  },
+  "safety": {
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled",
+    "remoteDeployment": "not claimed",
+    "reopenedTickets": [41]
+  }
+}

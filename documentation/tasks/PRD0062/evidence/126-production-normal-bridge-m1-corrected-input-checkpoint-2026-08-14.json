@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-14T11:57:33Z",
+  "status": "ready",
+  "supersedes": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-recovery-checkpoint-2026-08-14.json",
+  "priorFailure": "documentation/tasks/PRD0062/evidence/126-production-normal-bridge-m1-frozen-input-failure-2026-08-14.json",
+  "classification": "FROZEN_INPUT_CHECKPOINT_INVALID",
+  "standingAuthority": "documentation/tasks/PRD0062/PRD0062-production-normal-recovery-and-completion-plan.md and the user's corrected frozen-input bounded-attempt instruction",
+  "presentation": {
+    "source": "tmp/prd0062-m1-reconcile-20260814T111223Z/material-book.json",
+    "sourceField": "title",
+    "title": "Vocabulary U1",
+    "description": null,
+    "rationale": "The canonical Material Book provides the assignment display title; no assignment-specific description exists."
+  },
+  "correctedCommand": {
+    "path": "tmp/prd0062-bridge-m1-corrected-assignment-command.json",
+    "sha256": "0e3720ac38b0545fa51876a0230eec8e690a735af29654779208b80221c38583",
+    "assignmentId": "assignment-vocab-u1-ac994b46-0f53-47f5-a697-659c54b54fb4",
+    "operationId": "7592acca-0766-4407-b6d9-ac8146048876",
+    "idempotencyKey": "e6450e16-df33-4353-b652-eaa2c43b35a5",
+    "literalBytesRequired": true
+  },
+  "sourceIdentity": {
+    "branch": "codex/prd0062-production-normal-20260813-v2",
+    "head": "4f31975ed057c84c81f953b8547984c8d7b30869",
+    "dirtyManifestPath": "tmp/prd0062-bridge-m1-corrected-dirty-content-manifest.txt",
+    "dirtyManifestSha256": "ec9f6476543a9d5e57c307652dccf2981712f67388f1fbea5e3185b34b34cba6",
+    "dirtyManifestEntries": 157,
+    "bridgeContractSha256": "21ad51714bc3cc124d3d7a4f8689e1fa617f7b7535769e6e4314fa17be4cb0c9",
+    "recoveryPlanSha256": "1d4567e2a74c17b4a9d3f49c96b46d51526ba552aec0d21bdff186fcf6e62e6a"
+  },
+  "exactCommandProof": {
+    "historicalOmittedPresentation": {
+      "path": "cloudflare/test/book-homework-production-command-reproduction.test.ts",
+      "sha256": "ceeb1c33ca4788ca66ce6602f1b1bd5c5a34de5e7a45097c20165e2fd8290d05",
+      "result": "1/1 passed; literal prior command rejects with invalid_request"
+    },
+    "correctedDefaultWorkerd": {
+      "testPath": "cloudflare/test/book-homework-current-production-composition.workerd.test.ts",
+      "testSha256": "90b6717082a8da82b3c34fcce928d79ef14984d73dc131f2236a21eb99008abb",
+      "configPath": "cloudflare/vitest.book-homework-current-workerd.config.mjs",
+      "configSha256": "e0249e4afd4f0d97a1b104f418e5860f6307ea14d78c721f15eaf6e9214189e5",
+      "result": "1/1 passed",
+      "assertions": [
+        "literal corrected JSON accepted by assignment-intent parser",
+        "literal corrected JSON accepted by canonical route",
+        "default createUploadWorker and default production runtime commit and replay",
+        "frozen title preserved in saga and compatibility projection",
+        "compatibility deletion followed by committed replay repairs the projection",
+        "teacher, teacher-student, and student projections pass",
+        "no synthetic assignment UID and no compatibility-as-authority read"
+      ]
+    },
+    "frozenV17Historical": {
+      "configPath": "cloudflare/vitest.book-homework-v17-workerd.config.mjs",
+      "configSha256": "bb28d767f8e4078dfbb788a7c37262c547bc8891e75270e1331e03ad1734eae6",
+      "result": "1/1 passed; historical undefined .call failure remains reproduced"
+    }
+  },
+  "immutableActivation": {
+    "workerBundleSha256": "458344df24e1245c104e5bf6b6c266c34a11ad88ab8f230744201cc687d00f1c",
+    "workerBundleBytes": 1826521,
+    "activationConfigPath": "cloudflare/wrangler.prd0062-bridge-m1-activation.jsonc",
+    "activationConfigSha256": "76bfb3c4f078ac05c302e5f88d5541279716d7e5d2e31b619f0caf7d4b09a99d",
+    "rollbackConfigPath": "cloudflare/wrangler.prd0062-bridge-m1-rollback.jsonc",
+    "rollbackConfigSha256": "3d2aec19b738a5483d8297fbb51c9c677d2e97815c2c5ef70e9cb02c4a7f7eda",
+    "expiresAt": "2026-08-14T23:13:33.276Z",
+    "activationWorkerVersionId": "899156dc-b8b9-44b0-8790-fc7fc956c3c2",
+    "rollbackWorkerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerScriptEtag": "ce5560450f1685e7099667747778bdec826d33dc73c4fecc4882900d5734b2c5",
+    "rtdbActivationSha256": "e16df0c49724ca9a5f1c4fe886115f5b3ef3ddc5fe7bedf0a92d433454feca2f",
+    "rtdbRollbackSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreActivationSha256": "3322ddc1f4977f2063e0251c7921a3e19f8f463b9f8d92c06f13e7d679b519bc",
+    "firestoreActivationRuleset": "projects/temp-a1437/rulesets/fe84ef31-a849-4f2a-a221-0947b24f5775",
+    "firestoreRollbackRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "reusedWithoutNewProductCandidate": true
+  },
+  "rollbackReadback": {
+    "reconciliationDirectory": "tmp/prd0062-bridge-m1-corrected-reconcile-20260814T114832Z",
+    "workerDeploymentId": "cc222e94-3fff-4ec9-b680-968745bcd969",
+    "workerVersionId": "7f11dc93-fd77-4f33-90bf-a2d92cce828a",
+    "workerTrafficPercent": 100,
+    "rtdbRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "firestoreRuleset": "projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+    "saga": null,
+    "authority": "HTTP 404",
+    "deliveryIndex": null,
+    "deliveryScope": null,
+    "compatibility": "HTTP 404"
+  },
+  "execution": {
+    "attemptCount": 1,
+    "order": [
+      "Validate this checkpoint byte-for-byte",
+      "Activate exact frozen Firestore ruleset and verify source hash",
+      "Activate exact frozen RTDB rules and verify raw hash",
+      "Activate exact frozen Worker version",
+      "Submit exact corrected command bytes once",
+      "Verify committed saga, authority, Delivery, compatibility, teacher projection, and student projection",
+      "Keep active only on complete success and hand off https://kahut1.web.app"
+    ],
+    "rollbackTrigger": "Any new production failure",
+    "rollbackOrder": [
+      "Activate Worker 7f11dc93-fd77-4f33-90bf-a2d92cce828a at 100%",
+      "Restore RTDB rules 62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+      "Restore Firestore release to projects/temp-a1437/rulesets/e6bc182c-000a-461b-9c6c-ba10ae9d9ca6",
+      "Read back and stop for exact reproduction"
+    ]
+  }
+}

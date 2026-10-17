@@ -1,0 +1,316 @@
+{
+  "observedAt": "2026-10-17T04:28:27.480Z",
+  "hostingVersion": "10039da56ea1c0ae",
+  "javascriptFilesVerified": 393,
+  "findings": [
+    {
+      "path": "/assets/AdminSettingsPage-5K07wNES.js",
+      "sha256": "3bb8ab386a70c19261ddad86b656a2f2acf1be30c928efe85bc13df5af30a5b4",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": true,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/ai-status.service-BdG5QYt3.js",
+      "sha256": "2b983f1b9d477ecb96113f7fab7015c38be0d18a069988451ed143732cedbfdf",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/bookDelivery.browser-BckGpV2z.js",
+      "sha256": "3f57f86c516ed23655a71f53a0d7aef36c55fbc2d6ad7d5be4879e68880fa46f",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/bookResult.browser-D5UKtMbq.js",
+      "sha256": "fb857560ff2a146f1576ab1470a6dfc3611d6478984d7ff3519deec555bb8a6f",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/courseBookPlacement.browser-CvURuYw1.js",
+      "sha256": "392ebebf586e6c629111bab2c2e45505f16942defd8ca659185ad2dc80b26324",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/index-2GpbemCe.js",
+      "sha256": "fcbea032459651226fc8f7d3802c49287983ae0c3e9f93bf4a293d9839bb6849",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": true,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": false,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/index-CehJl_GR.js",
+      "sha256": "fa812e6054d10fe20d647bc78f61b7c65d24beb2c22b739cfe1eac2dc4e79b05",
+      "markers": {
+        "directGeminiHost": true,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": false,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/key-cooldown.service-BWW_6Hj5.js",
+      "sha256": "054c137d905776f946519cef0af03d0f0ffa38dd92bf9815de536932ed011199",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": true,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/listeningLiveDeliveryClient-CtmPgf4c.js",
+      "sha256": "caa0068076d3f093ab68e3a2b500ca83ee3bb965d27a44c504dd9967a90a520b",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/ListeningPracticeView-xFFWRFNl.js",
+      "sha256": "b06856e174249019a5b86e647d99618ea940986ea204a56a4a038f87943d82db",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/ListeningTestBuilder-C_PQIlPp.js",
+      "sha256": "b4b1f72e888e1e8e52d0807ed85b18b0cd23e979c6b67aa3a90e392cae28b555",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": true
+      }
+    },
+    {
+      "path": "/assets/r2Storage-DmW3hzeQ.js",
+      "sha256": "94efe2e4b7540167389a891a5b78ece6ff75ba104af15ad953ff7afa4364fe57",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/r2UploadClient--5u7FKYZ.js",
+      "sha256": "efb1a6adad236da2b69d0020b29d2a7f69505440ab1d63efef189e3d5c9b8931",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/resultFeedbackGeneration.service-BzJgnY3m.js",
+      "sha256": "8d5babeb6b3444cfbaa53eeae16f9030be2d96a39a6ac3f85b1bdf885f238cb8",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/router.service-BMC3iAUX.js",
+      "sha256": "e626e3e407ac2e4b464e9b0b4a73211362194cb983e7fccfeb0a0d1c4c4dc49d",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/rtdbAccessLost-CFLIiFXA.js",
+      "sha256": "e0fe3d559040c973994f85cce29b97408572fbfd570868504fc1ca96eae1cf18",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/TeacherHomeworkDetailPage-ChcQubNq.js",
+      "sha256": "e278fee15a82ad8e391a16066c323abf1b2a2089e54ba2bc6cc7fd1df67bb1a7",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/TeacherLobbyPage-C9iAz8WV.js",
+      "sha256": "2220352371d843a82d11ef619178e95e19603ec706385e00b793cc5dda4f6cc6",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": true,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": false
+      }
+    },
+    {
+      "path": "/assets/THCSPassagePanel-BrC9vkcg.js",
+      "sha256": "900d7a89e9c72fdf965e2f74b61da19ce94582727873bb027f33ec8ec986a9fb",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": false,
+        "thcsVisualFallback": true
+      }
+    },
+    {
+      "path": "/assets/THCSSectionBlock-DPRbU50L.js",
+      "sha256": "88c59ed79dcc1920cae7e4a9c03c5c302865b6483ede5eb59843d8f99d640870",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": false,
+        "thcsVisualFallback": true
+      }
+    },
+    {
+      "path": "/assets/THCSTestEditorPage-DbXhy-_G.js",
+      "sha256": "26642bb20a1501f1f166a292d47bc6925176ff0c0b94a280c7e82515fb670f03",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": true,
+        "thcsVisualFallback": true
+      }
+    },
+    {
+      "path": "/assets/TimeUpOverlay-CmQsRCFp.js",
+      "sha256": "652a1a993d7df9e1e3a1d391aaea2ca5c8ae8444e2291b2365506bf5f952409d",
+      "markers": {
+        "directGeminiHost": false,
+        "directGroqHost": false,
+        "aiGatewayPath": false,
+        "thcsGatewayHost": false,
+        "firestoreKeyDocument": false,
+        "groqCredentialShape": false,
+        "browserKeyEnvironmentNames": false,
+        "thcsVisualFallback": true
+      }
+    }
+  ],
+  "interpretation": "Static bundle markers only; not authenticated runtime behavior or deployed source provenance. No credential values retained."
+}

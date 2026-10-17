@@ -1,13 +1,16 @@
 /**
  * THCSAnswerKeyStep — Step 3 of the THCS Test Editor Wizard.
  * 
- * Progress bar with working "Auto-fill remaining" / "Clear all" /
- * "Bulk Input" (modal) action buttons, then the answer key panel.
+ * Answer progress, bulk input, and the answer correction panel.
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import THCSAnswerKeyPanel from './THCSAnswerKeyPanel';
+import { toast } from '../modern/ToastNotification';
+import { useFeatureTracking } from '../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../config/featureRegistry';
 import type { THCSSection } from '../../types/thcs-test.types';
 import { INSTRUCTION_TEMPLATES } from '../../types/thcs-test.types';
+import './THCSNestedDialog.css';
 
 export interface THCSAnswerKeyStepProps {
     sections: THCSSection[];
@@ -80,6 +83,7 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
     onUpdateClozeMapping,
 }) => {
     const [showBulkModal, setShowBulkModal] = useState(false);
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
 
     // Gather all MCQ questions with their indices
     const mcqQuestions = useMemo(() => {
@@ -106,10 +110,11 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
         return result;
     }, [sections]);
 
-    const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
+    const totalQuestions = sections.reduce((sum, s) => sum + s.questions.filter(q => q.type !== 'raw-text-fallback').length, 0);
     const answeredCount = sections.reduce((sum, s) =>
         sum + s.questions.filter(q => {
             const t = q.type;
+            if (t === 'raw-text-fallback') return false;
             if (t === 'verb-form' || t === 'word-form') return (q.blankAnswers?.length || 0) > 0;
             if (t === 'sentence-rewrite' || t === 'sentence-rewrite-keyword') return (q.modelAnswers?.length || 0) > 0;
             if (t === 'reading-cloze-wordbank') return Object.keys(q.blankMapping || {}).length > 0;
@@ -117,16 +122,6 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
         }).length
         , 0);
     const percentage = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-
-    // ── Auto-fill remaining MCQ with random answers ──
-    const handleAutoFill = useCallback(() => {
-        const unanswered = mcqQuestions.filter(q => !q.correctAnswer);
-        if (unanswered.length === 0) return;
-        unanswered.forEach(q => {
-            const randomAnswer = VALID_ANSWERS[Math.floor(Math.random() * 4)]!;
-            onUpdateAnswer(q.sectionIndex, q.questionIndex, randomAnswer);
-        });
-    }, [mcqQuestions, onUpdateAnswer]);
 
     // ── Clear all MCQ answers ──
     const handleClearAll = useCallback(() => {
@@ -141,19 +136,33 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
 
     // ── Apply bulk input ──
     const handleBulkApply = useCallback((parsed: Map<number, ValidAnswer>) => {
+        let appliedCount = 0;
         parsed.forEach((answer, questionNumber) => {
             const mcq = mcqQuestions.find(q => q.questionNumber === questionNumber);
             if (mcq) {
                 onUpdateAnswer(mcq.sectionIndex, mcq.questionIndex, answer);
+                appliedCount++;
             }
         });
+        trackAction('applyBulkAnswerKey', { count: appliedCount });
+        toast.success(`Applied ${appliedCount} answer${appliedCount === 1 ? '' : 's'}.`);
         setShowBulkModal(false);
-    }, [mcqQuestions, onUpdateAnswer]);
+    }, [mcqQuestions, onUpdateAnswer, trackAction]);
 
-    const unansweredMcqCount = mcqQuestions.filter(q => !q.correctAnswer).length;
+    const handleBulkClose = useCallback(() => {
+        trackAction('cancelBulkAnswerKey');
+        setShowBulkModal(false);
+    }, [trackAction]);
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div>
+                <h2 style={{ margin: 0, fontSize: '1.125rem', color: '#1e293b' }}>Answer Key</h2>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
+                    Complete missing answers and verify the answer key before publishing.
+                </p>
+            </div>
             {/* Progress bar with action buttons */}
             <div style={{
                 background: 'rgba(255,255,255,0.85)',
@@ -177,17 +186,11 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
                         fontWeight: 700,
                         color: '#1e293b',
                     }}>
-                        {answeredCount}/{totalQuestions} answers completed
+                        {answeredCount}/{totalQuestions} answers completed · {totalQuestions - answeredCount} missing
                     </span>
 
                     {/* Right: working action buttons */}
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <ActionPill
-                            label={`Auto-fill remaining${unansweredMcqCount > 0 ? ` (${unansweredMcqCount})` : ''}`}
-                            onClick={handleAutoFill}
-                            disabled={unansweredMcqCount === 0}
-                            icon="🎲"
-                        />
                         <ActionPill
                             label="Clear all"
                             onClick={handleClearAll}
@@ -197,7 +200,10 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
                         />
                         <ActionPill
                             label="Bulk Input"
-                            onClick={() => setShowBulkModal(true)}
+                            onClick={() => {
+                                trackAction('openBulkAnswerKey');
+                                setShowBulkModal(true);
+                            }}
                             disabled={mcqQuestions.length === 0}
                             icon="📋"
                             variant="primary"
@@ -239,7 +245,7 @@ const THCSAnswerKeyStep: React.FC<THCSAnswerKeyStepProps> = ({
                     mcqCount={mcqQuestions.length}
                     mcqQuestions={mcqQuestions}
                     onApply={handleBulkApply}
-                    onClose={() => setShowBulkModal(false)}
+                    onClose={handleBulkClose}
                 />
             )}
         </div>
@@ -323,6 +329,11 @@ const BulkInputModal: React.FC<{
     onClose: () => void;
 }> = ({ mcqCount, mcqQuestions, onApply, onClose }) => {
     const [text, setText] = useState('');
+    const dialogRef = useRef<HTMLDialogElement>(null);
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (dialog && !dialog.open) dialog.showModal();
+    }, []);
     const parsed = useMemo(() => parseBulkAnswers(text), [text]);
 
     // Count how many parsed answers actually match MCQ question numbers
@@ -338,35 +349,20 @@ const BulkInputModal: React.FC<{
     }));
 
     return (
-        <>
-            {/* Backdrop */}
-            <div
-                onClick={onClose}
-                style={{
-                    position: 'fixed',
-                    inset: 0,
-                    background: 'rgba(0,0,0,0.5)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 1000,
-                    animation: 'fadeIn 0.2s ease',
-                }}
-            />
-            {/* Modal */}
-            <div style={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                background: '#fff',
-                borderRadius: '1.25rem',
-                boxShadow: '0 24px 80px rgba(0,0,0,0.2)',
-                zIndex: 1001,
-                width: 'min(640px, 92vw)',
-                maxHeight: '85vh',
+        <dialog
+            ref={dialogRef}
+            aria-label="Bulk Answer Key Input"
+            className="thcs-nested-dialog"
+            onClose={onClose}
+            onCancel={event => { event.preventDefault(); onClose(); }}
+            onKeyDown={event => event.stopPropagation()}
+            style={{
+                padding: 0,
+                overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                animation: 'slideUp 0.25s ease',
-            }}>
+            }}
+        >
                 {/* Header */}
                 <div style={{
                     padding: '1.25rem 1.5rem',
@@ -374,6 +370,7 @@ const BulkInputModal: React.FC<{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexShrink: 0,
                 }}>
                     <div>
                         <h3 style={{
@@ -392,6 +389,7 @@ const BulkInputModal: React.FC<{
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Close bulk answer key"
                         style={{
                             background: 'none',
                             border: 'none',
@@ -408,6 +406,7 @@ const BulkInputModal: React.FC<{
                 <div style={{
                     padding: '1.25rem 1.5rem',
                     overflowY: 'auto',
+                    minHeight: 0,
                     flex: 1,
                 }}>
                     {/* Format help */}
@@ -446,6 +445,7 @@ const BulkInputModal: React.FC<{
 
                     {/* Textarea */}
                     <textarea
+                        aria-label="Answer key"
                         value={text}
                         onChange={e => setText(e.target.value)}
                         placeholder="Paste your answer key here, e.g.:\n1.A 2.B 3.C 4.D 5.A 6.B 7.C 8.D\n9.A 10.B 11.C 12.D..."
@@ -569,6 +569,7 @@ const BulkInputModal: React.FC<{
                     display: 'flex',
                     justifyContent: 'flex-end',
                     gap: '0.5rem',
+                    flexShrink: 0,
                 }}>
                     <button
                         onClick={onClose}
@@ -607,17 +608,7 @@ const BulkInputModal: React.FC<{
                         Apply {matchedCount > 0 ? `${matchedCount} Answer${matchedCount !== 1 ? 's' : ''}` : ''}
                     </button>
                 </div>
-            </div>
-
-            {/* Animations */}
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                @keyframes slideUp {
-                    from { opacity: 0; transform: translate(-50%, -46%); }
-                    to { opacity: 1; transform: translate(-50%, -50%); }
-                }
-            `}</style>
-        </>
+        </dialog>
     );
 };
 

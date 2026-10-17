@@ -52,6 +52,7 @@ const BookCard = ({
   book,
   canOpenBookEditor = true,
   onOpenBook,
+  onCreateSuccessor,
   onArchiveBook,
   selection,
 }) => {
@@ -125,6 +126,15 @@ const BookCard = ({
             onClick={(event) => onOpenBook?.(book, event.currentTarget, { focus: 'broken-refs' })}
           >
             Fix broken refs
+          </button>
+        )}
+        {book.isOwner && (
+          <button
+            type="button"
+            className="book-card__action"
+            onClick={() => onCreateSuccessor?.(book)}
+          >
+            Change mode
           </button>
         )}
         {book.isOwner && (

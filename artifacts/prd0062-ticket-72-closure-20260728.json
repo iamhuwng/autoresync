@@ -1,0 +1,58 @@
+{
+  "ticket": "21",
+  "issue": 72,
+  "recordedAt": "2026-07-28T03:50:00.000Z",
+  "stateBeforeClosure": "OPEN",
+  "graph": {
+    "artifact": "artifacts/prd0062-graph-20260728-post-ticket74-reopened.json",
+    "issueHash": "a363f58db22b93cd2196b62270935113e7966ae71a045c512261bd412ee59265",
+    "issueCount": 112,
+    "openCount": 61,
+    "closedCount": 51,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "selectedPrimary": 72,
+    "completeTransitivePrerequisitesClosed": true
+  },
+  "contractRepairs": [
+    "Projection now requires frozen student-safe outline, immutable activityVersionId, and Page Group pins.",
+    "Publication reference, binding factory/schema, resolver, and Worker hydration carry and validate those pins.",
+    "Placement-scoped component delivery uses selected source keys only; subtree scope retains owner-node expansion.",
+    "Trusted whole-scope CAS remains intact; child validations constrain current, records, operation receipts, and indexes.",
+    "Destination-owned assembled rules/emulator proof remains #118; deployed/canary proof remains #134; schema-v3 runtime authorization repair is reopened #74-owned."
+  ],
+  "verification": [
+    {"command": "rtk node scripts/harness/run-tool.mjs vitest . run src/services/book-delivery src/__tests__/security/bookDeliveryRuleFragment.test.ts --typecheck --reporter=dot --passWithNoTests=false", "result": "PASS: 12 files, 67 tests, no type errors"},
+    {"command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-delivery-worker.test.ts test/book-delivery-repository.test.ts test/book-runtime-authorization.test.ts test/book-runtime-route-integration.test.ts --passWithNoTests=false", "result": "PASS: 4 files, 18 tests"},
+    {"command": "rtk node node_modules/eslint/bin/eslint.js src/services/book-delivery/bookDelivery.entitlementFactory.ts src/services/book-delivery/bookDelivery.entitlementLifecycle.test.ts src/services/book-delivery/bookDelivery.publication.ts src/services/book-delivery/bookDelivery.schema.ts src/services/book-delivery/bookDelivery.schema.test.ts src/services/book-delivery/bookDelivery.service.ts src/services/book-delivery/bookDelivery.service.test.ts src/services/book-delivery/bookDelivery.types.ts src/__tests__/security/bookDeliveryRuleFragment.test.ts cloudflare/src/upload-worker/book-delivery/worker.ts cloudflare/test/book-delivery-worker.test.ts cloudflare/test/book-delivery-repository.test.ts", "result": "PASS"},
+    {"command": "rtk npm run lint -- --quiet", "result": "PASS: ESLint and Mantine boundary"},
+    {"command": "rtk npm run check:utf8", "result": "PASS"},
+    {"command": "rtk git diff --check", "result": "PASS"},
+    {"command": "rtk node scripts/harness/run-tool.mjs wrangler cloudflare deploy --config wrangler.jsonc --dry-run", "result": "PASS: Wrangler 4.103.0; all Book route/action gates disabled"}
+  ],
+  "proofBoundaries": {
+    "local": "#72-owned projection, repository, Worker, fragment, schema, query-budget, scope-isolation, stable-reload, revoke, and hidden-field proof",
+    "assembled": "#118-owned generated database.rules.json and complete emulator proof; not claimed here",
+    "deployed": "#134-owned canary/deployment/readback/cleanup/rollback; not claimed here",
+    "browser": "Not required by #72; #73 owns assembled student route/browser proof",
+    "activation": "No #50A, #03B, trusted-action, private-B2, or route gate enabled"
+  },
+  "ownedPaths": [
+    "cloudflare/src/upload-worker/book-delivery/worker.ts",
+    "cloudflare/src/upload-worker/book-rules/fragments/21.json",
+    "cloudflare/test/book-delivery-repository.test.ts",
+    "cloudflare/test/book-delivery-worker.test.ts",
+    "src/__tests__/security/bookDeliveryRuleFragment.test.ts",
+    "src/services/book-delivery/bookDelivery.entitlementFactory.ts",
+    "src/services/book-delivery/bookDelivery.entitlementLifecycle.test.ts",
+    "src/services/book-delivery/bookDelivery.publication.ts",
+    "src/services/book-delivery/bookDelivery.schema.test.ts",
+    "src/services/book-delivery/bookDelivery.schema.ts",
+    "src/services/book-delivery/bookDelivery.service.test.ts",
+    "src/services/book-delivery/bookDelivery.service.ts",
+    "src/services/book-delivery/bookDelivery.types.ts"
+  ]
+}

@@ -10,20 +10,20 @@ Sources:
 
 ## Trigger Rule
 
-Read this file before PRD/task-list packet planning, review, correction, handoff, staging, commit, or PASS/BLOCKED closure when work involves:
+Read this file for packet/taskbox/findings/traceability reconciliation,
+exact-path staging, remote-state proof, or formal milestone/packet closure
+(including its commit or handoff). Ordinary implementation, review, or correction
+does not trigger this bridge unless it includes one of those operations.
 
-- next-patch prompts, handoffs, task sequencing, taskboxes, or checklist closeout
-- findings ledgers, traceability matrices, implementation logs, canonical/current-state docs, guardrails, or reviewer blockers
-- source-test-doc truth reconciliation, exact-path staging, RTK/PowerShell proof, Cloudflare/Wrangler/R2 proof, or remote-state claims
-
-This is workflow-shape based. Do not limit it to PRD-0055 by exact number.
+Apply this by workflow, not by PRD number. The historical blocks explain the
+rules' rationale; they do not add universal triggers for unrelated tasks.
 
 ## Temporary Memory Block: Broad Process Lessons
 
 Source: `codex://threads/019f0197-a08f-7961-bb2b-963cb5f2c4f4`
 
 - Scope fences are literal: `Task X only`, `docs-only`, `no deploy`, `no push`, `do not start next task`, and parent-checkbox conditions.
-- Never infer approval. Planning, config prep, canary, production rollout, rollback drill, docs closure, commit, push, and next-task start are separate gates unless explicitly combined.
+- Never infer approval. Planning, config prep, canary, production rollout, rollback drill, docs closure, commit, push, and next-task start are separate gates unless explicitly combined. Explicit conversation authorization for a named action and scope satisfies that gate across turns and handoffs; ask again only when the action, target, or scope changes. Finish all authorized preparation before presenting an unsatisfied gate.
 - Start packets with state proof: `rtk git status --short --branch`, `rtk git status --short --untracked-files=all`, `rtk git rev-parse HEAD`, then dirty/untracked allowlist.
 - Treat traceability as active truth. Do not close while taskbox, findings, implementation log, authority docs, and traceability disagree.
 - Boundary proof must match real control boundary: requirement -> test title -> assertion -> mutation/exploit -> killed test where security/boundary claims are material.
@@ -49,13 +49,26 @@ Source: `codex://threads/019f0256-334d-7801-8be0-68d2f10099e1`
 
 Before PASS, checkbox, stage, commit, or handoff claim:
 
-1. Inventory diff and dirty paths; stop on unrelated or next-task paths.
-2. Run focused tests, adjacent/shared tests, guardrails, UTF-8 check, and `rtk git diff --check` as applicable.
-3. Scan touched targets for forbidden imports, protected-path drift, shared-boundary drift, and next-task checkbox drift.
-4. Reconcile taskbox, traceability, findings, implementation log, canonical architecture/current-state docs, and active design/drift docs.
-5. Run stale phrase/proof-count scans for old claims contradicted by current diff.
-6. Use independent review only after current diff and authority surfaces are inspectable; main agent still owns final proof.
+1. Inventory the diff and dirty paths for the requested operation. Separate
+   ownership, preserve pre-existing work, and continue isolated work. Pause
+   only the affected operation when paths overlap, ownership is unclear, or
+   unrelated staging is proposed.
+2. Run focused tests, adjacent/shared tests, guardrails, UTF-8 checks, and
+   `rtk git diff --check` when relevant; record a reasoned N/A for irrelevant
+   checks. Missing evidence blocks only the dependent claim or milestone, not
+   independent authorized work.
+3. Scan touched targets for forbidden imports, protected-path drift,
+   shared-boundary drift, and next-task checkbox drift when those claims are
+   requested.
+4. Reconcile taskbox, traceability, findings, implementation log, canonical
+   architecture/current-state docs, and active design/drift docs when those
+   authority surfaces are in scope.
+5. Run stale phrase/proof-count scans when the requested claim depends on
+   current wording or counts.
+6. Use independent review only after the relevant current diff and authority
+   surfaces are inspectable; main agent still owns final proof.
+7. Do not mark overall completion while any requested work remains.
 
-PASS means live source behavior, tests, docs, taskboxes, findings, traceability, guardrails, review, and dirty-path scope agree.
-
-Anything less is BLOCKED.
+PASS means the evidence required for the requested claim, milestone, or
+handoff agrees with the relevant live source of truth. An irrelevant check may
+be N/A with a reason; a missing required check blocks its dependent claim.

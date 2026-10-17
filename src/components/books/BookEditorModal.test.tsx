@@ -7,6 +7,10 @@ import { materialCatalogIds, type MaterialBookMetadata } from '../../types/mater
 
 const NOW = '2026-06-01T00:00:00.000Z';
 
+const mocks = vi.hoisted(() => ({
+  firebaseBook: null as MaterialBookMetadata | null,
+}));
+
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({
     user: { uid: 'teacher-1', email: 'teacher@test.com' },
@@ -21,7 +25,11 @@ vi.mock('../../hooks/useFeatureTracking', () => ({
 }));
 
 vi.mock('firebase/database', () => ({
-  get: vi.fn(async () => ({ val: () => null })),
+  get: vi.fn(async (target: { path?: string }) => ({
+    val: () => target?.path?.includes('material_catalog/books/')
+      ? mocks.firebaseBook
+      : null,
+  })),
   ref: vi.fn((_database, path: string) => ({ path })),
   remove: vi.fn(),
   set: vi.fn(),
@@ -62,6 +70,7 @@ const makeBook = (overrides: Partial<MaterialBookMetadata> = {}): MaterialBookMe
 describe('BookEditorModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.firebaseBook = makeBook();
   });
 
   it('renders native edit-test-style frame classes and no TeacherHeader', async () => {
@@ -70,6 +79,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -78,7 +88,7 @@ describe('BookEditorModal', () => {
       />,
     );
 
-    const dialog = screen.getByRole('dialog', { name: /IELTS Book/i });
+    const dialog = await screen.findByRole('dialog', { name: /IELTS Book/i });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveClass('book-editor-modal__frame');
     expect(dialog.querySelector('.book-editor-modal__header')).not.toBeNull();
@@ -114,6 +124,7 @@ describe('BookEditorModal', () => {
           <button ref={setLauncher} type="button" data-testid="launcher">Edit</button>
           <BookEditorModal
             opened
+            intent="edit"
             bookId="book-123"
             initialBook={makeBook()}
             initialNodes={[]}
@@ -142,6 +153,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -150,7 +162,7 @@ describe('BookEditorModal', () => {
       />,
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Overview' }));
+    await user.click(await screen.findByRole('tab', { name: 'Overview' }));
     await user.type(screen.getByLabelText('Title'), ' Draft');
     await user.keyboard('{Escape}');
 
@@ -184,6 +196,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -194,7 +207,7 @@ describe('BookEditorModal', () => {
       />,
     );
 
-    await user.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Save' }))[0]);
 
     await waitFor(() => {
       expect(repository.update).toHaveBeenCalled();
@@ -231,6 +244,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={currentBook}
         initialNodes={[]}
@@ -240,7 +254,7 @@ describe('BookEditorModal', () => {
       />,
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Overview' }));
+    await user.click(await screen.findByRole('tab', { name: 'Overview' }));
     await user.clear(screen.getByLabelText('Title'));
     await user.type(screen.getByLabelText('Title'), 'Overview Saved Title');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -287,6 +301,7 @@ describe('BookEditorModal', () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={currentBook}
         initialNodes={[]}
@@ -297,7 +312,7 @@ describe('BookEditorModal', () => {
     );
 
     // Edit metadata on Overview but do not save it there.
-    await user.click(screen.getByRole('tab', { name: 'Overview' }));
+    await user.click(await screen.findByRole('tab', { name: 'Overview' }));
     await user.clear(screen.getByLabelText('Title'));
     await user.type(screen.getByLabelText('Title'), 'Cross Tab Title');
 
@@ -315,6 +330,7 @@ describe('BookEditorModal', () => {
     const { rerender } = render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -328,6 +344,7 @@ describe('BookEditorModal', () => {
     rerender(
       <BookEditorModal
         opened={false}
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -339,10 +356,11 @@ describe('BookEditorModal', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
-  it('traps keyboard focus inside the dialog', () => {
+  it('traps keyboard focus inside the dialog', async () => {
     render(
       <BookEditorModal
         opened
+        intent="edit"
         bookId="book-123"
         initialBook={makeBook()}
         initialNodes={[]}
@@ -352,7 +370,7 @@ describe('BookEditorModal', () => {
     );
 
     const frame = document.querySelector('.book-editor-modal__frame');
-    const saveButton = screen.getAllByRole('button', { name: 'Save' })[0];
+    const saveButton = (await screen.findAllByRole('button', { name: 'Save' }))[0];
     saveButton.focus();
 
     // Shift+Tab from the first focusable control must wrap inside the dialog

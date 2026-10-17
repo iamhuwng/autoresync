@@ -223,9 +223,9 @@ describe('executeCompromiseStep', () => {
         let callCount = 0;
         const callAI: CompromiseAICallFn = vi.fn().mockImplementation(async () => {
             callCount++;
-            // Primary chain uses COMPROMISE_CHAIN (3 steps) → all return null
-            // Alternate chain uses COMPROMISE_CHAIN (3 steps) → first returns result
-            if (callCount <= 3) return null; // primary fails (3 retries)
+            // Primary chain uses COMPROMISE_CHAIN (4 steps) → all return null
+            // Alternate chain succeeds on its first step
+            if (callCount <= 4) return null;
             return MOCK_COMPROMISE_RESPONSE;  // alternate succeeds
         });
 

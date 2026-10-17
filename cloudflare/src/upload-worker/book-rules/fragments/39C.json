@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "ticketId": "39C",
+  "status": "inactive",
+  "activation": "deny-only-until-118-composition",
+  "owner": {
+    "ticketId": "39C",
+    "issue": 108,
+    "serviceIdentity": "book_impact_snapshot_service",
+    "generatedRuleLocations": [
+      "book_impact_snapshots/.read",
+      "book_impact_snapshots/.write",
+      "book_impact_snapshots/records/$ownerId/$snapshotId/.read",
+      "book_impact_snapshots/records/$ownerId/$snapshotId/.write",
+      "book_impact_snapshots/current/$ownerId/$bookId/.read",
+      "book_impact_snapshots/current/$ownerId/$bookId/.write",
+      "book_impact_snapshots/indexes/.read",
+      "book_impact_snapshots/indexes/.write",
+      "book_impact_snapshots/indexes/by_book/$ownerId/$bookId/.read",
+      "book_impact_snapshots/indexes/by_book/$ownerId/$bookId/.write"
+    ],
+    "leastPrivilegePaths": [
+      "book_impact_snapshots/records/$ownerId/$snapshotId",
+      "book_impact_snapshots/current/$ownerId/$bookId",
+      "book_impact_snapshots/indexes/by_book/$ownerId/$bookId"
+    ],
+    "backupInventory": "include-metadata",
+    "recoveryLedgerRoot": "book_impact_snapshot_recovery"
+  },
+  "operations": [
+    {
+      "path": "book_impact_snapshots",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_snapshots",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_snapshots/records/$ownerId/$snapshotId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now"
+    },
+    {
+      "path": "book_impact_snapshots/records/$ownerId/$snapshotId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.dl >= now && newData.child('ownerId').val() == $ownerId && newData.child('actorId').val() == $ownerId && newData.child('snapshotId').val() == $snapshotId && newData.child('schemaVersion').val() == 1 && newData.child('expiresAt').isString() && !data.exists()"
+    },
+    {
+      "path": "book_impact_snapshots/current/$ownerId/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now"
+    },
+    {
+      "path": "book_impact_snapshots/current/$ownerId/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now && newData.hasChildren(['snapshotId', 'inputFingerprint', 'createdAt', 'expiresAt']) && newData.child('snapshotId').isString() && newData.child('inputFingerprint').isString() && newData.child('createdAt').isString() && newData.child('expiresAt').isString()"
+    },
+    {
+      "path": "book_impact_snapshots/indexes",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_snapshots/indexes",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "false"
+    },
+    {
+      "path": "book_impact_snapshots/indexes/by_book/$ownerId/$bookId",
+      "rule": ".read",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now && query.orderByChild == 'expiresAt' && query.limitToLast != null && query.limitToLast <= 50"
+    },
+    {
+      "path": "book_impact_snapshots/indexes/by_book/$ownerId/$bookId",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.bis.s == true && auth.token.bis.o == $ownerId && auth.token.bis.b == $bookId && auth.token.bis.dl >= now"
+    }
+  ]
+}

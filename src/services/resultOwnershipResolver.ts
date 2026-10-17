@@ -6,6 +6,9 @@ import { getCourse } from './courseManager';
 import { getSubmission } from './writingSubmissionService';
 import type { EnhancedTestResultRecord } from '../types/results.types';
 import type {
+    BookResultOwnershipAttemptInput,
+    BookResultOwnershipDecision,
+    BookResultViewerIdentity,
     ResultOwnerResolutionSource,
     ResultVisibilityContextType,
     ResultVisibilitySnapshot,
@@ -37,6 +40,8 @@ type ClassRecord = {
     createdBy?: string | null;
     className?: string | null;
     status?: string | null;
+    students?: Record<string, { status?: string }>;
+    courseId?: string | null;
 };
 
 type CourseRecord = {
@@ -46,12 +51,15 @@ type CourseRecord = {
 };
 
 type WritingSubmissionRecord = {
+    id?: string;
+    studentId?: string;
     context?: {
         type?: 'live-session' | 'solo-practice' | 'homework';
         sessionCode?: string;
         homeworkId?: string;
         classId?: string;
         courseId?: string;
+        selectedTeacherId?: string;
     };
     testMeta?: {
         testTitle?: string;
@@ -69,6 +77,8 @@ export interface ResolveResultOwnershipInput {
     homeworkId?: string | null;
     assignmentId?: string | null;
     writingSubmissionId?: string | null;
+    /** Internal capture path: immutable source already verified by the persistence boundary. */
+    verifiedWritingSubmission?: WritingSubmissionRecord;
     sourceNameSnapshot?: string | null;
 }
 
@@ -88,7 +98,87 @@ export interface ResultOwnershipResolverDependencies {
     ) => Promise<{ success: boolean; data?: WritingSubmissionRecord; error?: string }>;
 }
 
+export interface BookResultOwnershipResolverDependencies {
+    /**
+     * Resolves current Homework authority in one bounded call. Projection
+     * snapshots are provenance, never current authorization by themselves.
+     */
+    resolveHomeworkOwners: (
+        input: {
+            studentId: string;
+            contextIds: readonly string[];
+        }
+    ) => Promise<Readonly<Record<string, string | null | undefined>>>;
+}
+
+export interface ResolveBookResultGroupOwnershipInput {
+    viewer: BookResultViewerIdentity;
+    studentId: string;
+    attempts: readonly BookResultOwnershipAttemptInput[];
+}
+
+export async function resolveBookResultGroupOwnership(
+    input: ResolveBookResultGroupOwnershipInput,
+    dependencies: BookResultOwnershipResolverDependencies
+): Promise<readonly BookResultOwnershipDecision[]> {
+    if (input.viewer.role === 'student') {
+        return input.attempts.map((attempt) => ({
+            attemptId: attempt.attemptId,
+            visible: input.viewer.uid === input.studentId
+                && attempt.recipientId === input.studentId,
+            viewerRole: 'student',
+            reason: input.viewer.uid === input.studentId
+                && attempt.recipientId === input.studentId
+                ? 'visible'
+                : 'wrong_student',
+        }));
+    }
+
+    const homeworkContextIds = [...new Set(
+        input.attempts
+            .filter((attempt) => attempt.contextKind === 'homework')
+            .map((attempt) => attempt.contextId)
+    )];
+    const currentOwners = homeworkContextIds.length > 0
+        ? await dependencies.resolveHomeworkOwners({
+            studentId: input.studentId,
+            contextIds: homeworkContextIds,
+        })
+        : {};
+
+    return input.attempts.map((attempt) => {
+        if (attempt.contextKind === 'solo') {
+            return {
+                attemptId: attempt.attemptId,
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'private_solo',
+            };
+        }
+        const currentOwner = currentOwners[attempt.contextId] ?? null;
+        if (!attempt.ownerTeacherIdSnapshot || !currentOwner) {
+            return {
+                attemptId: attempt.attemptId,
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'unresolved_owner',
+            };
+        }
+        const visible = attempt.recipientId === input.studentId
+            && attempt.ownerTeacherIdSnapshot === input.viewer.uid
+            && currentOwner === input.viewer.uid;
+        return {
+            attemptId: attempt.attemptId,
+            visible,
+            viewerRole: 'teacher',
+            reason: visible ? 'visible' : 'wrong_teacher',
+        };
+    });
+}
+
 type NormalizedIdentifiers = {
+    studentId: string | null;
+    selectedTeacherId: string | null;
     contextType: ResultVisibilityContextType;
     sourceType: ResultVisibilitySourceType;
     sourceId: string | null;
@@ -135,8 +225,12 @@ export async function resolveResultOwnership(
 ): Promise<ResultOwnershipResolutionResult> {
     const identifiers = normalizeIdentifiers(input);
 
+    if (identifiers.contextType === 'solo_practice' && identifiers.selectedTeacherId) {
+        return resolveSoloPracticeOwnership(identifiers, dependencies);
+    }
+
     if (identifiers.writingSubmissionId) {
-        return resolveWritingLinkedOwnership(identifiers, dependencies);
+        return resolveWritingLinkedOwnership(identifiers, dependencies, input.verifiedWritingSubmission);
     }
 
     switch (identifiers.contextType) {
@@ -147,7 +241,7 @@ export async function resolveResultOwnership(
         case 'course_material':
             return resolveCourseMaterialOwnership(identifiers, dependencies);
         case 'solo_practice':
-            return resolveSoloPracticeOwnership(identifiers);
+            return resolveSoloPracticeOwnership(identifiers, dependencies);
         default:
             return unresolvedResult({
                 identifiers,
@@ -160,10 +254,17 @@ export async function resolveResultOwnership(
 
 async function resolveWritingLinkedOwnership(
     identifiers: NormalizedIdentifiers,
-    dependencies: ResultOwnershipResolverDependencies
+    dependencies: ResultOwnershipResolverDependencies,
+    verifiedSubmission?: WritingSubmissionRecord
 ): Promise<ResultOwnershipResolutionResult> {
     const clue = buildSourceClue('writing_submission', identifiers.writingSubmissionId);
-    const submissionResult = await dependencies.getSubmission(identifiers.writingSubmissionId!);
+    if (verifiedSubmission && (verifiedSubmission.id !== identifiers.writingSubmissionId
+        || verifiedSubmission.studentId !== identifiers.studentId)) {
+        throw new Error('Verified Writing source differs from result identity');
+    }
+    const submissionResult = verifiedSubmission
+        ? { success: true, data: verifiedSubmission }
+        : await dependencies.getSubmission(identifiers.writingSubmissionId!);
 
     if (!submissionResult.success || !submissionResult.data) {
         return unresolvedResult({
@@ -195,11 +296,13 @@ async function resolveWritingLinkedOwnership(
         sessionCode: submission.context?.sessionCode ?? identifiers.sessionCode,
         classId: submission.context?.classId ?? identifiers.classId,
         courseId: submission.context?.courseId ?? identifiers.courseId,
+        selectedTeacherId: submission.context?.selectedTeacherId ?? identifiers.selectedTeacherId,
+        studentId: submission.studentId ?? identifiers.studentId,
     };
 
     if (linkedIdentifiers.contextType === 'solo_practice') {
         return {
-            ...resolveSoloPracticeOwnership(linkedIdentifiers),
+            ...await resolveSoloPracticeOwnership(linkedIdentifiers, dependencies),
             sourceLookupAttempted: true,
             strongestKnownSourceClue: clue,
         };
@@ -535,9 +638,22 @@ async function resolveCourseMaterialOwnership(
     });
 }
 
-function resolveSoloPracticeOwnership(
-    identifiers: NormalizedIdentifiers
-): ResultOwnershipResolutionResult {
+async function resolveSoloPracticeOwnership(
+    identifiers: NormalizedIdentifiers,
+    dependencies: ResultOwnershipResolverDependencies,
+): Promise<ResultOwnershipResolutionResult> {
+    if (identifiers.selectedTeacherId) {
+        const classRecord = identifiers.classId ? await dependencies.getClass(identifiers.classId) : null;
+        if (classRecord?.createdBy === identifiers.selectedTeacherId && classRecord.status === 'active'
+            && identifiers.studentId && classRecord.students?.[identifiers.studentId]?.status === 'active') {
+            return resolvedResult({ identifiers: { ...identifiers, sourceType: 'class', sourceId: identifiers.classId,
+                courseId: classRecord.courseId ?? null },
+                visibilityOwnerTeacherId: identifiers.selectedTeacherId, ownerResolutionSource: 'class.createdBy',
+                currentSourceName: getDisplayName(classRecord) });
+        }
+        return unresolvedResult({ identifiers, unresolvedReason: 'owner_not_resolved',
+            sourceLookupAttempted: Boolean(identifiers.classId), strongestKnownSourceClue: buildSourceClue('class', identifiers.classId) });
+    }
     return {
         visibility: {
             contextType: 'solo_practice',
@@ -662,6 +778,8 @@ function normalizeIdentifiers(input: ResolveResultOwnershipInput): NormalizedIde
         ?? null;
 
     return {
+        studentId: result.studentId ?? null,
+        selectedTeacherId: context?.selectedTeacherId ?? null,
         contextType: inferContextType(input, context),
         sourceType: inferSourceType(input, context),
         sourceId:

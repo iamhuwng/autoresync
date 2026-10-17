@@ -14,24 +14,18 @@ const firestoreHarness = vi.hoisted(() => {
 });
 
 const mockGetHomeworkById = vi.hoisted(() => vi.fn());
+const mockGetHomeworkForStudent = vi.hoisted(() => vi.fn());
+const mockGetDocs = vi.hoisted(() => vi.fn());
 const mockUpdateHomework = vi.hoisted(() => vi.fn());
 const mockGetEffectiveHomeworkDueDate = vi.hoisted(() => vi.fn());
 const mockGetStudentOverride = vi.hoisted(() => vi.fn(() => ({})));
 const mockIsStudentExemptedFromHomework = vi.hoisted(() => vi.fn(() => false));
 const mockDeleteTestResult = vi.hoisted(() => vi.fn());
-const mockSendHomeworkResetNotification = vi.hoisted(() => vi.fn());
+const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
+const mockDispatchHomeworkResetNotification = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
-    const getValueAtPath = (value: Record<string, unknown>, path: string): unknown =>
-        path.split('.').reduce<unknown>((current, segment) => {
-            if (!current || typeof current !== 'object') {
-                return undefined;
-            }
-
-            return (current as Record<string, unknown>)[segment];
-        }, value);
 
     const applyUpdates = (
         currentValue: Record<string, unknown>,
@@ -40,18 +34,6 @@ vi.mock('firebase/firestore', () => {
         ...clone(currentValue),
         ...clone(updates),
     });
-
-    const listDocuments = (collectionName: string) =>
-        [...firestoreHarness.store.entries()]
-            .filter(([path]) => path.startsWith(`${collectionName}/`))
-            .map(([path, value]) => {
-                const id = path.slice(collectionName.length + 1);
-                return {
-                    id,
-                    ref: { kind: 'doc', collection: collectionName, id, path },
-                    data: () => clone(value),
-                };
-            });
 
     return {
         collection: vi.fn((_db: unknown, name: string) => ({ kind: 'collection', name })),
@@ -76,24 +58,29 @@ vi.mock('firebase/firestore', () => {
                 data: () => clone(value),
             };
         }),
-        getDocs: vi.fn(async (target: { kind: string; collection: string; conditions?: Array<{ fieldPath: string; op: string; value: unknown }> }) => {
-            const docs = listDocuments(target.collection).filter((docSnap) => (
-                target.kind !== 'query'
-                    ? true
-                    : (target.conditions ?? []).every((condition) => {
-                        const actualValue = getValueAtPath(docSnap.data(), condition.fieldPath);
-                        if (condition.op === '==') {
-                            return actualValue === condition.value;
-                        }
-                        return false;
-                    })
-            ));
-
-            return {
-                empty: docs.length === 0,
-                docs,
-            };
+        runTransaction: vi.fn(async (_db: unknown, callback: (transaction: {
+            get: (ref: { path: string }) => Promise<{ exists: () => boolean; data: () => Record<string, unknown> }>;
+            update: (ref: { path: string }, updates: Record<string, unknown>) => void;
+            set: (ref: { path: string }, value: Record<string, unknown>) => void;
+            delete: (ref: { path: string }) => void;
+        }) => Promise<unknown>) => {
+            const writes: Array<() => void> = [];
+            const result = await callback({
+                get: async (ref) => {
+                    const value = firestoreHarness.store.get(ref.path);
+                    return { exists: () => value !== undefined, data: () => clone(value ?? {}) };
+                },
+                update: (ref, updates) => writes.push(() => {
+                    const currentValue = firestoreHarness.store.get(ref.path) ?? {};
+                    firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
+                }),
+                set: (ref, value) => writes.push(() => firestoreHarness.store.set(ref.path, clone(value))),
+                delete: (ref) => writes.push(() => firestoreHarness.store.delete(ref.path)),
+            });
+            writes.forEach((write) => write());
+            return result;
         }),
+        getDocs: (...args: unknown[]) => mockGetDocs(...args),
         updateDoc: vi.fn(async (ref: { path: string }, updates: Record<string, unknown>) => {
             const currentValue = firestoreHarness.store.get(ref.path) ?? {};
             firestoreHarness.store.set(ref.path, applyUpdates(currentValue, updates));
@@ -122,10 +109,12 @@ vi.mock('firebase/firestore', () => {
 
 vi.mock('./firebase', () => ({
     firestore: { name: 'mock-firestore' },
+    auth: { currentUser: { uid: 'teacher-1' } },
 }));
 
 vi.mock('./homeworkManager', () => ({
     getHomeworkById: (...args: unknown[]) => mockGetHomeworkById(...args),
+    getHomeworkForStudent: (...args: unknown[]) => mockGetHomeworkForStudent(...args),
     updateHomework: (...args: unknown[]) => mockUpdateHomework(...args),
     getEffectiveHomeworkDueDate: (...args: unknown[]) => mockGetEffectiveHomeworkDueDate(...args),
     getStudentOverride: (...args: unknown[]) => mockGetStudentOverride(...args),
@@ -136,12 +125,17 @@ vi.mock('./testResults.service', () => ({
     deleteTestResult: (...args: unknown[]) => mockDeleteTestResult(...args),
 }));
 
-vi.mock('./notificationService', () => ({
-    sendHomeworkResetNotification: (...args: unknown[]) => mockSendHomeworkResetNotification(...args),
+vi.mock('./notificationProducerClient', () => ({
+    notifyCommittedEvent: (event: { eventKind: string }) => event.eventKind === 'homework-reset'
+        ? mockDispatchHomeworkResetNotification(event) : mockCreateTrustedNotification(event),
 }));
 
 import {
     createSubmission,
+    getBookHomeworkProgress,
+    getStudentHomeworkList,
+    getStudentSubmissionsForHomework,
+    getTeacherBookHomeworkProgress,
     HomeworkSubmissionError,
     resetStudentHomework,
     submitImportedHomeworkSubmission,
@@ -222,20 +216,70 @@ const seedSubmission = (submission: HomeworkSubmission) => {
     );
 };
 
+const seedCanonicalHomework = (homework: HomeworkAssignment = buildHomework()) => {
+    firestoreHarness.store.set(
+        `homework_assignments/${homework.id}`,
+        JSON.parse(JSON.stringify(homework)) as Record<string, unknown>,
+    );
+};
+
 describe('homeworkSubmissionService', () => {
     beforeEach(() => {
         firestoreHarness.reset();
         vi.clearAllMocks();
         const homework = buildHomework();
         mockGetHomeworkById.mockResolvedValue(homework);
+        mockGetHomeworkForStudent.mockResolvedValue([]);
+        mockGetDocs.mockImplementation(async (target: { kind: string; collection: string; conditions?: Array<{ fieldPath: string; op: string; value: unknown }> }) => {
+            const docs = [...firestoreHarness.store.entries()]
+                .filter(([path]) => path.startsWith(`${target.collection}/`))
+                .map(([path, value]) => ({
+                    id: path.slice(target.collection.length + 1),
+                    ref: { kind: 'doc', collection: target.collection, id: path.slice(target.collection.length + 1), path },
+                    data: () => JSON.parse(JSON.stringify(value)),
+                }))
+                .filter((docSnap) => (
+                    target.kind !== 'query'
+                        ? true
+                        : (target.conditions ?? []).every((condition) => {
+                            const actualValue = condition.fieldPath.split('.').reduce<unknown>((current, segment) => (
+                                current && typeof current === 'object'
+                                    ? (current as Record<string, unknown>)[segment]
+                                    : undefined
+                            ), docSnap.data());
+                            return condition.op === '==' ? actualValue === condition.value : false;
+                        })
+                ));
+            return { empty: docs.length === 0, docs };
+        });
         mockGetEffectiveHomeworkDueDate.mockImplementation(
             async (currentHomework: HomeworkAssignment) => currentHomework.scheduling.dueDate,
         );
         mockGetStudentOverride.mockReturnValue({});
         mockIsStudentExemptedFromHomework.mockReturnValue(false);
         mockDeleteTestResult.mockResolvedValue(undefined);
-        mockSendHomeworkResetNotification.mockResolvedValue(undefined);
+        mockCreateTrustedNotification.mockResolvedValue({ status: 'written', delivered: 1, failed: 0, unknown: 0, unattempted: 0 });
+        mockDispatchHomeworkResetNotification.mockResolvedValue('delivered');
+        vi.stubEnv('VITE_HOMEWORK_NOTIFICATION_URL', 'https://qualified.test');
         mockUpdateHomework.mockResolvedValue(undefined);
+    });
+
+    it('preserves the legacy student-list query and projection semantics', async () => {
+        const homework = buildHomework();
+        mockGetHomeworkForStudent.mockResolvedValue([homework]);
+        seedSubmission(buildSubmission());
+        const [item] = await getStudentHomeworkList(mockStudentId);
+
+        expect(item).toMatchObject({
+            homework,
+            submission: { id: 'submission-1' },
+            attemptsUsed: 0,
+            attemptsRemaining: 3,
+            canSubmit: true,
+            canViewFeedback: false,
+        });
+        expect(mockGetHomeworkForStudent).toHaveBeenCalledWith(mockStudentId);
+        expect(mockGetDocs).toHaveBeenCalledTimes(1);
     });
 
     it('blocks new homework attempts after an anti-cheat nullification', async () => {
@@ -308,6 +352,63 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 100,
             },
         });
+    });
+
+    it('notifies the assigning teacher when a student submits class homework', async () => {
+        const homework = buildHomework({
+            materialTitle: 'Class Writing Homework',
+            target: {
+                type: 'class',
+                classId: 'class-1',
+                className: 'Class 1',
+            },
+        });
+        mockGetHomeworkById.mockResolvedValue(homework);
+        seedCanonicalHomework(homework);
+        seedSubmission(buildSubmission({
+            id: 'class-writing-submission',
+            teacherId: 'teacher-1',
+            studentName: 'Student One',
+        }));
+
+        await submitHomework(
+            'class-writing-submission',
+            'writing-result-1',
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            900,
+        );
+
+        expect(mockCreateTrustedNotification).toHaveBeenCalledWith({
+            eventKind: 'homework-submitted',
+            submissionId: 'class-writing-submission',
+        });
+        expect(firestoreHarness.store.get('homework_submissions/class-writing-submission')).toMatchObject({
+            status: 'submitted',
+        });
+    });
+
+    it('keeps the submission committed when immediate notification delivery fails', async () => {
+        seedSubmission(buildSubmission({ id: 'notification-failure-submission' }));
+        seedCanonicalHomework();
+        mockCreateTrustedNotification.mockRejectedValue(new Error('worker unavailable'));
+
+        await expect(submitHomework('notification-failure-submission', 'result-retry-1')).resolves.toBeUndefined();
+
+        expect(firestoreHarness.store.get('homework_submissions/notification-failure-submission')).toMatchObject({
+            status: 'submitted',
+            resultId: 'result-retry-1',
+        });
+    });
+
+    it('returns the accepted submission while a post-commit notice is still pending', async () => {
+        seedSubmission(buildSubmission({ id: 'pending-notice', teacherId: 'teacher-1' }));
+        seedCanonicalHomework();
+        mockCreateTrustedNotification.mockImplementation(() => new Promise(() => {}));
+        await expect(submitHomework('pending-notice', 'pending-result')).resolves.toBeUndefined();
+        expect(firestoreHarness.store.get('homework_submissions/pending-notice')).toMatchObject({ status: 'submitted', resultId: 'pending-result' });
     });
 
     it('creates a submitted homework row for an external Writing import', async () => {
@@ -413,6 +514,7 @@ describe('homeworkSubmissionService', () => {
     });
 
     it('resets homework attempts, linked results, and stats for a student', async () => {
+        seedCanonicalHomework();
         mockGetHomeworkById.mockResolvedValue(buildHomework({
             stats: {
                 totalAssigned: 4,
@@ -425,6 +527,7 @@ describe('homeworkSubmissionService', () => {
 
         seedSubmission(buildSubmission({
             id: 'reset-old-submission',
+            teacherId: 'teacher-1',
             status: 'submitted',
             submittedAt: Date.now() - 10_000,
             resultId: 'result-1',
@@ -441,13 +544,24 @@ describe('homeworkSubmissionService', () => {
             percentage: 90,
         }));
 
-        const summary = await resetStudentHomework(mockHomeworkId, mockStudentId, 'Protected Homework');
+        const summary = await resetStudentHomework(mockHomeworkId, mockStudentId);
 
         expect(summary).toEqual({
             submissionsDeleted: 2,
             resultsDeleted: 2,
+            resultCleanupComplete: true,
         });
-        expect(firestoreHarness.store.size).toBe(0);
+        expect(firestoreHarness.store.has('homework_submissions/reset-old-submission')).toBe(false);
+        expect(firestoreHarness.store.has('homework_submissions/reset-new-submission')).toBe(false);
+        const [resetEvent] = [...firestoreHarness.store.entries()].filter(([path]) => path.startsWith('homework_reset_notification_intents/'));
+        expect(resetEvent?.[1]).toMatchObject({
+            schemaVersion: 1,
+            homeworkId: mockHomeworkId,
+            studentId: mockStudentId,
+            actorUid: 'teacher-1',
+            sourceSubmissionId: 'reset-old-submission',
+            resultId: 'result-1',
+        });
         expect(mockDeleteTestResult).toHaveBeenCalledTimes(2);
         expect(mockDeleteTestResult).toHaveBeenCalledWith('result-1');
         expect(mockDeleteTestResult).toHaveBeenCalledWith('result-2');
@@ -460,10 +574,300 @@ describe('homeworkSubmissionService', () => {
                 completionRate: 0,
             },
         });
-        expect(mockSendHomeworkResetNotification).toHaveBeenCalledWith(
-            mockStudentId,
-            mockHomeworkId,
-            'Protected Homework',
+        expect(mockDispatchHomeworkResetNotification).toHaveBeenCalledWith({ eventKind: 'homework-reset', eventId: resetEvent?.[0].split('/')[1] });
+    });
+
+    it('resets without a proof write when only the product verifier is configured', async () => {
+        vi.stubEnv('VITE_HOMEWORK_RESULT_AUTHORITY_URL', 'https://qualified-product.test');
+        vi.stubEnv('VITE_HOMEWORK_NOTIFICATION_URL', '');
+        seedCanonicalHomework();
+        seedSubmission(buildSubmission({ id: 'disabled-first', teacherId: 'teacher-1' }));
+        seedSubmission(buildSubmission({ id: 'disabled-second', teacherId: 'teacher-1' }));
+        expect(await resetStudentHomework(mockHomeworkId, mockStudentId)).toMatchObject({ submissionsDeleted: 2 });
+        expect([...firestoreHarness.store.keys()].some(path => path.startsWith('homework_reset_notification_intents/'))).toBe(false);
+        expect(mockDispatchHomeworkResetNotification).not.toHaveBeenCalled();
+    });
+
+    it('keeps full reset cleanup truthful with a failed linked result and sends no notice for zero attempts', async () => {
+        seedCanonicalHomework();
+        seedSubmission(buildSubmission({ id: 'partial-first', teacherId: 'teacher-1', resultId: 'result-fails' }));
+        seedSubmission(buildSubmission({ id: 'partial-second', teacherId: 'teacher-1', resultId: 'result-ok' }));
+        mockDeleteTestResult.mockRejectedValueOnce(Error('unavailable'));
+        mockDispatchHomeworkResetNotification.mockImplementation(() => new Promise(() => {}));
+        const result = await resetStudentHomework(mockHomeworkId, mockStudentId);
+        expect(result).toMatchObject({ submissionsDeleted: 2, resultsDeleted: 1, resultCleanupComplete: false });
+        expect(mockDeleteTestResult).toHaveBeenCalledTimes(2);
+        mockDispatchHomeworkResetNotification.mockClear();
+        expect(await resetStudentHomework(mockHomeworkId, mockStudentId)).toMatchObject({ submissionsDeleted: 0, resultsDeleted: 0 });
+        expect(mockDispatchHomeworkResetNotification).not.toHaveBeenCalled();
+    });
+
+    it('does not delete submissions when homework authority is unavailable', async () => {
+        seedSubmission(buildSubmission({
+            id: 'missing-authority-submission',
+            status: 'submitted',
+            submittedAt: Date.now() - 5_000,
+            resultId: 'result-missing-authority',
+        }));
+        mockGetHomeworkById.mockResolvedValue(undefined);
+
+        await expect(resetStudentHomework(mockHomeworkId, mockStudentId))
+            .rejects.toMatchObject({ code: 'RESET_FORBIDDEN' });
+
+        expect(firestoreHarness.store.has('homework_submissions/missing-authority-submission')).toBe(true);
+        expect(mockDispatchHomeworkResetNotification).not.toHaveBeenCalled();
+    });
+
+    it('reads trusted Book progress without mapping completion into legacy score fields', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: mockHomeworkId,
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 2,
+                    status: 'in_progress',
+                    isComplete: false,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 1,
+                    ungradedSubmittedCount: 0,
+                },
+                activities: [{
+                    bindingId: 'activity-binding-1',
+                    placementId: 'placement-1',
+                    activityId: 'activity-1',
+                    activityVersion: 1,
+                    activityVersionId: 'activity-version-1',
+                    order: 1,
+                    contextMode: 'optional',
+                    submitted: true,
+                    gradingState: 'review_required',
+                    terminalId: 'completion-1',
+                }, {
+                    bindingId: 'activity-binding-2',
+                    placementId: 'placement-2',
+                    activityId: 'activity-2',
+                    activityVersion: 1,
+                    activityVersionId: 'activity-version-2',
+                    order: 2,
+                    contextMode: 'none',
+                    submitted: false,
+                    gradingState: 'ungraded',
+                }],
+                excludedHistoricalRows: [],
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        const projection = await getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            studentId: mockStudentId,
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        });
+
+        expect(projection?.completion).toEqual({
+            submittedCount: 1,
+            requiredCount: 2,
+            status: 'in_progress',
+            isComplete: false,
+        });
+        expect(projection?.grading.pendingReviewCount).toBe(1);
+        expect(JSON.stringify(projection)).not.toMatch(/"percentage"|"bandScore"|"maxScore"/u);
+        expect(fetchImpl).toHaveBeenCalledWith(
+            new URL(`https://worker.example.test/book-homework/assignments/${mockHomeworkId}/students/${mockStudentId}/projection`),
+            expect.objectContaining({
+                method: 'GET',
+                headers: { Authorization: 'Bearer token-1' },
+            }),
         );
+    });
+
+    it('fails closed when a Book projection tries to use a legacy aggregate percentage', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: mockHomeworkId,
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 1,
+                    status: 'completed',
+                    isComplete: true,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 1,
+                    ungradedSubmittedCount: 0,
+                },
+                activities: [],
+                excludedHistoricalRows: [],
+                percentage: 100,
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        await expect(getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        })).rejects.toMatchObject({
+            status: 502,
+            code: 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE',
+        });
+    });
+
+    it('fails closed when a valid Book projection belongs to another exact context', async () => {
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            completion: {
+                schemaVersion: 1,
+                manifestVersionId: 'manifest-1',
+                recipientId: mockStudentId,
+                contextId: 'other-homework',
+                deliveryBindingId: 'delivery-1',
+                bindingRevision: 1,
+                completion: {
+                    submittedCount: 1,
+                    requiredCount: 1,
+                    status: 'completed',
+                    isComplete: true,
+                },
+                grading: {
+                    scoredCount: 0,
+                    pendingReviewCount: 0,
+                    ungradedSubmittedCount: 1,
+                },
+                activities: [],
+                excludedHistoricalRows: [],
+            },
+        }), { status: 200 })) as typeof fetch;
+
+        await expect(getBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            studentId: mockStudentId,
+            fetchImpl,
+            getIdToken: async () => 'token-1',
+        })).rejects.toMatchObject({
+            status: 502,
+            code: 'BOOK_HOMEWORK_PROGRESS_UNAVAILABLE',
+        });
+    });
+
+    it('reads teacher Book progress for all students through one bounded request', async () => {
+        const completion = (studentId: string) => ({
+            schemaVersion: 1,
+            manifestVersionId: 'manifest-1',
+            recipientId: studentId,
+            contextId: mockHomeworkId,
+            deliveryBindingId: `delivery-${studentId}`,
+            bindingRevision: 1,
+            completion: {
+                submittedCount: 1,
+                requiredCount: 1,
+                status: 'completed',
+                isComplete: true,
+            },
+            grading: {
+                scoredCount: 0,
+                pendingReviewCount: 1,
+                ungradedSubmittedCount: 0,
+            },
+            activities: [{
+                bindingId: 'activity-binding-1',
+                placementId: 'placement-1',
+                activityId: 'activity-1',
+                activityVersion: 1,
+                activityVersionId: 'activity-version-1',
+                order: 1,
+                contextMode: 'none',
+                submitted: true,
+                gradingState: 'review_required',
+                terminalId: `completion-${studentId}`,
+            }],
+            excludedHistoricalRows: [],
+        });
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            students: [
+                { studentId: 'student-1', completion: completion('student-1') },
+                { studentId: 'student-2', completion: completion('student-2') },
+            ],
+        }), { status: 200 })) as typeof fetch;
+
+        const rows = await getTeacherBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'teacher-token',
+        });
+
+        expect(rows?.map((row) => row.studentId)).toEqual(['student-1', 'student-2']);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).toHaveBeenCalledWith(
+            new URL(`https://worker.example.test/book-homework/assignments/${mockHomeworkId}/teacher-projection`),
+            expect.objectContaining({
+                method: 'GET',
+                headers: { Authorization: 'Bearer teacher-token' },
+            }),
+        );
+    });
+
+    it('preserves teacher student rows when derived Book completion is unavailable', async () => {
+        const completion = {
+            schemaVersion: 1,
+            manifestVersionId: 'manifest-1',
+            recipientId: 'student-2',
+            contextId: mockHomeworkId,
+            deliveryBindingId: 'delivery-student-2',
+            bindingRevision: 1,
+            completion: {
+                submittedCount: 0,
+                requiredCount: 1,
+                status: 'not_started' as const,
+                isComplete: false,
+            },
+            grading: {
+                scoredCount: 0,
+                pendingReviewCount: 0,
+                ungradedSubmittedCount: 0,
+            },
+            activities: [{
+                bindingId: 'activity-binding-2',
+                placementId: 'placement-2',
+                activityId: 'activity-2',
+                activityVersion: 1,
+                activityVersionId: 'activity-version-2',
+                order: 1,
+                contextMode: 'required' as const,
+                submitted: false,
+                gradingState: 'ungraded' as const,
+            }],
+            excludedHistoricalRows: [],
+        };
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+            assignmentId: mockHomeworkId,
+            students: [
+                { studentId: 'student-1', completion: null },
+                { studentId: 'student-2', completion },
+            ],
+        }), { status: 200 })) as typeof fetch;
+
+        const rows = await getTeacherBookHomeworkProgress(mockHomeworkId, {
+            workerOrigin: 'https://worker.example.test',
+            fetchImpl,
+            getIdToken: async () => 'teacher-token',
+        });
+
+        expect(rows).toEqual([
+            { studentId: 'student-1', completion: null },
+            { studentId: 'student-2', completion },
+        ]);
     });
 });

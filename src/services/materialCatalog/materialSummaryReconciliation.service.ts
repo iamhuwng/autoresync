@@ -1,5 +1,6 @@
 import type { MaterialBookMetadata } from '../../types/materialCatalog.types';
 import type { ReadingV2MaterialMetadata } from '../reading-v2/readingV2MaterialMetadata.service';
+import type { ReadingV2DerivedProjection } from '../reading-v2/readingV2Projection.service';
 import {
   createMaterialBookSummary,
   createReadingV2MaterialSummary,
@@ -17,6 +18,7 @@ import {
 export interface MaterialSummaryReconciliationInput {
   readonly legacyTests?: Readonly<Record<string, LegacyTestRecord>>;
   readonly readingV2Metadata?: Readonly<Record<string, ReadingV2MaterialMetadata>>;
+  readonly readingV2StudentSafeProjections?: Readonly<Record<string, unknown>>;
   readonly books?: Readonly<Record<string, MaterialBookMetadata>>;
   readonly currentIndex: unknown;
 }
@@ -91,7 +93,6 @@ const flattenCurrentIndex = (
 
   const rows = new Map<string, unknown>();
   const visitBucket = (
-    bucket: string,
     value: unknown,
     depth: number,
     path: string,
@@ -107,14 +108,15 @@ const flattenCurrentIndex = (
       return;
     }
     Object.entries(value).forEach(([key, child]) => {
-      visitBucket(bucket, child, depth - 1, `${path}/${key}`);
+      visitBucket(child, depth - 1, `${path}/${key}`);
     });
   };
 
   Object.entries(currentIndex).forEach(([bucket, value]) => {
-    const depth = bucket === 'by_id' ? 0 : 1;
+    const depth = bucket === 'by_id' ? 0
+      : bucket === 'by_owner_family' || bucket === 'by_visibility_family' ? 2
+        : bucket === 'by_owner_family_type' || bucket === 'by_visibility_family_type' ? 3 : 1;
     visitBucket(
-      bucket,
       value,
       depth,
       `material_catalog/material_summary_indexes/v1/${bucket}`,
@@ -136,6 +138,40 @@ const addSummary = (
     );
   }
   summaries.set(summary.materialId, summary);
+};
+
+const isStudentSafeProjectionForMetadata = (
+  value: unknown,
+  metadata: ReadingV2MaterialMetadata,
+): value is ReadingV2DerivedProjection =>
+  isRecord(value) &&
+  value.projectionKind === 'student-safe' &&
+  value.ownerId === metadata.ownerId &&
+  (value.materialId === undefined || value.materialId === metadata.materialId) &&
+  (
+    metadata.publishedSnapshotVersionId === undefined ||
+    value.sourceSnapshotVersionId === metadata.publishedSnapshotVersionId
+  ) &&
+  isRecord(value.content) &&
+  Array.isArray(value.content.sections) &&
+  Array.isArray(value.content.taskGroups);
+
+const readingV2ProjectionForMetadata = (
+  metadata: ReadingV2MaterialMetadata,
+  projections?: Readonly<Record<string, unknown>>,
+): ReadingV2DerivedProjection | null | undefined => {
+  if (!projections) {
+    return undefined;
+  }
+  const snapshotVersionId =
+    metadata.publishedSnapshotVersionId ?? metadata.sourceSnapshotVersionId;
+  if (!snapshotVersionId) {
+    return null;
+  }
+  const projection = projections[`${metadata.materialId}:${snapshotVersionId}`];
+  return isStudentSafeProjectionForMetadata(projection, metadata)
+    ? projection
+    : null;
 };
 
 export const buildExpectedMaterialSummaries = (
@@ -164,7 +200,13 @@ export const buildExpectedMaterialSummaries = (
 
   Object.entries(input.readingV2Metadata ?? {}).forEach(([materialId, metadata]) => {
     try {
-      const summary = createReadingV2MaterialSummary(metadata);
+      const summary = createReadingV2MaterialSummary(
+        metadata,
+        readingV2ProjectionForMetadata(
+          metadata,
+          input.readingV2StudentSafeProjections,
+        ),
+      );
       if (summary) {
         addSummary(summaries, summary, `reading_v2/material_metadata/${materialId}`);
       }
@@ -321,7 +363,8 @@ export const buildMaterialSummaryParityReport = (
   currentById: unknown,
 ) => {
   const current = isRecord(currentById) ? currentById : {};
-  const expectedIds = expected.map((summary) => summary.materialId).sort();
+  const expectedIds = expected.filter((summary) => summary.lifecycleState === 'active')
+    .map((summary) => summary.materialId).sort();
   const currentIds = Object.entries(current)
     .filter(([, value]) => !isValidInactiveMaterialSummary(value))
     .map(([id]) => id)

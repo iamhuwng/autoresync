@@ -695,6 +695,21 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
         attemptId: result.attemptId,
         outcome: 'success',
       });
+
+      // The submit endpoint persists the result before its live-session
+      // projection is observed. Route immediately so a delayed/blocked RTDB
+      // listener cannot leave the runtime locked on the completed test.
+      navigateTo('STUDENT_WAITING', { gameSessionId: sessionCode }, {
+        reason: 'reading_v2_student_completed',
+        replace: true,
+        force: true,
+        state: {
+          showResults: true,
+          sessionCode,
+          testId: readingV2Projection?.materialId,
+          resultId: result.resultId,
+        },
+      });
     } catch (submitError) {
       trackAction('submitReadingV2Attempt', {
         ...trackingPayload,
@@ -709,6 +724,7 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
     readingV2AntiCheatConfig,
     readingV2Projection?.content.title,
     readingV2Projection?.materialId,
+    navigateTo,
     sessionCode,
     trackAction,
   ]);

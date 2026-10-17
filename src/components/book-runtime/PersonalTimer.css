@@ -1,0 +1,141 @@
+.personal-timer {
+  min-width: min(100%, 320px);
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--sv-outline-soft, #abb3b7) 32%, transparent);
+  border-radius: 10px;
+  background: var(--sv-bg-surface, #ffffff);
+  color: var(--sv-text-primary, #2b3437);
+}
+
+.personal-timer--hidden {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.personal-timer__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.personal-timer__heading h2,
+.personal-timer__heading p,
+.personal-timer__elapsed,
+.personal-timer__state,
+.personal-timer__policy {
+  margin: 0;
+}
+
+.personal-timer__eyebrow {
+  color: var(--sv-text-secondary, #586064);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.personal-timer__heading h2 {
+  font-size: 0.9375rem;
+  line-height: 1.25;
+}
+
+.personal-timer__heading p:last-child,
+.personal-timer__policy,
+.personal-timer__state {
+  color: var(--sv-text-secondary, #586064);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.personal-timer__dial {
+  flex: 0 0 auto;
+}
+
+.personal-timer__track,
+.personal-timer__progress {
+  stroke-width: 6;
+}
+
+.personal-timer__track {
+  stroke: var(--sv-bg-surface-muted, #eaeff1);
+}
+
+.personal-timer__progress {
+  stroke: var(--sv-accent, #4d44e3);
+}
+
+.personal-timer__elapsed {
+  margin-top: -50px;
+  position: relative;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.personal-timer__state {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.personal-timer__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.personal-timer__controls button,
+.personal-timer--hidden button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--sv-outline-soft, #abb3b7);
+  border-radius: 8px;
+  background: var(--sv-bg-surface, #ffffff);
+  color: var(--sv-text-primary, #2b3437);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 12px;
+}
+
+.personal-timer__controls button:hover:not(:disabled),
+.personal-timer--hidden button:hover:not(:disabled) {
+  border-color: var(--sv-accent, #4d44e3);
+  color: var(--sv-accent, #4d44e3);
+}
+
+.personal-timer__controls button:focus-visible,
+.personal-timer--hidden button:focus-visible {
+  outline: 3px solid var(--sv-accent, #4d44e3);
+  outline-offset: 2px;
+}
+
+.personal-timer__controls button:disabled,
+.personal-timer--hidden button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.personal-timer__policy {
+  margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+  .personal-timer {
+    min-width: 0;
+  }
+
+  .personal-timer__controls button {
+    flex: 1 1 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personal-timer * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

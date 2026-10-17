@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-07-30",
+  "selectionStatus": "RESELECTED_AFTER_CONTRACT_REPAIR",
+  "roadmapPhase": "runtime",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket77-contract-repair.json",
+  "graphIssueHash": "f1d980b4d81a18bd2a01eb0da5c1afc65825ead7cd58e126d0750e3b662303ec",
+  "contractRepair": {
+    "ticket": 77,
+    "evidenceArtifact": "artifacts/prd0062-ticket77-audit-20260730.json",
+    "liveContractUpdated": true,
+    "repairSummary": "Added destination-first ownership for the Book result read model, bounded indexes/projections, Book visibility adapter, contributor route descriptors, separate result-read rules fragment, and the #59/#74/#118 boundaries."
+  },
+  "graphSummary": {
+    "issueCount": 112,
+    "openCount": 47,
+    "closedCount": 65,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 77, 87, 91, 106, 129, 130, 131, 132, 133]
+  },
+  "selectedTicket": {
+    "number": 77,
+    "title": "PRD0062 29 — Review grouped Activity attempts",
+    "directPrerequisites": [76],
+    "completeTransitivePrerequisites": [
+      25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+      44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65,
+      66, 72, 73, 74, 75, 76
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 29,
+    "acceptanceReadiness": {
+      "prerequisites": "All direct and transitive prerequisites are formally CLOSED after the contract repair.",
+      "readModel": "Executable locally through a new bounded trusted result-read adapter and indexed summary/detail seam.",
+      "studentBrowser": "Executable at http://localhost:5174 with the authenticated Student quick-login surface.",
+      "teacherBrowser": "Executable at http://localhost:5173 with the authenticated Teacher quick-login surface.",
+      "routeOwnership": "#77 contributes descriptors and handler factories; #59 retains top-level manifest/dispatcher/auth/rate/CORS/identity composition.",
+      "runtimeOwnership": "#74 retains 28A mutation/draft/terminal authority; #77 does not edit 28A.json or create terminal records.",
+      "generatedRules": "#118 owns assembled generated-rules proof and deployment/readback.",
+      "safety": "No production/trusted gate activation is part of selection; #03B, #50A, trusted actions, and private B2 remain disabled."
+    },
+    "selectionReason": "Exactly one Runtime primary remains selected: #77 is the earliest unresolved result/enabler after #76, with a closed transitive chain, repaired ownership boundaries, and verified downstream leverage."
+  },
+  "candidateRejections": [
+    {
+      "ticket": 49,
+      "eligible": false,
+      "reason": "Remote private-B2 activation, exact provider identities, CORS, cost, cleanup, browser, and rollback gates are not executable while private B2/03B/trusted activation remains disabled."
+    },
+    {
+      "ticket": 87,
+      "eligible": false,
+      "reason": "Later schedule-enforcement descendant; selecting it would bypass the earliest unresolved Runtime result/enabler #77."
+    },
+    {
+      "ticket": 91,
+      "eligible": false,
+      "reason": "Later cross-cutting integrity descendant; its route/policy/deployment gates are not the current Runtime root/enabler."
+    },
+    {
+      "ticket": 106,
+      "eligible": false,
+      "reason": "Teacher-workflow phase, not the current Runtime phase."
+    },
+    {
+      "ticket": 129,
+      "eligible": false,
+      "reason": "Final-closure phase; unresolved Runtime result work remains."
+    },
+    {
+      "ticket": 130,
+      "eligible": false,
+      "reason": "Final-closure phase; unresolved Runtime result work remains."
+    },
+    {
+      "ticket": 131,
+      "eligible": false,
+      "reason": "Final-closure phase; unresolved Runtime result work remains."
+    },
+    {
+      "ticket": 132,
+      "eligible": false,
+      "reason": "Final-closure phase; unresolved Runtime result work remains."
+    },
+    {
+      "ticket": 133,
+      "eligible": false,
+      "reason": "Final-closure phase; unresolved Runtime result work remains."
+    }
+  ],
+  "safety": {
+    "ticket03B": "disabled",
+    "ticket50A": "all-six-deny/default-deny",
+    "trustedActions": "disabled",
+    "privateB2": "disabled",
+    "scope": "Full 112-ticket graph preserved; exactly one primary selected."
+  }
+}

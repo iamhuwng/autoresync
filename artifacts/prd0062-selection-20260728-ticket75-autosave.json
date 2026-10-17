@@ -1,0 +1,100 @@
+{
+  "generatedAt": "2026-07-27T22:20:53.9425980Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket73-closed.json",
+  "issueHash": "c94e5f505a8ba4f075e165763ba83632d794928adabc6e77c7c72bc19da86062",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 63,
+    "closedCount": 49,
+    "rawEdgeCount": 308,
+    "uniqueEdgeCount": 308,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [49, 50, 75, 81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "mandatoryGateAudit": {
+    "unresolvedTicketsAudited": 63,
+    "ineligibleByOpenTransitivePrerequisite": 52,
+    "graphClearCandidates": 11,
+    "authorityBlockedCandidates": [49, 50],
+    "selectedCandidates": [75],
+    "phaseRejectedCandidates": [81, 93, 105, 129, 130, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow",
+  "selection": {
+    "primaryTicket": 75,
+    "title": "PRD0062 28B - Persist browser autosave and resume through Worker",
+    "status": "selected-student-workflow-enabler",
+    "directClosedPrerequisites": [38, 39, 40, 41, 73, 74],
+    "completeTransitivePrerequisiteChain": [25, 26, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 51, 52, 53, 54, 55, 56, 57, 58, 59, 64, 65, 66, 72, 73, 74],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 43,
+    "acceptanceReadiness": "Student autosave and resume state-machine implementation, typed Worker command boundary, codec-only response serialization, focused tests, and localhost:5174 quick-login browser proof are executable under current authority. No production trusted-action, private-B2, generated-rules, or canary authority is required; #118 and #134 remain downstream.",
+    "requiredAuthority": [
+      "closed renderer, codec, adapter, Delivery, canonical route, publication, and Student shell prerequisites #38, #39, #40, #41, #59, #64, #65, #66, #72, #73, #74",
+      "student dev quick-login at localhost:5174",
+      "local x64 test/build harness",
+      "trusted actions disabled; preserve #50A all-six-deny/default-deny, #03B disabled, and private-B2 disabled"
+    ]
+  },
+  "candidateDecisions": [
+    {
+      "ticket": 49,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 provisioning remains authority-blocked; owner is Cloudflare/B2 operations; required action is scoped bucket, identity, deployment, and readback proof; private-B2 must remain disabled; only direct-upload branch is impacted."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-blocked",
+      "reason": "Foundation private-B2 reconciliation remains authority-blocked; owner is upload-reconciliation/B2 operations; required action is exact-version cleanup and reconciliation deployment proof; private-B2 must remain disabled; only direct-upload recovery branch is impacted."
+    },
+    {
+      "ticket": 75,
+      "decision": "selected",
+      "reason": "Earliest unresolved Student-workflow autosave/resume enabler with every direct and transitive prerequisite formally CLOSED, executable local/browser acceptance, and downstream leverage 43."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later Homework/assignment workflow; do not bypass Student persistence enabler #75."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later Operations/notification phase; current Student workflow phase has eligible #75."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public-access/catalog phase; current Student workflow phase has eligible #75."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation; graph-clear is not final acceptance-ready while Student workflow, generated-rules, deployment, and canary proof remain open."
+    },
+    {
+      "ticket": 130,
+      "decision": "rejected-phase",
+      "reason": "Final-closure Student runtime reconciliation; #75 is the earlier Student persistence enabler."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation; later roadmap phase."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation; later roadmap phase."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation; later roadmap phase."
+    }
+  ],
+  "nonFrontierRule": "Every other unresolved ticket is INELIGIBLE. Its complete transitive prerequisite chain contains one or more open tickets in the source graph; do not inspect, implement, or begin acceptance work on those tickets."
+}

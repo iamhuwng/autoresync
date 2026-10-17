@@ -1,0 +1,83 @@
+{
+  "ticket": 79,
+  "title": "PRD0062 31 — Navigate multiple authorized components",
+  "status": "implemented-pending-live-closure",
+  "selection": {
+    "artifact": "artifacts/prd0062-selection-20260728-ticket79.json",
+    "roadmapPhase": "student-workflow-runtime",
+    "issueHash": "1a9cea691b84c3dd4a117d260edad23913ed3207a2f02ca74d6ee4b78d9c39d5",
+    "directClosedPrerequisites": [52, 66, 78],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 34,
+    "authority": "Local x64 harness, fixture/emulator authority, and Student quick-login at http://localhost:5174; no production or trusted-action authority claimed."
+  },
+  "implementation": {
+    "projection": [
+      "src/services/book-delivery/bookDeliveryComponentProjection.types.ts",
+      "src/services/book-delivery/bookDeliveryComponentProjection.service.ts",
+      "src/services/book-delivery/bookDeliveryComponentProjection.service.test.ts"
+    ],
+    "documentSelection": [
+      "src/services/book-delivery/bookDocumentDelivery.service.ts",
+      "src/services/book-delivery/bookDocumentDelivery.service.test.ts"
+    ],
+    "runtime": [
+      "src/hooks/book-runtime/useBookRuntimeNavigation.ts",
+      "src/hooks/book-runtime/useBookRuntimeNavigation.test.tsx",
+      "src/components/book-runtime/BookRuntimeShell.tsx",
+      "src/components/book-runtime/BookRuntimeShell.css",
+      "src/components/book-runtime/BookRuntimeShell.test.tsx",
+      "src/config/featureRegistry.ts"
+    ],
+    "fixtureAndBrowser": [
+      "src/pages/BookRuntimeShellSmokePage.tsx",
+      "e2e/prd0062-ticket79-component-navigation.spec.ts",
+      "playwright.prd0062-ticket79.config.mjs"
+    ]
+  },
+  "verification": [
+    {
+      "status": "PASS",
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/hooks/book-runtime/useBookRuntimeNavigation.test.tsx src/components/book-runtime/BookRuntimeShell.test.tsx src/services/book-delivery/bookDeliveryComponentProjection.service.test.ts src/services/book-delivery/bookDocumentDelivery.service.test.ts --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "4 files, 21 tests passed"
+    },
+    {
+      "status": "PASS",
+      "command": "rtk node scripts/harness/run-tool.mjs vitest . run src/services/book-delivery/bookDocumentTransport.browser.test.ts src/services/book-delivery/bookDelivery.browser.test.ts src/services/book-delivery/bookDelivery.service.test.ts --pool=forks --poolOptions.forks.singleFork --passWithNoTests=false",
+      "result": "3 files, 18 tests passed"
+    },
+    {
+      "status": "PASS",
+      "command": "rtk node node_modules/eslint/bin/eslint.js <owned #79 files>",
+      "result": "No errors"
+    },
+    {
+      "status": "PASS",
+      "command": "rtk node scripts/harness/run-tool.mjs vite . build",
+      "result": "9433 modules transformed; production build completed"
+    },
+    {
+      "status": "PASS",
+      "command": "rtk node node_modules/@playwright/test/cli.js test --config=playwright.prd0062-ticket79.config.mjs",
+      "result": "2 browser tests passed at http://localhost:5174 using Student quick-login"
+    },
+    {
+      "status": "HARNESS-BLOCKED",
+      "command": "rtk node scripts/harness/run-tool.mjs vitest cloudflare run test/book-document-authorization.test.ts test/book-source-document-delivery-worker.test.ts test/book-delivery-worker.test.ts --passWithNoTests=false",
+      "result": "36 tests passed; one static source assertion failed before product execution because the isolated x64 workspace encoded the repository path as %20 and readFileSync resolved an invalid /C:/... URL path. #52 is already CLOSED with its recorded 50/50 responder evidence; no #79 product failure inferred."
+    }
+  ],
+  "browserPlugin": {
+    "status": "HARNESS-BLOCKED",
+    "error": "failed to write kernel assets: The system cannot find the path specified. (os error 3)",
+    "fallback": "Exact configured Playwright project command supplied the local browser proof."
+  },
+  "safety": {
+    "trustedActions": "disabled",
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "privateB2": "disabled",
+    "productionDeployment": "not claimed",
+    "full112TicketScope": "preserved"
+  }
+}

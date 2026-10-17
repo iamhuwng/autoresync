@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ResultVisibilitySnapshot } from '../types/results.types';
 import {
     buildDeletedSourceDisplayMetadata,
+    classifyBookResultVisibility,
     classifyTeacherResultVisibility,
 } from './resultVisibility.service';
 
@@ -27,6 +28,14 @@ function createVisibility(
 }
 
 describe('resultVisibility.service', () => {
+    it('allows the preserved selected solo owner and denies other teachers without relying on a link', () => {
+        const result = { context: { type: 'self_study', selectedTeacherId: 'teacher-1', classId: 'class-1' },
+            visibility: createVisibility({ contextType: 'solo_practice', sourceType: 'class', sourceId: 'class-1', classId: 'class-1' }) } as any;
+        expect(classifyTeacherResultVisibility({ result, teacherId: 'teacher-1', hasAssignmentAccess: false }))
+            .toMatchObject({ isVisibleToTeacher: true, isTeacherOwned: true, shouldAllowTeacherActions: true });
+        expect(classifyTeacherResultVisibility({ result, teacherId: 'teacher-2', hasAssignmentAccess: true }))
+            .toMatchObject({ isVisibleToTeacher: false, shouldAllowTeacherActions: false });
+    });
     it('returns a visible teacher-owned verdict when owner and assignment access match', () => {
         const verdict = classifyTeacherResultVisibility({
             result: {
@@ -129,7 +138,7 @@ describe('resultVisibility.service', () => {
         });
     });
 
-    it('keeps solo practice visible but view-only and analytics-excluded', () => {
+    it('keeps unshared solo practice private and analytics-excluded', () => {
         const verdict = classifyTeacherResultVisibility({
             result: {
                 visibility: createVisibility({
@@ -145,7 +154,7 @@ describe('resultVisibility.service', () => {
         });
 
         expect(verdict).toMatchObject({
-            isVisibleToTeacher: true,
+            isVisibleToTeacher: false,
             isTeacherOwned: false,
             shouldAllowTeacherActions: false,
             excludeFromAnalytics: true,
@@ -153,7 +162,7 @@ describe('resultVisibility.service', () => {
         });
         expect(verdict.soloPractice).toMatchObject({
             isSoloPractice: true,
-            teacherCanView: true,
+            teacherCanView: false,
             teacherActionsAllowed: false,
             tagLabel: 'Solo Practice',
             excludeFromAnalytics: true,
@@ -283,6 +292,82 @@ describe('resultVisibility.service', () => {
         expect(verdict).toMatchObject({
             isVisibleToTeacher: false,
             exclusionReason: 'teacher_not_owner',
+        });
+    });
+});
+
+describe('Book result field visibility', () => {
+    it('withholds score and feedback from a student until release', () => {
+        const decision = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'student',
+                reason: 'visible',
+            },
+            evaluationState: 'submitted',
+            feedbackRelease: 'withheld',
+        });
+
+        expect(decision).toMatchObject({
+            canViewResponse: true,
+            canViewScore: false,
+            canViewFeedback: false,
+            canViewSafeProvenance: true,
+        });
+    });
+
+    it('releases completed score and feedback only after the trusted gate opens', () => {
+        const decision = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'student',
+                reason: 'visible',
+            },
+            evaluationState: 'graded',
+            feedbackRelease: 'released',
+        });
+
+        expect(decision).toMatchObject({
+            canViewResponse: true,
+            canViewScore: true,
+            canViewFeedback: true,
+        });
+    });
+
+    it('allows an owning teacher to inspect a pending Homework response but never overrides denial', () => {
+        const visible = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-1',
+                visible: true,
+                viewerRole: 'teacher',
+                reason: 'visible',
+            },
+            evaluationState: 'pending_review',
+            feedbackRelease: 'withheld',
+        });
+        const denied = classifyBookResultVisibility({
+            ownership: {
+                attemptId: 'attempt-solo',
+                visible: false,
+                viewerRole: 'teacher',
+                reason: 'private_solo',
+            },
+            evaluationState: 'submitted',
+            feedbackRelease: 'released',
+        });
+
+        expect(visible).toMatchObject({
+            canViewResponse: true,
+            canViewScore: false,
+            canViewFeedback: true,
+        });
+        expect(denied).toMatchObject({
+            canViewResponse: false,
+            canViewScore: false,
+            canViewFeedback: false,
+            canViewSafeProvenance: false,
         });
     });
 });

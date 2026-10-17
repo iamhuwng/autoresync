@@ -47,6 +47,7 @@ const BookCardGrid = ({
   onToggleBookSelection,
   isBookSelectable,
   onOpenBook,
+  onCreateSuccessor,
   onArchiveBook,
   loadCanonicalPayload: _loadCanonicalPayload,
 }) => {
@@ -76,6 +77,7 @@ const BookCardGrid = ({
               onChange: () => onToggleBookSelection(book),
             } : undefined}
             onOpenBook={onOpenBook}
+            onCreateSuccessor={onCreateSuccessor}
             onArchiveBook={onArchiveBook}
           />
         );

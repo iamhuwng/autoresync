@@ -18,6 +18,7 @@ export type MaterialSummarySurfaceFamily =
   | 'assessment'
   | 'passage'
   | 'book'
+  | 'activity'
   | 'draft'
   | 'resource';
 
@@ -43,7 +44,25 @@ export interface MaterialSummary {
   readonly sourceFullTestId?: string;
   readonly hasBrokenRefs?: boolean;
   readonly brokenRefCount?: number;
+  readonly hasStudentSafeProjection?: boolean;
+  readonly deliveryProjectionReady?: boolean;
+  readonly studentSafeProjectionReady?: boolean;
+  readonly passageRefCount?: number;
   readonly updatedAt: string;
+  readonly bookMode?: 'materials' | 'pdf';
+  readonly bookVisibility?: 'private' | 'public-library-pending-review' | 'public-library-published' | 'public-library-rejected';
+  readonly bookStatus?: string;
+  readonly authors?: readonly string[];
+  readonly subtitle?: string;
+  readonly publisher?: string;
+  readonly series?: string;
+  readonly coverUrl?: string;
+  readonly brokenRefReasons?: readonly string[];
+  readonly sourceOrderDisplay?: string;
+  readonly sourceQuestionRange?: string;
+  readonly sourceFullTestTitle?: string;
+  readonly gradeLevel?: number;
+  readonly examType?: string;
 }
 
 export type MaterialSummaryInput =
@@ -66,6 +85,25 @@ export type MaterialSummaryListQuery =
 
 export interface MaterialSummaryReader {
   readonly read: (path: string) => Promise<unknown>;
+}
+
+export interface MaterialSummaryPageCursor {
+  readonly updatedAt: string;
+  readonly materialId: string;
+}
+
+export type MaterialSummaryPageQuery = MaterialSummaryListQuery & {
+  readonly surfaceFamily?: MaterialSummarySurfaceFamily;
+  readonly materialKind?: MaterialCatalogMaterialKind;
+  readonly testTypeId?: MaterialTestTypeId;
+};
+
+export interface MaterialSummaryPageReader {
+  readonly readPage: (
+    path: string,
+    limit: number,
+    cursor?: MaterialSummaryPageCursor,
+  ) => Promise<unknown>;
 }
 
 export interface MaterialSummaryStore extends MaterialSummaryReader {
@@ -96,7 +134,14 @@ const MATERIAL_SUMMARY_FIELDS = new Set([
   'sourceFullTestId',
   'hasBrokenRefs',
   'brokenRefCount',
+  'hasStudentSafeProjection',
+  'deliveryProjectionReady',
+  'studentSafeProjectionReady',
+  'passageRefCount',
   'updatedAt',
+  'bookMode', 'bookStatus', 'bookVisibility', 'authors', 'subtitle', 'publisher', 'series', 'coverUrl',
+  'brokenRefReasons', 'sourceOrderDisplay', 'sourceQuestionRange', 'sourceFullTestTitle',
+  'gradeLevel', 'examType',
 ]);
 
 const RTDB_FORBIDDEN_KEY_PATTERN = /[.#$/[\]\u0000-\u001f\u007f]/u;
@@ -135,6 +180,7 @@ const MATERIAL_SUMMARY_SURFACE_FAMILIES = new Set<MaterialSummarySurfaceFamily>(
   'assessment',
   'passage',
   'book',
+  'activity',
   'draft',
   'resource',
 ]);
@@ -203,6 +249,14 @@ const isMaterialSummary = (value: unknown): value is MaterialSummary => {
     taxonomy?.surfaceFamily === value.surfaceFamily &&
     isSafeRtdbKey(value.ownerId) &&
     isNonEmptyString(value.title) &&
+    isOptionalNonNegativeNumber(value.gradeLevel) &&
+    (value.examType === undefined || typeof value.examType === 'string') &&
+    (value.bookMode === undefined || ['materials', 'pdf'].includes(String(value.bookMode))) &&
+    (value.bookVisibility === undefined || ['private', 'public-library-pending-review', 'public-library-published', 'public-library-rejected'].includes(String(value.bookVisibility))) &&
+    ['bookStatus', 'subtitle', 'publisher', 'series', 'coverUrl', 'sourceOrderDisplay',
+      'sourceQuestionRange', 'sourceFullTestTitle'].every((field) =>
+      value[field] === undefined || typeof value[field] === 'string') &&
+    ['authors', 'brokenRefReasons'].every((field) => value[field] === undefined || isStringArray(value[field])) &&
     (value.description === undefined || typeof value.description === 'string') &&
     (value.visibility === 'private' || value.visibility === 'public') &&
     (value.visibility !== 'public' || taxonomy?.publicEligible === true) &&
@@ -232,6 +286,19 @@ const isMaterialSummary = (value: unknown): value is MaterialSummary => {
     ) &&
     (value.hasBrokenRefs === undefined || typeof value.hasBrokenRefs === 'boolean') &&
     isOptionalNonNegativeNumber(value.brokenRefCount) &&
+    (
+      value.hasStudentSafeProjection === undefined ||
+      typeof value.hasStudentSafeProjection === 'boolean'
+    ) &&
+    (
+      value.deliveryProjectionReady === undefined ||
+      typeof value.deliveryProjectionReady === 'boolean'
+    ) &&
+    (
+      value.studentSafeProjectionReady === undefined ||
+      typeof value.studentSafeProjectionReady === 'boolean'
+    ) &&
+    isOptionalNonNegativeNumber(value.passageRefCount) &&
     isNonEmptyString(value.updatedAt)
   );
 };
@@ -262,14 +329,7 @@ export class MaterialSummaryContractError extends Error {
   }
 }
 
-const READING_V2_DELIVERY_METADATA_FIELDS = new Set([
-  'hasStudentSafeProjection',
-  'studentSafeProjectionReady',
-  'deliveryProjectionReady',
-  'passageRefCount',
-]);
-
-const normalizeReadingV2DeliveryMetadataForRead = (
+const validateReadingV2DeliveryMetadataForRead = (
   value: unknown,
 ): unknown => {
   if (
@@ -303,11 +363,7 @@ const normalizeReadingV2DeliveryMetadataForRead = (
     );
   }
 
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([field]) => !READING_V2_DELIVERY_METADATA_FIELDS.has(field),
-    ),
-  );
+  return value;
 };
 
 const isMaterialSummaryInput = (value: unknown): value is MaterialSummaryInput => {
@@ -372,6 +428,104 @@ export const getMaterialSummaryListPath = (
     : indexPath('by_visibility', 'public');
 };
 
+export const getMaterialSummaryPagePath = (query: MaterialSummaryPageQuery): string => {
+  const base = getMaterialSummaryListPath(query);
+  if (query.materialKind && !MATERIAL_KIND_TAXONOMY_REGISTRY[query.materialKind]) {
+    throw new MaterialSummaryContractError('Unknown material kind in page query.');
+  }
+  const family = query.surfaceFamily ?? (query.materialKind ? MATERIAL_KIND_TAXONOMY_REGISTRY[query.materialKind]?.surfaceFamily : undefined);
+  if (query.testTypeId && !family) {
+    throw new MaterialSummaryContractError('Test Type page query requires surfaceFamily.');
+  }
+  for (const key of [query.surfaceFamily, query.materialKind, query.testTypeId]) {
+    if (key && !isSafeRtdbKey(key)) {
+      throw new MaterialSummaryContractError('Material summary page query has an unsafe key.');
+    }
+  }
+  if (family) {
+    const bucket = query.scope === 'owned' ? 'by_owner_family' : 'by_visibility_family';
+    const typeBucket = query.scope === 'owned' ? 'by_owner_family_type' : 'by_visibility_family_type';
+    const key = query.scope === 'owned' ? query.ownerId.trim() : 'public';
+    return [MATERIAL_SUMMARY_INDEX_ROOT, query.testTypeId ? typeBucket : bucket,
+      key, family, query.testTypeId].filter(Boolean).join('/');
+  }
+  return base;
+};
+
+export const listMaterialSummaryPage = async (
+  query: MaterialSummaryPageQuery,
+  reader: MaterialSummaryPageReader,
+  options: { readonly limit?: number; readonly cursor?: MaterialSummaryPageCursor } = {},
+): Promise<{ rows: MaterialSummary[]; cursor: MaterialSummaryPageCursor | null; hasMore: boolean }> => {
+  const limit = options.limit ?? 25;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new MaterialSummaryContractError('Material summary page limit must be 1–100.');
+  }
+  if (options.cursor && (!isSafeRtdbKey(options.cursor.materialId) || !isNonEmptyString(options.cursor.updatedAt))) {
+    throw new MaterialSummaryContractError('Invalid material summary page cursor.');
+  }
+  const value = await reader.readPage(getMaterialSummaryPagePath(query), limit + 1, options.cursor);
+  if (value === null || value === undefined) {
+    return { rows: [], cursor: null, hasMore: false };
+  }
+  if (!isRecord(value)) {
+    throw new MaterialSummaryContractError('Material summary page returned a non-object payload.');
+  }
+  if (Object.keys(value).length > limit + 1) {
+    throw new MaterialSummaryContractError('Material summary reader exceeded its page bound.');
+  }
+  const rows = Object.entries(value).map(([key, candidate]) => {
+    const compatible = validateReadingV2DeliveryMetadataForRead(candidate);
+    assertMaterialSummary(compatible);
+    const row = normalizeMaterialSummary(compatible);
+    if (row.materialId !== key || row.lifecycleState !== 'active' ||
+      (query.scope === 'owned' ? row.ownerId !== query.ownerId.trim() : row.visibility !== 'public') ||
+      (query.surfaceFamily && row.surfaceFamily !== query.surfaceFamily) ||
+      (query.materialKind && row.materialKind !== query.materialKind) ||
+      (query.testTypeId && !row.testTypeIds.includes(query.testTypeId))) {
+      throw new MaterialSummaryContractError('Material summary page contains an invalid scope row.');
+    }
+    return row;
+  }).sort(compareMaterialSummaryRecency);
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    rows: page,
+    cursor: last ? { updatedAt: last.updatedAt, materialId: last.materialId } : null,
+    hasMore: rows.length > limit,
+  };
+};
+
+// RTDB orders equal child values by key, with signed 32-bit integer keys first.
+export const compareMaterialSummaryRecency = (
+  left: Pick<MaterialSummary, 'updatedAt' | 'materialId'>,
+  right: Pick<MaterialSummary, 'updatedAt' | 'materialId'>,
+): number => {
+  if (left.updatedAt !== right.updatedAt) return left.updatedAt < right.updatedAt ? 1 : -1;
+  const integerKey = (key: string) => /^-?0*\d{1,10}$/.test(key) && Number(key) >= -2147483648 && Number(key) <= 2147483647
+    ? Number(key) : null;
+  const a = integerKey(left.materialId);
+  const b = integerKey(right.materialId);
+  if (a !== null || b !== null) {
+    if (a === null) return -1;
+    if (b === null) return 1;
+    return b - a || right.materialId.length - left.materialId.length;
+  }
+  return left.materialId === right.materialId ? 0 : left.materialId < right.materialId ? 1 : -1;
+};
+
+const discoveryIndexPaths = (summary: MaterialSummary): string[] => {
+  const path = (...parts: string[]) => [MATERIAL_SUMMARY_INDEX_ROOT, ...parts, summary.materialId].join('/');
+  return [
+    path('by_owner_family', summary.ownerId, summary.surfaceFamily),
+    path('by_visibility_family', summary.visibility, summary.surfaceFamily),
+    ...summary.testTypeIds.flatMap((testTypeId) => [
+      path('by_owner_family_type', summary.ownerId, summary.surfaceFamily, testTypeId),
+      path('by_visibility_family_type', summary.visibility, summary.surfaceFamily, testTypeId),
+    ]),
+  ];
+};
+
 export const buildMaterialSummaryIndexPlan = (
   summaryInput: MaterialSummaryInput,
   previousSummaryInput?: MaterialSummaryInput | null,
@@ -393,6 +547,7 @@ export const buildMaterialSummaryIndexPlan = (
     indexPath('by_owner', summary.ownerId, summary.materialId),
     indexPath('by_visibility', summary.visibility, summary.materialId),
     indexPath('by_material_kind', summary.materialKind, summary.materialId),
+    ...discoveryIndexPaths(summary),
     ...summary.testTypeIds.map((testTypeId) =>
       indexPath('by_test_type', testTypeId, summary.materialId)),
   ] : [];
@@ -422,6 +577,7 @@ export const buildMaterialSummaryIndexCleanup = (
     indexPath('by_owner', summary.ownerId, summary.materialId),
     indexPath('by_visibility', summary.visibility, summary.materialId),
     indexPath('by_material_kind', summary.materialKind, summary.materialId),
+    ...discoveryIndexPaths(summary),
     ...summary.testTypeIds.map((testTypeId) =>
       indexPath('by_test_type', testTypeId, summary.materialId)),
   ].map((path) => ({ path, value: null }));
@@ -494,7 +650,7 @@ export const listActiveMaterialSummaries = async (
   }
 
   const summaries = Object.values(value).map((candidate) => {
-    const compatibleCandidate = normalizeReadingV2DeliveryMetadataForRead(candidate);
+    const compatibleCandidate = validateReadingV2DeliveryMetadataForRead(candidate);
     assertMaterialSummary(compatibleCandidate);
     return normalizeMaterialSummary(compatibleCandidate);
   });

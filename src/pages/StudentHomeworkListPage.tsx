@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { StudentHomeworkItem } from '../hooks/useHomeworkSubmission';
 import { useAuth } from '../hooks/useAuth';
 import { createSubmission } from '../services/homeworkSubmissionService';
@@ -12,6 +12,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { getReadingPassageHomeworkSummary } from '../services/reading-v2/readingV2PassageHomeworkLaunch.service';
+import { isBookHomeworkCompatibilityProjection } from '../services/book-homework/bookHomeworkCompatibilityProjection.service';
 
 const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -371,6 +372,7 @@ export const StudentHomeworkListPage: React.FC = () => {
     const isMobile = useMediaQuery('(max-width: 768px)');
     const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
     const [activeTab, setActiveTab] = useState<string>('all');
+    const [sortMode, setSortMode] = useState<'latest' | 'dueDate'>('latest');
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
     const {
@@ -384,6 +386,22 @@ export const StudentHomeworkListPage: React.FC = () => {
         overdue,
     } = useResolvedStudentHomeworkList(user?.uid || '');
 
+    const legacyHomeworkItems = homeworkItems.filter(
+        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
+    );
+    const legacyNotStarted = notStarted.filter(
+        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
+    );
+    const legacyInProgress = inProgress.filter(
+        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
+    );
+    const legacyCompleted = completed.filter(
+        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
+    );
+    const legacyOverdue = overdue.filter(
+        (item) => !isBookHomeworkCompatibilityProjection(item.homework),
+    );
+
     const handleStartHomework = async (item: StudentHomeworkItem, event?: React.MouseEvent) => {
         if (event) {
             event.stopPropagation();
@@ -394,6 +412,18 @@ export const StudentHomeworkListPage: React.FC = () => {
         }
 
         const { homework, latestSubmission, status, canSubmit } = item;
+
+        const homeworkCandidate: unknown = homework;
+        if (isBookHomeworkCompatibilityProjection(homeworkCandidate)) {
+            trackAction('bookHomeworkStudentDetailOpened', {
+                homeworkId: homeworkCandidate.id,
+                source: 'student_homework_list',
+            });
+            navigateTo('STUDENT_HOMEWORK_DETAIL', { homeworkId: homeworkCandidate.id }, {
+                reason: 'student_book_homework_detail',
+            });
+            return;
+        }
 
         if (!homework.materialId) {
             console.error('[Homework] Missing materialId for homework:', homework.id);
@@ -463,26 +493,36 @@ export const StudentHomeworkListPage: React.FC = () => {
                 console.error('Failed to start homework:', submissionError);
                 alert('Unable to start homework. Please try again.');
             }
+            return;
         }
+
+        navigateTo('STUDENT_HOMEWORK_DETAIL', { homeworkId: homework.id }, {
+            reason: 'student_homework_detail_from_list',
+        });
     };
 
     const getTabItems = (): StudentHomeworkItem[] => {
         switch (activeTab) {
             case 'not_started':
-                return notStarted;
+                return legacyNotStarted;
             case 'in_progress':
-                return inProgress;
+                return legacyInProgress;
             case 'completed':
-                return completed;
+                return legacyCompleted;
             case 'overdue':
-                return overdue;
+                return legacyOverdue;
             default:
                 return homeworkItems;
         }
     };
 
-    const tabItems = getTabItems();
-    const dueSoonItems = homeworkItems.filter((item) => {
+    const tabItems = useMemo(() => {
+        const items = getTabItems();
+        return [...items].sort((left, right) => sortMode === 'latest'
+            ? (right.homework.createdAt ?? 0) - (left.homework.createdAt ?? 0)
+            : right.homework.scheduling.dueDate - left.homework.scheduling.dueDate);
+    }, [activeTab, homeworkItems, legacyNotStarted, legacyInProgress, legacyCompleted, legacyOverdue, sortMode]);
+    const dueSoonItems = legacyHomeworkItems.filter((item) => {
         const dueDate = item.homework.scheduling?.dueDate;
         if (!dueDate) {
             return false;
@@ -491,15 +531,15 @@ export const StudentHomeworkListPage: React.FC = () => {
         const diff = dueDate - Date.now();
         return diff > 0 && diff <= 2 * 24 * 60 * 60 * 1000 && item.status !== 'submitted' && item.status !== 'graded';
     });
-    const nextDueItem = [...homeworkItems]
+    const nextDueItem = [...legacyHomeworkItems]
         .filter((item) => item.homework.scheduling?.dueDate && item.status !== 'submitted' && item.status !== 'graded')
         .sort((left, right) => left.homework.scheduling.dueDate - right.homework.scheduling.dueDate)[0] || null;
     const summaryCards = [
         { label: 'Assignments', value: homeworkItems.length, color: studentTokens.textPrimary, hint: 'Total assigned tasks' },
-        { label: 'Not Started', value: notStarted.length, color: studentTokens.textPrimary, hint: 'Awaiting first attempt' },
-        { label: 'In Progress', value: inProgress.length, color: studentTokens.accent, hint: 'Currently working on' },
-        { label: 'Completed', value: completed.length, color: '#4c5458', hint: 'Submitted or graded' },
-        { label: 'Overdue', value: overdue.length, color: '#9e3f4e', hint: 'Past due date' },
+        { label: 'Not Started', value: legacyNotStarted.length, color: studentTokens.textPrimary, hint: 'Awaiting first attempt' },
+        { label: 'In Progress', value: legacyInProgress.length, color: studentTokens.accent, hint: 'Currently working on' },
+        { label: 'Completed', value: legacyCompleted.length, color: '#4c5458', hint: 'Submitted or graded' },
+        { label: 'Overdue', value: legacyOverdue.length, color: '#9e3f4e', hint: 'Past due date' },
     ];
 
     const renderCenterContent = () => {
@@ -511,7 +551,7 @@ export const StudentHomeworkListPage: React.FC = () => {
             );
         }
 
-        if (error) {
+        if (error && homeworkItems.length === 0) {
             return (
                 <div style={localStyles.contentStack}>
                     <div style={localStyles.emptyState}>
@@ -533,6 +573,21 @@ export const StudentHomeworkListPage: React.FC = () => {
 
         return (
             <div style={localStyles.contentStack}>
+                {error ? (
+                    <div role="alert" style={{ ...localStyles.emptyState, padding: '16px' }}>
+                        <h2 style={{ fontSize: '1rem', color: '#9e3f4e', margin: '0 0 12px' }}>{error}</h2>
+                        <button
+                            type="button"
+                            style={{ ...localStyles.primaryBtn, ...(isMobile ? mobileStyles.fullWidthButton : {}) }}
+                            onClick={() => {
+                                trackAction('refreshHomeworkList', { source: 'stale_content_error' });
+                                refreshData();
+                            }}
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                ) : null}
                 <div style={{ ...localStyles.summaryGrid, ...(isMobile ? { flexDirection: 'column', gap: 12 } : {}) }}>
                     {summaryCards.map((card) => (
                         <div
@@ -572,9 +627,16 @@ export const StudentHomeworkListPage: React.FC = () => {
                                 canViewFeedback,
                                 status,
                             } = item;
-                            const timeInfo = getTimeRemaining(homework.scheduling.dueDate);
-                            const resultDisplay = getHomeworkResultDisplay(latestSubmission, canViewFeedback);
-                            const statusVisual = getStatusVisual(status);
+                            const isBookHomework = isBookHomeworkCompatibilityProjection(homework);
+                            const timeInfo = isBookHomework
+                                ? { text: 'Open Book activities to view progress', urgent: false }
+                                : getTimeRemaining(homework.scheduling.dueDate);
+                            const resultDisplay = isBookHomework
+                                ? null
+                                : getHomeworkResultDisplay(latestSubmission, canViewFeedback);
+                            const statusVisual = isBookHomework
+                                ? getStatusVisual('book_homework')
+                                : getStatusVisual(status);
                             const skillColor = getSkillColor(homework.materialSkill);
                             const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
                             const materialTypeLabel = readingPassageSummary?.label ?? homework.materialType;
@@ -617,7 +679,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                         </div>
 
                                         <span style={{ ...localStyles.pill, background: statusVisual.bg, color: statusVisual.text, ...(isMobile ? { alignSelf: 'flex-start' } : {}) }}>
-                                            {formatStatus(status)}
+                                            {isBookHomework ? 'Book Homework' : formatStatus(status)}
                                         </span>
                                     </div>
 
@@ -626,7 +688,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                             Due: {formatDate(homework.scheduling.dueDate)}
                                         </span>
                                         <span>{timeInfo.text}</span>
-                                        {homework.config.maxAttempts !== null ? (
+                                        {!isBookHomework && homework.config.maxAttempts !== null ? (
                                             <span>
                                                 Attempts: {attemptsUsed} / {homework.config.maxAttempts}
                                                 {attemptsRemaining !== null && attemptsRemaining > 0 ? ` (${attemptsRemaining} left)` : ''}
@@ -635,7 +697,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                         {homework.config.timerMinutes ? <span>{homework.config.timerMinutes} min limit</span> : null}
                                     </div>
 
-                                    {latestSubmission && (latestSubmission.status === 'submitted' || latestSubmission.status === 'graded') ? (
+                                    {!isBookHomework && latestSubmission && (latestSubmission.status === 'submitted' || latestSubmission.status === 'graded') ? (
                                         <div
                                             style={{
                                                 ...localStyles.resultPanel,
@@ -653,9 +715,9 @@ export const StudentHomeworkListPage: React.FC = () => {
                                                 }
                                             }}
                                         >
-                                            <span style={localStyles.resultLabel}>{resultDisplay.label}</span>
-                                            <span style={{ ...localStyles.resultValue, color: resultDisplay.valueColor }}>
-                                                {resultDisplay.value}
+                                            <span style={localStyles.resultLabel}>{resultDisplay?.label}</span>
+                                            <span style={{ ...localStyles.resultValue, color: resultDisplay?.valueColor }}>
+                                                {resultDisplay?.value}
                                             </span>
                                         </div>
                                     ) : null}
@@ -665,7 +727,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                                             {homework.target.type === 'class' ? `From: ${homework.target.className}` : 'Assigned to you'}
                                         </span>
 
-                                        {canSubmit ? (
+                                        {!isBookHomework && canSubmit ? (
                                             <button
                                                 type="button"
                                                 style={{
@@ -710,19 +772,19 @@ export const StudentHomeworkListPage: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={localStyles.rightMetricRow}>
                         <span style={localStyles.rightMetricLabel}>Not Started</span>
-                        <span style={localStyles.rightMetricValue}>{notStarted.length}</span>
+                        <span style={localStyles.rightMetricValue}>{legacyNotStarted.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
                         <span style={{ ...localStyles.rightMetricLabel, color: studentTokens.accent }}>In Progress</span>
-                        <span style={localStyles.rightMetricValue}>{inProgress.length}</span>
+                        <span style={localStyles.rightMetricValue}>{legacyInProgress.length}</span>
                     </div>
                     <div style={localStyles.rightMetricRow}>
                         <span style={{ ...localStyles.rightMetricLabel, color: '#4c5458' }}>Completed</span>
-                        <span style={localStyles.rightMetricValue}>{completed.length}</span>
+                        <span style={localStyles.rightMetricValue}>{legacyCompleted.length}</span>
                     </div>
                     <div style={{ ...localStyles.rightMetricRow, paddingTop: 8, borderTop: `1px solid ${studentTokens.borderWhisper}` }}>
                         <span style={{ ...localStyles.rightMetricLabel, color: '#9e3f4e' }}>Overdue</span>
-                        <span style={{ ...localStyles.rightMetricValue, color: '#9e3f4e' }}>{overdue.length}</span>
+                        <span style={{ ...localStyles.rightMetricValue, color: '#9e3f4e' }}>{legacyOverdue.length}</span>
                     </div>
                 </div>
 
@@ -746,7 +808,7 @@ export const StudentHomeworkListPage: React.FC = () => {
                 <StudentSidebar
                     user={user ? { ...user, avatarUrl: profile?.avatarUrl } : undefined}
                     activePage="homework"
-                    pendingHomeworkCount={notStarted.length}
+                    pendingHomeworkCount={legacyNotStarted.length}
                 />
             )}
             rightPanel={renderRightPanel()}
@@ -764,24 +826,18 @@ export const StudentHomeworkListPage: React.FC = () => {
                 </div>
             </div>
 
-            <div
-                className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
-                style={{
-                    display: 'flex',
-                    gap: isMobile ? 16 : 32,
-                    overflowX: 'auto',
-                    padding: '0 0 0',
-                    marginTop: 32,
-                    borderBottom: `1px solid rgba(171, 179, 183, 0.1)`,
-                }}
-            >
-                {[
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: isMobile ? 12 : 24, marginTop: 32, borderBottom: `1px solid rgba(171, 179, 183, 0.1)` }}>
+                <div
+                    className={isMobile ? 'student-mobile-scrollbar-hidden' : undefined}
+                    style={{ display: 'flex', gap: isMobile ? 16 : 32, overflowX: 'auto', minWidth: 0, flex: 1 }}
+                >
+                    {[
                     { key: 'all', label: `All (${homeworkItems.length})` },
                     { key: 'not_started', label: 'Not Started' },
                     { key: 'in_progress', label: 'In Progress' },
                     { key: 'completed', label: 'Completed' },
-                    ...(overdue.length > 0 ? [{ key: 'overdue', label: 'Overdue' }] : []),
-                ].map((tab) => (
+                    ...(legacyOverdue.length > 0 ? [{ key: 'overdue', label: 'Overdue' }] : []),
+                    ].map((tab) => (
                     <button
                         key={tab.key}
                         type="button"
@@ -806,7 +862,35 @@ export const StudentHomeworkListPage: React.FC = () => {
                     >
                         {tab.label}
                     </button>
-                ))}
+                    ))}
+                </div>
+                <label style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0 }}>
+                    <select
+                        aria-label="Sort homework"
+                        value={sortMode}
+                        onChange={(event) => {
+                            const nextSort = event.target.value as 'latest' | 'dueDate';
+                            setSortMode(nextSort);
+                            trackAction('sortHomeworkList', { sort: nextSort });
+                        }}
+                        style={{
+                            minHeight: 44,
+                            padding: '0 0 16px',
+                            border: 'none',
+                            borderBottom: '2px solid transparent',
+                            background: 'transparent',
+                            color: studentTokens.textMuted,
+                            cursor: 'pointer',
+                            font: 'inherit',
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <option value="latest">Latest</option>
+                        <option value="dueDate">Due date (latest first)</option>
+                    </select>
+                </label>
             </div>
 
             <div>{renderCenterContent()}</div>

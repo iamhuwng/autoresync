@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-07-24",
+  "roadmapPhase": "foundation",
+  "primary": 45,
+  "primaryTitle": "PRD0062 02 — Route each mode to its own editor",
+  "graph": {
+    "ticketCount": 112,
+    "open": 99,
+    "closed": 13,
+    "edgeCount": 309,
+    "missingReferences": 0,
+    "cycles": 0,
+    "topologicalTraversal": "112/112",
+    "transitiveChainsCalculatedForEveryOpenTicket": true,
+    "graphClearFrontier": [29, 35, 38, 39, 40, 41, 42, 45, 129, 130, 131, 132, 133]
+  },
+  "selection": {
+    "directPrerequisites": [25, 44],
+    "transitivePrerequisites": [25, 44],
+    "closedPrerequisites": [25, 44],
+    "downstreamLeverage": 85,
+    "acceptanceReadiness": [
+      "teacher browser port 5173 available",
+      "Mode 1 and Mode 2 dispatch seams and focused tests exist in owned paths",
+      "50A is CLOSED and remains all-six-deny/default-deny",
+      "no capability activation required"
+    ],
+    "requiredAuthority": [
+      "authenticated teacher dev quick-login",
+      "local preview/build",
+      "read-only live issue and source verification"
+    ]
+  },
+  "candidateRejections": [
+    {
+      "ticket": 29,
+      "reason": "Cloudflare media/B2 read-only reconciliation authority unavailable; Wrangler media profile requires missing token."
+    },
+    {
+      "ticket": 35,
+      "reason": "Cloudflare Activity-authoring Worker deployment and scoped service-identity gates not executable; same unavailable media authority."
+    },
+    {
+      "ticket": 38,
+      "reason": "Mandatory browser acceptance requires OPEN #73/22B shell; BookRuntimeShell is absent."
+    },
+    {
+      "ticket": 39,
+      "reason": "Mandatory browser acceptance shares OPEN #73/22B shell blocker."
+    },
+    {
+      "ticket": 40,
+      "reason": "Mandatory browser acceptance shares OPEN #73/22B shell blocker."
+    },
+    {
+      "ticket": 41,
+      "reason": "Cloudflare media/auth authority and runtime shell acceptance are unavailable."
+    },
+    {
+      "ticket": 42,
+      "reason": "Operations roadmap phase; Foundation candidate set has eligible #45."
+    },
+    {
+      "ticket": 73,
+      "reason": "Open direct and transitive prerequisites; ineligible under mandatory dependency gate."
+    },
+    {
+      "ticket": 129,
+      "reason": "Final Closure phase; positive acceptance remains behind preserved #50A/#126 boundary."
+    },
+    {
+      "ticket": 130,
+      "reason": "Final Closure phase; positive acceptance remains behind preserved #50A/#126 boundary."
+    },
+    {
+      "ticket": 131,
+      "reason": "Final Closure phase; positive acceptance remains behind preserved #50A/#126 boundary."
+    },
+    {
+      "ticket": 132,
+      "reason": "Final Closure phase; positive acceptance remains behind preserved #50A/#126 boundary."
+    },
+    {
+      "ticket": 133,
+      "reason": "Final Closure phase; positive acceptance remains behind preserved #50A/#126 boundary."
+    }
+  ]
+}

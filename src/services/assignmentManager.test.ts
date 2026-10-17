@@ -36,21 +36,23 @@ vi.mock('firebase/database', () => ({
     onValue: (ref: any, callback: any) => mockOnValue(ref, callback),
 }));
 
+vi.mock('firebase/auth', () => ({ getAuth: () => ({ currentUser: { uid: 'admin-1' } }) }));
+
 vi.mock('./firebase', () => ({
     database: {},
 }));
 
 vi.mock('./userService', () => ({
     getUserByEmail: vi.fn(),
-    getUserById: vi.fn(),
 }));
 
-vi.mock('./notificationService', () => ({
-    createNotification: vi.fn(),
+vi.mock('./notificationProducerClient', () => ({
+    notifyCommittedEvent: vi.fn().mockResolvedValue({ status: 'written' }),
 }));
 
-import { getUserByEmail, getUserById } from './userService';
-import { createNotification } from './notificationService';
+import { notifyCommittedEvent } from './notificationProducerClient';
+
+import { getUserByEmail } from './userService';
 
 describe('assignmentManager', () => {
     beforeEach(() => {
@@ -748,29 +750,45 @@ describe('assignmentManager', () => {
                 const mockStudentUser = { uid: 'student-123', email: 'student@example.com', displayName: 'Student Name' };
                 (getUserByEmail as any).mockResolvedValue(mockStudentUser);
 
-                // Mock getUserById for teacher
-                (getUserById as any).mockResolvedValue({ uid: 'teacher-1', displayName: 'Teacher Name', email: 'teacher@example.com' });
-
-                // 3. Create assignment mocks (get existing failure, set assignment success, set history success)
-                mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null }); // check exists assignment
-                mockSet.mockResolvedValueOnce(undefined); // set assignment
-                mockSet.mockResolvedValueOnce(undefined); // set history
-
-                // 4. Update request status
+                // Existing assignments are checked before the atomic root update.
+                mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
                 mockUpdate.mockResolvedValueOnce(undefined);
-
-                // 5. Create notifications (mock)
-                (createNotification as any).mockResolvedValue({ success: true });
 
                 const result = await approveStudentRequest('request-123', 'admin-1');
 
                 expect(result.success).toBe(true);
                 expect(mockUpdate).toHaveBeenCalled();
                 const updateArgs = mockUpdate.mock.calls[0];
-                expect(updateArgs[1]).toMatchObject({ status: 'approved' });
+                expect(updateArgs[1]).toHaveProperty('student_requests/request-123');
+                expect(updateArgs[1]['student_requests/request-123']).toMatchObject({
+                    status: 'approved', studentId: 'student-123', assignmentId: 'mock-id-123',
+                });
+                expect(notifyCommittedEvent).toHaveBeenCalledWith({ eventKind: 'assignment-approved',
+                    requestId: 'request-123', occurredAt: expect.any(Number) });
+                expect(mockUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+                    vi.mocked(notifyCommittedEvent).mock.invocationCallOrder[0]!,
+                );
+                expect(updateArgs[1]).toHaveProperty('student_teacher_assignments/mock-id-123');
+                expect(updateArgs[1]).toHaveProperty('student_teacher_links/teacher-1/student-123', true);
+                expect(updateArgs[1]).toHaveProperty('assignment_history/mock-id-123');
+            });
 
-                // Check notifications
-                expect(createNotification).toHaveBeenCalledTimes(2);
+            it('keeps committed approval successful when notice delivery fails', async () => {
+                mockGet.mockResolvedValueOnce({ exists: () => true, val: () => mockRequest });
+                (getUserByEmail as any).mockResolvedValueOnce({ uid: 'student-123' });
+                mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
+                mockUpdate.mockResolvedValueOnce(undefined);
+                vi.mocked(notifyCommittedEvent).mockImplementationOnce(() => { throw new Error('notice unavailable'); });
+                await expect(approveStudentRequest('request-123', 'admin-1')).resolves.toEqual({ success: true });
+            });
+
+            it('does not notify when the approval commit fails', async () => {
+                mockGet.mockResolvedValueOnce({ exists: () => true, val: () => mockRequest });
+                (getUserByEmail as any).mockResolvedValueOnce({ uid: 'student-123' });
+                mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
+                mockUpdate.mockRejectedValueOnce(new Error('write denied'));
+                await expect(approveStudentRequest('request-123', 'admin-1')).resolves.toMatchObject({ success: false });
+                expect(notifyCommittedEvent).not.toHaveBeenCalled();
             });
 
             it('should handle student not found', async () => {

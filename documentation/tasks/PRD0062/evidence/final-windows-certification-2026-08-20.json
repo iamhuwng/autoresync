@@ -1,0 +1,140 @@
+{
+  "kind": "prd0062-final-windows-certification",
+  "generatedAt": "2026-08-20T21:07:56+07:00",
+  "testedCommit": "af6bdea8b684e232ba1b69975fa4230fab58b691",
+  "authoritativeCheckout": "C:\\Users\\The Lord\\Desktop\\luyentap-prd0062",
+  "branch": "codex/prd0062-production-normal-20260813-v2",
+  "toolAuthority": {
+    "genericSkill": {
+      "name": "run-windows-arm64-tools",
+      "revision": "2.0.0",
+      "source": "C:\\Users\\The Lord\\.codex\\skills\\run-windows-arm64-tools\\SKILL.md"
+    },
+    "repositoryGuidance": ".agents/skills/luyentap-windows-arm64-harness-contract/SKILL.md",
+    "harness": {
+      "name": "luyentap-windows-arm64-harness",
+      "version": "3.7.0",
+      "protocol": 5,
+      "dependencyCacheProtocol": 3,
+      "grammar": "node scripts/harness/run-tool.mjs <tool> <project> [...args]"
+    },
+    "wranglerBoundary": {
+      "sourceAuthority": "windows-checkout",
+      "runtime": "wsl",
+      "sourceMode": "live",
+      "wslRole": "execution-substrate-only",
+      "wslSourcePolicy": "selected-windows-checkout"
+    }
+  },
+  "verification": {
+    "harnessRegression": {
+      "command": "npm run test:harness",
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0
+    },
+    "acceptanceConformance": {
+      "command": "node --test scripts/__tests__/prd0062-acceptance-matrix.test.mjs scripts/__tests__/prd0062-acceptance-conformance.test.mjs scripts/__tests__/prd0062-reading-listening-coverage.test.mjs scripts/__tests__/prd0062-cleanup.test.mjs scripts/__tests__/check-prd0062-activity-coverage.test.mjs scripts/__tests__/run-security-tests.test.mjs",
+      "passed": 61,
+      "failed": 0,
+      "skipped": 0,
+      "schema": "PASS",
+      "semantic": "PASS",
+      "canaryManifest": "PASS"
+    },
+    "activityCoverage": {
+      "command": "node scripts/check-prd0062-activity-coverage.mjs --release",
+      "rows": 32,
+      "result": "PASS"
+    },
+    "campaignAuthority": {
+      "commands": [
+        "node scripts/prd0062-acceptance-campaign.mjs --setup-plan",
+        "node scripts/prd0062-acceptance-campaign.mjs --cleanup-plan",
+        "node scripts/prd0062-acceptance-campaign.mjs --manifest"
+      ],
+      "result": "PASS_PLAN_ONLY_NO_REMOTE_MUTATION"
+    },
+    "workerUpdates": {
+      "command": "node scripts/harness/run-tool.mjs vitest cloudflare run --config vitest.config.mjs test/book-redo-update.test.ts test/book-removal-update.test.ts test/book-addition-update.test.ts test/book-update-recovery-repository.test.ts test/book-update-recovery-suppression.test.ts",
+      "files": 5,
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0
+    },
+    "security": {
+      "command": "npm run test:security -- --prd0062",
+      "rtdbTests": 89,
+      "rtdbFirestoreCompositionTests": 4,
+      "passed": 93,
+      "failed": 0,
+      "skipped": 0
+    },
+    "legacyRecovery": {
+      "command": "npm run test:prd0062:legacy-backup-recovery",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "browserAcceptance": {
+      "teacher": {
+        "cases": ["AC-TA-001", "AC-TA-002", "AC-TU-001", "AC-TR-001"],
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "student": {
+        "cases": ["AC-SR-001", "AC-AD-001"],
+        "executedTests": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0
+      },
+      "boundary": "local authenticated quick-login flows against authoritative live Windows source"
+    },
+    "productionBuild": {
+      "command": "CODEX_HARNESS_TIMEOUT_MS=600000 npm run build",
+      "viteModules": 9504,
+      "bundleBudget": "PASS",
+      "rootEntry": "245KB"
+    },
+    "wranglerDryRuns": {
+      "commands": [
+        "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-activation.jsonc",
+        "node scripts/harness/run-tool.mjs wrangler cloudflare deploy --dry-run --config wrangler.prd0062-ticket126-vocab-u1-rollback.jsonc"
+      ],
+      "result": "PASS_LOCAL_COMPILE_ONLY",
+      "runtime": "Wrangler 4.103.0 / Node 22.22.0 arm64 in selected WSL substrate",
+      "upload": "1807.53 KiB / gzip 337.05 KiB"
+    }
+  },
+  "repairs": [
+    "environment: selected official portable x64 Node 22.17.1 after the stale Node 24 runtime hung the semantic consumer",
+    "environment: removed only obsolete harness-owned run snapshots after ENOSPC and stopped retrying until space was restored",
+    "test fidelity: normalized frozen rule hashes across CRLF/LF without changing rule semantics",
+    "test fidelity: added the current generic choice/v1 registry ownership to coverage validation",
+    "test fidelity: enabled the existing teacher mutation presentation gate only in the local browser acceptance server",
+    "test fidelity: completed the deterministic smoke manifest with its required manifestVersionId",
+    "tool configuration: made the matrix-owned canary-manifest command executable",
+    "harness fidelity: routed the active PRD0062 security matrix through the real harness consumers, deterministic emulator config, fail-closed arguments, and nonzero-exit accounting",
+    "tool configuration: raised only the understood cold build/security harness timeout; product behavior was not changed for duration failures"
+  ],
+  "evidenceSidecars": [
+    "19e9203e-4748-4404-81aa-06ebf527069a",
+    "9aa4937a-672d-438b-9fdd-edda3185d552",
+    "a72b4f83-db37-42c9-b40d-7ab0939219c6",
+    "2803e6c5-95b9-4ee7-9bf8-31517640bf25",
+    "3780302f-011a-4dd1-bb55-fa1079cc6219",
+    "4ead762a-c8f2-4375-bf96-c380a3a401fe",
+    "cb46bc55-539c-42c8-a041-8a6cdef6733d",
+    "8be7e76e-ff38-4b13-87a8-2828ce2901d9"
+  ],
+  "claimBoundary": {
+    "localFinalToolingCertification": "PASS",
+    "remoteDeployment": "NOT_RUN",
+    "productionActivationReadback": "NOT_RUN",
+    "deployedCanary": "NOT_RUN",
+    "ticket126Disposition": "UNCHANGED_BLOCKED_DEPENDENCY_AND_APPROVAL",
+    "ticket134Disposition": "UNCHANGED_APPROVAL_GATED_DOWNSTREAM"
+  }
+}

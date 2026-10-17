@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-07-28T06:15:00Z",
+  "sourceGraph": "artifacts/prd0062-graph-20260728-post-ticket41-reopened.json",
+  "issueHash": "cae7220490bda154055f0ef938f079e1f9dc803d320f71764d8389cbc94a8db3",
+  "graph": {
+    "issueCount": 112,
+    "openCount": 64,
+    "closedCount": 48,
+    "rawEdgeCount": 309,
+    "uniqueEdgeCount": 309,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112,
+    "graphClearFrontier": [41, 49, 50, 81, 93, 105, 129, 131, 132, 133]
+  },
+  "roadmapPhase": "student-workflow",
+  "mandatoryGateAudit": {
+    "unresolvedTicketsAudited": 64,
+    "ineligibleByOpenTransitivePrerequisite": 53,
+    "graphClearCandidates": 11,
+    "authorityBlockedCandidates": [49, 50],
+    "selectedCandidates": [41],
+    "phaseRejectedCandidates": [81, 93, 105, 129, 131, 132, 133]
+  },
+  "blocker": {
+    "ticket": 41,
+    "owner": "#41 adapter-registration boundary",
+    "requiredAction": "Filter canonical generic profile:null renderer registrations from the Reading/Listening adapter list; retain only profiled supported matrix rows; add conformance regression coverage; re-close #41.",
+    "evidence": "Focused renderer/codec suite: 9 files and 28 tests passed; bookActivityAdapterRegistrations.test.ts fails during module initialization because it throws on the generic profile:null long-response registration.",
+    "impact": "#75 is ineligible through direct prerequisite #41. No #75 acceptance or downstream integrated adapter work may start until #41 is formally CLOSED.",
+    "blockerFamily": "ownership/registration-boundary"
+  },
+  "rejectedCandidates": [
+    {
+      "ticket": 75,
+      "decision": "rejected-ineligible",
+      "reason": "Direct prerequisite #41 is OPEN after concrete acceptance evidence; complete transitive prerequisite chain is not closed."
+    },
+    {
+      "ticket": 49,
+      "decision": "rejected-blocked",
+      "reason": "Private-B2 authority remains unavailable; keep private-B2 disabled."
+    },
+    {
+      "ticket": 50,
+      "decision": "rejected-blocked",
+      "reason": "Private-B2 reconciliation authority remains unavailable; keep private-B2 disabled."
+    },
+    {
+      "ticket": 81,
+      "decision": "rejected-phase",
+      "reason": "Later Homework/assignment workflow; repair current Student workflow enabler first."
+    },
+    {
+      "ticket": 93,
+      "decision": "rejected-phase",
+      "reason": "Later Operations/notification phase."
+    },
+    {
+      "ticket": 105,
+      "decision": "rejected-phase",
+      "reason": "Later public-access/catalog phase."
+    },
+    {
+      "ticket": 129,
+      "decision": "rejected-phase",
+      "reason": "Final-closure teacher browser reconciliation."
+    },
+    {
+      "ticket": 131,
+      "decision": "rejected-phase",
+      "reason": "Final-closure accessibility/device reconciliation."
+    },
+    {
+      "ticket": 132,
+      "decision": "rejected-phase",
+      "reason": "Final-closure contract/security reconciliation."
+    },
+    {
+      "ticket": 133,
+      "decision": "rejected-phase",
+      "reason": "Final-closure legacy/backup/recovery reconciliation."
+    }
+  ],
+  "selection": {
+    "primaryTicket": 41,
+    "title": "PRD0062 27 — Add Book-owned Reading/Listening adapters",
+    "status": "selected-repair-enabler",
+    "directClosedPrerequisites": [36, 37],
+    "completeTransitivePrerequisiteChain": [25, 33, 34, 36, 37],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 46,
+    "acceptanceReadiness": "Local adapter registration boundary is executable under current authority; no deployment, activation, private-B2, #50A, or #03B authority is required.",
+    "requiredAuthority": [
+      "live #41 issue contract",
+      "local x64 test harness",
+      "preserve generic profile:null long-response registration",
+      "keep #50A all-six-deny/default-deny, #03B disabled, trusted actions disabled, and private-B2 disabled"
+    ]
+  },
+  "safety": {
+    "reopenedTickets": [41],
+    "50A": "all-six-deny/default-deny preserved",
+    "03B": "disabled",
+    "trustedActions": "disabled by default",
+    "privateB2": "disabled"
+  }
+}

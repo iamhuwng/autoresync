@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-30T15:55:00.000Z",
+  "graphArtifact": "artifacts/prd0062-graph-20260730-ticket50-reopened-repair.json",
+  "graphHash": "bb94e1e380b7d7d7e8954b4d5647ea0071df9f4dbf77df1113b03b2ff6c40793",
+  "issueCount": 112,
+  "graphSummary": {
+    "openCount": 52,
+    "closedCount": 60,
+    "rawEdgeCount": 310,
+    "uniqueEdgeCount": 310,
+    "missingReferences": 0,
+    "duplicateEdges": 0,
+    "cycles": 0,
+    "topologicalCoverage": 112
+  },
+  "roadmapPhase": "Foundation",
+  "graphClearFrontier": [
+    50,
+    59,
+    65,
+    66,
+    68,
+    129,
+    131,
+    132,
+    133
+  ],
+  "selectedPrimary": {
+    "number": 50,
+    "title": "PRD0062 07 - Reconcile failed and unfinished direct-B2 uploads",
+    "directPrerequisites": [
+      29,
+      47,
+      48
+    ],
+    "closedPrerequisites": [
+      29,
+      47,
+      48
+    ],
+    "transitivePrerequisites": [
+      25,
+      26,
+      27,
+      29,
+      44,
+      45,
+      46,
+      47,
+      48
+    ],
+    "openTransitivePrerequisites": [],
+    "downstreamLeverage": 17,
+    "acceptanceReadiness": "Executable under the approved local teacher browser, deployed reconciliation preview, disposable operation, rollback, and cleanup authority. No live upload activation is required for the retained #50 contract.",
+    "requiredAuthority": [
+      "teacher browser on http://localhost:5173",
+      "deployed reconciliation-side status and manual-reconcile access",
+      "disposable operation inspection and cleanup authority",
+      "exact metadata [readFiles,listFiles], cleanup [deleteFiles], and capacity [listFiles] identities already proven by the prior closure",
+      "rollback authority while private B2/#03B and trusted actions remain disabled"
+    ],
+    "selectionReason": "Concrete historical and deployed evidence proved the closed #50 recovery contract false. #50 is the earliest unresolved Foundation safety enabler, every direct and transitive prerequisite is CLOSED, its acceptance gates are executable, and reopening it makes #49 dependency-ineligible."
+  },
+  "candidateRejections": [
+    {
+      "number": 59,
+      "reason": "Graph-clear but rejected: Runtime route composition is later than the reopened Foundation upload-recovery safety boundary."
+    },
+    {
+      "numbers": [
+        65,
+        66,
+        68
+      ],
+      "reason": "Graph-clear but rejected: Teacher-workflow publication/revision descendants are outside the current Foundation phase."
+    },
+    {
+      "numbers": [
+        129,
+        131,
+        132,
+        133
+      ],
+      "reason": "Graph-clear but rejected: final browser/security/recovery suites are later-phase tickets and do not supersede the reopened root safety contract."
+    },
+    {
+      "number": 49,
+      "reason": "Ineligible: direct prerequisite #50 is OPEN. Its remaining account_state_unavailable/provider-consumer work is #49-owned and cannot be resumed until #50 is formally re-closed."
+    }
+  ],
+  "historicalProvenanceGate": {
+    "originalContractCommit": "e187a177",
+    "regressionCommit": "8aac13245bfcaefb06f2db5ec6de6f051e9ab28c",
+    "finding": "#48 originally reused one operation ID. #50 later converted ambiguous provider failures to cancel_requested, removed the same-operation retry regression, denied retryBytes for cancel_requested, while the panel continued to advertise Retry PDF bytes."
+  },
+  "governingSafety": {
+    "privateB2": "DISABLED",
+    "03B": "DISABLED",
+    "50A": "all-six-deny/default-deny",
+    "trustedActions": "default-deny",
+    "masterKey": "offline provisioning-only; never a runtime binding"
+  }
+}

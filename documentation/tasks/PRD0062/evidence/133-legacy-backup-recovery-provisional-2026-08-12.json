@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "ticket": "#133",
+  "lane": "legacy/metadata backup/no-PDF/restore/deterministic recovery",
+  "status": "PASS_LOCAL_ACCEPTANCE",
+  "verdict": "The campaign-owned recovery slice and all three transferred legacy-rule cases pass. #133 has no remaining local product blocker; this is local acceptance only and does not authorize deployment, activation, #134, push, or a PR.",
+  "acceptedIdentity": {
+    "sourceCommit": "78306ee1049ba0b2db4f525a168693a666e8a19a",
+    "generatedRulesSha256": "565587b249bc4d188267ce2a513b912c889fdad9d8a35c32fb968c1c5dae9e7b",
+    "rollbackRulesSha256": "62f4bfb36bdb1fbae2944356fe6ab824e72f9ae5ac480e1df965da0d418663c6",
+    "rulesSuiteSha256": "6e5848979b02e3c9d0f341c373815d3d5be34656d05743296d63f7169fa07aff",
+    "ticket127MatrixSha256": "58a05195419ee7f2df7626b24376615395539bedf6a93a2d05ea733bf7ddfea4",
+    "fixtureManifestSha256": "dad602b1d2558a9c4a54bc7ee1cf40e8df54d1e38c38e8d8c8843b0fdbbfb9b0"
+  },
+  "recoverySlice": {
+    "command": "node scripts/harness/run-tool.mjs vitest . run --config vitest.config.ts src/__tests__/prd0062-legacy-backup-recovery.test.ts",
+    "sourceCommit": "389a3157319499f2ee1c64fd5d1ba4e64aa5b66c",
+    "harness": { "version": "3.4.0", "protocol": 2 },
+    "status": "passed",
+    "counts": { "files": 1, "tests": 1, "passed": 1, "failed": 0, "skipped": 0 },
+    "sidecar": {
+      "path": "C:/Users/The Lord/AppData/Local/codex-harness-v3/evidence/f8659b6a-6984-4272-9fc7-ccf566cd9164.json",
+      "sha256": "1a69b98960ef4b641fd328ba22ee798868b62d5fddf485a2d4b3ee3742256840"
+    },
+    "protectedStateChanged": false,
+    "reuseBasis": "The corrected #118 tuple changed only RTDB rule leaves and the composer test. The metadata/no-PDF/restore/two-pass recovery implementation and fixture identity did not change, so this unaffected slice is reused under the campaign rerun rule."
+  },
+  "transferredLegacyCases": {
+    "rootCause": "Merge b8cd836c dropped 25 accepted normal-product rule leaves before #118 froze its rollback base.",
+    "repair": "Restored all 25 leaves in the rollback base and sole generated rules artifact without editing Reading V2 product code.",
+    "matrixEvidence": {
+      "proof": "documentation/tasks/PRD0062/evidence/118-final-rules-proof-2026-08-12.json",
+      "sidecarSha256": "e8175c5144cb4f7e0c2a137d349860da7304c74cdd82b86cf6a8078cfcab3468",
+      "resultSha256": "5505352c25e3eb3af8e528ab854a67b16c1564f1b96a88a2aa68ab9dfb902144",
+      "counts": { "files": 7, "tests": 85, "passed": 85, "failed": 0, "skipped": 0, "pending": 0, "todo": 0 }
+    },
+    "cases": [
+      {
+        "id": "LEGACY-118-MATERIAL-CATALOG-SUMMARY",
+        "testFile": "src/__tests__/security/materialCatalogFirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 23,
+        "restoredRuleLeaves": "four readiness/projection validators at each of five universal summary rows"
+      },
+      {
+        "id": "LEGACY-118-READING-V2-SOFT-REMOVE-WITHOUT-CLEANUP",
+        "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 33,
+        "restoredRuleLeaves": "four owner-authorized universal-summary cleanup delete branches from 01d5dd12"
+      },
+      {
+        "id": "LEGACY-118-READING-V2-THIN-MASTER-SOFT-REMOVE",
+        "testFile": "src/__tests__/security/readingV2FirebaseRules.test.ts",
+        "status": "passed",
+        "assertionsInFile": 33,
+        "restoredRuleLeaves": "removed-state full composition validation from 5de8590b"
+      }
+    ]
+  },
+  "scope": [
+    "legacy compatibility",
+    "metadata-only inventory",
+    "no PDF bytes",
+    "restore fencing",
+    "two-pass deterministic recovery",
+    "zero new side effects"
+  ],
+  "ticket126": {
+    "status": "ENGINEERING_PROOF_ONLY_NOT_APPROVED_OR_ACTIVE",
+    "note": "#126 remains a campaign/pre-#134 gate but is no longer a #133 product-test blocker."
+  },
+  "historicalEvidence": {
+    "priorStatus": "PROVISIONAL_BLOCKED",
+    "priorReason": "The old #118 rollback base reproduced three failures and incorrectly classified them as baseline-identical legacy expectations.",
+    "correction": "Exact merge-parent comparison proved the rollback base itself was incomplete; the corrected base and generated artifact make all three cases green."
+  },
+  "nextGate": "Consume this local #133 verdict in the shared campaign manifest. Do not rerun unaffected recovery coverage unless its implementation, fixture, or accepted identity changes."
+}
