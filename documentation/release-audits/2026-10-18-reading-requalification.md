@@ -104,3 +104,42 @@ correction are recorded in [the asset refresh incident](2026-10-18-asset-refresh
 The owner recovered the modal by disabling browser cache. The candidate's
 route/JavaScript cache correction has not been deployed. Student browser,
 updated clean build/CI, promotion, and deployed header verification remain open.
+## Source qualification completed before replacement release
+
+At source `60e7b8bf8cb37578d3c0ae3e207e871a18a14238`, all three applicable CI
+checks passed. A clean normal production build passed with the reviewed
+`b20a584d...` environment, the bundle budget and local-value checks. All 453
+manifest-listed content hashes were verified; no built JavaScript contained a
+Groq credential literal. The source tree is
+`ab0042fb1654da9798774531066c8902f3aa4514`.
+
+The normal local teacher checks above passed. Student runs against the rich
+local snapshot exposed a separate data disagreement: both PDF Book test records
+in its 46-row public index fail this older stable listing contract, causing the
+shared listing to return empty. Read-only production inspection found 44 rows,
+all accepted by the actual candidate listing contract; those two local PDF test
+records are absent. The preserved local dataset was not rewritten to hide this
+problem. PDF integration must resolve it on its separate branch.
+
+To avoid the failing rich local catalog and repeated cold Vite/resource
+problems, a separately compiled acceptance build of the same source was served
+through installed Playwright at `http://localhost:5174`. It used only disposable
+`demo-luyentap-acceptance` Auth/RTDB/Firestore, candidate rules, and an existing
+published Reading test's exact metadata, summary and student-safe projection
+copied from the local snapshot. The browser started at `/login`, revealed quick
+login, used Student, opened Public Library, started Reading practice, and moved
+to the next and previous question. The grouped question panel rendered.
+External requests were blocked; no submission, AI request or Book upload was
+made. This is controlled browser/emulator proof, not normal-launcher or live
+submission proof. Its submission-unavailable banner is expected because that
+fixture has no trusted submission Worker.
+
+Evidence is retained under the canonical checkout's
+`tmp/deployment-audit-20261017`: `reading-student-isolated-browser.json`,
+`reading-student-isolated-runtime.png`, `reading-local-catalog-inspection.json`,
+`reading-live-catalog-inspection.json`, and
+`reading-corrected-clean-build-60e7b8bf.log`.
+
+Source qualification is complete for the controlled Hosting replacement.
+Promotion, the replacement itself, deployed route/asset headers, and live
+teacher/student readback remain open. No new stable tag is established yet.
