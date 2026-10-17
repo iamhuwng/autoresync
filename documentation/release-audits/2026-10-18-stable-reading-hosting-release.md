@@ -27,6 +27,12 @@ confirmed that deployment used the clean clone's `dist`, not the dirty Book
 checkout. Canonical tooling had zero missing required dependencies; the build
 clone reused compatible ancestor tools without installation.
 
+The restored prior version had no source manifest, so the normal assessment
+honestly remained `UNVERIFIED` for historical source provenance. The owner's
+existing authorization covered the documented first-manifest Hosting bootstrap.
+No receipt was changed to force PASS. The new production manifest was then
+independently verified; future releases use the normal guarded route.
+
 The reviewed source includes the four required existing Reading modes and the
 owner's six approved Reading import fixes. Focused evidence includes 141 parser
 tests, 59 Reading flag/launch tests, 60 release guards, six CSP policy tests,

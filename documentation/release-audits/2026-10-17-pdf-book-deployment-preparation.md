@@ -5,6 +5,9 @@
 See [the current release record](2026-10-18-stable-reading-hosting-release.md).
 The inventory below retains the original dated research; its old branch/live
 observations are historical. PDF Book remains a separate qualification scope.
+Qualification also found two newer local PDF Book summaries rejected by the
+stable shared catalog contract. Production excludes those records. Resolve this
+integration failure before publishing PDF Books; see the current release record.
 
 **Subsequent implementation:** a separate local candidate now exists on
 `codex/live-baseline-reconstruction-20261017`. It includes the historical source
