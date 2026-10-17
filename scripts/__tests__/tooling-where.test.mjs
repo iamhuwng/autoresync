@@ -6,6 +6,34 @@ import path from 'node:path';
 import test from 'node:test';
 import { entries, executionFor } from '../tooling-where.mjs';
 
+test('a nested source checkout reuses only matching ancestor dependency contracts', () => {
+  const owner = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-tool-owner-'));
+  try {
+    const source = path.join(owner, 'source');
+    fs.mkdirSync(path.join(source, 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(owner, 'node_modules', 'vite', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'package.json'), '{"name":"vite"}');
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), '');
+    for (const root of [source, owner]) {
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { vite: '1' }, scripts: { build: root } }));
+      fs.writeFileSync(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}');
+    }
+    const script = path.join(source, 'scripts', 'tooling-where.mjs');
+    fs.copyFileSync(path.resolve(import.meta.dirname, '../tooling-where.mjs'), script);
+    const locate = () => spawnSync(process.execPath, [script, 'vite'], { cwd: source, encoding: 'utf8' });
+    const matching = locate();
+    assert.equal(matching.status, 0, matching.stderr);
+    assert.ok(matching.stdout.includes(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js')));
+    fs.writeFileSync(path.join(source, 'package-lock.json'), '{"lockfileVersion":2}');
+    assert.equal(locate().status, 1);
+    fs.writeFileSync(path.join(source, 'package-lock.json'), '{"lockfileVersion":3}');
+    fs.writeFileSync(path.join(source, 'package.json'), '{"dependencies":{"vite":"2"}}');
+    assert.equal(locate().status, 1);
+  } finally {
+    fs.rmSync(owner, { recursive: true, force: true });
+  }
+});
+
 test('Worker resolver selects Windows x64 only on ARM64 and refuses WSL', () => {
   const canonicalX64Node = path.join(
     process.env.CODEX_WINDOWS_TOOLS_ROOT || path.join(os.homedir(), '.codex', 'tools', 'windows-arm64'),

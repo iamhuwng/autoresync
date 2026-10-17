@@ -31,6 +31,7 @@ import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useNavigation } from '../hooks/useNavigation';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
+import { BOOK_ACTIVITY_ROLLOUT_GATES, isBookActivityRolloutGateEnabled } from '../config/bookActivityRolloutGates';
 import { TestErrorBoundary } from '../components/test/TestErrorBoundary';
 import { THCSPracticeView } from '../components/practice/THCSPracticeView';
 import {
@@ -366,6 +367,16 @@ const BookPlacementLaunchPage: React.FC<{
 
     useEffect(() => {
         if (launch.kind === 'invalid') return;
+        if (!isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.launchDelivery)) {
+            trackAction('bookRuntimeLaunchBlocked', {
+                surface: launch.surface,
+                reason: 'rollout-disabled',
+                outcome: 'blocked',
+            });
+            setError('This Book is not available.');
+            setLoading(false);
+            return;
+        }
         if (!user?.uid) {
             setError('Sign in again to open this Book.');
             setLoading(false);

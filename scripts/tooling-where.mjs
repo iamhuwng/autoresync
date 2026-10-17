@@ -3,8 +3,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let rootToolOwner = repoRoot;
+if (!fs.existsSync(path.join(repoRoot, 'node_modules', 'vite', 'package.json'))) {
+  try {
+    const owner = path.dirname(path.dirname(path.dirname(createRequire(import.meta.url).resolve('vite/package.json'))));
+    const ownPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+    const installedPackage = JSON.parse(fs.readFileSync(path.join(owner, 'package.json'), 'utf8'));
+    const fields = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+    if (fs.readFileSync(path.join(repoRoot, 'package-lock.json')).equals(fs.readFileSync(path.join(owner, 'package-lock.json')))
+      && fields.every(field => JSON.stringify(ownPackage[field]) === JSON.stringify(installedPackage[field]))) rootToolOwner = owner;
+  } catch {
+    // Missing or incompatible ancestor dependencies remain an ordinary missing-tool error.
+  }
+}
 const home = os.homedir();
 const sharedToolsRoot =
   process.env.CODEX_WINDOWS_TOOLS_ROOT ||
@@ -42,28 +56,28 @@ const entries = {
   },
   vite: {
     owner: 'root package',
-    path: path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js'),
+    path: path.join(rootToolOwner, 'node_modules', 'vite', 'bin', 'vite.js'),
     runtime: 'native Node unless a demonstrated compatibility boundary requires x64',
     note: 'For local development use npm run dev or node scripts/local-dev.mjs <port>; this entry is for direct build tooling.',
   },
   vitest: {
     owner: 'root package',
-    path: path.join(repoRoot, 'node_modules', 'vitest', 'vitest.mjs'),
+    path: path.join(rootToolOwner, 'node_modules', 'vitest', 'vitest.mjs'),
     runtime: 'native Node unless a demonstrated compatibility boundary requires x64',
   },
   'vite-node': {
     owner: 'root package',
-    path: path.join(repoRoot, 'node_modules', 'vite-node', 'vite-node.mjs'),
+    path: path.join(rootToolOwner, 'node_modules', 'vite-node', 'vite-node.mjs'),
     runtime: 'native Node',
   },
   playwright: {
     owner: 'root package',
-    path: path.join(repoRoot, 'node_modules', '@playwright', 'test', 'cli.js'),
+    path: path.join(rootToolOwner, 'node_modules', '@playwright', 'test', 'cli.js'),
     runtime: 'use the repo-locked Playwright package; browser assets remain shared user cache',
   },
   firebase: {
     owner: 'root package',
-    path: path.join(repoRoot, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js'),
+    path: path.join(rootToolOwner, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js'),
     runtime: 'use repo-locked Firebase CLI',
   },
   'cloudflare-vitest': {

@@ -141,6 +141,12 @@ checkout's cwd/configuration and compatible lockfile; do not assume that an
 `npm test` script is stateless. If a failed command starts installing a harness
 dependency tree, stop that route and classify the failure before retrying.
 
+For a nested source checkout without its own root dependencies, the stateless
+resolver can use Node's installed ancestor packages only when the lockfile is
+byte-identical and dependency declarations match. This preserves the selected
+source/configuration/cwd without installing or linking another dependency tree.
+Different locks or declarations remain missing-tool errors.
+
 Retained Wrangler audits run Windows x64 against the live checkout and the
 selected package's existing dependencies. They create evidence/run receipts,
 but no source snapshot, dependency installation, or WSL environment. Other

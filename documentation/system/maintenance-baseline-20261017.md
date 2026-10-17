@@ -1,6 +1,12 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **validated-source candidate; production and `main` promotion gates remain open**.
+Status: **qualified source; approved stable Hosting bootstrap in preparation**.
+
+The owner approved proceeding on October 17. Independent deployed-backend
+comparison is recorded in [the backend qualification](../release-audits/2026-10-17-backend-qualification.md).
+It supports a Hosting-only baseline release. A current provider GET confirmed
+the exposed Groq credential is accepted; the owner explicitly declined
+revocation and accepted that exposure risk. No credential rotation is planned.
 
 The owner chose the current live app as the maintenance baseline. Newer PDF Book
 development stays in the original `luyentap-prd0062` checkout. The historical
@@ -37,8 +43,9 @@ instead of claiming Book was absent from the deployed artifact.
   configuration changes. An AI/ordinary Worker change still requires its own
   provider/compatibility evidence and is not blocked by an unrelated dormant
   Book configuration. A regression check preserves the real Book expiry gate.
-- Checked-in primary database rules now reflect the freshly observed live
-  rules. Firestore differs only by denying browser access to `settings/api_keys`.
+- Checked-in primary database rules reflect the observed live rules.
+  Subsequent direct Firestore readback confirmed both candidate and live already
+  deny browser access to `settings/api_keys`; no rules release is needed.
   Unreleased Book rule changes from the historical dirty source were removed
   from this maintenance candidate; they remain in the original feature checkout.
 - [Listening cleanup](listening-cleanup-reconciliation-20261017.md) is preserved
@@ -117,7 +124,7 @@ omitted endpoint from silently disabling a published workflow.
   final commit. Six inherited donor whitespace findings remain documented in
   the reconstruction record; donor bytes were preserved.
 
-## Remaining gates
+## Current release gates
 
 1. **Deployed compatibility:** local browser consumer checks passed; real
    notification provider delivery and deployed AI administration/provider calls
@@ -128,20 +135,25 @@ omitted endpoint from silently disabling a published workflow.
    role origins, with local emulators and loopback permission. Original role
    servers were not replaced. This is not a normal-launcher or production run.
 2. **Reviewed production environment:** the machine-local `.env.production`
-   was absent at inspection. The checked-in template contains public endpoints,
-   not credentials. A real production build remains a separate reviewed input.
+   was created from Firebase Hosting's public initialization configuration and
+   reviewed production endpoints, without copying the shared development env.
+   Its SHA-256 is `b872b1a42c7c208cfe09ff77a41ba06987624ce216c9f1ef67f61e5ef32e65b3`.
+   It explicitly disables Book material/editor and presentation gates. The new
+   student deep-link guard rejects a disabled Book launch before resolution;
+   all 33 affected practice-page tests passed. Production build is pending.
 3. **Exact live source identity:** Hosting still serves HTML at
    `/.well-known/luyentap-release.json`. The historical source-copy concurrency
    gap remains; provider metadata cannot establish an exact deployed Git tree.
    A separately authorized manifest-bearing bootstrap is required to establish
    that binding. Do not invent a passing compatibility receipt.
-4. **Public credential exposure:** the already published Groq-shaped literal
-   must be handled through an authorized credential operation. Its validity was
-   not tested, and fixing source does not revoke or remove historical exposure.
-5. **Remote promotion/release:** no push, `main` update, Hosting/Worker/rules
-   deployment, real provider upload, credential rotation, or live data mutation
-   occurred here. An ordinary notification redeploy is not needed merely to
-   repeat the versions already observed as active.
+4. **Public credential exposure:** accepted by the owner after a read-only
+   models request returned 200. It remains active. The new frontend retains
+   server-only AI keys; rebuilding does not revoke historical exposure.
+5. **Remote promotion/release:** source publication, baseline promotion and
+   controlled stable deployment are now authorized after qualification. No
+   release action has occurred yet. Existing AI/notification Workers and rules
+   match the baseline and should remain in place. PDF Book requires its own
+   subsequent source integration, configuration and lifecycle/provider checks.
 
 The direct-student homework UID fix and newer local persistence/recovery work
 remain separately inventoried in the research report. They are not quietly

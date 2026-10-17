@@ -29,6 +29,7 @@ const {
   getIntegrityReportMock,
   addIntegrityEventMock,
   resolveBookPlacementLaunchMock,
+  isBookActivityRolloutGateEnabledMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
   ieltsPracticeViewPropsMock: vi.fn(),
@@ -51,6 +52,12 @@ const {
   getIntegrityReportMock: vi.fn(),
   addIntegrityEventMock: vi.fn(),
   resolveBookPlacementLaunchMock: vi.fn(),
+  isBookActivityRolloutGateEnabledMock: vi.fn(),
+}));
+
+vi.mock('../config/bookActivityRolloutGates', async () => ({
+  ...await vi.importActual('../config/bookActivityRolloutGates'),
+  isBookActivityRolloutGateEnabled: (...args: unknown[]) => isBookActivityRolloutGateEnabledMock(...args),
 }));
 
 vi.mock('firebase/database', () => ({
@@ -295,6 +302,7 @@ describe('StudentPracticePage', () => {
   beforeEach(() => {
     navigationService.reset();
     vi.clearAllMocks();
+    isBookActivityRolloutGateEnabledMock.mockReturnValue(true);
 
     refMock.mockImplementation((_database: unknown, path: string) => ({ path }));
     getMock.mockImplementation(async (target: { path: string }) => ({
@@ -346,6 +354,29 @@ describe('StudentPracticePage', () => {
       flushEvents: flushIntegrityEventsMock,
       getIntegrityReport: getIntegrityReportMock,
     });
+  });
+
+  it('blocks a disabled Book deep link without resolving or loading material and preserves Return', async () => {
+    const user = userEvent.setup();
+    isBookActivityRolloutGateEnabledMock.mockReturnValue(false);
+    render(
+      <MemoryRouter initialEntries={['/student/practice/book-1?bookSurface=solo&contextId=solo-1']}>
+        <Routes>
+          <Route path="/student/practice/:materialId" element={<StudentPracticePage />} />
+          <Route path="/student/library" element={<div>Library destination</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Book unavailable')).toBeInTheDocument();
+    expect(screen.queryByTestId('book-placement-runtime-host')).not.toBeInTheDocument();
+    expect(resolveBookPlacementLaunchMock).not.toHaveBeenCalled();
+    expect(getMock).not.toHaveBeenCalled();
+    expect(trackActionMock).toHaveBeenCalledWith('bookRuntimeLaunchBlocked', {
+      surface: 'solo', reason: 'rollout-disabled', outcome: 'blocked',
+    });
+    await user.click(screen.getByRole('button', { name: 'Return' }));
+    expect(await screen.findByText('Library destination')).toBeInTheDocument();
   });
 
   it('dispatches an explicit Book query before any legacy Firebase/test loading', async () => {
