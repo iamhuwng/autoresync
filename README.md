@@ -271,10 +271,10 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
 ### Installation
 
-Use an owner-reviewed published revision. The October 17 maintenance branch is
-still a local candidate; `main` is stale. Check the current
+Use an owner-reviewed published revision. Check the current
 [maintenance status](documentation/system/maintenance-baseline-20261017.md)
-before selecting the base for new work.
+before selecting the base for new work. Use the synchronized stable `main` for
+new feature branches; keep the separate PDF Book branch out of maintenance work.
 
 1. Clone the repository:
    ```bash

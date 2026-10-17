@@ -1,6 +1,8 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **qualified source; approved stable Hosting bootstrap in preparation**.
+Status: **maintenance source qualified for the approved Hosting bootstrap**.
+Read the deployed release manifest for the current production source identity;
+the observations below retain their stated verification dates and scope.
 
 The owner approved proceeding on October 17. Independent deployed-backend
 comparison is recorded in [the backend qualification](../release-audits/2026-10-17-backend-qualification.md).
@@ -140,18 +142,22 @@ omitted endpoint from silently disabling a published workflow.
    Its SHA-256 is `b872b1a42c7c208cfe09ff77a41ba06987624ce216c9f1ef67f61e5ef32e65b3`.
    It explicitly disables Book material/editor and presentation gates. The new
    student deep-link guard rejects a disabled Book launch before resolution;
-   all 33 affected practice-page tests passed. Production build is pending.
-3. **Exact live source identity:** Hosting still serves HTML at
-   `/.well-known/luyentap-release.json`. The historical source-copy concurrency
-   gap remains; provider metadata cannot establish an exact deployed Git tree.
-   A separately authorized manifest-bearing bootstrap is required to establish
-   that binding. Do not invent a passing compatibility receipt.
+   all 33 affected practice-page tests passed. The normal production build
+   passed from clean source `03564402`, with a 257 KB entry and a generated
+   production source manifest. The combined bootstrap/guard tests passed 57/57;
+   focused ESLint passed. Compatible installed ancestor tools were reused, with
+   no dependency installation or dependency junction.
+3. **Historical live source identity:** the October 6 release served HTML at
+   `/.well-known/luyentap-release.json`. Its historical source-copy concurrency
+   gap remains; provider metadata cannot reconstruct an exact deployed tree.
+   The approved manifest-bearing bootstrap establishes the binding for the new
+   release. It does not retroactively prove the October 6 source identity.
 4. **Public credential exposure:** accepted by the owner after a read-only
    models request returned 200. It remains active. The new frontend retains
    server-only AI keys; rebuilding does not revoke historical exposure.
 5. **Remote promotion/release:** source publication, baseline promotion and
    controlled stable deployment are now authorized after qualification. No
-   release action has occurred yet. Existing AI/notification Workers and rules
+   Worker or rules release is needed. Existing AI/notification Workers and rules
    match the baseline and should remain in place. PDF Book requires its own
    subsequent source integration, configuration and lifecycle/provider checks.
 
@@ -172,3 +178,19 @@ on its existing feature branch until its own acceptance and release. Commit
 only intended paths and merge reviewed, checked changes back into the stable
 line. Record Hosting, Worker, and rules releases separately against that source
 revision; an application deployment does not deploy its backend automatically.
+
+## Main synchronization and retained work
+
+Promote the reviewed reconstruction without importing the unrelated main-only
+Listening implementation. An explicit `ours` strategy merge retains remote
+main ancestry while preserving the reviewed candidate tree; a normal
+non-force push can then advance GitHub main. Preserve the former local main at
+`codex/retained-local-main-feedback-20261017` before synchronizing its checkout.
+Its 28 unpublished feedback/dashboard commits stay local and independently
+reviewable; do not publish them incidentally through merge history.
+
+The deferred Listening chain includes session-deadline and restore/lease
+fencing on existing upload paths, not only optional cleanup. The inherited
+candidate can issue a ten-minute grant near session expiry that remains usable
+after that deadline. Keep this hardening obligation in the separate Listening
+reconciliation; a Hosting-only release does not alter the deployed Worker.
