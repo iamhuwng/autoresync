@@ -252,7 +252,7 @@ test('generic long-response registration is valid without an IELTS matrix row', 
   assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
 });
 
-test('generic choice v1 registration is valid without claiming an IELTS matrix row', async () => {
+test('generic choice variants accept distinct presentation modes without claiming an IELTS matrix row', async () => {
   const base = await matrix();
   base.rows.forEach((row) => {
     row.runtimeImplementationState = 'planned';
@@ -262,15 +262,16 @@ test('generic choice v1 registration is valid without claiming an IELTS matrix r
     registryManifest: {
       schemaVersion: 1,
       kind: 'prd0062-activity-runtime-registration-manifest',
-      registrations: [{
-        profile: null,
-        family: 'choice',
-        variant: 'v1',
-        presentationMode: 'structured',
-        responseCodec: 'choice-single-v1',
-        rendererId: 'choice-v1',
-        codecId: 'choice-single-v1',
-      }],
+      registrations: ['v1', 'single-select', 'multi-select'].flatMap((variant) =>
+        ['structured', 'source-assisted'].map((presentationMode) => ({
+          profile: null,
+          family: 'choice',
+          variant,
+          presentationMode,
+          responseCodec: variant === 'multi-select' ? 'choice-multiple-v1' : 'choice-single-v1',
+          rendererId: 'choice-v1',
+          codecId: variant === 'multi-select' ? 'choice-multiple-v1' : 'choice-single-v1',
+        }))),
     },
   });
   assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
@@ -298,8 +299,11 @@ test('invented profiled IELTS long-response registration remains rejected', asyn
   assert.ok(codes(result).has('registration-without-supported-row'));
 });
 
-test('manifest rejects overlapping generic selectors even when mode or codec differs', async () => {
+test('manifest accepts generic selectors in distinct presentation modes', async () => {
   const base = await matrix();
+  base.rows.forEach((row) => {
+    row.runtimeImplementationState = 'planned';
+  });
   const manifest = await registry();
   manifest.registrations.push(
     {
@@ -325,6 +329,22 @@ test('manifest rejects overlapping generic selectors even when mode or codec dif
     rootDir,
     registryManifest: manifest,
   });
+  assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
+});
+
+test('manifest rejects same-mode generic selectors even when codecs differ', async () => {
+  const base = await matrix();
+  const manifest = await registry();
+  manifest.registrations = ['choice-single-v1', 'choice-multiple-v1'].map((responseCodec) => ({
+    profile: null,
+    family: 'choice',
+    variant: 'v1',
+    presentationMode: 'structured',
+    responseCodec,
+    rendererId: 'choice-v1',
+    codecId: responseCodec,
+  }));
+  const result = await validateCoverageMatrix(base, { rootDir, registryManifest: manifest });
   assert.equal(result.ok, false);
   assert.ok(codes(result).has('duplicate-registration'));
 });

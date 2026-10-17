@@ -1,6 +1,6 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **maintenance source qualified for the approved Hosting bootstrap**.
+Status: **PR #147 under final CI qualification before main promotion and the approved Hosting bootstrap**.
 Read the deployed release manifest for the current production source identity;
 the observations below retain their stated verification dates and scope.
 
@@ -194,3 +194,23 @@ fencing on existing upload paths, not only optional cleanup. The inherited
 candidate can issue a ten-minute grant near session expiry that remains usable
 after that deadline. Keep this hardening obligation in the separate Listening
 reconciliation; a Hosting-only release does not alter the deployed Worker.
+
+## Promotion corrections — 2026-10-18
+
+PR #147 initially exposed three inherited CI failures. The activity checker now
+uses presentation mode in its registration selector, matching the runtime, and
+recognizes the existing generic single/multi-select variants. All 21 checker
+tests and all 32 independent schema fixtures pass. No Book gate was enabled.
+
+Touched course components and teacher class/review pages now use shared/native
+controls instead of Mantine; outcome announcements use the shared toast API.
+The full promotion Mantine boundary passes across 875 changed source files.
+The shared assessment suites pass 39 tests in five files, and guard parser
+tests pass 34/34. The owner explicitly approved scoped line-budget exceptions
+for the current three authoring files on October 18; current counts and split
+alternatives are recorded in the assessment findings ledger. Prior exceptions
+remain historical rather than being presented as current approval.
+
+These checks do not establish deployment. Main synchronization, a fresh clean
+production build, the first manifest-bearing Hosting release, and live browser
+verification remain pending until their actual results are recorded.

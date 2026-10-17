@@ -5817,7 +5817,7 @@ status: approved
 
 Scope boundary: the retired-material cleanup branch touches existing oversized assessment files while removing Google Drive, Reading V1, and Quiz flows, stabilizing TypeScript baselines, and recording protected-feature proof. The touched oversized files are not decomposed in this PR because splitting them would combine retirement/purge safety work with broad Reading V2 or Listening architecture refactors. These records supersede only the active machine-readable line-budget evidence for the current branch; historical line-budget records above remain preserved under historical markers.
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx
 line-count: 5743
 responsibilities: Reading V2 studio workspace orchestration for build-mode state, passage editing, import handling, preview coordination, persistence wiring, and protected Reading V2 authoring behavior; owns legacy large-file coordination that this retirement PR touches only for baseline compatibility while preserving Reading V2 protection
@@ -5850,7 +5850,7 @@ approver-role: Task Scope Reviewer
 status: approved
 -->
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 4606
 responsibilities: Listening authoring wizard orchestration, audio metadata validation, R2 or authorized audio handling, question editing, preview state, draft persistence, publish controls, and retired Google Drive audio rejection; owns legacy builder UI state that this branch touches to remove Drive runtime without changing supported R2 Listening behavior
@@ -8311,3 +8311,50 @@ Corrective review after the first Task 4.9-4.14 closeout found five real blocker
 6. Current corrective proof expanded focused storage/facade coverage to 6 files / 64 tests. Static proof, UTF-8 check, build, and Task 4.15+ checkbox drift scan were rerun after the corrective package.
 - No remote or deployed Firebase, Cloudflare, or R2 state was mutated.
 - No staging, commit, push, clean, or revert occurred.
+
+## 2026-10-18 Live-Baseline Reconstruction Line-Budget Review
+
+Review author: Codex agent `/root/assessment_ci`, acting as an independent architecture reviewer. This is a source review and a proposal awaiting a named human reviewer's approval, not an approved exception or a claim that the current guard passes. The human-approver requirement recorded in Packet 3B Task 3.4 remains in force.
+
+Current scope: reconstruct the live source baseline and correct image persistence to use durable R2 URLs. Compared with the source at Gate A evidence commit `56813172`, the three files contain actual asynchronous upload/state/error-handling changes, not comment or newline-only growth. The old Gate A approvals cover their original retirement scope and counts only; the two stale affected blocks above are preserved under historical markers. The other Gate A blocks are unchanged.
+
+Architecture assessment: deferring decomposition is technically justified for this bounded reconstruction because moving authoring state, canonical document mutations, or save/publish coordination would add a separate behavioral refactor to the image-persistence correction. The files remain oversized debt; this proposal does not approve future growth or change the 400-line budget. Each proposal must be remeasured if source changes before human approval.
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2BuildWorkspace.tsx
+line-count: 5767
+responsibilities: Reading V2 task-type editor registry and specialized question editors; canonical passage stimulus option and anchor mutations; workspace selection review navigation and durable diagram or passage image upload coordination
+split-alternatives: extract task-type editors and their registry into bounded Reading V2 editor modules; extract diagram and passage image upload coordination into a Reading V2 authoring image controller
+rejection-reason: extract task-type editors and their registry into bounded Reading V2 editor modules => this is valid decomposition but moves editor helpers and canonical answer anchor option contracts across module boundaries while the reconstruction needs a stable behavior comparison; extract diagram and passage image upload coordination into a Reading V2 authoring image controller => this would move the newly corrected latest-document reference and asynchronous completion boundary again before baseline acceptance rather than only restoring durable image persistence
+approver: The Lord
+approver-role: Human Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2StimulusEditor.tsx
+line-count: 538
+responsibilities: passage table flowchart and diagram stimulus content editing; anchor creation label edits removal and linked-reference validation; latest-document-safe diagram upload completion and linked task-group summary
+split-alternatives: extract table and flowchart shell content editors into a bounded structured stimulus editor; extract canonical anchor mutation operations into a Reading V2 stimulus editing service
+rejection-reason: extract table and flowchart shell content editors into a bounded structured stimulus editor => this is a practical future seam but introduces new callback and content-narrowing boundaries unrelated to correcting diagram file persistence during baseline reconstruction; extract canonical anchor mutation operations into a Reading V2 stimulus editing service => this would relocate document-wide anchor deletion and publish-blocking reference issue construction even though this reconstruction changes image upload only
+approver: The Lord
+approver-role: Human Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4610
+responsibilities: Listening authoring wizard state and parser-driven question editing; canonical audio upload metadata and trusted draft publish lifecycle coordination; per-section question image upload paste and pending-upload controls
+split-alternatives: extract question image upload paste and preview state into a Listening image authoring component; extract save publish conflict discard restore and archive coordination into a Listening authoring controller
+rejection-reason: extract question image upload paste and preview state into a Listening image authoring component => this is a cohesive future seam but moving section metadata and concurrent pending-upload state would widen the durable URL correction into a wizard state ownership change; extract save publish conflict discard restore and archive coordination into a Listening authoring controller => these trusted lifecycle actions are outside the image correction and moving them would add draft fingerprint idempotency and recovery regression risk during reconstruction
+approver: The Lord
+approver-role: Human Scope Reviewer
+status: approved
+-->
+
+Verification for this review: the canonical `scripts/check-assessment-unification-guardrails.mjs` was run with `--repo-root` pointing at the reconstruction checkout and an explicit `--changed-files` list of these three paths. It reproduced exactly three line-budget violations at `5767`, `538`, and `4610`. Proposed markers and pending status intentionally cannot satisfy the guard. Source and guard code were not changed; runtime/browser behavior and test-suite success are not claimed by this documentation review.
+
+Human decision, 2026-10-18: The Lord explicitly answered "Approve these scoped exceptions" in this chat after reviewing the three paths, exact counts, and bounded decomposition deferral. The three proposed records above are now active approvals for this reconstruction only. This supersedes their pending status, does not approve future growth, and does not alter guard enforcement. The earlier failed check remains historical evidence; the current records require a fresh guard run.
+
+Post-approval verification: the complete promotion changed-file set was checked using `GITHUB_BASE_REF=main` and the existing guard against the reconstruction checkout. It passed with the three current approved records; the guard implementation and authoring source were unchanged. Guard unit tests passed 34/34 and the five focused shared assessment suites passed 39/39. These are local checks, not a claim of GitHub CI or deployment success.

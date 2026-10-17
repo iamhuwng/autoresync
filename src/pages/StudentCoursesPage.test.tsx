@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StudentCoursesPage from './StudentCoursesPage';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import '@testing-library/jest-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getEnrollmentsByStudent } from '../services/enrollmentManager';
@@ -103,9 +102,7 @@ describe('StudentCoursesPage', () => {
     const renderPage = () => {
         return render(
             <BrowserRouter>
-                <MantineProvider>
-                    <StudentCoursesPage />
-                </MantineProvider>
+                <StudentCoursesPage />
             </BrowserRouter>
         );
     };

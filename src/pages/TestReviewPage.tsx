@@ -23,20 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-    Container,
-    Title,
-    Text,
-    Group,
-    Stack,
-    Paper,
-    Button,
-    Loader,
-    Badge,
-    Breadcrumbs,
-    Anchor,
-    Tabs,
-} from '@mantine/core';
+import { Button, VanillaLoader } from '../components/modern';
 import {
     IconAlertTriangle,
     IconArrowLeft,
@@ -185,17 +172,13 @@ const serializeDraftQuestions = (
  * Full-page loading spinner
  */
 const LoadingState: React.FC = () => (
-    <Container size="sm" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Paper p="xl" radius="lg" withBorder style={{ textAlign: 'center', minWidth: 300 }}>
-            <Stack align="center" gap="md">
-                <Loader size="lg" color="violet" />
-                <Title order={3}>Loading Draft...</Title>
-                <Text size="sm" c="dimmed">
-                    Fetching your test draft from the cloud
-                </Text>
-            </Stack>
-        </Paper>
-    </Container>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <section style={{ padding: '2rem', border: '1px solid #e2e8f0', borderRadius: 8, textAlign: 'center' }}>
+            <VanillaLoader size="lg" />
+            <h3>Loading Draft...</h3>
+            <p style={{ fontSize: '0.875rem', color: '#64748b' }}>Fetching your test draft from the cloud</p>
+        </section>
+    </div>
 );
 
 /**
@@ -206,25 +189,17 @@ const ErrorState: React.FC<{ error: string; onRetry: () => void; onBack: () => v
     onRetry,
     onBack,
 }) => (
-    <Container size="sm" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Paper p="xl" radius="lg" withBorder style={{ textAlign: 'center', minWidth: 400 }}>
-            <Stack align="center" gap="md">
-                <IconAlertTriangle size={64} color="var(--mantine-color-orange-6)" />
-                <Title order={3}>Failed to Load Draft</Title>
-                <Text size="sm" c="dimmed" maw={350}>
-                    {error}
-                </Text>
-                <Group gap="md" mt="md">
-                    <Button variant="light" leftSection={<IconArrowLeft size={18} />} onClick={onBack}>
-                        Go Back
-                    </Button>
-                    <Button variant="filled" onClick={onRetry}>
-                        Try Again
-                    </Button>
-                </Group>
-            </Stack>
-        </Paper>
-    </Container>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <section style={{ padding: '2rem', border: '1px solid #e2e8f0', borderRadius: 8, textAlign: 'center', maxWidth: 440 }}>
+            <IconAlertTriangle size={64} color="#ea580c" />
+            <h3>Failed to Load Draft</h3>
+            <p role="alert" style={{ fontSize: '0.875rem', color: '#64748b' }}>{error}</p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+                <Button variant="glass" leftSection={<IconArrowLeft size={18} />} onClick={onBack}>Go Back</Button>
+                <Button variant="primary" onClick={onRetry}>Try Again</Button>
+            </div>
+        </section>
+    </div>
 );
 
 /**
@@ -262,68 +237,46 @@ const ReviewHeader: React.FC<ReviewHeaderProps> = ({
     };
 
     return (
-        <Paper
-            p="md"
-            mb="md"
-            radius="md"
-            withBorder
-            style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                background: 'var(--mantine-color-body)',
-            }}
-        >
-            <Group justify="space-between" wrap="nowrap">
-                {/* Left: Breadcrumbs and Title */}
-                <Stack gap="xs">
-                    <Breadcrumbs separator="→" fz="sm">
-                        <Anchor size="sm" onClick={onBack} style={{ cursor: 'pointer' }}>
-                            Materials
-                        </Anchor>
-                        <Text size="sm" c="dimmed">Review Draft</Text>
-                    </Breadcrumbs>
-                    <Group gap="sm">
-                        <Title order={4}>{draft.metadata.title || 'Untitled Draft'}</Title>
-                        <Badge color="violet" size="sm" variant="light">
+        <header style={{ position: 'sticky', top: 0, zIndex: 100, padding: '1rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                    <nav aria-label="Breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                        <button type="button" onClick={onBack} style={{ border: 0, padding: 0, background: 'transparent', color: '#4f46e5', cursor: 'pointer' }}>Materials</button>
+                        <span aria-hidden="true">→</span>
+                        <span style={{ color: '#64748b' }}>Review Draft</span>
+                    </nav>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <h4 style={{ margin: 0 }}>{draft.metadata.title || 'Untitled Draft'}</h4>
+                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: 4, background: '#ede9fe', color: '#7c3aed', fontSize: '0.75rem', fontWeight: 600 }}>
                             {draft.testType} {draft.skillType}
-                        </Badge>
-                        <Badge color="gray" size="sm" variant="light">
-                            <Group gap={4}>
-                                <IconClock size={12} />
-                                {draft.metadata.duration} min
-                            </Group>
-                        </Badge>
-                    </Group>
-                </Stack>
-
-                {/* Right: Save status and actions */}
-                <Group gap="md" wrap="nowrap">
-                    {/* Save Status */}
-                    <Group gap={6}>
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0.2rem 0.5rem', borderRadius: 4, background: '#f1f5f9', color: '#64748b', fontSize: '0.75rem' }}>
+                            <IconClock size={12} /> {draft.metadata.duration} min
+                        </span>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem' }}>
                         {isSaving ? (
                             <>
-                                <IconLoader size={16} className="animate-spin" style={{ color: 'var(--mantine-color-blue-6)' }} />
-                                <Text size="xs" c="blue">Saving...</Text>
+                                <IconLoader size={16} className="animate-spin" style={{ color: '#2563eb' }} />
+                                <span style={{ color: '#2563eb' }}>Saving...</span>
                             </>
                         ) : hasUnsavedChanges ? (
                             <>
-                                <IconEdit size={16} style={{ color: 'var(--mantine-color-orange-6)' }} />
-                                <Text size="xs" c="orange">Unsaved changes</Text>
+                                <IconEdit size={16} style={{ color: '#ea580c' }} />
+                                <span style={{ color: '#ea580c' }}>Unsaved changes</span>
                             </>
                         ) : lastSaved ? (
                             <>
-                                <IconCloudCheck size={16} style={{ color: 'var(--mantine-color-green-6)' }} />
-                                <Text size="xs" c="green">Saved at {formatTime(lastSaved)}</Text>
+                                <IconCloudCheck size={16} style={{ color: '#15803d' }} />
+                                <span style={{ color: '#15803d' }}>Saved at {formatTime(lastSaved)}</span>
                             </>
                         ) : null}
-                    </Group>
-
-                    {/* Visibility Toggle - Super Admin only */}
+                    </div>
                     {isSuperAdmin && (
                         <Button
-                            variant={isPublic ? 'light' : 'subtle'}
-                            color={isPublic ? 'green' : 'gray'}
+                            variant={isPublic ? 'success' : 'glass'}
                             size="sm"
                             leftSection={isPublic ? <IconWorld size={16} /> : <IconLock size={16} />}
                             onClick={onTogglePublic}
@@ -333,14 +286,9 @@ const ReviewHeader: React.FC<ReviewHeaderProps> = ({
                             {isPublic ? 'Public' : 'Private'}
                         </Button>
                     )}
-
-                    {/* Actions */}
-                    <Button variant="light" size="sm" onClick={onBack} disabled={isPublishing}>
-                        Exit
-                    </Button>
+                    <Button variant="glass" size="sm" onClick={onBack} disabled={isPublishing}>Exit</Button>
                     <Button
-                        variant="gradient"
-                        gradient={{ from: 'violet', to: 'indigo', deg: 135 }}
+                        variant="primary"
                         size="sm"
                         leftSection={isPublishing ? <IconLoader size={16} className="animate-spin" /> : <IconUpload size={16} />}
                         onClick={onPublish}
@@ -350,9 +298,9 @@ const ReviewHeader: React.FC<ReviewHeaderProps> = ({
                     >
                         {isPublishing ? 'Publishing...' : 'Publish Test'}
                     </Button>
-                </Group>
-            </Group>
-        </Paper>
+                </div>
+            </div>
+        </header>
     );
 };
 
@@ -405,6 +353,7 @@ const TestReviewPage: React.FC = () => {
     // Review state (parity with TestCreationPage)
     const [highlightedQuestion, setHighlightedQuestion] = useState<number | undefined>();
     const [answerKeyModalOpen, setAnswerKeyModalOpen] = useState(false);
+    const [sidebarTab, setSidebarTab] = useState<'review' | 'publish'>('review');
     const [dismissedItemIds, setDismissedItemIds] = useState<Set<string>>(new Set());
     const [resolvedItemIds, setResolvedItemIds] = useState<Set<string>>(new Set());
 
@@ -1063,26 +1012,18 @@ const TestReviewPage: React.FC = () => {
                             height: '100%',
                             overflow: 'hidden',
                         }}>
-                            <Tabs defaultValue="review" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                <Tabs.List grow style={{ flexShrink: 0 }}>
-                                    <Tabs.Tab
-                                        value="review"
-                                        leftSection={<span>⚠️</span>}
-                                        rightSection={uncertainItems.filter(i => !i.resolved).length > 0 ? (
-                                            <Badge size="xs" color="yellow" variant="filled">{uncertainItems.filter(i => !i.resolved).length}</Badge>
-                                        ) : null}
-                                    >
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <div role="group" aria-label="Draft sidebar" style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                    <Button size="sm" variant={sidebarTab === 'review' ? 'primary' : 'glass'} aria-pressed={sidebarTab === 'review'} onClick={() => setSidebarTab('review')}>
                                         Need Review
-                                    </Tabs.Tab>
-                                    <Tabs.Tab
-                                        value="publish"
-                                        leftSection={<span>✅</span>}
-                                    >
-                                        Publish
-                                    </Tabs.Tab>
-                                </Tabs.List>
+                                        {uncertainItems.filter(i => !i.resolved).length > 0 && (
+                                            <span style={{ marginLeft: '0.5rem', padding: '0.1rem 0.3rem', background: '#fef3c7', color: '#92400e', borderRadius: 4 }}>{uncertainItems.filter(i => !i.resolved).length}</span>
+                                        )}
+                                    </Button>
+                                    <Button size="sm" variant={sidebarTab === 'publish' ? 'primary' : 'glass'} aria-pressed={sidebarTab === 'publish'} onClick={() => setSidebarTab('publish')}>Publish</Button>
+                                </div>
 
-                                <Tabs.Panel value="review" style={{ flex: 1, overflow: 'auto', paddingTop: '0.5rem' }}>
+                                <div hidden={sidebarTab !== 'review'} style={{ flex: 1, overflow: 'auto', paddingTop: '0.5rem' }}>
                                     {uncertainItems.filter(i => !i.resolved).length > 0 ? (
                                         <UncertainItemsSidebar
                                             items={uncertainItems}
@@ -1103,9 +1044,9 @@ const TestReviewPage: React.FC = () => {
                                             </p>
                                         </div>
                                     )}
-                                </Tabs.Panel>
+                                </div>
 
-                                <Tabs.Panel value="publish" style={{ flex: 1, overflow: 'auto', paddingTop: '0.5rem' }}>
+                                <div hidden={sidebarTab !== 'publish'} style={{ flex: 1, overflow: 'auto', paddingTop: '0.5rem' }}>
                                     <CompletionChecklist
                                         checks={completenessChecks}
                                         completenessPercent={completenessPercent}
@@ -1115,8 +1056,8 @@ const TestReviewPage: React.FC = () => {
                                         isPublishing={isPublishing}
                                         onAnswerKeyClick={() => setAnswerKeyModalOpen(true)}
                                     />
-                                </Tabs.Panel>
-                            </Tabs>
+                                </div>
+                            </div>
                         </div>
                     }
                 />

@@ -14,9 +14,7 @@ import {
     verticalListSortingStrategy,
     arrayMove
 } from '@dnd-kit/sortable';
-import { Button, Group, Loader, Stack, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
-import { notifications } from '@mantine/notifications';
 
 import { getModulesByCourse, reorderModules, deleteModule, updateModule } from '../../services/courseManager';
 import { updateModuleProgress, getClass } from '../../services/classManager';
@@ -39,19 +37,6 @@ import { CourseBookPlacementModal } from './CourseBookPlacementModal';
 import { toast } from '../modern';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../../config/featureRegistry';
-
-const addButtonStyles = {
-    root: {
-        height: 34,
-        paddingLeft: 12,
-        paddingRight: 12,
-        borderRadius: 10,
-    },
-    label: {
-        fontSize: '0.875rem',
-        fontWeight: 600,
-    },
-};
 
 interface ModuleListProps {
     courseId: string;
@@ -153,7 +138,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             });
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to load modules' });
+            toast.error('Failed to load modules');
         } finally {
             setLoading(false);
         }
@@ -167,11 +152,11 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
         if (!classId) return;
         try {
             await updateModuleProgress(classId, moduleId, 'completed');
-            notifications.show({ color: 'green', message: 'Module marked as completed for this class' });
+            toast.success('Module marked as completed for this class');
             loadModules();
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to mark module complete' });
+            toast.error('Failed to mark module complete');
         }
     };
 
@@ -183,22 +168,22 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             } else {
                 await copyMaterialToModule(courseId, targetModuleId, materialId, user.uid);
             }
-            notifications.show({ color: 'green', message: `Material ${type}ed successfully` });
+            toast.success(`Material ${type}ed successfully`);
             loadModules(); // Refresh to update counts
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to add material' });
+            toast.error('Failed to add material');
         }
     };
 
     const handleSyncMaterial = async (linkId: string) => {
         try {
             await syncMaterialContentWithOriginal(linkId);
-            notifications.show({ color: 'green', message: 'Material synced successfully' });
+            toast.success('Material synced successfully');
             loadModules(); // Refresh to update timestamp and content
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to sync material' });
+            toast.error('Failed to sync material');
         }
     };
 
@@ -216,7 +201,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                 toast.success(`Revoked "${material.title}" from this Course. Existing immutable records were preserved.`);
             } else {
                 await unmountMaterialFromModule(linkId);
-                notifications.show({ color: 'blue', message: 'Material removed' });
+                toast.info('Material removed');
             }
             loadModules();
         } catch (error) {
@@ -224,7 +209,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             if (Object.values(moduleMaterials).flat().some((candidate) => candidate.id === linkId && candidate.materialKind === 'book-delivery')) {
                 toast.error('Could not revoke this Book item from the Course.');
             } else {
-                notifications.show({ color: 'red', message: 'Failed to remove material' });
+                toast.error('Failed to remove material');
             }
         }
     };
@@ -243,7 +228,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
             await reorderMaterials(newOrder);
         } catch (error) {
             console.error(error);
-            notifications.show({ color: 'red', message: 'Failed to reorder materials' });
+            toast.error('Failed to reorder materials');
             setModuleMaterials(prev => ({
                 ...prev,
                 [moduleId]: originalMaterials
@@ -272,36 +257,36 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                 const newIds = reordered.map(m => m.id);
                 const result = await reorderModules(courseId, newIds);
                 if (!result.success) throw new Error(result.error);
-                notifications.show({ color: 'green', message: 'Modules reordered' });
+                toast.success('Modules reordered');
             } catch (error) {
                 console.error(error);
-                notifications.show({ color: 'red', message: 'Failed to save new order' });
+                toast.error('Failed to save new order');
                 loadModules(); // Revert
             }
         }
     };
 
-    if (loading) return <Loader mx="auto" display="block" my="xl" />;
+    if (loading) return <p role="status" className="py-8 text-center text-sm text-slate-500">Loading modules…</p>;
 
     return (
-        <Stack gap="sm">
-            <Group justify="space-between" align="center">
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
                 <div>
-                    <Text fw={700} size="lg">Modules</Text>
-                    <Text size="sm" c="dimmed">{modules.length} {modules.length === 1 ? 'module' : 'modules'}</Text>
+                    <h2 className="m-0 text-lg font-bold">Modules</h2>
+                    <p className="m-0 text-sm text-slate-500">{modules.length} {modules.length === 1 ? 'module' : 'modules'}</p>
                 </div>
-                <Button
-                    leftSection={<IconPlus size={15} />}
+                <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2"
                     onClick={() => { setEditingModule(undefined); setIsEditorOpen(true); }}
-                    size="sm"
-                    styles={addButtonStyles}
                 >
+                    <IconPlus size={15} />
                     Add Module
-                </Button>
-            </Group>
+                </button>
+            </div>
 
             {modules.length === 0 ? (
-                <Text c="dimmed" ta="center" py="lg" size="sm">No modules yet. Add your first one to get started.</Text>
+                <p className="py-6 text-center text-sm text-slate-500">No modules yet. Add your first one to get started.</p>
             ) : (
                 <>
                 {/* New Modules Sync Banner */}
@@ -321,7 +306,7 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                         items={modules.map(m => m.id)}
                         strategy={verticalListSortingStrategy}
                     >
-                        <Stack gap={8}>
+                        <div className="flex flex-col gap-2">
                             {modules.map(module => (
                                 <ModuleItem
                                     key={module.id}
@@ -347,20 +332,20 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                                     onRename={async (newName) => {
                                         await updateModule(module.id, { name: newName });
                                         loadModules();
-                                        notifications.show({ color: 'blue', message: 'Module renamed' });
+                                        toast.info('Module renamed');
                                     }}
                                     onDelete={async () => {
                                         if (confirm('Are you sure you want to delete this module? All materials inside will also be removed.')) {
                                             await deleteModule(module.id);
                                             loadModules();
-                                            notifications.show({ color: 'green', message: 'Module deleted' });
+                                            toast.success('Module deleted');
                                         }
                                     }}
                                     onStartSession={onStartSession ? () => onStartSession(module) : undefined}
                                     onOpenSettings={() => setSettingsModuleId(module.id)}
                                 />
                             ))}
-                        </Stack>
+                        </div>
                     </SortableContext>
                 </DndContext>
                 </>
@@ -402,6 +387,6 @@ export const ModuleList = ({ courseId, classId, onStartSession }: ModuleListProp
                     moduleId={settingsModuleId}
                 />
             )}
-        </Stack>
+        </div>
     );
 };

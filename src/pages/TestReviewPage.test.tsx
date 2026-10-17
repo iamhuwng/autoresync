@@ -25,7 +25,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { MantineProvider } from '@mantine/core';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOCKS
@@ -248,11 +247,7 @@ const renderPage = async () => {
     const mod = await import('./TestReviewPage');
     TestReviewPage = mod.default;
 
-    return render(
-        <MantineProvider>
-            <TestReviewPage />
-        </MantineProvider>
-    );
+    return render(<TestReviewPage />);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -580,6 +575,20 @@ describe('TestReviewPage', () => {
 
             expect(screen.queryByText(/missing answer key/i)).not.toBeInTheDocument();
         });
+    });
+
+    it('switches the native sidebar between review items and the publishing checklist', async () => {
+        const user = userEvent.setup();
+        await renderPage();
+
+        const publishSidebarButton = await screen.findByRole('button', { name: 'Publish' });
+        expect(screen.getByTestId('completion-checklist')).not.toBeVisible();
+        await user.click(publishSidebarButton);
+        expect(screen.getByTestId('completion-checklist')).toBeVisible();
+        expect(publishSidebarButton).toHaveAttribute('aria-pressed', 'true');
+
+        await user.click(screen.getByRole('button', { name: /Need Review/ }));
+        expect(screen.getByTestId('completion-checklist')).not.toBeVisible();
     });
 
     // ─────────────────────────────────────────────────────────────────────────

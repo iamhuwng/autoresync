@@ -12,8 +12,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useHomeworkList } from '../hooks/useHomeworkList';
 import { TeacherHeader } from '../components/navigation';
-import { Tabs, Table, Badge, Modal, Loader, Group, Tooltip, ActionIcon } from '@mantine/core';
-import { Card, CardBody, Button } from '../components/modern';
+import { Card, CardBody, Button, VanillaTabs, VanillaLoader } from '../components/modern';
 import { classManager, removeStudentFromClass, approveClassStudent, rejectClassStudent } from '../services/classManager';
 import { LinkCourseModal } from '../components/course/LinkCourseModal';
 import { ExtendCourseModal } from '../components/course/ExtendCourseModal';
@@ -389,7 +388,7 @@ const TeacherClassDetailPage: React.FC = () => {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #faf5ff 0%, #f0f9ff 100%)'
       }}>
-        <Loader size="xl" color="violet" />
+        <VanillaLoader size="xl" color="#8b5cf6" />
       </div>
     );
   }
@@ -513,16 +512,20 @@ const TeacherClassDetailPage: React.FC = () => {
             }}
           >
             <CardBody>
-              <Tabs value={activeTab} onChange={handleTabChange} variant="pills" color="grape" radius="md">
-                <Tabs.List style={{ marginBottom: '2rem', gap: '0.5rem' }}>
-                  <Tabs.Tab value="students" style={{ fontWeight: 700 }} leftSection={<IconUsers size={16} />}>Students</Tabs.Tab>
-                  <Tabs.Tab value="courses" style={{ fontWeight: 700 }} leftSection={<IconBook size={16} />}>Courses</Tabs.Tab>
-                  <Tabs.Tab value="assignments" style={{ fontWeight: 700 }} leftSection={<IconClipboardList size={16} />}>Assignments</Tabs.Tab>
-                  <Tabs.Tab value="homework" style={{ fontWeight: 700 }} leftSection={<IconClipboardList size={16} />}>Homework</Tabs.Tab>
-                  <Tabs.Tab value="activity" style={{ fontWeight: 700 }} leftSection={<IconHistory size={16} />}>Activity</Tabs.Tab>
-                </Tabs.List>
+              <div className="class-detail-content">
+                <VanillaTabs
+                  activeTab={activeTab || 'students'}
+                  onTabChange={handleTabChange}
+                  tabs={[
+                    { key: 'students', label: 'Students', icon: <IconUsers size={16} /> },
+                    { key: 'courses', label: 'Courses', icon: <IconBook size={16} /> },
+                    { key: 'assignments', label: 'Assignments', icon: <IconClipboardList size={16} /> },
+                    { key: 'homework', label: 'Homework', icon: <IconClipboardList size={16} /> },
+                    { key: 'activity', label: 'Activity', icon: <IconHistory size={16} /> },
+                  ]}
+                />
 
-                <Tabs.Panel value="students">
+                <div hidden={activeTab !== 'students'}>
                   {(() => {
                     const pendingStudents = students.filter(s => s.status === 'pending_approval');
                     const activeStudents = students.filter(s => !s.status || s.status === 'active');
@@ -554,9 +557,9 @@ const TeacherClassDetailPage: React.FC = () => {
                               <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#92400e' }}>
                                 Pending Approval
                               </h4>
-                              <Badge color="amber" variant="filled" size="sm" styles={{ root: { fontWeight: 800 } }}>
+                              <span className="class-detail-badge" style={{ background: '#fef3c7', color: '#92400e' }}>
                                 {pendingStudents.length}
-                              </Badge>
+                              </span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               {pendingStudents.map((student) => (
@@ -609,32 +612,28 @@ const TeacherClassDetailPage: React.FC = () => {
                         {/* Active Students Table */}
                         {activeStudents.length > 0 && (
                           <div style={{ overflowX: 'auto' }}>
-                            <Table verticalSpacing="sm" highlightOnHover striped>
-                              <Table.Thead>
-                                <Table.Tr>
-                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Student Name</Table.Th>
-                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</Table.Th>
-                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined Date</Table.Th>
-                                  <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Active</Table.Th>
-                                  <Table.Th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
+                            <table className="class-detail-table">
+                              <thead>
+                                <tr>
+                                  <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Student Name</th>
+                                  <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                                  <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined Date</th>
+                                  <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Active</th>
+                                  <th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
                                 {activeStudents.map((student) => (
-                                  <Table.Tr key={student.id}>
-                                    <Table.Td style={{ fontWeight: 700, color: '#1e293b' }}>{student.name}</Table.Td>
-                                    <Table.Td>
-                                      <Badge
-                                        color={student.isOnline ? 'green' : 'gray'}
-                                        variant="dot"
-                                        styles={{ root: { fontWeight: 700, paddingLeft: '0.5rem' } }}
-                                      >
+                                  <tr key={student.id}>
+                                    <td style={{ fontWeight: 700, color: '#1e293b' }}>{student.name}</td>
+                                    <td>
+                                      <span className="class-detail-badge" style={{ color: student.isOnline ? '#15803d' : '#64748b' }}>
                                         {student.isOnline ? 'Online' : 'Offline'}
-                                      </Badge>
-                                    </Table.Td>
-                                    <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.joinedAt).toLocaleDateString()}</Table.Td>
-                                    <Table.Td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.lastActiveAt).toLocaleString()}</Table.Td>
-                                    <Table.Td style={{ textAlign: 'right' }}>
+                                      </span>
+                                    </td>
+                                    <td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.joinedAt).toLocaleDateString()}</td>
+                                    <td style={{ fontSize: '0.875rem', color: '#64748b' }}>{new Date(student.lastActiveAt).toLocaleString()}</td>
+                                    <td style={{ textAlign: 'right' }}>
                                       <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <Button variant="glass" size="xs">View Progress</Button>
                                         <Button
@@ -646,11 +645,11 @@ const TeacherClassDetailPage: React.FC = () => {
                                           {removingStudentId === student.id ? 'Removing...' : 'Remove'}
                                         </Button>
                                       </div>
-                                    </Table.Td>
-                                  </Table.Tr>
+                                    </td>
+                                  </tr>
                                 ))}
-                              </Table.Tbody>
-                            </Table>
+                              </tbody>
+                            </table>
                           </div>
                         )}
 
@@ -663,9 +662,9 @@ const TeacherClassDetailPage: React.FC = () => {
                       </div>
                     );
                   })()}
-                </Tabs.Panel>
+                </div>
 
-                <Tabs.Panel value="courses">
+                <div hidden={activeTab !== 'courses'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Linked Study Materials</h3>
                     <Button variant="primary" size="sm" onClick={() => setShowLinkModal(true)}>
@@ -675,7 +674,7 @@ const TeacherClassDetailPage: React.FC = () => {
                   </div>
 
                   {loadingCourses ? (
-                    <div style={{ textAlign: 'center', padding: '3rem' }}><Loader size="md" color="violet" /></div>
+                    <div style={{ textAlign: 'center', padding: '3rem' }}><VanillaLoader size="md" color="#8b5cf6" /></div>
                   ) : linkedCourses.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8', background: 'rgba(255,255,255,0.3)', borderRadius: '1rem', border: '1px dashed #e2e8f0' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📚</div>
@@ -731,33 +730,23 @@ const TeacherClassDetailPage: React.FC = () => {
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <Group gap="xs" style={{ marginRight: '1rem' }}>
-                                <Tooltip label="Edit Course Details">
-                                  <ActionIcon variant="light" color="indigo" onClick={(e) => { e.stopPropagation(); handleEditCourseDetails(course); }}>
-                                    <IconPencil size={16} />
-                                  </ActionIcon>
-                                </Tooltip>
-                                <Tooltip label="Open Course Settings">
-                                  <ActionIcon variant="light" color="blue" onClick={(e) => { e.stopPropagation(); navigateTo('TEACHER_COURSE_DETAIL', { courseId: course.id }); }}>
-                                    <IconExternalLink size={16} />
-                                  </ActionIcon>
-                                </Tooltip>
-                                <Tooltip label="Extend Access">
-                                  <ActionIcon variant="light" color="violet" onClick={(e) => { e.stopPropagation(); setSelectedLinkForExtend(link.id); setExtendModalOpen(true); }}>
-                                    <IconClock size={16} />
-                                  </ActionIcon>
-                                </Tooltip>
-                                <Tooltip label="Sync Updates">
-                                  <ActionIcon variant="light" color="teal" onClick={(e) => { e.stopPropagation(); handleSyncCourse(link.id, course.id); }}>
-                                    <IconRefresh size={16} />
-                                  </ActionIcon>
-                                </Tooltip>
-                                <Tooltip label="Unlink Course">
-                                  <ActionIcon variant="light" color="red" onClick={(e) => { e.stopPropagation(); handleUnlinkCourse(course.id); }}>
-                                    <IconTrash size={16} />
-                                  </ActionIcon>
-                                </Tooltip>
-                              </Group>
+                              <div style={{ display: 'flex', gap: '0.25rem', marginRight: '1rem' }}>
+                                <button type="button" className="class-detail-icon-button" title="Edit Course Details" aria-label="Edit Course Details" onClick={(e) => { e.stopPropagation(); handleEditCourseDetails(course); }}>
+                                  <IconPencil size={16} />
+                                </button>
+                                <button type="button" className="class-detail-icon-button" title="Open Course Settings" aria-label="Open Course Settings" onClick={(e) => { e.stopPropagation(); navigateTo('TEACHER_COURSE_DETAIL', { courseId: course.id }); }}>
+                                  <IconExternalLink size={16} />
+                                </button>
+                                <button type="button" className="class-detail-icon-button" title="Extend Access" aria-label="Extend Access" onClick={(e) => { e.stopPropagation(); setSelectedLinkForExtend(link.id); setExtendModalOpen(true); }}>
+                                  <IconClock size={16} />
+                                </button>
+                                <button type="button" className="class-detail-icon-button" title="Sync Updates" aria-label="Sync Updates" onClick={(e) => { e.stopPropagation(); handleSyncCourse(link.id, course.id); }}>
+                                  <IconRefresh size={16} />
+                                </button>
+                                <button type="button" className="class-detail-icon-button" title="Unlink Course" aria-label="Unlink Course" onClick={(e) => { e.stopPropagation(); handleUnlinkCourse(course.id); }}>
+                                  <IconTrash size={16} />
+                                </button>
+                              </div>
                               {expandedCourseId === course.id ? <IconChevronUp size={20} color="#94a3b8" /> : <IconChevronDown size={20} color="#94a3b8" />}
                             </div>
                           </div>
@@ -773,9 +762,9 @@ const TeacherClassDetailPage: React.FC = () => {
                       ))}
                     </div>
                   )}
-                </Tabs.Panel>
+                </div>
 
-                <Tabs.Panel value="assignments">
+                <div hidden={activeTab !== 'assignments'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Active Class Assignments</h3>
                     <Button variant="primary" size="sm" onClick={() => navigateTo('TEACHER_LOBBY', { sessionCode: classData.classCode }, { reason: 'assign_test_from_class' })}>
@@ -794,31 +783,31 @@ const TeacherClassDetailPage: React.FC = () => {
                     </div>
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
-                      <Table verticalSpacing="sm" highlightOnHover striped>
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assignment Title</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</Table.Th>
-                            <Table.Th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress</Table.Th>
-                            <Table.Th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
+                      <table className="class-detail-table">
+                        <thead>
+                          <tr>
+                            <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assignment Title</th>
+                            <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</th>
+                            <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
+                            <th style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress</th>
+                            <th style={{ textAlign: 'right', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
                           {assignments.map((assignment) => (
-                            <Table.Tr key={assignment.id}>
-                              <Table.Td style={{ fontWeight: 800, color: '#1e293b' }}>{assignment.testTitle}</Table.Td>
-                              <Table.Td>
-                                <Badge color={assignment.testType === 'test' ? 'blue' : 'violet'} variant="light" size="sm" style={{ fontWeight: 800 }}>
+                            <tr key={assignment.id}>
+                              <td style={{ fontWeight: 800, color: '#1e293b' }}>{assignment.testTitle}</td>
+                              <td>
+                                <span className="class-detail-badge" style={{ color: assignment.testType === 'test' ? '#2563eb' : '#7c3aed' }}>
                                   {assignment.testType.toUpperCase()}
-                                </Badge>
-                              </Table.Td>
-                              <Table.Td>
-                                <Badge color={assignment.status === 'in_progress' || assignment.status === 'available' ? 'green' : 'gray'} variant="light" size="sm">
+                                </span>
+                              </td>
+                              <td>
+                                <span className="class-detail-badge" style={{ color: assignment.status === 'in_progress' || assignment.status === 'available' ? '#15803d' : '#64748b' }}>
                                   {assignment.status.toUpperCase()}
-                                </Badge>
-                              </Table.Td>
-                              <Table.Td>
+                                </span>
+                              </td>
+                              <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   <div style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', flex: 1, position: 'relative', overflow: 'hidden' }}>
                                     <div style={{
@@ -834,8 +823,8 @@ const TeacherClassDetailPage: React.FC = () => {
                                     {assignment.stats?.submitted || 0} / {assignment.stats?.totalStudents || 0}
                                   </span>
                                 </div>
-                              </Table.Td>
-                              <Table.Td style={{ textAlign: 'right' }}>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
                                 <Button
                                   variant="glass"
                                   size="xs"
@@ -843,16 +832,16 @@ const TeacherClassDetailPage: React.FC = () => {
                                 >
                                   View Results
                                 </Button>
-                              </Table.Td>
-                            </Table.Tr>
+                              </td>
+                            </tr>
                           ))}
-                        </Table.Tbody>
-                      </Table>
+                        </tbody>
+                      </table>
                     </div>
                   )}
-                </Tabs.Panel>
+                </div>
 
-                <Tabs.Panel value="homework">
+                <div hidden={activeTab !== 'homework'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', margin: 0 }}>Class Homework</h3>
                     <Button
@@ -877,7 +866,7 @@ const TeacherClassDetailPage: React.FC = () => {
 
                   {homeworkLoading ? (
                     <div style={{ textAlign: 'center', padding: '3rem' }}>
-                      <Loader size="md" color="violet" />
+                      <VanillaLoader size="md" color="#8b5cf6" />
                       <p style={{ marginTop: '1rem', color: '#64748b', fontWeight: 600 }}>Loading class homework...</p>
                     </div>
                   ) : homeworkError ? (
@@ -917,9 +906,9 @@ const TeacherClassDetailPage: React.FC = () => {
                     </Button>
                   </div>
                   )}
-                </Tabs.Panel>
+                </div>
 
-                <Tabs.Panel value="activity">
+                <div hidden={activeTab !== 'activity'}>
                   <div style={{
                     margin: '3rem auto',
                     padding: '2rem',
@@ -931,28 +920,32 @@ const TeacherClassDetailPage: React.FC = () => {
                     <h4 style={{ color: '#475569', fontWeight: 800, marginBottom: '0.5rem' }}>Activity History</h4>
                     <p style={{ fontSize: '0.9rem' }}>The full history of class activities, including logins and submission timelines, will be displayed here soon.</p>
                   </div>
-                </Tabs.Panel>
-              </Tabs>
+                </div>
+              </div>
             </CardBody>
           </Card>
         </div>
       </div>
 
-      <Modal
-        opened={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <IconSettings size={22} color="#1e293b" />
-            <span style={{ fontWeight: 800, fontSize: '1.25rem' }}>Class Settings</span>
+      {showSettingsModal && (
+        <dialog
+          className="class-settings-dialog"
+          aria-labelledby="class-settings-title"
+          ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
+          onClose={() => setShowSettingsModal(false)}
+          onClick={(event) => { if (event.target === event.currentTarget) setShowSettingsModal(false); }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <h2 id="class-settings-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0, fontSize: '1.25rem' }}>
+              <IconSettings size={22} /> Class Settings
+            </h2>
+            <button type="button" className="class-detail-icon-button" aria-label="Close class settings" onClick={() => setShowSettingsModal(false)}>
+              <IconX size={20} />
+            </button>
           </div>
-        }
-        radius="lg"
-      >
-        <div style={{ padding: '0.5rem' }}>
           <p style={{ color: '#64748b' }}>Settings editing implementation pending. You can update common class metadata in the main Class Management dashboard.</p>
-        </div>
-      </Modal>
+        </dialog>
+      )}
 
       <LinkCourseModal
         opened={showLinkModal}
@@ -990,6 +983,16 @@ const TeacherClassDetailPage: React.FC = () => {
       />
 
       <style>{`
+            .class-detail-content > .vanilla-tabs { margin-bottom: 2rem; }
+            .class-detail-table { width: 100%; border-collapse: collapse; text-align: left; }
+            .class-detail-table th, .class-detail-table td { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
+            .class-detail-table tbody tr:nth-child(odd) { background: #f8fafc; }
+            .class-detail-table tbody tr:hover { background: #f1f5f9; }
+            .class-detail-badge { display: inline-flex; padding: 0.2rem 0.5rem; border-radius: 4px; background: #f1f5f9; font-size: 0.75rem; font-weight: 700; }
+            .class-detail-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: 4px; color: #4f46e5; background: #eef2ff; cursor: pointer; }
+            .class-settings-dialog { box-sizing: border-box; width: min(480px, calc(100vw - 2rem)); padding: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; color: #1e293b; }
+            .class-settings-dialog::backdrop { background: rgb(15 23 42 / 40%); }
+
             @keyframes slideUp {
                 from { opacity: 0; transform: translateY(20px); }
                 to { opacity: 1; transform: translateY(0); }

@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
-import { MantineProvider } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
+import { ToastContainer, toast } from '../modern/ToastNotification';
 import { MemoryRouter } from 'react-router-dom';
 import { ModuleList } from './ModuleList';
 import { getModulesByCourse, deleteModule, reorderModules } from '../../services/courseManager';
@@ -65,6 +64,8 @@ vi.mock('../../services/book-delivery/courseBookPlacement.browser', () => ({
 }));
 
 vi.mock('./CourseBookPlacementModal', () => ({ CourseBookPlacementModal: () => null }));
+vi.mock('./MaterialSelectorModal', () => ({ MaterialSelectorModal: () => null }));
+vi.mock('../PracticeSettingsModal', () => ({ PracticeSettingsModal: () => null }));
 
 // Mock dnd-kit components to capture handlers
 vi.mock('@dnd-kit/core', async (importOriginal) => {
@@ -111,6 +112,7 @@ describe('ModuleList', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        toast.clear();
         courseBookMocks.enabled = false;
         (getModulesByCourse as any).mockResolvedValue(mockModules);
         (reorderModules as any).mockResolvedValue({ success: true });
@@ -125,19 +127,19 @@ describe('ModuleList', () => {
         (queryOptimizer.getTest as any).mockResolvedValue({ title: 'Test Material' });
     });
 
-    const renderWithMantine = (ui: React.ReactNode) => {
+    const renderModuleList = (ui: React.ReactNode) => {
         return render(
-            <MantineProvider>
-                <Notifications />
+            <>
+                <ToastContainer />
                 <MemoryRouter>
                     {ui}
                 </MemoryRouter>
-            </MantineProvider>
+            </>
         );
     };
 
     it('renders modules correctly', async () => {
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
 
         await waitFor(() => {
             expect(screen.getByText('Module 1')).toBeInTheDocument();
@@ -147,11 +149,11 @@ describe('ModuleList', () => {
 
     it('offers Book placement only on direct Courses when the presentation gate is enabled', async () => {
         courseBookMocks.enabled = true;
-        const direct = renderWithMantine(<ModuleList courseId="c1" />);
+        const direct = renderModuleList(<ModuleList courseId="c1" />);
         expect(await screen.findAllByRole('button', { name: 'Add Book' })).toHaveLength(2);
         direct.unmount();
 
-        renderWithMantine(<ModuleList courseId="c1" classId="class-1" />);
+        renderModuleList(<ModuleList courseId="c1" classId="class-1" />);
         await screen.findByText('Module 1');
         expect(screen.queryByRole('button', { name: 'Add Book' })).not.toBeInTheDocument();
     });
@@ -160,7 +162,7 @@ describe('ModuleList', () => {
         vi.spyOn(window, 'confirm').mockImplementation(() => true);
         (deleteModule as any).mockResolvedValue({ success: true });
 
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
 
         await waitFor(() => expect(screen.getByText('Module 1')).toBeInTheDocument());
 
@@ -170,11 +172,12 @@ describe('ModuleList', () => {
         await waitFor(() => {
             expect(deleteModule).toHaveBeenCalledWith('m1');
             expect(getModulesByCourse).toHaveBeenCalledTimes(2); // Initial + after delete
+            expect(screen.getByText('Module deleted').closest('[role="status"]')).toBeInTheDocument();
         });
     });
 
     it('opens editor for creating new module', async () => {
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
 
         await waitFor(() => {
             expect(screen.queryByText('Add Module')).toBeInTheDocument();
@@ -189,7 +192,7 @@ describe('ModuleList', () => {
     });
 
     it('renders drag handles', async () => {
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
         await waitFor(() => {
             const handles = screen.getAllByTestId('drag-handle');
             expect(handles).toHaveLength(2);
@@ -198,7 +201,7 @@ describe('ModuleList', () => {
 
     it('handles manual reordering via mock trigger', async () => {
         (reorderModules as any).mockResolvedValue({ success: true });
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
 
         await waitFor(() => expect(screen.getByText('Module 1')).toBeInTheDocument());
 
@@ -220,7 +223,7 @@ describe('ModuleList', () => {
         });
         (updateModuleProgress as any).mockResolvedValue(true);
 
-        renderWithMantine(<ModuleList courseId="c1" classId="class-1" />);
+        renderModuleList(<ModuleList courseId="c1" classId="class-1" />);
 
         await waitFor(() => expect(screen.getByText('Module 2')).toBeInTheDocument());
 
@@ -236,7 +239,7 @@ describe('ModuleList', () => {
     });
 
     it('renders materials and handles sync', async () => {
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
 
         await waitFor(() => expect(screen.getByText('Module 1')).toBeInTheDocument());
 
@@ -254,7 +257,7 @@ describe('ModuleList', () => {
             ownerId: 'u2'
         });
 
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
         await waitFor(() => expect(screen.getByText('Module 1')).toBeInTheDocument());
 
         const toggles = screen.getAllByLabelText('Toggle materials');
@@ -268,7 +271,7 @@ describe('ModuleList', () => {
 
     it('handles material reordering', async () => {
         (reorderMaterials as any).mockResolvedValue();
-        renderWithMantine(<ModuleList courseId="c1" />);
+        renderModuleList(<ModuleList courseId="c1" />);
         await waitFor(() => expect(screen.getByText('Module 1')).toBeInTheDocument());
 
         // Open module to render materials

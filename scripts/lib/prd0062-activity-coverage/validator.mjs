@@ -21,10 +21,11 @@ const issue = (issues, code, pathName, message) => issues.push({ code, path: pat
 const keyFor = (entry) => `${entry.profile.taxonomyId}/${entry.profile.typeId}@${entry.profile.taxonomyVersion}:${entry.interaction.family}:${entry.interaction.variant}:${entry.presentationMode}:${entry.responseCodec}`;
 const profileKey = (profile) => `${profile.taxonomyId}/${profile.typeId}@${profile.taxonomyVersion}`;
 const manifestSelectorKeyFor = (entry) =>
-  `${entry.profile === null ? '*' : profileKey(entry.profile)}:${entry.family}:${entry.variant}`;
+  `${entry.profile === null ? '*' : profileKey(entry.profile)}:${entry.family}:${entry.variant}:${entry.presentationMode}`;
 const manifestSelectorsOverlap = (left, right) =>
   left.family === right.family
   && left.variant === right.variant
+  && left.presentationMode === right.presentationMode
   && (
     left.profile === null
     || right.profile === null

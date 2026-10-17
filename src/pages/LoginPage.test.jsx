@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider } from '@mantine/core';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -34,9 +33,7 @@ vi.mock('../hooks/useFeatureTracking', () => ({
 function renderPage() {
   return render(
     <BrowserRouter>
-      <MantineProvider>
-        <LoginPage />
-      </MantineProvider>
+      <LoginPage />
     </BrowserRouter>
   );
 }
