@@ -1217,13 +1217,14 @@ describe('readingV2AutoImport.service', () => {
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
-  it('keeps Auto V4 ranged multiple-choice groups and paired multiple-select semantics', async () => {
-    const raw = [
+  it.each([false, true])('keeps Auto V4 ranged multiple-choice groups and paired multiple-select semantics (Markdown: %s)', async (markdown) => {
+    const plainSource = [
       'READING PASSAGE 1',
       'This passage has enough source text for grouped choice import verification.',
       'It keeps a second sentence so guardrails treat it as a real passage.',
       '',
       'Questions 1-4',
+      'Reading Passage 1 has seven paragraphs, A-G.',
       'Choose the correct letter, A, B, C or D.',
       '1 First choice question?',
       'A One',
@@ -1263,6 +1264,12 @@ describe('readingV2AutoImport.service', () => {
       '5 B',
       '6 D',
     ].join('\n');
+    const raw = markdown
+      ? plainSource
+        .replace('Questions 1-4', '### *Questions 1 – 4*')
+        .replace('Questions 5 and 6', '### *Questions 5 and 6*')
+        .replace('Answers\n1 A\n2 B\n3 C\n4 D\n5 B\n6 D', '**Answer Key**\n- **1.** A\n- **2.** B\n- **3.** C\n- **4.** D\n- **5 & 6.** B, D *(in either order)*')
+      : plainSource;
     const v4Extractor: ReadingV2AutoV4Extractor = {
       parsePassagesOnly: vi.fn().mockResolvedValue({
         success: true,
@@ -1304,7 +1311,7 @@ describe('readingV2AutoImport.service', () => {
               questionNumber: 5,
               questionText: 'Which TWO options are correct?',
               type: 'multiple-select',
-              answer: 'B',
+              answer: markdown ? ['B', 'D'] : 'B',
               passageId: 'passage-1',
               confidence: 0.95,
               sectionInstruction: 'Choose TWO letters, A-E. Write the correct letters in boxes 5 and 6.',
@@ -1325,8 +1332,8 @@ describe('readingV2AutoImport.service', () => {
               confidence: 0.95,
               sectionInstruction: 'Choose TWO letters, A-E. Write the correct letters in boxes 5 and 6.',
             },
-          ],
-          answerKey: { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'B', 6: 'D' },
+          ].filter((question) => !markdown || question.questionNumber !== 6),
+          answerKey: { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'WRONG', 6: 'WRONG' },
           confidence: 0.95,
           provider: 'gemini',
         },
@@ -1340,6 +1347,8 @@ describe('readingV2AutoImport.service', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
+    expect(result.answerKeyText).toBe('1 A\n2 B\n3 C\n4 D\n5 B\n6 D');
+    expect(result.diagnostics.map(({ code }) => code)).not.toContain('passage-count-mismatch');
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     const groups = Object.values(normalized.document.taskGroups);
     const choiceGroup = groups.find((group) => group.groupTitle === 'Questions 1-4');

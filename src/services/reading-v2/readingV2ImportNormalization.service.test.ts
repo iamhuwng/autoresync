@@ -1643,6 +1643,20 @@ describe('readingV2ImportNormalization.service', () => {
     expect(taskGroup?.instructionBlocks[0]?.text).toContain('Choose NO MORE THAN TWO WORDS from the passage for each answer.');
   });
 
+  it('parses Markdown answer rows and explicit paired letters while preserving source lines', () => {
+    const parsed = parseReadingV2TeacherAnswerKey([
+      '**Answer Key**',
+      '- **24.** students',
+      '- **25 & 26.** C, D *(in either order)*',
+    ].join('\n'));
+    expect(parsed.rows.map((row) => [row.questionNumber, row.parsedAnswerValues, row.sourceLine])).toEqual([
+      [24, ['students'], 2],
+      [25, ['C'], 3],
+      [26, ['D'], 3],
+    ]);
+    expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === 'error')).toEqual([]);
+  });
+
   it('parses teacher answer keys into canonical alternative answers while preserving compact literal slash tokens', () => {
     const parsed = parseReadingV2TeacherAnswerKey([
       'Answer key',

@@ -1,0 +1,79 @@
+# Reading requalification after Hosting rollback
+
+Status: source/configuration corrections prepared; replacement Hosting release
+has not occurred. The earlier attempt and rollback remain recorded in
+[the incident record](2026-10-18-stable-hosting-release.md).
+
+## Root cause and configuration correction
+
+The production environment prepared for the first attempt omitted Reading
+rollout, passage visibility, and passage-homework settings. The actual application
+normalizers close these capabilities when values are absent. The production build
+guard previously validated Firebase and backend endpoints without preserving
+these existing feature modes.
+
+The restored October 6 feature-flag chunk was independently matched to the
+Hosting provider's gzip-level-9 SHA-256. Its modes are now explicit in the
+machine-local production file and required by `scripts/deploy-live.mjs`:
+
+| Setting | Required existing live mode |
+| --- | --- |
+| `VITE_READING_V2_ROLLOUT_MODE` | `public` |
+| `VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY` | `opt-in` |
+| `VITE_READING_PASSAGE_LIBRARY` | `enabled` |
+| `VITE_READING_PASSAGE_HOMEWORK` | `enabled` |
+
+The revised environment SHA-256 is
+`b20a584d8bfaeeb48c309fd8e4b0448ec1c1b1d80353c59fa5bf7529af694b35`.
+Its values are not committed. Tests exercise missing, blank, disabled, restricted,
+and misspelled rollout settings through the real build-only entry before Vite.
+The source defaults remain closed; this guard preserves this site's current
+production behavior rather than globally enabling features.
+
+Independent configuration review found no further non-Book flag/endpoint omission:
+the admin/test-type flags remain disabled as in the old artifact; Listening's five
+endpoints match the existing signer host; backup, Reading trusted submission,
+ordinary notification/result authority, and course enrollment endpoints match
+the deployed contracts. The AI gateway restoration remains an intentional
+correction from the old browser-key clients. Missing dedicated notification-command
+URL and diagnostic token were already absent in the old artifact. These are
+static configuration comparisons, not proof of all runtime workflows.
+
+## Authorized Reading import correction
+
+The owner asked to include the six local fixes investigated in
+**Fix Reading V2 question numbering** (`01a14ad5-4a69-7592-a26b-515c064181e3`).
+Their committed baseline blobs matched this candidate before copying; only
+those six files were brought over. No Book source was included.
+
+- Recognize italic Markdown question-range headings.
+- Use the strict source ledger for single-passage chunking, avoiding a false
+  split at instructions such as “Reading Passage 2 has seven paragraphs”.
+- Normalize Markdown answer rows and explicit paired `25 & 26` answer bindings.
+- Expand a combined multiple-select provider object only when the exact source
+  range, answer count, and absence of already represented subsequent questions agree.
+
+Source-authoritative extra/missing question, answer-binding, passage-count,
+reference-bank, and instruction checks remain in place. Immediate parser diagnostics
+continue through existing import result/review ports; no persistent notification,
+new action, backend write, or audit event is introduced by this correction.
+The original live provider payload remains unavailable, so the combined-object
+case is a reproduced boundary weakness rather than a proven original response.
+
+## Current proof and remaining work
+
+- Integrated parser suites: **141 tests / 3 files passed**.
+- Explicit corrected Reading configuration and launch suites: **59 tests / 3 files passed**.
+- Release/deployment/local-boundary/tool resolver suites: **59 tests passed**.
+- Activity coverage: **21 tests and 32 independent schema fixtures passed**.
+- Focused ESLint, UTF-8, diff checks, and assessment boundary passed.
+
+The first flag-suite run used missing shared-development modes and failed two
+environment-dependent assertions. Repeating with the reviewed production modes
+passed all 59; the source's closed-default tests remain intact.
+
+Candidate browser verification, a clean production rebuild, fresh CI, source
+promotion/synchronization, and replacement release verification remain pending.
+Local emulator startup/recovery is infrastructure proof only. PDF Book stays
+separate and disabled for this release. No real AI inference or provider upload
+is claimed by these deterministic checks.

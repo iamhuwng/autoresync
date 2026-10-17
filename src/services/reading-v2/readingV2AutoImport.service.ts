@@ -15,6 +15,7 @@ import {
 import {
   createReadingV2ImportCandidateFromText,
   normalizeReadingV2ImportCandidate,
+  normalizeReadingV2TeacherAnswerKeyLine,
   parseReadingV2TeacherAnswerKey,
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
@@ -589,6 +590,7 @@ const payloadDiagnostics = (payload: AutoPayload): readonly ReadingV2AutoImportD
     }));
 
 const answerKeyHeadingScore = (line: string): number => {
+  line = normalizeReadingV2TeacherAnswerKeyLine(line);
   if (ANSWER_KEY_HEADING_PATTERN.test(line)) {
     return 35;
   }
@@ -606,10 +608,12 @@ const answerKeyHeadingScore = (line: string): number => {
   return 0;
 };
 
-const normalizedAnswerKeyRow = (line: string): string | undefined =>
-  ANSWER_KEY_ROW_PATTERN.test(line)
+const normalizedAnswerKeyRow = (rawLine: string): string | undefined => {
+  const line = normalizeReadingV2TeacherAnswerKeyLine(rawLine);
+  return ANSWER_KEY_ROW_PATTERN.test(line)
     ? line.replace(ANSWER_KEY_ROW_PREFIX_PATTERN, '$1 ')
     : undefined;
+};
 
 const answerTextFromRow = (row: string): string => {
   const match = row.match(ANSWER_KEY_ROW_CAPTURE_PATTERN);
@@ -748,7 +752,9 @@ const extractAnswerKeyTextFromRaw = (rawText: string): string | undefined => {
     || right.startIndex - left.startIndex,
   )[0];
   const parsed = parseReadingV2TeacherAnswerKey(bestCandidate?.rows.join('\n'));
-  return parsed.rows.length > 0 ? parsed.rawText : undefined;
+  return parsed.rows.length > 0
+    ? parsed.rows.map((row) => `${row.questionNumber} ${row.rawAnswerText}`).join('\n')
+    : undefined;
 };
 
 const visibleQuestionNumbersFromChunkText = (text: string): readonly number[] => {
@@ -786,7 +792,7 @@ const splitSourceIntoChunks = (
   rawText: string,
   sourceLedger?: ReadingV2AutoSourceLedger,
 ): readonly SourceChunk[] => {
-  if (sourceLedger && sourceLedger.passages.length > 1) {
+  if (sourceLedger && sourceLedger.passages.length > 0) {
     return sourceLedger.passages.map((passage, index) => {
       const nextPassage = sourceLedger.passages[index + 1];
       const text = sourceLedger.normalizedText.slice(passage.charStart, nextPassage?.charStart ?? sourceLedger.normalizedText.length);
@@ -2290,6 +2296,25 @@ const autoV4QuestionGroupsForMaterial = (
   }[] = [];
 
   questions
+    .flatMap((question) => {
+      const start = questionNumberFromAutoV4Question(question);
+      const range = sourceLedger.questionRanges.find((candidate) =>
+        candidate.passageNumber === passageNumber && candidate.start === start && candidate.end > start,
+      );
+      if (
+        autoV4TaskTypeFromQuestion(question) !== 'multiple-select'
+        || !range
+        || !Array.isArray(question.answer)
+        || question.answer.length !== range.end - range.start + 1
+        || questions.some((other) => {
+          const number = questionNumberFromAutoV4Question(other);
+          return number > start && number <= range.end;
+        })
+      ) {
+        return [question];
+      }
+      return question.answer.map((answer, index) => ({ ...question, questionNumber: start + index, answer }));
+    })
     .map((question) => ({
       source: question,
       questionNumber: questionNumberFromAutoV4Question(question),

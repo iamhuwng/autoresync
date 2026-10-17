@@ -1,5 +1,5 @@
 import { normalizeReadingV2TaskType } from '../../types/readingV2Taxonomy';
-import { parseReadingV2TeacherAnswerKey } from './readingV2ImportNormalization.service';
+import { normalizeReadingV2TeacherAnswerKeyLine, parseReadingV2TeacherAnswerKey } from './readingV2ImportNormalization.service';
 import { readingV2TaskUsesPerQuestionLabeledOptions } from './readingV2TaskComponentContracts.service';
 
 export type ReadingV2AutoSourceCategory =
@@ -185,7 +185,7 @@ export interface ReadingV2AutoSourceVerifierIssue {
 }
 
 const PASSAGE_HEADING_PATTERN = /^\s*(?:#{1,6}\s*)?READING\s+PASSAGE\s+(\d+)\s*(?::\s*(.+?)\s*)?$/i;
-const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*\*)?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to|and)\s*(\d+)\b/i;
+const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*{1,3})?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to|and)\s*(\d+)\b/i;
 const QUESTION_SINGLE_PATTERN = /^\s*(?:#{1,6}\s*)?Question\s+(\d+)\b/i;
 const NUMBERED_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:\\?[\).])?(?:\*\*)?\s+(.+)$/;
 const ALPHA_REFERENCE_ROW_PATTERN = /^\s*(?:[-*]\s*)?([A-Z])(?:[\).:]|\s+[-\u2013\u2014])?\s+\S+/;
@@ -431,7 +431,7 @@ const isLikelyAnswerRow = (line: string): boolean => {
 };
 
 const firstAnswerHeadingLine = (lines: readonly ReadingV2AutoSourceLine[]): number | null =>
-  lines.find((line) => ANSWER_KEY_HEADING_PATTERN.test(line.text.trim()))?.lineNumber ?? null;
+  lines.find((line) => ANSWER_KEY_HEADING_PATTERN.test(normalizeReadingV2TeacherAnswerKeyLine(line.text)))?.lineNumber ?? null;
 
 const collectAnswerKeyRows = (
   lines: readonly ReadingV2AutoSourceLine[],
@@ -443,7 +443,7 @@ const collectAnswerKeyRows = (
   let collecting = false;
 
   lines.forEach((line) => {
-    const trimmed = line.text.trim();
+    const trimmed = normalizeReadingV2TeacherAnswerKeyLine(line.text);
     const afterHeading = headingLine !== null && line.lineNumber > headingLine;
     const canStartUnheaded = headingLine === null && line.lineNumber >= lateStartLine && isLikelyAnswerRow(trimmed);
 

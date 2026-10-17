@@ -45,13 +45,17 @@ VITE_WRITING_NOTIFICATION_URL=https://luyentap-notification-firestore-qa.iamhuwn
 VITE_HOMEWORK_RESULT_AUTHORITY_URL=https://luyentap-notification-firestore-qa.iamhuwng.workers.dev
 VITE_COURSE_ENROLLMENT_APPROVAL_URL=https://luyentap-notification-firestore-qa.iamhuwng.workers.dev/course-enrollment-approval
 VITE_THCS_GEMMA_WORKER_URL=https://thcs-gemma.iamhuwng.workers.dev
+VITE_READING_V2_ROLLOUT_MODE=public
+VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY=opt-in
+VITE_READING_PASSAGE_LIBRARY=enabled
+VITE_READING_PASSAGE_HOMEWORK=enabled
 `;
 
-const assertBlocked = async (suffix, expectedMessage) => {
+const assertBlocked = async (suffix, expectedMessage, baseEnv = validFirebaseEnv) => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-deploy-test-'));
   const envFile = path.join(tempDir, '.env.production');
   try {
-    await writeFile(envFile, `${validFirebaseEnv}\n${suffix}\n`);
+    await writeFile(envFile, `${baseEnv}\n${suffix}\n`);
     const result = await runGuard(envFile);
     assert.equal(result.status, 1);
     assert.match(result.output, expectedMessage);
@@ -77,6 +81,26 @@ test('production route requires reviewed ordinary notification endpoints', async
 
 test('production route requires the reviewed server-side AI gateway', async () => {
   await assertBlocked('VITE_THCS_GEMMA_WORKER_URL=', /reviewed AI gateway/u);
+});
+
+test('production route preserves public Reading V2 before building', async () => {
+  const expected = /VITE_READING_V2_ROLLOUT_MODE must be public/u;
+  await assertBlocked('', expected, validFirebaseEnv.replace('VITE_READING_V2_ROLLOUT_MODE=public', ''));
+  for (const mode of ['', 'off', 'teacher-preview', 'internal-only', 'publc']) {
+    await assertBlocked(`VITE_READING_V2_ROLLOUT_MODE=${mode}`, expected);
+  }
+});
+
+test('production route preserves existing Reading passage capabilities', async () => {
+  for (const [key, mode] of Object.entries({
+    VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: 'opt-in',
+    VITE_READING_PASSAGE_LIBRARY: 'enabled',
+    VITE_READING_PASSAGE_HOMEWORK: 'enabled',
+  })) {
+    const expected = new RegExp(`${key} must be ${mode}`, 'u');
+    await assertBlocked('', expected, validFirebaseEnv.replace(`${key}=${mode}`, ''));
+    await assertBlocked(`${key}=disabled`, expected);
+  }
 });
 
 test('development configuration accepts the gateway without browser provider keys', async () => {
