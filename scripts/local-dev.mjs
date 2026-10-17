@@ -68,6 +68,8 @@ const localEnv = {
   VITE_LOCAL_DEV_BOOTSTRAP: 'true',
   LOCAL_VITE_ORIGIN: `http://localhost:${vitePort}`,
   ...Object.fromEntries(localWorkerKeys.map((key) => [key, localWorkerOrigin])),
+  // shortcut: local AI is unavailable until an isolated gateway runtime is provided.
+  VITE_THCS_GEMMA_WORKER_URL: '',
   VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN: 'https://s3.us-west-004.backblazeb2.com',
   VITE_READING_V2_SUBMISSION_ENDPOINT: '',
   VITE_READING_V2_SUBMISSION_EMULATOR_ORIGIN: 'http://localhost:5001',

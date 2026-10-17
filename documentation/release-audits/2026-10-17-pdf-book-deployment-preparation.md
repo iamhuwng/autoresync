@@ -10,6 +10,14 @@ binding gates are recorded in that branch's
 records the original checkout and dated research; it is not a claim that the
 candidate has been promoted or deployed.
 
+**Final local qualification:** the candidate passed normal minification/bundle
+budget, focused AI/notification/Worker/rules checks, and teacher/student browser
+notification consumption with read persistence. Admin AI metadata rendered
+through an authenticated local gateway stub. The final local-isolation/release
+guard run passed 53/53. See `2026-10-17-candidate-acceptance.json` for content
+fingerprints and limits; these checks do not establish deployed backend
+compatibility, exact historical source identity, or production readiness.
+
 ## Decision and current result
 
 The owner selected **current live application first; ongoing PDF Book work stays separate**. Do not merge the dirty Book checkout into `main` or treat the branch name as deployment evidence.

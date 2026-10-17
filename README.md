@@ -271,10 +271,15 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
 ### Installation
 
+Use an owner-reviewed published revision. The October 17 maintenance branch is
+still a local candidate; `main` is stale. Check the current
+[maintenance status](documentation/system/maintenance-baseline-20261017.md)
+before selecting the base for new work.
+
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd kahoot
+   git clone <repository-url> luyentap
+   cd luyentap
    ```
 
 2. Install dependencies:

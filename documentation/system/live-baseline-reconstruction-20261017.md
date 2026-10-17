@@ -1,5 +1,11 @@
 # Reconstructed live-source candidate — 2026-10-17
 
+**Subsequent qualification:** this is the initial reconstruction record. The
+gateway restoration, release tooling, local Firebase correction, successful
+minified build/tests/browser consumer checks, and remaining promotion gates are
+recorded in [the current maintenance status](maintenance-baseline-20261017.md).
+The initial limitations below are retained as history, not the final branch state.
+
 Status: **CANDIDATE, NOT PROVEN STABLE**. This is a local historical source reconstruction for reviewing the current live application before publishing a clone baseline. It does not authorize deployment or establish exact live parity.
 
 ## Source selection

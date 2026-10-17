@@ -1,6 +1,6 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **committed-source candidate; not approved for production or `main` promotion**.
+Status: **validated-source candidate; production and `main` promotion gates remain open**.
 
 The owner chose the current live app as the maintenance baseline. Newer PDF Book
 development stays in the original `luyentap-prd0062` checkout. The historical
@@ -21,6 +21,15 @@ instead of claiming Book was absent from the deployed artifact.
   source/content manifests, hotfix retention, provider readback, and separate
   production/local environment handling. Required local runtime scripts and the
   previously missing Windows Java-emulator launcher are included.
+- Normal local Firebase bootstrap now enforces the launcher's disposable
+  identity and emulator/Worker endpoints, connects Firestore to its emulator,
+  and suppresses Analytics. This narrow correction reuses the canonical local
+  guards while retaining acceptance mode; newer persistence/recovery work is
+  still separate.
+- Normal local development explicitly clears the inherited AI gateway URL.
+  Local AI extraction/key administration is unavailable until an isolated AI
+  gateway runtime is provided. The Book Worker does not supply that runtime;
+  restoring a live URL is not a local setup remedy.
 - Production preparation rejects browser Groq/Gemini credential settings and
   missing/unreviewed ordinary-notification or AI gateway endpoints. Local env
   validation no longer requires a browser Gemini key.
@@ -66,7 +75,7 @@ omitted endpoint from silently disabling a published workflow.
 
 ## Validation completed
 
-- Normal minified Vite build and bundle budget passed: **258 KB** root entry.
+- Final normal minified Vite build and bundle budget passed: **262 KB** root entry.
   A separate unminified structural build also passed. Both used fake isolated
   configuration, not production credentials. Generated application text had no
   Groq/Google credential-shaped literals.
@@ -83,6 +92,23 @@ omitted endpoint from silently disabling a published workflow.
 - The final combined release-assessment/deployment-guard run passed **50/50**,
   including isolation from an unchanged expired Book rollout and preservation
   of its blocking behavior for an actual Book Worker change.
+- After the local Firebase correction, the combined boundary/release/deployment
+  checks passed **53/53**. They exercise the actual launcher/module bodies with
+  SDK transport spies, including rejected live/missing hosts, all three local
+  transports, acceptance in dev/build modes, and production behavior.
+- Installed Chromium verified teacher login from `http://localhost:5173/login`,
+  notification opening to the class page, and persisted read state after reload.
+  Student login from `http://localhost:5174/login` verified the dashboard feed,
+  destination and the same read persistence. Both used disposable source-shaped
+  notices. Admin login then rendered authenticated AI-key metadata from a local
+  gateway stub. This proves the consumers, not deployed delivery/admin commands.
+- [The final acceptance record](../release-audits/2026-10-17-candidate-acceptance.json)
+  binds those checks to **2,509 byte-compared source/config/public/script files**
+  and the generated entry hash. All **392 final JavaScript assets** were scanned
+  without finding Groq/Google credential-shaped literals. Remote browser
+  requests were blocked; no remote backend connection was allowed. Font-block
+  errors and request cancellation during navigation/close were retained in the
+  ignored diagnostic logs.
 - Fixed test-only drift: the Writing view's inventory guard now recognizes its
   committed-event port; the legacy producer test mocks Firebase; the AI rule
   fixture removes its own previously promoted test user before reruns.
@@ -93,13 +119,14 @@ omitted endpoint from silently disabling a published workflow.
 
 ## Remaining gates
 
-1. **Candidate browser acceptance:** fresh teacher/student notification journeys
-   and AI-key administration have not been run against this candidate. The
-   desktop browser tool failed initialization twice with `failed to write
-   kernel assets ... path specified ... os error 3`, including after reset.
-   Existing role ports 5173/5174 still belong to the original development stack;
-   it was not replaced. Unit, emulator, static asset and historical browser
-   evidence do not substitute for this check.
+1. **Deployed compatibility:** local browser consumer checks passed; real
+   notification provider delivery and deployed AI administration/provider calls
+   were not exercised. Current provider versions and isolated Worker tests do
+   not establish full compatibility. The desktop browser tool initially failed
+   initialization twice; installed Chromium supplied the successful fallback.
+   It used fresh contexts and intercepted the candidate artifact at the required
+   role origins, with local emulators and loopback permission. Original role
+   servers were not replaced. This is not a normal-launcher or production run.
 2. **Reviewed production environment:** the machine-local `.env.production`
    was absent at inspection. The checked-in template contains public endpoints,
    not credentials. A real production build remains a separate reviewed input.
@@ -124,3 +151,12 @@ Future work should start from this candidate only for review/qualification.
 After acceptance and approved promotion, use the promoted stable revision as
 the sole base, keep PDF Book on its feature branch, and record each release's
 source manifest. The branch label alone is not stable-state proof.
+
+## Starting future changes
+
+After promotion, clone the reviewed `main` or recorded release tag, verify a
+clean status, then create one `codex/<feature>` branch per change. Keep PDF Book
+on its existing feature branch until its own acceptance and release. Commit
+only intended paths and merge reviewed, checked changes back into the stable
+line. Record Hosting, Worker, and rules releases separately against that source
+revision; an application deployment does not deploy its backend automatically.

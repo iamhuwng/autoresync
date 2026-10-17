@@ -27,7 +27,8 @@
   "limits": [
     "Provider versions do not expose deployed Git provenance.",
     "No credential values retained; credential validity not tested.",
-    "Candidate browser acceptance not performed; desktop browser tool initialization failed.",
+    "Provider readback did not exercise authenticated browsers; see the subsequent isolated candidate acceptance record.",
     "No remote mutation or stable-main promotion."
-  ]
+  ],
+  "subsequentCandidateAcceptance": "2026-10-17-candidate-acceptance.json"
 }
