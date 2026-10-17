@@ -42,7 +42,12 @@ export async function collectSourceState(cwd = repoRoot, base) {
   return { revision, baseRevision, branch, tree, dirty, files: [...changed].sort(), fingerprint };
 }
 
-const workerFindings = async cwd => {
+const workerFindings = async (cwd, files) => {
+  const touchesBookWorker = files.some(file => /^cloudflare\/(?:worker\.(?:js|ts)$|wrangler\.book-source[^/]*\.jsonc$|src\/(?:book-source-worker\/|upload-worker\/(?:book-|notifications\/)))/u.test(file));
+  if (!touchesBookWorker) return [{
+    status: STATUS.UNVERIFIED,
+    message: 'Changed Worker source needs its own deployed version, bindings and endpoint compatibility evidence; unrelated Book rollout configuration is outside this change.',
+  }];
   let config;
   try { config = jsonc(await readFile(path.join(cwd, 'cloudflare', 'wrangler.book-source.jsonc'), 'utf8')); }
   catch (error) { return [{ status: STATUS.UNVERIFIED, message: `Worker configuration unavailable: ${error.message}` }]; }
@@ -106,7 +111,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   if (services.includes('backup-worker')) findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
   if (services.includes('backblaze')) findings.push({ status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
-  if (services.includes('worker')) findings.push(...await workerFindings(cwd));
+  if (services.includes('worker')) findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
   if (services.includes('hosting') && services.includes('worker')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Worker changed together; verify endpoint and payload compatibility.' });
   if (services.includes('hosting') && services.includes('firebase-rules')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Firebase rules changed together; verify authorization and migration order.' });

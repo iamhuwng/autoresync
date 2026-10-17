@@ -14,6 +14,29 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies backup Worker and Backblaze surfaces conservatively', () => assert.deepEqual(classifyPaths(['r2-backup-worker/src/index.ts','cloudflare/wrangler.book-source.jsonc']), ['backblaze','backup-worker','worker']));
+
+test('isolates unchanged Book rollout gates while retaining them for a Book Worker change', async () => {
+  const cwd = await fixture();
+  try {
+    const configPath = path.join(cwd, 'cloudflare', 'wrangler.book-source.jsonc');
+    const config = { vars: { BOOK_ROLLOUT_CONFIG_JSON: JSON.stringify({ expiresAt: '2020-01-01T00:00:00Z' }) } };
+    await writeFile(configPath, JSON.stringify(config));
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'existing dormant Book configuration');
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    await writeFile(path.join(cwd, 'cloudflare', 'thcs-gemma-worker.js'), 'export default {};');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'AI Worker correction');
+    const ai = await assess({ cwd, base, productionEnvFingerprint: 'env' });
+    assert.equal(ai.decision, STATUS.UNVERIFIED);
+    assert.ok(ai.findings.some(finding => /own deployed version/u.test(finding.message)));
+    assert.ok(!ai.findings.some(finding => /rollout expired/u.test(finding.message)));
+    config.vars.BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN = 'http://localhost:5173';
+    await writeFile(configPath, JSON.stringify(config));
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'Book Worker configuration change');
+    const book = await assess({ cwd, base, productionEnvFingerprint: 'env' });
+    assert.equal(book.decision, STATUS.BLOCKED);
+    assert.ok(book.findings.some(finding => /rollout expired/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 test('clean candidate with missing baseline is unverified', async () => { const cwd=await fixture(); try { const result=await assess({cwd,base:'HEAD^'}); assert.equal(result.source.dirty,false); assert.equal(result.decision,STATUS.UNVERIFIED); assert.ok(result.findings.some(f=>f.status===STATUS.UNVERIFIED&&/baseline/i.test(f.message))); } finally { await rm(cwd,{recursive:true,force:true}); } });
 test('dirty candidate is blocked and assessment remains read-only', async () => { const cwd=await fixture(); try { await writeFile(path.join(cwd,'src','App.jsx'),'dirty'); const result=await assess({cwd,base:'HEAD^'}); assert.equal(result.decision,STATUS.BLOCKED); assert.equal(result.readOnly,true); } finally { await rm(cwd,{recursive:true,force:true}); } });
 

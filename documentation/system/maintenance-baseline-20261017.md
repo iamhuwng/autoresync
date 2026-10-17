@@ -24,6 +24,10 @@ instead of claiming Book was absent from the deployed artifact.
 - Production preparation rejects browser Groq/Gemini credential settings and
   missing/unreviewed ordinary-notification or AI gateway endpoints. Local env
   validation no longer requires a browser Gemini key.
+- Release assessment checks the Book rollout gate when Book Worker source or
+  configuration changes. An AI/ordinary Worker change still requires its own
+  provider/compatibility evidence and is not blocked by an unrelated dormant
+  Book configuration. A regression check preserves the real Book expiry gate.
 - Checked-in primary database rules now reflect the freshly observed live
   rules. Firestore differs only by denying browser access to `settings/api_keys`.
   Unreleased Book rule changes from the historical dirty source were removed
@@ -76,6 +80,9 @@ omitted endpoint from silently disabling a published workflow.
 - Existing release/acceptance/deployment checks passed **47/47** before the new
   guards; the affected deployment checks were rerun after changes and passed
   **28/28**. Counts overlap and are not a unique total.
+- The final combined release-assessment/deployment-guard run passed **50/50**,
+  including isolation from an unchanged expired Book rollout and preservation
+  of its blocking behavior for an actual Book Worker change.
 - Fixed test-only drift: the Writing view's inventory guard now recognizes its
   committed-event port; the legacy producer test mocks Firebase; the AI rule
   fixture removes its own previously promoted test user before reruns.
