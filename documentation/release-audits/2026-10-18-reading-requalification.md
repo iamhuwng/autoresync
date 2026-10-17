@@ -64,7 +64,7 @@ case is a reproduced boundary weakness rather than a proven original response.
 
 - Integrated parser suites: **141 tests / 3 files passed**.
 - Explicit corrected Reading configuration and launch suites: **59 tests / 3 files passed**.
-- Release/deployment/local-boundary/tool resolver suites: **59 tests passed**.
+- Release/deployment/local-boundary/tool resolver suites: **60 tests passed**.
 - Activity coverage: **21 tests and 32 independent schema fixtures passed**.
 - Focused ESLint, UTF-8, diff checks, and assessment boundary passed.
 
@@ -77,3 +77,30 @@ promotion/synchronization, and replacement release verification remain pending.
 Local emulator startup/recovery is infrastructure proof only. PDF Book stays
 separate and disabled for this release. No real AI inference or provider upload
 is claimed by these deterministic checks.
+
+## Local runtime follow-up
+
+Normal development failed because the preview-only Book CSP constructor rejected
+local-dev's HTTP Worker before Vite started. `vite.config.js` now runs that
+constructor only for builds or preview; both keep strict HTTPS validation.
+A test executes the actual Vite callback for development, production build, and
+preview. The four local-boundary tests and six existing CSP policy tests passed;
+the combined release guard run now passes 60 tests, and focused ESLint passed.
+An independent source review found no issue in this two-file startup change.
+
+Using the owner's explicitly approved installed Playwright, the candidate
+teacher app at `http://localhost:5173/login` passed quick login, Create New Test,
+IELTS/Reading V2 setup, paste parsing into Studio with the expected review
+warnings, and the populated Reading Passage library (11 rows). No draft was
+saved or published. Browser routing blocked external requests; no provider AI
+inference, remote database write, or Book upload was exercised. The canonical
+orchestrator supplied local Firebase while the selected application/configuration
+came from the candidate validation copy. The frontend-only runner omitted the
+Book Worker for these non-Book checks.
+
+The owner also reported a live Create New Test reload loop after our deploy and
+rollback. Its comparison, controlled browser reproduction, and current cache
+correction are recorded in [the asset refresh incident](2026-10-18-asset-refresh-incident.md).
+The owner recovered the modal by disabling browser cache. The candidate's
+route/JavaScript cache correction has not been deployed. Student browser,
+updated clean build/CI, promotion, and deployed header verification remain open.
