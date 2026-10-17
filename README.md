@@ -1,13 +1,13 @@
 # Kahoot — Interactive Learning & Assessment Platform
 
-> Maintenance baseline preparation: this branch reconstructs the October 6 live
-> application and adds reviewed release/isolation tooling. It is a candidate,
-> not a verified production source or an approved replacement for `main`.
-> Start with [source provenance](documentation/system/live-baseline-reconstruction-20261017.md)
-> and [release safety](documentation/system/release-safety.md). Current PDF Book
-> development remains in the original feature checkout.
-> [Current checks and promotion gates](documentation/system/maintenance-baseline-20261017.md)
-> describe the candidate's latest verified state.
+> Stable maintenance base: clone GitHub `main` for new work and create one
+> `codex/<feature>` branch per change. The exact deployed app is tagged
+> `stable-2026-10-18` at `fb4197fc`; PDF Book activation remains separate.
+> Read [the release record](documentation/release-audits/2026-10-18-stable-hosting-release.md),
+> [local setup](documentation/system/local-live-deployment.md), and
+> [release safety](documentation/system/release-safety.md) before running or deploying.
+> Historical reconstruction limits and deferred work are retained in
+> [the maintenance baseline](documentation/system/maintenance-baseline-20261017.md).
 
 A full-featured, real-time educational platform built with **React 19**, **Firebase**, and **Vite**. Supports IELTS and THCS (Vietnamese middle-school) test creation, live classroom sessions, AI-powered content extraction, course management, and comprehensive academic tracking — all in a single SPA.
 
