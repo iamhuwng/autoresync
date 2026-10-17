@@ -19,6 +19,12 @@ const notificationEndpointPaths = {
   VITE_HOMEWORK_RESULT_AUTHORITY_URL: '/',
   VITE_COURSE_ENROLLMENT_APPROVAL_URL: '/course-enrollment-approval',
 };
+const requiredReadingModes = {
+  VITE_READING_V2_ROLLOUT_MODE: 'public',
+  VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: 'opt-in',
+  VITE_READING_PASSAGE_LIBRARY: 'enabled',
+  VITE_READING_PASSAGE_HOMEWORK: 'enabled',
+};
 const requiredFirebaseKeys = [
   'VITE_FIREBASE_API_KEY',
   'VITE_FIREBASE_AUTH_DOMAIN',
@@ -148,6 +154,11 @@ const readProductionEnv = async () => {
   }
   if (values.VITE_THCS_GEMMA_WORKER_URL?.replace(/\/$/u, '') !== 'https://thcs-gemma.iamhuwng.workers.dev') {
     fail('VITE_THCS_GEMMA_WORKER_URL must identify the reviewed AI gateway.');
+  }
+  for (const [key, mode] of Object.entries(requiredReadingModes)) {
+    if (values[key]?.trim().toLowerCase() !== mode) {
+      fail(`${key} must be ${mode} to preserve the existing live Reading V2 workflows.`);
+    }
   }
 
   let firebaseRc;

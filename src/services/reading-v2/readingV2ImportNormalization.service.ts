@@ -389,6 +389,9 @@ const parsedAnswerValues = (
   return { values, diagnostics };
 };
 
+export const normalizeReadingV2TeacherAnswerKeyLine = (line: string): string =>
+  cleanMarkdown(line.trim().replace(/^[-*]\s+/, ''));
+
 export const parseReadingV2TeacherAnswerKey = (
   answerKeyText: string | undefined,
 ): ReadingV2TeacherAnswerKeyPayload => {
@@ -396,9 +399,14 @@ export const parseReadingV2TeacherAnswerKey = (
   const rows: ReadingV2TeacherAnswerKeyRow[] = [];
   const diagnostics: ReadingV2TeacherAnswerKeyDiagnostic[] = [];
 
-  rawText.split(/\r?\n/).forEach((rawLine, index) => {
-    const sourceLine = index + 1;
-    const line = rawLine.trim();
+  rawText.split(/\r?\n/).flatMap((rawLine, index) => {
+    const line = normalizeReadingV2TeacherAnswerKeyLine(rawLine);
+    const pair = line.match(/^(\d{1,3})\s*(?:&|and)\s*(\d{1,3})[.):]?\s+([A-Z])\s*,\s*([A-Z])(?:\s*\(in (?:either|any) order\))?$/i);
+    const lines = pair && pair[1] !== pair[2]
+      ? [`${pair[1]} ${pair[3]}`, `${pair[2]} ${pair[4]}`]
+      : [line];
+    return lines.map((text) => ({ line: text, sourceLine: index + 1 }));
+  }).forEach(({ line, sourceLine }) => {
 
     if (!line) {
       return;

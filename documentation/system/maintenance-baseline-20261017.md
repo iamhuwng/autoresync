@@ -1,8 +1,15 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **PR #147 under final CI qualification before main promotion and the approved Hosting bootstrap**.
+Status: **PR #147 merged; Hosting candidate rolled back after a Reading V2 regression. Not a qualified stable release.**
 Read the deployed release manifest for the current production source identity;
 the observations below retain their stated verification dates and scope.
+
+The attempted source `fb4197fc6152f45569afa2750df8b9fd681c956b` and Hosting
+version `caa2ab5da3911495` were withdrawn. Live Hosting was restored to version
+`10039da56ea1c0ae` at `2026-10-17T17:28:58.392Z`. The prepared production env
+omitted `VITE_READING_V2_ROLLOUT_MODE`, whose actual normalizer defaults to `off`.
+GitHub/local main remain synchronized candidate source, not verified current
+production source. See [the incident record](../release-audits/2026-10-18-stable-hosting-release.md).
 
 The owner approved proceeding on October 17. Independent deployed-backend
 comparison is recorded in [the backend qualification](../release-audits/2026-10-17-backend-qualification.md).
@@ -126,7 +133,7 @@ omitted endpoint from silently disabling a published workflow.
   final commit. Six inherited donor whitespace findings remain documented in
   the reconstruction record; donor bytes were preserved.
 
-## Current release gates
+## Historical qualification gates before the October 18 bootstrap
 
 1. **Deployed compatibility:** local browser consumer checks passed; real
    notification provider delivery and deployed AI administration/provider calls
@@ -214,3 +221,10 @@ remain historical rather than being presented as current approval.
 These checks do not establish deployment. Main synchronization, a fresh clean
 production build, the first manifest-bearing Hosting release, and live browser
 verification remain pending until their actual results are recorded.
+
+Superseding October 18 result: PR #147 and all five main-branch workflows passed.
+The clean production build passed with a 257 KB root entry. The authorized
+Hosting-only bootstrap completed and all 453 manifest-listed content hashes
+matched independent live readback. Teacher and student browser checks passed
+within the scope and limitations in the release record. The exact deployed
+source is tagged; no Worker, rules, database, or B2 release occurred.

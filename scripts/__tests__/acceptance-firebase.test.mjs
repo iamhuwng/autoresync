@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { acceptanceFirebaseBoundary } from '../../src/services/acceptanceFirebaseBoundary.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
 
 const safe = {
   MODE: 'acceptance', VITE_FIREBASE_ACCEPTANCE_EMULATORS: 'true',
@@ -15,6 +17,30 @@ const safe = {
   VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: 'localhost:19080',
   VITE_R2_UPLOAD_WORKER_URL: 'http://localhost:19087',
 };
+
+test('Vite validates preview CSP for builds and preview without rejecting local dev HTTP Workers', async () => {
+  const configUrl = new URL('../../vite.config.js', import.meta.url);
+  const source = (await readFile(configUrl, 'utf8'))
+    .replace(/^import[^\n]*\n/gmu, '')
+    .replace('export default defineConfig(', 'const configuration = defineConfig(')
+    .replaceAll('import.meta.url', 'configUrl');
+  const calls = [];
+  const configure = runInNewContext(`${source}\nconfiguration`, {
+    configUrl: configUrl.href, defineConfig: value => value, loadEnv: () => ({}),
+    react: () => ({}), visualizer: () => ({}), fs, os, path, fileURLToPath,
+    process: { env: { VITE_BOOK_SOURCE_CONTROL_WORKER_URL: 'http://localhost:8787' } },
+    createBookSourcePreviewCsp: env => { calls.push(env); return "connect-src 'self'"; },
+  });
+  configure({ mode: 'development', command: 'serve', isPreview: false });
+  assert.equal(calls.length, 0);
+  for (const options of [
+    { mode: 'production', command: 'build', isPreview: false },
+    { mode: 'production', command: 'serve', isPreview: true },
+  ]) {
+    assert.equal(configure(options).preview.headers['Content-Security-Policy'], "connect-src 'self'");
+  }
+  assert.equal(calls.length, 2);
+});
 test('acceptance requires complete disposable Firebase isolation', () => {
   assert.deepEqual(acceptanceFirebaseBoundary(safe), { AUTH:19099, DATABASE:19000, FIRESTORE:19080 });
   for (const key of Object.keys(safe).filter(key => key !== 'MODE')) {

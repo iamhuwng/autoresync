@@ -17,7 +17,7 @@ const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDi
   ? sharedEnvDir
   : repoRoot;
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command, isPreview }) => {
   const sharedEnvRoot = mode === 'acceptance' ? acceptanceEnvDir : sharedEnvDir;
   const bookEnv = {
     ...loadEnv(mode, sharedEnvRoot, 'VITE_BOOK_'),
@@ -30,7 +30,9 @@ export default defineConfig(({ mode }) => {
     Object.entries(bookEnv).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
   );
   const enableBundleVisualizer = process.env.VITE_BUNDLE_ANALYZE === 'true';
-  const bookSourcePreviewCsp = createBookSourcePreviewCsp({ ...process.env, ...bookEnv });
+  const bookSourcePreviewCsp = command === 'build' || isPreview
+    ? createBookSourcePreviewCsp({ ...process.env, ...bookEnv })
+    : undefined;
 
   return {
     // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.

@@ -121,6 +121,35 @@ describe('readingV2AutoImportSourceLedger.service', () => {
     expect(ledger.questionRanges.map((range) => `${range.start}-${range.end}`)).toEqual(['1-7', '8-13']);
   });
 
+  it('recognizes italic Markdown ranges and keeps inline summary and paired questions in the ledger', () => {
+    const ledger = buildReadingV2AutoSourceLedger({
+      rawText: [
+        passageText(2),
+        '### *Questions 14 – 20*',
+        '*Choose the correct heading for each paragraph.*',
+        ...Array.from({ length: 7 }, (_, index) => `* **${14 + index}** Paragraph **${String.fromCharCode(65 + index)}**`),
+        '### *Questions 21 – 24*',
+        '*Complete the summary below.*',
+        'A change **21** ………… led to **22** ………… after **23** ………… with **24** ………… .',
+        '### *Questions 25 and 26*',
+        '*Choose **TWO** letters, **A-E**.*',
+        'Which **TWO** statements are true?',
+        '* **A** First option.',
+        '* **B** Second option.',
+        '**Answer Key**',
+        ...Array.from({ length: 11 }, (_, index) => `- **${14 + index}.** answer-${14 + index}`),
+        '- **25 & 26.** C, D *(in either order)*',
+      ].join('\n\n'),
+    });
+
+    expect(ledger.questionRanges.map(({ start, end }) => `${start}-${end}`)).toEqual(['14-20', '21-24', '25-26']);
+    expect(ledger.questionNumbers).toEqual(Array.from({ length: 13 }, (_, index) => 14 + index));
+    expect(ledger.answerKeyRows.map(({ questionNumber }) => questionNumber)).toEqual(Array.from({ length: 13 }, (_, index) => 14 + index));
+    expect(ledger.issues).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'source-question-range-missing' }),
+    ]));
+  });
+
   it('repairs malformed question range headings when visible question labels prove the actual range', () => {
     const ledger = buildReadingV2AutoSourceLedger({
       rawText: [
