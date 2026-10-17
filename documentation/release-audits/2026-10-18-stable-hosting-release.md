@@ -14,8 +14,9 @@ PR [#147](https://github.com/iamhuwng/autoresync/pull/147) merged as
 - The production manifest at `/.well-known/luyentap-release.json` binds the
   source revision/tree above. All **453 listed content hashes** were fetched
   and verified independently. The CLI reported 454 local deployment files
-  including the manifest; the provider channel metadata reports 456 version
-  files. These counts are recorded separately rather than treated as identical.
+  including the manifest. Direct provider file-list readback accounts for all
+  456 version files: those 454 plus Firebase-generated `/__/firebase/init.js`
+  and `/__/firebase/init.json`.
 - Production environment SHA-256:
   `b872b1a42c7c208cfe09ff77a41ba06987624ce216c9f1ef67f61e5ef32e65b3`.
   The normal clean production build passed the bundle budget with a 257 KB root entry and local
