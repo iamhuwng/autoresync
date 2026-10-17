@@ -68,3 +68,14 @@ Local evidence: `rollback-asset-cache-reproduction.json`,
 `reproduce-rollback-asset-cache.mjs` in the evidence directory above. These are
 controlled browser reproductions; the affected user's exact cached response was
 not captured. No additional live deployment was made during diagnosis.
+## Qualified replacement — October 18
+
+The replacement is now deployed and verified as Hosting `61721e91a13201ae`,
+source `83d794d4`, tag `stable-2026-10-18-reading`. All 453 deployed manifest
+hashes match. Live teacher creation/Reading setup/passage-library and student
+Library/Reading runtime/passage navigation passed without saving or submitting.
+The live Submit control is available. Route and new JavaScript responses return
+no-store through both domains, including a missing-script probe; Cloudflare
+reports BYPASS for the tested scripts. See [the release record](2026-10-18-stable-reading-hosting-release.md)
+for exact identities, backend readback, acceptance limits and rollback history.
+Earlier pending statements above describe the preceding qualification stage.

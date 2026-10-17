@@ -1,5 +1,14 @@
 # Deployment preparation and stable-source audit — 2026-10-17
 
+**October 18 follow-up:** the qualified stable replacement is deployed from
+`83d794d4`, tagged `stable-2026-10-18-reading`. GitHub/local main were synchronized.
+See [the current release record](2026-10-18-stable-reading-hosting-release.md).
+The inventory below retains the original dated research; its old branch/live
+observations are historical. PDF Book remains a separate qualification scope.
+Qualification also found two newer local PDF Book summaries rejected by the
+stable shared catalog contract. Production excludes those records. Resolve this
+integration failure before publishing PDF Books; see the current release record.
+
 **Subsequent implementation:** a separate local candidate now exists on
 `codex/live-baseline-reconstruction-20261017`. It includes the historical source
 reconstruction, restored reviewed AI gateway, existing release-safety/local

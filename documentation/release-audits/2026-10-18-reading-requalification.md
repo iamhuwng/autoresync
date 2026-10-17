@@ -143,3 +143,14 @@ Evidence is retained under the canonical checkout's
 Source qualification is complete for the controlled Hosting replacement.
 Promotion, the replacement itself, deployed route/asset headers, and live
 teacher/student readback remain open. No new stable tag is established yet.
+## Qualified replacement — October 18
+
+The replacement is now deployed and verified as Hosting `61721e91a13201ae`,
+source `83d794d4`, tag `stable-2026-10-18-reading`. All 453 deployed manifest
+hashes match. Live teacher creation/Reading setup/passage-library and student
+Library/Reading runtime/passage navigation passed without saving or submitting.
+The live Submit control is available. Route and new JavaScript responses return
+no-store through both domains, including a missing-script probe; Cloudflare
+reports BYPASS for the tested scripts. See [the release record](2026-10-18-stable-reading-hosting-release.md)
+for exact identities, backend readback, acceptance limits and rollback history.
+Earlier pending statements above describe the preceding qualification stage.
