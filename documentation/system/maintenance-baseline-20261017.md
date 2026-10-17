@@ -1,6 +1,7 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **PR #147 merged; Hosting candidate rolled back after a Reading V2 regression. Not a qualified stable release.**
+Status: **Qualified replacement deployed from `83d794d4`, tag `stable-2026-10-18-reading`; Hosting version `61721e91a13201ae`.**
+See [the current release record](../release-audits/2026-10-18-stable-reading-hosting-release.md).
 Read the deployed release manifest for the current production source identity;
 the observations below retain their stated verification dates and scope.
 
@@ -8,8 +9,8 @@ The attempted source `fb4197fc6152f45569afa2750df8b9fd681c956b` and Hosting
 version `caa2ab5da3911495` were withdrawn. Live Hosting was restored to version
 `10039da56ea1c0ae` at `2026-10-17T17:28:58.392Z`. The prepared production env
 omitted `VITE_READING_V2_ROLLOUT_MODE`, whose actual normalizer defaults to `off`.
-GitHub/local main remain synchronized candidate source, not verified current
-production source. See [the incident record](../release-audits/2026-10-18-stable-hosting-release.md).
+This historical rollback was superseded by the qualified replacement below.
+See [the incident record](../release-audits/2026-10-18-stable-hosting-release.md).
 
 The owner approved proceeding on October 17. Independent deployed-backend
 comparison is recorded in [the backend qualification](../release-audits/2026-10-17-backend-qualification.md).
@@ -228,3 +229,16 @@ Hosting-only bootstrap completed and all 453 manifest-listed content hashes
 matched independent live readback. Teacher and student browser checks passed
 within the scope and limitations in the release record. The exact deployed
 source is tagged; no Worker, rules, database, or B2 release occurred.
+
+## Qualified replacement — October 18, 06:15 Asia/Bangkok
+
+PR #148 restored all four existing Reading modes, included the six approved
+Reading import fixes, and corrected the cacheable missing-script reload loop.
+Hosting `61721e91a13201ae` serves source `83d794d4`; the stable source tag is
+`stable-2026-10-18-reading`. All 453 listed deployed hashes match, and teacher
+creation/Reading import entry/passage listing plus student Library/Reading
+runtime/navigation passed in the live browser. Main and the clean local main
+were synchronized. [The current release record](../release-audits/2026-10-18-stable-reading-hosting-release.md)
+supersedes the historical withdrawal status above. It preserves the dated
+qualification limits and remaining non-Book/PDF work. No Worker, rules,
+database or B2 deployment occurred; this was Hosting only.
