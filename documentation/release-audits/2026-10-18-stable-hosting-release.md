@@ -14,6 +14,12 @@ Remote tag `stable-2026-10-18` was removed; PR #148 was returned to draft.
 No replacement release is authorized by this document. Reading V2 and the
 complete existing production feature configuration require requalification.
 
+Post-rollback browser verification: teacher quick login from `/login` succeeded;
+the existing Reading V2 master editor opened; Create New Test -> IELTS -> Reading V2
+advanced to the Reading V2 Details step. The setup was cancelled without saving
+or creating a test. This confirms the disabled entry regression is recovered,
+not a full Reading V2 authoring/submission lifecycle test.
+
 The remaining text records the **historical attempted release**, not current
 live state or a current stable designation.
 
