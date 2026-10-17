@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@google/generative-ai', () => ({
+vi.mock('./browser-provider-clients', () => ({
   GoogleGenerativeAI: vi.fn(),
 }));
 

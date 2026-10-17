@@ -49,4 +49,14 @@ describe('key-cooldown.service', () => {
     expect(service.shouldBenchGeminiKeyError('429 quota exceeded')).toBe(true);
     expect(service.shouldBenchGeminiKeyError('404 model not found')).toBe(false);
   });
+
+  it('does not bench Gemini keys for Worker-owned user access errors', async () => {
+    const service = await loadService();
+
+    expect(service.shouldBenchGeminiKeyError('429 user_rate_limited')).toBe(false);
+    expect(service.shouldBenchGeminiKeyError('403 user_account_disabled')).toBe(false);
+    expect(service.shouldBenchGeminiKeyError('401 user_unauthorized')).toBe(false);
+    expect(service.shouldBenchGeminiKeyError('429 quota exceeded')).toBe(true);
+    expect(service.shouldBenchGeminiKeyError('403 Forbidden')).toBe(true);
+  });
 });

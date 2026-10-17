@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hybridGeminiProvider } from './hybrid.gemini.provider';
 
-vi.mock('@google/generative-ai', () => ({
+vi.mock('../browser-provider-clients', () => ({
   GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
     getGenerativeModel: vi.fn().mockReturnValue({
       generateContent: vi.fn(),
@@ -27,7 +27,7 @@ describe('Hybrid Gemini Provider', () => {
   });
 
   it('loads keys from the shared Gemini key loader', async () => {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const { GoogleGenerativeAI } = await import('../browser-provider-clients');
     const { loadAllGeminiApiKeys } = await import('../../../config/env.config');
 
     const mockModel = {
@@ -54,7 +54,7 @@ describe('Hybrid Gemini Provider', () => {
   });
 
   it('benches a rate-limited key for maintenance detection', async () => {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const { GoogleGenerativeAI } = await import('../browser-provider-clients');
     const { benchKey } = await import('../../key-cooldown.service');
 
     const mockModel = {

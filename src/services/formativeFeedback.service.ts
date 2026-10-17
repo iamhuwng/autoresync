@@ -2305,31 +2305,11 @@ async function callGroqForFeedback(
     context?: WeakExplanationContext,
 ): Promise<AICallResult> {
     try {
-        const { default: Groq } = await import('groq-sdk');
-        const { getEnv } = await import('../config/env.config');
-        const { getDecryptedKeys } = await import('./api-keys.service');
+        const { default: Groq } = await import('./ai/browser-provider-clients');
+        const { getActiveKeyIds } = await import('./api-keys.service');
         const { benchKey, filterBenchedKeys } = await import('./key-cooldown.service');
 
-        // Gather all Groq keys — Firestore (admin-managed) keys first
-        const allKeys: string[] = [];
-        try {
-            const firestoreKeys = await getDecryptedKeys('groq');
-            for (const key of firestoreKeys) {
-                if (key && !allKeys.includes(key)) allKeys.push(key);
-            }
-        } catch { /* ignore Firestore key errors */ }
-        // Then fallback to .env keys
-        const env = getEnv();
-        const legacyKey = env.VITE_GROQ_API_KEY;
-        if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !allKeys.includes(legacyKey)) {
-            allKeys.push(legacyKey);
-        }
-        for (let i = 1; i <= 5; i++) {
-            const key = (env as Record<string, string | undefined>)[`VITE_GROQ_API_KEY_${i}`];
-            if (key && key.trim().length > 0 && !key.includes('your_') && !allKeys.includes(key)) {
-                allKeys.push(key);
-            }
-        }
+        const allKeys = await getActiveKeyIds('groq');
 
         if (allKeys.length === 0) {
             return { success: false, error: 'No Groq API keys configured' };
@@ -2346,12 +2326,10 @@ async function callGroqForFeedback(
             try {
                 const client = new Groq({
                     apiKey: keys[i],
-                    dangerouslyAllowBrowser: true,
-                    maxRetries: 0, // Disable SDK internal retries — we handle key rotation ourselves
                 });
 
                 const completion = await client.chat.completions.create({
-                    model: 'llama-3.3-70b-versatile',
+                    model: 'qwen/qwen3.8-27b',
                     messages: [
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: userPrompt },
@@ -2377,7 +2355,7 @@ async function callGroqForFeedback(
                 return {
                     success: true,
                     data: validated,
-                    model: 'groq-llama-3.3-70b',
+                    model: 'groq-qwen3.8-27b',
                 };
             } catch (keyError) {
                 const msg = keyError instanceof Error ? keyError.message : 'Unknown error';

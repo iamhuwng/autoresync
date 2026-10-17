@@ -12,8 +12,8 @@
  * @date 2026-03-22
  */
 
-import { getEnv, loadAllGeminiApiKeys } from '../config/env.config';
-import { getDecryptedKeys } from './api-keys.service';
+import { loadAllGeminiApiKeys } from '../config/env.config';
+import { getActiveKeyIds } from './api-keys.service';
 import { filterBenchedKeys, getCooldownStatus } from './key-cooldown.service';
 
 export interface AIAvailability {
@@ -142,43 +142,7 @@ function handleVisibilityChange(): void {
 }
 
 async function loadGroqKeys(): Promise<string[]> {
-    const env = getEnv();
-    const allGroqKeys: string[] = [];
-
-    try {
-        const firestoreKeys = await getDecryptedKeys('groq');
-        for (const key of firestoreKeys) {
-            if (key && !allGroqKeys.includes(key)) {
-                allGroqKeys.push(key);
-            }
-        }
-    } catch {
-        // Ignore Firestore read failures and continue with env keys.
-    }
-
-    const legacyKey = env.VITE_GROQ_API_KEY;
-    if (
-        legacyKey &&
-        legacyKey.trim().length > 0 &&
-        !legacyKey.includes('your_') &&
-        !allGroqKeys.includes(legacyKey)
-    ) {
-        allGroqKeys.push(legacyKey);
-    }
-
-    for (let index = 1; index <= 5; index += 1) {
-        const key = (env as Record<string, string | undefined>)[`VITE_GROQ_API_KEY_${index}`];
-        if (
-            key &&
-            key.trim().length > 0 &&
-            !key.includes('your_') &&
-            !allGroqKeys.includes(key)
-        ) {
-            allGroqKeys.push(key);
-        }
-    }
-
-    return allGroqKeys;
+    return getActiveKeyIds('groq');
 }
 
 function buildDegradedAvailability(now: number): AIAvailability {

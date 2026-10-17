@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const probe = vi.hoisted(() => ({
     create: vi.fn(),
@@ -10,14 +10,14 @@ const probe = vi.hoisted(() => ({
     aiText: null as string | null,
 }));
 
-vi.mock('groq-sdk', () => ({
+vi.mock('../ai/browser-provider-clients', () => ({
     default: class {
         chat = { completions: { create: probe.create } };
         constructor(options: { apiKey: string }) { probe.keys.push(options.apiKey); }
     },
 }));
 vi.mock('../../config/env.config', () => ({ getEnv: () => ({}) }));
-vi.mock('../api-keys.service', () => ({ getDecryptedKeys: async () => ['groq-one', 'groq-two'] }));
+vi.mock('../api-keys.service', () => ({ getActiveKeyIds: async () => ['groq-one', 'groq-two'] }));
 vi.mock('../key-cooldown.service', () => ({
     benchKey: probe.bench,
     filterBenchedKeys: (keys: string[]) => keys,
@@ -35,6 +35,7 @@ vi.mock('./thcs-pass1-restructure', () => ({
 import { parseThcsText } from './thcsDocumentParser.service';
 
 beforeEach(() => {
+    vi.stubEnv('VITE_THCS_GEMMA_WORKER_URL', 'https://ai-worker.example');
     probe.create.mockReset();
     probe.gemini.mockReset();
     probe.cloudflareFetch.mockReset();
@@ -46,6 +47,8 @@ beforeEach(() => {
     probe.aiText = null;
     probe.gemini.mockResolvedValue({ success: true, value: 'Gemini fallback text' });
 });
+
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 it('does not try every Groq key when the model is unavailable', async () => {
     probe.create.mockRejectedValue(new Error('404 {"error":{"message":"The model does not exist or you do not have access to it.","code":"model_not_found"}}'));

@@ -26,7 +26,6 @@ import { createRetrySession, THCS_GROQ_MODEL } from './thcs-retry-manager';
 import type { RetryStep } from './thcs-retry-manager';
 import type { RepairAuditEntry } from './thcs-prompt-builder';
 import { executeGeminiWithKeyRotation } from '../ai/gemini-key-rotation.service';
-import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../r2WorkerEndpoint';
 
 
 // -- Types --
@@ -1143,11 +1142,11 @@ async function callCloudflareDirectPlainText(
     temperature = 0.1,
 ): Promise<string | null> {
     try {
+        const baseUrl = import.meta.env.VITE_THCS_GEMMA_WORKER_URL?.trim().replace(/\/+$/, '');
+        if (!baseUrl) return null;
         const { getAuth } = await import('firebase/auth');
         const user = getAuth().currentUser;
         if (!user) return null;
-        const baseUrl = import.meta.env.VITE_R2_UPLOAD_WORKER_URL?.trim().replace(/\/+$/, '')
-            || DEFAULT_R2_UPLOAD_WORKER_URL;
         const response = await fetch(`${baseUrl}/thcs/gemma`, {
             method: 'POST',
             headers: {
@@ -1180,21 +1179,11 @@ async function callGroqDirectPlainText(
     temperature = 0.1,
 ): Promise<string | null> {
     try {
-        const { default: Groq } = await import('groq-sdk');
-        const { getEnv } = await import('../../config/env.config');
-        const { getDecryptedKeys } = await import('../api-keys.service');
+        const { default: Groq } = await import('../ai/browser-provider-clients');
+        const { getActiveKeyIds } = await import('../api-keys.service');
         const { benchKey, filterBenchedKeys } = await import('../key-cooldown.service');
 
-        // Load Firestore (admin-managed) keys FIRST — they're more likely to be fresh
-        const allKeys: string[] = [];
-        try {
-            const firestoreKeys = await getDecryptedKeys('groq');
-            for (const k of firestoreKeys) { if (k && !allKeys.includes(k)) allKeys.push(k); }
-        } catch (_) { /* ignore */ }
-        // Then fallback to .env keys
-        const env = getEnv();
-        const legacyKey = env.VITE_GROQ_API_KEY;
-        if (legacyKey && legacyKey.trim().length > 0 && !legacyKey.includes('your_') && !allKeys.includes(legacyKey)) allKeys.push(legacyKey);
+        const allKeys = await getActiveKeyIds('groq');
 
         if (allKeys.length === 0) return null;
 
@@ -1209,7 +1198,7 @@ async function callGroqDirectPlainText(
         const outputBudgets = [4096, 2048, 1024];
         for (let i = 0; i < keys.length; i++) {
             // maxRetries: 0 — the parser handles output-size retries and key rotation.
-            const client = new Groq({ apiKey: keys[i], dangerouslyAllowBrowser: true, maxRetries: 0 });
+            const client = new Groq({ apiKey: keys[i] });
             for (const maxTokens of outputBudgets) {
                 try {
                     const completion = await client.chat.completions.create({

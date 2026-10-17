@@ -1,111 +1,48 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const firestoreMocks = vi.hoisted(() => ({
-    doc: vi.fn(() => ({ path: 'settings/api_keys' })),
-    getDoc: vi.fn(),
-    setDoc: vi.fn(),
-    updateDoc: vi.fn(),
-    deleteField: vi.fn(() => ({ __delete: true })),
-    onSnapshot: vi.fn(),
-}));
+const auth = vi.hoisted(() => ({ currentUser: { uid: 'admin-1', getIdToken: vi.fn(async () => 'id-token') } }));
+vi.mock('firebase/auth', () => ({ getAuth: () => auth }));
 
-vi.mock('./firebase', () => ({
-    firestore: {},
-}));
+const fetchMock = vi.fn();
+beforeEach(() => {
+  vi.resetModules();
+  vi.stubEnv('VITE_THCS_GEMMA_WORKER_URL', 'https://worker.example');
+  vi.stubGlobal('fetch', fetchMock);
+  fetchMock.mockReset();
+});
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-vi.mock('firebase/firestore', () => firestoreMocks);
+it('reads only opaque IDs and sends the Firebase token to the Worker', async () => {
+  fetchMock.mockResolvedValue(Response.json({ keys: [{ id: 'key-id', provider: 'groq' }] }));
+  const { getActiveKeyIds } = await import('./api-keys.service');
+  await expect(getActiveKeyIds('groq')).resolves.toEqual(['key-id']);
+  expect(fetchMock).toHaveBeenCalledWith('https://worker.example/ai/keys', expect.objectContaining({
+    headers: expect.objectContaining({ Authorization: 'Bearer id-token' }),
+  }));
+});
 
-const activeGroqKey = {
-    mapValue: {
-        fields: {
-            id: { stringValue: 'groq_1' },
-            label: { stringValue: 'Admin Groq' },
-            encryptedKey: { stringValue: 'CgEbBAAKBQUGAVlGBAk=' },
-            keyPreview: { stringValue: 'groq...n-key' },
-            createdAt: { integerValue: '1' },
-            createdBy: { stringValue: 'admin' },
-            isActive: { booleanValue: true },
-            requestCount: { integerValue: '0' },
-            errorCount: { integerValue: '0' },
-        },
-    },
-};
+it('sends a new key to the Worker without retaining its value in the client inventory', async () => {
+  fetchMock
+    .mockResolvedValueOnce(Response.json({ key: { id: 'key-id', provider: 'gemini', label: 'Primary' } }, { status: 201 }))
+    .mockResolvedValueOnce(Response.json({ keys: [{ id: 'key-id', provider: 'gemini' }] }));
+  const { addAPIKey, getAPIKeys } = await import('./api-keys.service');
+  await addAPIKey('gemini', 'Primary', 'provider-secret-value');
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ provider: 'gemini', label: 'Primary', key: 'provider-secret-value' });
+  expect(await getAPIKeys()).toEqual(expect.objectContaining({ gemini: expect.objectContaining({ 'key-id': expect.not.objectContaining({ key: expect.anything() }) }) }));
+});
 
-const inactiveGroqKey = {
-    mapValue: {
-        fields: {
-            id: { stringValue: 'groq_2' },
-            label: { stringValue: 'Inactive Groq' },
-            encryptedKey: { stringValue: 'CgEbBAAKBQUGAVlGBAk=' },
-            keyPreview: { stringValue: 'groq...n-key' },
-            createdAt: { integerValue: '2' },
-            createdBy: { stringValue: 'admin' },
-            isActive: { booleanValue: false },
-            requestCount: { integerValue: '0' },
-            errorCount: { integerValue: '0' },
-        },
-    },
-};
+it('updates and removes Worker keys using authenticated metadata requests', async () => {
+  fetchMock
+    .mockResolvedValueOnce(Response.json({ key: { id: 'key-id', isActive: false } }))
+    .mockResolvedValueOnce(Response.json({ keys: [] }))
+    .mockResolvedValueOnce(Response.json({ removed: true }))
+    .mockResolvedValueOnce(Response.json({ keys: [] }));
+  const { updateAPIKey, deleteAPIKey } = await import('./api-keys.service');
+  await updateAPIKey('key-id', false);
+  await deleteAPIKey('key-id');
 
-describe('api-keys.service trusted key inventory', () => {
-    beforeEach(() => {
-        vi.resetModules();
-        vi.clearAllMocks();
-        vi.stubEnv('VITEST', 'true');
-        vi.stubEnv('READING_V2_TRUSTED_ADMIN_KEYS', 'true');
-        vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'demo-project');
-        vi.stubEnv('GOOGLE_OAUTH_ACCESS_TOKEN', 'oauth-token');
-        firestoreMocks.getDoc.mockRejectedValue({ code: 'permission-denied' });
-    });
-
-    afterEach(() => {
-        vi.unstubAllEnvs();
-        vi.unstubAllGlobals();
-    });
-
-    it('uses trusted Node Firestore REST fallback when client registry read is denied', async () => {
-        const fetchMock = vi.fn(async () => ({
-            ok: true,
-            status: 200,
-            json: async () => ({
-                fields: {
-                    groq: {
-                        mapValue: {
-                            fields: {
-                                groq_1: activeGroqKey,
-                                groq_2: inactiveGroqKey,
-                            },
-                        },
-                    },
-                    gemini: { mapValue: { fields: {} } },
-                    updatedAt: { integerValue: '123' },
-                    updatedBy: { stringValue: 'admin' },
-                },
-            }),
-        }));
-        vi.stubGlobal('fetch', fetchMock);
-
-        const { getDecryptedKeys } = await import('./api-keys.service');
-
-        await expect(getDecryptedKeys('groq')).resolves.toEqual(['groq-admin-key']);
-        expect(fetchMock).toHaveBeenCalledWith(
-            'https://firestore.googleapis.com/v1/projects/demo-project/databases/(default)/documents/settings/api_keys',
-            { headers: { Authorization: 'Bearer oauth-token' } },
-        );
-    });
-
-    it('does not use trusted Node fallback unless explicitly enabled', async () => {
-        vi.unstubAllEnvs();
-        vi.stubEnv('VITEST', 'true');
-        vi.stubEnv('VITE_FIREBASE_PROJECT_ID', 'demo-project');
-        vi.stubEnv('GOOGLE_OAUTH_ACCESS_TOKEN', 'oauth-token');
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        firestoreMocks.getDoc.mockRejectedValue({ code: 'permission-denied' });
-
-        const { getDecryptedKeys } = await import('./api-keys.service');
-
-        await expect(getDecryptedKeys('groq')).resolves.toEqual([]);
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
+  expect(fetchMock.mock.calls[0]?.[0]).toBe('https://worker.example/ai/keys/key-id');
+  expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'PATCH', headers: { Authorization: 'Bearer id-token' } });
+  expect(fetchMock.mock.calls[2]?.[0]).toBe('https://worker.example/ai/keys/key-id');
+  expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'DELETE', headers: { Authorization: 'Bearer id-token' } });
 });

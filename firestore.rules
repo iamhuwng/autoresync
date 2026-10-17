@@ -444,13 +444,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // API Keys Configuration
+    // Provider credentials are managed by the authenticated Worker, never by browser clients.
     match /settings/api_keys {
-      // Only authenticated users can read (or specific admin roles depending on app structure)
-      // Since it's client-side, we limit to authenticated users.
-      // Ideally, a custom claim like `request.auth.token.admin == true` would be best,
-      // but restricting to at least authenticated users is better than public access.
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
 
     // Homework tag configuration

@@ -54,7 +54,7 @@ export class GeminiProvider implements IAIService {
     }
 
     if (!this.sdkLoadPromise) {
-      this.sdkLoadPromise = import('@google/generative-ai').then((module) => {
+      this.sdkLoadPromise = import('./browser-provider-clients').then((module) => {
         this.sdkLoaded = true;
         this.sdkModule = module;
         return module;
@@ -73,11 +73,14 @@ export class GeminiProvider implements IAIService {
   }
 
   private isRateLimitError(errorMessage?: string): boolean {
-    return !!errorMessage && (
-      errorMessage.includes('429') ||
-      errorMessage.includes('rate limit') ||
-      errorMessage.includes('quota')
-    );
+    const normalized = errorMessage?.toLowerCase() ?? '';
+    return !!normalized
+      && !normalized.includes('user_rate_limited')
+      && (
+        normalized.includes('429') ||
+        normalized.includes('rate limit') ||
+        normalized.includes('quota')
+      );
   }
 
   private isTransientAvailabilityError(errorMessage?: string): boolean {
@@ -1597,7 +1600,7 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
     }>
   ): Promise<Result<{ answerKey: Record<number, string>; confidence: number }>> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
@@ -1693,13 +1696,14 @@ Before classifying individual questions, IDENTIFY QUESTION GROUPS that share opt
         this.status.lastError = errorMessage;
 
         // Check if rate limited or 403 - mark key exhausted and try next
-        if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+        if (this.isRateLimitError(errorMessage)) {
           console.warn(`⚠️ Key ${keyIndex + 1} rate limited, trying next key...`);
           this.markKeyExhausted(keyIndex, 'Rate limit');
           continue; // Try next key
         }
 
-        if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+        if ((errorMessage.includes('403') || errorMessage.includes('Forbidden'))
+          && shouldBenchGeminiKeyError(errorMessage)) {
           console.warn(`⚠️ Key ${keyIndex + 1} returned 403 Forbidden, trying next key...`);
           this.markKeyExhausted(keyIndex, '403 Forbidden');
           continue; // Try next key
@@ -1808,7 +1812,7 @@ Generate answers for ALL ${questions.length} questions listed above.`;
     originalSentence: string,
     context?: { sentenceStarter?: string; keyword?: string }
   ): Promise<Result<{ score: number; confidence: number; feedback: string }>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
@@ -1862,7 +1866,7 @@ Respond with JSON only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
+      if (this.isRateLimitError(msg)) {
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Writing grading failed: ${msg}` };
@@ -1878,7 +1882,7 @@ Respond with JSON only:
     questionType: 'fill-in' | 'writing',
     context?: { sentenceStarter?: string; keyword?: string }
   ): Promise<Result<Array<{ answer: string; confidence: number }>>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
     this.currentKeyIndex = this.getNextAvailableKeyRoundRobin();
@@ -1929,7 +1933,7 @@ Respond with JSON array only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit')) {
+      if (this.isRateLimitError(msg)) {
         this.markKeyExhausted(this.currentKeyIndex, 'Rate limit');
       }
       return { success: false, error: `Suggestion generation failed: ${msg}` };
@@ -1940,7 +1944,7 @@ Respond with JSON array only:
     prompt: string,
     options: AIStructuredGenerationOptions = {}
   ): Promise<Result<unknown>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
     const attemptedKeys = new Set<number>();
@@ -2091,7 +2095,7 @@ Respond with JSON array only:
       keyLeaseId?: string | null;
     } = {}
   ): Promise<Result<WritingSuggestionBatchResponse>> {
-    if (this.clients.length === 0 && !this.sdkLoaded) await this.initialize();
+    if (this.clients.length === 0) await this.initialize();
     if (this.clients.length === 0) return { success: false, error: 'Gemini clients not initialized' };
 
     if (
@@ -2148,7 +2152,7 @@ Respond with JSON array only:
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       this.status.lastError = msg;
-      if (msg.includes('429') || msg.includes('rate limit') || msg.includes('403')) {
+      if (this.isRateLimitError(msg) || (msg.includes('403') && shouldBenchGeminiKeyError(msg))) {
         this.markKeyExhausted(this.currentKeyIndex, msg.includes('403') ? '403 Forbidden' : 'Rate limit');
       }
       return { success: false, error: `Writing suggestion batch failed: ${msg}` };
@@ -2167,7 +2171,7 @@ Respond with JSON array only:
    */
   async testConnection(): Promise<Result> {
     // Lazy initialize on first use
-    if (this.clients.length === 0 && !this.sdkLoaded) {
+    if (this.clients.length === 0) {
       await this.initialize();
     }
 
