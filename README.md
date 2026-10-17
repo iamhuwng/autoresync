@@ -1,12 +1,12 @@
 # Kahoot — Interactive Learning & Assessment Platform
 
-> Stable maintenance base: clone GitHub `main` for new work and create one
-> `codex/<feature>` branch per change. The exact deployed app is tagged
-> `stable-2026-10-18` at `fb4197fc`; PDF Book activation remains separate.
-> Read [the release record](documentation/release-audits/2026-10-18-stable-hosting-release.md),
+> Maintenance candidate: GitHub/local main were synchronized, but the October 18
+> Hosting release was rolled back after disabling Reading V2. The stable tag
+> was withdrawn. Do not deploy or treat this candidate as the current live source.
+> Read [the incident/release record](documentation/release-audits/2026-10-18-stable-hosting-release.md),
 > [local setup](documentation/system/local-live-deployment.md), and
 > [release safety](documentation/system/release-safety.md) before running or deploying.
-> Historical reconstruction limits and deferred work are retained in
+> PDF Book remains separate. Reconstruction limits and deferred work are retained in
 > [the maintenance baseline](documentation/system/maintenance-baseline-20261017.md).
 
 A full-featured, real-time educational platform built with **React 19**, **Firebase**, and **Vite**. Supports IELTS and THCS (Vietnamese middle-school) test creation, live classroom sessions, AI-powered content extraction, course management, and comprehensive academic tracking — all in a single SPA.

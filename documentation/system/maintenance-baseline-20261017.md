@@ -1,13 +1,15 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **PR #147 merged; stable Hosting baseline deployed and independently verified**.
+Status: **PR #147 merged; Hosting candidate rolled back after a Reading V2 regression. Not a qualified stable release.**
 Read the deployed release manifest for the current production source identity;
 the observations below retain their stated verification dates and scope.
 
-Current release: [`stable-2026-10-18`](../release-audits/2026-10-18-stable-hosting-release.md),
-source `fb4197fc6152f45569afa2750df8b9fd681c956b`, Hosting version
-`caa2ab5da3911495`. GitHub and local main were synchronized after promotion;
-subsequent release-record documentation does not change deployed application code.
+The attempted source `fb4197fc6152f45569afa2750df8b9fd681c956b` and Hosting
+version `caa2ab5da3911495` were withdrawn. Live Hosting was restored to version
+`10039da56ea1c0ae` at `2026-10-17T17:28:58.392Z`. The prepared production env
+omitted `VITE_READING_V2_ROLLOUT_MODE`, whose actual normalizer defaults to `off`.
+GitHub/local main remain synchronized candidate source, not verified current
+production source. See [the incident record](../release-audits/2026-10-18-stable-hosting-release.md).
 
 The owner approved proceeding on October 17. Independent deployed-backend
 comparison is recorded in [the backend qualification](../release-audits/2026-10-17-backend-qualification.md).

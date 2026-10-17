@@ -1,6 +1,23 @@
 # Stable Hosting release — 2026-10-18
 
-The owner-authorized maintenance baseline is live at [kahut1.web.app](https://kahut1.web.app).
+**WITHDRAWN / ROLLED BACK.** The owner reported Reading V2 disabled after this
+release. Root cause reproduced: the prepared production environment omitted
+`VITE_READING_V2_ROLLOUT_MODE`; the actual source normalizer resolves the absent
+setting to `off`. Existing live feature availability was not preserved. Prior
+hash/CI/browser checks below did not cover this requirement and do not qualify
+the candidate as stable.
+
+Hosting was rolled back to previous version `10039da56ea1c0ae` at
+`2026-10-17T17:28:58.392Z`, confirmed by fresh provider readback. No Workers,
+database rules, data, or B2 settings were changed by either Hosting operation.
+Remote tag `stable-2026-10-18` was removed; PR #148 was returned to draft.
+No replacement release is authorized by this document. Reading V2 and the
+complete existing production feature configuration require requalification.
+
+The remaining text records the **historical attempted release**, not current
+live state or a current stable designation.
+
+The owner-authorized maintenance candidate was deployed to [kahut1.web.app](https://kahut1.web.app).
 PR [#147](https://github.com/iamhuwng/autoresync/pull/147) merged as
 `fb4197fc6152f45569afa2750df8b9fd681c956b`, tree
 `679a0ab1de8025a9bf62662cdc6be3db8aa7e17e`. The immutable source tag is
