@@ -358,3 +358,20 @@ Worker. No Hosting, Firestore, other Worker or storage deployment accompanied
 this correction. PDF Book, Listening cleanup and retained feedback/design work
 remain separate. Normal-clone `.dev.vars`/Auth startup prerequisites and PDF
 acceptance remain open; this live correction does not close them.
+
+## Superseding local startup qualification — October 18
+
+The stable checkout at `a3ebc041` now passes configured-machine teacher and
+student startup/login checks through the normal dev orchestrator. Teacher
+materials loaded and Create New Test opened; the student feed loaded 20 entries.
+The reviewed ignored secret file and exact saved Auth identities were supplied,
+and the existing rich local dataset was preserved. No production release or
+provider upload accompanied this work. See
+[the current follow-up](../release-audits/2026-10-18-local-startup-and-pdf-readiness.md)
+for runtime/checkpoint evidence and retained dataset/rendering limitations.
+
+The same read-only follow-up identifies the exact two PDF summary rows rejected
+by stable main: their `bookVisibility: public` conflicts with the approved public
+library state enum. This remains separate PDF integration work; neither the
+stored rows nor stable validation was changed. Fresh PDF provider and lifecycle
+acceptance, Listening cleanup and retained feedback/design work remain separate.

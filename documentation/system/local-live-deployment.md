@@ -157,6 +157,14 @@ proves no environment/Firebase setup runs first. A second regression test
 executes ordinary Firebase startup with mutating operations forbidden. These
 are prerequisite/negative startup proofs, not a complete signed-in browser pass.
 
+Superseding October 18 check: after supplying the existing reviewed ignored
+secret file and restoring validated local Auth identities, the stable checkout
+passed teacher login/materials/Create New Test and student login/activity-feed
+checks through the normal orchestrator on the required role ports. The
+[follow-up record](../release-audits/2026-10-18-local-startup-and-pdf-readiness.md)
+separates this configured-machine proof from fresh-machine provisioning, local
+dataset issues and still-unqualified PDF provider workflows.
+
 Do **not** start direct Vite through `tooling:where` for normal browser
 development. Direct Vite does not own the local Firebase/Worker bootstrap and
 was a source of false environment failures during PRD0063 acceptance.
