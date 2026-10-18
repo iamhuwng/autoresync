@@ -295,8 +295,8 @@ const main = async () => {
       compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
     });
     run([
-      path.join(scriptDir, 'harness', 'run-tool.mjs'),
-      '--audit', 'firebase', '.', 'deploy',
+      path.join(scriptDir, 'tooling-where.mjs'),
+      '--exec', 'firebase', 'deploy',
       '--only', `hosting:${expectedHostingTarget}`,
       '--project', expectedProjectId,
       '--non-interactive',
