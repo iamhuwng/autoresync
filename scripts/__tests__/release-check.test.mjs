@@ -13,6 +13,38 @@ const git = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding
 const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'release-check-')); git(cwd,'init','-q'); git(cwd,'config','user.email','test@example.invalid'); git(cwd,'config','user.name','Release Test'); await mkdir(path.join(cwd,'src')); await mkdir(path.join(cwd,'public')); await mkdir(path.join(cwd,'cloudflare')); await writeFile(path.join(cwd,'.gitignore'),'baseline.json\n'); await writeFile(path.join(cwd,'src','App.jsx'),'export default 1;'); await writeFile(path.join(cwd,'public','index.html'),'x'); await writeFile(path.join(cwd,'firebase.json'),JSON.stringify({hosting:[{target:'kahut1',public:'dist'}]})); await writeFile(path.join(cwd,'.firebaserc'),JSON.stringify({projects:{default:'temp-a1437'}})); await writeFile(path.join(cwd,'cloudflare','wrangler.book-source.jsonc'),'{}'); git(cwd,'add','.'); git(cwd,'commit','-qm','base'); await writeFile(path.join(cwd,'public','index.html'),'y'); git(cwd,'add','.'); git(cwd,'commit','-qm','candidate'); return cwd; };
 
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
+
+test('fixed Homework Worker observation rejects mixed evidence and missing artifact paths', async () => {
+  await assert.rejects(() => assess({ observeHomework: true, observe: true }), /cannot be combined/u);
+  await assert.rejects(() => assess({ observeHomework: true, mode: 'hotfix' }), /cannot be combined/u);
+  await assert.rejects(() => assess({ observeHomework: true }), /requires --worker-bundle and --worker-config/u);
+  await assert.rejects(() => assess({ workerBundlePath: 'candidate.js' }), /require --observe-homework-worker/u);
+});
+
+test('fixed Homework Worker route cannot suppress services for an arbitrary candidate', async () => {
+  const cwd = await fixture();
+  try {
+    const result = await assess({ cwd, base: 'HEAD^', observeHomework: true, workerBundlePath: 'public/index.html', workerConfigPath: 'firebase.json' });
+    assert.equal(result.decision, STATUS.UNVERIFIED);
+    assert.equal(result.observed, null);
+    assert.ok(result.source.files.includes('public/index.html'));
+    assert.ok(result.source.changedServices.includes('hosting'));
+    assert.ok(result.findings.some(finding => /Homework Worker readback/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('CLI receipts follow the selected --cwd candidate', async () => {
+  const caller = await fixture(), selected = await fixture();
+  const receipt = 'tmp/release-receipts/selected.json';
+  try {
+    assert.equal(await main(['--cwd', selected, '--base', 'HEAD^', '--receipt', receipt], caller), 2);
+    await access(path.join(selected, receipt));
+    await assert.rejects(() => access(path.join(caller, receipt)));
+  } finally {
+    await rm(caller, { recursive: true, force: true });
+    await rm(selected, { recursive: true, force: true });
+  }
+});
 test('classifies backup Worker and Backblaze surfaces conservatively', () => assert.deepEqual(classifyPaths(['r2-backup-worker/src/index.ts','cloudflare/wrangler.book-source.jsonc']), ['backblaze','backup-worker','worker']));
 
 test('isolates unchanged Book rollout gates while retaining them for a Book Worker change', async () => {

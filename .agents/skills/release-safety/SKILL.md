@@ -64,6 +64,18 @@ Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and
 separate explicit production authorization may reach `npm run deploy:hosting`.
 The deployment script is the only supported mutating route. It requires the canonical checkout (or a checkout with `tooling:doctor` green) because Firebase CLI and build dependencies are intentionally not installed into managed worktrees.
 
+## Isolated Homework Worker release
+
+For the pinned October 18 Homework Worker artifact, follow
+`documentation/release-audits/2026-10-18-homework-worker-release.md` and use
+`--observe-homework-worker --worker-bundle <path> --worker-config <path>`.
+The fixed provider observer qualifies only that exact clean source/base/tree,
+bundle and deployment configuration. It preserves the full source diff in the
+receipt and cannot select arbitrary services. Require fresh shared-checker
+`PASS`, independent review and separate Worker authorization. Hosting and
+Functions remain outside this artifact release; prepare Worker execution and
+recovery using the packet's reviewed operational plan.
+
 ## Independent hotfix
 
 Use an observed deployed revision, never the dirty development checkout:

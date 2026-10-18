@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { observeHosting, observeHostingProvider, isObserved } from './release-evidence.mjs';
+import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObserved } from './release-homework-worker-evidence.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -100,7 +101,37 @@ const validateBaseline = (baseline, services, sourceFiles) => {
   return findings;
 };
 
-export async function assess({ cwd = repoRoot, mode = 'release', base, baselinePath, productionEnvFingerprint, observe = false, observeProvider = false, hostingObservation, compatibilityReviewPath, hostingOrigin } = {}) {
+async function assessHomeworkWorker({ cwd, source, bundlePath, configPath }) {
+  const findings = [{ status: source.dirty ? STATUS.BLOCKED : STATUS.PASS, message: source.dirty ? 'Candidate worktree is dirty.' : 'Candidate worktree is clean.' }];
+  let observation = null;
+  try {
+    assertHomeworkWorkerSource(source);
+    observation = await observeHomeworkWorker({ cwd, bundlePath, configPath });
+    if (!isHomeworkWorkerObserved(observation)) throw new Error('Untrusted Homework Worker observation rejected.');
+    for (const field of ['revision', 'tree', 'baseRevision']) if (observation.source[field] !== source[field]) throw new Error(`Worker observation ${field} does not match selected source.`);
+    if ((await collectSourceState(cwd, source.baseRevision)).fingerprint !== source.fingerprint) throw new Error('Candidate changed during Worker observation.');
+    findings.push({ status: STATUS.PASS, message: 'Fixed Homework Worker artifact and current provider code, bindings, routing and schedule independently verified. Historical deployed Git provenance remains unknown; reviewed artifact equivalence is recorded.' });
+  } catch (error) {
+    observation = null;
+    findings.push({ status: STATUS.UNVERIFIED, message: `Homework Worker readback: ${error.message}` });
+  }
+  return {
+    schemaVersion: 1, generatedAt: new Date().toISOString(), mode: 'release', scope: 'isolated-homework-worker',
+    source: { ...source, services: ['backup-worker'], changedServices: classifyPaths(source.files) },
+    baseline: null, observed: observation, compatibilityReview: null, hotfixes: [],
+    requiredActions: ['Obtain separate authorization and repeat fresh verification immediately before deploying only the pinned prebuilt Worker artifact.'],
+    deploymentOrder: ['r2-backup-worker only; no Hosting, Functions, Firebase rules/data or other Worker release.'],
+    recovery: ['Prior Worker version f37869c0-c597-41cc-893b-7f7652d80e41 is the prepared recovery target; rollback is not rehearsed and does not undo assignment data writes.'],
+    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null,
+    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
+  };
+}
+
+export async function assess({ cwd = repoRoot, mode = 'release', base, baselinePath, productionEnvFingerprint, observe = false, observeProvider = false, hostingObservation, compatibilityReviewPath, hostingOrigin, observeHomework = false, workerBundlePath, workerConfigPath } = {}) {
+  if (!observeHomework && (workerBundlePath || workerConfigPath)) throw new Error('Worker artifact paths require --observe-homework-worker.');
+  if (observeHomework && (mode !== 'release' || observe || observeProvider || hostingObservation || hostingOrigin || baselinePath || compatibilityReviewPath || productionEnvFingerprint)) throw new Error('Fixed Homework Worker observation cannot be combined with other release modes or evidence.');
+  if (observeHomework && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed Homework Worker observation requires --worker-bundle and --worker-config.');
+  if (observeHomework) return assessHomeworkWorker({ cwd, source: await collectSourceState(cwd, base), bundlePath: path.resolve(cwd, workerBundlePath), configPath: path.resolve(cwd, workerConfigPath) });
   if (observe && observeProvider) throw new Error('Choose either manifest or Firebase Hosting provider observation, not both.');
   if (hostingOrigin && mode !== 'acceptance') throw new Error('Hosting origin override is restricted to acceptance mode.');
   if (!['release', 'hotfix', 'acceptance'].includes(mode)) throw new Error(`Unsupported mode ${mode}.`);
@@ -168,7 +199,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
 }
 
 export const formatReport = result => [`Release assessment: ${result.decision}`, `Mode: ${result.mode}`, `Revision: ${result.source.revision}`, `Branch: ${result.source.branch || 'detached'}`, `Worktree: ${result.source.dirty ? 'DIRTY' : 'clean'}`, `Services: ${result.source.services.join(', ') || 'none identified'}`, ...result.findings.map(finding => `[${finding.status}] ${finding.message}`)].join('\n');
-const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
+const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-homework-worker') args.observeHomework = true; else if (value === '--worker-bundle') args.workerBundlePath = argv[++i]; else if (value === '--worker-config') args.workerConfigPath = argv[++i]; else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
 const receiptPath = async (cwd, value) => { if (!value) return null; const root = path.resolve(cwd, 'tmp', 'release-receipts'); const target = path.resolve(cwd, value); const relative = path.relative(root, target); if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('Receipt must be written under tmp/release-receipts.'); for (let cursor = path.dirname(target); ; cursor = path.dirname(cursor)) { try { if ((await lstat(cursor)).isSymbolicLink()) throw new Error('Receipt directory cannot contain symlinks.'); } catch (error) { if (error.code !== 'ENOENT') throw error; } if (cursor === root) break; if (cursor === path.dirname(cursor)) throw new Error('Receipt path could not be contained under tmp/release-receipts.'); } const repoRelative = path.relative(cwd, target); if (git(['ls-files', '--', repoRelative], cwd).trim()) throw new Error('Receipt path is tracked; choose a generated path.'); try { await access(target); throw new Error('Receipt already exists; choose a new generated path.'); } catch (error) { if (error.message.startsWith('Receipt already exists')) throw error; } return target; };
-export async function main(argv = process.argv.slice(2), cwd = repoRoot) { try { const args = parseArgs(argv), result = await assess({ cwd, ...args }), target = await receiptPath(cwd, args.receipt); if (target) { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(result, null, 2)}\n`, 'utf8'); } console.log(args.json ? JSON.stringify(result, null, 2) : formatReport(result)); return [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(result.decision) ? 0 : 2; } catch (error) { console.error(`[Release assessment failed] ${error.message}`); return 1; } }
+export async function main(argv = process.argv.slice(2), cwd = repoRoot) { try { const args = parseArgs(argv), result = await assess({ cwd, ...args }), target = await receiptPath(args.cwd || cwd, args.receipt); if (target) { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(result, null, 2)}\n`, 'utf8'); } console.log(args.json ? JSON.stringify(result, null, 2) : formatReport(result)); return [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(result.decision) ? 0 : 2; } catch (error) { console.error(`[Release assessment failed] ${error.message}`); return 1; } }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

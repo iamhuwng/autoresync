@@ -215,3 +215,17 @@ readiness. No provider release or Firebase rule change is claimed.
 Evidence in the canonical ignored audit directory: `homework-qualification.json`,
 `homework-qualification-audit.json`, `homework-qualification-student-opened.png`,
 and `homework-provider-read-2026-10-18T03-24-38-296Z.json`.
+
+## Superseding release gate and deferred Listening decision
+
+The fixed native Homework Worker observer is integrated with the shared release
+checker. Its actual GET-only assessment passed at `2026-10-18T07:15:19.405Z`;
+the separate operational receipt no longer substitutes for the mandatory
+shared gate. Exact scope, recovery, 77 focused checker/deployment/observer test
+results and limitations are in [the Worker release packet](2026-10-18-homework-worker-release.md).
+PR #150 merge and isolated Worker deployment remain separately unauthorized.
+
+The owner acknowledged keeping the Listening cleanup draft separate while
+finishing stable after the permanent-marker recovery tradeoff was explained.
+PR #151 stays a draft with sweep disabled; no permanent-marker implementation,
+Listening deployment or PDF Book rollout is included.
