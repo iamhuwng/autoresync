@@ -1,6 +1,8 @@
 # Existing Book catalog regression
 
-Status: correction candidate; no deployment in this investigation.
+Current status: **corrected in live Hosting** at 09:50 Asia/Bangkok on October 18.
+See the [verified corrective release](2026-10-18-book-hosting-release.md).
+The investigation and candidate evidence below describe the earlier state.
 
 The live Teacher lobby at `hocthem.net/lobby` was verified with the built-in
 Teacher login: My Content, Public Library, Drafts and Reading Passage are
@@ -108,3 +110,17 @@ release source still needs a clean build and fresh readback before any authorize
 Hosting promotion. Preserve Hosting `61721e91a13201ae` as the current rollback
 target, while recording that it retains this missing-Book regression. No Worker,
 rules, database or storage operation belongs to this corrective deployment.
+
+## Superseding authorized deployment
+
+The owner approved merging PR #152 and this Hosting-only correction. PR #153
+then repaired the guarded CLI route to reuse the installed Firebase tool without
+the retired dependency-installing harness; all preflight safeguards remained.
+Both PRs merged. Source `091a1746` passed the normal guarded production build and
+both fresh live-state checks, then deployed as Hosting `ffd0c61f899cb275`.
+The production environment was updated only after approval, changing exactly
+the two generic Book flags. All 453 deployed content hashes matched readback.
+Fresh live Teacher browser acceptance confirms Book and its creation form are
+restored, Reading entry/listing remains available, and Create New Test opens
+twice without reload. The exact scope and remaining limits are in the release
+record linked above; this does not qualify the separate PDF Activity feature.
