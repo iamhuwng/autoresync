@@ -96,6 +96,14 @@ authorization remain required. The observer deploys nothing. Generic Worker
 releases and unrelated source changes retain their conservative gates. The
 existing Homework backup Worker observer remains independently pinned.
 
+The authorized correction is now deployed and verified as recorded in that
+packet. This fixed observer's prior-provider pins are historical: it should
+reject the changed live baseline after the release. Do not weaken those pins
+to make a later candidate pass. A future notification/rules release requires
+new reviewed source/provider/configuration pins and fresh evidence. Current
+service source tags and exact content hashes are in
+[the service inventory](../release-audits/deployed-services.json).
+
 ## Acceptance rehearsal
 
 On 2026-10-11, the isolated release-safety branch built the actual application

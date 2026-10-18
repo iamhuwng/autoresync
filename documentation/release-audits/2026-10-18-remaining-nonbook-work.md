@@ -241,3 +241,17 @@ the fresh preflights, exact evidence and retained production workflow limits.
 Hosting remains at `091a1746`; no rules, database or storage-object release was
 performed. Listening cleanup, retained feedback/design pages and PDF Book stay
 separate. This supersedes the earlier draft/unauthorized Homework status above.
+
+## Superseding production QA correction
+
+The approved one-student THCS assignment and one submitted attempt exercised
+the real Homework service, but exposed a missing assignment notice and denied
+teacher result read. PR #157 corrected both shared boundaries. The separately
+approved notification Worker/rules release and replay now pass fresh provider
+and live teacher/student checks; see
+[the correction record](2026-10-18-homework-qa-correction-release.md).
+No additional assignment or attempt was created. Exact service tags and hashes
+are in [the inventory](deployed-services.json). This closes those two QA
+blockers, without claiming every material workflow or historical backfill.
+Listening cleanup remains deferred, retained feedback/design pages remain
+separate, and PDF Book acceptance remains its own release work.

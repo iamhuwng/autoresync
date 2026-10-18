@@ -1,7 +1,10 @@
 # Homework QA correction release packet — 2026-10-18
 
-Status: **prepared; no merge or production deployment authorized by this packet**.
-The owner approved the controlled QA that exposed the two failures in
+Status: **deployed and verified after explicit owner approval**. PR #157 merged
+as `f38826e65cf0280fc40cc195751181de5ea9d550`; the pinned product source below
+was released, then the existing QA events were replayed successfully. Both live
+browser checks pass. Preparation evidence below remains historical; the
+authorized execution record follows it. See also
 [the production QA report](2026-10-18-homework-production-qa.md).
 
 ## Exact scope
@@ -54,7 +57,7 @@ test validation cannot mint that trust. Generic Worker releases retain their
 `UNVERIFIED` gate. A new source/configuration/provider state needs a new review;
 an old receipt is not reusable release authority.
 
-Current prepared baseline: command version
+Historical prepared baseline: command version
 `541166ae-93db-4d92-8eda-5fb291325b42` at 100%, public version
 `5696e963-c5ed-463d-a495-30db3c07bc98` at 100%. The full baseline rule tree
 matches base source canonically. Effective variables, two secret names,
@@ -122,3 +125,73 @@ Existing historical THCS results are not broadly backfilled. Receipt creation
 shares the notification verification request, so failed requests need a safe
 retry. This packet does not close normal fresh-clone startup prerequisites or
 PDF Book acceptance.
+
+## Authorized execution and current release
+
+The owner explicitly approved merging PR #157, synchronizing main, releasing
+only this notification Worker and RTDB result-read correction, and replaying
+the two existing QA events. All nine PR checks passed; main's workflows also
+passed at merge revision `f38826e6`. Local and GitHub main matched before
+execution. Product source remained the clean isolated `3b682ffa` checkout.
+
+Fresh native preflight passed at `2026-10-18T12:00:14Z`, immediately before
+the notification deployment. Prior modules and full RTDB rules were retained
+under ignored `tmp/notification-qa-recovery-20261018/`. Wrangler deployed with
+the reviewed config, `--no-bundle --keep-vars`, and message
+`THCS Homework QA correction: assignment notice and verified result read`.
+Firebase then deployed only `database` rules to `temp-a1437`; syntax validation
+and release succeeded. No Hosting, Firestore, other Worker or storage release
+was performed.
+
+| Deployed surface | Verified value |
+| --- | --- |
+| Notification command, 100% traffic | `a184d75b-8823-485a-885d-e23354646f45` |
+| Command deployment | `15b3df6a-fe1c-4819-8024-04bbe9c54c77` |
+| Unchanged public caller, 100% traffic | `5696e963-c5ed-463d-a495-30db3c07bc98` |
+| Live full rules file SHA-256 | `29ca193601d36d8e99e714bd11c53fb31aea764338e87f4dd639c39b06b55e1f` |
+| Canonical full rules tree SHA-256 | `1fdd6321aad54e7a7bca84b51836601d5dacf8491587dca6274247bbc194a4cb` |
+| Result-read expression SHA-256 | `9dace28328fb666ad37f3966d68fa440dfd3952eff5f3f3b0ef885ba9db01c9c` |
+| Notification source tag | `deployed-notification-worker-2026-10-18` at `3b682ffa` |
+| RTDB rules source tag | `deployed-rtdb-rules-2026-10-18` at `3b682ffa` |
+
+Two complete post-release Cloudflare/RTDB readbacks passed at
+`2026-10-18T12:03:28.390Z`. Exact active/entry module hashes match the reviewed
+table above, and the complete live rules match the candidate. Provider settings,
+variables, secret names, bindings, Durable Object namespace, runtime, limiter,
+observability, schedules, routes/domains/subdomains and public caller are
+unchanged. The read-only verifier's six drift self-checks also pass. Observation
+fingerprint: `ac76466dcc10f381a2b4ef7e5a23fdc1fcb473078c87d65b8e306804ba0bcd69`.
+
+The authenticated replay issued only `thcs-homework-assigned` and
+`homework-submitted` for the approved existing assignment and attempt. Responses
+were HTTP 200 `created` and HTTP 200 `replayed`, respectively. The existing
+teacher notice stayed idempotent; trusted verification created the schema-3
+authority receipt. No assignment, attempt or direct permission grant was added.
+An initial password sign-in failed with HTTP 403 before either event was sent.
+The corrected backend replay used the existing Identity Toolkit-only server
+key after inspecting its restrictions with gcloud; no credentials or access
+restrictions were created, rotated or changed.
+
+Fresh data/rules readback at `2026-10-18T12:06:08.226Z` confirmed the exact QA
+result identity, schema-3 authority and candidate rules. Live `/login` quick-login
+checks then confirmed the teacher's full result modal (100%, 1/1, scaled 10.0,
+27 seconds, one correct answer) and the student's new THCS assignment notice
+alongside the completion notice. Notice age reflects the original event time.
+
+Ignored local evidence includes:
+
+- `tmp/notification-authorized-preflight-20261018.log` and the candidate receipt
+  `tmp/release-receipts/notification-homework-qa-20261018-authorized.json`.
+- `tmp/notification-authorized-deploy-20261018.log` and
+  `tmp/notification-authorized-rtdb-deploy-20261018.log`.
+- `tmp/notification-authorized-postverify-2026-10-18T12-03-28-387Z.json`.
+- `tmp/notification-authorized-qa-replay-server-20261018.log` and
+  `tmp/notification-authorized-qa-data-20261018.json`.
+- `tmp/notification-live-teacher-result-20261018.png` and
+  `tmp/notification-live-student-notice-20261018.png`.
+
+The fixed pre-deployment observer intentionally pins the old provider baseline;
+it is historical release proof, not a reusable assessment for a future release
+or a health check after this deployment. Future changes need new reviewed pins
+and fresh evidence. Recovery remains prepared but unrehearsed; no broad
+historical result backfill or PDF Book acceptance is implied.

@@ -339,3 +339,22 @@ their distinct causes are recorded in
 This supersedes the earlier statement that all authenticated production QA is
 unexercised, but does not establish full workflow acceptance or authorize a new
 Worker/rules/Hosting deployment.
+
+## Authorized Homework QA correction — October 18, 19:03 Asia/Bangkok
+
+PR #157 merged as `f38826e6`; local and GitHub main were synchronized. The
+owner-approved correction released only notification command version
+`a184d75b-8823-485a-885d-e23354646f45` at 100% and the exact reviewed RTDB
+result-read rule. Two full provider/rules readbacks passed. Replaying the two
+existing approved QA events created the missing student assignment notice and
+repaired the verified assigning teacher's result authority. Live browser checks
+confirmed the notice and the full 100% result. This supersedes the preceding
+two open production QA blockers; see
+[the release record](../release-audits/2026-10-18-homework-qa-correction-release.md).
+
+The [service inventory](../release-audits/deployed-services.json) now pins
+notification and RTDB sources separately alongside Hosting and the Homework
+Worker. No Hosting, Firestore, other Worker or storage deployment accompanied
+this correction. PDF Book, Listening cleanup and retained feedback/design work
+remain separate. Normal-clone `.dev.vars`/Auth startup prerequisites and PDF
+acceptance remain open; this live correction does not close them.
