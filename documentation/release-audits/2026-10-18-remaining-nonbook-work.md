@@ -125,3 +125,18 @@ A direct main-based Worker rebuild still includes the separate Book validation
 delta and is not a substitute for that service candidate. Neither branch has
 been deployed, and authenticated recipient workflow/delivery acceptance remains
 unverified.
+
+## Reproducible backup build dependencies
+
+The previous backup package lock selected jose 6.1.3 and Wrangler 4.68.1 while
+the active bundle uses jose 6.2.2 and the matching compiler output is produced
+by Wrangler 4.103.0/esbuild 0.28.1. The isolated service candidate and main-based
+source fix now pin jose 6.2.2 and Wrangler 4.103.0 in the backup package. The
+lock-only update installs no dependency tree. Existing matching jose and
+Wrangler installations were reused for the successful bundle comparison.
+
+The assessment workflow gains a dedicated backup job that installs this package
+from its lock, runs the suite and performs a non-mutating Worker dry-run on a
+fresh runner. That job's actual result must be checked before claiming fresh
+clone qualification. Local testing does not claim the older installed backup
+tool tree was upgraded. Windows workerd remains on the existing x64 route.
