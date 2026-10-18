@@ -361,8 +361,8 @@ acceptance remain open; this live correction does not close them.
 
 ## Superseding local startup qualification — October 18
 
-The stable checkout at `a3ebc041` now passes configured-machine teacher and
-student startup/login checks through the normal dev orchestrator. Teacher
+The stable checkout at `a3ebc041` passed configured-machine teacher and
+student startup/login checks on October 18 through the normal dev orchestrator. Teacher
 materials loaded and Create New Test opened; the student feed loaded 20 entries.
 The reviewed ignored secret file and exact saved Auth identities were supplied,
 and the existing rich local dataset was preserved. No production release or
