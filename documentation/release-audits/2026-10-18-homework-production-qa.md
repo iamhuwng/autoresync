@@ -1,8 +1,10 @@
 # Controlled production Homework QA — 2026-10-18
 
-Status: **partial pass; two release blockers reproduced**. The owner approved
-one assignment to one dedicated test student and one submitted attempt on
-`hocthem.net`. No deployment was performed during this QA.
+Current status: **both blockers corrected and verified live** after the scoped
+PR #157 release and replay. See the authorized follow-up below and
+[release record](2026-10-18-homework-qa-correction-release.md). The initial QA
+and diagnosis below are historical: that phase reproduced two failures with
+one approved assignment and one attempt and performed no deployment.
 
 ## Approved records and observed behavior
 
@@ -140,3 +142,28 @@ not introduce a background queue or broad historical result backfill. Existing
 QA records should be replayed through that same verifier after a separately
 authorized Worker/rules release, followed by production recipient and teacher
 browser checks. No correction is deployed by this local acceptance.
+
+## Authorized release and production replay follow-up
+
+PR #157 merged as `f38826e6`. The owner-approved notification command version
+`a184d75b-8823-485a-885d-e23354646f45` is deployed at 100%, and the narrow RTDB
+result-read correction matches the reviewed full rule tree. Two independent
+provider/rules readback passes completed at `2026-10-18T12:03:28.390Z`.
+Hosting, Firestore and other Workers were excluded from this release.
+
+Only the existing assignment and submission events were replayed using actual
+Firebase-issued teacher/student tokens. The assignment notice returned
+`created`; submission verification returned `replayed`, repairing its exact
+schema-3 authority without duplicating the teacher notice. No extra assignment
+or attempt was created and no receipt was manually granted. A first sign-in
+403 occurred before event delivery; the successful backend retry used the
+existing restricted server key without changing any key or restriction.
+
+The live teacher entered through `/login`, opened the same Homework detail and
+clicked View Result: the full modal displayed 100%, 1/1 points, scaled 10.0,
+27 seconds and one correct answer. The live student then entered `/login`
+and used Student quick login: the dashboard feed displayed the new
+“New THCS homework” notice and the existing “Test Complete” notice. Both prior
+blockers are closed for this approved QA case. Screenshots and data/provider
+receipts are indexed in the release record. This does not backfill historical
+results or qualify unrelated materials and PDF Book workflows.

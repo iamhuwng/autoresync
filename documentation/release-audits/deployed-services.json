@@ -15,5 +15,25 @@
     "moduleSha256": "6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed",
     "normalizedBuildSha256": "1b9892ae295a945205f36077a45847d5d5666d14faa517a39155804af36038fc",
     "record": "2026-10-18-homework-worker-release.md"
+  },
+  "notificationWorker": {
+    "script": "luyentap-notification-command",
+    "sourceRevision": "3b682ffa371fc549486d72c4d3125f3c8651a124",
+    "sourceTag": "deployed-notification-worker-2026-10-18",
+    "providerVersion": "a184d75b-8823-485a-885d-e23354646f45",
+    "moduleSha256": "9734197c765b06de9d746e68fea9a4912780447e05ddb12057e1ac3c6e2f9ed7",
+    "entryModuleSha256": "72a358e0f7313fd37e89f7bf1d85cd1337c199192dc6c297881bf1b71258d270",
+    "deploymentConfigSha256": "bd4391b72d20c696b55f625888d0fadea100e1703cc14921cb7b0989f7aaaafa",
+    "record": "2026-10-18-homework-qa-correction-release.md"
+  },
+  "databaseRules": {
+    "project": "temp-a1437",
+    "database": "temp-a1437-default-rtdb",
+    "sourceRevision": "3b682ffa371fc549486d72c4d3125f3c8651a124",
+    "sourceTag": "deployed-rtdb-rules-2026-10-18",
+    "fileSha256": "29ca193601d36d8e99e714bd11c53fb31aea764338e87f4dd639c39b06b55e1f",
+    "canonicalTreeSha256": "1fdd6321aad54e7a7bca84b51836601d5dacf8491587dca6274247bbc194a4cb",
+    "resultReadSha256": "9dace28328fb666ad37f3966d68fa440dfd3952eff5f3f3b0ef885ba9db01c9c",
+    "record": "2026-10-18-homework-qa-correction-release.md"
   }
 }

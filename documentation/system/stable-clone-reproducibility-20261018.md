@@ -10,6 +10,8 @@ the reviewed releases, not an automatically refreshed provider observation.
 | --- | --- | --- |
 | Hosting app | `stable-2026-10-18-books` | `091a1746c630658052978a0c75caa74c04318722` |
 | Homework/backup Worker | `deployed-homework-worker-2026-10-18` | `99bb3f073319c57f62b0889d7c0a98b054e06e95` |
+| Notification command Worker | `deployed-notification-worker-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
+| RTDB rules | `deployed-rtdb-rules-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
 
 The Worker tag is published in the same Git repository. Preserve published
 release tags; use a new tag for another release. The recorded provider version
@@ -17,6 +19,15 @@ is `6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25`. Its exact deployed module SHA is in
 the inventory and [release record](../release-audits/2026-10-18-homework-worker-release.md).
 Hosting and Worker deployments are separate; one Git revision is not proof that
 every live service runs that revision.
+
+The notification/rules tags pin the product source released after PR #157.
+The newer main contains its assessment runner and reviewed deployment template;
+follow [the correction packet](../release-audits/2026-10-18-homework-qa-correction-release.md)
+for exact module/configuration hashes and the clean candidate procedure.
+The notification version is `a184d75b-8823-485a-885d-e23354646f45`; RTDB rules
+are identified by complete content hashes, not a fabricated provider version.
+The approved replay and live student/teacher checks pass. These two tags do
+not authorize deploying other services from their shared source revision.
 
 ## Reproduce the recorded Worker
 
