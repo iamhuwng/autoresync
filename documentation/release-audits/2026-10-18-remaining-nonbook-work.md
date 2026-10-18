@@ -140,3 +140,22 @@ from its lock, runs the suite and performs a non-mutating Worker dry-run on a
 fresh runner. That job's actual result must be checked before claiming fresh
 clone qualification. Local testing does not claim the older installed backup
 tool tree was upgraded. Windows workerd remains on the existing x64 route.
+
+### Fresh-runner and clean service proof
+
+At source `3c36d128`, GitHub run `39088312826` passed the new backup job:
+fresh `npm ci`, **93 tests in 15 files**, and Wrangler **4.103.0** dry-run
+(413.43 KiB). Assessment guardrails and result governance also passed. This
+proves installation/build repeatability; that main-based bundle still includes
+the separate Book dependency delta and is not the scoped service release.
+
+The isolated service candidate is committed and pushed as
+`99bb3f073319c57f62b0889d7c0a98b054e06e95` on
+`codex/homework-worker-release-20261018`, tree
+`6cebb25691f322fd811c0ab5dd6ccf113e71dfe5`. It passes **92 backup tests in
+15 files** and **8 submit-core tests**. The older service base has four restore
+tests versus five on reconstructed main, accounting for the total difference.
+A clean-source rebuild at `2026-10-18T01:59:54Z` and fresh provider readback
+retain the candidate/live module hashes and outside-target equality above;
+the comparison receipt now binds this exact clean revision and tree. Neither
+branch is deployed. Authenticated recipient/delivery qualification remains open.
