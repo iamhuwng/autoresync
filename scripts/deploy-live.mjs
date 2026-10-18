@@ -19,11 +19,19 @@ const notificationEndpointPaths = {
   VITE_HOMEWORK_RESULT_AUTHORITY_URL: '/',
   VITE_COURSE_ENROLLMENT_APPROVAL_URL: '/course-enrollment-approval',
 };
-const requiredReadingModes = {
+const requiredProductionModes = {
   VITE_READING_V2_ROLLOUT_MODE: 'public',
   VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: 'opt-in',
   VITE_READING_PASSAGE_LIBRARY: 'enabled',
   VITE_READING_PASSAGE_HOMEWORK: 'enabled',
+  VITE_MATERIAL_BOOKS: 'enabled',
+  VITE_MATERIAL_BOOK_EDITOR: 'enabled',
+  VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'disabled',
+  VITE_BOOK_ACTIVITY_PUBLISH_PRESENTATION: 'disabled',
+  VITE_BOOK_ACTIVITY_ASSIGN_PLACE_PRESENTATION: 'disabled',
+  VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'disabled',
+  VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'disabled',
+  VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'disabled',
 };
 const requiredFirebaseKeys = [
   'VITE_FIREBASE_API_KEY',
@@ -155,9 +163,9 @@ const readProductionEnv = async () => {
   if (values.VITE_THCS_GEMMA_WORKER_URL?.replace(/\/$/u, '') !== 'https://thcs-gemma.iamhuwng.workers.dev') {
     fail('VITE_THCS_GEMMA_WORKER_URL must identify the reviewed AI gateway.');
   }
-  for (const [key, mode] of Object.entries(requiredReadingModes)) {
+  for (const [key, mode] of Object.entries(requiredProductionModes)) {
     if (values[key]?.trim().toLowerCase() !== mode) {
-      fail(`${key} must be ${mode} to preserve the existing live Reading V2 workflows.`);
+      fail(`${key} must be ${mode} to preserve the reviewed live workflows and rollout boundaries.`);
     }
   }
 

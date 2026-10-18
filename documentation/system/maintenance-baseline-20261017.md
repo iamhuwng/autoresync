@@ -242,3 +242,15 @@ were synchronized. [The current release record](../release-audits/2026-10-18-sta
 supersedes the historical withdrawal status above. It preserves the dated
 qualification limits and remaining non-Book/PDF work. No Worker, rules,
 database or B2 deployment occurred; this was Hosting only.
+
+## Book catalog regression — October 18
+
+The qualified Reading replacement still accidentally disabled the existing
+Book tab and editor through two generic production flags. The correction is
+being prepared separately; do not treat the prior browser scope as whole-app
+qualification. The [incident record](../release-audits/2026-10-18-book-catalog-regression.md)
+contains provider-matched historical evidence, the exact configuration cause,
+and the distinction between existing Books and the unreleased PDF Activity
+rollout. Production validation now requires the generic catalog/editor enabled
+while that separate rollout remains disabled. No corrective deployment is
+claimed by this note.
