@@ -170,3 +170,39 @@ states that a negative read does not settle an earlier unknown PUT, which can
 still commit later. No safe crash-recovery claim, provider lifecycle acceptance,
 deployment, merge, taskbox closure or PDF Book rollout follows from these tests.
 Scheduled sweep remains explicitly disabled.
+
+## Recovery proposal — owner policy decision pending
+
+Independent review proposes a new, isolated key namespace with create-once audio
+PUTs. Every audio write would use `If-None-Match: *`; cleanup would retain an
+empty guard object at the same key and a permanent database tombstone. This is
+a design proposal, not implemented or qualified behavior. Each cleaned asset
+would leave one storage object and one database record indefinitely; payload
+size zero does not remove operation, metadata or maintenance costs.
+
+The safety argument follows [R2's conditional-write contract](https://developers.cloudflare.com/r2/reference/consistency/#conditional-writes):
+conditions are evaluated against committed state at write commit. A guard that
+occupies the key prevents a delayed create-once audio write from replacing it.
+The [Workers binding](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/#conditional-operations)
+accepts conditional headers and returns `null` when the PUT condition fails.
+This proposed protocol still needs actual binding and lifecycle tests.
+
+Before dispatching a guard write, cleanup must persist `guard-pending` after
+reference exclusion. Only positive guard-write/HEAD evidence can advance it to
+`guarded`; never clear by age or HEAD absence. Neither state may be removed by
+restore, lifecycle rules or purge tooling. A matching committed audio object
+can settle a writer only when no pending/guarded tombstone exists. Recovery
+must run before the existing referenced-asset early exit, and restore must
+reject pending guards even without a writer reservation.
+
+Old unconditional PUTs do not obey this fence. A separate v2 namespace and
+signed protocol identity are required; deploying or waiting for expiry does
+not settle an old in-flight request. Older ambiguous writers remain unresolved
+without independent settlement evidence. Provider lifecycle exclusions,
+all key validators and deletion paths, backup resurrection, lease expiry and
+delayed storage completion require qualification before release. No current
+43/98/16 test result establishes this unimplemented recovery protocol.
+
+The owner has been asked whether to accept permanent markers or defer this
+cleanup draft while completing stable. No retention choice or deployment
+authorization is inferred from this proposal.
