@@ -387,3 +387,27 @@ Scheduled sweep remains disabled. Global upload serialization and late writers
 after lease expiry remain release blockers requiring coordinated admission and
 quiescence proof. This candidate does not change the deployed authority or
 establish provider deletion/readiness, and it includes no PDF Book rollout.
+
+### 2026-10-18 writer admission correction
+
+The candidate now releases the paired global/authoring leases before streaming
+PUT. Durable per-asset reservations at
+`system_flags/listening_upload_writers/{assetId}` coordinate admission, cleanup
+and restore without a TTL or raw object key. Admission checks active canonical
+session state and tombstones while holding the short paired lease; its system
+CAS checks lease ownership, restore exclusion and absence of an existing writer.
+Nonce consumption follows successful admission. Only undispatched or successful
+PUT settlement can remove the matching writer identity. Cleanup queues the
+session before deletion checks and cannot tombstone, delete or terminalize an
+unresolved asset. Late successful PUT settlement retries the existing protected
+cleanup once; continuation failure leaves retryable queued state.
+
+Restore checks all reservations in its flag-acquisition CAS, rejects outstanding
+or malformed maps, and excludes historical reservation maps from restore writes.
+The watchdog preserves current writers. Browser writes are allowed only at
+individual non-writer flags for super-admins; writer and whole-parent writes are
+denied. Local proof is 43 workerd, 98 backup and 16 executed RTDB-rule tests; see
+the reconciliation record for scope and logs. Crashed/ambiguous writers still
+block their own cleanup and all restores indefinitely. Neither elapsed time nor
+HEAD 404 proves quiescence. This remains a draft release blocker; scheduled
+sweep stays disabled and provider/release readiness is unproved.

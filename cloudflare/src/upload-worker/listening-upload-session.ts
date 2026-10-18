@@ -449,7 +449,8 @@ export const createListeningUploadSessionService = (dependencies: {
         || !dependencies.repository.acquireCleanupLease
         || !dependencies.repository.assertCleanupLeaseOwned
         || !dependencies.repository.recordDeletedTempAsset
-        || !dependencies.repository.releaseCleanupLease) {
+        || !dependencies.repository.releaseCleanupLease
+        || !dependencies.repository.hasUploadWriter) {
         throw new ListeningUploadSessionError('bridge_cleanup_repository_unavailable', 500);
       }
       if (dependencies.repository.isRestoreInProgress
@@ -508,7 +509,9 @@ export const createListeningUploadSessionService = (dependencies: {
       if (assets.length === 0) {
         const allTerminal = Object.values(session.assetRequests ?? {}).every((asset) =>
           deletedAssetIds.has(asset.assetId) || preservedAssetIds.has(asset.assetId));
-        const status = allTerminal && preservedAssetIds.size === 0 ? 'abandoned' : 'cleanup-queued';
+        const status = allTerminal && preservedAssetIds.size === 0
+          && !await dependencies.repository.hasUploadWriter(Object.keys(session.assetIds))
+          ? 'abandoned' : 'cleanup-queued';
         const finalRecord = await dependencies.repository.markCleanupState({
           ownerId: input.uid,
           uploadSessionId: session.uploadSessionId,
@@ -640,6 +643,7 @@ export const createListeningUploadSessionService = (dependencies: {
         });
         if (!cleanupLease) throw new ListeningUploadSessionError('cleanup_busy', 503);
         try {
+          if (await dependencies.repository.hasUploadWriter([finalAsset.assetId])) continue;
           // The authoring-root lease makes this reference scan and delete one
           // serialized critical section with save/publish transactions.
           let fencedReferences;
@@ -679,7 +683,9 @@ export const createListeningUploadSessionService = (dependencies: {
           deletedAssetIds.add(finalAsset.assetId);
           const allTerminal = Object.values(fence.assetRequests ?? {}).every((asset) =>
             deletedAssetIds.has(asset.assetId) || preservedAssetIds.has(asset.assetId));
-          const status = allTerminal && preservedAssetIds.size === 0 ? 'abandoned' : 'cleanup-queued';
+          const status = allTerminal && preservedAssetIds.size === 0
+            && !await dependencies.repository.hasUploadWriter(Object.keys(fence.assetIds))
+            ? 'abandoned' : 'cleanup-queued';
           const updated = await dependencies.repository.markCleanupState({
             ownerId: input.uid,
             uploadSessionId: finalSession.uploadSessionId,
@@ -700,7 +706,9 @@ export const createListeningUploadSessionService = (dependencies: {
 
       const allTerminal = Object.values(session.assetRequests ?? {}).every((asset) =>
         deletedAssetIds.has(asset.assetId) || preservedAssetIds.has(asset.assetId));
-      const finalStatus = allTerminal && preservedAssetIds.size === 0 ? 'abandoned' : 'cleanup-queued';
+      const finalStatus = allTerminal && preservedAssetIds.size === 0
+        && !await dependencies.repository.hasUploadWriter(Object.keys(session.assetIds))
+        ? 'abandoned' : 'cleanup-queued';
       const persisted = session.status === 'abandoned'
         ? session
         : await dependencies.repository.markCleanupState({

@@ -121,3 +121,52 @@ terminal late-PUT and restore-race proof. Then requalify real provider lifecycle
 and isolate generic Worker/rules/backup releases from PDF Book. No live Worker,
 rules, database, R2 object, or Hosting release was mutated for this candidate.
 No historical taskbox or parent acceptance is closed by these local checks.
+
+## 2026-10-18 per-asset writer correction — still a draft
+
+The streaming global-lease defect above is superseded locally by durable
+`system_flags/listening_upload_writers/{assetId}` reservations. Each reservation
+contains only writer/session/owner/asset identities and a start timestamp, with
+no raw object key or TTL. Admission checks the canonical active session, paired
+short leases and deletion tombstones, then conditionally writes the reservation
+with restore exclusion in the same system-flags CAS. Both shared leases are
+released before nonce consumption and streaming PUT. A busy admission leaves the
+grant nonce available for retry. Other teachers can create, issue, upload, save
+and publish while one writer remains unresolved.
+
+Only a never-dispatched PUT or a successfully resolved PUT clears its matching
+reservation. Generic PUT rejection, disconnect, request cancellation and elapsed
+time do not prove settlement. Cleanup first queues the session to close further
+admission, then checks the asset's writer under the existing deletion lease.
+Pending writers prevent tombstones, byte deletion and terminal cleanup, including
+the empty-assets path. Successful late PUT settlement attempts the existing
+protected cleanup once; a failed continuation remains queued for retry. Restore
+rejects any outstanding or malformed writer map before snapshot/product writes,
+including a writer admitted during a failed restore CAS. Backup restore cannot
+reintroduce historical writer reservations; stale restore-flag watchdog cleanup
+preserves current reservations.
+
+RTDB browser authority is now per non-writer flag: super-admin child and
+multi-path flag updates remain allowed, while whole-parent replacement/deletion
+and direct/ancestor writer-map mutation are denied. An initial whole-map equality
+rule failed the real emulator's ordinary-flag update assertion; the corrected
+child boundary passed. App callers contain no whole-parent system-flags writer.
+
+Fresh local proof at this correction: **43/43 actual workerd tests in two files**,
+**98/98 backup Worker tests in 15 files**, and **16/16 RTDB rule tests in three
+files with the emulator branch executed**. Logs are retained under the canonical
+`tmp/deployment-audit-20261017/listening-writer-{worker,backup,rules}.log`.
+Worker/backup checks used the existing x64 runtime and locked dependencies; app
+rules used native ARM64 Node. The initial x64 app run stopped before discovery
+on the ARM64 Rollup dependency. No dependencies were installed. Focused ESLint,
+UTF-8 and diff checks passed. Earlier browser/build/provider observations above
+were not rerun by this server correction and remain scoped to that earlier tree.
+
+**Remaining release blocker:** a crashed or ambiguous writer has no implemented
+proof of quiescence and therefore blocks its own cleanup and all restores
+indefinitely. Other authors remain usable. Age and HEAD 404 must never reclaim
+it: [Cloudflare's consistency contract](https://developers.cloudflare.com/r2/reference/consistency/#negative-reads-and-in-flight-writes)
+states that a negative read does not settle an earlier unknown PUT, which can
+still commit later. No safe crash-recovery claim, provider lifecycle acceptance,
+deployment, merge, taskbox closure or PDF Book rollout follows from these tests.
+Scheduled sweep remains explicitly disabled.

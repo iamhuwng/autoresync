@@ -97,6 +97,7 @@ describe('scheduled auto-backup', () => {
             expiresAt: startedAt + 60_000,
           },
           unrelated: true,
+          listening_upload_writers: { 'asset-1': { writerId: 'unresolved-writer', startedAt: 1 } },
         }), { status: 200, headers: { etag: '"flags-stale"' } });
       }
       if (method === 'GET' && url.pathname.endsWith('/listening_authoring.json')) {
@@ -118,7 +119,10 @@ describe('scheduled auto-backup', () => {
 
     const puts = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT');
     expect(puts[0]?.[1]?.headers).toEqual(expect.objectContaining({ 'if-match': '"flags-stale"' }));
-    expect(JSON.parse(String(puts[0]?.[1]?.body))).toEqual({ unrelated: true });
+    expect(JSON.parse(String(puts[0]?.[1]?.body))).toEqual({
+      unrelated: true,
+      listening_upload_writers: { 'asset-1': { writerId: 'unresolved-writer', startedAt: 1 } },
+    });
     expect(puts[1]?.[1]?.headers).toEqual(expect.objectContaining({ 'if-match': '"authoring-stale"' }));
     expect(JSON.parse(String(puts[1]?.[1]?.body))).toEqual({ drafts: { retained: true } });
   });

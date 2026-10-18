@@ -585,6 +585,33 @@ describe('registry restore drill', () => {
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
+  it.each([
+    { writers: { 'asset-1': { writerId: 'crashed-writer', startedAt: 1 } }, race: false },
+    { writers: 'malformed-writers', race: false },
+    { writers: { 'asset-1': { writerId: 'concurrent-writer', startedAt: 1 } }, race: true },
+  ])('refuses restore before snapshot/product writes for unresolved writers %j', async ({ writers, race }) => {
+    const roots = new Map<string, unknown>([['system_flags', race ? {} : { listening_upload_writers: writers }]]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace(/^\//, '').replace(/\.json$/, '');
+      if (race && path === 'system_flags' && init?.method === 'PUT') {
+        roots.set('system_flags', { listening_upload_writers: writers });
+        return json(null, 412);
+      }
+      const response = coordinationResponse(path, init, roots);
+      if (response) return response;
+      throw new Error(`Unexpected product operation ${init?.method ?? 'GET'} ${path}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const r2 = new FakeR2Client();
+    await expect(executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, 'BK-unsettled', { scope: ['users'], mode: 'smart_auto' }, new StatusTracker('restore')))
+      .rejects.toThrow('listening_upload_writers_unsettled');
+    expect(roots.get('system_flags')).toEqual({ listening_upload_writers: writers });
+    expect(roots.get('listening_authoring')).toEqual({});
+    expect([...r2.objects.keys()].some((key) => key.startsWith('pre-restore/'))).toBe(false);
+  });
+
   it.each(['smart_auto', 'per_entity'] as const)('blocks deleted audio references during %s restore and preserves healthy entries', async (mode) => {
     const backupId = 'BK-deleted-audio';
     const backupRtdb = {
@@ -604,6 +631,7 @@ describe('registry restore drill', () => {
         'owner-deleted': { old: { assetRequests: { request: { assetId: 'asset-deleted' } } } },
         'owner-healthy': { healthy: { assetIds: { 'asset-healthy': true } } },
       },
+      system_flags: { listening_upload_writers: { historical: { writerId: 'backup-writer' } }, unrelated: true },
     };
     const manifest = buildBackupManifest({
       backupId, trigger: 'manual', createdAt: '2026-08-11T00:00:00.000Z', completedAt: '2026-08-11T00:01:00.000Z',
@@ -654,7 +682,7 @@ describe('registry restore drill', () => {
     const result = await executeRestore({
       FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
     } as WorkerEnv, r2 as never, backupId, {
-      scope: ['listening_authoring', 'media_assets', 'media_asset_upload_sessions'], mode, perEntityDecisions,
+      scope: ['listening_authoring', 'media_assets', 'media_asset_upload_sessions', 'system_flags'], mode, perEntityDecisions,
     }, new StatusTracker('restore'));
 
     expect(result.status).toBe('partial');
@@ -669,6 +697,8 @@ describe('registry restore drill', () => {
       'owner-healthy': backupRtdb.media_asset_upload_sessions['owner-healthy'],
     });
     expect(productWrites.some((path) => /drafts|versions|asset-deleted|owner-deleted/.test(path))).toBe(false);
+    expect(liveRtdb.get('system_flags')).toEqual({ unrelated: true });
+    expect(result.details.system_flags).toEqual({ restored: 1, skipped: 1, failed: 0 });
   });
 
   it('restores book_activity RTDB data through the approved restore inventory', async () => {

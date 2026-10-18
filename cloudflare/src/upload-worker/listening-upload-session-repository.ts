@@ -12,6 +12,7 @@ import type {
   ListeningUploadSessionSweepCursor,
   ListeningUploadSessionSweepPage,
   ListeningUploadSessionSweepRecord,
+  ListeningUploadWriter,
 } from './listening-upload-session-types.ts';
 
 const OAUTH2_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -28,6 +29,7 @@ const SYSTEM_FLAGS_PATH = 'system_flags';
 const AUTHORING_ROOT_PATH = 'listening_authoring';
 const MEDIA_MUTATION_LEASE_FIELD = 'listening_media_mutation_lease';
 const AUTHORING_CLEANUP_LEASE_FIELD = 'temp_cleanup_lease';
+const UPLOAD_WRITERS_FIELD = 'listening_upload_writers';
 
 interface ServiceAccountKey { client_email: string; private_key: string }
 interface TokenResponse { access_token: string; expires_in: number }
@@ -233,6 +235,58 @@ export class FirebaseRestListeningUploadSessionRepository implements ListeningUp
   async isRestoreInProgress(): Promise<boolean> {
     const value = await this.readPath<unknown>('system_flags/restore_in_progress');
     return value === true || (isPlainRecord(value) && value.active === true);
+  }
+  async admitUploadWriter(input: { lease: ListeningUploadCleanupLease; writer: ListeningUploadWriter; now: number }): Promise<boolean> {
+    const root = await this.readPath<Record<string, unknown> | null>(AUTHORING_ROOT_PATH);
+    const authoringLease = isPlainRecord(root) ? activeLease(root[AUTHORING_CLEANUP_LEASE_FIELD], input.now) : null;
+    if (authoringLease?.leaseId !== input.lease.leaseId) return false;
+    if (isPlainRecord(root?.deleted_temp_assets)
+      && Object.prototype.hasOwnProperty.call(root.deleted_temp_assets, input.writer.assetId)) return false;
+    for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
+      const current = await this.readWithEtag<Record<string, unknown> | null>(SYSTEM_FLAGS_PATH);
+      const flags = isPlainRecord(current.data) ? current.data : {};
+      const lease = activeLease(flags[MEDIA_MUTATION_LEASE_FIELD], input.now);
+      const restore = flags.restore_in_progress;
+      if (lease?.leaseId !== input.lease.leaseId
+        || restore === true || (isPlainRecord(restore) && restore.active === true)) return false;
+      const value = flags[UPLOAD_WRITERS_FIELD];
+      if (value != null && !isPlainRecord(value)) throw new Error('upload_writer_state_invalid');
+      const writers = isPlainRecord(value) ? value : {};
+      if (Object.prototype.hasOwnProperty.call(writers, input.writer.assetId)) return false;
+      const write = await this.writeIfMatch(SYSTEM_FLAGS_PATH, {
+        ...flags, [UPLOAD_WRITERS_FIELD]: { ...writers, [input.writer.assetId]: input.writer },
+      }, current.etag);
+      if (write.matched) return true;
+    }
+    return false;
+  }
+  async settleUploadWriter(writer: ListeningUploadWriter): Promise<void> {
+    for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
+      const current = await this.readWithEtag<Record<string, unknown> | null>(SYSTEM_FLAGS_PATH);
+      const flags = isPlainRecord(current.data) ? current.data : {};
+      const value = flags[UPLOAD_WRITERS_FIELD];
+      if (value == null) return;
+      if (!isPlainRecord(value)) throw new Error('upload_writer_state_invalid');
+      const existing = value[writer.assetId];
+      if (existing === undefined) return;
+      if (!isPlainRecord(existing) || existing.writerId !== writer.writerId
+        || existing.ownerId !== writer.ownerId || existing.uploadSessionId !== writer.uploadSessionId) {
+        throw new Error('upload_writer_ownership_lost');
+      }
+      const writers = { ...value };
+      delete writers[writer.assetId];
+      const next = { ...flags };
+      if (Object.keys(writers).length > 0) next[UPLOAD_WRITERS_FIELD] = writers;
+      else delete next[UPLOAD_WRITERS_FIELD];
+      if ((await this.writeIfMatch(SYSTEM_FLAGS_PATH, next, current.etag)).matched) return;
+    }
+    throw new Error('upload_writer_settlement_failed');
+  }
+  async hasUploadWriter(assetIds: readonly string[]): Promise<boolean> {
+    const value = await this.readPath<unknown>(`${SYSTEM_FLAGS_PATH}/${UPLOAD_WRITERS_FIELD}`);
+    if (value == null) return false;
+    if (!isPlainRecord(value)) throw new Error('upload_writer_state_invalid');
+    return assetIds.some((assetId) => Object.prototype.hasOwnProperty.call(value, assetId));
   }
   async acquireCleanupLease(input: { ownerId: string; uploadSessionId: string; assetId: string; leaseId: string; now: number; leaseMs: number }): Promise<ListeningUploadCleanupLease | null> {
     const lease: ListeningUploadCleanupLease = {

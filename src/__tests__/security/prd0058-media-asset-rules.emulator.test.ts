@@ -206,6 +206,35 @@ describe('PRD-0058 media-asset RTDB rules', () => {
       }
     });
 
+    it('protects upload writers through super-admin ancestor writes while allowing unrelated flags', async () => {
+      const writers = { 'asset-1': { writerId: 'writer-1', ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1', startedAt: 1 } };
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('system_flags').set({ listening_upload_writers: writers });
+      });
+      const admin = testEnv.authenticatedContext('admin-1').database();
+      await assertSucceeds(admin.ref('system_flags').update({ unrelated: true }));
+      await assertSucceeds(admin.ref('system_flags/unrelated').set(false));
+      await assertSucceeds(admin.ref().update({ 'system_flags/unrelated': true }));
+      await assertSucceeds(admin.ref('system_flags/unrelated').remove());
+      await assertFails(admin.ref('system_flags').set({ listening_upload_writers: writers, unrelated: false }));
+      for (const uid of ['teacher-1', 'admin-1']) {
+        const db = testEnv.authenticatedContext(uid).database();
+        await assertFails(db.ref('system_flags/listening_upload_writers/asset-2').set(writers['asset-1']));
+        await assertFails(db.ref('system_flags/listening_upload_writers/asset-1').update({ startedAt: 2 }));
+        await assertFails(db.ref('system_flags/listening_upload_writers').remove());
+        await assertFails(db.ref('system_flags').set({ unrelated: true }));
+        await assertFails(db.ref('system_flags').remove());
+        await assertFails(db.ref().update({ 'system_flags/listening_upload_writers': null }));
+        await assertFails(db.ref().update({ system_flags: { unrelated: true } }));
+      }
+      expect((await admin.ref('system_flags/listening_upload_writers').get()).val()).toEqual(writers);
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('system_flags/listening_upload_writers').remove();
+      });
+      await assertFails(admin.ref('system_flags/listening_upload_writers').set(writers));
+      await assertSucceeds(admin.ref('system_flags').update({ unrelated: true }));
+    });
+
     it('keeps trusted-service mutation separate from teacher browser authority', async () => {
       await testEnv.withSecurityRulesDisabled(async (context) => {
         await context.database().ref('media_assets/asset-1').update({

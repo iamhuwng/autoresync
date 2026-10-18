@@ -64,6 +64,15 @@ export interface ListeningUploadCleanupLease {
   expiresAt: number;
 }
 
+/** Runtime admission, not an expiring lease: an ambiguous PUT may still commit. */
+export interface ListeningUploadWriter {
+  writerId: string;
+  ownerId: string;
+  uploadSessionId: string;
+  assetId: string;
+  startedAt: number;
+}
+
 export interface ListeningDeletedTempAssetTombstone {
   schemaVersion: 1;
   assetId: string;
@@ -177,6 +186,14 @@ export interface ListeningUploadSessionRepository {
     tempKeys: readonly string[];
   }): Promise<ListeningUploadAssetReference[]>;
   isRestoreInProgress?(): Promise<boolean>;
+  admitUploadWriter?(input: {
+    lease: ListeningUploadCleanupLease;
+    writer: ListeningUploadWriter;
+    now: number;
+  }): Promise<boolean>;
+  /** Caller proves PUT was never dispatched or its promise resolved successfully. */
+  settleUploadWriter?(writer: ListeningUploadWriter): Promise<void>;
+  hasUploadWriter?(assetIds: readonly string[]): Promise<boolean>;
   acquireCleanupLease?(input: {
     ownerId: string;
     uploadSessionId: string;

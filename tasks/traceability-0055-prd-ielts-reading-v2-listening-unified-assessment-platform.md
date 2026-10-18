@@ -1041,3 +1041,16 @@ Boundary trace:
   lifecycle and live bundle reconciliation unproved. No deployment, cleanup
   execution, R2 deletion or parent acceptance. Full dated proof and next work:
   `documentation/system/listening-cleanup-reconciliation-20261017.md`.
+
+## 2026-10-18 writer protocol correction trace — local source only
+
+- Slow and late PUT, independent author progress, nonce retry and matching
+  settlement: upload-session grant/repository/types and bridge runtime tests.
+- Cleanup waits for writer settlement: session cancellation and its runtime
+  late-PUT regression; no pending writer may contribute to terminal deletion.
+- Restore excludes admitted writers and preserves runtime state: restore
+  coordination CAS, protected coordination keys and backup/restore tests.
+- Browser ancestor writes preserve the writer map: `system_flags` permission
+  boundary and the media-asset emulator suite.
+- Current results and unresolved crash/provider/release gates remain in the
+  reconciliation record. This trace adds no parent/task acceptance or rollout.

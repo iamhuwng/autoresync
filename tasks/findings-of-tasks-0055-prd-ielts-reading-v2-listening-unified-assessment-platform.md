@@ -8413,3 +8413,20 @@ blocks other authors and can expire before PUT settles, allowing terminal late
 bytes to escape cleanup. No timeout-only fix is accepted. Sweep stays disabled.
 The dated reconciliation inventory records source, runtime boundaries and next
 proof; no task or parent release gate is closed.
+
+## 2026-10-18 per-asset writer correction — qualification in progress
+
+The old-code runtime regression reproduced terminal cleanup before a deferred
+PUT completed. The corrective source replaces the streamed global lease with
+durable per-asset writer admission, keeps nonce consumption after admission,
+and coordinates cleanup and restore through the same system-flags CAS.
+Writer reservations have no expiry; successful PUT settlement or failure before
+dispatch can release only the matching reservation. Ambiguous writes remain
+pending regardless of age or a negative object read.
+
+The active reconciliation record owns current test counts and qualification.
+The previous global-streaming-lock blocker above is historical after this
+correction; crash quiescence/recovery, provider lifecycle and release isolation
+remain unresolved. No taskbox closure, deployment or production deletion is
+claimed. ListeningTestBuilder is untouched by this server correction, retaining
+its approved 4,777-line scope. Sweep remains disabled.

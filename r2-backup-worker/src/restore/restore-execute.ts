@@ -133,6 +133,7 @@ const RTDB_RESTORE_ORDER = [
 
 const RTDB_REQUIRED_SNAPSHOT_NODES = ['listening_authoring', 'book_activity'];
 const LISTENING_MEDIA_MUTATION_LEASE_FIELD = 'listening_media_mutation_lease';
+const LISTENING_UPLOAD_WRITERS_FIELD = 'listening_upload_writers';
 const LISTENING_AUTHORING_CLEANUP_LEASE_FIELD = 'temp_cleanup_lease';
 const RESTORE_LEASE_MS = 24 * 60 * 60 * 1000;
 const RESTORE_LEASE_RETRIES = 5;
@@ -323,6 +324,10 @@ const acquireRestoreCoordinationLease = async (
             const { flags, etag } = await readSystemFlags(env, token);
             const existing = flags[LISTENING_MEDIA_MUTATION_LEASE_FIELD];
             const restore = flags.restore_in_progress;
+            const writers = flags[LISTENING_UPLOAD_WRITERS_FIELD];
+            if (writers != null && (!isRecord(writers) || Object.keys(writers).length > 0)) {
+                throw new Error('listening_upload_writers_unsettled');
+            }
             if ((isRecord(existing) && Number(existing.expiresAt) > claimedAt)
                 || restore === true
                 || (isRecord(restore) && restore.active === true)) {
@@ -786,7 +791,7 @@ async function restoreRtdbNode(
     const protectedCoordinationKeys = nodeName === 'listening_authoring'
         ? new Set([LISTENING_AUTHORING_CLEANUP_LEASE_FIELD, 'deleted_temp_assets'])
         : nodeName === 'system_flags'
-            ? new Set(['restore_in_progress', LISTENING_MEDIA_MUTATION_LEASE_FIELD])
+            ? new Set(['restore_in_progress', LISTENING_MEDIA_MUTATION_LEASE_FIELD, LISTENING_UPLOAD_WRITERS_FIELD])
             : new Set<string>();
     const deletedAssets = ['listening_authoring', 'media_assets', 'media_asset_upload_sessions'].includes(nodeName)
         ? (await readAuthoringRoot(env, token)).root.deleted_temp_assets
