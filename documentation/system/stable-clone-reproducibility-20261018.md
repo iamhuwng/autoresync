@@ -95,3 +95,17 @@ app build and pinned Worker install/build/full-code hash comparison. A later
 startup safety correction makes ordinary Firebase startup read-only; its
 41 focused local checks pass. CI must pass again for that final source before
 merging. No installed-machine startup/login result is inferred from a CI build.
+
+## Superseding configured-machine verification — October 18
+
+At source `a3ebc041`, the stable checkout received its existing reviewed ignored
+Worker secret file, and local Auth was recovered from validated saved identities.
+The unchanged dev orchestrator started Vite and the local Book Worker. Fresh
+teacher/student contexts entered the mandated `/login` routes on 5173/5174:
+teacher materials and Create New Test loaded, and the student feed loaded 20
+entries. This closes the earlier missing-secret/Auth startup proof gap on this
+configured machine. It does not provision another machine or qualify every
+workflow, PDF provider upload or the feature checkout's local rules as main's.
+Dataset issues, the existing student styling warning and exact evidence are in
+[the follow-up](../release-audits/2026-10-18-local-startup-and-pdf-readiness.md).
+Continue cloning main for new work, with per-service tags for deployed artifacts.
