@@ -942,3 +942,10 @@ Imported Writing homework records carry `context.externalImport` on `writing_sub
 
 ### Finding R-2026-05-08-3: PRD-0043 verification anchors are writing-lifecycle anchors
 The corrective rebase verification used focused Writing import and queue/editor anchors: `writingExternalSubmissionImport.service.test.ts`, `homeworkSubmissionService.test.ts`, `writingSubmissionService.test.ts`, `ImportWritingSubmissionModal.test.tsx`, `TeacherGradingPage.test.tsx`, `WritingGradingPage.test.tsx`, `featureRegistry.test.ts`, build, UTF-8/diff checks, PRD-0040 enforcement, and Playwright MCP live browser verification. The PRD-0040 FR closure status remains verified.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+Fresh active Worker readback revealed assignment-owner binding and teacher_result_keys writes missing from reconstructed source. The correction preserves those deployed safeguards. A source-isolated bundle comparison is equal outside the reviewed recipient function after explicit compiler-only normalization; this does not establish historical Git provenance or a deployment.
+
+See [the dated remaining-work record](../release-audits/2026-10-18-remaining-nonbook-work.md).

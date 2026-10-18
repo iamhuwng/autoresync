@@ -243,6 +243,17 @@ supersedes the historical withdrawal status above. It preserves the dated
 qualification limits and remaining non-Book/PDF work. No Worker, rules,
 database or B2 deployment occurred; this was Hosting only.
 
+## Remaining-work follow-up — October 18
+
+The owner requested continuation of homework recipient hardening and Listening
+reconciliation, while explicitly keeping the student feedback pages and Student
+Study OS design pack separate. The basic UID mapping is already in reconstructed
+main but remains absent from the active backup Worker. Its follow-up tests pass;
+an unrelated Book dependency difference currently prevents treating the new
+backup bundle as a homework-only release. See the dated
+[remaining-work record](../release-audits/2026-10-18-remaining-nonbook-work.md)
+for the exact source, provider observation, checks and unverified boundaries.
+
 ## Book catalog regression — October 18
 
 The qualified Reading replacement still accidentally disabled the existing

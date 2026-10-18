@@ -36,6 +36,12 @@ to student projections.
 ## Homework And Solo Practice
 
 - Homework launch must bind the assignment/submission context and return path.
+- Trusted homework submission loads the saved assignment and validates its ID
+  and material binding. Result ownership comes from `homework.createdBy`, even
+  when a different teacher owns the assigned public material.
+- Teacher discovery writes `teacher_result_keys/{teacherId}/{resultId}: true`,
+  matching the shared result reader and active Worker. Do not restore the older
+  denormalized teacher-result index when rebuilding this service.
 - Solo practice must not be treated as teacher-owned work.
 - Retry/idempotent submit behavior may treat already-submitted homework as soft
   success only when the saved submission already exists and ownership matches.

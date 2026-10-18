@@ -7,6 +7,19 @@ Master entry: [`documentation/architecture/master_changelog.md`](../master_chang
 Status: active architecture contract.
 Updated: 2026-06-15
 
+## 2026-10-18 Backend source reconciliation
+
+Fresh active backup Worker source retains saved-assignment ownership and the
+`teacher_result_keys` discovery contract. Reconstructed source had lost those
+guards while retaining the shared answer scorer. The source correction restores
+assignment loading, ID/material binding, assigning-teacher ownership and the
+current index, preserving shared Academic band scoring. Both the Worker and
+retained Functions source callers pass the assignment into the shared core.
+The backup Worker bundle comparison confirms unchanged behavior outside the
+separately reviewed direct-recipient correction after explicit build-path and
+equal declaration-order normalization. No backend, rules or Functions release
+is recorded by this source reconciliation.
+
 This document records the current integration boundary between Reading V2 and shared platform systems: anti-cheat, trusted submit, AI feedback, admin monitoring, and host-owned launch/return wiring.
 
 ## Scope

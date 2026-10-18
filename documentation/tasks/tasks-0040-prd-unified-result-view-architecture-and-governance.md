@@ -311,3 +311,10 @@
 
 > **All findings have been moved to [`findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md`](findings-of-tasks-0040-prd-unified-result-view-architecture-and-governance.md)**
 > per `process-task-list.md` guidelines. New findings are appended to that file.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+No task checkbox or parent milestone changes. The independent Reading source reconciliation restores the current Worker ownership/index contract; local verification covers 93 backup Worker tests, 8 shared submit-core tests, and 18 passage-set/scoring tests. Browser acceptance and service deployment are separate.
+
+See [the dated remaining-work record](../release-audits/2026-10-18-remaining-nonbook-work.md).

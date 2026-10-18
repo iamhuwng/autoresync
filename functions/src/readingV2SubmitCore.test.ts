@@ -216,6 +216,30 @@ const makeFullTestComposition = () => ({
 });
 
 describe('readingV2SubmitCore', () => {
+  it('uses the saved homework owner when the assigned material has a different owner', () => {
+    const request = parseReadingV2TrustedSubmissionRequest({
+      deliveryEngine: READING_V2_ENGINE,
+      projectionId: 'student-safe:material-1:snapshot-1',
+      sourceSnapshotVersionId: 'snapshot-1', materialId: 'material-1', answers: [],
+      context: { surface: 'homework', homeworkId: 'homework-1' },
+    });
+    const base = { request, auth: { uid: 'student-1' },
+      records: { snapshot: makeSnapshot(), reviewProjection: makeReviewProjection(),
+        homework: { id: 'homework-1', materialId: 'material-1', createdBy: 'assigning-teacher' } },
+      identity: { resultId: 'result-homework-1', attemptId: 'attempt-homework-1',
+        submittedAtIso: '2026-04-29T00:05:00.000Z', submittedAtMs: 1777395900000 } };
+    const plan = buildReadingV2TrustedSubmissionPlan(base);
+    expect(plan.savedResult.teacherId).toBe('assigning-teacher');
+    expect(plan.savedResult.visibility).toMatchObject({
+      visibilityOwnerTeacherId: 'assigning-teacher', ownerResolutionSource: 'homework.createdBy',
+    });
+    expect(plan.secondaryUpdates['teacher_result_keys/assigning-teacher/result-homework-1']).toBe(true);
+    expect(Object.keys(plan.secondaryUpdates).some(key => key.startsWith('test_results_by_teacher/'))).toBe(false);
+    expect(() => buildReadingV2TrustedSubmissionPlan({ ...base, records: {
+      ...base.records, homework: { ...base.records.homework, materialId: 'other-material' },
+    } })).toThrow('saved assignment');
+  });
+
   it('parses a browser-safe request and rejects unsupported payloads', () => {
     const request = parseReadingV2TrustedSubmissionRequest({
       deliveryEngine: READING_V2_ENGINE,
@@ -340,9 +364,7 @@ describe('readingV2SubmitCore', () => {
       'test_results_by_student/student-1/result-1': expect.objectContaining({
         resultId: 'result-1',
       }),
-      'test_results_by_teacher/teacher-session/result-1': expect.objectContaining({
-        resultId: 'result-1',
-      }),
+      'teacher_result_keys/teacher-session/result-1': true,
       'game_sessions/LIVE123/players/student-1/hasCompletedTest': true,
     }));
     expect(plan.savedResult).toEqual(expect.objectContaining({

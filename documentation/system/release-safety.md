@@ -6,6 +6,14 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+Current operational state: the October 18 [Book restoration release](../release-audits/2026-10-18-book-hosting-release.md)
+serves a verified production source manifest. Start with `--observe-hosting` and
+fresh provider evidence. The October 11 rehearsals and missing-manifest statements
+under **Acceptance rehearsal** below are historical, superseded for current
+Hosting by the linked release; they remain evidence of those earlier checks.
+That Hosting release establishes no Worker, rules, storage, or PDF lifecycle
+qualification. Those services retain their separate evidence and authorization.
+
 Assess an explicitly selected revision from a clean checkout:
 
 ```powershell
@@ -55,6 +63,22 @@ allowing a locally assembled dirty artifact to be mistaken for the reviewed
 revision/tree.
 
 `deploy-live.mjs` writes the same source/tree/file-hash manifest into each production build before Hosting deployment. The mutating Hosting route additionally requires `LUYENTAP_RELEASE_BASELINE_FILE`, `LUYENTAP_RELEASE_BASELINE_SHA256`, `LUYENTAP_RELEASE_BASE`, `LUYENTAP_RELEASE_FINGERPRINT`, and `LUYENTAP_RELEASE_ENV_FINGERPRINT`. Hotfix assessments carry a computed reconciliation obligation into the next manifest; later assessments compare the complete hotfix delta against the candidate. These values bind a technical preflight to its inputs; they are not human authorization. A separate authorized operator decision is still required, and the baseline file must contain no credentials.
+
+## Fixed Homework Worker artifact assessment
+
+The October 18 isolated Homework Worker has a native shared-checker path:
+`--observe-homework-worker --worker-bundle <path> --worker-config <path>`.
+Follow [its release packet](../release-audits/2026-10-18-homework-worker-release.md).
+This path independently reads Cloudflare and pins one reviewed clean revision,
+base, tree, prebuilt artifact and deployment configuration. It records the full
+changed-file list and original service classification while assessing only that
+fixed Worker artifact. Historical live Git provenance remains unknown; exact
+reviewed artifact hashes and outside-target code equivalence establish this
+scope. An arbitrary candidate, supplied JSON, changed provider baseline or mixed
+Hosting evidence cannot pass. The receipt is written beneath the selected
+`--cwd` candidate. Other Worker releases retain their existing UNVERIFIED gate.
+Require fresh PASS, independent review and separate Worker authorization; this
+adds no deployment command or authority to the checker.
 
 ## Acceptance rehearsal
 

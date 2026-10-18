@@ -111,7 +111,7 @@ points elsewhere should be repointed to the canonical helper or removed before
 that older directory is deleted.
 
 This route is version-bound: the Cloudflare lockfile pins workerd 1.20260617.1
-and the R2 lockfile pins 1.20260302.0; the inspected Cloudflare loader for the
+and the R2 lockfile pins 1.20260617.1; the inspected Cloudflare loader for the
 locked package does not select a Windows ARM64 binary. Reassess this exception
 when either lockfile changes, using a representative Worker test before
 retiring the x64 route.

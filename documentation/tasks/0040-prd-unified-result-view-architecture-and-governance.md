@@ -651,3 +651,10 @@ This appendix preserves the deeper writing editing/grading workflow findings int
 10. The audit trail workflow is underimplemented. The editor and result modal render `auditTrail`, and the types expect structured regrade reasons, but the live save path does not append audit entries. The PRD must treat this as a real workflow gap, not a completed capability.
 11. There are two materially different grading-tool architectures, and the PRD must classify them rather than blurring them together. The canonical route uses `WritingGradingPage` with `AnnotatedEssayRenderer`, `AnnotationToolbar`, `FeedbackPanel`, `CategoryManager`, and `GradingAuditTrail`. Separately, `WritingGradingModal` and its related stack form a richer alternate or dormant toolchain with `EssayEditor`, `CommentSidebar`, `QuickCommentsDialog`, `CorrectionPopup`, `TabbedFeedbackEditor`, local draft recovery, and separate audit handling.
 12. THCS inline writing grading is a separate operational workflow and should not be blurred into IELTS writing. `InlineWritingGrader` is mounted from `TeacherTestMonitorPage` only for THCS sessions and writes directly into live session result state.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+A bounded Reading backend source correction restores the live assignment-owner/material-binding and teacher-result-key contract while retaining shared scoring. It adds no result surface or PRD scope. The dated remaining-work audit records source/provider comparison, local checks, and the separate deployment boundary.
+
+See [the dated remaining-work record](../release-audits/2026-10-18-remaining-nonbook-work.md).
