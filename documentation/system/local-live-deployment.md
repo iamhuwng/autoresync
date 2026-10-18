@@ -23,8 +23,8 @@ this order:
 
 1. `scripts/local-dev.mjs` — browser-local Firebase and Worker endpoint
    overrides.
-2. `scripts/local-firebase.mjs` — emulator project, ports, snapshot behavior,
-   rules loading, and dev-account seeding.
+2. `scripts/local-firebase.mjs` — read-only startup checks and explicit emulator
+   bootstrap, snapshot, rules-loading and dev-account-seeding operations.
 3. `scripts/local-book-source-worker.mjs` — generated local Wrangler config,
    local Worker bindings, B2 bucket/prefix wiring, required local secrets, and
    Worker port/protocol.
@@ -116,7 +116,7 @@ existing Java helper also needs WSL Java plus its exact cached RTDB/Firestore
 JARs; Auth uses the installed Firebase CLI. Another checkout's successful run
 does not provision a fresh machine.
 
-The orchestrator checks the Worker secret file before Firebase starts. The
+The orchestrator checks the Worker secret file before Firebase validation. The
 local Worker script validates the keys it actually needs. Do not echo,
 paste, commit, or log secret values merely to prove that they exist.
 
@@ -135,19 +135,27 @@ This command:
 
 1. verifies that the ignored local Worker secret file is readable;
 2. verifies the shared development environment;
-3. starts/restores the Firebase emulators;
-4. installs the current RTDB rules into the emulator;
-5. seeds the quick-login local accounts;
-6. starts Vite with local Firebase/Worker overrides;
-7. generates the ignored local Wrangler files under `cloudflare/tmp/`;
-8. starts the local Book Worker on port `8787`.
+3. checks that existing local Firebase emulators have the expected identity;
+4. starts Vite with local Firebase/Worker overrides;
+5. generates the ignored local Wrangler files under `cloudflare/tmp/`;
+6. starts the local Book Worker on port `8787`.
+
+Normal `firebase:local` / `npm run dev` does not start emulators, import data,
+install rules or seed accounts. Missing services fail the check. On a new,
+disposable local dataset only, explicit `npm run firebase:bootstrap-local`
+performs the old startup setup: starts missing emulators, imports the selected
+snapshot where applicable, installs local RTDB rules and seeds dev accounts.
+For an existing rich dataset, use its owning checkout's recovery/checkpoint
+workflow instead; never bootstrap a fresh clone against it. Java emulator and
+checkpoint ownership is machine-wide even though snapshots are per checkout.
 
 The configured-machine clone check on October 18 found existing shared DB and
 Firestore listeners, but no Auth or app/Worker listener. The clean clone lacked
 `.dev.vars`; startup was therefore not exercised against that existing dataset.
 The missing-file guard was verified with a disposable script fixture that
-proves no environment/Firebase setup runs first. This is prerequisite/negative
-startup proof, not a complete fresh-install or signed-in browser pass.
+proves no environment/Firebase setup runs first. A second regression test
+executes ordinary Firebase startup with mutating operations forbidden. These
+are prerequisite/negative startup proofs, not a complete signed-in browser pass.
 
 Do **not** start direct Vite through `tooling:where` for normal browser
 development. Direct Vite does not own the local Firebase/Worker bootstrap and
@@ -183,16 +191,21 @@ Useful commands:
 ```powershell
 npm run firebase:local
 npm run firebase:check-local
+npm run firebase:bootstrap-local
 npm run firebase:seed-local
 npm run firebase:save-local
 ```
 
-### Start and restore
+### Read-only startup and explicit bootstrap
 
-`npm run firebase:local` starts any missing emulator, verifies that each
-endpoint is the expected local project, loads the current RTDB rules, imports
-the saved local snapshot when an emulator process is being started, and seeds
-local Auth accounts.
+`npm run firebase:local` verifies that all expected emulator services/project
+are reachable. It changes no data or rules. `npm run dev` performs this same
+read-only check and requires an already prepared local runtime.
+
+Only explicit `npm run firebase:bootstrap-local` starts missing emulators,
+loads RTDB rules, imports this checkout's snapshot when a process starts, and
+seeds local Auth accounts. Use it for a deliberately disposable setup. An
+existing rich dataset must stay with its owning recovery/checkpoint workflow.
 
 A saved snapshot is a **boot-time import**, not a continuously mounted database.
 If ports 9000/9099/8080 are already owned by valid local emulator processes, the
@@ -201,11 +214,10 @@ mattered during PRD0063: a rich copied snapshot existed on disk while an older
 already-running emulator still contained only the seeded accounts. If expected
 copied data is missing but `tmp/local-firebase/` is populated, inspect the
 running emulator before concluding the database copy failed; stop/restart only
-the verified local emulator processes and then start through the normal runner
-so the snapshot is imported.
+the verified local emulator processes through the owning checkout's recovery
+workflow so the intended snapshot is imported.
 
-`npm run dev` already performs Firebase startup, so do not redundantly start
-Firebase and seed it first unless you are diagnosing Firebase independently.
+Do not run bootstrap or seed as an automatic prerequisite for opening a clone.
 
 ### Persistent local snapshot
 
@@ -216,7 +228,8 @@ tmp/local-firebase/
 ```
 
 `npm run firebase:save-local` saves Auth, RTDB, and Firestore state there.
-Subsequent local starts restore it when present.
+Explicit bootstrap can restore it when creating emulator processes; the normal
+read-only startup path does not import it.
 
 This snapshot is **local development data**, not a migration and not a release
 artifact. Preserve it when it contains useful acceptance state; recreate it
@@ -225,7 +238,7 @@ snapshot merely because an already-running emulator appears empty.
 
 ### Dev accounts
 
-The local Firebase startup seeds the repository's teacher/student dev accounts.
+Explicit bootstrap or `firebase:seed-local` seeds the teacher/student accounts.
 Browser verification should use the quick-login controls on `/login`, not
 manually copied credentials. If quick login fails, verify emulator health before
 assuming the account is invalid:
@@ -238,7 +251,7 @@ npm run firebase:check-local
 reachable; it does **not** prove that the currently running processes loaded the
 snapshot you intended. Data provenance is a separate check.
 
-The startup seeder deliberately reconciles Auth identities with matching local
+The explicit seeder deliberately reconciles Auth identities with matching local
 RTDB user profiles so a live-data copy can keep useful profile UIDs while Auth
 remains local. A local database may therefore contain many copied live user
 profiles while only the disposable seeded local Auth accounts can sign in. Do

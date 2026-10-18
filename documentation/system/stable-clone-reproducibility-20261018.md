@@ -71,8 +71,16 @@ machine environment/runtimes and this clone's ignored `.dev.vars`. See
 [local startup](local-live-deployment.md) and the README installation steps.
 
 The configured-machine audit found the clean stable clone missing `.dev.vars`.
-The new startup guard rejects it before environment setup, emulator writes or
-account seeding. The rich existing local dataset was preserved. Full startup
+The new startup guard rejects it before environment setup. Ordinary Firebase
+startup now checks existing services without launching them, installing rules
+or seeding accounts; the old setup runs only through explicit bootstrap.
+The rich existing local dataset was preserved. Full startup
 and authenticated browser verification are still pending that prerequisite;
 an existing dependency tree is not fresh-install proof. No production service,
 rules, data or provider object is changed by these source/setup checks.
+
+At `7cf4e478`, GitHub run `39110521650` passed the clean root install, acceptance
+app build and pinned Worker install/build/full-code hash comparison. A later
+startup safety correction makes ordinary Firebase startup read-only; its
+41 focused local checks pass. CI must pass again for that final source before
+merging. No installed-machine startup/login result is inferred from a CI build.

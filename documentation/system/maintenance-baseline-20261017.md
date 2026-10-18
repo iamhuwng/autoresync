@@ -300,3 +300,29 @@ The owner acknowledged deferring Listening cleanup after reviewing its crash
 recovery/retention tradeoff. Keep PR #151 a draft with sweep disabled. Retained
 student feedback/design pages and PDF Book remain separate; this release does
 not close their implementation or acceptance work.
+
+## Reproducibility and clone startup follow-up
+
+The owner approved pinned service releases to reproduce deployed components
+without reverting newer Book safety checks. The Homework Worker source tag
+`deployed-homework-worker-2026-10-18` is published at `99bb3f07`; the tracked
+[service inventory](../release-audits/deployed-services.json) distinguishes it
+from Hosting and main. Clean-runner CI rebuilds that source and compares full
+normalized code, and separately builds the main app with disposable settings.
+
+Normal local startup now checks the per-clone Worker secret file first and
+checks existing Firebase services without starting/seeding/importing or
+installing rules. Explicit bootstrap retains that mutating setup for disposable
+datasets. The rich existing local dataset and PDF feature checkout remain
+untouched. The stable clone currently lacks `.dev.vars` and local Auth is not
+listening; full startup and authenticated production Homework QA are open,
+despite successful clean-install/build and negative startup checks.
+
+PDF release preparation must use the current component-PDF plan/ledger and
+PRD0063 authoring contract in the original feature checkout. Its browser-to-
+Create evidence does not prove fresh provider upload, student PDF access,
+save/submit or teacher results. Historical capacity/credential blockers need
+fresh provider observations, not assumptions or weakened capacity guards.
+Require an exact-path implementation handoff and reconcile its net delta onto
+current main before preparing separate service releases. No PDF deployment
+readiness or production change follows from this clone follow-up.

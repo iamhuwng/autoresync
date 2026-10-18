@@ -323,11 +323,12 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
 
    Keep production settings in the separate reviewed `.env.production` described
    in that guide. Local Firebase uses `demo-luyentap-local`, but Book PDF
-   acceptance can upload to the real restricted B2 prefix. Startup seeds local
-   accounts and installs local RTDB rules: reuse of another checkout's running
-   emulators is not isolated data. Preserve/checkpoint an existing dataset before
-   qualifying another clone. On a fresh machine, follow the tooling guide before
-   provisioning missing runtimes or dependencies.
+   acceptance can upload to the real restricted B2 prefix. Normal startup checks
+   existing local Firebase services without changing their rules or accounts.
+   Explicit `npm run firebase:bootstrap-local` creates/seeds a disposable setup;
+   use the owning checkout's recovery workflow for an existing rich dataset.
+   Reusing its running emulators is not isolated data. On a fresh machine, follow
+   the tooling guide before provisioning missing runtimes or dependencies.
 
 4. Start development server:
    ```bash
@@ -341,7 +342,8 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev -- 5173` | Start the isolated local Firebase/app/Book Worker stack |
+| `npm run dev -- 5173` | Check prepared local Firebase, then start the app/Book Worker |
+| `npm run firebase:bootstrap-local` | Explicit emulator/rules/account setup for disposable local data |
 | `npm run build` | Direct Vite production build plus bundle-budget check |
 | `npm run build:production` | Checked production build; no remote mutation |
 | `npm run release:check` | Read-only assessment with an explicit reviewed base |
