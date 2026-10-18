@@ -206,3 +206,7 @@ delayed storage completion require qualification before release. No current
 The owner has been asked whether to accept permanent markers or defer this
 cleanup draft while completing stable. No retention choice or deployment
 authorization is inferred from this proposal.
+
+The owner subsequently acknowledged the recommendation to finish stable with
+this Listening cleanup draft kept separate. Permanent-marker implementation is
+not included; sweep remains disabled and this draft is not approved for release.
