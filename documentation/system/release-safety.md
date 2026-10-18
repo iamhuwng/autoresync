@@ -6,6 +6,14 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+Current operational state: the October 18 [Book restoration release](../release-audits/2026-10-18-book-hosting-release.md)
+serves a verified production source manifest. Start with `--observe-hosting` and
+fresh provider evidence. The October 11 rehearsals and missing-manifest statements
+under **Acceptance rehearsal** below are historical, superseded for current
+Hosting by the linked release; they remain evidence of those earlier checks.
+That Hosting release establishes no Worker, rules, storage, or PDF lifecycle
+qualification. Those services retain their separate evidence and authorization.
+
 Assess an explicitly selected revision from a clean checkout:
 
 ```powershell

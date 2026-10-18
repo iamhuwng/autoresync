@@ -159,3 +159,59 @@ A clean-source rebuild at `2026-10-18T01:59:54Z` and fresh provider readback
 retain the candidate/live module hashes and outside-target equality above;
 the comparison receipt now binds this exact clean revision and tree. Neither
 branch is deployed. Authenticated recipient/delivery qualification remains open.
+
+## Superseding authenticated local qualification — October 18, 10:40 Bangkok
+
+The isolated Worker candidate `99bb3f07` passed local authenticated Teacher and
+Student acceptance at `2026-10-18T03:40:49.219Z`. The real lobby Assign HW action
+called the compiled candidate handler; Teacher Homework Timeline showed the
+assignment, and its recipient's Homework list/detail launched the assigned
+Writing prompt and editor. No answer was entered or submitted. The nonrecipient
+student's list excluded it, and its protected payload read returned 401 versus
+the recipient's 200. An exact alias/UID request separately reproduced duplicate
+recipients in the old handler and one canonical UID with the aligned name in
+the candidate. Normal UI selection already prefers UIDs, so the replay and
+browser checks establish different parts of this contract.
+
+Wrong-issuer, wrong-signature and unsigned-token requests returned 401; a student
+assignment attempt returned 403. Browser identity came from actual disposable
+Auth emulator login. A test-only adapter exchanged its verified principal for
+an ephemeral RS256 token; unchanged jose verification read the fixture JWKS.
+OAuth and database REST calls were routed to emulators. This is local
+integration evidence, not real Google-issued-token or production service proof.
+
+The acceptance UI artifact was built from `7953a039`; its app inputs are
+unchanged through deployed source `091a1746`. It was reused, not rebuilt from
+that later revision. The Worker is clean at `99bb3f07`, bundle SHA-256
+`6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed`.
+The binding audit records hashes and zero remaining task-owned listeners;
+shared RTDB/Firestore emulators and the rich development namespace were preserved.
+
+Existing limitations are explicit: unchanged Firestore rules permit any signed-in
+account to read ordinary assignment metadata directly, although the nonrecipient
+list and protected material checks reject access as described above. Student
+detail logs two denied private authoring-test reads and leaves Questions loading;
+the assigned safe payload still launches correctly. Ten intentionally blocked
+font-resource errors were retained; no unclassified captured error remained.
+Console and pageerror channels were combined, so no separate pageerror-count
+claim is made. Only Writing assignment/launch was exercised; grading, trusted
+Reading submission, new notification delivery and provider execution were not.
+
+PR #150's branch was updated from stable main (`2ce856e3`), preserving the
+Book correction. All four CI checks passed, including 93 backup tests and the
+Wrangler 4.103.0 non-deploying build. Independent source review found no introduced
+recipient or Reading-owner/index defect and reproduced isolated bundle equality
+outside `resolveTarget`. The main-based Worker bundle remains excluded because
+it includes unrelated Book backup dependencies.
+
+A fresh provider read at `2026-10-18T03:24:38.296Z` still found active version
+`f37869c0-c597-41cc-893b-7f7652d80e41`, module SHA-256 `c7894544...ad112b`;
+bindings, compatibility date, retention and schedule match the scoped service
+configuration. Only read operations were performed. Worker-specific release
+preflight, separate release authorization and actual live acceptance remain
+required; the generic Hosting observer does not verify backup Worker release
+readiness. No provider release or Firebase rule change is claimed.
+
+Evidence in the canonical ignored audit directory: `homework-qualification.json`,
+`homework-qualification-audit.json`, `homework-qualification-student-opened.png`,
+and `homework-provider-read-2026-10-18T03-24-38-296Z.json`.

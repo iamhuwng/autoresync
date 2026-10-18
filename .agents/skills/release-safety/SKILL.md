@@ -25,24 +25,22 @@ before assessment. Choose an explicit reviewed `--base`; a branch name,
 
 ## Establish evidence before assessing
 
-Start with provider metadata; it is independently observed but does not prove
-source provenance:
+Use the production manifest observer for the manifest-bearing live site:
 
 ```powershell
 node scripts/release-check.mjs --mode release --base <review-base> `
-  --observe-hosting-provider --env-fingerprint <production-env-sha256> --json
+  --observe-hosting --env-fingerprint <production-env-sha256> --json
 ```
 
-The provider readback reuses the repository-owned Firebase CLI found in this
-checkout or another Git worktree. Do not install dependencies, create junctions,
-or assemble caller-supplied baseline JSON in a managed worktree just to run it.
-If it reports `sourceKnown: false`, production source is still `UNVERIFIED` and
-an exact-source hotfix cannot be prepared safely.
+The observer verifies the served source identity and listed content hashes.
+For historical releases without a manifest, `--observe-hosting-provider` reads
+provider metadata through the existing repository-owned Firebase CLI. If it
+reports `sourceKnown: false`, exact-source preparation remains `UNVERIFIED`.
+Reuse declared tools without installing dependencies or creating junctions.
 
-Use `--observe-hosting` only after a separately verified JSON production manifest
-is actually served by `https://kahut1.web.app/.well-known/luyentap-release.json`.
-The current live site serves HTML at that path, so the provider route is the
-honest first-deployment path until an authorized manifest-bearing release exists.
+The October 18 manifest-bearing release and its qualification limits are recorded
+in `documentation/release-audits/2026-10-18-book-hosting-release.md`. Re-read the
+live manifest; a dated release record does not establish the next deployment's state.
 
 ## Normal release
 
@@ -52,7 +50,7 @@ Assess the selected candidate and write a receipt:
 $envFile = Join-Path $HOME '.luyentap\env\.env.production'
 $envFingerprint = (Get-FileHash $envFile -Algorithm SHA256).Hash.ToLower()
 node scripts/release-check.mjs --mode release --base <review-base> `
-  --observe-hosting-provider --env-fingerprint $envFingerprint `
+  --observe-hosting --env-fingerprint $envFingerprint `
   --json --receipt tmp/release-receipts/release-assessment.json
 ```
 
@@ -115,5 +113,7 @@ affected service, deployment order, recovery information, and authorization
 boundary. Never replace an unavailable provider observation with caller-supplied
 JSON or a manually edited receipt.
 
-For a dependency-free managed worktree, direct `node` assessment commands are the supported cold-start path. Run builds or deployment only after selecting a checkout with the repository-owned dependencies and rechecking its status.\n\nCompletion means the receipt, source/base, observed state, compatibility review,
+For a dependency-free managed worktree, direct `node` assessment commands are the supported cold-start path. Run builds or deployment only after selecting a checkout with the repository-owned dependencies and rechecking its status.
+
+Completion means the receipt, source/base, observed state, compatibility review,
 tests, and worktree state all agree. If any input changes, rerun the checker.
