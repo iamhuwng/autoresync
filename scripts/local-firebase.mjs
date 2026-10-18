@@ -281,7 +281,7 @@ const saveSnapshot = async () => {
 const check = async () => {
   const status = await Promise.all(Object.entries(emulatorPorts).map(async ([name, port]) => [name, await isPortOpen(port)]));
   const unavailable = status.filter(([, available]) => !available).map(([name]) => name);
-  if (unavailable.length > 0) throw new Error(`Local Firebase emulators unavailable: ${unavailable.join(', ')}.`);
+  if (unavailable.length > 0) throw new Error(`Local Firebase emulators unavailable: ${unavailable.join(', ')}. Prepare them through the owning checkout's recovery workflow; bootstrap is only for an intentionally disposable setup.`);
   await assertLocalEmulators();
   console.log(`[Firebase] Local emulators are running for ${projectId}.`);
 };
@@ -289,6 +289,8 @@ const check = async () => {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const command = process.argv[2] || 'start';
   if (command === 'start') {
+    await check();
+  } else if (command === 'bootstrap') {
     await startEmulators();
     await seedAccounts();
   } else if (command === 'seed') {
@@ -300,7 +302,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   } else if (command === 'import-rtdb') {
     await importRtdbSnapshot(process.argv[3]);
   } else {
-    console.error('Usage: node scripts/local-firebase.mjs <start|seed|check|save|import-rtdb> [snapshot.json]');
+    console.error('Usage: node scripts/local-firebase.mjs <start|bootstrap|seed|check|save|import-rtdb> [snapshot.json]');
     process.exitCode = 1;
   }
 }

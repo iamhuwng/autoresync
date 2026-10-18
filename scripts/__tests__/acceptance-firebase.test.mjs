@@ -18,6 +18,29 @@ const safe = {
   VITE_R2_UPLOAD_WORKER_URL: 'http://localhost:19087',
 };
 
+test('ordinary local Firebase startup only checks existing services', async () => {
+  const url = new URL('../local-firebase.mjs', import.meta.url);
+  const source = (await readFile(url, 'utf8'))
+    .replace(/^import[^\n]*\n/gmu, '')
+    .replaceAll('import.meta.url', 'moduleUrl')
+    .replace(/^export /gmu, '');
+  let checked = 0;
+  const forbidden = () => { throw new Error('Ordinary startup attempted a mutating setup operation'); };
+  await runInNewContext(`(async () => { ${source} })()`, {
+    assert, path, os, fileURLToPath, moduleUrl: url.href,
+    process: { platform: 'linux', arch: 'x64', argv: ['node', fileURLToPath(url), 'start'], env: {} },
+    console: { log() {}, error() {} },
+    assertLocalEmulators: async () => { checked += 1; },
+    net: { createConnection() {
+      const socket = { once(event, callback) { if (event === 'connect') queueMicrotask(callback); }, destroy() {} };
+      return socket;
+    } },
+    spawn: forbidden, access: forbidden, mkdir: forbidden, readFile: forbidden,
+    rename: forbidden, rm: forbidden, writeFile: forbidden, fetch: forbidden,
+  });
+  assert.equal(checked, 1);
+});
+
 test('Vite validates preview CSP for builds and preview without rejecting local dev HTTP Workers', async () => {
   const configUrl = new URL('../../vite.config.js', import.meta.url);
   const source = (await readFile(configUrl, 'utf8'))
@@ -62,6 +85,7 @@ test('Firebase bootstrap isolates normal development and preserves acceptance an
   let localEnv;
   runInNewContext(launcher, {
     path, fileURLToPath, launcherUrl: launcherUrl.href,
+    accessSync() {}, constants: { R_OK: 4 },
     spawnSync: () => ({ status: 0 }),
     spawn: (_command, _args, options) => {
       localEnv = options.env;

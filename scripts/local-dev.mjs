@@ -1,9 +1,18 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
+
+const workerSecrets = path.join(repoRoot, 'cloudflare', 'tmp', '.dev.vars');
+try {
+  accessSync(workerSecrets, constants.R_OK);
+} catch {
+  console.error(`Missing or unreadable ${workerSecrets}. Supply the reviewed local Worker secrets before starting Firebase; never commit them.`);
+  process.exit(1);
+}
 
 const runSetup = (script, args) => {
   const result = spawnSync(process.execPath, [path.join(scriptDir, script), ...args], {

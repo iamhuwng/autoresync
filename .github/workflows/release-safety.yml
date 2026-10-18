@@ -16,3 +16,57 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs
+      - run: node --test scripts/__tests__/acceptance-firebase.test.mjs scripts/__tests__/tooling-where.test.mjs
+      - name: Build clean-clone app with disposable configuration
+        run: node scripts/tooling-where.mjs --exec vite build --mode acceptance --outDir tmp/clone-acceptance-dist
+        env:
+          VITE_FIREBASE_ACCEPTANCE_EMULATORS: 'true'
+          VITE_FIREBASE_API_KEY: acceptance-only-key
+          VITE_FIREBASE_AUTH_DOMAIN: localhost
+          VITE_FIREBASE_DATABASE_URL: http://localhost:19000?ns=demo-luyentap-acceptance
+          VITE_FIREBASE_PROJECT_ID: demo-luyentap-acceptance
+          VITE_FIREBASE_STORAGE_BUCKET: demo-luyentap-acceptance.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: acceptance
+          VITE_FIREBASE_APP_ID: acceptance
+          VITE_FIREBASE_AUTH_EMULATOR_HOST: localhost:19099
+          VITE_FIREBASE_DATABASE_EMULATOR_HOST: localhost:19000
+          VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: localhost:19080
+          VITE_R2_UPLOAD_WORKER_URL: http://localhost:19087
+
+  deployed-homework-rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read recorded service release
+        id: release
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const release = JSON.parse(readFileSync('documentation/release-audits/deployed-services.json')).homeworkWorker;
+          appendFileSync(process.env.GITHUB_OUTPUT, `revision=${release.sourceRevision}\nnormalizedSha=${release.normalizedBuildSha256}\n`);
+          NODE
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.revision }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: r2-backup-worker/package-lock.json
+      - run: npm --prefix r2-backup-worker ci --no-audit --no-fund
+      - name: Build the recorded Worker without deploying
+        run: node r2-backup-worker/node_modules/wrangler/bin/wrangler.js deploy --config r2-backup-worker/wrangler.toml --dry-run --outdir ../tmp/deployed-homework-rebuild
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+      - name: Compare complete rebuilt code to reviewed artifact
+        env:
+          EXPECTED_SHA: ${{ steps.release.outputs.normalizedSha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const raw = readFileSync('tmp/deployed-homework-rebuild/index.js', 'utf8');
+          const normalized = raw.replaceAll('../../../../../repos/luyentap-prd0062/node_modules/', '../node_modules/').replace(/(?:\.\.\/)*node_modules\//g, 'node_modules/').replace(/^\/\/# sourceMappingURL=.*$/gm, '').replace(/\r\n/g, '\n').trim();
+          assert.equal(createHash('sha256').update(normalized).digest('hex'), process.env.EXPECTED_SHA);
+          NODE

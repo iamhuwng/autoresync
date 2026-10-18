@@ -51,6 +51,7 @@
     "enforce:check": "node scripts/pre-commit-enforcement.js --check",
     "worker:local": "node scripts/local-book-source-worker.mjs",
     "firebase:local": "node scripts/local-firebase.mjs start",
+    "firebase:bootstrap-local": "node scripts/local-firebase.mjs bootstrap",
     "firebase:seed-local": "node scripts/local-firebase.mjs seed",
     "firebase:save-local": "node scripts/local-firebase.mjs save",
     "firebase:check-local": "node scripts/local-firebase.mjs check",
