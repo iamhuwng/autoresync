@@ -55,6 +55,12 @@ Local Auth remains owned by `LuyenTap-stable-qa-auth`, while the existing
 `LuyenTap-firebase-checkpoint` and database/Firestore tasks remain running.
 Those machine-local tasks, ignored secrets and snapshots are not clone contents.
 
+October 19 reinspection: the local service ports are no longer listening, and
+the last checkpoint status reports all three emulators unavailable. The checks
+above establish the October 18 acceptance only. A new browser session must first
+recover the local runtime through its owning checkout; this record does not
+assert that local services stay running indefinitely or restart after reboot.
+
 The preserved dataset remains degraded: three historical homework records
 reference missing Books, and `book_b2_primary` plus the old acceptance capacity
 ledger report provider drift. Successful checkpointing preserves those issues;
