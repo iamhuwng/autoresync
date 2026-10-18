@@ -17,6 +17,22 @@ import { replaceSnapshot } from '../local-firebase.mjs';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
 
+test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'luyentap-startup-test-'));
+  try {
+    await mkdir(path.join(root, 'scripts'));
+    await writeFile(path.join(root, 'scripts/local-dev.mjs'), await readFile(path.join(repositoryRoot, 'scripts/local-dev.mjs')));
+    const marker = path.join(root, 'setup-started');
+    const setup = `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'started'); process.exit(23);`;
+    await writeFile(path.join(root, 'scripts/dev-env.mjs'), setup);
+    await writeFile(path.join(root, 'scripts/local-firebase.mjs'), setup);
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts/local-dev.mjs'), '5173'], { encoding: 'utf8', timeout: 10000, windowsHide: true });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Missing or unreadable .*\.dev\.vars/u);
+    await assert.rejects(() => access(marker), { code: 'ENOENT' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 const runGuard = (envFile) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [deploymentScript, '--build-only'], {
     cwd: repositoryRoot,

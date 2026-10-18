@@ -6,6 +6,10 @@
 > its separate feature branch. Read [the current release record](documentation/release-audits/2026-10-18-book-hosting-release.md),
 > [local setup](documentation/system/local-live-deployment.md), and
 > [release safety](documentation/system/release-safety.md) before running or deploying.
+> The Homework Worker has its own published release tag; use the
+> [service release map](documentation/system/stable-clone-reproducibility-20261018.md)
+> to reproduce each live component. A main-based Worker build includes newer
+> Book backup checks and is not the deployed Worker artifact.
 > The earlier failed release/rollback history, reconstruction limits, and deferred work are retained in
 > [the maintenance baseline](documentation/system/maintenance-baseline-20261017.md).
 
@@ -267,7 +271,10 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 - **Node.js 22.12+** and npm; the checked lockfile uses Vite 7
 - Local Firebase Auth, Realtime Database, and Firestore emulators for development
 - Reviewed AI gateway configuration for extraction; provider secrets stay server-side
-- *(Optional)* Cloudflare R2 account (for file storage)
+- Reviewed local Worker secrets in ignored `cloudflare/tmp/.dev.vars`; the normal
+  development command starts the Book Worker even for ordinary browser work
+- On Windows ARM64, the shared x64 Node helper, WSL Java and cached Firebase
+  emulator JARs described in [the tooling guide](documentation/system/local-tooling-layout.md)
 
 ### Installation
 
@@ -282,10 +289,17 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
    cd luyentap
    ```
 
-2. Install dependencies:
+2. Inspect tools, then provision the root and Cloudflare packages with approval:
    ```bash
+   npm run tooling:doctor
    npm ci --no-audit --no-fund
+   npm --prefix cloudflare ci --no-audit --no-fund
    ```
+   On Windows ARM64, replace the Cloudflare install command with
+   `node scripts/tooling-where.mjs --exec npm-x64 --prefix cloudflare ci --no-audit --no-fund`.
+   Reuse the configured machine's shared runtimes; do not install dependencies
+   into a managed worktree. Backup Worker work additionally needs its own
+   lock-owned `r2-backup-worker` dependencies.
 
 3. Configure the machine-local development environment using
    `npm run env:bootstrap` and [the local development guide](documentation/system/local-live-deployment.md).
@@ -302,10 +316,18 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
 
    ```
 
+   Supply the reviewed local Worker secrets in this clone's ignored
+   `cloudflare/tmp/.dev.vars` before starting development; cloning Git does not
+   copy that file or emulator snapshots. Never paste or commit secrets. Startup
+   rejects a missing secret file before environment/Firebase setup.
+
    Keep production settings in the separate reviewed `.env.production` described
-   in that guide. Local development uses `demo-luyentap-local`; Book provider
-   acceptance additionally requires its restricted provider setup. On a fresh
-   machine, follow the tooling guide before provisioning missing dependencies.
+   in that guide. Local Firebase uses `demo-luyentap-local`, but Book PDF
+   acceptance can upload to the real restricted B2 prefix. Startup seeds local
+   accounts and installs local RTDB rules: reuse of another checkout's running
+   emulators is not isolated data. Preserve/checkpoint an existing dataset before
+   qualifying another clone. On a fresh machine, follow the tooling guide before
+   provisioning missing runtimes or dependencies.
 
 4. Start development server:
    ```bash

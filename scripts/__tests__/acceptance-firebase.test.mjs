@@ -62,6 +62,7 @@ test('Firebase bootstrap isolates normal development and preserves acceptance an
   let localEnv;
   runInNewContext(launcher, {
     path, fileURLToPath, launcherUrl: launcherUrl.href,
+    accessSync() {}, constants: { R_OK: 4 },
     spawnSync: () => ({ status: 0 }),
     spawn: (_command, _args, options) => {
       localEnv = options.env;

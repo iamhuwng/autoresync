@@ -1,7 +1,9 @@
 # Maintenance baseline — 2026-10-17
 
-Status: **Qualified replacement deployed from `83d794d4`, tag `stable-2026-10-18-reading`; Hosting version `61721e91a13201ae`.**
-See [the current release record](../release-audits/2026-10-18-stable-reading-hosting-release.md).
+Status: **Hosting is recorded at Book-restored source `091a1746`; Homework Worker
+is recorded at isolated source `99bb3f07`.** Use the
+[service release map](stable-clone-reproducibility-20261018.md) and linked
+release records. The October 18 Reading replacement below is historical.
 Read the deployed release manifest for the current production source identity;
 the observations below retain their stated verification dates and scope.
 

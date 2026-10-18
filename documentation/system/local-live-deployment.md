@@ -101,14 +101,23 @@ Do not confuse it with the separately reviewed production file:
 %USERPROFILE%\.luyentap\env\.env.production
 ```
 
-For Book/provider acceptance, confirm the ignored local Worker secret file
-exists without printing its values:
+For every clone using normal `npm run dev`, supply the reviewed ignored local
+Worker secret file and confirm it exists without printing its values. The
+orchestrator always starts that Worker, including for non-Book browser work:
 
 ```powershell
 Test-Path cloudflare\tmp\.dev.vars
 ```
 
-The local Worker script validates the keys it actually needs. Do not echo,
+Git does not carry this file, shared environment files, emulator snapshots or
+machine runtimes. Install both root and Cloudflare package dependencies using
+the lockfiles and approved tooling route before startup. On Windows ARM64 the
+existing Java helper also needs WSL Java plus its exact cached RTDB/Firestore
+JARs; Auth uses the installed Firebase CLI. Another checkout's successful run
+does not provision a fresh machine.
+
+The orchestrator checks the Worker secret file before Firebase starts. The
+local Worker script validates the keys it actually needs. Do not echo,
 paste, commit, or log secret values merely to prove that they exist.
 
 Start the normal local stack with:
@@ -124,13 +133,21 @@ CORS settings.
 
 This command:
 
-1. verifies the shared development environment;
-2. starts/restores the Firebase emulators;
-3. installs the current RTDB rules into the emulator;
-4. seeds the quick-login local accounts;
-5. starts Vite with local Firebase/Worker overrides;
-6. generates the ignored local Wrangler files under `cloudflare/tmp/`;
-7. starts the local Book Worker on port `8787`.
+1. verifies that the ignored local Worker secret file is readable;
+2. verifies the shared development environment;
+3. starts/restores the Firebase emulators;
+4. installs the current RTDB rules into the emulator;
+5. seeds the quick-login local accounts;
+6. starts Vite with local Firebase/Worker overrides;
+7. generates the ignored local Wrangler files under `cloudflare/tmp/`;
+8. starts the local Book Worker on port `8787`.
+
+The configured-machine clone check on October 18 found existing shared DB and
+Firestore listeners, but no Auth or app/Worker listener. The clean clone lacked
+`.dev.vars`; startup was therefore not exercised against that existing dataset.
+The missing-file guard was verified with a disposable script fixture that
+proves no environment/Firebase setup runs first. This is prerequisite/negative
+startup proof, not a complete fresh-install or signed-in browser pass.
 
 Do **not** start direct Vite through `tooling:where` for normal browser
 development. Direct Vite does not own the local Firebase/Worker bootstrap and
