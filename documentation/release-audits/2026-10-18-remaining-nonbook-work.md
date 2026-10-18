@@ -93,3 +93,35 @@ qualify the resulting source and real lifecycle before any service release.
 
 PDF Book and newer local persistence/recovery tooling remain separate work.
 This record closes neither their acceptance nor the overall remaining-work task.
+
+## Superseding homework source isolation result
+
+The isolated backend candidate preserves both deployed Reading behaviors:
+saved homework ownership/material binding and `teacher_result_keys` discovery.
+The shared matcher and Academic band calculation remain intact. Its actual
+bundle is equal to the fresh active module outside the reviewed `resolveTarget`
+function after only dependency debug-path prefix, source-map comment, CRLF, and
+an exactly equal 98-line pure declaration block emitted in a different position
+are accounted for. The proof asserts that the moved block itself is unchanged.
+
+Evidence: `homework-worker-isolation-proof.json`, generated at
+`2026-10-18T01:35:30.915Z`; active module SHA-256 remains `c7894544...ad112b`,
+candidate module SHA-256 `6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed`,
+normalized outside-target SHA-256
+`ff00c8cd6e85798880f2e2542c43174e7ef9f4d84ff098562df1600b57d9c7e1`.
+This is explicitly reviewed equivalence, not byte identity or proof of the
+historical deployed Git revision. The first failed comparison remains evidence.
+
+The Reading source restoration is also applied to the main-based correction
+branch. Its full backup suite passes **93 tests in 15 files**; the shared submit
+core passes **8 tests** and the passage-set/scoring suites pass **18 tests**.
+The retained Functions source caller is coherent with the core; deprecated
+Functions deployment and generated output are not qualified by these checks.
+
+The source correction is in draft PR #150. The service candidate is isolated
+on `codex/homework-worker-release-20261018`, based on `422b7323` with the live
+Reading corrections restored, so it does not change the Book backup contract.
+A direct main-based Worker rebuild still includes the separate Book validation
+delta and is not a substitute for that service candidate. Neither branch has
+been deployed, and authenticated recipient workflow/delivery acceptance remains
+unverified.

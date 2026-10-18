@@ -58,3 +58,10 @@ For homework detail result modals, RTDB read access to `test_results/{resultId}`
 - Teacher detail shells must use the shared ownership verdict before exposing teacher actions.
 - Analytics and teacher-owned reporting must exclude solo-practice and unresolved rows.
 - If teacher result detail loses access mid-view, clear sensitive data and show access-lost UI; repair belongs in canonical visibility/reindex code, not shell-local fallback logic.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+Reading homework ownership is derived from the saved assignment createdBy field after assignment ID and material binding checks, including public material authored by another teacher. Teacher discovery uses teacher_result_keys/{teacherId}/{resultId}: true. This reconciles source with the active Worker; it grants no new browser permissions.
+
+See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).

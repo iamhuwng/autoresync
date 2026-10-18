@@ -870,3 +870,10 @@ When a legacy result is missing expected fields:
 3. **No data fetching in core.** Core receives data via props only.
 4. **No fourth shell.** Core is consumed by exactly 3 shells.
 5. **No new result data path.** Core reads from `TestResultRecord` only â€” no direct RTDB/Firestore access.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+Domain: saved-result. Existing TeacherHomeworkDetailPage (/teacher/homework/:homeworkId) and TeacherStudentHistoryPage (/teacher/student/:studentId/history) retain their mapped shared result surfaces. Corrected producers: functions/src/readingV2SubmitCore.ts and r2-backup-worker/src/reading-v2/submit.ts; retained Functions caller passes the same saved assignment. Paths: homework_assignments, test_results, teacher_result_keys and existing Reading projections. Existing RTDB result visibility/index rules and Firestore assignment rules remain dependencies; no rules change is proposed here. Tests: Worker submit/assignment/full backup suite, shared submit core, passage-set and scoring suites. No shell redesign, new browser authority, Book change, Functions deployment, or closure claim. Authenticated browser submission remains unverified.
+
+See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).

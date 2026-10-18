@@ -55,3 +55,10 @@ ownership boundary. The canonical result-view surface map below is unchanged.
 - Shells decide whether sections are visible and whether teacher actions are allowed.
 - Shared services own storage shape, ownership resolution, and feedback generation.
 - History pages and analytics consume the shared visibility verdict; they do not redefine it.
+
+
+## 2026-10-18 Reading backend source reconciliation
+
+Saved-result hosts and shared shells are unchanged. Reading trusted submit now preserves the active Worker contract: saved homework owner plus boolean teacher_result_keys membership, consumed by testResults.service.getTeacherResults. Teacher homework detail and student history remain the existing entry owners.
+
+See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).
