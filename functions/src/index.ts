@@ -209,10 +209,15 @@ export const readingV2Submit = functions.https.onRequest(async (request: any, re
       trustedRecords,
       studentProfile,
       session,
+      homework,
     ] = await Promise.all([
       trustedRecordsPromise,
       readRtdbValue(`users/${decodedToken.uid}`),
       sessionCode ? readRtdbValue(`game_sessions/${sessionCode}`) : Promise.resolve(null),
+      submitRequest.context?.surface === 'homework' && submitRequest.context.homeworkId
+        && !isReadingPassageSetSubmit(submitRequest, materialId)
+        ? readFirestoreDoc(`homework_assignments/${submitRequest.context.homeworkId}`)
+        : Promise.resolve(null),
     ]);
 
     if (!trustedRecords.snapshot || Object.keys(trustedRecords.snapshot).length === 0) {
@@ -240,6 +245,7 @@ export const readingV2Submit = functions.https.onRequest(async (request: any, re
         ...trustedRecords,
         studentProfile,
         session,
+        homework: trustedRecords.homework ?? (homework ? { ...homework, id: homework.id ?? submitRequest.context?.homeworkId } : null),
       },
       identity: {
         resultId: pushKey('test_results', 'result'),

@@ -504,14 +504,16 @@ async function resolveTarget(
     }
 
     if (target.type === 'students') {
-        const studentIds = Array.isArray(target.studentIds)
-            ? target.studentIds.map((id) => String(id).trim()).filter(Boolean)
+        const students = Array.isArray(target.studentIds)
+            ? target.studentIds.map((id, index) => ({ id: String(id).trim(), index })).filter(({ id }) => id)
             : [];
+        const studentIds = students.map(({ id }) => id);
         if (studentIds.length === 0) {
             return assignmentError('INVALID_ASSIGNMENT_REQUEST', 'Missing student targets.', 400);
         }
 
         const allowedStudentIds = new Set<string>();
+        const canonicalStudentIds = new Map<string, string>();
 
         if (role === 'super_admin') {
             studentIds.forEach((studentId) => allowedStudentIds.add(studentId));
@@ -532,8 +534,10 @@ async function resolveTarget(
                 const students = isRecord(classData.students) ? classData.students : {};
                 Object.entries(students).forEach(([studentKey, entry]) => {
                     allowedStudentIds.add(studentKey);
-                    if (isRecord(entry) && typeof entry.uid === 'string') {
-                        allowedStudentIds.add(entry.uid);
+                    if (isRecord(entry) && typeof entry.uid === 'string' && entry.uid.trim()) {
+                        const studentUid = entry.uid.trim();
+                        allowedStudentIds.add(studentUid);
+                        canonicalStudentIds.set(studentKey, studentUid);
                     }
                 });
             });
@@ -560,14 +564,24 @@ async function resolveTarget(
             return assignmentError('TARGET_NOT_ALLOWED', 'Teacher cannot assign to one or more students.', 403);
         }
 
+        const canonicalStudents = new Map<string, string>();
+        students.forEach(({ id, index }) => {
+            const studentId = canonicalStudentIds.get(id) ?? id;
+            if (!canonicalStudents.has(studentId)) {
+                const name = target.studentNames?.[index];
+                canonicalStudents.set(studentId, typeof name === 'string' ? name : '');
+            }
+        });
+        const canonicalIds = [...canonicalStudents.keys()];
+
         return {
             target: {
                 type: 'students',
-                studentIds,
-                studentNames: Array.isArray(target.studentNames) ? target.studentNames : undefined,
+                studentIds: canonicalIds,
+                studentNames: Array.isArray(target.studentNames) ? [...canonicalStudents.values()] : undefined,
             },
-            totalAssigned: new Set(studentIds).size,
-            authorizedStudentIds: [...new Set(studentIds)],
+            totalAssigned: canonicalIds.length,
+            authorizedStudentIds: canonicalIds,
         };
     }
 
