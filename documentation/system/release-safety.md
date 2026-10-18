@@ -80,6 +80,22 @@ Hosting evidence cannot pass. The receipt is written beneath the selected
 Require fresh PASS, independent review and separate Worker authorization; this
 adds no deployment command or authority to the checker.
 
+## Fixed notification Homework QA correction assessment
+
+The October 18 correction has a separate fixed native observer:
+`--observe-notification-worker --worker-bundle <retained-active-module> --worker-config <reviewed-config>`.
+Follow [the correction packet](../release-audits/2026-10-18-homework-qa-correction-release.md).
+Its newer checker runs against the pinned clean product checkout. It verifies
+both notification services, unchanged public adapter and settings, the exact
+candidate modules/configuration, and the full prior RTDB rules twice. Only the
+reviewed canonical-result read expression may differ from the prior rules.
+Caller JSON and pure test validators cannot establish trusted observations.
+
+Fresh shared-checker PASS, independent review, final CI and explicit production
+authorization remain required. The observer deploys nothing. Generic Worker
+releases and unrelated source changes retain their conservative gates. The
+existing Homework backup Worker observer remains independently pinned.
+
 ## Acceptance rehearsal
 
 On 2026-10-11, the isolated release-safety branch built the actual application
