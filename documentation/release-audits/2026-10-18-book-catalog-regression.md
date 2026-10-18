@@ -65,3 +65,46 @@ application workflow has been requalified or that no other defect exists.
 Read-only proof, screenshots and candidate checks live in the canonical
 checkout's ignored `tmp/deployment-audit-20261017/` directory, including
 `book-tab-regression-proof.json` and `book-tab-missing-live-20261018.png`.
+
+## Candidate qualification
+
+Source `7953a039` passed a clean production build: 453 manifest files, root
+entry 257 KB, no forbidden local endpoints. Its generic feature module is
+byte-identical to the historical LF module (`1e7c49d8...03b8d5`). The candidate
+environment fingerprint is
+`8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57`;
+the machine's current production file remains unchanged. Only the two generic
+Book settings differ. All six Activity presentation modes remain disabled.
+
+The first build attempt used an incomplete dependency tree in the stable
+checkout and could not resolve its locked `pdf-lib`. A clean build clone reused
+the canonical dependency tree with the identical lockfile; no package install
+or source/config workaround was made. This was a local provisioning failure.
+
+All **53 deployment/release-safety tests pass**. The new Release Safety workflow
+runs these existing tests for every PR and main push, making this protection
+part of the cloneable repository rather than an operator-only local check.
+Assessment, applicable governance, UTF-8 and whitespace checks pass. Independent
+connected-code review found no actionable issue in the scoped validation change.
+The read-only hotfix assessment for `7953a039` independently verified all current
+live manifest files and returned PASS; its authorization remains NOT_AUTHORIZED.
+
+The compiled acceptance app uses the candidate's same 12 reviewed mode values
+with the enforced disposable Firebase project and localhost ports. Browser QA
+started at `http://localhost:5173/login`, used hidden Teacher quick login, and
+proved Book tab visibility, materials Book creation, persisted metadata update,
+listing and editor reopen, plus Create New Test without reload and disabled PDF
+source selection. No page errors occurred. Firebase rules were real emulator
+rules; no remote calls were allowed, no Worker fixture was needed, and the
+task-owned Auth process was stopped afterward. This is local integration proof,
+not live Book data/provider lifecycle acceptance. Initial harness failures were
+Auth startup timeout, selecting Settings instead of Overview, and expecting a
+return value from a void test-environment helper; correcting those did not
+require product changes.
+
+PR #152 contains this correction and its prevention/qualification record. Later
+CI/documentation commits do not change application build inputs. The final
+release source still needs a clean build and fresh readback before any authorized
+Hosting promotion. Preserve Hosting `61721e91a13201ae` as the current rollback
+target, while recording that it retains this missing-Book regression. No Worker,
+rules, database or storage operation belongs to this corrective deployment.
