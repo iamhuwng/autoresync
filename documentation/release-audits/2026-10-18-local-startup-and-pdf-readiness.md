@@ -67,7 +67,8 @@ Ignored local evidence:
 
 - `tmp/stable-startup-qa-20261018/teacher.json` and `teacher.png`.
 - `tmp/stable-startup-qa-20261018/student.json` and `student.png`.
-- `tmp/stable-startup-qa-20261018/` named-task logs and browser failure reports.
+- `tmp/stable-startup-qa-20261018/` named-task logs. Browser report paths contain
+  the final successful run; initial browser failures are described above.
 - The owning feature checkout's
   `tmp/stable-startup-recovery-comparison-20261018/comparison.json` and registered
   `tmp/local-firebase-recovery/status.json`.
