@@ -69,6 +69,7 @@ const mocks = vi.hoisted(() => ({
   uploadAudioReplacement: vi.fn(),
   uploadImage: vi.fn(),
   uploadListeningAuthoringAudio: vi.fn(),
+  cancelListeningAuthoringUpload: vi.fn(),
   probeListeningAuthoringAudio: vi.fn(),
   trackAction: vi.fn(),
   toast: {
@@ -158,6 +159,7 @@ vi.mock('../../../features/assessment/listening/authoring/listeningAuthoringWork
       uploadAudioReplacement: mocks.uploadAudioReplacement,
       uploadImage: mocks.uploadImage,
       uploadListeningAuthoringAudio: mocks.uploadListeningAuthoringAudio,
+      cancelListeningAuthoringUpload: mocks.cancelListeningAuthoringUpload,
       probeListeningAuthoringAudio: mocks.probeListeningAuthoringAudio,
     },
   }));
@@ -224,6 +226,13 @@ describe('ListeningTestBuilder', () => {
       sizeBytes: 5,
     });
     mocks.uploadImage.mockResolvedValue({ url: 'https://pub.example/images/question.png' });
+    mocks.cancelListeningAuthoringUpload.mockResolvedValue({
+      status: 'abandoned',
+      uploadSessionId: 'session-1',
+      deletedCount: 1,
+      preservedCount: 0,
+      skippedCount: 0,
+    });
     mocks.probeListeningAuthoringAudio.mockResolvedValue({
       status: 'ready',
       assetId: 'asset-1',
@@ -439,6 +448,7 @@ describe('ListeningTestBuilder', () => {
           assetIdempotencyKey: expect.stringContaining('-asset'),
         }),
         expect.any(Function),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
     expect(await screen.findByText('Uploaded')).toBeInTheDocument();
@@ -453,6 +463,49 @@ describe('ListeningTestBuilder', () => {
     expect(section).not.toHaveProperty('uploadSessionId');
     expect(section).not.toHaveProperty('tempKey');
     expect(mocks.uploadAudioReplacement).not.toHaveBeenCalled();
+  });
+
+  it('cleans only the previous temporary identity after replacement succeeds', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ListeningTestBuilder />);
+    mocks.uploadListeningAuthoringAudio.mockResolvedValueOnce({
+      url: 'https://pub.example/temp/listening/teacher-1/session-2/asset-2-replacement.mp3',
+      streamUrl: 'https://pub.example/temp/listening/teacher-1/session-2/asset-2-replacement.mp3',
+      directUrl: 'https://pub.example/temp/listening/teacher-1/session-2/asset-2-replacement.mp3',
+      fileName: 'replacement.mp3',
+      key: 'temp/listening/teacher-1/session-2/asset-2-replacement.mp3',
+      isTemp: true,
+      assetId: 'asset-2',
+      uploadSessionId: 'session-2',
+      tempKey: 'temp/listening/teacher-1/session-2/asset-2-replacement.mp3',
+      contentType: 'audio/mpeg',
+      sizeBytes: 11,
+    });
+    await user.click(screen.getByRole('button', { name: 'Next →' }));
+    fireEvent.change(container.querySelector('#audio-upload-1') as HTMLInputElement, {
+      target: { files: [new File(['replacement'], 'replacement.mp3', { type: 'audio/mpeg' })] },
+    });
+
+    await waitFor(() => expect(mocks.cancelListeningAuthoringUpload).toHaveBeenCalledWith({
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      reason: 'replacement-cancelled',
+    }));
+    expect(JSON.stringify(mocks.cancelListeningAuthoringUpload.mock.calls[0][0])).not.toContain('https://cdn.example.com');
+  });
+
+  it('aborts and cleans a removed section without touching the shifted section', async () => {
+    const user = userEvent.setup();
+    render(<ListeningTestBuilder />);
+    await user.click(screen.getByRole('button', { name: 'Next →' }));
+    await user.click(screen.getByRole('button', { name: 'Add section 2' }));
+    await user.click(screen.getByRole('button', { name: 'Remove section 1' }));
+
+    await waitFor(() => expect(mocks.cancelListeningAuthoringUpload).toHaveBeenCalledWith({
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      reason: 'section-removed',
+    }));
   });
 
   it('preserves the previous canonical asset when replacement upload fails', async () => {
@@ -712,6 +765,11 @@ describe('ListeningTestBuilder', () => {
     await user.click(screen.getByRole('button', { name: /Back/ }));
 
     expect(onExit).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.cancelListeningAuthoringUpload).toHaveBeenCalledWith({
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      reason: 'navigation-away',
+    }));
     expect(screen.queryByRole('dialog', { name: 'Discard draft changes' })).not.toBeInTheDocument();
     expect(mocks.navigateTo).not.toHaveBeenCalled();
     expect(mocks.trackAction).toHaveBeenCalledWith('listeningAuthoringStepBack', expect.objectContaining({
@@ -917,6 +975,11 @@ describe('ListeningTestBuilder', () => {
         reasonCode: 'teacher-discard',
       });
     });
+    await waitFor(() => expect(mocks.cancelListeningAuthoringUpload).toHaveBeenCalledWith({
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      reason: 'discard-draft',
+    }));
     expect(await screen.findByText('Draft changes discarded.')).toBeInTheDocument();
 
     const restore = screen.getByRole('button', { name: 'Restore draft' });

@@ -8,6 +8,9 @@
   ],
   "workers_dev": true,
   "preview_urls": false,
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
   "ai": {
     "binding": "AI"
   },
@@ -47,6 +50,10 @@
     }
   ],
   "vars": {
+    "LISTENING_UPLOAD_SESSION_SWEEP_ENABLED": "false",
+    "LISTENING_UPLOAD_SESSION_SWEEP_NOT_BEFORE_MS": "1782976636347",
+    "LISTENING_UPLOAD_SESSION_SWEEP_MAX_OWNERS": "50",
+    "LISTENING_UPLOAD_SESSION_SWEEP_MAX_SESSIONS": "100",
     "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "disabled",

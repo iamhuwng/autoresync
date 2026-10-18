@@ -2021,3 +2021,25 @@ Independent review:
 ### Boundaries
 
 Absent: `AudioPlayer.tsx` source/internal scope, live-session authority, teacher authority, `audioCommand`, `masterAudioState`, Reading V2 runtime internals, Google Drive behavior, private delivery, remote mutation, deploy, staging, commit, push, cleanup execution, object deletion, production-data access, Task 7.9+, parent Task 7.0 closure, and Task 8 work.
+
+## 2026-10-18 retained Listening cleanup reconciliation
+
+Selective source/test/config port on `codex/listening-cleanup-reconcile-20261018`;
+see [current scope, proof and release blockers](system/listening-cleanup-reconciliation-20261017.md).
+Review fixes remove unsafe upload rollback deletion, reject restored deleted
+audio references, and correct sweep failure metrics. The builder's 4,777-line
+scope exception is human-approved in findings. No taskbox closure or deployed
+state is claimed. Global streamed-upload lease/admission remains unresolved;
+sweep disabled and the whole coordinated cleanup candidate stays out of stable.
+
+## 2026-10-18 per-asset writer follow-up
+
+An actual runtime regression reproduced the late-PUT terminal-cleanup race.
+The next source correction adds durable per-asset admission with short metadata
+leases, matching settlement, cleanup continuation, restore exclusion and
+browser ancestor-write protection. The reconciliation record holds current
+checks and remaining boundaries. Unknown writer outcomes remain fail-closed;
+age and HEAD absence do not establish quiescence. The prior global streamed
+lease is superseded in this candidate only. Crash recovery, real provider
+lifecycle and live bundle reconciliation still prevent release. No UI edits,
+taskbox closure, production mutation or sweep activation are included.

@@ -45,6 +45,21 @@ const json = (body: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json' },
   });
 
+const coordinationResponse = (path: string, init: RequestInit | undefined, roots: Map<string, unknown>): Response | undefined => {
+  if (path !== 'listening_authoring' && path !== 'system_flags') return;
+  if ((init?.method ?? 'GET') === 'GET' && new Headers(init?.headers).get('X-Firebase-ETag') === 'true') {
+    return new Response(JSON.stringify(roots.get(path) ?? null), {
+      headers: { 'Content-Type': 'application/json', ETag: '"coordination-etag"' },
+    });
+  }
+  if (init?.method === 'PUT') {
+    expect(new Headers(init.headers).get('If-Match')).toBe('"coordination-etag"');
+    const body = JSON.parse(String(init.body));
+    roots.set(path, body);
+    return json(body);
+  }
+};
+
 const makeBookInventory = (
   backupId = 'BK-book-metadata',
   presentPath?: string,
@@ -336,10 +351,34 @@ describe('registry restore drill', () => {
       const method = init?.method ?? 'GET';
       const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
 
-      if (path === 'system_flags/restore_in_progress' && method === 'PUT') {
-        const body = JSON.parse(String(init?.body ?? 'null'));
+      if (path === 'system_flags' && method === 'GET') {
+        return new Response(JSON.stringify(liveRtdb.get('system_flags') ?? null), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', etag: '"system-flags-etag"' },
+        });
+      }
+
+      if (path === 'system_flags' && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'));
         liveRtdb.set('system_flags', body);
-        return json({ ok: true });
+        return json(body);
+      }
+
+      if (
+        path === 'listening_authoring'
+        && method === 'GET'
+        && (init?.headers as Record<string, string> | undefined)?.['X-Firebase-ETag'] === 'true'
+      ) {
+        return new Response(JSON.stringify(liveRtdb.get('listening_authoring') ?? null), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', etag: '"authoring-etag"' },
+        });
+      }
+
+      if (path === 'listening_authoring' && method === 'PUT') {
+        const body = JSON.parse(String(init?.body ?? '{}'));
+        liveRtdb.set('listening_authoring', body);
+        return json(body);
       }
 
       if (path === '' && method === 'GET' && url.searchParams.get('shallow') === 'true') {
@@ -521,6 +560,147 @@ describe('registry restore drill', () => {
     );
   });
 
+  it('refuses to start restore while Listening cleanup holds the shared mutation lease', async () => {
+    const now = Date.now();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      listening_media_mutation_lease: {
+        leaseId: 'cleanup-lease-active',
+        kind: 'listening-temp-cleanup',
+        expiresAt: now + 120_000,
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', etag: '"system-flags-etag"' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437',
+      FIREBASE_DB_URL: 'https://db.example.test',
+      GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, new FakeR2Client() as never, 'BK-blocked', {
+      scope: ['users'],
+      mode: 'smart_auto',
+    }, new StatusTracker('restore'))).rejects.toThrow('listening_media_mutation_in_progress');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it.each([
+    { writers: { 'asset-1': { writerId: 'crashed-writer', startedAt: 1 } }, race: false },
+    { writers: 'malformed-writers', race: false },
+    { writers: { 'asset-1': { writerId: 'concurrent-writer', startedAt: 1 } }, race: true },
+  ])('refuses restore before snapshot/product writes for unresolved writers %j', async ({ writers, race }) => {
+    const roots = new Map<string, unknown>([['system_flags', race ? {} : { listening_upload_writers: writers }]]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace(/^\//, '').replace(/\.json$/, '');
+      if (race && path === 'system_flags' && init?.method === 'PUT') {
+        roots.set('system_flags', { listening_upload_writers: writers });
+        return json(null, 412);
+      }
+      const response = coordinationResponse(path, init, roots);
+      if (response) return response;
+      throw new Error(`Unexpected product operation ${init?.method ?? 'GET'} ${path}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const r2 = new FakeR2Client();
+    await expect(executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, 'BK-unsettled', { scope: ['users'], mode: 'smart_auto' }, new StatusTracker('restore')))
+      .rejects.toThrow('listening_upload_writers_unsettled');
+    expect(roots.get('system_flags')).toEqual({ listening_upload_writers: writers });
+    expect(roots.get('listening_authoring')).toEqual({});
+    expect([...r2.objects.keys()].some((key) => key.startsWith('pre-restore/'))).toBe(false);
+  });
+
+  it.each(['smart_auto', 'per_entity'] as const)('blocks deleted audio references during %s restore and preserves healthy entries', async (mode) => {
+    const backupId = 'BK-deleted-audio';
+    const backupRtdb = {
+      listening_authoring: {
+        drafts: { old: { assetIds: { 'asset-deleted': true } } },
+        revision_drafts: { old: { document: { audioSections: [{ assetId: 'asset-deleted' }] } } },
+        versions: { old: { assetIds: { 'asset-deleted': true } } },
+        operations: { healthy: { status: 'succeeded' } },
+        deleted_temp_assets: { 'asset-healthy': { state: 'deleted' } },
+        temp_cleanup_lease: { leaseId: 'historical-lease' },
+      },
+      media_assets: {
+        'asset-deleted': { state: 'temp' },
+        'asset-healthy': { assetId: 'asset-healthy' },
+      },
+      media_asset_upload_sessions: {
+        'owner-deleted': { old: { assetRequests: { request: { assetId: 'asset-deleted' } } } },
+        'owner-healthy': { healthy: { assetIds: { 'asset-healthy': true } } },
+      },
+      system_flags: { listening_upload_writers: { historical: { writerId: 'backup-writer' } }, unrelated: true },
+    };
+    const manifest = buildBackupManifest({
+      backupId, trigger: 'manual', createdAt: '2026-08-11T00:00:00.000Z', completedAt: '2026-08-11T00:01:00.000Z',
+      durationMs: 60_000, status: 'complete', includesFirestore: false, firestoreSkipReason: null,
+      firestoreCollectionsIncluded: [], firebaseProject: 'temp-a1437',
+      rtdbBytesRead: JSON.stringify(backupRtdb).length, firestoreDocsRead: 0,
+      entityCounts: { rtdb: { listening_authoring: 6, media_assets: 2, media_asset_upload_sessions: 2 }, firestore: {} },
+      totalSizeBytes: 0, checksums: {}, previousBackupId: null,
+    });
+    const { zipData } = await createBackupZip({
+      rtdb: backupRtdb, firestore: null, manifest, mediaManifest: buildMediaManifest([], backupId),
+    });
+    const r2 = new FakeR2Client();
+    await r2.putObject(`backups/${backupId}.zip`, zipData);
+    const tombstones = { 'asset-deleted': { state: 'deleted' } };
+    const liveRtdb = new Map<string, unknown>([
+      ['listening_authoring', { deleted_temp_assets: tombstones }],
+      ['media_assets', {}], ['media_asset_upload_sessions', {}], ['system_flags', null],
+    ]);
+    const productWrites: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
+      const method = init?.method ?? 'GET';
+      const coordination = coordinationResponse(path, init, liveRtdb);
+      if (coordination) return coordination;
+      if (method === 'GET') {
+        if (path === '') return json({ listening_authoring: true });
+        const current = liveRtdb.get(path);
+        return json(url.searchParams.get('shallow') === 'true' && current && typeof current === 'object'
+          ? Object.fromEntries(Object.keys(current).map((key) => [key, true]))
+          : current ?? null);
+      }
+      productWrites.push(path);
+      const body = JSON.parse(String(init?.body));
+      if (method === 'PATCH') {
+        liveRtdb.set(path, { ...(liveRtdb.get(path) as object), ...body });
+      } else if (method === 'PUT') {
+        const [node, key] = path.split('/');
+        liveRtdb.set(node, { ...(liveRtdb.get(node) as object), [key]: body });
+      } else {
+        throw new Error(`Unexpected fetch ${method} ${path}`);
+      }
+      return json(body);
+    }));
+    const perEntityDecisions = Object.fromEntries(Object.entries(backupRtdb).flatMap(([node, entries]) =>
+      Object.keys(entries).map((key) => [`${node}/${key}`, 'overwrite' as const])));
+    const result = await executeRestore({
+      FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
+    } as WorkerEnv, r2 as never, backupId, {
+      scope: ['listening_authoring', 'media_assets', 'media_asset_upload_sessions', 'system_flags'], mode, perEntityDecisions,
+    }, new StatusTracker('restore'));
+
+    expect(result.status).toBe('partial');
+    expect(result.details.listening_authoring).toEqual({ restored: 1, skipped: 2, failed: 3 });
+    expect(result.details.media_assets).toEqual({ restored: 1, skipped: 0, failed: 1 });
+    expect(result.details.media_asset_upload_sessions).toEqual({ restored: 1, skipped: 0, failed: 1 });
+    expect(liveRtdb.get('listening_authoring')).toEqual({
+      deleted_temp_assets: tombstones, operations: backupRtdb.listening_authoring.operations,
+    });
+    expect(liveRtdb.get('media_assets')).toEqual({ 'asset-healthy': backupRtdb.media_assets['asset-healthy'] });
+    expect(liveRtdb.get('media_asset_upload_sessions')).toEqual({
+      'owner-healthy': backupRtdb.media_asset_upload_sessions['owner-healthy'],
+    });
+    expect(productWrites.some((path) => /drafts|versions|asset-deleted|owner-deleted/.test(path))).toBe(false);
+    expect(liveRtdb.get('system_flags')).toEqual({ unrelated: true });
+    expect(result.details.system_flags).toEqual({ restored: 1, skipped: 1, failed: 0 });
+  });
+
   it('restores book_activity RTDB data through the approved restore inventory', async () => {
     const backupRtdb = {
       users: {
@@ -602,6 +782,9 @@ describe('registry restore drill', () => {
         return json({ ok: true });
       }
 
+      const coordination = coordinationResponse(path, init, liveRtdb);
+      if (coordination) return coordination;
+
       if (path === '' && method === 'GET' && url.searchParams.get('shallow') === 'true') {
         return json(Object.fromEntries([...liveRtdb.keys()].filter((key) => key !== 'system_flags').map((key) => [key, true])));
       }
@@ -674,11 +857,14 @@ describe('registry restore drill', () => {
     const liveRoots = new Map(BOOK_METADATA_CANONICAL_ROOTS.map((path) => [path, {} as unknown]));
     const etags = new Map(BOOK_METADATA_CANONICAL_ROOTS.map((path) => [path, `etag:${path}`]));
     const metadataPuts: string[] = [];
+    const coordinationRoots = new Map<string, unknown>();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       const method = init?.method ?? 'GET';
       const path = url.pathname.replace(/^\//, '').replace(/\.json$/, '');
       if (path === 'system_flags/restore_in_progress' && method === 'PUT') return json({ ok: true });
+      const coordination = coordinationResponse(path, init, coordinationRoots);
+      if (coordination) return coordination;
       if (method === 'GET' && path === '' && url.searchParams.get('shallow') === 'true') return json({});
       if (BOOK_METADATA_CANONICAL_ROOTS.includes(path as typeof BOOK_METADATA_CANONICAL_ROOTS[number])) {
         const canonicalPath = path as typeof BOOK_METADATA_CANONICAL_ROOTS[number];

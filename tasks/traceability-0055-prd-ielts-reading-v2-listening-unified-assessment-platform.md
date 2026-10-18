@@ -1022,3 +1022,35 @@ Boundary trace:
 
 - Selected teacher/student solo or homework traffic is not claimed because no explicit authorization was present. Percentage rollout is not claimed because healthy playback/resume metrics and authorization remain future gates.
 - `AudioPlayer.tsx` source diff remains empty. No Task 7 work wrote `audioCommand` or `masterAudioState`, touched Reading V2 runtime internals, started Task 8, deployed, staged, committed, pushed, cleaned up, deleted objects, or performed unauthorized remote mutation.
+
+## 2026-10-18 cleanup port trace — not release acceptance
+
+- Client replacement/removal/exit: ListeningTestBuilder and storage/upload APIs;
+  25 builder plus 50 storage/upload tests and compiled Teacher browser checks
+  with fixture Worker transport.
+- Trusted cancellation/sweep/reference safety: listening-upload-session modules,
+  authoring repositories and two Worker test files; 37 workerd tests, including
+  referenced-byte preservation after cancelled/failed post-upload checks and
+  failed-scan metrics.
+- Restore/backup/tombstones: backup and restore services; 95 backup tests,
+  including both restore modes rejecting deleted references. Retained Functions
+  unit suites pass 94 tests; generated JavaScript matches six changed sources.
+- Rule boundary: three upload/authoring/media rule suites, 15 emulator tests,
+  including forbidden ancestor writes; root browser write denial retained.
+- Release gate: global upload admission/quiescence unresolved, real provider
+  lifecycle and live bundle reconciliation unproved. No deployment, cleanup
+  execution, R2 deletion or parent acceptance. Full dated proof and next work:
+  `documentation/system/listening-cleanup-reconciliation-20261017.md`.
+
+## 2026-10-18 writer protocol correction trace — local source only
+
+- Slow and late PUT, independent author progress, nonce retry and matching
+  settlement: upload-session grant/repository/types and bridge runtime tests.
+- Cleanup waits for writer settlement: session cancellation and its runtime
+  late-PUT regression; no pending writer may contribute to terminal deletion.
+- Restore excludes admitted writers and preserves runtime state: restore
+  coordination CAS, protected coordination keys and backup/restore tests.
+- Browser ancestor writes preserve the writer map: `system_flags` permission
+  boundary and the media-asset emulator suite.
+- Current results and unresolved crash/provider/release gates remain in the
+  reconciliation record. This trace adds no parent/task acceptance or rollout.

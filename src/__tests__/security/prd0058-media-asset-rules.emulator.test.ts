@@ -139,12 +139,11 @@ describe('PRD-0058 media-asset RTDB rules', () => {
       'status',
       'createdAt',
       'approvedAt',
+      'updatedAt',
+      'leaseExpiresAt',
+      'notBeforeMs',
     ]);
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_assets').val() === data.child('media_assets').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_events').val() === data.child('media_asset_events').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val()");
+    expect(rules.rules['.write']).toBe(false);
   });
 
   describeEmulator('emulator enforcement', () => {
@@ -201,6 +200,39 @@ describe('PRD-0058 media-asset RTDB rules', () => {
         checksum: 'sha256:forged',
       }));
       await assertFails(admin.ref('media_assets/asset-1').remove());
+      for (const db of [owner, admin]) {
+        await assertFails(db.ref('media_assets').set({ 'asset-1': assetRecord }));
+        await assertFails(db.ref().set({ media_assets: { 'asset-1': assetRecord } }));
+      }
+    });
+
+    it('protects upload writers through super-admin ancestor writes while allowing unrelated flags', async () => {
+      const writers = { 'asset-1': { writerId: 'writer-1', ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1', startedAt: 1 } };
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('system_flags').set({ listening_upload_writers: writers });
+      });
+      const admin = testEnv.authenticatedContext('admin-1').database();
+      await assertSucceeds(admin.ref('system_flags').update({ unrelated: true }));
+      await assertSucceeds(admin.ref('system_flags/unrelated').set(false));
+      await assertSucceeds(admin.ref().update({ 'system_flags/unrelated': true }));
+      await assertSucceeds(admin.ref('system_flags/unrelated').remove());
+      await assertFails(admin.ref('system_flags').set({ listening_upload_writers: writers, unrelated: false }));
+      for (const uid of ['teacher-1', 'admin-1']) {
+        const db = testEnv.authenticatedContext(uid).database();
+        await assertFails(db.ref('system_flags/listening_upload_writers/asset-2').set(writers['asset-1']));
+        await assertFails(db.ref('system_flags/listening_upload_writers/asset-1').update({ startedAt: 2 }));
+        await assertFails(db.ref('system_flags/listening_upload_writers').remove());
+        await assertFails(db.ref('system_flags').set({ unrelated: true }));
+        await assertFails(db.ref('system_flags').remove());
+        await assertFails(db.ref().update({ 'system_flags/listening_upload_writers': null }));
+        await assertFails(db.ref().update({ system_flags: { unrelated: true } }));
+      }
+      expect((await admin.ref('system_flags/listening_upload_writers').get()).val()).toEqual(writers);
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.database().ref('system_flags/listening_upload_writers').remove();
+      });
+      await assertFails(admin.ref('system_flags/listening_upload_writers').set(writers));
+      await assertSucceeds(admin.ref('system_flags').update({ unrelated: true }));
     });
 
     it('keeps trusted-service mutation separate from teacher browser authority', async () => {

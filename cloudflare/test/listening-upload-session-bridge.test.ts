@@ -7,11 +7,17 @@ if (!('DurableObject' in globalThis)) {
 const { createUploadWorker } = await import('../worker.js');
 const { handleListeningUploadSessionGrant } = await import('../src/upload-worker/listening-upload-session-grant.ts');
 const { FirebaseRestListeningUploadSessionRepository } = await import('../src/upload-worker/listening-upload-session-repository.ts');
+const { FirebaseRestListeningAuthoringRepository } = await import('../src/upload-worker/listening-authoring/repository.ts');
+const { saveListeningDraftCore, publishListeningDraftCore } = await import('../../functions/src/listening-authoring/service.ts');
 const {
   buildListeningUploadSessionCorsHeaders,
   createListeningUploadSessionHandlers,
   createListeningUploadSessionService,
 } = await import('../src/upload-worker/listening-upload-session.ts');
+const {
+  createListeningUploadSessionSweepHandler,
+  createListeningUploadSessionSweepService,
+} = await import('../src/upload-worker/listening-upload-session-sweep.ts');
 
 const textEncoder = new TextEncoder();
 const toBase64Url = (value: string) => btoa(value).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
@@ -38,6 +44,53 @@ const makeWorker = () => {
   const objects = new Map<string, unknown>();
   const consumed = new Set<string>();
   const secret = 'listening-upload-session-grant-test-secret';
+  let sessionState: { status: 'active' | 'committing' | 'completed' | 'cleanup-queued'; cleanupFence?: Record<string, string> } = { status: 'active' };
+  let activeMutationLease: Record<string, any> | null = null;
+  const writers = new Map<string, any>();
+  const sessionRepository = {
+    async get(ownerId: string, uploadSessionId: string) {
+      const assetId = 'asset-0123456789abcdef';
+      return {
+        ownerId,
+        uploadSessionId,
+        purpose: 'listening-authoring' as const,
+        expiresAt: Date.now() + 60_000,
+        maxEligibilityExpiresAt: Date.now() + 60_000,
+        assetRequests: {
+          request: {
+            assetId,
+            tempKey: `temp/listening/${ownerId}/${uploadSessionId}/${assetId}-audio.mp3`,
+          },
+        },
+        ...sessionState,
+      };
+    },
+    async acquireCleanupLease(input: Record<string, any>) {
+      if (activeMutationLease) return null;
+      activeMutationLease = {
+        schemaVersion: 1,
+        kind: 'listening-temp-cleanup',
+        ...input,
+        claimedAt: input.now,
+        expiresAt: input.now + input.leaseMs,
+      };
+      return activeMutationLease as any;
+    },
+    async assertCleanupLeaseOwned(lease: Record<string, any>, now: number) {
+      return activeMutationLease?.leaseId === lease.leaseId && activeMutationLease.expiresAt > now;
+    },
+    async releaseCleanupLease(lease: Record<string, any>) {
+      if (activeMutationLease?.leaseId === lease.leaseId) activeMutationLease = null;
+    },
+    async admitUploadWriter({ writer }: any) {
+      if (writers.has(writer.assetId)) return false;
+      writers.set(writer.assetId, writer);
+      return true;
+    },
+    async settleUploadWriter(writer: any) {
+      if (writers.get(writer.assetId)?.writerId === writer.writerId) writers.delete(writer.assetId);
+    },
+  };
   const worker = createUploadWorker({
     firebaseVerifier: {
       async verifyAuthorizationHeader(header: string | null) {
@@ -49,6 +102,7 @@ const makeWorker = () => {
   });
   const env = {
     LISTENING_UPLOAD_SESSION_GRANT_SECRET: secret,
+    LISTENING_UPLOAD_SESSION_REPOSITORY: sessionRepository,
     UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
     PUBLIC_URL: 'https://public.example',
     UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
@@ -62,9 +116,16 @@ const makeWorker = () => {
     R2_BUCKET: {
       async get(key: string) { return objects.get(key) ?? null; },
       async put(key: string, body: unknown) { objects.set(key, { body }); },
+      async delete(key: string) { objects.delete(key); },
     },
   };
-  return { env, make: (payload: Record<string, unknown>) => makeGrant(payload, secret), objects, worker };
+  return {
+    env,
+    make: (payload: Record<string, unknown>) => makeGrant(payload, secret),
+    objects,
+    worker,
+    setSessionState: (next: typeof sessionState) => { sessionState = next; },
+  };
 };
 
 const requestFor = (
@@ -96,13 +157,41 @@ const requestFor = (
 type ListeningUploadSessionRepository =
   Parameters<typeof createListeningUploadSessionService>[0]['repository'];
 
-const createMemoryRepository = (): ListeningUploadSessionRepository & { writes: string[] } => {
+const testMutationLeaseMethods = {
+  async acquireCleanupLease(input: Record<string, any>) {
+    return {
+      schemaVersion: 1 as const,
+      kind: 'listening-temp-cleanup' as const,
+      ...input,
+      claimedAt: input.now,
+      expiresAt: input.now + input.leaseMs,
+    };
+  },
+  async releaseCleanupLease() {},
+};
+
+const createMemoryRepository = (): ListeningUploadSessionRepository & {
+  writes: string[];
+  durableReferences: Set<string>;
+  sweepRecords: unknown[];
+  metricRecords: unknown[];
+  writers: Map<string, any>;
+} => {
   const sessions = new Map<string, Record<string, any>>();
   const writes: string[] = [];
+  const durableReferences = new Set<string>();
+  const sweepRecords: unknown[] = [];
+  const metricRecords: unknown[] = [];
+  const writers = new Map<string, any>();
+  let activeMutationLease: Record<string, any> | null = null;
   const key = (ownerId: string, uploadSessionId: string) => `${ownerId}/${uploadSessionId}`;
 
   return {
     writes,
+    durableReferences,
+    sweepRecords,
+    metricRecords,
+    writers,
     async findByCreationRequest(ownerId, creationRequestIdHash) {
       return [...sessions.values()].find((session) =>
         session.ownerId === ownerId && session.creationRequestIdHash === creationRequestIdHash,
@@ -131,6 +220,83 @@ const createMemoryRepository = (): ListeningUploadSessionRepository & { writes: 
       writes.push(`media_asset_upload_sessions/${ownerId}/${uploadSessionId}`);
       return { session, asset };
     },
+    async findDurableAssetReferences({ assetIds }) {
+      return assetIds.filter((assetId) => durableReferences.has(assetId))
+        .map((assetId) => ({ assetId, source: `media_assets/${assetId}`, kind: 'reference' as const }));
+    },
+    async acquireCleanupLease(input) {
+      if (activeMutationLease && activeMutationLease.expiresAt > input.now) return null;
+      activeMutationLease = {
+        schemaVersion: 1,
+        kind: 'listening-temp-cleanup',
+        ...input,
+        claimedAt: input.now,
+        expiresAt: input.now + input.leaseMs,
+      };
+      return activeMutationLease as any;
+    },
+    async assertCleanupLeaseOwned(lease, now) {
+      return activeMutationLease?.leaseId === lease.leaseId && activeMutationLease.expiresAt > now;
+    },
+    async admitUploadWriter({ writer, lease, now }) {
+      if (activeMutationLease?.leaseId !== lease.leaseId || activeMutationLease.expiresAt <= now
+        || writers.has(writer.assetId)) return false;
+      writers.set(writer.assetId, structuredClone(writer));
+      return true;
+    },
+    async settleUploadWriter(writer) {
+      if (writers.get(writer.assetId)?.writerId === writer.writerId) writers.delete(writer.assetId);
+    },
+    async hasUploadWriter(assetIds) { return assetIds.some((assetId) => writers.has(assetId)); },
+    async recordDeletedTempAsset({ lease, deletedAt }) {
+      writes.push(`listening_authoring/deleted_temp_assets/${lease.assetId}:${deletedAt}`);
+    },
+    async releaseCleanupLease(lease) {
+      if (activeMutationLease?.leaseId === lease.leaseId) activeMutationLease = null;
+    },
+    async markCleanupState(input) {
+      const session = sessions.get(key(input.ownerId, input.uploadSessionId));
+      if (!session || !(input.expectedStatuses ?? ['active', 'cleanup-queued', 'expired']).includes(session.status)) return null;
+      session.status = input.status;
+      session.abandonmentReason = input.reason;
+      session.cleanupQueuedAt = input.cleanupQueuedAt;
+      if (input.completedAt !== undefined) session.completedAt = input.completedAt;
+      session.deletedAssetIds = {
+        ...(session.deletedAssetIds ?? {}),
+        ...Object.fromEntries(input.deletedAssetIds.map((assetId) => [assetId, true])),
+      };
+      session.preservedAssetIds = {
+        ...(session.preservedAssetIds ?? {}),
+        ...Object.fromEntries(input.preservedAssetIds.map((assetId) => [assetId, true])),
+      };
+      for (const assetId of input.deletedAssetIds) delete session.preservedAssetIds[assetId];
+      if (input.cleanupFence) session.cleanupFence = input.cleanupFence;
+      writes.push(`media_asset_upload_sessions/${input.ownerId}/${input.uploadSessionId}`);
+      return session as any;
+    },
+    async listExpiredCleanupCandidates({ now, notBeforeMs, maxOwners, maxSessions, cursor }) {
+      const candidates = [...sessions.values()]
+        .filter((session) => session.createdAt >= notBeforeMs
+          && session.maxEligibilityExpiresAt <= now
+          && (session.status === 'active' || session.status === 'cleanup-queued' || session.status === 'expired'))
+        .sort((a, b) => `${a.ownerId}/${a.uploadSessionId}`.localeCompare(`${b.ownerId}/${b.uploadSessionId}`))
+        .filter((session) => !cursor?.ownerId
+          || session.ownerId > cursor.ownerId
+          || (session.ownerId === cursor.ownerId && session.uploadSessionId > (cursor.uploadSessionId ?? '')))
+        .slice(0, Math.min(maxSessions, maxOwners * maxSessions))
+        .map((session) => ({
+          ownerId: session.ownerId,
+          uploadSessionId: session.uploadSessionId,
+          status: session.status,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+          maxEligibilityExpiresAt: session.maxEligibilityExpiresAt,
+          assetCount: Object.keys(session.assetRequests ?? {}).length,
+        }));
+      return { candidates, hasMore: false };
+    },
+    async writeSweepRecord(record) { sweepRecords.push(structuredClone(record)); },
+    async writeMetricRecord(record) { metricRecords.push(structuredClone(record)); },
   };
 };
 
@@ -149,6 +315,30 @@ const createSessionService = (now = () => 1_700_000_000_000) => {
     createOpaqueId: () => ids.shift() ?? 'overflow-0123456789abcdef0123456789abcdef',
   });
   return { repository, service };
+};
+
+const createConditionalDatabase = () => {
+  const data: Record<string, any> = {};
+  let revision = 0;
+  const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+    const parts = new URL(String(input)).pathname.slice(1).replace(/\.json$/, '').split('/');
+    const read = () => parts.reduce((value, part) => value?.[part], data) ?? null;
+    if ((init?.method ?? 'GET') === 'GET') {
+      return new Response(JSON.stringify(read()), { headers: { etag: `"${revision}"` } });
+    }
+    expect(init?.method).toBe('PUT');
+    const etag = new Headers(init?.headers).get('if-match');
+    if (etag && etag !== `"${revision}"`) return new Response('null', { status: 412 });
+    const parent = parts.slice(0, -1).reduce((value, part) => value[part] ??= {}, data);
+    parent[parts.at(-1)!] = JSON.parse(String(init?.body));
+    revision += 1;
+    return new Response(JSON.stringify(read()));
+  });
+  const options = {
+    env: { FIREBASE_DB_URL: 'https://db.example.test' }, fetchImpl,
+    getAccessToken: async () => 'worker-token',
+  };
+  return { data, options, repository: new FirebaseRestListeningUploadSessionRepository(options) };
 };
 
 describe('PRD-0056A Worker bridge grant', () => {
@@ -330,6 +520,7 @@ describe('PRD-0056A Worker bridge grant', () => {
     const issuedAssets: string[] = [];
     const service = createListeningUploadSessionService({
       repository: {
+        ...testMutationLeaseMethods,
         async findByCreationRequest() { return null; },
         async create(record) { return record; },
         async get(ownerId, requestedUploadSessionId) {
@@ -609,6 +800,7 @@ describe('PRD-0056A Worker bridge grant', () => {
 
     const googleHandlers = createListeningUploadSessionHandlers({
       repository: {
+        ...testMutationLeaseMethods,
         async findByCreationRequest() { return null; },
         async create() {
           throw new Error('google_oauth_failed:400:raw-secret-sentinel');
@@ -630,6 +822,7 @@ describe('PRD-0056A Worker bridge grant', () => {
 
     const firebaseHandlers = createListeningUploadSessionHandlers({
       repository: {
+        ...testMutationLeaseMethods,
         async findByCreationRequest() { return null; },
         async create() {
           throw new Error('firebase_rtdb_put_failed:media_asset_upload_sessions/owner-1:401:permission_denied');
@@ -702,12 +895,64 @@ describe('PRD-0056A Worker bridge grant', () => {
     }
   });
 
+  it('records deletion tombstones without persisting the raw R2 key', async () => {
+    const deletedAt = 1_700_000_000_000;
+    const lease = {
+      schemaVersion: 1 as const,
+      leaseId: 'cleanup-lease-1',
+      kind: 'listening-temp-cleanup' as const,
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-1',
+      assetId: 'asset-1',
+      claimedAt: deletedAt - 1_000,
+      expiresAt: deletedAt + 60_000,
+    };
+    const authoringRoot = { temp_cleanup_lease: lease, deleted_temp_assets: {} };
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(authoringRoot), {
+        status: 200,
+        headers: { etag: '"authoring-etag-1"' },
+      }))
+      .mockImplementationOnce(async (_input, init) => new Response(String(init?.body), { status: 200 }));
+    const repository = new FirebaseRestListeningUploadSessionRepository({
+      env: {
+        FIREBASE_DB_URL: 'https://db.example.test',
+        GOOGLE_SA_KEY: 'unused-in-test',
+      },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+    });
+
+    await repository.recordDeletedTempAsset({
+      lease,
+      deletedAt,
+      state: 'deleted',
+    });
+
+    const write = fetchImpl.mock.calls[1]?.[1];
+    const writtenRoot = JSON.parse(String(write?.body)) as {
+      deleted_temp_assets: Record<string, Record<string, unknown>>;
+    };
+    expect(write).toMatchObject({ method: 'PUT' });
+    expect(writtenRoot.deleted_temp_assets[lease.assetId]).toEqual({
+      schemaVersion: 1,
+      assetId: lease.assetId,
+      ownerId: lease.ownerId,
+      uploadSessionId: lease.uploadSessionId,
+      cleanupLeaseId: lease.leaseId,
+      state: 'deleted',
+      deletedAt,
+    });
+    expect(JSON.stringify(writtenRoot)).not.toContain('temp/listening/');
+    expect(writtenRoot.deleted_temp_assets[lease.assetId]).not.toHaveProperty('tempKey');
+  });
+
   it('accepts only an exact, unexpired, single-use bridge tuple and preserves S0 route handling', async () => {
     const { env, make, objects, worker } = makeWorker();
     const uploadSessionId = 'session-0123456789abcdef';
     const assetId = 'asset-0123456789abcdef';
     const key = `temp/listening/owner-1/${uploadSessionId}/${assetId}-audio.mp3`;
-    const grant = await make({
+    const grantPayload = {
       v: 1,
       kind: 'upload',
       uid: 'owner-1',
@@ -721,7 +966,8 @@ describe('PRD-0056A Worker bridge grant', () => {
       sizeBytes: 4,
       expiresAt: Date.now() + 60_000,
       nonce: 'bridge-nonce-0123456789',
-    });
+    };
+    const grant = await make(grantPayload);
 
     await expect(worker.fetch(requestFor(grant), env)).resolves.toMatchObject({ status: 200 });
     expect(objects.has(key)).toBe(true);
@@ -767,6 +1013,252 @@ describe('PRD-0056A Worker bridge grant', () => {
       omitContentLength: true,
       xUploadSize: '4',
     }), env)).resolves.toMatchObject({ status: 411 });
+  });
+
+  it('rejects an already-issued grant once the session is no longer active or cleanup-fenced', async () => {
+    const { env, make, objects, worker, setSessionState } = makeWorker();
+    const uploadSessionId = 'session-0123456789abcdef';
+    const assetId = 'asset-0123456789abcdef';
+    const key = `temp/listening/owner-1/${uploadSessionId}/${assetId}-audio.mp3`;
+    const grantPayload = {
+      v: 1,
+      kind: 'upload',
+      uid: 'owner-1',
+      ownerId: 'owner-1',
+      uploadSessionId,
+      assetId,
+      sanitizedFileName: 'audio.mp3',
+      key,
+      operation: 'listening-upload-session',
+      contentType: 'audio/mpeg',
+      sizeBytes: 4,
+      expiresAt: Date.now() + 60_000,
+      nonce: 'late-grant-nonce-0123456789',
+    };
+    const grant = await make(grantPayload);
+
+    setSessionState({ status: 'cleanup-queued' });
+    await expect(worker.fetch(requestFor(grant), env)).resolves.toMatchObject({ status: 409 });
+    expect(objects.has(key)).toBe(false);
+
+    setSessionState({
+      status: 'active',
+      cleanupFence: { assetId, leaseId: 'cleanup-lease', claimedAt: '1' },
+    });
+    const fencedGrant = await make({ ...grantPayload, nonce: 'fenced-grant-nonce-0123456789' });
+    await expect(worker.fetch(requestFor(fencedGrant), env)).resolves.toMatchObject({ status: 409 });
+    expect(objects.has(key)).toBe(false);
+
+    setSessionState({ status: 'active' });
+    const put = env.R2_BUCKET.put;
+    env.R2_BUCKET.put = async (putKey: string, body: unknown) => {
+      await put(putKey, body);
+      setSessionState({ status: 'cleanup-queued' });
+    };
+    const racedGrant = await make({ ...grantPayload, nonce: 'raced-grant-nonce-0123456789' });
+    await expect(worker.fetch(requestFor(racedGrant), env)).resolves.toMatchObject({ status: 409 });
+    expect(objects.has(key)).toBe(true);
+  });
+
+  it.each([false, true])('keeps late PUT cleanup queued until settlement and retries failed continuation %s', async (failContinuation) => {
+    let checkedAt = Date.now();
+    const { repository, service } = createSessionService(() => checkedAt);
+    const session = await service.createSession({ uid: 'owner-1', idempotencyKey: 'late-writer', body: {} });
+    const asset = await service.issueAsset({
+      uid: 'owner-1', idempotencyKey: 'late-writer-asset',
+      body: { uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 },
+    });
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const objects = new Set<string>();
+    const remove = vi.fn(async (key: string) => {
+      if (failContinuation && remove.mock.calls.length === 1) throw new Error('delete_unavailable');
+      objects.delete(key);
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'grant-secret-test-value',
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      PUBLIC_URL: 'https://public.example',
+      R2_BUCKET: {
+        async get(key: string) { return objects.has(key) ? {} : null; },
+        async put(key: string) { started.resolve(); await finish.promise; objects.add(key); },
+        delete: remove,
+      },
+    };
+    const request = requestFor(asset.assetGrant);
+    const upload = handleListeningUploadSessionGrant({
+      request, env, url: new URL(request.url), uid: 'owner-1', now: () => checkedAt, repository,
+    }).catch((error) => error);
+    await started.promise;
+    checkedAt += 120_001;
+    try {
+      await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId }, env }))
+        .resolves.toMatchObject({ status: 'cleanup-queued', deletedCount: 0 });
+      expect(remove).not.toHaveBeenCalled();
+      expect(repository.writes.some((path) => path.includes('deleted_temp_assets'))).toBe(false);
+    } finally {
+      finish.resolve();
+      await upload;
+    }
+    expect(repository.writers.size).toBe(0);
+    await expect(repository.get('owner-1', session.uploadSessionId)).resolves.toMatchObject({
+      status: failContinuation ? 'cleanup-queued' : 'abandoned',
+    });
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId }, env }))
+      .resolves.toMatchObject({ status: 'abandoned' });
+    expect(remove).toHaveBeenCalledTimes(failContinuation ? 2 : 1);
+    expect(objects.has(asset.tempKey)).toBe(false);
+  });
+
+  it.each(['cancelled', 'state-unavailable'])('retains slow-upload bytes after %s and recovers through protected cleanup', async (failure) => {
+    let checkedAt = Date.now();
+    const { repository, service } = createSessionService(() => checkedAt);
+    const session = await service.createSession({ uid: 'owner-1', idempotencyKey: 'slow-upload', body: {} });
+    const asset = await service.issueAsset({
+      uid: 'owner-1',
+      idempotencyKey: 'slow-upload-asset',
+      body: { uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 },
+    });
+    const objects = new Set<string>();
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'grant-secret-test-value',
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      PUBLIC_URL: 'https://public.example',
+      R2_BUCKET: {
+        async get(key: string) { return objects.has(key) ? {} : null; },
+        async put(key: string) {
+          checkedAt += 120_001;
+          repository.durableReferences.add(asset.assetId);
+          objects.add(key);
+          if (failure === 'cancelled') {
+            await service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId }, env });
+          } else {
+            vi.spyOn(repository, 'get').mockRejectedValueOnce(new Error('database_unavailable'));
+          }
+        },
+        async delete(key: string) { objects.delete(key); },
+      },
+    };
+    const request = requestFor(asset.assetGrant);
+    await expect(handleListeningUploadSessionGrant({
+      request, env, url: new URL(request.url), uid: 'owner-1', now: () => checkedAt, repository,
+    })).rejects.toMatchObject({
+      reason: failure === 'cancelled'
+        ? 'listening_upload_session_inactive'
+        : 'listening_upload_session_state_unavailable',
+    });
+    expect(objects.has(asset.tempKey)).toBe(true);
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId }, env }))
+      .resolves.toMatchObject({ preservedCount: 1 });
+    expect(objects.has(asset.tempKey)).toBe(true);
+    repository.durableReferences.clear();
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId }, env }))
+      .resolves.toMatchObject({ status: 'abandoned', deletedCount: 1 });
+    expect(objects.has(asset.tempKey)).toBe(false);
+  });
+
+  it('admits another teacher while a PUT is pending and retains ambiguous writers without consuming retries', async () => {
+    let checkedAt = Date.now();
+    const { repository, data, options } = createConditionalDatabase();
+    const service = createListeningUploadSessionService({
+      repository, idempotencySecret: 'idempotency-secret-test-value',
+      grantSecret: 'grant-secret-test-value', now: () => checkedAt,
+    });
+    const first = await service.createSession({ uid: 'owner-1', idempotencyKey: 'writer-one', body: {} });
+    const firstAsset = await service.issueAsset({
+      uid: 'owner-1', idempotencyKey: 'writer-one-asset',
+      body: { uploadSessionId: first.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 },
+    });
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const consume = vi.fn(async () => ({ consumed: true }));
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'grant-secret-test-value',
+      UPLOAD_GRANT_REPLAY_LEDGER: { consume }, PUBLIC_URL: 'https://public.example',
+      R2_BUCKET: {
+        async get() { return null; },
+        async head() { return null; },
+        async put(key: string) {
+          if (key === firstAsset.tempKey) { started.resolve(); await finish.promise; throw new Error('connection_lost'); }
+        },
+        delete: vi.fn(),
+      },
+    };
+    const upload = (assetGrant: string, uid: string) => {
+      const request = requestFor(assetGrant);
+      return handleListeningUploadSessionGrant({ request, env, url: new URL(request.url), uid, now: () => checkedAt, repository });
+    };
+    const busyLease = (await repository.acquireCleanupLease({
+      ownerId: 'owner-1', uploadSessionId: first.uploadSessionId, assetId: firstAsset.assetId,
+      leaseId: 'temporary-busy', now: checkedAt, leaseMs: 120_000,
+    }))!;
+    await expect(upload(firstAsset.assetGrant, 'owner-1')).rejects.toMatchObject({ reason: 'listening_upload_session_mutation_busy' });
+    expect(consume).not.toHaveBeenCalled();
+    await repository.releaseCleanupLease(busyLease);
+    const firstUpload = upload(firstAsset.assetGrant, 'owner-1').catch((error) => error);
+    await started.promise;
+    try {
+      await expect(upload(firstAsset.assetGrant, 'owner-1')).rejects.toMatchObject({ reason: 'listening_upload_writer_busy' });
+      expect(consume).toHaveBeenCalledTimes(1);
+      const second = await service.createSession({ uid: 'owner-2', idempotencyKey: 'writer-two', body: {} });
+      const secondAsset = await service.issueAsset({
+        uid: 'owner-2', idempotencyKey: 'writer-two-asset',
+        body: { uploadSessionId: second.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 },
+      });
+      await expect(upload(secondAsset.assetGrant, 'owner-2')).resolves.toMatchObject({ body: { success: true } });
+      const authoring = new FirebaseRestListeningAuthoringRepository({ ...options, now: () => checkedAt });
+      const document = {
+        title: 'Concurrent teacher', type: 'IELTS', skill: 'Listening', duration: 1200,
+        difficulty: 'Intermediate', questionCount: 1, isPublic: false, isComplete: true, displayMode: 'text',
+        metadata: { description: '', instructions: 'Answer the question.', tags: [] },
+        audioSections: [{ number: 1, name: 'Section 1', assetId: secondAsset.assetId,
+          audioUrl: `r2://${secondAsset.assetId}`, startQuestion: 1, endQuestion: 1 }],
+        questions: [{ number: 1, type: 'short-answer', question: 'Question 1', answer: 'A', sectionNumber: 1, points: 1 }],
+        settings: { allowPause: true, showTimer: true, shuffleQuestions: false, showResults: 'after-submission',
+          allowReview: true, passingScore: 60, allowReplay: true },
+      };
+      const saved = await saveListeningDraftCore({
+        auth: { uid: 'owner-2', role: 'teacher' }, body: { idempotencyKey: 'second-save', document },
+        repo: authoring, idempotencySecret: 'authoring-secret-test-value',
+      });
+      expect(saved.status).toBe('saved');
+      await expect(publishListeningDraftCore({
+        auth: { uid: 'owner-2', role: 'teacher' },
+        body: { draftId: saved.draftId, expectedConflictToken: 1, idempotencyKey: 'second-publish' },
+        repo: authoring, idempotencySecret: 'authoring-secret-test-value',
+      })).resolves.toMatchObject({ status: 'published' });
+      expect(Object.keys(data.system_flags.listening_upload_writers)).toHaveLength(1);
+    } finally {
+      finish.resolve();
+      expect(await firstUpload).toMatchObject({ message: 'connection_lost' });
+    }
+    checkedAt += 30 * 24 * 60 * 60 * 1000;
+    expect(await env.R2_BUCKET.head()).toBeNull();
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: first.uploadSessionId }, env }))
+      .resolves.toMatchObject({ status: 'cleanup-queued', deletedCount: 0 });
+    expect(Object.keys(data.system_flags.listening_upload_writers)).toHaveLength(1);
+    expect(env.R2_BUCKET.delete).not.toHaveBeenCalled();
+    expect(data.listening_authoring).not.toHaveProperty('deleted_temp_assets');
+  });
+
+  it('settles admission when nonce consumption fails before PUT is dispatched', async () => {
+    const { env, make } = makeWorker();
+    const writer = { writerId: 'writer', ownerId: 'owner-1', uploadSessionId: 'session-0123456789abcdef', assetId: 'asset-0123456789abcdef', startedAt: Date.now() };
+    const grant = await make({
+      v: 1, kind: 'upload', uid: writer.ownerId, ownerId: writer.ownerId,
+      uploadSessionId: writer.uploadSessionId, assetId: writer.assetId, sanitizedFileName: 'audio.mp3',
+      key: `temp/listening/${writer.ownerId}/${writer.uploadSessionId}/${writer.assetId}-audio.mp3`,
+      operation: 'listening-upload-session', contentType: 'audio/mpeg', sizeBytes: 4,
+      expiresAt: Date.now() + 60_000, nonce: 'replay-test-nonce-0123456789',
+    });
+    env.UPLOAD_GRANT_REPLAY_LEDGER.consume = async () => { throw new Error('replay_unavailable'); };
+    const settle = vi.spyOn(env.LISTENING_UPLOAD_SESSION_REPOSITORY, 'settleUploadWriter');
+    const put = vi.spyOn(env.R2_BUCKET, 'put');
+    const request = requestFor(grant);
+    await expect(handleListeningUploadSessionGrant({ request, env, url: new URL(request.url), uid: writer.ownerId, now: Date.now }))
+      .rejects.toMatchObject({ reason: 'replay_protection_unavailable' });
+    expect(settle).toHaveBeenCalledOnce();
+    expect(put).not.toHaveBeenCalled();
   });
 
   it('rejects a signed old-prefix bridge claim and keeps sensitive request values out of logs', async () => {
@@ -978,5 +1470,414 @@ describe('PRD-0056A Worker bridge grant', () => {
         'if-match': '"session-etag-1"',
       }),
     }));
+  });
+
+  it('authenticates cancellation, rejects client keys, deletes only canonical temp objects, and is idempotent', async () => {
+    const repository = createMemoryRepository();
+    const objects = new Map<string, Uint8Array>();
+    const deleted: string[] = [];
+    const worker = createUploadWorker({
+      firebaseVerifier: {
+        async verifyAuthorizationHeader(header: string | null) {
+          if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
+          if (header === 'Bearer other-token') return { valid: true, uid: 'owner-2' };
+          return { valid: false };
+        },
+      },
+      listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        repository,
+        idempotencySecret: 'idempotency-secret-test-value',
+        grantSecret: 'listening-upload-session-grant-test-secret',
+        now: () => 1_700_000_000_000,
+        createOpaqueId: (() => {
+          const ids = [
+            'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'asset-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            'nonce-cccccccccccccccccccccccccccccccc',
+          ];
+          return () => ids.shift() ?? 'overflow-dddddddddddddddddddddddddddddddd';
+        })(),
+      }),
+    });
+    const env = {
+      LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
+      UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
+      PUBLIC_URL: 'https://public.example',
+      UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
+      R2_BUCKET: {
+        async delete(key: string) { deleted.push(key); objects.delete(key); },
+        async get(key: string) { return objects.get(key) ?? null; },
+        async put() {},
+      },
+    };
+    const session = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer owner-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json', 'Idempotency-Key': 'session' },
+      body: '{}',
+    }), env);
+    const sessionBody = await session.json() as { uploadSessionId: string };
+    const asset = await worker.fetch(new Request('https://upload.example/issueListeningUploadAsset', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer owner-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json', 'Idempotency-Key': 'asset' },
+      body: JSON.stringify({ uploadSessionId: sessionBody.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 }),
+    }), env);
+    const assetBody = await asset.json() as { assetId: string; tempKey: string };
+    objects.set(assetBody.tempKey, new Uint8Array([1, 2, 3, 4]));
+    const unauthenticated = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', { method: 'POST', headers: { Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadSessionId: sessionBody.uploadSessionId }) }), env);
+    expect(unauthenticated.status).toBe(401);
+    const crossOwner = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', { method: 'POST', headers: { Authorization: 'Bearer other-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadSessionId: sessionBody.uploadSessionId }) }), env);
+    expect(crossOwner.status).toBe(404);
+    const keyAttempt = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', { method: 'POST', headers: { Authorization: 'Bearer owner-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify({ uploadSessionId: sessionBody.uploadSessionId, permanentKey: 'assessment-assets/listening/owner-1/asset/audio.mp3' }) }), env);
+    expect(keyAttempt.status).toBe(400);
+    const cancelBody = { uploadSessionId: sessionBody.uploadSessionId, assetId: assetBody.assetId, reason: 'builder-cancel' };
+    const cancelled = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', { method: 'POST', headers: { Authorization: 'Bearer owner-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify(cancelBody) }), env);
+    expect(cancelled.status).toBe(200);
+    await expect(cancelled.json()).resolves.toEqual(expect.objectContaining({ status: 'abandoned', deletedCount: 1 }));
+    expect(deleted).toEqual([assetBody.tempKey]);
+    const retry = await worker.fetch(new Request('https://upload.example/cancelListeningUploadSession', { method: 'POST', headers: { Authorization: 'Bearer owner-token', Origin: 'http://localhost:5173', 'Content-Type': 'application/json' }, body: JSON.stringify(cancelBody) }), env);
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toEqual(expect.objectContaining({ status: 'abandoned', deletedCount: 0 }));
+    expect(deleted).toHaveLength(1);
+  });
+
+  it('preserves durable references and leaves failed deletes queued for retry', async () => {
+    const repository = createMemoryRepository();
+    const objects = new Map<string, Uint8Array>();
+    let deleteAttempts = 0;
+    const ids = [
+      'session-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'asset-ffffffffffffffffffffffffffffffff',
+      'nonce-11111111111111111111111111111111',
+      'session-gggggggggggggggggggggggggggggggg',
+      'asset-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh',
+      'nonce-22222222222222222222222222222222',
+    ];
+    const service = createListeningUploadSessionService({
+      repository,
+      idempotencySecret: 'idempotency-secret-test-value',
+      grantSecret: 'grant-secret-test-value',
+      now: () => 1_700_000_000_000,
+      createOpaqueId: () => ids.shift() ?? 'overflow-33333333333333333333333333333333',
+    });
+    const session = await service.createSession({ uid: 'owner-1', idempotencyKey: 'session-cleanup', body: {} });
+    const asset = await service.issueAsset({ uid: 'owner-1', idempotencyKey: 'asset-cleanup', body: { uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 } });
+    objects.set(asset.tempKey, new Uint8Array([1, 2, 3, 4]));
+    repository.durableReferences.add(asset.assetId);
+    const env = { R2_BUCKET: {
+      async delete(key: string) {
+        deleteAttempts += 1;
+        if (deleteAttempts === 1) throw new Error('r2_delete_failed');
+        objects.delete(key);
+      },
+    } };
+    const preserved = await service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId, assetId: asset.assetId, reason: 'builder-cancel' }, env });
+    expect(preserved).toEqual(expect.objectContaining({ status: 'cleanup-queued', preservedCount: 1, deletedCount: 0 }));
+    expect(deleteAttempts).toBe(0);
+    repository.durableReferences.delete(asset.assetId);
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId, assetId: asset.assetId, reason: 'builder-cancel' }, env })).rejects.toThrow('r2_delete_failed');
+    await expect(repository.get('owner-1', session.uploadSessionId)).resolves.toEqual(expect.objectContaining({ status: 'cleanup-queued' }));
+    await expect(service.cancelSession({ uid: 'owner-1', body: { uploadSessionId: session.uploadSessionId, assetId: asset.assetId, reason: 'builder-cancel' }, env })).resolves.toEqual(expect.objectContaining({ status: 'abandoned', deletedCount: 1 }));
+  });
+
+  it('preserves a durable reference created after the cleanup fence race', async () => {
+    const repository = createMemoryRepository();
+    const originalFind = repository.findDurableAssetReferences!;
+    let scans = 0;
+    repository.findDurableAssetReferences = async (input) => {
+      scans += 1;
+      if (scans === 3) repository.durableReferences.add(input.assetIds[0]);
+      return originalFind(input);
+    };
+    const deleted: string[] = [];
+    const ids = [
+      'session-raceeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'asset-raceeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'nonce-raceeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    ];
+    const service = createListeningUploadSessionService({
+      repository,
+      idempotencySecret: 'idempotency-secret-test-value',
+      grantSecret: 'grant-secret-test-value',
+      now: () => 1_700_000_000_000,
+      createOpaqueId: () => ids.shift() ?? 'overflow-raceeeeeeeeeeeeeeeeeeeeeeeee',
+    });
+    const session = await service.createSession({ uid: 'owner-1', idempotencyKey: 'race-session', body: {} });
+    const asset = await service.issueAsset({ uid: 'owner-1', idempotencyKey: 'race-asset', body: { uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 } });
+    const result = await service.cancelSession({
+      uid: 'owner-1',
+      body: { uploadSessionId: session.uploadSessionId, assetId: asset.assetId, reason: 'builder-cancel' },
+      env: { R2_BUCKET: { async delete(key: string) { deleted.push(key); } } },
+    });
+    expect(scans).toBe(3);
+    expect(deleted).toEqual([]);
+    expect(result).toEqual(expect.objectContaining({ status: 'cleanup-queued', preservedCount: 1 }));
+  });
+
+  it('recognizes owner-scoped authoring records as structured durable references', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        drafts: {
+          'draft-1': {
+            ownerId: 'teacher-1',
+            assetIds: { 'asset-1': true },
+            document: { audioSections: [{ assetId: 'asset-1' }] },
+          },
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('null', { status: 200 }));
+    const repository = new FirebaseRestListeningUploadSessionRepository({
+      env: { FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: 'unused-in-test' },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+    });
+    await expect(repository.findDurableAssetReferences({
+      ownerId: 'teacher-1',
+      uploadSessionId: 'session-1',
+      assetIds: ['asset-1'],
+      tempKeys: ['temp/listening/teacher-1/session-1/asset-1-audio.mp3'],
+    })).resolves.toEqual([{
+      assetId: 'asset-1',
+      source: 'listening_authoring/drafts/draft-1',
+      kind: 'reference',
+    }]);
+  });
+
+  it('serializes cleanup against restore and authoring mutations with paired RTDB leases', async () => {
+    const now = 1_800_000_000_000;
+    const leaseBody = expect.objectContaining({
+      leaseId: 'lease-1',
+      kind: 'listening-temp-cleanup',
+      expiresAt: now + 120_000,
+    });
+    const responses = [
+      new Response('{}', { status: 200, headers: { etag: '"flags-1"' } }),
+      new Response('{}', { status: 200 }),
+      new Response('{}', { status: 200, headers: { etag: '"authoring-1"' } }),
+      new Response('{}', { status: 200 }),
+      new Response(JSON.stringify({ temp_cleanup_lease: {
+        schemaVersion: 1, leaseId: 'lease-1', kind: 'listening-temp-cleanup', ownerId: 'teacher-1',
+        uploadSessionId: 'session-1', assetId: 'asset-1', claimedAt: now, expiresAt: now + 120_000,
+      } }), { status: 200, headers: { etag: '"authoring-2"' } }),
+      new Response('{}', { status: 200 }),
+      new Response(JSON.stringify({ listening_media_mutation_lease: {
+        schemaVersion: 1, leaseId: 'lease-1', kind: 'listening-temp-cleanup', ownerId: 'teacher-1',
+        uploadSessionId: 'session-1', assetId: 'asset-1', claimedAt: now, expiresAt: now + 120_000,
+      } }), { status: 200, headers: { etag: '"flags-2"' } }),
+      new Response('{}', { status: 200 }),
+    ];
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => responses.shift()!);
+    const repository = new FirebaseRestListeningUploadSessionRepository({
+      env: { FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: 'unused-in-test' },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+    });
+    const lease = await repository.acquireCleanupLease({
+      ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1',
+      leaseId: 'lease-1', now, leaseMs: 120_000,
+    });
+    expect(lease).toEqual(leaseBody);
+    await repository.releaseCleanupLease(lease!);
+    expect(fetchImpl).toHaveBeenCalledTimes(8);
+    expect(JSON.parse(String((fetchImpl.mock.calls[1][1] as RequestInit).body)).listening_media_mutation_lease).toEqual(leaseBody);
+    expect(JSON.parse(String((fetchImpl.mock.calls[3][1] as RequestInit).body)).temp_cleanup_lease).toEqual(leaseBody);
+    expect(JSON.parse(String((fetchImpl.mock.calls[5][1] as RequestInit).body))).not.toHaveProperty('temp_cleanup_lease');
+    expect(JSON.parse(String((fetchImpl.mock.calls[7][1] as RequestInit).body))).not.toHaveProperty('listening_media_mutation_lease');
+  });
+
+  it('admits under owned paired leases, blocks restore/tombstones, and cannot settle a newer writer', async () => {
+    const { data, repository } = createConditionalDatabase();
+    const now = 1_800_000_000_000;
+    const lease = (await repository.acquireCleanupLease({
+      ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1',
+      leaseId: 'lease-1', now, leaseMs: 120_000,
+    }))!;
+    const writer = { writerId: 'writer-1', ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1', startedAt: now };
+    data.listening_authoring.deleted_temp_assets = { 'asset-1': { state: 'deleted' } };
+    await expect(repository.admitUploadWriter({ lease, writer, now })).resolves.toBe(false);
+    delete data.listening_authoring.deleted_temp_assets;
+    data.system_flags.restore_in_progress = { active: true };
+    await expect(repository.admitUploadWriter({ lease, writer, now })).resolves.toBe(false);
+    await expect(repository.acquireCleanupLease({ ...lease, now, leaseMs: 120_000 })).resolves.toBeNull();
+    delete data.system_flags.restore_in_progress;
+    await expect(repository.admitUploadWriter({ lease, writer, now: now + 120_001 })).resolves.toBe(false);
+    await expect(repository.admitUploadWriter({ lease, writer, now })).resolves.toBe(true);
+    await repository.releaseCleanupLease(lease);
+    await expect(repository.hasUploadWriter(['asset-1'])).resolves.toBe(true);
+    expect(data.system_flags.listening_upload_writers['asset-1']).toEqual(writer);
+    data.system_flags.listening_upload_writers['asset-1'] = { ...writer, writerId: 'writer-2' };
+    await expect(repository.settleUploadWriter(writer)).rejects.toThrow('upload_writer_ownership_lost');
+    expect(data.system_flags.listening_upload_writers['asset-1'].writerId).toBe('writer-2');
+    await repository.settleUploadWriter({ ...writer, writerId: 'writer-2' });
+    expect(data.system_flags).not.toHaveProperty('listening_upload_writers');
+  });
+
+  it('rechecks restore exclusion after an admission CAS conflict', async () => {
+    const { data, repository, options } = createConditionalDatabase();
+    const now = 1_800_000_000_000;
+    const lease = (await repository.acquireCleanupLease({
+      ownerId: 'teacher-1', uploadSessionId: 'session-1', assetId: 'asset-1',
+      leaseId: 'lease-1', now, leaseMs: 120_000,
+    }))!;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      if (init?.method === 'PUT' && String(input).endsWith('/system_flags.json')) {
+        data.system_flags.restore_in_progress = { active: true };
+        return new Response('null', { status: 412 });
+      }
+      return options.fetchImpl(input, init);
+    };
+    const raced = new FirebaseRestListeningUploadSessionRepository({ ...options, fetchImpl });
+    await expect(raced.admitUploadWriter({
+      lease, now, writer: { writerId: 'writer-1', ownerId: lease.ownerId,
+        uploadSessionId: lease.uploadSessionId, assetId: lease.assetId, startedAt: now },
+    })).resolves.toBe(false);
+    expect(data.system_flags).not.toHaveProperty('listening_upload_writers');
+  });
+
+  it('continues after the last processed session without skipping the next sweep candidate', async () => {
+    const makeSession = (uploadSessionId: string) => ({
+      schemaVersion: 1,
+      ownerId: 'teacher-1',
+      uploadSessionId,
+      purpose: 'listening-authoring',
+      status: 'active',
+      creationRequestIdHash: uploadSessionId,
+      createdAt: 2_000,
+      createdBy: 'teacher-1',
+      expiresAt: 3_000,
+      maxEligibilityExpiresAt: 4_000,
+      assetIds: {},
+      assetRequests: {},
+      bridgeVersion: '0056A-v1',
+    });
+    const root = { 'teacher-1': {
+      'session-aaaaaaaaaaaaaaaa': makeSession('session-aaaaaaaaaaaaaaaa'),
+      'session-bbbbbbbbbbbbbbbb': makeSession('session-bbbbbbbbbbbbbbbb'),
+    } };
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockImplementation(async () => new Response(JSON.stringify(root), { status: 200 }));
+    const repository = new FirebaseRestListeningUploadSessionRepository({
+      env: { FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: 'unused-in-test' },
+      fetchImpl,
+      getAccessToken: async () => 'worker-token',
+    });
+    const first = await repository.listExpiredCleanupCandidates({
+      now: 5_000, notBeforeMs: 1_000, maxOwners: 10, maxSessions: 1,
+    });
+    expect(first).toEqual(expect.objectContaining({
+      hasMore: true,
+      nextCursor: { ownerId: 'teacher-1', uploadSessionId: 'session-aaaaaaaaaaaaaaaa' },
+    }));
+    const second = await repository.listExpiredCleanupCandidates({
+      now: 5_000, notBeforeMs: 1_000, maxOwners: 10, maxSessions: 1,
+      cursor: first.nextCursor,
+    });
+    expect(second.candidates.map((candidate) => candidate.uploadSessionId)).toEqual([
+      'session-bbbbbbbbbbbbbbbb',
+    ]);
+  });
+
+  it('keeps scheduled cleanup dormant unless the sweep is explicitly enabled', async () => {
+    const repository = createMemoryRepository();
+    repository.isRestoreInProgress = vi.fn(async () => false);
+    const handler = createListeningUploadSessionSweepHandler({ repository });
+
+    await expect(handler.scheduled({
+      env: {},
+      cron: '0 * * * *',
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      status: 'disabled',
+      cron: '0 * * * *',
+    });
+    expect(repository.isRestoreInProgress).not.toHaveBeenCalled();
+  });
+
+  it('blocks scheduled cleanup while a restore is in progress', async () => {
+    const repository = createMemoryRepository();
+    repository.isRestoreInProgress = async () => true;
+    const handler = createListeningUploadSessionSweepHandler({
+      repository,
+      grantSecret: 'listening-upload-session-grant-test-secret',
+    });
+    await expect(handler.scheduled({
+      env: {
+        LISTENING_UPLOAD_SESSION_SWEEP_ENABLED: 'true',
+        LISTENING_UPLOAD_SESSION_SWEEP_NOT_BEFORE_MS: '1782976636347',
+      },
+      cron: '0 * * * *',
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      status: 'restore-in-progress',
+      cron: '0 * * * *',
+    });
+    const service = createListeningUploadSessionService({
+      repository,
+      idempotencySecret: 'idempotency-secret-test-value',
+      grantSecret: 'grant-secret-test-value',
+    });
+    await expect(service.createSession({
+      uid: 'owner-1',
+      idempotencyKey: 'restore-blocked-session',
+      body: {},
+    })).rejects.toMatchObject({ code: 'restore_in_progress', statusCode: 503 });
+    await expect(service.issueAsset({
+      uid: 'owner-1',
+      idempotencyKey: 'restore-blocked-asset',
+      body: {},
+    })).rejects.toMatchObject({ code: 'restore_in_progress', statusCode: 503 });
+  });
+
+  it('cleans persisted expired sessions instead of treating them as terminal leaks', async () => {
+    const repository = createMemoryRepository();
+    const deleted: string[] = [];
+    const ids = [
+      'session-expireddddddddddddddddddddddddd',
+      'asset-expireddddddddddddddddddddddddddd',
+      'nonce-expireddddddddddddddddddddddddddd',
+    ];
+    const service = createListeningUploadSessionService({
+      repository,
+      idempotencySecret: 'idempotency-secret-test-value',
+      grantSecret: 'grant-secret-test-value',
+      now: () => 1_700_000_000_000,
+      createOpaqueId: () => ids.shift() ?? 'overflow-expiredddddddddddddddddddddd',
+    });
+    const session = await service.createSession({ uid: 'owner-1', idempotencyKey: 'expired-session', body: {} });
+    const asset = await service.issueAsset({ uid: 'owner-1', idempotencyKey: 'expired-asset', body: { uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4 } });
+    const record = await repository.get('owner-1', session.uploadSessionId);
+    record!.status = 'expired';
+    await expect(service.cancelSession({
+      uid: 'owner-1',
+      body: { uploadSessionId: session.uploadSessionId, reason: 'scheduled-expired' },
+      env: { R2_BUCKET: { async delete(key: string) { deleted.push(key); } } },
+    })).resolves.toEqual(expect.objectContaining({ status: 'abandoned', deletedCount: 1 }));
+    expect(deleted).toEqual([asset.tempKey]);
+  });
+
+  it('sweep rejects non-positive cutoffs and uses a bounded checkpoint-free fallback in tests', async () => {
+    const repository = createMemoryRepository();
+    const sweep = createListeningUploadSessionSweepService({
+      repository,
+      now: () => 1_800_000_000_000,
+      createOpaqueId: () => 'sweep-aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      grantSecret: 'listening-upload-session-grant-test-secret',
+    });
+    await expect(sweep.sweepExpiredTempSessions({ env: {}, notBeforeMs: 0, maxOwners: 1, maxSessions: 1 })).rejects.toMatchObject({ code: 'invalid_sweep_cutoff' });
+  });
+
+  it('reports a failed candidate scan as failed reconciliation even before any session runs', async () => {
+    const repository = createMemoryRepository();
+    repository.listExpiredCleanupCandidates = vi.fn(async () => { throw new Error('database_unavailable'); });
+    const sweep = createListeningUploadSessionSweepService({
+      repository,
+      now: () => 1_800_000_000_000,
+      grantSecret: 'listening-upload-session-grant-test-secret',
+    });
+    await expect(sweep.sweepExpiredTempSessions({ env: {}, notBeforeMs: 1_000, maxOwners: 1, maxSessions: 1 }))
+      .resolves.toMatchObject({ status: 'failed', failedSessionCount: 0 });
+    expect(repository.metricRecords).toEqual([expect.objectContaining({
+      outcome: 'threshold-exceeded', reasonCode: 'scheduled_temp_sweep_failed', stateAfter: 'failed',
+    })]);
   });
 });

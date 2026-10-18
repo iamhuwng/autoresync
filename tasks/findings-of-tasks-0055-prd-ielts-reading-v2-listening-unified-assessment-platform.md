@@ -8342,7 +8342,7 @@ approver-role: Human Scope Reviewer
 status: approved
 -->
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 4610
 responsibilities: Listening authoring wizard state and parser-driven question editing; canonical audio upload metadata and trusted draft publish lifecycle coordination; per-section question image upload paste and pending-upload controls
@@ -8358,3 +8358,75 @@ Verification for this review: the canonical `scripts/check-assessment-unificatio
 Human decision, 2026-10-18: The Lord explicitly answered "Approve these scoped exceptions" in this chat after reviewing the three paths, exact counts, and bounded decomposition deferral. The three proposed records above are now active approvals for this reconstruction only. This supersedes their pending status, does not approve future growth, and does not alter guard enforcement. The earlier failed check remains historical evidence; the current records require a fresh guard run.
 
 Post-approval verification: the complete promotion changed-file set was checked using `GITHUB_BASE_REF=main` and the existing guard against the reconstruction checkout. It passed with the three current approved records; the guard implementation and authoring source were unchanged. Guard unit tests passed 34/34 and the five focused shared assessment suites passed 39/39. These are local checks, not a claim of GitHub CI or deployment success.
+
+## 2026-10-18 Listening Cleanup Reconciliation: Proposed Builder Exception
+
+This is a new scope review, not an extension of the baseline approval. The
+ported cancellation/replacement/navigation cleanup raises ListeningTestBuilder
+from 4,610 to 4,777 logical lines. The guard correctly rejects the old exact-count
+approval. No guard code or approval has been changed to bypass it.
+
+The new code associates upload cancellation with stable section identities,
+aborts removed/replaced uploads, ignores stale completions, and preserves saved
+audio while dispatching trusted temporary cleanup. It uses the existing shared
+toast, feature tracking, navigation, and platform lifecycle ports. The focused
+builder suite passes 25 tests, including stale replacement completion and
+removing a section while its upload is pending. Real browser qualification and
+service deployment remain separate requirements.
+
+Architectural recommendation: defer extracting the wizard's existing state
+controller for this coordinated cleanup port. A later decomposition should move
+the full upload and trusted save lifecycle together; extracting only callbacks
+now would add another ownership boundary during the cancellation/restore
+reconciliation. The source remains oversized debt. This proposal authorizes no
+additional feature growth and requires a named human decision before merge.
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4777
+responsibilities: Listening wizard question editing and draft publish controls; canonical audio upload identity and trusted saved-reference lifecycle; per-section cancellation replacement removal and navigation cleanup with stale completion protection
+split-alternatives: extract audio upload and cancellation state into a Listening upload lifecycle controller; extract trusted save publish discard restore and archive coordination into a Listening authoring controller
+rejection-reason: extract audio upload and cancellation state into a Listening upload lifecycle controller => a valid seam but separating new cancellation callbacks from existing section mutations adds state ownership and stale callback transitions to a port whose purpose is reconciling the existing cleanup lifecycle; extract trusted save publish discard restore and archive coordination into a Listening authoring controller => this expands the cleanup port into a broader wizard refactor involving draft fingerprints idempotency conflict recovery and retained reference updates
+approver: The Lord
+approver-role: Human Scope Reviewer
+status: approved
+-->
+
+Human decision, 2026-10-18: The Lord explicitly answered "Approve this scoped
+exception" after reviewing the 4,777-line proposal and its decomposition
+alternatives. The prior 4,610-line block is retained under a historical marker.
+This approval covers this Listening cleanup port only; it neither approves
+further growth nor authorizes deployment. The guard must be rerun against the
+current source.
+
+## 2026-10-18 cleanup port security review and active release blocker
+
+Independent connected-code review found global upload serialization, unsafe
+post-upload deletion and restore of deleted references. The latter two paths
+are corrected with focused regressions; failed-scan metrics are corrected too.
+Current local counts: Worker 37, backup 95, Functions 94, builder 25, storage/
+upload 50 and RTDB rules 15. Counts have distinct scopes and do not prove live
+provider behavior. The approved 4,777-line builder exception above is unchanged.
+
+The candidate remains blocked on upload admission/quiescence: the global lease
+blocks other authors and can expire before PUT settles, allowing terminal late
+bytes to escape cleanup. No timeout-only fix is accepted. Sweep stays disabled.
+The dated reconciliation inventory records source, runtime boundaries and next
+proof; no task or parent release gate is closed.
+
+## 2026-10-18 per-asset writer correction — qualification in progress
+
+The old-code runtime regression reproduced terminal cleanup before a deferred
+PUT completed. The corrective source replaces the streamed global lease with
+durable per-asset writer admission, keeps nonce consumption after admission,
+and coordinates cleanup and restore through the same system-flags CAS.
+Writer reservations have no expiry; successful PUT settlement or failure before
+dispatch can release only the matching reservation. Ambiguous writes remain
+pending regardless of age or a negative object read.
+
+The active reconciliation record owns current test counts and qualification.
+The previous global-streaming-lock blocker above is historical after this
+correction; crash quiescence/recovery, provider lifecycle and release isolation
+remain unresolved. No taskbox closure, deployment or production deletion is
+claimed. ListeningTestBuilder is untouched by this server correction, retaining
+its approved 4,777-line scope. Sweep remains disabled.
