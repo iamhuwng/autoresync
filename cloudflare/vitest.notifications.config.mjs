@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     include: [
       'test/notification-public-entry.test.ts',
+      'test/notification-release-homework.test.ts',
       'test/homework-notification.test.ts',
       'test/homework-result-authority.test.ts',
       'test/notification-firestore-bridge.test.ts',

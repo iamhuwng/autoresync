@@ -166,7 +166,7 @@ export const createNotificationFirestoreBridge = (fetcher: typeof fetch = fetch)
         if (!env.NOTIFICATION_RATE_LIMITER?.limit) return json(request, 503, 'limiter_missing');
         if (!(await env.NOTIFICATION_RATE_LIMITER.limit({ key: `firestore-bridge:${identity.uid}` })).success) return json(request, 429, 'rate_limited');
         const status = await deliverHomeworkNotice({ kind: input.kind as HomeworkKind, eventId: input.eventId,
-          studentId: input.studentId as string | undefined, actorUid: identity.uid,
+          studentId: input.studentId as string | undefined, actorUid: identity.uid, sourceRulesCutoff: homeworkCutoff,
           readSource: async (collection, id, mask) => {
             const query = new URLSearchParams();
             mask.forEach(path => query.append('mask.fieldPaths', path));
@@ -179,7 +179,9 @@ export const createNotificationFirestoreBridge = (fetcher: typeof fetch = fetch)
             if (!response.ok) throw Error('homework_unknown');
             const document = row(await response.json());
             // Seals cannot retroactively authenticate records created under unsafe Rules.
-            if (collection !== 'student_groups' && (!document || typeof document.createTime !== 'string'
+            if (collection !== 'student_groups' && (!document
+              || document.name !== `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collection}/${id}`
+              || typeof document.createTime !== 'string'
               || !(Date.parse(document.createTime) > Date.parse(env.HOMEWORK_NOTIFICATION_RULES_CUTOFF!)))) throw Error('homework_denied');
             return { data: fields(document?.fields), createTime: document?.createTime };
           },

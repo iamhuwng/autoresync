@@ -2228,6 +2228,7 @@ async function deliverHomeworkNotice(input) {
   let resetResultId;
   let resetSubmissionId;
   let source;
+  let sourceCreatedAt;
   let proof;
   if (kind === "homework-submitted" || kind === "thcs-homework-assigned") {
     proof = (await input.readSource(
@@ -2239,7 +2240,7 @@ async function deliverHomeworkNotice(input) {
   }
   if (kind !== "thcs-homework-assigned") {
     const collection = kind === "homework-submitted" ? "homework_submissions" : kind === "homework-reminder" ? "homework_manual_reminder_intents" : "homework_reset_notification_intents";
-    source = (await input.readSource(collection, eventId, [
+    const sourceDocument = await input.readSource(collection, eventId, [
       "id",
       "eventId",
       "homeworkId",
@@ -2252,7 +2253,9 @@ async function deliverHomeworkNotice(input) {
       "sourceSubmissionId",
       "status",
       "administrativeImport"
-    ])).data;
+    ]);
+    source = sourceDocument.data;
+    sourceCreatedAt = sourceDocument.createTime;
     homeworkId = source.homeworkId;
     studentId = source.studentId;
     if (kind === "homework-submitted") {
@@ -2281,7 +2284,7 @@ async function deliverHomeworkNotice(input) {
   if (assignment.id !== homeworkId || typeof owner !== "string" || !ID.test(owner) || assignment.assignmentKind || assignment.materialType === "book" || assignment.archived === true) return deny();
   if (kind === "homework-submitted" ? source?.teacherId !== owner : actorUid !== owner) return deny();
   if (kind === "thcs-homework-assigned") {
-    if (assignment.materialType !== "thcs-test" || proof?.homeworkId !== homeworkId || proof?.studentId !== studentId || proof?.occurredAt !== assignment.createdAt) return deny();
+    if (assignment.materialType !== "thcs-test" || proof?.homeworkId !== homeworkId || proof?.occurredAt !== assignment.createdAt) return deny();
     occurredAt = assignment.createdAt;
   }
   if (!time(occurredAt) || Number(occurredAt) > Date.now()) return deny();
@@ -2316,8 +2319,61 @@ async function deliverHomeworkNotice(input) {
     const [savedId, student, contextType] = await Promise.all([db.read(`${path2}/resultId`), db.read(`${path2}/studentId`), db.read(`${path2}/context/type`)]);
     const [sourceId, material, submittedAt] = await Promise.all([db.read(`${path2}/context/source/id`), db.read(`${path2}/testId`), db.read(`${path2}/submittedAt`)]);
     if (savedId !== resultId || student !== studentId || contextType !== "homework" || sourceId !== homeworkId || material !== assignment.materialId || !time(submittedAt) || submittedAt > Number(occurredAt)) return deny();
+    if (assignment.materialType === "thcs-test") {
+      const cutoff = input.sourceRulesCutoff;
+      const cutoffMs = typeof cutoff === "string" ? Date.parse(cutoff) : NaN;
+      const attemptCreatedMs = typeof sourceCreatedAt === "string" ? Date.parse(sourceCreatedAt) : NaN;
+      if (!Number.isFinite(cutoffMs) || !Number.isFinite(attemptCreatedMs)) throw Error("homework_unknown");
+      const leaves = [
+        "testType",
+        "testSkill",
+        "isGuest",
+        "createdAt",
+        "sessionCode",
+        "context/source/type",
+        "context/source/submissionId",
+        "context/assignment/homeworkId",
+        "teacherId",
+        "classId",
+        "courseId",
+        "moduleId",
+        "writingData",
+        "writingSubmission",
+        "context/selectedTeacherId",
+        "context/sessionCode",
+        "context/classId",
+        "context/courseId",
+        "context/source/classId",
+        "context/source/courseId"
+      ];
+      const identity = [];
+      for (let index = 0; index < leaves.length; index += 3) {
+        identity.push(...await Promise.all(leaves.slice(index, index + 3).map((leaf) => db.read(`${path2}/${leaf}`, leaf === "writingData" || leaf === "writingSubmission"))));
+      }
+      const [testType, testSkill, isGuest, createdAt, sessionCode, sourceType, attemptId, assignmentId, ...otherContexts] = identity;
+      if (typeof material !== "string" || !ID.test(material) || testType !== "THCS-THPT" || testSkill !== "Mixed" || isGuest !== false || !time(createdAt) || createdAt < submittedAt || createdAt > Number(occurredAt) || submittedAt <= cutoffMs || attemptCreatedMs <= cutoffMs || Number(occurredAt) < attemptCreatedMs - 3e5 || sessionCode !== `homework_practice_${eventId}` || sourceType !== "homework" || attemptId !== eventId || assignmentId !== homeworkId || otherContexts.some((value) => value !== null && value !== void 0) || !row(await db.read(`${path2}/thcsData`, true))) return deny();
+      const receipt = {
+        schemaVersion: 3,
+        materialType: "thcs-test",
+        contextType: "homework",
+        resultId,
+        studentId,
+        ownerTeacherId: owner,
+        homeworkId,
+        homeworkSubmissionId: eventId,
+        testId: material,
+        submittedAt,
+        createdAt,
+        homeworkSubmittedAt: occurredAt,
+        sourceRulesCutoff: cutoff
+      };
+      const authorityPath = `result_notification_authority/${resultId}`;
+      if (!await db.create(authorityPath, receipt)) {
+        const prior = row(await db.read(authorityPath));
+        if (!prior || Object.keys(prior).length !== Object.keys(receipt).length || Object.entries(receipt).some(([key, value]) => prior[key] !== value)) throw Error("homework_conflict");
+      }
+    }
   }
-
   const recipient = kind === "homework-submitted" ? owner : studentId;
   const noticeId = `ordinary_${kind.replaceAll("-", "_")}_${eventId}_${recipient}`;
   const notice = {
@@ -3048,6 +3104,7 @@ var init_notification_firestore_bridge = __esm({
               eventId: input.eventId,
               studentId: input.studentId,
               actorUid: identity.uid,
+              sourceRulesCutoff: homeworkCutoff,
               readSource: /* @__PURE__ */ __name(async (collection, id, mask) => {
                 const query = new URLSearchParams();
                 mask.forEach((path) => query.append("mask.fieldPaths", path));
@@ -3057,7 +3114,7 @@ var init_notification_firestore_bridge = __esm({
                 if ([401, 403, 404].includes(response10.status)) throw Error("homework_denied");
                 if (!response10.ok) throw Error("homework_unknown");
                 const document = row2(await response10.json());
-                if (collection !== "student_groups" && (!document || typeof document.createTime !== "string" || !(Date.parse(document.createTime) > Date.parse(env.HOMEWORK_NOTIFICATION_RULES_CUTOFF)))) throw Error("homework_denied");
+                if (collection !== "student_groups" && (!document || document.name !== `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${collection}/${id}` || typeof document.createTime !== "string" || !(Date.parse(document.createTime) > Date.parse(env.HOMEWORK_NOTIFICATION_RULES_CUTOFF)))) throw Error("homework_denied");
                 return { data: fields(document?.fields), createTime: document?.createTime };
               }, "readSource"),
               database: /* @__PURE__ */ __name(async () => {

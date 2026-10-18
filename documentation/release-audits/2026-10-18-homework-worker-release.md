@@ -147,3 +147,13 @@ is under the clean service candidate at
 The old-baseline observer intentionally rejects this new version. Prepare fresh
 provider observations for subsequent changes; reuse neither its old PASS nor a
 main-based Worker build as automatic release authority.
+
+## Subsequent controlled production QA
+
+The owner later approved one production THCS assignment and one test attempt.
+Assignment creation, launch, submission, 100% grading, teacher score projection,
+student completion notice and teacher submission notice succeeded. Student
+assignment notice and teacher full-result access failed. Fresh diagnosis is
+recorded in [the QA follow-up](2026-10-18-homework-production-qa.md); the previous
+unexercised statements above retain their deployment-time scope. No additional
+deployment follows from this QA, and the two failures block full acceptance.

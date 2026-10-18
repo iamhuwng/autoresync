@@ -1,0 +1,91 @@
+{
+  "name": "luyentap-notification-command",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "../cloudflare/notification-release/notification-command-entry.js",
+  "compatibility_date": "2026-09-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "triggers": {
+    "crons": []
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NOTIFICATION_BRIDGE_OBJECT",
+        "class_name": "NotificationBridgeObject"
+      }
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "NOTIFICATION_RATE_LIMITER",
+      "namespace_id": "205512",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "secrets": {
+    "required": [
+      "FIREBASE_WEB_API_KEY",
+      "NOTIFICATION_COMMAND_GOOGLE_SA_KEY"
+    ]
+  },
+  "vars": {
+    "COURSE_ENROLLMENT_APPROVAL_ENABLED": "true",
+    "FIREBASE_DB_URL": "https://temp-a1437-default-rtdb.firebaseio.com",
+    "FIREBASE_PROJECT_ID": "temp-a1437",
+    "HOMEWORK_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
+    "HOMEWORK_RESULT_AUTHORITY_QA_ACTOR": "disabled",
+    "HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID": "disabled",
+    "NOTIFICATION_BRIDGE_QA_ACTOR": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
+    "NOTIFICATION_BRIDGE_QA_EVENT_ID": "homework-89df8956-470b-4a5f-8565-4f22cbbc19ea",
+    "NOTIFICATION_COMMAND_SERVICE_IDENTITY": "notification-command-runtime@temp-a1437.iam.gserviceaccount.com",
+    "NOTIFICATION_RETRY_BATCH": "class-homework",
+    "WRITING_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
+    "WRITING_PRODUCT_QA_ACTOR": "disabled",
+    "WRITING_PRODUCT_QA_SUBMISSION_ID": "disabled",
+    "WRITING_PRODUCT_SOURCE_CUTOFF": "disabled"
+  },
+  "keep_vars": true,
+  "no_bundle": true,
+  "minify": false,
+  "find_additional_modules": true,
+  "base_dir": "../cloudflare/notification-release",
+  "rules": [
+    {
+      "fallthrough": true,
+      "globs": [
+        "notification-command-active.mjs"
+      ],
+      "type": "ESModule"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "notification-bridge-v1",
+      "new_sqlite_classes": [
+        "NotificationBridgeObject"
+      ]
+    }
+  ]
+}

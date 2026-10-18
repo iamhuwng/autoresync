@@ -74,11 +74,12 @@ describe('isolated Firestore notification bridge', () => {
     ] as const;
     const documents = new Map<string, Record<string, unknown>>();
     const put = (collection: string, id: string, fields: Record<string, unknown>) =>
-      documents.set(`${collection}/${id}`, { ...doc(fields), createTime: fresh });
+      documents.set(`${collection}/${id}`, { ...doc(fields), createTime: fresh,
+        name: `projects/project1/databases/(default)/documents/${collection}/${id}` });
     for (const item of definitions) {
       const submitted = item.kind === 'homework-submitted';
       const eventProof = { eventId: item.eventId, kind: item.kind, actorUid: item.actor,
-        homeworkId, studentId, occurredAt, resultId: 'result1' };
+        homeworkId, occurredAt, ...(submitted ? { studentId, resultId: 'result1' } : {}) };
       if (item.kind === 'thcs-homework-assigned' || submitted) put('homework_notification_proofs', item.eventId, eventProof);
       if (submitted) put('homework_submissions', item.eventId, {
         id: item.eventId, studentId, teacherId, homeworkId, resultId: 'result1', submittedAt: occurredAt, status: 'submitted',
@@ -97,9 +98,17 @@ describe('isolated Firestore notification bridge', () => {
     }
     const values: Record<string, unknown> = {
       'users/teacher1/role': 'teacher', 'users/student1/role': 'student', 'system_flags/restore_in_progress': null,
+      'users/otherStudent/role': 'student',
       'test_results/result1/resultId': 'result1', 'test_results/result1/studentId': studentId,
       'test_results/result1/context/type': 'homework', 'test_results/result1/context/source/id': homeworkId,
-      'test_results/result1/testId': 'test1', 'test_results/result1/submittedAt': occurredAt,
+      'test_results/result1/testId': 'test1', 'test_results/result1/submittedAt': occurredAt - 700,
+      'test_results/result1/testType': 'THCS-THPT', 'test_results/result1/testSkill': 'Mixed',
+      'test_results/result1/isGuest': false, 'test_results/result1/createdAt': occurredAt - 500,
+      'test_results/result1/sessionCode': 'homework_practice_submission1',
+      'test_results/result1/context/source/type': 'homework',
+      'test_results/result1/context/source/submissionId': 'submission1',
+      'test_results/result1/context/assignment/homeworkId': homeworkId,
+      'test_results/result1/thcsData': { scaledScore: true },
     };
     const calls: string[] = [];
     const writes: string[] = [];
@@ -115,7 +124,12 @@ describe('isolated Firestore notification bridge', () => {
       if (parsed.hostname === 'oauth2.googleapis.com') return Response.json({ access_token: 'service-token', expires_in: 3600 });
       if (parsed.hostname === 'project1.firebaseio.com') {
         const path = decodeURIComponent(parsed.pathname.slice(1).replace(/\.json$/u, ''));
-        if (init?.method === 'PUT') { writes.push(path); return Response.json({}); }
+        if (init?.method === 'PUT') {
+          writes.push(path);
+          if (Object.hasOwn(values, path)) return Response.json({}, { status: 412 });
+          values[path] = JSON.parse(String(init.body));
+          return Response.json({});
+        }
         if (Object.hasOwn(values, path)) return Response.json(values[path]);
         return Response.json(null);
       }
@@ -123,17 +137,21 @@ describe('isolated Firestore notification bridge', () => {
     }) as unknown as typeof fetch;
     const bindings = { ...env(), NOTIFICATION_BRIDGE_QA_EVENT_ID: 'different-qa-event',
       NOTIFICATION_BRIDGE_QA_ACTOR: 'different-qa-actor', HOMEWORK_NOTIFICATION_RULES_CUTOFF: cutoff };
-    const send = (kind: string, eventId: string, actor: string, student = false) =>
+    const send = (kind: string, eventId: string, actor: string, student = false, recipientId = studentId) =>
       new Request('https://bridge.example/events', { method: 'POST', headers: {
         Authorization: `Bearer ${actor}`, 'Content-Type': 'application/json',
-      }, body: JSON.stringify(student ? { kind, eventId, studentId } : { kind, eventId }) });
+      }, body: JSON.stringify(student ? { kind, eventId, studentId: recipientId } : { kind, eventId }) });
     const bridge = createNotificationFirestoreBridge(fetcher);
     for (const item of definitions) {
       const response = await bridge.fetch(send(item.kind, item.eventId, item.actor, item.kind === 'thcs-homework-assigned'), bindings);
       expect(await response.json(), item.kind).toEqual({ status: 'created' });
       expect(response.status, item.kind).toBe(200);
     }
-    expect(writes).toHaveLength(4);
+    expect(writes).toHaveLength(5);
+    expect(writes.slice(1, 3)).toEqual(['result_notification_authority/result1',
+      'notifications/teacher1/ordinary_homework_submitted_submission1_teacher1']);
+    expect(values['result_notification_authority/result1']).toMatchObject({ schemaVersion: 3,
+      ownerTeacherId: teacherId, homeworkSubmissionId: 'submission1', sourceRulesCutoff: cutoff });
     expect(writes.some(path => path.includes('notifications/teacher1/'))).toBe(true);
     expect(writes.some(path => path.includes('notifications/student1/'))).toBe(true);
     expect(bindings.NOTIFICATION_RATE_LIMITER.limit).toHaveBeenCalledTimes(4);
@@ -153,14 +171,17 @@ describe('isolated Firestore notification bridge', () => {
     documents.set(assignedProofKey, { ...assignedProof, createTime: cutoff });
     let denied = await bridge.fetch(send('thcs-homework-assigned', homeworkId, teacherId, true), bindings);
     expect(denied.status).toBe(403);
-    expect(writes).toHaveLength(4);
+    expect(writes).toHaveLength(5);
     documents.set(assignedProofKey, assignedProof);
     documents.set(assignedProofKey, { ...assignedProof, fields: doc({ eventId: homeworkId, kind: 'thcs-homework-assigned',
-      actorUid: teacherId, homeworkId, studentId: 'otherStudent', occurredAt }).fields });
+      actorUid: teacherId, homeworkId: 'otherHomework', occurredAt }).fields });
     denied = await bridge.fetch(send('thcs-homework-assigned', homeworkId, teacherId, true), bindings);
     expect(denied.status).toBe(403);
-    expect(writes).toHaveLength(4);
+    expect(writes).toHaveLength(5);
     documents.set(assignedProofKey, assignedProof);
+    denied = await bridge.fetch(send('thcs-homework-assigned', homeworkId, teacherId, true, 'otherStudent'), bindings);
+    expect(denied.status).toBe(403);
+    expect(writes).toHaveLength(5);
 
     const reminderKey = 'homework_manual_reminder_intents/reminder1';
     const reminder = documents.get(reminderKey)!;
@@ -170,7 +191,24 @@ describe('isolated Firestore notification bridge', () => {
     documents.set(reminderKey, reminder);
     denied = await bridge.fetch(send('homework-reminder', 'reminder1', 'foreignTeacher'), bindings);
     expect(denied.status).toBe(403);
-    expect(writes).toHaveLength(4);
+    expect(writes).toHaveLength(5);
+    for (const key of ['homework_notification_proofs/submission1', 'homework_submissions/submission1',
+      `homework_assignments/${homeworkId}`]) {
+      const saved = documents.get(key)!;
+      for (const mutation of [{ createTime: cutoff }, { name: 'projects/foreign/databases/(default)/documents/forged/id' }]) {
+        documents.set(key, { ...saved, ...mutation });
+        denied = await bridge.fetch(send('homework-submitted', 'submission1', studentId), bindings);
+        expect(denied.status).toBe(403);
+        expect(writes).toHaveLength(5);
+      }
+      documents.set(key, saved);
+    }
+    const noticePath = 'notifications/teacher1/ordinary_homework_submitted_submission1_teacher1';
+    (values[noticePath] as any).read = true;
+    const replayed = await bridge.fetch(send('homework-submitted', 'submission1', studentId), bindings);
+    expect(await replayed.json()).toEqual({ status: 'replayed' });
+    expect((values[noticePath] as any).read).toBe(true);
+    expect(writes.slice(-2)).toEqual(['result_notification_authority/result1', noticePath]);
   });
 
   it('dispatches the named Course approval endpoint and returns its confirmed status', async () => {

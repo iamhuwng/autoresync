@@ -15,8 +15,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs
+      - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs scripts/__tests__/release-notification-worker-evidence.test.mjs
       - run: node --test scripts/__tests__/acceptance-firebase.test.mjs scripts/__tests__/tooling-where.test.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check notification and THCS result access rules
+        run: |
+          mkdir -p tmp
+          echo '{"emulators":{"database":{"host":"localhost","port":19000},"ui":{"enabled":false}}}' > tmp/notification-qa-firebase.json
+          node scripts/tooling-where.mjs --exec firebase emulators:exec --only database --project demo-private-thcs-homework-current-rules --config tmp/notification-qa-firebase.json "node scripts/tooling-where.mjs --exec vitest run --config vitest.security-emulator.config.ts"
+        env:
+          THCS_RULES_FILE: ${{ github.workspace }}/database.rules.json
       - name: Build clean-clone app with disposable configuration
         run: node scripts/tooling-where.mjs --exec vite build --mode acceptance --outDir tmp/clone-acceptance-dist
         env:
@@ -32,6 +43,20 @@ jobs:
           VITE_FIREBASE_DATABASE_EMULATOR_HOST: localhost:19000
           VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: localhost:19080
           VITE_R2_UPLOAD_WORKER_URL: http://localhost:19087
+
+  notification-workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm --prefix cloudflare ci --no-audit --no-fund
+      - name: Check notification source and retained release module
+        working-directory: cloudflare
+        run: node ../scripts/tooling-where.mjs --exec cloudflare-vitest run --config=vitest.notifications.config.mjs
 
   deployed-homework-rebuild:
     runs-on: ubuntu-latest
