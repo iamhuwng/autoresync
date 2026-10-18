@@ -35,6 +35,9 @@ class FakeXMLHttpRequest {
         addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
             this.uploadListeners.set(type, listener as Listener);
         },
+        removeEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
+            if (this.uploadListeners.get(type) === listener) this.uploadListeners.delete(type);
+        },
     };
 
     constructor() {
@@ -52,6 +55,14 @@ class FakeXMLHttpRequest {
 
     addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
         this.listeners.set(type, listener as Listener);
+    }
+
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+        if (this.listeners.get(type) === listener) this.listeners.delete(type);
+    }
+
+    abort() {
+        this.listeners.get('abort')?.({} as ProgressEvent);
     }
 
     send(body: Document | XMLHttpRequestBodyInit | null) {
@@ -212,6 +223,50 @@ describe('R2UploadClient authenticated grant flow', () => {
             isTemp: true,
         });
         expect(progress).toHaveBeenCalledWith(100, file.size, file.size);
+        expect(FakeXMLHttpRequest.instances[0].listeners.size).toBe(0);
+        expect(FakeXMLHttpRequest.instances[0].uploadListeners.size).toBe(0);
+    });
+
+    it('removes XHR and abort listeners on every terminal upload path', async () => {
+        const endpoint = 'https://canary.example.test';
+        const client = makeClient({ endpoint });
+        const controller = new AbortController();
+        const file = new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' });
+        FakeXMLHttpRequest.responses.push({ status: 200, body: uploadResponse });
+
+        const promise = client.uploadWithAssetGrant(file, {
+            assetGrant: 'asset-grant-sentinel',
+            key: uploadResponse.key,
+            publicUrl: uploadResponse.url,
+            contentType: 'audio/mpeg',
+        }, () => controller.abort(), { signal: controller.signal });
+
+        await expect(promise).rejects.toMatchObject({ code: 'upload_aborted' });
+        const xhr = FakeXMLHttpRequest.instances[0];
+        expect(xhr.listeners.size).toBe(0);
+        expect(xhr.uploadListeners.size).toBe(0);
+    });
+
+    it('rejects an already-aborted upload deterministically without authorizing or starting XHR', async () => {
+        const endpoint = 'https://canary.example.test';
+        const fetchImpl = vi.fn();
+        const client = makeClient({ endpoint, fetchImpl });
+        const controller = new AbortController();
+        controller.abort();
+
+        await expect(client.uploadWithAssetGrant(
+            new File(['audio'], 'lesson.mp3', { type: 'audio/mpeg' }),
+            {
+                assetGrant: 'asset-grant-sentinel',
+                key: uploadResponse.key,
+                publicUrl: uploadResponse.url,
+                contentType: 'audio/mpeg',
+            },
+            undefined,
+            { signal: controller.signal },
+        )).rejects.toMatchObject({ code: 'upload_aborted', recoverable: true });
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(FakeXMLHttpRequest.instances).toHaveLength(0);
     });
 
     it('uploads a canonical Listening asset with the signed bridge grant and exact response checks', async () => {

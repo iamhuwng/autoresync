@@ -114,9 +114,7 @@ describe('PRD-0057 listening-authoring RTDB rules', () => {
     const legacyTestWrite = rules.rules.tests?.$testId?.['.write'] as string | undefined;
 
     expect(root).toBeDefined();
-    expect(rules.rules['.write']).toContain(
-      "newData.child('listening_authoring').val() === data.child('listening_authoring').val()",
-    );
+    expect(rules.rules['.write']).toBe(false);
     expect(legacyTestWrite).toContain(
       "data.child('authoringVersioning').child('frozen').val() !== true",
     );
@@ -234,6 +232,10 @@ describe('PRD-0057 listening-authoring RTDB rules', () => {
         state: 'archived',
       }));
       await assertFails(admin.ref('listening_authoring/operations/operation-1').remove());
+      for (const db of [owner, admin]) {
+        await assertFails(db.ref('listening_authoring').set({ drafts: { 'draft-1': draftRecord } }));
+        await assertFails(db.ref().set({ listening_authoring: { drafts: { 'draft-1': draftRecord } } }));
+      }
     });
 
     it('denies browser writes and deletes against frozen legacy Listening rows', async () => {

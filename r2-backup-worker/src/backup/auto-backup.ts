@@ -144,30 +144,96 @@ export async function clearStaleRestoreFlag(env: WorkerEnv): Promise<void> {
         const tokenCache = new TokenCache(env.GOOGLE_SA_KEY);
         const token = await tokenCache.getToken();
 
-        const flagUrl = `${env.FIREBASE_DB_URL}/system_flags/restore_in_progress.json`;
-        const res = await fetch(flagUrl, {
-            headers: { 'Authorization': `Bearer ${token}` },
+        const flagsUrl = `${env.FIREBASE_DB_URL}/system_flags.json`;
+        const res = await fetch(flagsUrl, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-Firebase-ETag': 'true',
+            },
         });
 
         if (!res.ok) return;
 
-        const flag = await res.json() as { active?: boolean; startedAt?: number } | null;
-        if (!flag || !flag.active || !flag.startedAt) return;
-
-        const ageMs = Date.now() - flag.startedAt;
+        const flags = await res.json() as Record<string, unknown> | null;
+        const now = Date.now();
+        const flag = flags?.restore_in_progress as {
+            active?: boolean;
+            startedAt?: number;
+            backupId?: string;
+        } | null;
+        const lease = flags?.listening_media_mutation_lease;
+        const restoreLease = lease !== null && typeof lease === 'object' && !Array.isArray(lease)
+            && (lease as Record<string, unknown>).kind === 'restore'
+            ? lease as Record<string, unknown>
+            : null;
+        const ageMs = flag?.startedAt ? now - flag.startedAt : 0;
         const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+        let staleRestoreLeaseId: string | undefined;
 
-        if (ageMs > TWO_HOURS_MS) {
+        if (
+            flag?.active
+            && flag.startedAt
+            && ageMs > TWO_HOURS_MS
+            && restoreLease
+            && Number(restoreLease.expiresAt) <= now
+            && (!flag.backupId || restoreLease.backupId === flag.backupId)
+        ) {
             console.warn(`[AutoBackup] Stale restore flag detected (${(ageMs / 60000).toFixed(0)} min old), clearing...`);
-            await fetch(flagUrl, {
+            const etag = res.headers.get('etag');
+            if (!etag || !flags) return;
+            const next = { ...flags };
+            delete next.restore_in_progress;
+            staleRestoreLeaseId = String(restoreLease.leaseId ?? '');
+            delete next.listening_media_mutation_lease;
+            const cleared = await fetch(flagsUrl, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
+                    'if-match': etag,
                 },
-                body: 'null',
+                body: JSON.stringify(next),
             });
+            if (!cleared.ok) return;
+        } else if (restoreLease) {
+            // Never clear a live restore. Its lease is the authoritative proof
+            // even when the age-based watchdog threshold has elapsed.
+            return;
         }
+
+        const authoringUrl = `${env.FIREBASE_DB_URL}/listening_authoring.json`;
+            const authoringResponse = await fetch(authoringUrl, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Firebase-ETag': 'true',
+                },
+            });
+        if (!authoringResponse.ok) return;
+            const authoringEtag = authoringResponse.headers.get('etag');
+            const authoring = await authoringResponse.json() as Record<string, unknown> | null;
+            const authoringLease = authoring?.temp_cleanup_lease;
+            if (
+                !authoringEtag
+                || !authoring
+                || authoringLease === null
+                || typeof authoringLease !== 'object'
+                || Array.isArray(authoringLease)
+                || (authoringLease as Record<string, unknown>).kind !== 'restore'
+                || Number((authoringLease as Record<string, unknown>).expiresAt) > now
+                || (staleRestoreLeaseId
+                    && (authoringLease as Record<string, unknown>).leaseId !== staleRestoreLeaseId)
+            ) return;
+            const nextAuthoring = { ...authoring };
+            delete nextAuthoring.temp_cleanup_lease;
+            await fetch(authoringUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'if-match': authoringEtag,
+                },
+                body: JSON.stringify(nextAuthoring),
+            });
     } catch (err: unknown) {
         console.error('[AutoBackup] Failed to check/clear stale restore flag:', err);
     }

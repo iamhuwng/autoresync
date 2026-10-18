@@ -60,3 +60,64 @@ Generated from `git diff --name-only db6845c5^ 69754098`; the merge adds no sepa
 - `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`
 - `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
 - `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+## 2026-10-18 reconciliation candidate — release blocked
+
+The historical inventory above remains evidence of the initial review. Source,
+tests and configuration have now been selectively ported on
+`codex/listening-cleanup-reconcile-20261018`, based on stable main
+`42fcf888`. Shared Book and ancestor-rule changes were preserved. This is a
+separate draft candidate, not merged main or a deployed cleanup service.
+
+The candidate adds authenticated session cancellation, abort propagation,
+reference-protected deletion/tombstones, bounded sweep checkpoints and restore
+coordination. The sweeper remains disabled. Current correction tests prevent
+unconditional post-upload deletion of referenced bytes, reject restored records
+that reference existing deletion tombstones, and report failed sweep scans as
+failures. Restore fixtures now implement the real conditional lease protocol;
+the stale-lease fixture uses a fixed expired timestamp rather than recalculating
+one millisecond ago during each request.
+
+Local proof: 37 actual workerd tests in two files; 95 backup Worker tests in
+15 files; 94 retained Functions unit tests in six files; 50 app storage/upload
+tests; 25 builder tests; and 15 real RTDB rule tests in three disposable emulator
+namespaces. The six changed Functions generated JavaScript files and source maps
+match current TypeScript transpilation; this is not a full Functions typecheck
+or deployment. Assessment guardrails, result governance, Mantine boundary,
+UTF-8 and diff checks passed again after the final review fixes on the full diff.
+The owner approved the scoped 4,777-line builder exception in findings.
+
+A full compiled acceptance app used disposable Firebase Auth/RTDB/Firestore at
+the enforced acceptance ports. Starting at `http://localhost:5173/login`, the
+Teacher quick login reached lobby, created a Listening builder, replaced audio,
+removed a section while preserving the renumbered section, and discarded the
+editor. Assertions verified cleanup identities and reasons, with no page errors.
+Worker HTTP and audio responses were fixture stubs: this does not prove actual
+provider upload/delete, save/publish/restore lifecycle, or student playback.
+The task-owned Auth acceptance process was stopped afterward; shared local
+emulators were preserved. Production build output was not replaced.
+
+Wrangler 4.103.0 dry-run succeeds (5,878.71 KiB). Dependency-free worktree
+resolution initially failed on PDF package subpaths; explicit aliases to the
+existing locked owner entries corrected tool resolution without an install.
+Read-only provider observation at `2026-10-18T02:00:18.640Z` found active upload
+Worker version `1392faa9-bfcf-4c98-a0d8-bcea6daab615`, module SHA-256
+`be736565f6fe854d48f4a7f22c7db9b7f57369215404f99ad5645c8a1fee73f8`.
+The generic candidate bundle has not been reconciled against all live Book
+dependencies. A successful dry-run is not permission to deploy that bundle.
+
+**Blocking protocol defect:** streaming PUT holds a global, two-minute mutation
+lease. Other teachers' create/issue/upload/save/publish operations can fail,
+and an already-started PUT may complete after that lease expires. The safety
+fix preserves bytes on post-upload errors; if cleanup already reached terminal
+state, a late PUT can still leave an object outside terminal cleanup. No partial
+TTL or lease-removal workaround establishes upload quiescence.
+
+The next implementation must coordinate per-asset in-flight admission with
+cleanup and restore, consume the grant nonce after successful admission, keep
+the short reference/tombstone/delete exclusion, and prove writers have settled
+before stale reservations are cleared. Add concurrent-teacher, expired-writer,
+terminal late-PUT and restore-race proof. Then requalify real provider lifecycle
+and isolate generic Worker/rules/backup releases from PDF Book. No live Worker,
+rules, database, R2 object, or Hosting release was mutated for this candidate.
+No historical taskbox or parent acceptance is closed by these local checks.

@@ -139,12 +139,11 @@ describe('PRD-0058 media-asset RTDB rules', () => {
       'status',
       'createdAt',
       'approvedAt',
+      'updatedAt',
+      'leaseExpiresAt',
+      'notBeforeMs',
     ]);
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_upload_sessions').val() === data.child('media_asset_upload_sessions').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_assets').val() === data.child('media_assets').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_events').val() === data.child('media_asset_events').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_metrics').val() === data.child('media_asset_metrics').val()");
-    expect(rules.rules['.write']).toContain("newData.child('media_asset_sweeps').val() === data.child('media_asset_sweeps').val()");
+    expect(rules.rules['.write']).toBe(false);
   });
 
   describeEmulator('emulator enforcement', () => {
@@ -201,6 +200,10 @@ describe('PRD-0058 media-asset RTDB rules', () => {
         checksum: 'sha256:forged',
       }));
       await assertFails(admin.ref('media_assets/asset-1').remove());
+      for (const db of [owner, admin]) {
+        await assertFails(db.ref('media_assets').set({ 'asset-1': assetRecord }));
+        await assertFails(db.ref().set({ media_assets: { 'asset-1': assetRecord } }));
+      }
     });
 
     it('keeps trusted-service mutation separate from teacher browser authority', async () => {

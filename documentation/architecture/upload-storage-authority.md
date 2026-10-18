@@ -375,3 +375,15 @@ Historical documents may retain original Google Drive text only when they carry 
 - `documentation/architecture/ielts-reading-v2-listening-unification.md`
 - `tasks/0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
 - `tasks/0056a-prd-listening-upload-session-bridge.md`
+
+## 2026-10-18 cleanup candidate boundary
+
+The retained temporary-audio cleanup chain is selectively ported but is not
+released. See [the current reconciliation record](../system/listening-cleanup-reconciliation-20261017.md).
+Cancellation uses canonical session asset identities, durable-reference checks
+and deletion tombstones; restored references to tombstoned assets are rejected.
+Post-upload errors must not directly delete bytes that may have been saved.
+Scheduled sweep remains disabled. Global upload serialization and late writers
+after lease expiry remain release blockers requiring coordinated admission and
+quiescence proof. This candidate does not change the deployed authority or
+establish provider deletion/readiness, and it includes no PDF Book rollout.

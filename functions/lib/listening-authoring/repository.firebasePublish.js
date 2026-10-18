@@ -11,10 +11,16 @@ const firebasePublishDraftTransaction = async (db, input) => {
     const transaction = await rootRef.transaction((currentValue) => {
         var _a, _b, _c, _d, _e, _f, _g, _h;
         const current = currentValue !== null ? cloneRootState(currentValue) : {};
+        (0, repository_shared_1.assertNoActiveListeningTempCleanupLease)(current, Date.now());
         const drafts = new Map([
             ...Object.entries((_a = current.drafts) !== null && _a !== void 0 ? _a : {}),
             ...Object.entries((_b = current.revision_drafts) !== null && _b !== void 0 ? _b : {}),
         ]);
+        const currentDraft = drafts.get(input.draftId);
+        if (currentDraft) {
+            (0, repository_shared_1.assertNoDeletedListeningTempAssets)(current, currentDraft.assetIds);
+            (0, repository_shared_1.assertNoDeletedListeningTempAssets)(current, (0, repository_operationRecords_1.deriveAssetIds)(currentDraft.document));
+        }
         const versions = new Map(Object.entries((_c = current.versions) !== null && _c !== void 0 ? _c : {}));
         const operationsById = new Map(Object.entries((_d = current.operations) !== null && _d !== void 0 ? _d : {}));
         const operationIdsByLookupKey = new Map();

@@ -1022,3 +1022,22 @@ Boundary trace:
 
 - Selected teacher/student solo or homework traffic is not claimed because no explicit authorization was present. Percentage rollout is not claimed because healthy playback/resume metrics and authorization remain future gates.
 - `AudioPlayer.tsx` source diff remains empty. No Task 7 work wrote `audioCommand` or `masterAudioState`, touched Reading V2 runtime internals, started Task 8, deployed, staged, committed, pushed, cleaned up, deleted objects, or performed unauthorized remote mutation.
+
+## 2026-10-18 cleanup port trace — not release acceptance
+
+- Client replacement/removal/exit: ListeningTestBuilder and storage/upload APIs;
+  25 builder plus 50 storage/upload tests and compiled Teacher browser checks
+  with fixture Worker transport.
+- Trusted cancellation/sweep/reference safety: listening-upload-session modules,
+  authoring repositories and two Worker test files; 37 workerd tests, including
+  referenced-byte preservation after cancelled/failed post-upload checks and
+  failed-scan metrics.
+- Restore/backup/tombstones: backup and restore services; 95 backup tests,
+  including both restore modes rejecting deleted references. Retained Functions
+  unit suites pass 94 tests; generated JavaScript matches six changed sources.
+- Rule boundary: three upload/authoring/media rule suites, 15 emulator tests,
+  including forbidden ancestor writes; root browser write denial retained.
+- Release gate: global upload admission/quiescence unresolved, real provider
+  lifecycle and live bundle reconciliation unproved. No deployment, cleanup
+  execution, R2 deletion or parent acceptance. Full dated proof and next work:
+  `documentation/system/listening-cleanup-reconciliation-20261017.md`.
