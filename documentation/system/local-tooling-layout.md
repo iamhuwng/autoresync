@@ -77,6 +77,10 @@ harness run. The historical `scripts/harness/run-tool.mjs` is stateful and is
 reserved for explicit audit/deployment/security workflows that require its
 evidence machinery; it is not part of ordinary resolver execution.
 
+Guarded Hosting deployment uses this same stateless Firebase CLI route after
+its source, environment, bundle and remote-state checks. It must not install a
+second dependency tree merely to publish the checked build.
+
 If a tool is not listed, inspect the owning package manifest/lockfile and extend
 `tooling:where` rather than installing a one-off global copy or creating a new
 cache root.

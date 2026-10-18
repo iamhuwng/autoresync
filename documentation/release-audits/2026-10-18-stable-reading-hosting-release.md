@@ -1,5 +1,10 @@
 # Qualified stable Reading Hosting release — 2026-10-18
 
+Current release note: the later [Book catalog correction](2026-10-18-book-hosting-release.md)
+supersedes this Hosting version. This dated Reading acceptance did not detect
+the two generic Book flags being disabled. The correction restores existing
+Books while preserving the separate PDF Activity presentation gates.
+
 Status: **deployed and verified**. The earlier failed release and rollback remain
 in [their incident record](2026-10-18-stable-hosting-release.md). This replacement
 restores Reading availability and corrects the cached-script reload mechanism;

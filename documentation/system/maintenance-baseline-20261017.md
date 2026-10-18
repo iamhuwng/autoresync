@@ -253,3 +253,31 @@ an unrelated Book dependency difference currently prevents treating the new
 backup bundle as a homework-only release. See the dated
 [remaining-work record](../release-audits/2026-10-18-remaining-nonbook-work.md)
 for the exact source, provider observation, checks and unverified boundaries.
+
+## Book catalog regression — October 18
+
+The qualified Reading replacement still accidentally disabled the existing
+Book tab and editor through two generic production flags. The correction is
+being prepared separately; do not treat the prior browser scope as whole-app
+qualification. The [incident record](../release-audits/2026-10-18-book-catalog-regression.md)
+contains provider-matched historical evidence, the exact configuration cause,
+and the distinction between existing Books and the unreleased PDF Activity
+rollout. Production validation now requires the generic catalog/editor enabled
+while that separate rollout remains disabled. No corrective deployment is
+claimed by this note.
+
+## Book catalog correction — October 18, 09:50 Asia/Bangkok
+
+The owner-approved Hosting correction is deployed as `ffd0c61f899cb275`, source
+`091a1746`, tag `stable-2026-10-18-books`. The two existing Book flags are enabled;
+all six PDF Activity presentation gates remain disabled. All 453 deployed file
+hashes match. Fresh live Teacher checks confirm Book and materials creation
+entry, two test-modal openings without reload, Reading V2 Details, and 11
+Reading Passages. Both tested Book catalogs were empty, so persistence/editor
+reopen proof remains local emulator acceptance rather than a live Book write.
+See [the current release record](../release-audits/2026-10-18-book-hosting-release.md).
+This release includes no Worker, rules, database or storage mutation. Homework
+recipient hardening (draft PR #150), Listening cleanup (draft PR #151), retained
+feedback/design work, and PDF Book remain separate; their unfinished acceptance
+or safety work is not closed by this correction. Use clean stable main for
+future changes and preserve the dirty PDF feature checkout separately.

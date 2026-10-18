@@ -1,9 +1,9 @@
 # Kahoot — Interactive Learning & Assessment Platform
 
-> Stable maintenance baseline: the qualified October 18 replacement is deployed
-> from `83d794d4`, tagged `stable-2026-10-18-reading`. Start future work from
+> Stable maintenance baseline: the October 18 Book catalog correction is deployed
+> from `091a1746`, tagged `stable-2026-10-18-books`. Start future work from
 > `main`; use the tag to reproduce the exact deployed source. PDF Book stays on
-> its separate feature branch. Read [the current release record](documentation/release-audits/2026-10-18-stable-reading-hosting-release.md),
+> its separate feature branch. Read [the current release record](documentation/release-audits/2026-10-18-book-hosting-release.md),
 > [local setup](documentation/system/local-live-deployment.md), and
 > [release safety](documentation/system/release-safety.md) before running or deploying.
 > The earlier failed release/rollback history, reconstruction limits, and deferred work are retained in
