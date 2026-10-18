@@ -22,8 +22,9 @@ records matched validated recovery generation
 profiles. The owning checkout's explicit recovery restored that exact generation;
 no bootstrap, seeding or live-to-local sync was used.
 
-Terminal-owned Auth and dev processes stopped at a turn boundary. A named
-Windows task now owns Auth, using the validated saved identities only; no
+During the October 18 verification, terminal-owned Auth and dev processes
+stopped at a turn boundary. A named Windows task then owned Auth, using the
+validated saved identities only; no
 additional RTDB/Firestore import was needed for that restart. The existing
 owning checkout's checkpoint task resumed saving complete generations. Named
 temporary teacher/student tasks ran the unchanged stable `local-dev.mjs`
@@ -49,10 +50,11 @@ The existing browser profile and its IndexedDB PDF authoring draft were unused.
 One checkpoint overlapped normal login writes and correctly rejected the export
 without advancing its selected generation. After browser checks stopped, a
 complete save succeeded at `2026-10-18T12:47:14.729Z`, generation
-`bc16c9c7-ad1b-4329-be97-8d5a41023471`. Temporary teacher/student tasks and their
-Vite/Worker processes were stopped and removed; ports 5173/5174/8787 are free.
-Local Auth remains owned by `LuyenTap-stable-qa-auth`, while the existing
-`LuyenTap-firebase-checkpoint` and database/Firestore tasks remain running.
+`bc16c9c7-ad1b-4329-be97-8d5a41023471`. At the end of that October 18 check,
+temporary teacher/student tasks and their Vite/Worker processes were stopped
+and removed; ports 5173/5174/8787 were free. Local Auth was owned by
+`LuyenTap-stable-qa-auth`, while the existing `LuyenTap-firebase-checkpoint`
+and database/Firestore tasks were running.
 Those machine-local tasks, ignored secrets and snapshots are not clone contents.
 
 October 19 reinspection: the local service ports are no longer listening, and
@@ -98,9 +100,14 @@ the failing field; it neither approves publication nor changes a stored row.
 Evidence: ignored `tmp/pdf-summary-contract-check-20261018.{ts,json}`.
 
 Do not weaken stable validation or automatically declare old `public` records
-reviewed/published. Reconcile the PDF producer, canonical metadata and intended
-publication workflow together in the separate PDF integration branch, with
-their affected finalizer/catalog checks.
+reviewed/published. The new final-submission input validator accepts private
+visibility only, and its trusted finalizer explicitly creates a private Book.
+That path can use main's existing summary adapter without the old public enum.
+The invalid historical public rows therefore do not establish failure of new
+private finalization. Preserve main's moderation/catalog model when integrating
+the new PDF workflow; do not overwrite it with the feature checkout's older
+shared files. Qualify private finalization and any later public-library workflow
+separately, without silently publishing the old rows.
 
 The feature checkout remains separate at `422b7323` with extensive uncommitted
 work. Its current execution authority is the component-PDF recovery plan and
