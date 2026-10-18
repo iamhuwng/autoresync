@@ -281,3 +281,20 @@ recipient hardening (draft PR #150), Listening cleanup (draft PR #151), retained
 feedback/design work, and PDF Book remain separate; their unfinished acceptance
 or safety work is not closed by this correction. Use clean stable main for
 future changes and preserve the dirty PDF feature checkout separately.
+
+## Homework Worker release — October 18, 14:21 Asia/Bangkok
+
+PR #150 merged as `34207760`; clean local main and GitHub main were synchronized.
+Its approved isolated Homework Worker artifact from `99bb3f07` is live as
+`6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25` at 100%. Exact bundle and configuration
+readback pass; [the release packet](../release-audits/2026-10-18-homework-worker-release.md)
+records scope, recovery and the remaining authenticated production QA limits.
+Hosting stays at the Book-restored `091a1746` release. For future work, clone
+main and create a separate feature branch; a whole main-based backup Worker
+rebuild still includes the deferred Book dependency delta and needs its own
+qualification. The deployed Worker candidate is retained independently.
+
+The owner acknowledged deferring Listening cleanup after reviewing its crash
+recovery/retention tradeoff. Keep PR #151 a draft with sweep disabled. Retained
+student feedback/design pages and PDF Book remain separate; this release does
+not close their implementation or acceptance work.
