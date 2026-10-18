@@ -9,9 +9,10 @@ export type HomeworkKind = typeof HOMEWORK_KINDS[number];
 type Source = { data: Record<string, unknown>; createTime?: unknown; exists?: boolean };
 type Database = { read(path: string, shallow?: boolean): Promise<unknown>; create(path: string, value: unknown): Promise<boolean> };
 
-/** Compute-only: exact source identities, one candidate recipient, one conditional create. */
+/** Compute-only: exact source identities, one recipient, conditional creates. */
 export async function deliverHomeworkNotice(input: {
   kind: HomeworkKind; eventId: string; studentId?: string; actorUid: string;
+  sourceRulesCutoff?: string;
   readSource(collection: string, id: string, mask: string[]): Promise<Source>;
   database(): Promise<Database>;
 }): Promise<'created' | 'replayed'> {
@@ -24,6 +25,7 @@ export async function deliverHomeworkNotice(input: {
   let resetResultId: unknown;
   let resetSubmissionId: unknown;
   let source: Record<string, unknown> | undefined;
+  let sourceCreatedAt: unknown;
   let proof: Record<string, unknown> | undefined;
   if (kind === 'homework-submitted' || kind === 'thcs-homework-assigned') {
     proof = (await input.readSource('homework_notification_proofs', eventId,
@@ -33,8 +35,10 @@ export async function deliverHomeworkNotice(input: {
   if (kind !== 'thcs-homework-assigned') {
     const collection = kind === 'homework-submitted' ? 'homework_submissions'
       : kind === 'homework-reminder' ? 'homework_manual_reminder_intents' : 'homework_reset_notification_intents';
-    source = (await input.readSource(collection, eventId, ['id', 'eventId', 'homeworkId', 'studentId', 'teacherId',
-      'actorUid', 'occurredAt', 'submittedAt', 'resultId', 'sourceSubmissionId', 'status', 'administrativeImport'])).data;
+    const sourceDocument = await input.readSource(collection, eventId, ['id', 'eventId', 'homeworkId', 'studentId', 'teacherId',
+      'actorUid', 'occurredAt', 'submittedAt', 'resultId', 'sourceSubmissionId', 'status', 'administrativeImport']);
+    source = sourceDocument.data;
+    sourceCreatedAt = sourceDocument.createTime;
     homeworkId = source.homeworkId;
     studentId = source.studentId;
     if (kind === 'homework-submitted') {
@@ -64,7 +68,7 @@ export async function deliverHomeworkNotice(input: {
     || assignment.assignmentKind || assignment.materialType === 'book' || assignment.archived === true) return deny();
   if (kind === 'homework-submitted' ? source?.teacherId !== owner : actorUid !== owner) return deny();
   if (kind === 'thcs-homework-assigned') {
-    if (assignment.materialType !== 'thcs-test' || proof?.homeworkId !== homeworkId || proof?.studentId !== studentId
+    if (assignment.materialType !== 'thcs-test' || proof?.homeworkId !== homeworkId
       || proof?.occurredAt !== assignment.createdAt) return deny();
     occurredAt = assignment.createdAt;
   }
@@ -98,6 +102,37 @@ export async function deliverHomeworkNotice(input: {
     if (savedId !== resultId || student !== studentId || contextType !== 'homework'
       || sourceId !== homeworkId || material !== assignment.materialId
       || !time(submittedAt) || submittedAt > Number(occurredAt)) return deny();
+    if (assignment.materialType === 'thcs-test') {
+      const cutoff = input.sourceRulesCutoff;
+      const cutoffMs = typeof cutoff === 'string' ? Date.parse(cutoff) : NaN;
+      const attemptCreatedMs = typeof sourceCreatedAt === 'string' ? Date.parse(sourceCreatedAt) : NaN;
+      if (!Number.isFinite(cutoffMs) || !Number.isFinite(attemptCreatedMs)) throw Error('homework_unknown');
+      const leaves = ['testType', 'testSkill', 'isGuest', 'createdAt', 'sessionCode', 'context/source/type',
+        'context/source/submissionId', 'context/assignment/homeworkId', 'teacherId', 'classId', 'courseId', 'moduleId',
+        'writingData', 'writingSubmission', 'context/selectedTeacherId', 'context/sessionCode',
+        'context/classId', 'context/courseId', 'context/source/classId', 'context/source/courseId'];
+      const identity: unknown[] = [];
+      for (let index = 0; index < leaves.length; index += 3) {
+        identity.push(...await Promise.all(leaves.slice(index, index + 3).map(leaf => db.read(`${path}/${leaf}`, leaf === 'writingData' || leaf === 'writingSubmission'))));
+      }
+      const [testType, testSkill, isGuest, createdAt, sessionCode, sourceType, attemptId, assignmentId, ...otherContexts] = identity;
+      if (typeof material !== 'string' || !ID.test(material)
+        || testType !== 'THCS-THPT' || testSkill !== 'Mixed' || isGuest !== false || !time(createdAt)
+        || createdAt < submittedAt || createdAt > Number(occurredAt) || submittedAt <= cutoffMs
+        || attemptCreatedMs <= cutoffMs || Number(occurredAt) < attemptCreatedMs - 300_000
+        || sessionCode !== `homework_practice_${eventId}` || sourceType !== 'homework'
+        || attemptId !== eventId || assignmentId !== homeworkId || otherContexts.some(value => value !== null && value !== undefined)
+        || !row(await db.read(`${path}/thcsData`, true))) return deny();
+      const receipt = { schemaVersion: 3, materialType: 'thcs-test', contextType: 'homework',
+        resultId, studentId, ownerTeacherId: owner, homeworkId, homeworkSubmissionId: eventId,
+        testId: material, submittedAt, createdAt, homeworkSubmittedAt: occurredAt, sourceRulesCutoff: cutoff };
+      const authorityPath = `result_notification_authority/${resultId}`;
+      if (!(await db.create(authorityPath, receipt))) {
+        const prior = row(await db.read(authorityPath));
+        if (!prior || Object.keys(prior).length !== Object.keys(receipt).length
+          || Object.entries(receipt).some(([key, value]) => prior[key] !== value)) throw Error('homework_conflict');
+      }
+    }
   }
   const recipient = kind === 'homework-submitted' ? owner : studentId;
   const noticeId = `ordinary_${kind.replaceAll('-', '_')}_${eventId}_${recipient}`;

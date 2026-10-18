@@ -326,3 +326,16 @@ fresh provider observations, not assumptions or weakened capacity guards.
 Require an exact-path implementation handoff and reconcile its net delta onto
 current main before preparing separate service releases. No PDF deployment
 readiness or production change follows from this clone follow-up.
+
+## Controlled production Homework QA follow-up
+
+The owner-approved October 18 production QA created one assignment for the
+dedicated student and one successful THCS attempt. Student and teacher score
+projections show 100%; student completion and teacher submission notices arrived.
+Two failures remain: the student assignment notice is missing, and the assigning
+teacher cannot open the full result. Fresh provider/data/rule observations and
+their distinct causes are recorded in
+[the QA report](../release-audits/2026-10-18-homework-production-qa.md).
+This supersedes the earlier statement that all authenticated production QA is
+unexercised, but does not establish full workflow acceptance or authorize a new
+Worker/rules/Hosting deployment.

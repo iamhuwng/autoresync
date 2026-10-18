@@ -71,6 +71,7 @@ describe('student-private THCS homework result against the exact current RTDB ru
             projectId: 'demo-private-thcs-homework-current-rules',
             database: { host, port: Number(portText), rules: readFileSync(rulesPath, 'utf8') },
         });
+        await environment.clearDatabase();
         await environment.withSecurityRulesDisabled(async context => {
             await context.database().ref('users').set({
                 [studentId]: { role: 'student', status: 'active' },
@@ -173,5 +174,71 @@ describe('student-private THCS homework result against the exact current RTDB ru
             resultId, sessionCode: `homework_practice_${submissionId}`, testId: materialId,
             percentage: 100, submittedAt,
         });
+    }, 15000);
+
+    it('grants only the receipt-bound assigning teacher read access while keeping browser writes and indexes private', async () => {
+        const adminDb = environment.authenticatedContext(adminId).database();
+        const studentDb = environment.authenticatedContext(studentId).database();
+        const teacherDb = environment.authenticatedContext(teacherId).database();
+        const foreignDb = environment.authenticatedContext(foreignStudentId).database();
+        const resultPath = `test_results/${absentResultId}`;
+        const authorityPath = `result_notification_authority/${absentResultId}`;
+        const result = (await adminDb.ref(resultPath).get()).val();
+        const receipt = { schemaVersion: 3, materialType: 'thcs-test', contextType: 'homework',
+            resultId: absentResultId, studentId, ownerTeacherId: teacherId, homeworkId,
+            homeworkSubmissionId: submissionId, testId: materialId, createdAt: result.createdAt,
+            submittedAt: result.submittedAt, homeworkSubmittedAt: result.createdAt + 1000,
+            sourceRulesCutoff: '2026-10-02T02:22:09.862Z' };
+        await environment.withSecurityRulesDisabled(async context => {
+            await context.database().ref(authorityPath).set(receipt);
+            await context.database().ref('users/foreign-teacher').set({ role: 'teacher', status: 'active' });
+        });
+        expect((await assertSucceeds(teacherDb.ref(resultPath).get())).val()).toEqual(result);
+        await assertFails(environment.authenticatedContext('foreign-teacher').database().ref(resultPath).get());
+        await assertFails(foreignDb.ref(resultPath).get());
+        await assertFails(environment.unauthenticatedContext().database().ref(resultPath).get());
+        await assertFails(teacherDb.ref(`test_results_by_student/${studentId}/${absentResultId}`).get());
+        for (const actor of [studentDb, teacherDb, foreignDb]) {
+            await assertFails(actor.ref(`${authorityPath}-forged`).set(receipt));
+            await assertFails(actor.ref(authorityPath).set({ ...receipt, ownerTeacherId: 'foreign-teacher' }));
+            await assertFails(actor.ref(authorityPath).remove());
+            await assertFails(actor.ref('result_notification_authority').set({ [absentResultId]: receipt }));
+            await assertFails(actor.ref('result_notification_authority').update({ [absentResultId]: receipt }));
+            await assertFails(actor.ref().update({ [authorityPath]: receipt }));
+        }
+        await assertFails(teacherDb.ref(resultPath).update({ overallFeedback: 'Unauthorized teacher feedback' }));
+        await assertFails(teacherDb.ref(resultPath).remove());
+        for (const mutation of [
+            { studentId: foreignStudentId }, { testId: 'foreign-test' }, { sessionCode: 'foreign-session' },
+            { submittedAt: result.submittedAt + 1 }, { createdAt: result.createdAt + 1 },
+            { 'context/source/submissionId': 'foreign-attempt' }, { 'context/source/id': 'foreign-homework' },
+            { 'context/assignment/homeworkId': 'foreign-homework' }, { percentage: 1 },
+            { 'questionResults/0/studentAnswer': 'forged' },
+        ]) await assertFails(studentDb.ref(resultPath).update(mutation));
+        await assertSucceeds(studentDb.ref(resultPath).update({
+            feedbackGenerationMeta: { kind: 'thcs', lastAttemptAt: result.createdAt + 1 },
+        }));
+        await assertSucceeds(teacherDb.ref(resultPath).get());
+        await environment.withSecurityRulesDisabled(async context => {
+            await context.database().ref('test_results/forged-result').set({ ...result, resultId: 'forged-result' });
+            await context.database().ref('result_notification_authority/forged-result').set(receipt);
+        });
+        await assertFails(teacherDb.ref('test_results/forged-result').get());
+        for (const mutation of [
+            { schemaVersion: 2 }, { materialType: 'test' }, { studentId: foreignStudentId },
+            { ownerTeacherId: 'foreign-teacher' }, { homeworkId: 'foreign-homework' },
+            { homeworkSubmissionId: 'foreign-attempt' }, { testId: 'foreign-test' },
+            { createdAt: result.createdAt + 1 }, { submittedAt: result.submittedAt + 1 },
+        ]) {
+            await environment.withSecurityRulesDisabled(async context => {
+                await context.database().ref(authorityPath).set({ ...receipt, ...mutation });
+            });
+            await assertFails(teacherDb.ref(resultPath).get());
+        }
+        await environment.withSecurityRulesDisabled(async context => {
+            await context.database().ref(authorityPath).set(receipt);
+            await context.database().ref(`${resultPath}/context/source/submissionId`).set('tampered-after-receipt');
+        });
+        await assertFails(teacherDb.ref(resultPath).get());
     }, 15000);
 });
