@@ -229,3 +229,15 @@ The owner acknowledged keeping the Listening cleanup draft separate while
 finishing stable after the permanent-marker recovery tradeoff was explained.
 PR #151 stays a draft with sweep disabled; no permanent-marker implementation,
 Listening deployment or PDF Book rollout is included.
+
+## Superseding authorized Homework release
+
+PR #150 is merged as `34207760`, and the owner-approved isolated Homework
+Worker is deployed as `6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25` at 100% traffic.
+Provider verification confirms the exact reviewed bundle and retained runtime
+configuration; missing-auth Homework/Reading probes reject access before data
+operations. The [release packet](2026-10-18-homework-worker-release.md) records
+the fresh preflights, exact evidence and retained production workflow limits.
+Hosting remains at `091a1746`; no rules, database or storage-object release was
+performed. Listening cleanup, retained feedback/design pages and PDF Book stay
+separate. This supersedes the earlier draft/unauthorized Homework status above.

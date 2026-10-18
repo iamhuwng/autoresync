@@ -101,3 +101,49 @@ Independent review found no actionable defect in the native observation,
 fixed scope, trust boundary or receipt routing. The CLI's `--cwd` receipt path
 was corrected and covered by a regression test. These are preparation and
 read-only provider proofs; no deployment or production data write occurred.
+
+## Authorized deployment — October 18, 14:21 Asia/Bangkok
+
+The owner explicitly approved PR #150 merge and the isolated Worker release.
+PR #150 merged as `3420776075a350fc1d9b943c9feedc667408f97c`; local main was
+fast-forwarded to the same GitHub revision with a clean worktree. Its four
+main-branch workflows passed. The deployed artifact remains the isolated
+`99bb3f07` bundle above, not a rebuild of main.
+
+Fresh native and tool-pinned preflights passed immediately before execution.
+Wrangler 4.103.0, through the existing Windows x64 Node 22.17.1 runtime,
+deployed the reviewed configuration with `--no-bundle --keep-vars`. New active
+version **`6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25`** receives **100%** of traffic.
+Independent provider readback confirms its sole module has exact SHA-256
+`6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed`.
+
+Effective bindings and variable fingerprints, five secret names/types, runtime
+settings, weekly schedule, workers.dev/previews, account subdomain, custom
+domains and routes match preflight. The expected `workers/message` annotation
+records the approved release message; this metadata addition is checked
+explicitly rather than ignored. Secret values were preserved, not inspected.
+
+Postdeployment verification passed at `2026-10-18T07:23:11.044Z`. Missing-auth
+requests to Homework assignments return 401 and Reading submission returns 403;
+source tracing confirms both reject before database access. These probes create
+no assignment or result. The Hosting manifest still identifies `091a1746` / tree
+`af587f18`; no Hosting, Firebase rules/data, other Worker or storage-object
+deployment was performed. Authenticated production assignment, notice delivery,
+grading and rollback remain unexercised.
+
+An initial local guard stopped before deployment because PowerShell converted
+a JSON UTC timestamp to a DateTime and reparsed its zone-less display as local
+time. Direct DateTimeOffset conversion preserves the UTC instant; the corrected
+guard passed fresh evidence before the single Worker deployment. This was an
+operator harness failure, not a product regression.
+
+Canonical ignored evidence: `homework-authorized-deploy-20261018-072124-105.log`,
+`homework-authorized-preflight-20261018-072124-105.json`,
+`homework-provider-read-2026-10-18T07-22-08-116Z.json`,
+`homework-service-preflight-routing.json`, and
+`homework-authorized-postverify-2026-10-18T07-23-11-044Z.json`. The native receipt
+is under the clean service candidate at
+`tmp/release-receipts/homework-authorized-20261018-072124-105.json`.
+The old-baseline observer intentionally rejects this new version. Prepare fresh
+provider observations for subsequent changes; reuse neither its old PASS nor a
+main-based Worker build as automatic release authority.
