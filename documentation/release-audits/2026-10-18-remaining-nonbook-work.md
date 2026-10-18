@@ -1,0 +1,95 @@
+# Remaining non-Book work — 2026-10-18
+
+This follow-up starts from synchronized main `42fcf888`, after the qualified
+Hosting release of `83d794d4`. It does not authorize or record another service
+deployment. The owner explicitly chose to keep the retained student feedback
+pages and Student Study OS design pack separate from stable main.
+
+## Homework direct recipients
+
+The reconstruction already contains the basic teacher-owned class-member key
+to Firebase UID mapping. Fresh Cloudflare source readback at
+`2026-10-18T01:16:17.705Z` confirms that active backup Worker version
+`f37869c0-c597-41cc-893b-7f7652d80e41` still lacks that mapping. Its sole module,
+`reading-release-candidate.mjs`, has SHA-256
+`c789454458790c5fb0893952043a150b34cefa345c5b02b06c1f04edddad112b`.
+
+The follow-up hardens the existing source fix:
+
+- IDs retain their original input indices through trimming and blank filtering.
+  Canonical IDs and corresponding names are deduplicated together, keeping the
+  first occurrence. Assignment count and direct access grants use the same IDs.
+- Only nonblank class-record UIDs replace member IDs. Guests with optional or
+  blank UIDs retain their existing member identity.
+- Teacher authorization remains limited to owned classes or active links and
+  assignments. Super-admin direct-ID authorization is unchanged; it does not
+  scan all classes or normalize arbitrary member aliases. Existing UI producers
+  already prefer a roster UID when available.
+
+The shared consumers are `homeworkManager`'s authenticated student query,
+index-based names in `useTargetGrid` and teacher homework detail, and the THCS
+notification producer's committed assignment recipient list. This correction
+changes their stored input; it adds no announcement, reporting action, delivery
+host, database node, rule, or index. Existing toast/reporting/notification ports
+are unchanged. It does not claim a new notification was delivered.
+
+Verification: the expanded route regression first failed because two canonical
+recipients retained four names. After correction, all **92 backup Worker tests
+in 15 files pass**, including 37 assignment tests covering UID grants, aligned
+names, blank IDs/UIDs, guest fallback, admin scope, unauthorized rejection and
+grant rollback. Wrangler 4.68.1 dry-run succeeds (412.52 KiB). The assessment
+guardrail, applicable pre-commit enforcement and `git diff --check` pass.
+
+Tests used the existing canonical backup package through Windows x64 Node,
+with the selected checkout as `--root`. Its configuration and lockfile hashes
+match the canonical package. Loading the selected config directly initially
+resolved its root ARM64 Rollup tree; selecting the byte-identical canonical
+config avoided that tool-resolution mismatch without installing dependencies.
+
+**Not deployment-ready yet:** comparison of the actual dry-run module with the
+active module also finds unrelated Book source-upload state validation changes
+imported by backup/restore code from shared app modules. Deploying that bundle
+as a homework-only release would cross the Book scope boundary. Those
+dependencies must be isolated and reviewed first. No Worker deployment or
+authenticated browser creation/read/delivery acceptance has occurred for this
+follow-up. The production JWT verifier does not accept local emulator tokens;
+the route tests mock authentication and provider transport explicitly.
+
+An isolated candidate based on pre-reconstruction `422b7323`, with only the
+recipient correction, removes the Book validation drift but still differs from
+the active Reading submit implementation: production retains assignment-owner
+binding and writes `teacher_result_keys`, whereas this historical source lacks
+that binding and writes the older teacher result index. Preserve those live
+guards and index semantics before releasing either candidate. The first
+isolation comparison deliberately fails rather than labeling this drift as
+compiler-only. The candidate does not establish deployed Git provenance.
+
+Local read-only source and dry-run evidence is preserved under
+`C:/Users/The Lord/repos/luyentap-prd0062/tmp/deployment-audit-20261017/` as
+`homework-worker-current-source.json`,
+`homework-live-reading-release-candidate.mjs` and
+`homework-recipient-worker-dry-run/`.
+
+## Retained history and independent Listening work
+
+The 28 commits on `codex/retained-local-main-feedback-20261017` reduce to:
+
+- `de643fe8`: obsolete environment wiring, already superseded on main. Do not
+  restore it; it would regress orchestrated development and gateway ownership.
+- `f92f507c`: Student Study OS draft specifications, three responsive HTML
+  masters, component prototypes and evidence. It has no runtime authority.
+- The remaining 26 commits: 23 final static HTML files under `public/student/`
+  for bao, be, bo, ducanh, dw, nguyen and tung. They contain student dashboards,
+  essays and feedback and would be public without login if deployed. Preserve
+  them separately, as the owner requested; do not import their old Cloudflare
+  dependency changes.
+
+The separate seven-commit Listening cleanup chain is being reconciled in an
+isolated branch. Its coordinated upload/session/cleanup/rules/restore scope is
+listed in [the Listening inventory](../system/listening-cleanup-reconciliation-20261017.md).
+Historical ancestry alone does not establish runtime readiness. Keep scheduled
+deletion disabled, preserve current Book/security changes in shared files, and
+qualify the resulting source and real lifecycle before any service release.
+
+PDF Book and newer local persistence/recovery tooling remain separate work.
+This record closes neither their acceptance nor the overall remaining-work task.

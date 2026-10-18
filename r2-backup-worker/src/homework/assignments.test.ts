@@ -241,30 +241,45 @@ describe('homework assignment Worker route', () => {
         });
     });
 
-    it('stores the Firebase UID when a direct target uses a class-member key', async () => {
-        const records = recordsForTestContent(makeTestRecord({ id: 'reading-v2-1', skill: 'Reading' }));
+    it('deduplicates direct target aliases with aligned names and UID access grants', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'writing-1', skill: 'Writing' }));
         records.set('classes/class-1', {
             ...classRecord,
-            students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+            students: { 'member-key': { uid: 'student-uid', name: 'Student' }, 'student-2': { uid: 'student-2' } },
         });
         records.set('classes', {
             'class-1': {
                 ...classRecord,
-                students: { 'member-key': { uid: 'student-uid', name: 'Student' } },
+                students: { 'member-key': { uid: 'student-uid', name: 'Student' }, 'student-2': { uid: 'student-2' } },
             },
         });
         records.set('student_teacher_links/teacher-1', {});
         records.set('student_teacher_assignments', {});
-        const { firestoreWrites } = makeFetchMock(records);
+        const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
 
         const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
-            contentRef: { contentKind: 'ielts_reading', contentId: 'reading-v2-1' },
-            target: { type: 'students', studentIds: ['member-key'] },
+            contentRef: { contentKind: 'ielts_writing', contentId: 'writing-1' },
+            target: {
+                type: 'students',
+                studentIds: [' member-key ', 'student-uid', '', 'student-2'],
+                studentNames: ['Student', 'Duplicate Student', 'Blank target', 'Student Two'],
+            },
         })), env);
+        const body = await response.json() as { assignmentId: string; totalAssigned: number };
+        const target = firestoreFields(firestoreWrites[0]).target.mapValue.fields;
 
         expect(response.status).toBe(201);
-        expect(JSON.stringify(firestoreWrites[0])).toContain('student-uid');
-        expect(JSON.stringify(firestoreWrites[0])).not.toContain('member-key');
+        expect(body.totalAssigned).toBe(2);
+        expect(target.studentIds.arrayValue.values).toEqual([
+            { stringValue: 'student-uid' }, { stringValue: 'student-2' },
+        ]);
+        expect(target.studentNames.arrayValue.values).toEqual([
+            { stringValue: 'Student' }, { stringValue: 'Student Two' },
+        ]);
+        expect(rtdbWrites).toContainEqual({
+            path: 'homework_student_safe_test_access/' + body.assignmentId,
+            body: { 'student-uid': true, 'student-2': true },
+        });
     });
 
     it('accepts direct student targets through active assignment records', async () => {
@@ -288,6 +303,50 @@ describe('homework assignment Worker route', () => {
         expect(response.status).toBe(201);
         expect(body.assignmentId).toBeTruthy();
         expect(JSON.stringify(firestoreWrites[0])).toContain('student-assigned');
+    });
+
+    it('keeps guest member IDs when their optional Firebase UID is blank', async () => {
+        const records = recordsForTestContent(makeTestRecord({ id: 'writing-1', skill: 'Writing' }));
+        records.set('classes', {
+            'class-1': { ...classRecord, students: { 'guest-member': { uid: '  ', name: 'Guest' } } },
+        });
+        const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_writing', contentId: 'writing-1' },
+            target: { type: 'students', studentIds: ['guest-member'] },
+        })), env);
+
+        expect(response.status).toBe(201);
+        const target = firestoreFields(firestoreWrites[0]).target.mapValue.fields;
+        expect(target.studentIds.arrayValue.values).toEqual([{ stringValue: 'guest-member' }]);
+        expect(target.studentNames).toBeUndefined();
+        expect(rtdbWrites).toContainEqual({
+            path: expect.stringMatching(/^homework_student_safe_test_access\//),
+            body: { 'guest-member': true },
+        });
+    });
+
+    it('preserves the admin direct-ID scope while deduplicating matching names', async () => {
+        const records = okRecords();
+        records.set('users/teacher-1', { role: 'super_admin' });
+        const { firestoreWrites, fetchMock } = makeFetchMock(records);
+
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            target: {
+                type: 'students',
+                studentIds: ['student-1', 'student-1', 'student-2'],
+                studentNames: ['One', 'Duplicate', 'Two'],
+            },
+        })), env);
+
+        expect(response.status).toBe(201);
+        const target = firestoreFields(firestoreWrites[0]).target.mapValue.fields;
+        expect(target.studentIds.arrayValue.values).toEqual([
+            { stringValue: 'student-1' }, { stringValue: 'student-2' },
+        ]);
+        expect(target.studentNames.arrayValue.values).toEqual([{ stringValue: 'One' }, { stringValue: 'Two' }]);
+        expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/classes.json'))).toBe(false);
     });
 
     it('rejects direct student targets without class membership or active teacher-student assignment', async () => {
