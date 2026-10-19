@@ -260,7 +260,8 @@ const getSectionTaskGroups = (
 
 const getTaskGroupRange = (taskGroup: ReadingV2ProjectedTaskGroup): string => {
   const first = taskGroup.interactions[0]?.displayNumber;
-  const last = taskGroup.interactions[taskGroup.interactions.length - 1]?.displayNumber;
+  const lastInteraction = taskGroup.interactions[taskGroup.interactions.length - 1];
+  const last = lastInteraction?.displayNumberEnd ?? lastInteraction?.displayNumber;
   if (!first) {
     return 'Questions';
   }
@@ -270,12 +271,18 @@ const getTaskGroupRange = (taskGroup: ReadingV2ProjectedTaskGroup): string => {
 const getSectionRange = (taskGroups: readonly ReadingV2ProjectedTaskGroup[]): string => {
   const interactions = taskGroups.flatMap((taskGroup) => taskGroup.interactions);
   const first = interactions[0]?.displayNumber;
-  const last = interactions[interactions.length - 1]?.displayNumber;
+  const lastInteraction = interactions[interactions.length - 1];
+  const last = lastInteraction?.displayNumberEnd ?? lastInteraction?.displayNumber;
   if (!first) {
     return 'Questions';
   }
   return first === last ? `Q${first}` : `Q${first}-${last}`;
 };
+
+const getInteractionQuestionLabel = (interaction: ReadingV2ProjectedInteraction): string =>
+  interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
+    ? `Questions ${interaction.displayNumber}-${interaction.displayNumberEnd}`
+    : `Question ${interaction.displayNumber}`;
 
 const getQuestionAnchorId = (displayNumber: number): string => `reading-v2-question-${displayNumber}`;
 
@@ -559,7 +566,7 @@ const getTaskGroupQuestionRange = (
   taskGroup: ReadingV2ProjectedTaskGroup,
 ): ReadingV2InstructionSemantics['questionRange'] | undefined => {
   const numbers = taskGroup.interactions
-    .map((interaction) => interaction.displayNumber)
+    .flatMap((interaction) => [interaction.displayNumber, interaction.displayNumberEnd ?? interaction.displayNumber])
     .filter((number) => Number.isFinite(number));
 
   if (numbers.length === 0) {
@@ -1612,7 +1619,7 @@ function RuntimeInteractionControls({
       {taskGroup.interactions.map((interaction) => {
         const value = answers[interaction.interactionId];
         const prompt = getPromptText(interaction, taskGroup, stimulus);
-        const label = `Question ${interaction.displayNumber}`;
+        const label = getInteractionQuestionLabel(interaction);
         if (interaction.responseShape.kind === 'free-text') {
           const isShortAnswer = taskGroup.officialTaskType === 'short-answer';
           return (
@@ -1626,7 +1633,9 @@ function RuntimeInteractionControls({
             >
               <ReadingV2QuestionBadge
                 className="reading-v2-runtime__question-number"
-                number={interaction.displayNumber}
+                number={interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
+                  ? `${interaction.displayNumber}-${interaction.displayNumberEnd}`
+                  : interaction.displayNumber}
                 state={isAnswered(value) ? 'answered' : 'empty'}
               />
               <FreeTextAnswerControl
@@ -1657,7 +1666,9 @@ function RuntimeInteractionControls({
             >
               <ReadingV2QuestionBadge
                 className="reading-v2-runtime__question-number"
-                number={interaction.displayNumber}
+                number={interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
+                  ? `${interaction.displayNumber}-${interaction.displayNumberEnd}`
+                  : interaction.displayNumber}
                 state={isAnswered(value) ? 'answered' : 'empty'}
               />
               <p className="reading-v2-runtime__prompt"><ReadingV2FormattedText text={prompt} /></p>
@@ -1696,7 +1707,9 @@ function RuntimeInteractionControls({
             >
               <ReadingV2QuestionBadge
                 className="reading-v2-runtime__question-number"
-                number={interaction.displayNumber}
+                number={interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
+                  ? `${interaction.displayNumber}-${interaction.displayNumberEnd}`
+                  : interaction.displayNumber}
                 state={isAnswered(value) ? 'answered' : 'empty'}
               />
               <p className="reading-v2-runtime__prompt"><ReadingV2FormattedText text={prompt} /></p>

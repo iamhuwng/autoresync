@@ -174,13 +174,19 @@ export function ReadingV2AnswerRuleEditor({
       </label>
       </div>
       {interactions.map((interaction, index) => {
-        const questionLabel = interaction.reviewLabel.displayNumber
-          ? `Question ${interaction.reviewLabel.displayNumber}`
+        const displayNumber = interaction.reviewLabel.displayNumber;
+        const displayNumberEnd = displayNumber === undefined
+          ? undefined
+          : displayNumber + (interaction.reviewLabel.answerSlotCount ?? 1) - 1;
+        const questionLabel = displayNumber
+          ? displayNumberEnd && displayNumberEnd > displayNumber
+            ? `Questions ${displayNumber}-${displayNumberEnd}`
+            : `Question ${displayNumber}`
           : `Question ${index + 1}`;
 
         return (
         <fieldset className="reading-v2-answer-rule-editor__fieldset" key={interaction.interactionId}>
-          <legend>{teacherFacing ? questionLabel : interaction.reviewLabel.displayNumber ? `Question ${interaction.reviewLabel.displayNumber}` : interaction.interactionId}</legend>
+          <legend>{teacherFacing ? questionLabel : interaction.reviewLabel.displayNumber ? questionLabel : interaction.interactionId}</legend>
           <p className="reading-v2-studio__muted">
             {teacherFacing ? 'Answer format' : 'Response shape'}: {teacherFacing ? responseShapeLabel(interaction.responseShape.kind) : interaction.responseShape.kind}
           </p>
@@ -215,22 +221,28 @@ export function ReadingV2AnswerRuleEditor({
               }
             />
           </label>
-          <label>
-            Score value
-            <input
-              aria-label={`Score value for ${interaction.interactionId}`}
-              type="number"
-              min={0}
-              value={interaction.scoringRule.maxScore}
-              onChange={(event) =>
-                onInteractionChange(
-                  updateScoringRule(interaction, {
-                    maxScore: Number(event.currentTarget.value),
-                  }),
-                )
-              }
-            />
-          </label>
+          {teacherFacing && (interaction.reviewLabel.answerSlotCount ?? 1) > 1 ? (
+            <p className="reading-v2-studio__muted">
+              {interaction.reviewLabel.answerSlotCount} marks (1 per correct answer)
+            </p>
+          ) : (
+            <label>
+              Score value
+              <input
+                aria-label={`Score value for ${interaction.interactionId}`}
+                type="number"
+                min={0}
+                value={interaction.scoringRule.maxScore}
+                onChange={(event) =>
+                  onInteractionChange(
+                    updateScoringRule(interaction, {
+                      maxScore: Number(event.currentTarget.value),
+                    }),
+                  )
+                }
+              />
+            </label>
+          )}
           {interaction.responseShape.kind === 'binary-judgement' ? (
             <label>
               Binary judgement vocabulary

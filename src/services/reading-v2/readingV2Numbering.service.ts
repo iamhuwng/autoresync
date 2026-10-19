@@ -7,8 +7,17 @@ import type {
 export interface ReadingV2DerivedNumber {
   readonly interactionId: ReadingV2InteractionId;
   readonly displayNumber: number;
+  readonly displayNumberEnd?: number;
   readonly label: string;
 }
+
+export const readingV2InteractionQuestionCount = (
+  interaction?: Pick<ReadingV2Interaction, 'reviewLabel'>,
+): number => Math.max(1, interaction?.reviewLabel.answerSlotCount ?? 1);
+
+export const countReadingV2QuestionSlots = (
+  interactions: readonly Pick<ReadingV2Interaction, 'reviewLabel'>[],
+): number => interactions.reduce((total, interaction) => total + readingV2InteractionQuestionCount(interaction), 0);
 
 export const deriveReadingV2VisibleNumbers = (
   taskGroups: readonly ReadingV2TaskGroup[],
@@ -26,12 +35,14 @@ export const deriveReadingV2VisibleNumbers = (
         return;
       }
 
+      const displayNumberEnd = nextNumber + readingV2InteractionQuestionCount(interaction) - 1;
       derived.push({
         interactionId,
         displayNumber: nextNumber,
-        label: `Q${nextNumber}`,
+        ...(displayNumberEnd > nextNumber ? { displayNumberEnd } : {}),
+        label: displayNumberEnd > nextNumber ? `Q${nextNumber}-${displayNumberEnd}` : `Q${nextNumber}`,
       });
-      nextNumber += 1;
+      nextNumber = displayNumberEnd + 1;
     });
   });
 

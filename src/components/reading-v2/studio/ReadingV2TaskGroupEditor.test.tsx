@@ -5,6 +5,50 @@ import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fi
 import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
 
 describe('ReadingV2TaskGroupEditor', () => {
+  it('shows one editable prompt for the two-number multi-select range', () => {
+    const fixture = createReadingV2CanonicalFixture('multiple-select');
+    const [taskGroup] = Object.values(fixture.taskGroups);
+    const interactionId = taskGroup!.interactionIds[0]!;
+    const interaction = fixture.interactions[interactionId]!;
+    const document = {
+      ...fixture,
+      taskGroups: {
+        ...fixture.taskGroups,
+        [taskGroup!.taskGroupId]: { ...taskGroup!, interactionIds: [interactionId] },
+      },
+      interactions: {
+        [interactionId]: {
+          ...interaction,
+          reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+          scoringRule: { ...interaction.scoringRule, maxScore: 2 },
+        },
+      },
+    };
+    const taskGroups = Object.values(document.taskGroups);
+
+    render(
+      <ReadingV2TaskGroupEditor
+        document={document}
+        taskGroups={taskGroups}
+        interactions={document.interactions}
+        optionSets={document.optionSets}
+        visibleNumbers={deriveReadingV2VisibleNumbers(taskGroups, document.interactions, 25)}
+        selectedTaskGroupId={taskGroup!.taskGroupId}
+        teacherFacing
+        onSelectTaskGroup={vi.fn()}
+        onAddTaskGroup={vi.fn()}
+        onMoveSelectedTaskGroup={vi.fn()}
+        onTaskGroupChange={vi.fn()}
+        onInteractionChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText('Questions 25-26')).toHaveLength(2);
+    expect(screen.getByLabelText('Questions 25-26 question text')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Questions 25-26 question text')).toHaveLength(1);
+    expect(screen.getByText('2 marks (1 per correct answer)')).toBeInTheDocument();
+  });
+
   it('edits grouped instructions as task-group data, not flat question-card authority', () => {
     const document = createReadingV2CanonicalFixture('matching-headings');
     const taskGroups = Object.values(document.taskGroups);

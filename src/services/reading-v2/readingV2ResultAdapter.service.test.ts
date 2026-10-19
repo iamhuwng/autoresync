@@ -297,6 +297,116 @@ describe('readingV2ResultAdapter.service', () => {
     expect(result.interactions[0].score).toBe(1);
   });
 
+  it('awards one mark per correct answer across a single two-slot multi-select', () => {
+    const taskType = 'multiple-select';
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE[taskType].studentSafe;
+    const baseReviewProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE[taskType].review;
+    const sourceGroup = baseProjection.content.taskGroups[0]!;
+    const sourceInteraction = sourceGroup.interactions[0]!;
+    const interactionId = sourceInteraction.interactionId;
+    const taskGroupId = sourceGroup.taskGroupId;
+    const withOneAnswerSlotGroup = (projection: typeof baseProjection): typeof baseProjection => ({
+      ...projection,
+      content: {
+        ...projection.content,
+        taskGroups: projection.content.taskGroups.map((group) => group.taskGroupId === taskGroupId
+          ? {
+              ...group,
+              interactions: [{ ...sourceInteraction, displayNumber: 25, displayNumberEnd: 26 }],
+            }
+          : group),
+      },
+    });
+    const studentProjection = withOneAnswerSlotGroup(baseProjection);
+    const reviewProjection = withOneAnswerSlotGroup(baseReviewProjection);
+    const snapshot = publishedSnapshotFor(taskType);
+    const canonicalInteraction = snapshot.document.interactions[interactionId]!;
+    const canonicalSnapshot: ReadingV2PublishedSnapshot = {
+      ...snapshot,
+      document: {
+        ...snapshot.document,
+        taskGroups: {
+          ...snapshot.document.taskGroups,
+          [taskGroupId]: { ...snapshot.document.taskGroups[taskGroupId]!, interactionIds: [interactionId] },
+        },
+        interactions: {
+          [interactionId]: {
+            ...canonicalInteraction,
+            scoringRule: {
+              ...canonicalInteraction.scoringRule,
+              maxScore: 2,
+              acceptableAnswers: ['A', 'B'],
+              orderMatters: false,
+            },
+            reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+          },
+        },
+      },
+    };
+    const scoreAnswers = (values: readonly string[], resultId: string) => {
+      const attempt = captureReadingV2Attempt({
+        attemptId: `${resultId}-attempt`,
+        studentId: 'student-1',
+        submitPayload: {
+          projectionId: studentProjection.projectionId,
+          sourceSnapshotVersionId: studentProjection.sourceSnapshotVersionId,
+          materialId: studentProjection.materialId,
+          answers: [{ interactionId, taskGroupId, displayNumber: 25, value: values }],
+        },
+        context: { mode: 'solo-practice' },
+      });
+      const result = scoreReadingV2Attempt({
+        resultId,
+        testId: 'material-multi-select-slots',
+        studentId: 'student-1',
+        ownerId: 'teacher-1',
+        attempt,
+        snapshot: canonicalSnapshot,
+        projection: reviewProjection,
+      });
+      const saved = buildReadingV2SavedResultRecord({
+        result,
+        reviewPayload: buildReadingV2GroupedReviewPayload({ result, projection: reviewProjection }),
+        studentName: 'Student',
+        testTitle: 'Two answer slots',
+      });
+      return { result, saved };
+    };
+
+    const reversed = scoreAnswers(['B', 'A'], 'result-multi-slot-reversed');
+    const partial = scoreAnswers(['A', 'C'], 'result-multi-slot-partial');
+    const partialSecondSlot = scoreAnswers(['B', 'C'], 'result-multi-slot-partial-second');
+
+    expect(reversed.result.interactions[0]).toMatchObject({
+      displayNumber: 25,
+      displayNumberEnd: 26,
+      score: 2,
+      maxScore: 2,
+      answerSlotScores: [1, 1],
+      answerSlotAnswers: ['A', 'B'],
+    });
+    expect(reversed.saved).toMatchObject({
+      totalQuestions: 2,
+      correct: 2,
+      maxScore: 2,
+      questionResults: [
+        { questionNumber: 25, score: 1, maxScore: 1, studentAnswer: 'A', correctAnswer: 'A' },
+        { questionNumber: 26, score: 1, maxScore: 1, studentAnswer: 'B', correctAnswer: 'B' },
+      ],
+    });
+    expect(partial.result.interactions[0]).toMatchObject({ score: 1, maxScore: 2, answerSlotScores: [1, 0] });
+    expect(partial.saved).toMatchObject({ correct: 1, incorrect: 1, partialCredit: 0, totalQuestions: 2 });
+    expect(partial.saved.questionResults).toEqual(expect.arrayContaining([
+      expect.objectContaining({ questionNumber: 25, isCorrect: true, studentAnswer: 'A' }),
+      expect.objectContaining({ questionNumber: 26, isCorrect: false, studentAnswer: 'C' }),
+    ]));
+    expect(partialSecondSlot.result.interactions[0]).toMatchObject({
+      score: 1,
+      answerSlotScores: [0, 1],
+      answerSlotAnswers: ['C', 'B'],
+    });
+  });
+
   it('scores choice and matching submissions when canonical keys or student answers use option IDs', () => {
     const matchingTaskType = 'matching-headings';
     const matchingProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE[matchingTaskType].studentSafe;

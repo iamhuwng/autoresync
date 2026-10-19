@@ -18,7 +18,7 @@ import type {
   ReadingV2ProjectedStimulus,
   ReadingV2ProjectedTaskGroup,
 } from './readingV2Projection.service';
-import { answerMatches, correctAnswerForInteraction, optionSetIdForInteraction } from './readingV2AnswerScoring';
+import { correctAnswerForInteraction, optionSetIdForInteraction, scoreReadingV2Answer } from './readingV2AnswerScoring';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 
 export type ReadingV2SubmittedAnswerValue = string | readonly string[];
@@ -105,6 +105,7 @@ export interface ReadingV2ReviewInteraction {
   readonly interactionId: string;
   readonly taskGroupId: string;
   readonly displayNumber: number;
+  readonly displayNumberEnd?: number;
   readonly taskFamily: string;
   readonly officialTaskType: string;
   readonly studentAnswer: unknown;
@@ -265,6 +266,9 @@ const assertSubmittedAnswerMatchesProjection = (
   if (interaction.responseShape.kind === 'multi-select') {
     if (!Array.isArray(answer.value)) {
       throw new Error(`Reading V2 multi-select interaction ${answer.interactionId} requires an array answer.`);
+    }
+    if (answer.value.length > interaction.responseShape.selectionLimit) {
+      throw new Error(`Reading V2 multi-select interaction ${answer.interactionId} exceeds its selection limit.`);
     }
     return;
   }
@@ -444,18 +448,23 @@ export const scoreReadingV2Attempt = (input: {
       );
       const optionSetId = optionSetIdForInteraction(interaction);
       const optionSet = optionSetId ? input.snapshot.document.optionSets[optionSetId] : undefined;
-      const score = answerMatches(answer?.value, interaction, optionSet) ? interaction.scoringRule.maxScore : 0;
+      const answerScore = scoreReadingV2Answer(answer?.value, interaction, optionSet);
 
       return {
         interactionId: interaction.interactionId,
         taskGroupId: interaction.taskGroupId,
         displayNumber: projectedInteraction?.displayNumber ?? answer?.displayNumber ?? 0,
+        ...(projectedInteraction?.displayNumberEnd !== undefined
+          ? { displayNumberEnd: projectedInteraction.displayNumberEnd }
+          : {}),
         taskFamily: taskGroup.engineeringFamily,
         officialTaskType: taskGroup.officialTaskType,
         studentAnswer: answer?.value ?? '',
         scoredAnswer: correctAnswerForInteraction(interaction, optionSet),
-        score,
+        score: answerScore.score,
         maxScore: interaction.scoringRule.maxScore,
+        ...(answerScore.answerSlotScores ? { answerSlotScores: answerScore.answerSlotScores } : {}),
+        ...(answerScore.answerSlotAnswers ? { answerSlotAnswers: answerScore.answerSlotAnswers } : {}),
         reviewState: 'released',
         anchorRef: interaction.primaryAnchorId,
       };
@@ -512,6 +521,9 @@ export const buildReadingV2GroupedReviewPayload = (input: {
           interactionId: resultInteraction.interactionId,
           taskGroupId: resultInteraction.taskGroupId,
           displayNumber: resultInteraction.displayNumber,
+          ...(resultInteraction.displayNumberEnd !== undefined
+            ? { displayNumberEnd: resultInteraction.displayNumberEnd }
+            : {}),
           taskFamily: resultInteraction.taskFamily,
           officialTaskType: resultInteraction.officialTaskType,
           studentAnswer: clone(resultInteraction.studentAnswer),
@@ -637,6 +649,33 @@ export const buildReadingV2SavedResultRecord = (input: {
   const totalScore = input.result.interactions.reduce((total, interaction) => total + interaction.score, 0);
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
   const submittedAt = Date.parse(input.result.submittedAt);
+  const questionResults = input.result.interactions.flatMap((interaction) => {
+    if (!interaction.answerSlotScores) {
+      return [{
+        questionNumber: interaction.displayNumber,
+        questionType: interaction.officialTaskType,
+        isCorrect: interaction.score >= interaction.maxScore,
+        score: interaction.score,
+        maxScore: interaction.maxScore,
+        studentAnswer: clone(interaction.studentAnswer),
+        correctAnswer: clone(interaction.scoredAnswer),
+        feedback: '',
+      }];
+    }
+
+    const expectedAnswers = Array.isArray(interaction.scoredAnswer) ? interaction.scoredAnswer : [];
+    return interaction.answerSlotScores.map((score, index) => ({
+      questionNumber: interaction.displayNumber + index,
+      questionType: interaction.officialTaskType,
+      isCorrect: score === 1,
+      score,
+      maxScore: 1,
+      studentAnswer: interaction.answerSlotAnswers?.[index] ?? '',
+      correctAnswer: expectedAnswers[index] ?? '',
+      feedback: '',
+    }));
+  });
+  const totalQuestions = questionResults.length;
 
   return {
     resultId: input.result.resultId,
@@ -648,20 +687,11 @@ export const buildReadingV2SavedResultRecord = (input: {
     maxScore,
     percentage,
     bandScore: maxScore > 0 ? calculateIELTSReadingBandScore(totalScore, maxScore) : 0,
-    questionResults: input.result.interactions.map((interaction) => ({
-      questionNumber: interaction.displayNumber,
-      questionType: interaction.officialTaskType,
-      isCorrect: interaction.score >= interaction.maxScore,
-      score: interaction.score,
-      maxScore: interaction.maxScore,
-      studentAnswer: clone(interaction.studentAnswer),
-      correctAnswer: clone(interaction.scoredAnswer),
-      feedback: '',
-    })),
-    correct: input.result.interactions.filter((interaction) => interaction.score >= interaction.maxScore).length,
-    incorrect: input.result.interactions.filter((interaction) => interaction.score === 0).length,
-    partialCredit: input.result.interactions.filter((interaction) => interaction.score > 0 && interaction.score < interaction.maxScore).length,
-    totalQuestions: input.result.interactions.length,
+    questionResults,
+    correct: questionResults.filter((question) => question.score >= question.maxScore).length,
+    incorrect: questionResults.filter((question) => question.score === 0).length,
+    partialCredit: questionResults.filter((question) => question.score > 0 && question.score < question.maxScore).length,
+    totalQuestions,
     submittedAt: Number.isFinite(submittedAt) ? submittedAt : Date.now(),
     timeElapsed: input.timeElapsed ?? 0,
     testDuration: input.testDuration ?? 0,

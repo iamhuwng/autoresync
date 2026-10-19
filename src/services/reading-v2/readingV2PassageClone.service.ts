@@ -20,6 +20,7 @@ import {
   generateReadingV2ReviewProjection,
   generateReadingV2StudentSafeProjection,
 } from './readingV2Projection.service';
+import { countReadingV2QuestionSlots } from './readingV2Numbering.service';
 import {
   buildReadingV2DuplicateIndexRow,
   getReadingV2DuplicateIndexPath,
@@ -117,7 +118,7 @@ const sanitizeIdPart = (value: string): string => {
 };
 
 const countInteractions = (document: ReadingV2Document): number =>
-  Object.keys(document.interactions ?? {}).length;
+  countReadingV2QuestionSlots(Object.values(document.interactions ?? {}));
 
 const buildDuplicateBodyText = (document: ReadingV2Document): string =>
   JSON.stringify({ stimuli: document.stimuli });
@@ -286,7 +287,7 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
       ...(material.primaryTestTypeId ? { primaryTestTypeId: material.primaryTestTypeId } : {}),
       testTypeIds: material.testTypeIds,
     },
-    questionCount: clonedMaterial.interactionIds.length,
+    questionCount: countInteractions(clonedDocument),
     updatedAt: clonedAt,
     bodyText: buildDuplicateBodyText(clonedDocument),
     questionText: buildDuplicateQuestionText(clonedDocument),
