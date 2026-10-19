@@ -77,6 +77,37 @@ describe('ReadingV2ReviewContentAdapter', () => {
     expect(screen.getByText(/answer one/)).toBeInTheDocument();
   });
 
+  it('shows a single multi-slot Reading V2 interaction with its full question range', () => {
+    render(
+      <ReadingV2ReviewContentAdapter
+        resultId="result-v2"
+        variant="student"
+        reviewPayload={{
+          ...reviewPayload,
+          taskGroups: [
+            {
+              ...reviewPayload.taskGroups[0],
+              interactions: [
+                {
+                  ...reviewPayload.taskGroups[0].interactions[0],
+                  displayNumber: 25,
+                  displayNumberEnd: 26,
+                  maxScore: 2,
+                  score: 2,
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    const interaction = screen.getByTestId('reading-v2-review-interaction-25');
+    expect(interaction).toHaveTextContent('25-26');
+    expect(interaction).toHaveTextContent('2/2');
+    expect(interaction).toHaveAttribute('id', 'reading-v2-qcard-25');
+  });
+
   it('hides correct answers for student review interactions that are not released', () => {
     render(
       <ReadingV2ReviewContentAdapter

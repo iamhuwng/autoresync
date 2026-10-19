@@ -29,7 +29,11 @@ import {
   type ReadingV2AutoImportCandidateDiagnostic,
 } from '../../../services/reading-v2/readingV2ImportNormalization.service';
 import { getReadingV2InstructionText } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
-import { deriveReadingV2VisibleNumbers } from '../../../services/reading-v2/readingV2Numbering.service';
+import {
+  countReadingV2QuestionSlots,
+  deriveReadingV2VisibleNumbers,
+  readingV2InteractionQuestionCount,
+} from '../../../services/reading-v2/readingV2Numbering.service';
 import type { ReadingV2DerivedProjection } from '../../../services/reading-v2/readingV2Projection.service';
 import type {
   ReadingV2AutoSplitDuplicateWarning,
@@ -2112,13 +2116,20 @@ export function ReadingV2StudioShell({
   const authoringNumbers = useMemo(() => {
     let nextNumber = 1;
     return orderedTaskGroups.flatMap((taskGroup) =>
-      taskGroup.interactionIds.map((interactionId) => ({
-        interactionId,
-        displayNumber: nextNumber++,
-        label: `Q${nextNumber - 1}`,
-      })),
+      taskGroup.interactionIds.map((interactionId) => {
+        const displayNumber = nextNumber;
+        const interaction = draftDocument.interactions[interactionId];
+        const displayNumberEnd = displayNumber + (interaction ? readingV2InteractionQuestionCount(interaction) : 1) - 1;
+        nextNumber = displayNumberEnd + 1;
+        return {
+          interactionId,
+          displayNumber,
+          ...(displayNumberEnd > displayNumber ? { displayNumberEnd } : {}),
+          label: displayNumberEnd > displayNumber ? `Q${displayNumber}-${displayNumberEnd}` : `Q${displayNumber}`,
+        };
+      }),
     );
-  }, [orderedTaskGroups]);
+  }, [draftDocument.interactions, orderedTaskGroups]);
   const selectedTaskGroup = selectedTaskGroupId ? draftDocument.taskGroups[selectedTaskGroupId] : orderedTaskGroups[0];
   const selectedPassageSectionId = getSectionIdForStimulus(draftDocument, selectedPassageId);
   const selectedPassageNumber = Math.max(
@@ -2149,7 +2160,15 @@ export function ReadingV2StudioShell({
         hasTitle: title.trim().length > 0,
         hasText: text.trim().length > 0,
         questionGroupCount: questionGroups.length,
-        questionCount: questionGroups.reduce((total, taskGroup) => total + taskGroup.interactionIds.length, 0),
+        questionCount: questionGroups.reduce(
+          (total, taskGroup) => total + countReadingV2QuestionSlots(
+            taskGroup.interactionIds.flatMap((interactionId) => {
+              const interaction = draftDocument.interactions[interactionId];
+              return interaction ? [interaction] : [];
+            }),
+          ),
+          0,
+        ),
       };
     }),
   [draftDocument]);
@@ -2851,7 +2870,7 @@ export function ReadingV2StudioShell({
       logStudioDiagnostic('import_normalized_to_draft', {
         passageCount: normalizedDocument.sectionIds.length,
         taskGroupCount: normalizedTaskGroups.length,
-        questionCount: normalizedInteractions.length,
+        questionCount: countReadingV2QuestionSlots(normalizedInteractions),
         taskTypeCounts: normalizedTaskGroups.reduce<Record<string, number>>((counts, taskGroup) => {
           counts[taskGroup.officialTaskType] = (counts[taskGroup.officialTaskType] ?? 0) + 1;
           return counts;

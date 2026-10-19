@@ -26,6 +26,7 @@ export interface ReadingV2ProjectedInteraction {
   readonly interactionId: string;
   readonly taskGroupId: string;
   readonly displayNumber: number;
+  readonly displayNumberEnd?: number;
   readonly responseShape: ReadingV2Interaction['responseShape'];
   readonly promptText?: string;
   readonly primaryAnchorId?: string;
@@ -141,7 +142,7 @@ const createProjectionContent = (
   const derivedNumbers = new Map(
     deriveReadingV2VisibleNumbers(groups, document.interactions).map((entry) => [
       entry.interactionId,
-      entry.displayNumber,
+      entry,
     ]),
   );
 
@@ -198,7 +199,10 @@ const createProjectionContent = (
         return {
           interactionId: interaction.interactionId,
           taskGroupId: interaction.taskGroupId,
-          displayNumber: derivedNumbers.get(interaction.interactionId) ?? 0,
+          displayNumber: derivedNumbers.get(interaction.interactionId)?.displayNumber ?? 0,
+          ...(derivedNumbers.get(interaction.interactionId)?.displayNumberEnd !== undefined
+            ? { displayNumberEnd: derivedNumbers.get(interaction.interactionId)?.displayNumberEnd }
+            : {}),
           responseShape: copy(interaction.responseShape),
           promptText: interaction.promptText,
           primaryAnchorId: interaction.primaryAnchorId,

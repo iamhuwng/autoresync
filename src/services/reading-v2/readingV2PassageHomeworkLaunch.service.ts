@@ -236,11 +236,14 @@ const prefixInteraction = (
   interaction: ReadingV2ProjectedInteraction,
 ): ReadingV2ProjectedInteraction => {
   const prefixedInteractionId = `${prefix}:${interaction.interactionId}`;
+  const displayNumber = interactionDisplayNumbers[prefixedInteractionId] ?? interaction.displayNumber;
+  const questionCount = Math.max(1, (interaction.displayNumberEnd ?? interaction.displayNumber) - interaction.displayNumber + 1);
   return {
     ...interaction,
     interactionId: prefixedInteractionId,
     taskGroupId: `${prefix}:${interaction.taskGroupId}`,
-    displayNumber: interactionDisplayNumbers[prefixedInteractionId] ?? interaction.displayNumber,
+    displayNumber,
+    ...(questionCount > 1 ? { displayNumberEnd: displayNumber + questionCount - 1 } : {}),
     responseShape: prefixResponseShape(prefix, interaction.responseShape),
     ...(interaction.primaryAnchorId ? { primaryAnchorId: `${prefix}:${interaction.primaryAnchorId}` } : {}),
     ...(interaction.contextAnchorIds ? { contextAnchorIds: prefixIds(prefix, interaction.contextAnchorIds) } : {}),
@@ -326,6 +329,7 @@ const createCompositionNumberingInput = (
       interactions: projection.content.taskGroups.flatMap((taskGroup) =>
         taskGroup.interactions.map((interaction) => ({
           interactionId: `${prefix}:${interaction.interactionId}`,
+          questionCount: Math.max(1, (interaction.displayNumberEnd ?? interaction.displayNumber) - interaction.displayNumber + 1),
         })),
       ),
     };
@@ -404,7 +408,16 @@ export const composeReadingV2PassageSetRuntimeProjection = (input: {
   }
 
   const interactionCount = contents.reduce(
-    (sum, content) => sum + content.taskGroups.reduce((groupSum, group) => groupSum + group.interactions.length, 0),
+    (sum, content) => sum + content.taskGroups.reduce(
+      (groupSum, group) => groupSum + group.interactions.reduce(
+        (interactionSum, interaction) => interactionSum + Math.max(
+          1,
+          (interaction.displayNumberEnd ?? interaction.displayNumber) - interaction.displayNumber + 1,
+        ),
+        0,
+      ),
+      0,
+    ),
     0,
   );
 

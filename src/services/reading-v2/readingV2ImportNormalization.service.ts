@@ -565,7 +565,7 @@ const stripLeadingPassageTitleParagraph = (
     : paragraphs;
 
 const passageParagraphs = (passageBlock: string): readonly string[] => {
-  const beforeQuestions = passageBlock.split(/\n#### Questions/i)[0] ?? passageBlock;
+  const beforeQuestions = passageBlock.split(/^[ \t]*#{0,6}[ \t]*Questions?\s+\d+\s*(?:[-–—]|â€“|\band\b)\s*\d+[^\r\n]*$/im)[0] ?? passageBlock;
 
   return beforeQuestions
     .split(/\n{2,}/)
@@ -690,6 +690,10 @@ const detectTaskType = (text: string): ReadingV2CanonicalTaskType => {
     return 'matching-sentence-endings';
   }
 
+  if (/\b(?:choose|select)\s+(?:two|2)\s+(?:letters?|options?)\b/.test(normalized)) {
+    return 'multiple-select';
+  }
+
   if (normalized.includes('choose the correct letter') || normalized.includes('multiple choice')) {
     return 'multiple-choice';
   }
@@ -703,7 +707,7 @@ const detectTaskType = (text: string): ReadingV2CanonicalTaskType => {
 
 const questionBlocks = (passageBlock: string): readonly QuestionBlock[] => {
   const blocks: QuestionBlock[] = [];
-  const matcher = /#### Questions\s+(\d+)\s*[-–â€“]\s*(\d+)([\s\S]*?)(?=\n#### Questions|\n### READING PASSAGE|$)/gi;
+  const matcher = /^[ \t]*#{0,6}[ \t]*Questions?\s+(\d+)\s*(?:[-–—]|â€“|\band\b)\s*(\d+)[^\r\n]*\r?\n([\s\S]*?)(?=^[ \t]*#{0,6}[ \t]*Questions?\s+\d+\b|^[ \t]*#{0,3}[ \t]*READING PASSAGE\b|(?![\s\S]))/gim;
   let match: RegExpExecArray | null;
 
   while ((match = matcher.exec(passageBlock)) !== null) {
@@ -884,12 +888,18 @@ const unboundAnswerKeyRowsAsIssues = (
 
 const answeredQuestionNumbers = (
   interactions: Readonly<Record<string, ReadingV2Interaction>>,
-): ReadonlySet<number> =>
-  new Set(
-    Object.values(interactions)
-      .map((interaction) => interaction.reviewLabel.displayNumber)
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value)),
-  );
+): ReadonlySet<number> => {
+  const numbers = new Set<number>();
+  Object.values(interactions).forEach((interaction) => {
+    const start = interaction.reviewLabel.displayNumber;
+    if (typeof start !== 'number' || !Number.isFinite(start)) return;
+    const slotCount = Math.max(1, interaction.reviewLabel.answerSlotCount ?? 1);
+    for (let offset = 0; offset < slotCount; offset += 1) {
+      numbers.add(start + offset);
+    }
+  });
+  return numbers;
+};
 
 const plainTextPassageHeadingCount = (rawText: string): number =>
   (stripFrontmatter(rawText).match(/^\s*#{0,3}\s*READING PASSAGE\s+\d+\s*$/gim) ?? []).length;
@@ -3157,7 +3167,26 @@ const normalizeStructuredReadingPayload = (
               : structuredQuestionAnswers(question);
           }).map((answer) => answer.trim()).filter(Boolean)))
         : [];
-      const interactionIds = groupQuestions.map((question, questionIndex) => {
+      const multiSelectQuestionNumbers = groupQuestions.map(structuredQuestionNumber);
+      const multiSelectPrompts = new Set(groupQuestions
+        .map((question) => structuredQuestionPromptText(question, taskType)?.replace(/\s+/g, ' ').trim().toLowerCase())
+        .filter((prompt): prompt is string => Boolean(prompt)));
+      const answerSlotCount = end - start + 1;
+      const hasContiguousAnswerSlots = multiSelectQuestionNumbers[0] === start
+        && (groupQuestions.length === 1
+          || (groupQuestions.length === answerSlotCount
+            && multiSelectQuestionNumbers.at(-1) === end));
+      const combinesMultipleSelectSlots = taskType === 'multiple-select'
+        && answerSlotCount > 1
+        && responseShape.kind === 'multi-select'
+        && responseShape.selectionLimit === answerSlotCount
+        && hasContiguousAnswerSlots
+        && multiSelectPrompts.size === 1
+        && groupMultiSelectAnswerValues.length === answerSlotCount;
+      const questionsForInteractions = combinesMultipleSelectSlots
+        ? groupQuestions.slice(0, 1)
+        : groupQuestions;
+      const interactionIds = questionsForInteractions.map((question, questionIndex) => {
         const questionNumber = structuredQuestionNumber(question);
         const interactionId = readingV2Ids.interactionId(`${idStem}-q${questionNumber || `${passageNumber}-${questionIndex + 1}`}`);
         const perQuestionOptionSet = perQuestionChoiceOptionSets.get(questionNumber);
@@ -3181,9 +3210,11 @@ const normalizeStructuredReadingPayload = (
           taskGroupId,
           responseShape: interactionResponseShape,
           scoringRule: {
-            maxScore: 1,
+            maxScore: combinesMultipleSelectSlots ? answerSlotCount : 1,
             acceptableAnswers: normalizeAnswersForResponseShape(
-              interactionResponseShape.kind === 'multi-select'
+              combinesMultipleSelectSlots
+                ? groupMultiSelectAnswerValues
+                : interactionResponseShape.kind === 'multi-select'
                 && groupMultiSelectAnswerValues.length === interactionResponseShape.selectionLimit
                 ? groupMultiSelectAnswerValues
                 : answerKeyRows.size > 0
@@ -3195,6 +3226,7 @@ const normalizeStructuredReadingPayload = (
           },
           reviewLabel: {
             displayNumber: questionNumber || undefined,
+            ...(combinesMultipleSelectSlots ? { answerSlotCount } : {}),
           },
           promptText,
           primaryAnchorId,
@@ -3582,7 +3614,16 @@ export const normalizeReadingV2ImportCandidate = (
         instructionSemantics,
         'error',
       );
-      const interactionIds = Array.from({ length: block.end - block.start + 1 }, (_, offset) => {
+      const blockSlotCount = block.end - block.start + 1;
+      const blockPrompts = new Set(Object.values(prompts)
+        .map((prompt) => prompt.replace(/\s+/g, ' ').trim().toLowerCase())
+        .filter(Boolean));
+      const combinesMultipleSelectSlots = responseShape.kind === 'multi-select'
+        && blockSlotCount > 1
+        && blockSlotCount === responseShape.selectionLimit
+        && blockPrompts.size === 1;
+      const interactionCount = combinesMultipleSelectSlots ? 1 : blockSlotCount;
+      const interactionIds = Array.from({ length: interactionCount }, (_, offset) => {
         const questionNumber = block.start + offset;
         const interactionId = readingV2Ids.interactionId(`${idStem}-q${questionNumber}`);
         const primaryAnchorId = anchorIds[offset % anchorIds.length];
@@ -3596,17 +3637,26 @@ export const normalizeReadingV2ImportCandidate = (
           taskGroupId,
           responseShape,
           scoringRule: {
-            maxScore: 1,
+            maxScore: combinesMultipleSelectSlots ? blockSlotCount : 1,
             acceptableAnswers: normalizeAnswersForResponseShape(
-              answerKeyRows.get(questionNumber) ?? [],
+              combinesMultipleSelectSlots
+                ? Array.from(new Set(Array.from({ length: blockSlotCount }, (_, slot) => answerKeyRows.get(block.start + slot) ?? []).flat()))
+                : answerKeyRows.get(questionNumber) ?? [],
               responseShape,
             ),
             orderMatters: responseShape.kind === 'multi-select' ? false : undefined,
           },
-          reviewLabel: { displayNumber: questionNumber },
-          promptText,
+          reviewLabel: {
+            displayNumber: questionNumber,
+            ...(combinesMultipleSelectSlots ? { answerSlotCount: blockSlotCount } : {}),
+          },
+          promptText: combinesMultipleSelectSlots
+            ? Object.values(prompts).find((prompt) => prompt.trim().length > 0)
+            : promptText,
           primaryAnchorId,
-          placeholder: !answerKeyRows.has(questionNumber),
+          placeholder: combinesMultipleSelectSlots
+            ? Array.from({ length: blockSlotCount }, (_, slot) => !answerKeyRows.has(block.start + slot)).some(Boolean)
+            : !answerKeyRows.has(questionNumber),
         };
 
         return interactionId;

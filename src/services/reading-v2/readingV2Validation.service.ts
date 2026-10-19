@@ -987,6 +987,7 @@ export const validateReadingV2Draft = (
 
     if (interaction.responseShape.kind === 'multi-select') {
       const answerCount = interaction.scoringRule.acceptableAnswers?.filter((answer) => answer.trim().length > 0).length ?? 0;
+      const answerSlotCount = interaction.reviewLabel.answerSlotCount;
       if (interaction.responseShape.selectionLimit < 1) {
         issues.push(
           issue(
@@ -1014,6 +1015,29 @@ export const validateReadingV2Draft = (
           ),
         );
       }
+
+      if (answerSlotCount !== undefined && (
+        !Number.isInteger(answerSlotCount)
+        || answerSlotCount < 1
+        || answerSlotCount !== interaction.responseShape.selectionLimit
+        || answerSlotCount !== interaction.scoringRule.maxScore
+      )) {
+        issues.push(
+          issue(
+            'missing-scoring-response-shape',
+            `Interaction ${interaction.interactionId} needs one mark and one selectable answer per answer slot.`,
+            interaction.interactionId,
+          ),
+        );
+      }
+    } else if (interaction.reviewLabel.answerSlotCount !== undefined) {
+      issues.push(
+        issue(
+          'missing-scoring-response-shape',
+          `Interaction ${interaction.interactionId} can only preserve multiple answer slots with a multi-select response shape.`,
+          interaction.interactionId,
+        ),
+      );
     }
 
     if (interaction.responseShape.kind === 'single-choice') {

@@ -1098,6 +1098,38 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Pre-submit review summary')).toHaveTextContent('Answered 1 of 2');
   });
 
+  it('renders one choose-two control for answer slots 25-26', () => {
+    setViewport(1024, 768);
+    const base = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['multiple-select'].studentSafe;
+    const sourceGroup = base.content.taskGroups[0]!;
+    const sourceInteraction = sourceGroup.interactions[0]!;
+    const projection: ReadingV2DerivedProjection = {
+      ...base,
+      content: {
+        ...base.content,
+        taskGroups: [{
+          ...sourceGroup,
+          interactions: [{
+            ...sourceInteraction,
+            displayNumber: 25,
+            displayNumberEnd: 26,
+            promptText: 'Which TWO options are correct?',
+          }],
+        }],
+      },
+    };
+
+    render(<ReadingV2RuntimeShell projection={projection} />);
+
+    expect(screen.getByRole('region', { name: 'Questions 25-26' })).toBeInTheDocument();
+    expect(screen.getAllByText('Which TWO options are correct?')).toHaveLength(1);
+    expect(screen.getByText('25-26')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+    fireEvent.click(screen.getAllByRole('checkbox')[1]!);
+    expect(screen.getByText('Selected 2 of 2')).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')[2]).toBeDisabled();
+  });
+
   it('renders preserved Markdown formatting in passage, prompt, and option text without exposing marks', () => {
     setViewport(1024, 768);
     const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['multiple-choice'].studentSafe;

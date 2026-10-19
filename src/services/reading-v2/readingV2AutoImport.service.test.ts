@@ -1358,10 +1358,12 @@ describe('readingV2AutoImport.service', () => {
     expect(choiceGroup?.officialTaskType).toBe('multiple-choice');
     expect(choiceGroup?.interactionIds).toHaveLength(4);
     expect(multiGroup?.answerRule.responseShape).toMatchObject({ kind: 'multi-select', selectionLimit: 2 });
-    expect(multiInteractions.map((interaction) => interaction.scoringRule.acceptableAnswers)).toEqual([
-      ['B', 'D'],
-      ['B', 'D'],
-    ]);
+    expect(multiInteractions).toHaveLength(1);
+    expect(multiInteractions[0]).toMatchObject({
+      promptText: 'Which TWO options are correct?',
+      scoringRule: { maxScore: 2, acceptableAnswers: ['B', 'D'], orderMatters: false },
+      reviewLabel: { displayNumber: 5, answerSlotCount: 2 },
+    });
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'auto-v4-provider-stage', stage: 'auto-v4-passages' }),
       expect.objectContaining({ code: 'auto-v4-provider-stage', stage: 'auto-v4-questions' }),

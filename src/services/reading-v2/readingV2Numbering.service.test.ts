@@ -52,4 +52,23 @@ describe('readingV2Numbering.service', () => {
       { interactionId: secondInteraction.interactionId, displayNumber: 1, label: 'Q1' },
     ]);
   });
+
+  it('reserves a visible range for a multi-slot interaction', () => {
+    const fixture = READING_V2_CANONICAL_FIXTURES['multiple-choice'];
+    const taskGroup = Object.values(fixture.taskGroups)[0]!;
+    const [firstId, secondId] = taskGroup.interactionIds;
+    const first = fixture.interactions[firstId]!;
+
+    expect(deriveReadingV2VisibleNumbers(
+      [taskGroup],
+      {
+        ...fixture.interactions,
+        [firstId]: { ...first, reviewLabel: { displayNumber: 25, answerSlotCount: 2 } },
+      },
+      25,
+    )).toEqual([
+      { interactionId: firstId, displayNumber: 25, displayNumberEnd: 26, label: 'Q25-26' },
+      { interactionId: secondId, displayNumber: 27, label: 'Q27' },
+    ]);
+  });
 });

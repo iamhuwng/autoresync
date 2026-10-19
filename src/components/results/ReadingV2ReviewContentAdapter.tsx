@@ -287,7 +287,9 @@ export function ReadingV2ReviewContentAdapter(
                     fontWeight: 800,
                   }}
                 >
-                  {interaction.displayNumber}
+                  {interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
+                    ? `${interaction.displayNumber}-${interaction.displayNumberEnd}`
+                    : interaction.displayNumber}
                 </div>
                 <div style={{ display: 'grid', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8125rem' }}>

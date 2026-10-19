@@ -2,6 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
 
 describe('readingV2CompositionNumbering.service', () => {
+  it('counts each answer slot while assigning one interaction display start', () => {
+    const numbering = composeReadingV2CompositionNumbering({
+      passages: [{
+        order: 1,
+        passageMaterialId: 'passage-slots',
+        snapshotVersionId: 'snapshot-slots',
+        interactions: [
+          { interactionId: 'passage-slots:q25', questionCount: 2 },
+          { interactionId: 'passage-slots:q27' },
+        ],
+      }],
+    });
+
+    expect(numbering.interactionDisplayNumbers).toEqual({
+      'passage-slots:q25': 1,
+      'passage-slots:q27': 3,
+    });
+    expect(numbering.passageRanges[0]).toMatchObject({
+      firstDisplayNumber: 1,
+      lastDisplayNumber: 3,
+      questionCount: 3,
+    });
+    expect(numbering.totalQuestionCount).toBe(3);
+  });
+
   it('composes multi-passage numbering without collisions', () => {
     const numbering = composeReadingV2CompositionNumbering({
       passages: [

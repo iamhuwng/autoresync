@@ -416,7 +416,11 @@ export function ReadingV2TaskGroupEditor({
                 <ol className="reading-v2-interaction-list">
                   {selectedInteractions.map((interaction, index) => {
                     const derived = visibleNumbers.find((item) => item.interactionId === interaction.interactionId);
-                    const questionLabel = derived ? `Question ${derived.displayNumber}` : `Question ${index + 1}`;
+                    const questionLabel = derived
+                      ? derived.displayNumberEnd
+                        ? `Questions ${derived.displayNumber}-${derived.displayNumberEnd}`
+                        : `Question ${derived.displayNumber}`
+                      : `Question ${index + 1}`;
                     return (
                       <li key={interaction.interactionId}>
                         <span>{teacherFacing ? questionLabel : derived?.label ?? 'Unnumbered placeholder'}</span>
@@ -462,16 +466,29 @@ export function ReadingV2TaskGroupEditor({
                               min={1}
                               type="number"
                               value={interaction.responseShape.selectionLimit}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const selectionLimit = Math.max(1, Number(event.currentTarget.value));
                                 onInteractionChange({
                                   ...interaction,
                                   responseShape: {
                                     kind: 'multi-select',
                                     optionSetId: optionSetForInteraction(),
-                                    selectionLimit: Math.max(1, Number(event.currentTarget.value)),
+                                    selectionLimit,
                                   },
-                                })
-                              }
+                                  ...(interaction.reviewLabel.answerSlotCount !== undefined
+                                    ? {
+                                        reviewLabel: {
+                                          ...interaction.reviewLabel,
+                                          answerSlotCount: selectionLimit,
+                                        },
+                                        scoringRule: {
+                                          ...interaction.scoringRule,
+                                          maxScore: selectionLimit,
+                                        },
+                                      }
+                                    : {}),
+                                });
+                              }}
                             />
                           </label>
                         ) : null}

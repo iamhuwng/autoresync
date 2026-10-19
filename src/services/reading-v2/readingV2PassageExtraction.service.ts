@@ -27,6 +27,7 @@ import {
   ReadingV2PublishGateError,
 } from './readingV2Validation.service';
 import { composeReadingV2CompositionNumbering } from './readingV2CompositionNumbering.service';
+import { readingV2InteractionQuestionCount } from './readingV2Numbering.service';
 
 export type ReadingV2PassageExtractionIssueCode =
   | 'missing-source-input'
@@ -351,18 +352,18 @@ const getMissingInteractionIssues = (
 const deriveQuestionRange = (
   interactions: readonly ReadingV2Interaction[],
 ): string | undefined => {
-  const numbers = interactions
-    .map((interaction) => interaction.reviewLabel.displayNumber)
-    .filter((displayNumber): displayNumber is number =>
-      typeof displayNumber === 'number' && Number.isFinite(displayNumber),
-    );
+  const ranges = interactions.flatMap((interaction) => {
+    const start = interaction.reviewLabel.displayNumber;
+    if (typeof start !== 'number' || !Number.isFinite(start)) return [];
+    return [start, start + readingV2InteractionQuestionCount(interaction) - 1];
+  });
 
-  if (numbers.length === 0) {
+  if (ranges.length === 0) {
     return undefined;
   }
 
-  const min = Math.min(...numbers);
-  const max = Math.max(...numbers);
+  const min = Math.min(...ranges);
+  const max = Math.max(...ranges);
 
   return min === max ? String(min) : `${min}-${max}`;
 };
@@ -715,8 +716,14 @@ export const extractReadingV2PassageMaterials = (
       sourceFullTestTitle: candidate.material.sourceTitleSnapshot,
     },
     questionRangeSnapshot: candidate.material.sourceQuestionRange,
-    questionCountSnapshot: candidate.material.interactionIds.length,
-    questionCount: candidate.material.interactionIds.length,
+    questionCountSnapshot: candidate.material.interactionIds.reduce(
+      (total, interactionId) => total + readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
+      0,
+    ),
+    questionCount: candidate.material.interactionIds.reduce(
+      (total, interactionId) => total + readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
+      0,
+    ),
     durationSnapshot: candidate.material.durationMinutes,
     ownerId: source.ownerId,
     visibility: materialVisibility,
@@ -732,7 +739,10 @@ export const extractReadingV2PassageMaterials = (
       order: index + 1,
       passageMaterialId: candidate.material.passageMaterialId,
       snapshotVersionId: candidate.material.currentSnapshotVersionId,
-      interactions: candidate.material.interactionIds.map((interactionId) => ({ interactionId })),
+      interactions: candidate.material.interactionIds.map((interactionId) => ({
+        interactionId,
+        questionCount: readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
+      })),
     })),
   });
 

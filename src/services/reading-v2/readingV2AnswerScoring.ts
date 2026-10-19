@@ -51,6 +51,56 @@ const answerListsMatch = (
   return left.every((entry, index) => entry === right[index]);
 };
 
+export const scoreReadingV2Answer = (
+  studentAnswer: unknown,
+  interaction: ReadingV2Interaction,
+  optionSet?: ReadingV2OptionSet,
+): {
+  readonly score: number;
+  readonly answerSlotScores?: readonly number[];
+  readonly answerSlotAnswers?: readonly string[];
+} => {
+  const slotCount = interaction.reviewLabel.answerSlotCount ?? 1;
+  if (interaction.responseShape.kind !== 'multi-select' || slotCount <= 1) {
+    return {
+      score: answerMatches(studentAnswer, interaction, optionSet) ? interaction.scoringRule.maxScore : 0,
+    };
+  }
+
+  const answers = interaction.scoringRule.acceptableAnswers ?? [];
+  const expected = normalizeAnswerItems(answers, interaction.scoringRule, optionSet).slice(0, slotCount);
+  const selected = Array.isArray(studentAnswer)
+    ? studentAnswer.map((answer) => optionLabelForAnswer(answer, optionSet))
+    : [];
+  const normalizedSelected = selected.map((answer) => normalizeText(answer, interaction.scoringRule));
+  const used = new Set<number>();
+  const answerSlotScores = Array.from({ length: slotCount }, () => 0);
+  const answerSlotAnswers = Array.from({ length: slotCount }, () => '');
+
+  Array.from({ length: slotCount }, (_value, slotIndex) => expected[slotIndex]).forEach((expectedAnswer, slotIndex) => {
+    const correctIndex = expectedAnswer === undefined ? -1 : normalizedSelected.findIndex(
+      (answer, index) => !used.has(index) && answer === expectedAnswer,
+    );
+    if (correctIndex >= 0) {
+      used.add(correctIndex);
+      answerSlotScores[slotIndex] = 1;
+      answerSlotAnswers[slotIndex] = selected[correctIndex] ?? '';
+    }
+  });
+
+  const unscoredSlots = answerSlotScores.flatMap((score, index) => score === 0 ? [index] : []);
+  const unmatchedAnswers = selected.flatMap((answer, index) => used.has(index) ? [] : [answer]);
+  unscoredSlots.forEach((slotIndex, index) => {
+    answerSlotAnswers[slotIndex] = unmatchedAnswers[index] ?? '';
+  });
+
+  return {
+    score: answerSlotScores.reduce((total, score) => total + score, 0),
+    answerSlotScores,
+    answerSlotAnswers,
+  };
+};
+
 export const answerMatches = (
   studentAnswer: unknown,
   interaction: ReadingV2Interaction,

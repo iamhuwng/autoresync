@@ -72,6 +72,30 @@ const tableDocumentWithSplitSourceMetadata = (): ReadingV2Document => {
 };
 
 describe('readingV2Projection.service', () => {
+  it('projects a multi-slot interaction as one prompt with a reserved number range', () => {
+    const document = fixtureDocumentFor('multiple-choice');
+    const taskGroup = Object.values(document.taskGroups)[0]!;
+    const firstId = taskGroup.interactionIds[0]!;
+    const first = document.interactions[firstId]!;
+    const projection = generateReadingV2PreviewProjection({
+      draftId: 'draft-answer-slots',
+      ownerId: 'teacher-1',
+      document: {
+        ...document,
+        interactions: {
+          ...document.interactions,
+          [firstId]: { ...first, reviewLabel: { answerSlotCount: 2 } },
+        },
+      },
+      generatedAt: '2026-04-25T00:00:00.000Z',
+    });
+    const projectedInteractions = projection.content.taskGroups[0]!.interactions;
+
+    expect(projectedInteractions).toHaveLength(2);
+    expect(projectedInteractions.map(({ displayNumber, displayNumberEnd }) => [displayNumber, displayNumberEnd ?? null]))
+      .toEqual([[1, 2], [3, null]]);
+  });
+
   it('generates teacher-only preview projections with local-only answer state and no permanent write contract', () => {
     const projection = generateReadingV2PreviewProjection({
       draftId: 'draft-preview',

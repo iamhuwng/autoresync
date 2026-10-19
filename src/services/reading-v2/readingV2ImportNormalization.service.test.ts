@@ -1251,7 +1251,7 @@ describe('readingV2ImportNormalization.service', () => {
     expect(questionFour?.scoringRule.acceptableAnswers).toEqual(['teacher phrase']);
   });
 
-  it('uses printed multiple-select selection count over per-answer-box scalar keys', () => {
+  it('normalizes one choose-two prompt across two answer slots into one scored interaction', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
       '```json',
@@ -1268,10 +1268,10 @@ describe('readingV2ImportNormalization.service', () => {
             ],
             sectionInstructions: [
               {
-                id: 'p1-q12-13',
-                text: 'Choose TWO letters, A-E. Write the correct letters in boxes 12 and 13.',
+                id: 'p1-q25-26',
+                text: 'Choose TWO letters, A-E. Write the correct letters in boxes 25 and 26.',
                 taskType: 'multiple-select',
-                questionRange: { start: 12, end: 13 },
+                questionRange: { start: 25, end: 26 },
                 selectionLimit: 2,
                 labeledOptions: [
                   { label: 'A', text: 'First option' },
@@ -1284,16 +1284,16 @@ describe('readingV2ImportNormalization.service', () => {
             ],
             questions: [
               {
-                questionNumber: 12,
+                questionNumber: 25,
                 type: 'multiple-select',
-                sectionInstructionId: 'p1-q12-13',
+                sectionInstructionId: 'p1-q25-26',
                 questionText: 'Which TWO options are correct?',
                 answer: 'B',
               },
               {
-                questionNumber: 13,
+                questionNumber: 26,
                 type: 'multiple-select',
-                sectionInstructionId: 'p1-q12-13',
+                sectionInstructionId: 'p1-q25-26',
                 questionText: '',
                 answer: 'C',
               },
@@ -1306,20 +1306,47 @@ describe('readingV2ImportNormalization.service', () => {
     ].join('\n');
     const candidate = createReadingV2ImportCandidateFromText({
       text: structuredPayload,
-      answerKeyText: ['12 B', '13 C'].join('\n'),
+      answerKeyText: ['25 B', '26 C'].join('\n'),
     });
     const result = normalizeReadingV2ImportCandidate(candidate);
-    const interactions = Object.values(result.document.interactions)
-      .sort((left, right) => (left.reviewLabel.displayNumber ?? 0) - (right.reviewLabel.displayNumber ?? 0));
+    const interactions = Object.values(result.document.interactions);
 
-    expect(interactions.map((interaction) => interaction.responseShape)).toEqual([
-      expect.objectContaining({ kind: 'multi-select', selectionLimit: 2 }),
-      expect.objectContaining({ kind: 'multi-select', selectionLimit: 2 }),
-    ]);
-    expect(interactions.map((interaction) => interaction.scoringRule.acceptableAnswers)).toEqual([
-      ['B', 'C'],
-      ['B', 'C'],
-    ]);
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]).toMatchObject({
+      responseShape: expect.objectContaining({ kind: 'multi-select', selectionLimit: 2 }),
+      scoringRule: { maxScore: 2, acceptableAnswers: ['B', 'C'], orderMatters: false },
+      reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+      promptText: 'Which TWO options are correct?',
+    });
+    expect(validateReadingV2Draft(result.document).blockingIssues).toEqual([]);
+  });
+
+  it('coalesces a pasted choose-two prompt while retaining both numbered answer slots', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        'READING PASSAGE 1',
+        'A short passage with enough source text to exercise answer-slot normalization.',
+        '',
+        'Questions 25 and 26',
+        'Choose TWO letters, A-E.',
+        '25 Which TWO options are correct?',
+        'A First option',
+        'B Second option',
+        'C Third option',
+        'D Fourth option',
+        'E Fifth option',
+      ].join('\n'),
+      answerKeyText: '25 C\n26 D',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interactions = Object.values(result.document.interactions);
+
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]).toMatchObject({
+      scoringRule: { maxScore: 2, acceptableAnswers: ['C', 'D'], orderMatters: false },
+      reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+      promptText: 'Which TWO options are correct?',
+    });
   });
 
   it('cleans clipped web pollution from structured passage content while preserving passage text', () => {

@@ -376,6 +376,100 @@ describe('readingV2SubmitCore', () => {
     expect(JSON.stringify(plan.savedResult.readingV2.reviewPayload)).not.toContain('scoringRule');
   });
 
+  it('scores trusted multi-select answers per slot and keeps the two display rows', () => {
+    const makePlan = (value: string[]) => {
+      const sourceSnapshot = makeSnapshot();
+      const snapshot = {
+        ...sourceSnapshot,
+        document: {
+          ...sourceSnapshot.document,
+          interactions: {
+            interaction_multi: {
+              interactionId: 'interaction_multi',
+              taskGroupId: 'task_group_1',
+              responseShape: { kind: 'multi-select', selectionLimit: 2, optionSetId: 'options_1' },
+              scoringRule: { maxScore: 2, acceptableAnswers: ['A', 'C'], orderMatters: false },
+              reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+            },
+          },
+        },
+      };
+      const sourceProjection = makeReviewProjection();
+      const reviewProjection = {
+        ...sourceProjection,
+        content: {
+          ...sourceProjection.content,
+          taskGroups: [{
+            ...sourceProjection.content.taskGroups[0],
+            interactions: [{
+              interactionId: 'interaction_multi',
+              taskGroupId: 'task_group_1',
+              displayNumber: 25,
+              displayNumberEnd: 26,
+            }],
+          }],
+        },
+      };
+      const request = parseReadingV2TrustedSubmissionRequest({
+        deliveryEngine: READING_V2_ENGINE,
+        projectionId: 'student-safe:material-1:snapshot-1',
+        sourceSnapshotVersionId: 'snapshot-1',
+        materialId: 'material-1',
+        answers: [{
+          interactionId: 'interaction_multi',
+          taskGroupId: 'task_group_1',
+          displayNumber: 25,
+          value,
+        }],
+        context: { surface: 'solo-practice' },
+      });
+
+      return buildReadingV2TrustedSubmissionPlan({
+        request,
+        auth: { uid: 'student-1' },
+        records: { snapshot, reviewProjection, metadata: { title: 'Two answer slots' } },
+        identity: {
+          resultId: 'result-multi-select',
+          attemptId: 'attempt-multi-select',
+          submittedAtIso: '2026-06-01T00:00:00.000Z',
+          submittedAtMs: 1780272000000,
+        },
+      });
+    };
+
+    const full = makePlan(['C', 'A']);
+    expect(full.savedResult.readingV2.result.interactions[0]).toEqual(expect.objectContaining({
+      displayNumber: 25,
+      displayNumberEnd: 26,
+      score: 2,
+      maxScore: 2,
+      answerSlotScores: [1, 1],
+      answerSlotAnswers: ['A', 'C'],
+    }));
+    expect(full.savedResult.questionResults).toEqual([
+      expect.objectContaining({ questionNumber: 25, studentAnswer: 'A', correctAnswer: 'A', score: 1, maxScore: 1 }),
+      expect.objectContaining({ questionNumber: 26, studentAnswer: 'C', correctAnswer: 'C', score: 1, maxScore: 1 }),
+    ]);
+    expect(full.savedResult.readingV2.reviewPayload.taskGroups[0].interactions[0]).toEqual(expect.objectContaining({
+      displayNumber: 25,
+      displayNumberEnd: 26,
+      answerSlotScores: [1, 1],
+      answerSlotAnswers: ['A', 'C'],
+    }));
+    expect(full.savedResult).toEqual(expect.objectContaining({ totalScore: 2, maxScore: 2, correct: 2, totalQuestions: 2 }));
+
+    const partial = makePlan(['D', 'A']);
+    const partialReversed = makePlan(['A', 'D']);
+    expect(partial.savedResult.totalScore).toBe(1);
+    expect(partial.savedResult.questionResults).toEqual(partialReversed.savedResult.questionResults);
+    expect(partial.savedResult.questionResults).toEqual([
+      expect.objectContaining({ questionNumber: 25, studentAnswer: 'A', correctAnswer: 'A', score: 1, maxScore: 1 }),
+      expect.objectContaining({ questionNumber: 26, studentAnswer: 'D', correctAnswer: 'C', score: 0, maxScore: 1 }),
+    ]);
+    expect(partial.savedResult).toEqual(expect.objectContaining({ correct: 1, incorrect: 1, totalQuestions: 2 }));
+    expect(() => makePlan(['A', 'C', 'D'])).toThrow('exceeds the selection limit');
+  });
+
   it('keeps multi-anchor table cell excerpts in trusted review payloads', () => {
     const request = parseReadingV2TrustedSubmissionRequest({
       deliveryEngine: READING_V2_ENGINE,
@@ -665,6 +759,70 @@ describe('readingV2SubmitCore', () => {
     expect(plan.secondaryUpdates['reading_v2/review_indexes/result-set-1']).toEqual(expect.objectContaining({
       taskGroupIds: ['passage-1:task_group_1', 'passage-2:task_group_1'],
     }));
+  });
+
+  it('allocates both display numbers for a composed multi-answer interaction', () => {
+    const homework = makeReadingPassageSetHomework();
+    const firstItem = homework.readingPassageSet.items[0];
+    const secondItem = homework.readingPassageSet.items[1];
+    const sourceSnapshot = makePassageSnapshot({
+      materialId: firstItem.passageMaterialId,
+      snapshotVersionId: firstItem.snapshotVersionId,
+      answer: 'A',
+    });
+    const multiSnapshot = {
+      ...sourceSnapshot,
+      document: {
+        ...sourceSnapshot.document,
+        interactions: {
+          interaction_1: {
+            interactionId: 'interaction_1',
+            taskGroupId: 'task_group_1',
+            responseShape: { kind: 'multi-select', selectionLimit: 2, optionSetId: 'options_1' },
+            scoringRule: { maxScore: 2, acceptableAnswers: ['A', 'C'], orderMatters: false },
+            reviewLabel: { displayNumber: 25, answerSlotCount: 2 },
+          },
+        },
+      },
+    };
+    const sourceProjection = makePassageReviewProjection({
+      snapshotVersionId: firstItem.snapshotVersionId,
+      title: firstItem.titleSnapshot,
+    });
+    const multiProjection = {
+      ...sourceProjection,
+      content: {
+        ...sourceProjection.content,
+        taskGroups: [{
+          ...sourceProjection.content.taskGroups[0],
+          interactions: [{ interactionId: 'interaction_1', taskGroupId: 'task_group_1', displayNumber: 25, displayNumberEnd: 26 }],
+        }],
+      },
+    };
+    const records = composeReadingPassageSetTrustedRecords({
+      homework,
+      passageRecords: [
+        { item: firstItem, snapshot: multiSnapshot, reviewProjection: multiProjection },
+        {
+          item: secondItem,
+          snapshot: makePassageSnapshot({
+            materialId: secondItem.passageMaterialId,
+            snapshotVersionId: secondItem.snapshotVersionId,
+            answer: 'B',
+          }),
+          reviewProjection: makePassageReviewProjection({
+            snapshotVersionId: secondItem.snapshotVersionId,
+            title: secondItem.titleSnapshot,
+          }),
+        },
+      ],
+    });
+    const groups = records.reviewProjection.content.taskGroups;
+
+    expect(groups[0].interactions[0]).toEqual(expect.objectContaining({ displayNumber: 1, displayNumberEnd: 2 }));
+    expect(groups[1].interactions[0].displayNumber).toBe(3);
+    expect(groups[1].interactions[0]).not.toHaveProperty('displayNumberEnd');
+    expect(records.snapshot.document.interactions['passage-1:interaction_1'].reviewLabel.answerSlotCount).toBe(2);
   });
 
   it('scores composition-first master tests against generated passage snapshots', () => {
