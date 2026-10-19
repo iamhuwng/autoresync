@@ -877,3 +877,7 @@ When a legacy result is missing expected fields:
 Domain: saved-result. Existing TeacherHomeworkDetailPage (/teacher/homework/:homeworkId) and TeacherStudentHistoryPage (/teacher/student/:studentId/history) retain their mapped shared result surfaces. Corrected producers: functions/src/readingV2SubmitCore.ts and r2-backup-worker/src/reading-v2/submit.ts; retained Functions caller passes the same saved assignment. Paths: homework_assignments, test_results, teacher_result_keys and existing Reading projections. Existing RTDB result visibility/index rules and Firestore assignment rules remain dependencies; no rules change is proposed here. Tests: Worker submit/assignment/full backup suite, shared submit core, passage-set and scoring suites. No shell redesign, new browser authority, Book change, Functions deployment, or closure claim. Authenticated browser submission remains unverified.
 
 See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).
+
+## 2026-10-20 Reading V2 multi-slot result label
+
+The Reading V2 review adapter preserves a shared prompt's displayed number range, while saved scoring rows remain per answer slot. Existing saved-result shells, entry ownership, release-state answer withholding, and PRD-0040 closure status are unchanged. Regression coverage: `ReadingV2ReviewContentAdapter.test.tsx` and `readingV2ResultAdapter.service.test.ts`.

@@ -44,6 +44,10 @@ in `src/config/featureRegistry.ts`. The feature does not add a result-view
 surface, change result storage or visibility, or modify saved-result ownership.
 Every PRD-0040/PRD-0041 FR closure row remains at its prior status.
 
+## 2026-10-20 Reading V2 multiple-slot review note
+
+Reading V2 review now labels one multi-slot interaction with its full question-number range while keeping one saved score row per answer slot. This changes neither result ownership/visibility nor any PRD-0040/PRD-0041 closure status. Regression anchors are `src/components/results/ReadingV2ReviewContentAdapter.test.tsx` and `src/services/reading-v2/readingV2ResultAdapter.service.test.ts`.
+
 Status keys:
 - `planned`
 - `in-progress`

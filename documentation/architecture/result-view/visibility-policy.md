@@ -65,3 +65,7 @@ For homework detail result modals, RTDB read access to `test_results/{resultId}`
 Reading homework ownership is derived from the saved assignment createdBy field after assignment ID and material binding checks, including public material authored by another teacher. Teacher discovery uses teacher_result_keys/{teacherId}/{resultId}: true. This reconciles source with the active Worker; it grants no new browser permissions.
 
 See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).
+
+## 2026-10-20 Reading V2 multiple-slot review
+
+Rendering a multi-slot Reading V2 result as one prompt with a question-number range does not change student or teacher access. The existing `reviewState` release gate still controls correct-answer visibility, and the existing shared ownership verdict still controls teacher access and actions.
