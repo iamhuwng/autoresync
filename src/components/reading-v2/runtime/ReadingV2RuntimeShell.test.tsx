@@ -1077,6 +1077,7 @@ describe('ReadingV2RuntimeShell', () => {
 
     fireEvent.click(screen.getAllByRole('radio')[1]!);
     expect(screen.getAllByRole('radio')[1]).toBeChecked();
+    expect(screen.getByRole('region', { name: 'Question 1' }).querySelector('.reading-v2-runtime__question-number')).toHaveTextContent('1');
     expect(document.querySelector('.reading-v2-runtime__option-copy')).toBeInTheDocument();
 
     rerender(
@@ -1121,9 +1122,12 @@ describe('ReadingV2RuntimeShell', () => {
 
     render(<ReadingV2RuntimeShell projection={projection} />);
 
-    expect(screen.getByRole('region', { name: 'Questions 25-26' })).toBeInTheDocument();
+    const question = screen.getByRole('region', { name: 'Questions 25-26' });
+    expect(question).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Questions 25-26' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Grouped instructions')).toHaveTextContent('Choose TWO letters');
     expect(screen.getAllByText('Which TWO options are correct?')).toHaveLength(1);
-    expect(screen.getByText('25-26')).toBeInTheDocument();
+    expect(question.querySelector('.reading-v2-runtime__question-number')).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('checkbox')[0]!);
     fireEvent.click(screen.getAllByRole('checkbox')[1]!);
     expect(screen.getByText('Selected 2 of 2')).toBeInTheDocument();
