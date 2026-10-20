@@ -12,10 +12,10 @@ export const reviewedReadingV2WorkerRelease = Object.freeze({
   tree: 'fa589d21617ce5b277b2c778c2031253c7dc3037',
   baseRevision: '99bb3f073319c57f62b0889d7c0a98b054e06e95',
   sourceConfigSha256: '48b097a0a77dcf86d9a41062e520fc3896c7963891dad9159d8700742ad829b9',
-  bundleSha256: 'e7649edece98e3935adf49227dffc3ca019a4cda276578de4f51a45d5c3aec66',
+  bundleSha256: '341d0bb25ffd992da94a9b67d086a8a1edce99a49ef4260b7c595d891e2fc4f8',
   deployConfigSha256: 'd2570c96dcbc8ef084253b143ae80cdc216a0c95a982d9db0cdf6bd7766b0b92',
-  baselineVersionId: '6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25',
-  baselineBundleSha256: '6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed',
+  baselineVersionId: 'ee60656a-44dd-48b7-82c6-3384fe189bb7',
+  baselineBundleSha256: 'e7649edece98e3935adf49227dffc3ca019a4cda276578de4f51a45d5c3aec66',
   moduleName: 'index.js',
   message: 'Reading V2 multiple-answer slots; isolated reviewed bundle',
   sourceFiles: [
@@ -33,7 +33,7 @@ const expectedBindings = [
   ...['BACKUP_R2_ACCESS_KEY_ID', 'BACKUP_R2_BUCKET_NAME', 'BACKUP_R2_ENDPOINT', 'BACKUP_R2_SECRET_ACCESS_KEY', 'GOOGLE_SA_KEY'].map(name => ({ name, type: 'secret_text' })),
   { name: 'PRIMARY_R2', type: 'r2_bucket', bucket_name: 'kahoot-media' },
 ].sort((a, b) => a.name.localeCompare(b.name));
-const expectedSettings = { placement: {}, compatibility_date: '2024-01-01', compatibility_flags: [], usage_model: 'standard', tags: [], tail_consumers: [], logpush: false, annotations: { 'workers/message': 'Homework recipient canonicalization; isolated reviewed bundle', 'workers/triggered_by': 'version_upload' } };
+const expectedSettings = { placement: {}, compatibility_date: '2024-01-01', compatibility_flags: [], usage_model: 'standard', tags: [], tail_consumers: [], logpush: false, annotations: { 'workers/message': release.message, 'workers/triggered_by': 'version_upload' } };
 const expectedConfig = {
   main: 'index.js',
   name: 'r2-backup-worker',
@@ -89,10 +89,7 @@ export function validateReadingV2WorkerEvidence(local, provider, phase) {
   assert.equal(provider.sha256, phase === 'predeploy' ? release.baselineBundleSha256 : release.bundleSha256, 'Reading V2 Worker live module does not match its release phase');
   assert.deepEqual(provider.bindings, expectedBindings, 'Reading V2 Worker bindings or variables changed');
   assert.deepEqual(provider.effectiveBindings, expectedBindings, 'Reading V2 Worker effective bindings or variables changed');
-  assert.deepEqual(provider.settings, phase === 'predeploy' ? expectedSettings : {
-    ...expectedSettings,
-    annotations: { ...expectedSettings.annotations, 'workers/message': release.message },
-  }, 'Reading V2 Worker settings changed');
+  assert.deepEqual(provider.settings, expectedSettings, 'Reading V2 Worker settings changed');
   assert.deepEqual(provider.script.handlers, ['fetch', 'scheduled'], 'Reading V2 Worker handlers changed');
   assert.equal(provider.script.last_deployed_from, 'wrangler', 'Reading V2 Worker deployment source changed');
   assert.deepEqual(provider.schedules.schedules.map(item => item.cron), ['0 3 * * 1'], 'Reading V2 Worker schedule changed');

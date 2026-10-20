@@ -40,7 +40,7 @@ const provider = () => {
   return {
     versionId: pins.baselineVersionId, deployment, deploymentAfter: structuredClone(deployment),
     moduleName: pins.moduleName, sha256: pins.baselineBundleSha256, bindings, effectiveBindings: structuredClone(bindings),
-    settings: { placement: {}, compatibility_date: '2024-01-01', compatibility_flags: [], usage_model: 'standard', tags: [], tail_consumers: [], logpush: false, annotations: { 'workers/message': 'Homework recipient canonicalization; isolated reviewed bundle', 'workers/triggered_by': 'version_upload' } },
+    settings: { placement: {}, compatibility_date: '2024-01-01', compatibility_flags: [], usage_model: 'standard', tags: [], tail_consumers: [], logpush: false, annotations: { 'workers/message': pins.message, 'workers/triggered_by': 'version_upload' } },
     script: { handlers: ['fetch', 'scheduled'], last_deployed_from: 'wrangler' },
     schedules: { schedules: [{ cron: '0 3 * * 1' }] }, subdomain: { enabled: true, previews_enabled: true },
     accountSubdomain: { subdomain: 'iamhuwng' }, domains: [], zones: ['1aae6fb9889672cf695927eb575a5bbe'], routes: [],

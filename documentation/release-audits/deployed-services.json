@@ -11,9 +11,9 @@
     "script": "r2-backup-worker",
     "sourceRevision": "10786002eb459a1b54025a23590cda8a6f610112",
     "sourceTag": "deployed-reading-v2-worker-2026-10-20",
-    "providerVersion": "ee60656a-44dd-48b7-82c6-3384fe189bb7",
-    "moduleSha256": "e7649edece98e3935adf49227dffc3ca019a4cda276578de4f51a45d5c3aec66",
-    "normalizedBuildSha256": "5189f879e76d16b2a15d788cb4bdd19f457789fa1262a941b608b40da1ccdd41",
+    "providerVersion": "bb4fc431-e84d-4b50-8c11-9f9c0ddecd4f",
+    "moduleSha256": "341d0bb25ffd992da94a9b67d086a8a1edce99a49ef4260b7c595d891e2fc4f8",
+    "normalizedBuildSha256": "c3e30ff1b8e7ea0c7ee63363cd5ce32dd9a7b7d15da2d3b30008a0c311fccedf",
     "record": "2026-10-20-reading-v2-multiple-answer-release.md"
   },
   "notificationWorker": {
