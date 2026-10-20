@@ -70,7 +70,7 @@ globalThis.fetch = async (input, init) => {
 const env = {
   FIREBASE_DB_URL: 'https://firebase.test', FIREBASE_PROJECT_ID: 'fixture-project', FIREBASE_WEB_API_KEY: 'fixture-key',
   GOOGLE_SA_KEY: service('shared'), BOOK_SOURCE_UPLOAD_ACCOUNT_ID: account,
-  BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION: 'activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831',
+  BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION: 'activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f',
   BOOK_ASSEMBLY_SERVICE_IDENTITY: 'assembly@example.test', BOOK_ASSEMBLY_GOOGLE_SA_KEY: service('assembly'),
   BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY: 'authoring@example.test', BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY: service('authoring'),
   BOOK_HOMEWORK_SERVICE_IDENTITY: 'homework@example.test', BOOK_HOMEWORK_GOOGLE_SA_KEY: service('homework'),

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBookAssemblyClient } from './assemblyClient.browser';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 
@@ -31,6 +31,26 @@ const ok = (body: unknown): Response => new Response(JSON.stringify(body), {
 });
 
 describe('PRD0062 ticket 13A browser client boundary', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('permits only the exact local Worker origin in development local-only mode', () => {
+    const create = (baseUrl: string) => createBookAssemblyClient({ baseUrl, getIdToken: async () => 'token' });
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+    expect(() => create('http://localhost:8787')).not.toThrow();
+    for (const url of ['http://localhost:8788', 'http://127.0.0.1:8787', 'http://worker.example',
+      'http://localhost:8787.evil.test', 'http://user:password@localhost:8787',
+      'http://localhost:8787?token=1', 'http://localhost:8787#fragment']) {
+      expect(() => create(url)).toThrow('unavailable');
+    }
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'false');
+    expect(() => create('http://localhost:8787')).toThrow('unavailable');
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+    vi.stubEnv('DEV', false);
+    expect(() => create('http://localhost:8787')).toThrow('unavailable');
+    expect(() => create('https://assembly.example')).not.toThrow();
+  });
+
   it('binds the one A0 activation command to the Book route without owner authority input', async () => {
     const receipt = { schemaVersion: 1, operationId: op('30'), inputFingerprint: 'fnv1a64:0000000000000000' };
     const fetchImpl = vi.fn(async () => ok({ status: 'activated', receipt }));

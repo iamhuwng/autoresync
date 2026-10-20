@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { render, screen } from '@testing-library/react';
 import type { ActivityResponseCodec } from './activityResponseCodec.types';
-import { createActivityRendererRegistry } from './activityRendererRegistry';
+import { bookActivityRendererRegistry, createActivityRendererRegistry } from './activityRendererRegistry';
 import {
   registerActivityRenderer,
   type ActivityRendererRegistration,
@@ -56,6 +58,53 @@ const projection = () => ({
 });
 
 describe('Book Activity renderer registry', () => {
+  it.each([
+    { family: 'text-entry', variant: 'short-answer', details: {} },
+    { family: 'text-entry', variant: 'sentence-completion', details: {} },
+    { family: 'ordering', variant: 'sequence', details: { items: [{ itemId: 'first', label: 'First' }, { itemId: 'second', label: 'Second' }] } },
+    { family: 'long-response', variant: 'draft-response', details: {} },
+  ])('resolves imported generic $family/$variant without a taxonomy profile', ({ family, variant, details }) => {
+    const resolved = bookActivityRendererRegistry.resolve({
+      ...projection(),
+      interaction: { family, variant },
+      interactions: [{ interactionId: 'interaction-1', family, prompt: 'Respond.', ...details }],
+      ...(family === 'long-response' ? { scoring: { mode: 'review-required', feedbackVisibility: 'none' } } : {}),
+    }, { surface: 'student-runtime', mode: 'editable' });
+    expect(resolved.supported).toBe(true);
+    if (!resolved.supported) throw new Error(resolved.diagnostic.message);
+    expect(resolved.registration.codec.decode(resolved.registration.codec.createEmpty()).valid).toBe(true);
+  });
+
+  it.each([true, false])('binds matching option reuse to the published rule (%s)', (allowOptionReuse) => {
+    const matchingProjection = {
+      ...projection(),
+      interaction: { family: 'matching', variant: 'matching-pairs' },
+      answerRule: { defaultPoints: 1, normalization: 'exact', allowOptionReuse },
+      interactions: [{ interactionId: 'matching-1', family: 'matching', prompt: 'Classify.',
+        leftItems: [{ itemId: 'anxious', label: 'Anxious' }, { itemId: 'clumsy', label: 'Clumsy' }],
+        rightItems: [{ itemId: 'negative', label: 'Negative' }],
+      }],
+    };
+    const resolved = bookActivityRendererRegistry.resolve(matchingProjection, { surface: 'student-runtime', mode: 'editable' });
+    expect(resolved.supported).toBe(true);
+    if (!resolved.supported) throw new Error('Matching renderer unavailable.');
+    const again = bookActivityRendererRegistry.resolve(structuredClone(matchingProjection), { surface: 'student-runtime', mode: 'editable' });
+    expect(again.supported && again.registration).toBe(resolved.registration);
+    const response = { interactionId: 'matching-1', pairs: [
+      { leftItemId: 'anxious', rightItemId: 'negative' },
+      { leftItemId: 'clumsy', rightItemId: 'negative' },
+    ] };
+    expect(resolved.registration.codec.decode(response).valid).toBe(allowOptionReuse);
+    if (allowOptionReuse) {
+      expect(resolved.registration.codec.serialize(response)).toEqual(response);
+      render(createElement(resolved.registration.renderer, {
+        answerRule: resolved.projection.answerRule, interaction: resolved.projection.interactions[0]!,
+        response, validation: { status: 'valid' }, mode: 'editable', onChange: () => undefined,
+      }));
+      expect(screen.getAllByRole('combobox')).toHaveLength(2);
+    }
+  });
+
   it('binds one renderer and canonical codec per deterministic registration key', () => {
     const registry = createActivityRendererRegistry([
       registerActivityRenderer(registration('z')),
@@ -119,13 +168,20 @@ describe('Book Activity renderer registry', () => {
     });
   });
 
-  it('rejects overlapping Task Profile selectors instead of arbitrarily choosing a renderer', () => {
+  it('keeps generic and exact Task Profile selectors separate', () => {
     const generic = registerActivityRenderer(registration());
     const exact = registerActivityRenderer({
       ...registration(),
       taskProfile: { taxonomyId: 'language-reading', typeId: 'selection', taxonomyVersion: 1 },
     });
-    expect(() => createActivityRendererRegistry([generic, exact])).toThrow('Overlapping Activity renderer registration');
+    const registry = createActivityRendererRegistry([generic, exact]);
+    const context = { surface: 'student-runtime', mode: 'editable' } as const;
+    const genericResolution = registry.resolve(projection(), context);
+    expect(genericResolution.supported).toBe(true);
+    if (!genericResolution.supported) throw new Error(genericResolution.diagnostic.message);
+    expect(genericResolution.registration.taskProfile).toBeUndefined();
+    expect(registry.resolve({ ...projection(), taskProfile: exact.taskProfile }, context)).toMatchObject({ supported: true, registration: { taskProfile: exact.taskProfile } });
+    expect(registry.resolve({ ...projection(), taskProfile: { ...exact.taskProfile, typeId: 'unknown' } }, context)).toMatchObject({ supported: false, diagnostic: { code: 'unknown-renderer' } });
   });
 
   it('rejects manifest identity drift for mode, codec, renderer, and codec identity', () => {

@@ -192,7 +192,7 @@ const parseCanonicalFromRtdb = (
   }
 };
 
-const safeProjectionFor = (
+export const canonicalActivityVersionStudentSafeProjection = (
   record: CanonicalPublishedActivityVersionRecord,
 ): Record<string, unknown> => ({
   schemaVersion: 1,
@@ -535,7 +535,7 @@ implements CanonicalActivityVersionWriter {
       parsedRecord.activityId,
       parsedRecord.activityVersionId,
     );
-    const expectedProjection = safeProjectionFor(parsedRecord);
+    const expectedProjection = canonicalActivityVersionStudentSafeProjection(parsedRecord);
     const rtdb = this.rtdbForPrepare(parsedRecord);
 
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
@@ -710,7 +710,7 @@ implements ExactPublishedActivityVersionReader {
     const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
       await rtdb.readValue(paths.studentSafeProjection),
     );
-    if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
+    if (stable(studentSafeProjection) !== stable(canonicalActivityVersionStudentSafeProjection(canonical))) return null;
     return canonical;
   }
 }

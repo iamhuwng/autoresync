@@ -5,6 +5,8 @@ import {
   BOOK_SOURCE_MAX_PDF_BYTES,
   BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS,
   type BookSourceUploadAccountState,
+  type CanceledSubmissionRetirementGuard,
+  type PublicationRetirementGuard,
 } from '../../types/bookSource.types';
 import type { SourceUploadRtdbTransaction } from './sourceUpload.firebaseRtdbTransaction';
 import {
@@ -14,6 +16,247 @@ import {
 } from './sourceUpload.rtdbRepository';
 
 describe('SourceUploadRtdbRepository', () => {
+  it('persists canceled submission scan progress without changing domain state and preserves it across writes', async () => {
+    const memory = createMemoryTransaction();
+    const repository = createRepository(memory.transaction);
+    const initial = memory.getState()!;
+    const scanned = await repository.advanceCanceledSubmissionScan({
+      accountId: 'account-1', expectedRevision: initial.revision, afterReservationId: 'reservation-1',
+    });
+    expect(scanned).toMatchObject({ revision: initial.revision, canceledSubmissionScanAfterReservationId: 'reservation-1' });
+    expect(scanned.capacity).toBe(initial.capacity);
+    expect(scanned.operations).toBe(initial.operations);
+    expect(validateBookSourceUploadAccountState(scanned)).toBe(scanned);
+    await expect(repository.advanceCanceledSubmissionScan({
+      accountId: 'account-1', expectedRevision: scanned.revision, afterReservationId: '',
+    })).rejects.toThrow('afterReservationId');
+    const progressed = await repository.recordProviderReconciliationContinuation({
+      accountId: 'account-1', expectedRevision: scanned.revision,
+      continuation: { token: 'cursor-1', updatedAt: '2026-07-23T00:01:00.000Z' },
+    });
+    expect(progressed.canceledSubmissionScanAfterReservationId).toBe('reservation-1');
+    const reserved = await repository.reserve(reservation());
+    expect(reserved.canceledSubmissionScanAfterReservationId).toBe('reservation-1');
+    await expect(repository.advanceCanceledSubmissionScan({
+      accountId: 'account-1', expectedRevision: scanned.revision, afterReservationId: 'reservation-2',
+    })).rejects.toThrow('compare-and-set conflict');
+    const advanced = await repository.advanceCanceledSubmissionScan({
+      accountId: 'account-1', expectedRevision: reserved.revision, afterReservationId: 'reservation-2',
+    });
+    expect(advanced.revision).toBe(reserved.revision);
+    expect(advanced.canceledSubmissionScanAfterReservationId).toBe('reservation-2');
+    expect(advanced.capacity).toBe(reserved.capacity);
+    expect(advanced.operations).toBe(reserved.operations);
+    expect(() => validateBookSourceUploadAccountState({ ...advanced, canceledSubmissionScanAfterReservationId: '' }))
+      .toThrow('canceledSubmissionScanAfterReservationId');
+  });
+
+  it('fences only the exact canceled submission and keeps generic cleanup away from verified sources', async () => {
+    const { memory, repository, completed, fenceInput } = await canceledSubmissionSource();
+    const cleanupInput = {
+      accountId: 'account-1', expectedRevision: completed.revision, reservationId: 'reservation-1',
+      ownerId: 'teacher-1', reason: 'cancel_requested' as const, requestedAt: '2026-07-23T00:02:00.000Z',
+    };
+    await expect(repository.requestCleanup(cleanupInput)).rejects.toThrow('verified upload cannot enter cleanup');
+    for (const identity of [
+      { ownerId: 'teacher-other' }, { submissionOperationId: 'submission-other' },
+      { bookId: 'book-other' }, { sourceVersionId: 'source-other' },
+      { sourceVersionIds: ['source-other'] }, { inputFingerprint: 'invalid' },
+    ]) {
+      await expect(repository.fenceVerifiedSource({
+        ...fenceInput, retirementGuard: { ...fenceInput.retirementGuard, ...identity },
+      })).rejects.toThrow();
+      expect(memory.getState()).toBe(completed);
+    }
+    await expect(repository.fenceVerifiedSource({
+      ...fenceInput, currentSourceVersionIds: ['source-other'],
+    })).rejects.toThrow('guard is stale');
+    const fenced = await repository.fenceVerifiedSource(fenceInput);
+    expect(fenced.operations['reservation-1']).toMatchObject({
+      status: 'retirement_pending', verifiedStorage: storage(),
+      cleanup: { reason: 'cancel_requested', requestedAt: fenceInput.fencedAt, attempt: 0, nextRetryAt: '2026-07-23T00:05:00.000Z' },
+    });
+    expect(fenced.assemblyBooks?.['book-1']?.['source-1']).toBeUndefined();
+    expect(fenced.capacity.trackedAccountBytes).toBe(10);
+    await expect(repository.requestCleanup({ ...cleanupInput, expectedRevision: fenced.revision }))
+      .rejects.toThrow('verified upload cannot enter cleanup');
+    for (const mutation of [
+      { cleanup: undefined },
+      { submissionOperationId: 'submission-other' },
+      { ownerId: 'teacher-other' },
+    ]) {
+      expect(() => validateBookSourceUploadAccountState({
+        ...fenced, operations: { 'reservation-1': { ...fenced.operations['reservation-1'], ...mutation } },
+      })).toThrow();
+    }
+  });
+
+  it('resumes canceled retirement after Firebase drops empty guard arrays from persisted JSON', async () => {
+    const { memory, repository, fenceInput } = await canceledSubmissionSource();
+    const input = { ...fenceInput, retirementGuard: { ...fenceInput.retirementGuard, sourceVersionIds: [] } };
+    const fenced = await repository.fenceVerifiedSource(input);
+    expect(fenced.operations['reservation-1'].retirementGuard).not.toHaveProperty('sourceVersionIds');
+    const persisted: BookSourceUploadAccountState = JSON.parse(JSON.stringify(fenced, (key, value) =>
+      key === 'sourceVersionIds' && Array.isArray(value) && value.length === 0 ? undefined : value));
+    memory.setState(persisted);
+    expect(validateBookSourceUploadAccountState(persisted)).toBe(persisted);
+    expect(await repository.fenceVerifiedSource({ ...input, expectedRevision: persisted.revision })).toBe(persisted);
+    const claimed = await repository.claimCleanup({
+      accountId: 'account-1', expectedRevision: persisted.revision, reservationId: 'reservation-1', leaseOwner: 'cleanup-1',
+      claimedAt: '2026-07-23T00:05:00.000Z', leaseExpiresAt: '2026-07-23T00:06:00.000Z',
+    });
+    const retire = retireInput({
+      expectedRevision: claimed.revision, retirementGuard: input.retirementGuard, leaseOwner: 'cleanup-1',
+      retiredAt: '2026-07-23T00:05:01.000Z', proof: 'provider_absent',
+    });
+    const retired = await repository.retireVerifiedSource(retire);
+    expect(retired.capacity.trackedAccountBytes).toBe(0);
+    expect(retired.operations['reservation-1']).toMatchObject({ status: 'retired', retirementProof: 'provider_absent' });
+    expect(retired.operations['reservation-1'].retirementGuard).not.toHaveProperty('sourceVersionIds');
+    expect(await repository.retireVerifiedSource({ ...retire, expectedRevision: retired.revision })).toBe(retired);
+  });
+
+  it('requires expired signed upload authority and an active owned lease to retire a canceled source', async () => {
+    const { repository, fenceInput } = await canceledSubmissionSource();
+    const fenced = await repository.fenceVerifiedSource(fenceInput);
+    const claimInput = {
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1',
+      leaseOwner: 'cleanup-1', claimedAt: '2026-07-23T00:05:00.000Z', leaseExpiresAt: '2026-07-23T00:06:00.000Z',
+    };
+    await expect(repository.claimCleanup({ ...claimInput, claimedAt: '2026-07-23T00:04:59.000Z' }))
+      .rejects.toThrow('lease is unavailable');
+    const input = retireInput({
+      expectedRevision: fenced.revision, retirementGuard: fenceInput.retirementGuard,
+      retiredAt: '2026-07-23T00:05:00.000Z', leaseOwner: 'cleanup-1',
+    });
+    await expect(repository.retireVerifiedSource(input)).rejects.toThrow('active cleanup lease');
+    const claimed = await repository.claimCleanup(claimInput);
+    for (const invalid of [
+      { leaseOwner: undefined }, { leaseOwner: 'cleanup-other' },
+      { retiredAt: '2026-07-23T00:04:59.000Z' }, { retiredAt: '2026-07-23T00:06:00.000Z' },
+    ]) {
+      await expect(repository.retireVerifiedSource({ ...input, expectedRevision: claimed.revision, ...invalid }))
+        .rejects.toThrow('active cleanup lease');
+    }
+    await expect(repository.releaseCleaned({
+      accountId: 'account-1', expectedRevision: claimed.revision, reservationId: 'reservation-1', leaseOwner: 'cleanup-1',
+      releasedAt: '2026-07-23T00:05:01.000Z', proof: 'provider_absent',
+    })).rejects.toThrow('lease mismatch');
+    expect(claimed.capacity.trackedAccountBytes).toBe(10);
+  });
+
+  it('retries canceled source deletion and releases capacity only with proof, retaining scoped replay history', async () => {
+    const { repository, fenceInput } = await canceledSubmissionSource();
+    const fenced = await repository.fenceVerifiedSource(fenceInput);
+    const claimed = await repository.claimCleanup({
+      accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1', leaseOwner: 'cleanup-1',
+      claimedAt: '2026-07-23T00:05:00.000Z', leaseExpiresAt: '2026-07-23T00:06:00.000Z',
+    });
+    const failed = await repository.failCleanup({
+      accountId: 'account-1', expectedRevision: claimed.revision, reservationId: 'reservation-1', leaseOwner: 'cleanup-1',
+      failedAt: '2026-07-23T00:05:01.000Z', nextRetryAt: '2026-07-23T00:07:00.000Z', errorCode: 'provider_unavailable',
+    });
+    expect(failed.operations['reservation-1']).toMatchObject({
+      status: 'retirement_pending', verifiedStorage: storage(),
+      cleanup: { attempt: 1, nextRetryAt: '2026-07-23T00:07:00.000Z', lastErrorCode: 'provider_unavailable' },
+    });
+    expect(failed.capacity.trackedAccountBytes).toBe(10);
+    const retried = await repository.claimCleanup({
+      accountId: 'account-1', expectedRevision: failed.revision, reservationId: 'reservation-1', leaseOwner: 'cleanup-2',
+      claimedAt: '2026-07-23T00:07:00.000Z', leaseExpiresAt: '2026-07-23T00:08:00.000Z',
+    });
+    const input = retireInput({
+      expectedRevision: retried.revision, retirementGuard: fenceInput.retirementGuard, leaseOwner: 'cleanup-2',
+      retiredAt: '2026-07-23T00:07:01.000Z', proof: 'provider_absent',
+    });
+    await expect(repository.retireVerifiedSource({ ...input, proof: undefined as never })).rejects.toThrow('invalid retirement proof');
+    const retired = await repository.retireVerifiedSource(input);
+    expect(retired.capacity.trackedAccountBytes).toBe(0);
+    expect(retired.operations['reservation-1']).toMatchObject({
+      status: 'retired', submissionOperationId: 'submission-1', retirementGuard: fenceInput.retirementGuard,
+      retirementProof: 'provider_absent', checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+    });
+    for (const field of ['verifiedStorage', 'providerObjectKey', 'providerFileId', 'providerKind', 'privateBucketId']) {
+      expect(retired.operations['reservation-1']).not.toHaveProperty(field);
+    }
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retirement_pending')).toHaveLength(1);
+    expect(Object.values(retired.lifecycleAuditEvents ?? {}).filter((event) => event.transition === 'retired')).toHaveLength(1);
+    expect(await repository.retireVerifiedSource({ ...input, expectedRevision: retired.revision })).toBe(retired);
+    expect(() => validateBookSourceUploadAccountState({
+      ...retired, operations: { 'reservation-1': { ...retired.operations['reservation-1'], submissionOperationId: 'submission-other' } },
+    })).toThrow('identity mismatch');
+  });
+
+  it.each(['retired', 'released'] as const)('keeps %s submission cleanup leased and recurring after late provider versions are deleted', async (status) => {
+    const { memory, repository, reserved, fenceInput } = await canceledSubmissionSource();
+    let terminal: BookSourceUploadAccountState;
+    if (status === 'retired') {
+      const fenced = await repository.fenceVerifiedSource(fenceInput);
+      const claimed = await repository.claimCleanup({
+        accountId: 'account-1', expectedRevision: fenced.revision, reservationId: 'reservation-1', leaseOwner: 'first-cleanup',
+        claimedAt: '2026-07-23T00:05:00.000Z', leaseExpiresAt: '2026-07-23T00:06:00.000Z',
+      });
+      terminal = await repository.retireVerifiedSource(retireInput({
+        expectedRevision: claimed.revision, retirementGuard: fenceInput.retirementGuard, leaseOwner: 'first-cleanup',
+        retiredAt: '2026-07-23T00:05:01.000Z', proof: 'provider_absent',
+      }));
+      expect(terminal.operations['reservation-1'].cleanupIdentity).toMatchObject({
+        providerObjectKey: 'private/book-1/source-1.pdf', expectedChecksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+      });
+      for (const mutation of [
+        { cleanupIdentity: undefined },
+        { cleanupIdentity: { ...terminal.operations['reservation-1'].cleanupIdentity, expectedChecksum: { algorithm: 'sha-256', value: 'b'.repeat(64) } } },
+        { cleanup: undefined },
+      ]) {
+        expect(() => validateBookSourceUploadAccountState({
+          ...terminal, operations: { 'reservation-1': { ...terminal.operations['reservation-1'], ...mutation } },
+        })).toThrow();
+      }
+    } else {
+      memory.setState(reserved);
+      const pending = await repository.requestCleanup({
+        accountId: 'account-1', expectedRevision: reserved.revision, reservationId: 'reservation-1', ownerId: 'teacher-1',
+        reason: 'cancel_requested', requestedAt: '2026-07-23T00:02:00.000Z',
+      });
+      const claimed = await repository.claimCleanup({
+        accountId: 'account-1', expectedRevision: pending.revision, reservationId: 'reservation-1', leaseOwner: 'first-cleanup',
+        claimedAt: '2026-07-23T00:05:00.000Z', leaseExpiresAt: '2026-07-23T00:06:00.000Z',
+      });
+      terminal = await repository.releaseCleaned({
+        accountId: 'account-1', expectedRevision: claimed.revision, reservationId: 'reservation-1', leaseOwner: 'first-cleanup',
+        releasedAt: '2026-07-23T00:05:01.000Z', proof: 'provider_absent',
+      });
+    }
+    expect(terminal.operations['reservation-1'].cleanup).toMatchObject({
+      requestedAt: '2026-07-23T00:05:01.000Z', nextRetryAt: '2026-07-23T01:05:01.000Z', attempt: 0,
+    });
+    const claimed = await repository.claimCleanup({
+      accountId: 'account-1', expectedRevision: terminal.revision, reservationId: 'reservation-1', leaseOwner: 'late-cleanup',
+      claimedAt: '2026-07-23T01:05:01.000Z', leaseExpiresAt: '2026-07-23T01:06:01.000Z',
+    });
+    const input = {
+      accountId: 'account-1', expectedRevision: claimed.revision, reservationId: 'reservation-1', leaseOwner: 'late-cleanup',
+      completedAt: '2026-07-23T01:05:02.000Z', nextRetryAt: '2026-07-23T02:05:02.000Z', proof: 'exact_version_deleted' as const,
+    };
+    await expect(repository.completeTerminalCleanup({ ...input, leaseOwner: 'wrong-cleanup' })).rejects.toThrow('lease mismatch');
+    await expect(repository.completeTerminalCleanup({ ...input, completedAt: '2026-07-23T01:06:01.000Z' })).rejects.toThrow('active lease');
+    const swept = await repository.completeTerminalCleanup(input);
+    expect(swept.operations['reservation-1']).toMatchObject({ status, cleanup: { nextRetryAt: input.nextRetryAt, attempt: 1 } });
+    expect(swept.operations['reservation-1'].cleanup?.leaseOwner).toBeUndefined();
+    expect(swept.capacity.trackedAccountBytes).toBe(0);
+    expect(swept.lifecycleAuditEvents).toEqual(terminal.lifecycleAuditEvents);
+    expect(validateBookSourceUploadAccountState(swept)).toBe(swept);
+    const retryClaim = await repository.claimCleanup({
+      accountId: 'account-1', expectedRevision: swept.revision, reservationId: 'reservation-1', leaseOwner: 'retry-cleanup',
+      claimedAt: input.nextRetryAt, leaseExpiresAt: '2026-07-23T02:06:02.000Z',
+    });
+    const failed = await repository.failCleanup({
+      accountId: 'account-1', expectedRevision: retryClaim.revision, reservationId: 'reservation-1', leaseOwner: 'retry-cleanup',
+      failedAt: '2026-07-23T02:05:03.000Z', nextRetryAt: '2026-07-23T02:07:03.000Z', errorCode: 'provider_unavailable',
+    });
+    expect(failed.operations['reservation-1']).toMatchObject({ status, cleanup: { lastErrorCode: 'provider_unavailable', attempt: 2 } });
+    expect(failed.capacity.trackedAccountBytes).toBe(0);
+  });
   it('uses compare-and-set and keeps reservation identity immutable across stale retries', async () => {
     const memory = createMemoryTransaction();
     const repository = createRepository(memory.transaction);
@@ -1188,7 +1431,7 @@ function retireInput(
 }
 
 function retirementGuard(
-  overrides: Partial<NonNullable<Parameters<SourceUploadRtdbRepository['fenceVerifiedSource']>[0]>['retirementGuard']> = {},
+  overrides: Partial<PublicationRetirementGuard> = {},
 ) {
   return {
     bookId: 'book-1', sourceVersionId: 'source-1', deletionId: 'deletion-1',
@@ -1196,6 +1439,26 @@ function retirementGuard(
     sourceSetRevision: 2, inputFingerprint: 'b'.repeat(64), sourceVersionIds: ['source-2'],
     ...overrides,
   } as const;
+}
+
+async function canceledSubmissionSource() {
+  const memory = createMemoryTransaction();
+  const repository = createRepository(memory.transaction);
+  const reserved = await repository.reserve(reservation({ submissionOperationId: 'submission-1' }));
+  const completed = await repository.completeVerified({
+    accountId: 'account-1', expectedRevision: reserved.revision, reservationId: 'reservation-1',
+    verifiedAt: '2026-07-23T00:01:00.000Z', verifiedStorage: storage(), physicalPageCount: 7,
+  });
+  const guard: CanceledSubmissionRetirementGuard = {
+    kind: 'canceled-submission', bookId: 'book-1', sourceVersionId: 'source-1', deletionId: 'deletion-1',
+    ownerId: 'teacher-1', submissionOperationId: 'submission-1', inputFingerprint: 'b'.repeat(64),
+  };
+  return { memory, repository, reserved, completed, fenceInput: {
+    accountId: 'account-1', expectedRevision: completed.revision, reservationId: 'reservation-1',
+    bookId: 'book-1', sourceVersionId: 'source-1', sourceKey: 'unit-1', ownerId: 'teacher-1',
+    verifiedStorage: storage(), deletionId: 'deletion-1', retirementGuard: guard,
+    fencedAt: '2026-07-23T00:02:00.000Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+  } };
 }
 
 function createMemoryTransaction(

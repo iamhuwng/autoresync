@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   readBook: vi.fn(),
   listBookNodes: vi.fn(),
   createBookDraft: vi.fn(),
+  createLocalDraft: vi.fn(),
   updateBookMetadata: vi.fn(),
   confirm: vi.fn(),
   homeworkModalProps: [],
@@ -167,6 +168,12 @@ vi.mock('../utils/teacherMaterialsDiagnostics', () => ({
 
 vi.mock('../hooks/useNavigation', () => ({
   useNavigation: () => ({ navigateTo: mocks.navigateTo }),
+}));
+
+vi.mock('../services/materialCatalog/localBookAuthoring.service', async () => ({
+  ...await vi.importActual('../services/materialCatalog/localBookAuthoring.service'),
+  listLocalBookAuthoringDrafts: vi.fn(async () => []),
+  createLocalBookAuthoringDraft: mocks.createLocalDraft,
 }));
 
 vi.mock('../hooks/useAuth', () => ({
@@ -507,6 +514,11 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.readBook.mockResolvedValue(null);
     mocks.listBookNodes.mockResolvedValue([]);
     mocks.createBookDraft.mockReset();
+    mocks.createLocalDraft.mockReset().mockImplementation(async (ownerId, metadata) => ({
+      schemaVersion: 2, draftId: 'local-pdf-1', ownerId, metadata, strategy: null, step: 1,
+      structureJson: '', unitsJson: '', pageMappingJson: '', validationState: 'pending',
+      pdfs: [], submission: { state: 'idle' }, revision: 1, updatedAt: '2026-10-19T00:00:00Z',
+    }));
     mocks.updateBookMetadata.mockReset();
     mocks.loadThcsTest.mockReset();
     mocks.deleteTest.mockReset();
@@ -1919,70 +1931,23 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('creates a PDF Book and continues into the guided PDF setup', async () => {
+  it('starts PDF authoring locally without creating a canonical Book', async () => {
     const user = userEvent.setup();
-    const createdBook = {
-      id: 'book-pdf',
-      bookId: 'book-pdf',
-      bookMode: 'pdf',
-      ownerId: 'teacher-1',
-      title: 'PDF Assembly Book',
-      authors: [],
-      visibility: 'private',
-      status: 'draft-empty',
-      testTypeIds: ['ielts'],
-      testTypes: [{ testTypeId: 'ielts', label: 'IELTS', shortLabel: 'IELTS', active: true }],
-      tags: [],
-      updatedAt: '2026-06-01T00:00:00.000Z',
-      isOwner: true,
-      bookRevision: 0,
-      sourceSetRevision: 0,
-    };
-    mocks.listTeacherBooks
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([createdBook]);
-    mocks.createBookDraft.mockResolvedValue({
-      ...createdBook,
-      createdAt: '2026-06-01T00:00:00.000Z',
-      createdBy: 'teacher-1',
-      updatedBy: 'teacher-1',
-    });
-    mocks.readBook.mockResolvedValue({
-      ...createdBook,
-      createdAt: '2026-06-01T00:00:00.000Z',
-      createdBy: 'teacher-1',
-      updatedBy: 'teacher-1',
-    });
-
     renderTeacherLobbyWithToasts();
-
     await user.click(screen.getByRole('tab', { name: 'Book' }));
     await user.click(await screen.findByRole('button', { name: 'Create New Book' }));
     await user.click(screen.getByLabelText('PDF source'));
-    expect(screen.getByText('Complete the required Book details below, then choose Save Book to open PDF Assembly.')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Title'), 'PDF Assembly Book');
     await user.click(screen.getByLabelText('IELTS'));
-    await user.click(screen.getByRole('button', { name: 'Save Book' }));
-
-    await waitFor(() => {
-      expect(mocks.createBookDraft).toHaveBeenCalledWith(
-        expect.objectContaining({
-          bookMode: 'pdf',
-          ownerId: 'teacher-1',
-          title: 'PDF Assembly Book',
-          testTypeIds: ['ielts'],
-        }),
-        expect.anything(),
-        expect.objectContaining({ actorId: 'teacher-1', actorRole: 'teacher' }),
-      );
-    });
-
+    await user.click(screen.getByRole('button', { name: 'Start draft' }));
     const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
     expect(dialog).toHaveAttribute('data-editor-intent', 'create');
-    expect(within(dialog).getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /One complete PDF/ })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /Several component PDFs/ })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('region', { name: 'Local Book authoring' })).toBeInTheDocument();
+    expect(mocks.createLocalDraft).toHaveBeenCalledWith('teacher-1', expect.objectContaining({
+      bookMode: 'pdf', visibility: 'private', title: 'PDF Assembly Book', testTypeIds: ['ielts'],
+    }));
+    expect(mocks.createBookDraft).not.toHaveBeenCalled();
+    expect(mocks.dbWrites).toEqual([]);
   });
 
   it('keeps Book private/public scope inside the Book tab', async () => {

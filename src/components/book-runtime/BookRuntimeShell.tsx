@@ -69,6 +69,7 @@ export interface BookRuntimeActivitySummary {
 }
 
 export type BookRuntimeAction =
+  | 'bookRuntimeLaunchRetried'
   | 'bookRuntimeReturn'
   | 'bookRuntimePageGroupSelected'
   | 'bookRuntimeCombinedPageSelected'
@@ -394,7 +395,7 @@ const BookRuntimeShellReady = ({ deliveryProjection, display, activities, pageGr
       {onReturn && <button className="book-runtime-shell__return" type="button" aria-label="Return" onClick={onReturn}>← <span>{deliveryProjection.context.kind === 'homework' ? 'Homework' : 'Return'}</span></button>}
       <div className="book-runtime-shell__title"><h1>{bookTitle} · {unitTitle}</h1><p>{contextLabel}{deadline ? ` · Due ${new Date(deadline).toLocaleString()}` : ''}</p></div>
       <div className="book-runtime-shell__header-tools">
-        <span className="book-runtime-shell__save-chip" role="status">{Object.values(activitySummaries).some((item) => item.dirty) ? 'Saving work…' : Object.values(activitySummaries).length ? 'Draft status in each Activity' : candidatePreview ? 'Read-only preview' : 'Loading work…'}</span>
+        <span className="book-runtime-shell__save-chip" role="status">{Object.values(activitySummaries).some((item) => item.dirty) ? 'Saving work…' : Object.values(activitySummaries).length ? 'Draft status in each Activity' : candidatePreview ? responseMode === 'editable' ? 'Practice preview · answers are temporary' : 'Read-only preview' : 'Loading work…'}</span>
         {personalTimer}
         <button className="book-runtime-shell__only-book" type="button" aria-pressed={onlyBook} onClick={() => {
           onAction?.(onlyBook ? 'bookRuntimeSplitRestored' : 'bookRuntimePdfFocused'); navigation.setDesktopView(onlyBook ? 'split' : 'pdf-focus');
@@ -433,7 +434,7 @@ const BookRuntimeShellReady = ({ deliveryProjection, display, activities, pageGr
           <header className="book-runtime-shell__card-title"><h3>{activity.label}</h3><span>{activitySummaries[activity.runtimeKey]?.reviewRequired ? 'Submitted for review' : activitySummaries[activity.runtimeKey]?.submitted ? 'Submitted' : 'Open'}</span></header>
           {activity.placement.sourceContext.available && <p className="book-runtime-shell__source-cue">{activity.placement.contextMode === 'required' ? 'Source required' : 'Source context'} · {activity.placement.sourceContext.description}</p>}
           {renderActivity ? renderActivity(activity, questionTools(activity)) : <ActivityRendererHost registry={registry} projection={activity.projection}
-            context={{ mode: candidatePreview ? 'read-only' : responseMode ?? (deliveryProjection.actionFlags.canAutosave ? 'editable' : 'read-only'), sourceContext: activity.placement.sourceContext, surface: 'student-runtime' }}
+            context={{ mode: responseMode ?? (candidatePreview || !deliveryProjection.actionFlags.canAutosave ? 'read-only' : 'editable'), sourceContext: activity.placement.sourceContext, surface: 'student-runtime' }}
             responses={responses} validationByInteractionId={validationByInteractionId} questionTools={questionTools(activity)}
             onResponseChange={(id, value) => { onAction?.('bookRuntimeResponseChanged', { interactionId: id }); onResponseChange(id, value); }} />}
         </article>)}

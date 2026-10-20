@@ -74,6 +74,7 @@ export interface BookSourceUploadControlService {
   begin(input: {
     readonly actorId: string;
     readonly bookId: string;
+    readonly submissionOperationId?: string;
     readonly idempotencyKey: string;
     readonly sourceKey: string;
     readonly kind: 'initial' | 'replacement';
@@ -472,6 +473,7 @@ const publicFailure = (error: unknown): { readonly code: string; readonly status
       : undefined;
     if (code) {
       if (code === 'authority_denied') return { code, status: 403 };
+      if (code === 'operation_not_found') return { code, status: 404 };
       if (code === 'invalid_input' || code === 'invalid_claim') return { code, status: 400 };
       if (code.startsWith('material_book_source_attachment_')) {
         if (code.includes('authority_denied') || code.includes('wrong_owner')) return { code, status: 403 };
@@ -624,7 +626,8 @@ export const dispatchBookSourceControlRequest = async ({
     }
 
     if (route.action === 'begin') {
-      if (!exactKeys(body, ['operationId', 'sourceKey', 'kind', 'purpose', 'inspection'])) {
+      const submissionBound = exactKeys(body, ['operationId', 'sourceKey', 'kind', 'purpose', 'inspection', 'submissionOperationId']);
+      if (!submissionBound && !exactKeys(body, ['operationId', 'sourceKey', 'kind', 'purpose', 'inspection'])) {
         throw new ControlRequestError('invalid_begin_request', 400);
       }
       if (typeof body.operationId !== 'string' || !UUID.test(body.operationId)) {
@@ -642,6 +645,7 @@ export const dispatchBookSourceControlRequest = async ({
       const result = await service.begin({
         actorId: uid,
         bookId: route.bookId,
+        ...(submissionBound ? { submissionOperationId: safeId(body.submissionOperationId, 'submission_operation_id') } : {}),
         idempotencyKey: body.operationId,
         sourceKey: safeId(body.sourceKey, 'source_key'),
         kind: body.kind,

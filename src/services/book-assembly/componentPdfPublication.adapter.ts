@@ -85,6 +85,8 @@ export interface CreateComponentPdfPublicationAdapterPlanInput {
   readonly existingLineageByActivityKey?: Readonly<Record<string, ComponentPdfActivityLineage>>;
 }
 
+export type BuildComponentPdfPublicationInput = Omit<CreateComponentPdfPublicationAdapterPlanInput, 'previewApproval'>;
+
 export interface ComponentPdfPublicationCommandInput extends Omit<CreateComponentPdfPublicationAdapterPlanInput, 'ids'> {
   readonly allocateId: (kind: string, key: string) => string;
 }
@@ -116,7 +118,7 @@ const fingerprint = (value: unknown): string => {
 };
 
 const assertCurrentAuthority = (
-  input: CreateComponentPdfPublicationAdapterPlanInput,
+  input: BuildComponentPdfPublicationInput,
 ): BookAssemblyManifestCandidate => {
   const { candidate, authority } = input;
   if (input.ownerId !== authority.ownerId || candidate.ownerId !== input.ownerId) {
@@ -181,6 +183,9 @@ const assertPreviewApproval = (
   approval: BookAssemblyPreviewApprovalReference,
   now: string,
 ): void => {
+  if (!approval || typeof approval !== 'object') {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_preview_approval_expired');
+  }
   const approvedAt = Date.parse(approval.approvedAt);
   const expiresAt = Date.parse(approval.expiresAt);
   const current = Date.parse(now);
@@ -230,7 +235,7 @@ const pagesForActivity = (
 };
 
 const createPublicationRecords = (
-  input: CreateComponentPdfPublicationAdapterPlanInput,
+  input: BuildComponentPdfPublicationInput,
   manifest: BookAssemblyManifestCandidate,
 ): {
   readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
@@ -420,12 +425,11 @@ const createPublicationRecords = (
   };
 };
 
-export const createComponentPdfPublicationAdapter = (
-  input: CreateComponentPdfPublicationAdapterPlanInput,
+export const buildComponentPdfPublication = (
+  input: BuildComponentPdfPublicationInput,
 ): ComponentPdfPublicationAdapterOutput => {
   const manifest: BookAssemblyManifestCandidate = assertCurrentAuthority(input);
   assertComponentPdfSource(manifest, input.authority.sourceVersionAuthority);
-  assertPreviewApproval(input.previewApproval, input.now);
   const orderedSources = [...manifest.sourceSet.sources]
     .sort((left, right) => left.sourceOrder - right.sourceOrder);
   const [firstSource, ...remainingSources] = orderedSources;
@@ -472,11 +476,19 @@ export const createComponentPdfPublicationAdapter = (
         units: [unit],
       },
       atomicWrites: records.atomicWrites,
-      previewApproval: input.previewApproval,
     },
   };
 };
 
+
+export const createComponentPdfPublicationAdapter = (
+  input: CreateComponentPdfPublicationAdapterPlanInput,
+): ComponentPdfPublicationAdapterOutput => {
+  assertPreviewApproval(input.previewApproval, input.now);
+  const { previewApproval, ...builderInput } = input;
+  const output = buildComponentPdfPublication(builderInput);
+  return { ...output, plan: { ...output.plan, previewApproval } };
+};
 export const createComponentPdfPublicationAdapterPlan = (
   input: CreateComponentPdfPublicationAdapterPlanInput,
 ): BookAssemblyPublicationAdapterPlan => createComponentPdfPublicationAdapter(input).plan;
@@ -518,26 +530,35 @@ export const createComponentPdfPublicationCommandPlan = (
   input: ComponentPdfPublicationCommandInput,
 ): BookAssemblyPublicationAdapterPlan => createComponentPdfPublicationCommandOutput(input).plan;
 
-export const createComponentPdfMultiUnitPublicationOutput = (
-  input: ComponentPdfMultiUnitPublicationInput,
+export interface AggregateComponentPdfPublicationsInput {
+  readonly aggregateCandidateId: string;
+  readonly manifest: BookAssemblyManifestCandidate;
+  readonly outputs: readonly ComponentPdfPublicationAdapterOutput[];
+}
+
+export const aggregateComponentPdfPublications = (
+  input: AggregateComponentPdfPublicationsInput,
 ): ComponentPdfPublicationAdapterOutput => {
-  if (input.units.length === 0 || new Set(input.units.map((unit) => unit.unitKey)).size !== input.units.length) {
+  const { manifest, outputs } = input;
+  if (outputs.length === 0) throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
+  const selectedUnitKeys = outputs.map((output) => output.plan.manifest.units[0]?.unitKey ?? '');
+  if (selectedUnitKeys.some((key) => !key) || new Set(selectedUnitKeys).size !== selectedUnitKeys.length) {
     throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
   }
-  const outputs = input.units.map(createComponentPdfPublicationCommandOutput);
-  const first = outputs[0]!;
-  const manifests = input.units.map((unit) => unit.candidate.manifest);
-  if (manifests.some((manifest) => manifest === null || stable(manifest) !== stable(manifests[0]))) {
+  if (outputs.some((output) => output.plan.strategy !== 'component_pdfs'
+    || stable(output.plan.sourceSet) !== stable(manifest.sourceSet)
+    || output.plan.manifest.units.length !== 1)) {
     throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
   }
-  const selectedUnitKeys = new Set(input.units.map((unit) => unit.unitKey));
-  const selectedManifest = {
-    ...manifests[0]!,
-    units: manifests[0]!.units.filter((unit) => selectedUnitKeys.has(unit.unitKey)),
-  };
-  if (selectedManifest.units.length !== input.units.length) {
+  const expectedUnits = manifest.units.filter((unit) => selectedUnitKeys.includes(unit.unitKey));
+  if (expectedUnits.length !== outputs.length || outputs.some((output) => {
+    const unit = output.plan.manifest.units[0];
+    return !unit || !expectedUnits.some((expected) => expected.unitKey === unit.unitKey && stable(expected) === stable(unit));
+  })) {
     throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
   }
+  const first = outputs[0]!;
+  const selectedManifest = { ...manifest, units: expectedUnits };
   const atomicWrites = outputs.reduce<BookAssemblyPublicationAtomicWriteSet>((all, output) => ({
     activityVersions: [...all.activityVersions, ...output.plan.atomicWrites.activityVersions],
     activitySafeProjections: [...all.activitySafeProjections, ...output.plan.atomicWrites.activitySafeProjections],
@@ -553,19 +574,37 @@ export const createComponentPdfMultiUnitPublicationOutput = (
       candidateId: input.aggregateCandidateId,
       candidateRevision: 1,
       manifest: selectedManifest,
-      studentSafeProjection: {
-        ...first.plan.studentSafeProjection,
-        units: selectedManifest.units,
-      },
+      studentSafeProjection: { ...first.plan.studentSafeProjection, units: expectedUnits },
       atomicWrites: {
         ...atomicWrites,
         deliveryPlans: [{
           ...delivery,
           placementIds: atomicWrites.placements.map((placement) => placement.placementId),
-          unitProjectionIds: atomicWrites.unitProjections.map((unit) => unit.unitProjectionId),
+          unitProjectionIds: atomicWrites.unitProjections.map((projection) => projection.unitProjectionId),
         }],
       },
-      previewApproval: input.previewApproval,
     },
   };
+};
+
+export const createComponentPdfMultiUnitPublicationOutput = (
+  input: ComponentPdfMultiUnitPublicationInput,
+): ComponentPdfPublicationAdapterOutput => {
+  if (input.units.length === 0 || new Set(input.units.map((unit) => unit.unitKey)).size !== input.units.length) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_unit_coverage_invalid');
+  }
+  assertPreviewApproval(input.previewApproval, input.units[0]!.now);
+  const manifests = input.units.map((unit) => unit.candidate.manifest);
+  if (manifests.some((manifest) => manifest === null || stable(manifest) !== stable(manifests[0]))) {
+    throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
+  }
+  const manifest = manifests[0];
+  if (!manifest) throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
+  const outputs = input.units.map(createComponentPdfPublicationCommandOutput);
+  const output = aggregateComponentPdfPublications({
+    aggregateCandidateId: input.aggregateCandidateId,
+    manifest,
+    outputs,
+  });
+  return { ...output, plan: { ...output.plan, previewApproval: input.previewApproval } };
 };

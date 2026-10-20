@@ -93,6 +93,8 @@ import { HomeworkCreateModal } from '../components/homework/HomeworkCreateModal'
 import CreateBookModal from '../components/books/CreateBookModal';
 import CreateBookSuccessorModal from '../components/books/CreateBookSuccessorModal';
 import BookEditorModal from '../components/books/BookEditorModal';
+import LocalBookDraftList from '../components/books/LocalBookDraftList';
+import { useLocalBookDrafts } from '../hooks/useLocalBookDrafts';
 import './TeacherLobbyPage.css';
 
 // Modals kept as direct imports (heavy components)
@@ -661,6 +663,25 @@ const TeacherLobbyPage = () => {
       return user.getIdToken();
     },
   }), [user]);
+  const localBooks = useLocalBookDrafts({
+    user,
+    enabled: teacherMaterialsCapabilities.canUseMaterialBookEditor
+      && isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create),
+    onCommitted: (bookId) => {
+      setBookListVersion((version) => version + 1);
+      setBookEditorOpen(false);
+      setContentFilter('book');
+      setBookScope('private');
+    },
+  });
+  const visibleLocalBookDrafts = localBooks.drafts.filter((draft) => draftMatchesSearchTerm({ metadata: draft.metadata }, searchTerm));
+  const resumeLocalBookDraft = (draftId) => {
+    if (!localBooks.resume(draftId)) return;
+    setCreateBookModalOpen(false);
+    setBookEditorBookId(null);
+    setBookEditorIntent('create');
+    setBookEditorOpen(true);
+  };
   const activeBookEditorBook = useMemo(
     () => bookRows.find((book) => (book.bookId || book.id) === bookEditorBookId) ?? null,
     [bookEditorBookId, bookRows],
@@ -2118,6 +2139,16 @@ const TeacherLobbyPage = () => {
       throw new Error('PDF Book creation is safely unavailable right now.');
     }
 
+    if (value.bookMode === 'pdf') {
+      await localBooks.start(value);
+      setCreateBookModalOpen(false);
+      setBookEditorBookId(null);
+      setBookEditorIntent('create');
+      bookEditorLauncherRef.current = null;
+      setBookEditorOpen(true);
+      return;
+    }
+
     const createdBook = await createBookDraft(
       {
         ...value,
@@ -2155,7 +2186,7 @@ const TeacherLobbyPage = () => {
       bookMode: createdBook.bookMode,
       source: 'teacher_materials_book_created',
     });
-  }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid]);
+  }, [bookValidationContext, materialBooksRepository, trackAction, user?.uid, localBooks.start]);
 
   const handleOpenBook = useCallback((book, launcher) => {
     const bookId = book?.bookId || book?.id;
@@ -3171,7 +3202,7 @@ const TeacherLobbyPage = () => {
                       <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
                       <p style={{ color: '#ef4444', fontWeight: 600 }}>{draftsError}</p>
                     </Card>
-                  ) : visibleDrafts.length === 0 ? (
+                  ) : visibleDrafts.length === 0 && visibleLocalBookDrafts.length === 0 ? (
                     <Card variant="glass" style={{ padding: '3rem', textAlign: 'center' }}>
                       <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
@@ -3187,6 +3218,7 @@ const TeacherLobbyPage = () => {
                       gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                       gap: '1.5rem',
                     }}>
+                      <LocalBookDraftList drafts={visibleLocalBookDrafts} onResume={resumeLocalBookDraft} />
                       {visibleDrafts.map((draft, index) => (
                         <DraftCard
                           key={draft.id}
@@ -3744,6 +3776,11 @@ const TeacherLobbyPage = () => {
           title="Create Book"
           testTypes={testTypeConfigs}
           pdfModeEnabled={isBookActivityRolloutGateEnabled(BOOK_ACTIVITY_ROLLOUT_GATES.create)}
+          localDraftSummaries={localBooks.drafts.map((draft) => ({
+            draftId: draft.draftId, title: draft.metadata.title, updatedAt: draft.updatedAt,
+            committedBookId: draft.submission.committedBookId, cleanupPending: draft.submission.cleanupPending,
+          }))}
+          onResumeLocalDraft={resumeLocalBookDraft}
           onClose={handleCloseCreateBookModal}
           onModeSelect={(bookMode) => trackAction('teacher_materials_book_mode_selected', {
             bookMode,
@@ -3763,6 +3800,11 @@ const TeacherLobbyPage = () => {
           opened={bookEditorOpen}
           intent={bookEditorIntent}
           bookId={bookEditorBookId}
+          localDraft={bookEditorBookId === null && bookEditorIntent === 'create' ? localBooks.draft : null}
+          onLocalDraftChange={localBooks.changed}
+          onLocalSubmit={localBooks.submit}
+          onLocalDraftDiscarded={localBooks.discarded}
+          onResolveLocalDiscard={localBooks.resolveDiscard}
           initialBook={activeBookEditorBook}
           repository={materialBooksRepository}
           onClose={handleCloseBookEditor}

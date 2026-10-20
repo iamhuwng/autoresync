@@ -14,7 +14,8 @@ import type {
   BookSourceVersionStorageIdentity,
   BookSourceLifecycleAuditEvent,
   BookSourceLifecycleTransition,
-  PublicationRetirementGuard,
+  CanceledSubmissionRetirementGuard,
+  SourceRetirementGuard,
 } from '../../types/bookSource.types';
 import { BOOK_SOURCE_PROVIDER_RECONCILIATION_MAX_AGE_MS } from '../../types/bookSource.types';
 import {
@@ -40,6 +41,7 @@ const OPERATION_KEYS = [
   'sourceVersionId',
   'sourceKey',
   'ownerId',
+  'submissionOperationId',
   'storageLocationId',
   'providerKind',
   'privateBucketId',
@@ -81,11 +83,13 @@ const CLEANUP_KEYS = [
 
 const RETIRED_OPERATION_KEYS = [
   'reservationId', 'bookId', 'sourceVersionId', 'sourceKey', 'ownerId',
+  'submissionOperationId',
   'purpose', 'studentSafeStatus', 'studentSafeDecision',
   'checksum', 'byteSize', 'ownerAttestedPhysicalPageCount', 'originalFilename',
   'createdAt', 'completedAt', 'status', 'retiredAt', 'retirementProof',
   'retiredDeletionId',
   'retirementGuard', 'retirementPendingAt',
+  'cleanupIdentity', 'cleanup',
 ] as const;
 
 export interface ReserveSourceUploadInput {
@@ -96,6 +100,7 @@ export interface ReserveSourceUploadInput {
   readonly sourceVersionId: string;
   readonly sourceKey: string;
   readonly ownerId: string;
+  readonly submissionOperationId?: string;
   readonly storageLocationId: string;
   readonly providerKind: string;
   readonly privateBucketId: string;
@@ -175,7 +180,8 @@ export interface RetireVerifiedSourceInput {
   readonly retiredAt: string;
   readonly currentSourceVersionIds: readonly string[];
   readonly remainingActiveSourceVersionIds: readonly string[];
-  readonly retirementGuard?: PublicationRetirementGuard;
+  readonly retirementGuard?: SourceRetirementGuard;
+  readonly leaseOwner?: string;
 }
 
 export interface FenceVerifiedSourceInput {
@@ -188,7 +194,7 @@ export interface FenceVerifiedSourceInput {
   readonly ownerId: string;
   readonly verifiedStorage: BookSourceVersionStorageIdentity;
   readonly deletionId: string;
-  readonly retirementGuard: PublicationRetirementGuard;
+  readonly retirementGuard: SourceRetirementGuard;
   readonly fencedAt: string;
   readonly currentSourceVersionIds: readonly string[];
   readonly remainingActiveSourceVersionIds: readonly string[];
@@ -306,6 +312,7 @@ export class SourceUploadRtdbRepository {
           sourceVersionId: input.sourceVersionId,
           sourceKey: input.sourceKey,
           ownerId: input.ownerId,
+          ...(input.submissionOperationId === undefined ? {} : { submissionOperationId: input.submissionOperationId }),
           storageLocationId: input.storageLocationId,
           providerKind: input.providerKind,
           privateBucketId: input.privateBucketId,
@@ -352,6 +359,27 @@ export class SourceUploadRtdbRepository {
         const state = normalizePersistedState(current);
         assertState(state);
         return nextState(state, state.operations, state.capacity.trackedAccountBytes, input.snapshot);
+      },
+    });
+    return requireCommitted(result.committed, result.value);
+  }
+
+  async advanceCanceledSubmissionScan(input: {
+    readonly accountId: string;
+    readonly expectedRevision: number;
+    readonly afterReservationId: string;
+  }): Promise<BookSourceUploadAccountState> {
+    assertRtdbKey(input.accountId, 'accountId');
+    assertExpectedRevision(input.expectedRevision);
+    assertSafeId(input.afterReservationId, 'afterReservationId');
+    const result = await this.transaction<BookSourceUploadAccountState>({
+      path: sourceUploadAccountPath(input.accountId),
+      expectedRevision: input.expectedRevision,
+      update: (current) => {
+        if (!current) throw new SourceUploadConflictError('upload account state does not exist.');
+        const state = normalizePersistedState(current);
+        assertState(state);
+        return Object.freeze({ ...state, canceledSubmissionScanAfterReservationId: input.afterReservationId });
       },
     });
     return requireCommitted(result.committed, result.value);
@@ -629,7 +657,7 @@ export class SourceUploadRtdbRepository {
         if (!operation || operation.ownerId !== input.ownerId) {
           throw new SourceUploadConflictError('upload reservation owner mismatch.');
         }
-        if (operation.status === 'verified_completed' || operation.status === 'retired') {
+        if (operation.status === 'verified_completed' || operation.status === 'retirement_pending' || operation.status === 'retired') {
           throw new SourceUploadConflictError('verified upload cannot enter cleanup.');
         }
         if (operation.status === 'released') return state;
@@ -677,7 +705,7 @@ export class SourceUploadRtdbRepository {
         const state = normalizePersistedState(current);
         assertState(state);
         const operation = state.operations[input.reservationId];
-        if (!operation || operation.status !== 'cleanup_pending' || !operation.cleanup) {
+        if (!operation || !canLeaseCleanup(operation) || !operation.cleanup) {
           throw new SourceUploadConflictError('upload cleanup is not pending.');
         }
         const claimedAt = Date.parse(input.claimedAt);
@@ -719,7 +747,7 @@ export class SourceUploadRtdbRepository {
         leaseOwner: undefined,
         leaseExpiresAt: undefined,
       }),
-    }));
+    }), true);
   }
 
   async releaseCleaned(input: ReleaseSourceUploadInput): Promise<BookSourceUploadAccountState> {
@@ -730,10 +758,42 @@ export class SourceUploadRtdbRepository {
     return this.finishCleanupLease(input, (operation) => Object.freeze({
       ...operation,
       status: 'released' as const,
-      cleanup: undefined,
+      cleanup: operation.submissionOperationId === undefined ? undefined : terminalCleanupState(input.releasedAt),
       releasedAt: input.releasedAt,
       releaseProof: input.proof,
     }));
+  }
+
+  async completeTerminalCleanup(input: {
+    readonly accountId: string;
+    readonly expectedRevision: number;
+    readonly reservationId: string;
+    readonly leaseOwner: string;
+    readonly completedAt: string;
+    readonly nextRetryAt: string;
+    readonly proof: 'exact_version_deleted' | 'provider_absent';
+  }): Promise<BookSourceUploadAccountState> {
+    assertCleanupResultInput(input, input.completedAt);
+    assertIso(input.nextRetryAt, 'nextRetryAt');
+    if (Date.parse(input.nextRetryAt) <= Date.parse(input.completedAt)
+      || (input.proof !== 'exact_version_deleted' && input.proof !== 'provider_absent')) {
+      throw new SourceUploadConflictError('invalid terminal cleanup result.');
+    }
+    return this.finishCleanupLease(input, (operation) => {
+      if (!isTerminalCleanup(operation)
+        || operation.cleanup?.leaseExpiresAt === undefined
+        || Date.parse(operation.cleanup.leaseExpiresAt) <= Date.parse(input.completedAt)
+        || Date.parse(operation.cleanup.nextRetryAt) > Date.parse(input.completedAt)) {
+        throw new SourceUploadConflictError('terminal cleanup requires an active lease.');
+      }
+      return Object.freeze({
+        ...operation,
+        cleanup: Object.freeze({
+          ...operation.cleanup, nextRetryAt: input.nextRetryAt, reason: 'cancel_requested' as const,
+          leaseOwner: undefined, leaseExpiresAt: undefined, lastErrorCode: undefined,
+        }),
+      });
+    }, true);
   }
 
   async fenceVerifiedSource(input: FenceVerifiedSourceInput): Promise<BookSourceUploadAccountState> {
@@ -758,6 +818,7 @@ export class SourceUploadRtdbRepository {
           if (!samePendingReplay(operation, input, verifiedStorage)) {
             throw new SourceUploadConflictError('retirement fence identity conflicts.');
           }
+          assertRetirementGuard(input.retirementGuard, input, operation);
           return state;
         }
         if (operation.status !== 'verified_completed'
@@ -775,9 +836,18 @@ export class SourceUploadRtdbRepository {
         const pending = Object.freeze({
           ...operation,
           status: 'retirement_pending' as const,
-          retirementGuard: Object.freeze({ ...input.retirementGuard, sourceVersionIds: [...input.retirementGuard.sourceVersionIds] }),
+          retirementGuard: freezeRetirementGuard(input.retirementGuard),
           retiredDeletionId: input.deletionId,
           retirementPendingAt: input.fencedAt,
+          ...(isCanceledSubmissionGuard(input.retirementGuard) ? {
+            cleanup: Object.freeze({
+              reason: 'cancel_requested' as const,
+              requestedAt: input.fencedAt,
+              attempt: 0,
+              nextRetryAt: Date.parse(operation.expiresAt) > Date.parse(input.fencedAt)
+                ? operation.expiresAt : input.fencedAt,
+            }),
+          } : {}),
         });
         const { [operation.sourceVersionId]: _removed, ...remainingSources } = state.assemblyBooks![operation.bookId]!;
         const audit = withLifecycleAuditEvents(state, pending, state.revision + 1, input.fencedAt, {
@@ -815,12 +885,15 @@ export class SourceUploadRtdbRepository {
           if (!sameRetiredReplay(operation, input, verifiedStorage)) {
             throw new SourceUploadConflictError('retired source replay identity conflicts.');
           }
+          if (input.retirementGuard && isCanceledSubmissionGuard(input.retirementGuard)) {
+            assertRetirementGuard(input.retirementGuard, input, operation);
+          }
           return state;
         }
         if (operation.status === 'retirement_pending') {
           if (operation.sourceKey !== input.sourceKey
             || operation.ownerId !== input.ownerId
-            || !input.retirementGuard || !samePublicationGuard(operation.retirementGuard, input.retirementGuard)
+            || !input.retirementGuard || !sameRetirementGuard(operation.retirementGuard, input.retirementGuard)
             || operation.retiredDeletionId !== input.deletionId) {
             throw new SourceUploadConflictError('retirement fence identity conflicts.');
           }
@@ -828,6 +901,13 @@ export class SourceUploadRtdbRepository {
             throw new SourceUploadConflictError('verified upload identity is stale or mismatched.');
           }
           assertRetirementGuard(input.retirementGuard, input, operation);
+          if (isCanceledSubmissionGuard(input.retirementGuard)
+            && (input.leaseOwner === undefined || operation.cleanup?.leaseOwner !== input.leaseOwner
+              || operation.cleanup.leaseExpiresAt === undefined
+              || Date.parse(operation.cleanup.leaseExpiresAt) <= Date.parse(input.retiredAt)
+              || Date.parse(operation.expiresAt) > Date.parse(input.retiredAt))) {
+            throw new SourceUploadConflictError('canceled submission retirement requires an active cleanup lease after upload expiry.');
+          }
           return retirePendingOperation(state, operation, input, verifiedStorage);
         }
         throw new SourceUploadConflictError('retirement fence is required before final retirement.');
@@ -839,6 +919,7 @@ export class SourceUploadRtdbRepository {
   private async finishCleanupLease(
     input: Pick<FailSourceUploadCleanupInput, 'accountId' | 'expectedRevision' | 'reservationId' | 'leaseOwner'>,
     update: (operation: BookSourceUploadOperation) => BookSourceUploadOperation,
+    allowCanceledRetirement = false,
   ): Promise<BookSourceUploadAccountState> {
     const result = await this.transaction<BookSourceUploadAccountState>({
       path: sourceUploadAccountPath(input.accountId),
@@ -848,8 +929,9 @@ export class SourceUploadRtdbRepository {
         const state = normalizePersistedState(current);
         assertState(state);
         const operation = state.operations[input.reservationId];
-        if (operation?.status === 'released') return state;
-        if (!operation || operation.status !== 'cleanup_pending'
+        if (operation?.status === 'released' && !allowCanceledRetirement) return state;
+        if (!operation || (operation.status !== 'cleanup_pending'
+            && !(allowCanceledRetirement && canLeaseCleanup(operation)))
           || operation.cleanup?.leaseOwner !== input.leaseOwner) {
           throw new SourceUploadConflictError('upload cleanup lease mismatch.');
         }
@@ -907,6 +989,9 @@ function nextState(
 ): BookSourceUploadAccountState {
   return Object.freeze({
     revision: state.revision + 1,
+    ...(state.canceledSubmissionScanAfterReservationId === undefined ? {} : {
+      canceledSubmissionScanAfterReservationId: state.canceledSubmissionScanAfterReservationId,
+    }),
     capacity: Object.freeze({
       trackedAccountBytes,
       temporaryBytes: state.capacity.temporaryBytes,
@@ -1003,11 +1088,8 @@ function assertState(state: BookSourceUploadAccountState): void {
     ? Object.keys(state.capacity)
     : [];
   if (!isPlainRecord(state) ||
-      (!hasOnlyKeys(state, ['revision', 'capacity', 'operations', 'assemblyBooks', 'lifecycleAuditEvents']) &&
-        !hasOnlyKeys(state, ['revision', 'capacity', 'operations', 'assemblyBooks']) &&
-        !hasOnlyKeys(state, ['revision', 'capacity', 'operations', 'lifecycleAuditEvents']) &&
-        !hasOnlyKeys(state, ['revision', 'capacity', 'operations']) &&
-        !hasOnlyKeys(state, ['revision', 'capacity'])) ||
+      !hasOnlyKeys(state, ['revision', 'capacity', 'operations', 'assemblyBooks', 'lifecycleAuditEvents',
+        'canceledSubmissionScanAfterReservationId']) ||
       !Number.isSafeInteger(state.revision) ||
       (state.revision as number) < 0 ||
       !isPlainRecord(state.capacity) ||
@@ -1021,6 +1103,9 @@ function assertState(state: BookSourceUploadAccountState): void {
       ].includes(key)) ||
       !isPlainRecord(operations)) {
     throw new SourceUploadConflictError('invalid upload account state.');
+  }
+  if (state.canceledSubmissionScanAfterReservationId !== undefined) {
+    assertSafeId(state.canceledSubmissionScanAfterReservationId, 'canceledSubmissionScanAfterReservationId');
   }
   if (state.lifecycleAuditEvents !== undefined) {
     assertLifecycleAuditEvents(state.lifecycleAuditEvents);
@@ -1157,6 +1242,7 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
   ] as const) {
     assertSafeId(value[field], label);
   }
+  if (value.submissionOperationId !== undefined) assertSafeId(value.submissionOperationId, 'submissionOperationId');
   assertProviderObjectKey(value.providerObjectKey);
   if (value.kind !== 'initial' && value.kind !== 'replacement') {
     throw new SourceUploadConflictError('invalid upload operation kind.');
@@ -1234,6 +1320,8 @@ function assertOperation(value: unknown): asserts value is BookSourceUploadOpera
     if (value.releasedAt !== undefined || value.releaseProof !== undefined) {
       throw new SourceUploadConflictError('pending cleanup cannot contain release proof.');
     }
+  } else if (value.status === 'released' && value.submissionOperationId !== undefined) {
+    assertTerminalCleanupState(value.cleanup, value.releasedAt);
   } else if (value.cleanup !== undefined) {
     throw new SourceUploadConflictError('only pending cleanup can contain cleanup state.');
   }
@@ -1260,6 +1348,7 @@ function assertRetiredOperation(value: Record<string, unknown>): void {
     ['ownerId', 'ownerId'],
     ['retiredDeletionId', 'retiredDeletionId'],
   ] as const) assertSafeId(value[field], label);
+  if (value.submissionOperationId !== undefined) assertSafeId(value.submissionOperationId, 'submissionOperationId');
   assertStudentSafeFields(value.purpose, value.studentSafeStatus, value.studentSafeDecision);
   if (!isPlainRecord(value.checksum)
     || !hasOnlyKeys(value.checksum, ['algorithm', 'value'])
@@ -1290,12 +1379,19 @@ function assertRetiredOperation(value: Record<string, unknown>): void {
     throw new SourceUploadConflictError('invalid retired upload metadata.');
   }
   if (value.retirementGuard !== undefined) {
-    assertRetirementGuardShape(value.retirementGuard as PublicationRetirementGuard);
-    if ((value.retirementGuard as PublicationRetirementGuard).deletionId !== value.retiredDeletionId
-      || (value.retirementGuard as PublicationRetirementGuard).bookId !== value.bookId
-      || (value.retirementGuard as PublicationRetirementGuard).sourceVersionId !== value.sourceVersionId
-      || (value.retirementGuard as PublicationRetirementGuard).sourceVersionIds.includes(value.sourceVersionId as string)) {
+    assertRetirementGuardShape(value.retirementGuard as SourceRetirementGuard);
+    if ((value.retirementGuard as SourceRetirementGuard).deletionId !== value.retiredDeletionId
+      || (value.retirementGuard as SourceRetirementGuard).bookId !== value.bookId
+      || (value.retirementGuard as SourceRetirementGuard).sourceVersionId !== value.sourceVersionId
+      || (value.retirementGuard as SourceRetirementGuard).sourceVersionIds?.includes(value.sourceVersionId as string)) {
       throw new SourceUploadConflictError('retired deletion identity mismatch.');
+    }
+    assertCanceledSubmissionTuple(value.retirementGuard as SourceRetirementGuard, value);
+    if (isCanceledSubmissionGuard(value.retirementGuard as SourceRetirementGuard)) {
+      assertTerminalCleanupIdentity(value.cleanupIdentity, value);
+      assertTerminalCleanupState(value.cleanup, value.retiredAt);
+    } else if (value.cleanupIdentity !== undefined || value.cleanup !== undefined) {
+      throw new SourceUploadConflictError('publication retirement cannot retain cleanup coordinates.');
     }
   } else {
     throw new SourceUploadConflictError('retired upload requires retirement guard.');
@@ -1306,19 +1402,32 @@ function assertRetirementPendingOperation(value: Record<string, unknown>): void 
   if (!hasOnlyKeys(value, OPERATION_KEYS)) {
     throw new SourceUploadConflictError('invalid retirement-pending upload operation.');
   }
-  assertOperation({ ...value, status: 'verified_completed' });
+  assertOperation({ ...value, status: 'verified_completed', cleanup: undefined });
   if (value.retirementGuard === undefined || value.retiredDeletionId === undefined
     || typeof value.retirementPendingAt !== 'string' || !isIsoDate(value.retirementPendingAt)) {
     throw new SourceUploadConflictError('retirement-pending upload operation is incomplete.');
   }
-  assertRetirementGuardShape(value.retirementGuard as PublicationRetirementGuard);
+  assertRetirementGuardShape(value.retirementGuard as SourceRetirementGuard);
+  const guard = value.retirementGuard as SourceRetirementGuard;
+  assertCanceledSubmissionTuple(guard, value);
+  if (isCanceledSubmissionGuard(guard)) {
+    assertCleanupState(value.cleanup);
+    const cleanup = value.cleanup as NonNullable<BookSourceUploadOperation['cleanup']>;
+    if (cleanup.reason !== 'cancel_requested' || cleanup.requestedAt !== value.retirementPendingAt
+      || Date.parse(cleanup.nextRetryAt) < Date.parse(value.expiresAt as string)
+      || cleanup.providerFileId !== undefined || cleanup.providerFileVersionId !== undefined) {
+      throw new SourceUploadConflictError('invalid canceled submission cleanup identity.');
+    }
+  } else if (value.cleanup !== undefined) {
+    throw new SourceUploadConflictError('publication retirement cannot contain cleanup state.');
+  }
   assertSafeId(value.retiredDeletionId, 'retiredDeletionId');
-  if ((value.retirementGuard as PublicationRetirementGuard).deletionId !== value.retiredDeletionId) {
+  if ((value.retirementGuard as SourceRetirementGuard).deletionId !== value.retiredDeletionId) {
     throw new SourceUploadConflictError('retirement-pending deletion identity mismatch.');
   }
-  if ((value.retirementGuard as PublicationRetirementGuard).bookId !== value.bookId
-    || (value.retirementGuard as PublicationRetirementGuard).sourceVersionId !== value.sourceVersionId
-    || (value.retirementGuard as PublicationRetirementGuard).sourceVersionIds.includes(value.sourceVersionId as string)) {
+  if ((value.retirementGuard as SourceRetirementGuard).bookId !== value.bookId
+    || (value.retirementGuard as SourceRetirementGuard).sourceVersionId !== value.sourceVersionId
+    || (value.retirementGuard as SourceRetirementGuard).sourceVersionIds?.includes(value.sourceVersionId as string)) {
     throw new SourceUploadConflictError('retirement-pending source identity mismatch.');
   }
 }
@@ -1364,6 +1473,39 @@ function assertCleanupState(value: unknown): void {
       throw new SourceUploadConflictError('invalid upload cleanup lease.');
     }
   }
+}
+
+function assertTerminalCleanupIdentity(value: unknown, operation: Record<string, unknown>): void {
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, ['storageLocationId', 'providerKind', 'privateBucketId',
+    'providerObjectKey', 'kind', 'expectedChecksum', 'expiresAt'])) {
+    throw new SourceUploadConflictError('invalid terminal cleanup identity.');
+  }
+  for (const field of ['storageLocationId', 'providerKind', 'privateBucketId']) assertSafeId(value[field], field);
+  assertProviderObjectKey(value.providerObjectKey);
+  assertChecksum(value.expectedChecksum, 'terminal cleanup expectedChecksum');
+  assertIso(value.expiresAt, 'terminal cleanup expiresAt');
+  if ((value.kind !== 'initial' && value.kind !== 'replacement')
+    || value.expectedChecksum.value !== (operation.checksum as BookSourceChecksum).value
+    || Date.parse(value.expiresAt) <= Date.parse(operation.createdAt as string)
+    || Date.parse(value.expiresAt) < Date.parse(operation.completedAt as string)) {
+    throw new SourceUploadConflictError('terminal cleanup identity does not match retired source.');
+  }
+}
+
+function assertTerminalCleanupState(value: unknown, requestedAt: unknown): void {
+  assertCleanupState(value);
+  const cleanup = value as NonNullable<BookSourceUploadOperation['cleanup']>;
+  if (cleanup.reason !== 'cancel_requested' || cleanup.requestedAt !== requestedAt
+    || cleanup.providerFileId !== undefined || cleanup.providerFileVersionId !== undefined) {
+    throw new SourceUploadConflictError('invalid terminal cleanup state.');
+  }
+}
+
+function terminalCleanupState(requestedAt: string): NonNullable<BookSourceUploadOperation['cleanup']> {
+  return Object.freeze({
+    reason: 'cancel_requested', requestedAt, attempt: 0,
+    nextRetryAt: new Date(Date.parse(requestedAt) + 60 * 60 * 1_000).toISOString(),
+  });
 }
 
 function assertCleanupReason(value: unknown): asserts value is BookSourceUploadCleanupReason {
@@ -1550,7 +1692,7 @@ function withLifecycleAuditEvents(
   occurredAt: string,
   retirement: {
     readonly deletionId?: string;
-    readonly retirementGuard?: PublicationRetirementGuard;
+    readonly retirementGuard?: SourceRetirementGuard;
     readonly retirementProof?: 'exact_version_deleted' | 'provider_absent';
   } = {},
 ): Readonly<Record<string, BookSourceLifecycleAuditEvent>> {
@@ -1804,6 +1946,7 @@ function sameReservation(operation: BookSourceUploadOperation, input: ReserveSou
     && operation.sourceVersionId === input.sourceVersionId
     && operation.sourceKey === input.sourceKey
     && operation.ownerId === input.ownerId
+    && operation.submissionOperationId === input.submissionOperationId
     && operation.storageLocationId === input.storageLocationId
     && operation.providerKind === input.providerKind
     && operation.privateBucketId === input.privateBucketId
@@ -1844,6 +1987,7 @@ function assertRetireInput(input: RetireVerifiedSourceInput): void {
   assertRtdbKey(input.deletionId, 'deletionId');
   assertExpectedRevision(input.expectedRevision);
   assertIso(input.retiredAt, 'retiredAt');
+  if (input.leaseOwner !== undefined) assertSafeId(input.leaseOwner, 'leaseOwner');
   if (input.proof !== 'exact_version_deleted' && input.proof !== 'provider_absent') {
     throw new SourceUploadConflictError('invalid retirement proof.');
   }
@@ -1882,11 +2026,25 @@ function assertFenceInput(input: FenceVerifiedSourceInput): void {
   }
 }
 
-function assertRetirementGuardShape(value: unknown): asserts value is PublicationRetirementGuard {
+function assertRetirementGuardShape(value: unknown): asserts value is SourceRetirementGuard {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new SourceUploadConflictError('invalid retirement publication guard.');
   }
   const guard = value as Record<string, unknown>;
+  if (guard.kind === 'canceled-submission') {
+    if (!hasOnlyKeys(guard, ['kind', 'bookId', 'sourceVersionId', 'deletionId', 'sourceVersionIds',
+      'ownerId', 'submissionOperationId', 'inputFingerprint'])
+      || (guard.sourceVersionIds !== undefined
+        && (!Array.isArray(guard.sourceVersionIds) || guard.sourceVersionIds.length !== 0))
+      || typeof guard.inputFingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(guard.inputFingerprint)) {
+      throw new SourceUploadConflictError('invalid canceled submission retirement guard.');
+    }
+    for (const field of ['bookId', 'sourceVersionId', 'deletionId', 'ownerId', 'submissionOperationId']) {
+      assertSafeId(guard[field], `retirement guard ${field}`);
+    }
+    return;
+  }
+  if (guard.kind !== undefined) throw new SourceUploadConflictError('invalid retirement guard kind.');
   for (const [field, label] of [
     ['bookId', 'retirement guard bookId'],
     ['sourceVersionId', 'retirement guard sourceVersionId'],
@@ -1904,25 +2062,69 @@ function assertRetirementGuardShape(value: unknown): asserts value is Publicatio
 }
 
 function assertRetirementGuard(
-  guard: PublicationRetirementGuard,
+  guard: SourceRetirementGuard,
   input: Pick<RetireVerifiedSourceInput, 'bookId' | 'sourceVersionId' | 'deletionId' | 'currentSourceVersionIds' | 'remainingActiveSourceVersionIds'>,
   operation: BookSourceUploadOperation,
 ): void {
   assertRetirementGuardShape(guard);
+  assertCanceledSubmissionTuple(guard, operation);
   if (guard.bookId !== input.bookId || guard.sourceVersionId !== input.sourceVersionId
     || guard.deletionId !== input.deletionId
     || operation.sourceVersionId !== guard.sourceVersionId
     || input.currentSourceVersionIds.includes(input.sourceVersionId)
     || input.remainingActiveSourceVersionIds.includes(input.sourceVersionId)
-    || guard.sourceVersionIds.includes(input.sourceVersionId)) {
+    || guard.sourceVersionIds?.includes(input.sourceVersionId)
+    || (isCanceledSubmissionGuard(guard)
+      && (input.currentSourceVersionIds.length !== 0 || input.remainingActiveSourceVersionIds.length !== 0))) {
     throw new SourceUploadConflictError('retirement source remains referenced or guard is stale.');
   }
 }
 
-function samePublicationGuard(
-  left: PublicationRetirementGuard | undefined,
-  right: PublicationRetirementGuard | undefined,
+function isCanceledSubmissionGuard(guard: SourceRetirementGuard): guard is CanceledSubmissionRetirementGuard {
+  return 'kind' in guard && guard.kind === 'canceled-submission';
+}
+
+function freezeRetirementGuard(guard: SourceRetirementGuard): SourceRetirementGuard {
+  if (isCanceledSubmissionGuard(guard)) {
+    const { sourceVersionIds: _empty, ...identity } = guard;
+    return Object.freeze(identity);
+  }
+  return Object.freeze({ ...guard, sourceVersionIds: [...guard.sourceVersionIds] });
+}
+
+function assertCanceledSubmissionTuple(guard: SourceRetirementGuard, operation: {
+  readonly ownerId?: unknown; readonly submissionOperationId?: unknown;
+}): void {
+  if (isCanceledSubmissionGuard(guard)
+    && (guard.ownerId !== operation.ownerId || guard.submissionOperationId !== operation.submissionOperationId)) {
+    throw new SourceUploadConflictError('canceled submission retirement identity mismatch.');
+  }
+}
+
+function canLeaseCleanup(operation: BookSourceUploadOperation): boolean {
+  return operation.status === 'cleanup_pending'
+    || (operation.status === 'retirement_pending' && operation.retirementGuard !== undefined
+      && isCanceledSubmissionGuard(operation.retirementGuard)) || isTerminalCleanup(operation);
+}
+
+function isTerminalCleanup(operation: BookSourceUploadOperation): boolean {
+  return operation.cleanup !== undefined && operation.submissionOperationId !== undefined
+    && (operation.status === 'released'
+      || (operation.status === 'retired' && operation.retirementGuard !== undefined
+        && isCanceledSubmissionGuard(operation.retirementGuard)));
+}
+
+function sameRetirementGuard(
+  left: SourceRetirementGuard | undefined,
+  right: SourceRetirementGuard | undefined,
 ): boolean {
+  if (left !== undefined && right !== undefined
+    && (isCanceledSubmissionGuard(left) || isCanceledSubmissionGuard(right))) {
+    return isCanceledSubmissionGuard(left) && isCanceledSubmissionGuard(right)
+      && left.bookId === right.bookId && left.sourceVersionId === right.sourceVersionId
+      && left.deletionId === right.deletionId && left.ownerId === right.ownerId
+      && left.submissionOperationId === right.submissionOperationId && left.inputFingerprint === right.inputFingerprint;
+  }
   return left !== undefined && right !== undefined
     && JSON.stringify(left) === JSON.stringify(right);
 }
@@ -1937,7 +2139,7 @@ function samePendingReplay(
     && operation.sourceKey === input.sourceKey
     && operation.ownerId === input.ownerId
     && operation.retiredDeletionId === input.deletionId
-    && samePublicationGuard(operation.retirementGuard, input.retirementGuard)
+    && sameRetirementGuard(operation.retirementGuard, input.retirementGuard)
     && sameVerifiedStorage(operation.verifiedStorage, storage);
 }
 
@@ -1959,6 +2161,7 @@ function retirePendingOperation(
     sourceVersionId: operation.sourceVersionId,
     sourceKey: operation.sourceKey,
     ownerId: operation.ownerId,
+    ...(operation.submissionOperationId === undefined ? {} : { submissionOperationId: operation.submissionOperationId }),
     purpose: operation.purpose,
     studentSafeStatus: operation.studentSafeStatus,
     ...(operation.studentSafeDecision === undefined ? {} : { studentSafeDecision: operation.studentSafeDecision }),
@@ -1973,6 +2176,14 @@ function retirePendingOperation(
     retirementProof: input.proof,
     retiredDeletionId: input.deletionId,
     retirementGuard: operation.retirementGuard,
+    ...(isCanceledSubmissionGuard(operation.retirementGuard) ? {
+      cleanupIdentity: Object.freeze({
+        storageLocationId: operation.storageLocationId, providerKind: operation.providerKind,
+        privateBucketId: operation.privateBucketId, providerObjectKey: operation.providerObjectKey,
+        kind: operation.kind, expectedChecksum: operation.expectedChecksum, expiresAt: operation.expiresAt,
+      }),
+      cleanup: terminalCleanupState(input.retiredAt),
+    } : {}),
   });
   const { [operation.sourceVersionId]: _removed, ...remainingSources } = state.assemblyBooks?.[operation.bookId] ?? {};
   const retirementAudit = withLifecycleAuditEvents(state, retired as unknown as BookSourceUploadOperation, state.revision + 1, input.retiredAt, {
@@ -2003,7 +2214,7 @@ function sameRetiredReplay(
     && operation.ownerId === input.ownerId
     && operation.retiredDeletionId === input.deletionId
     && operation.retirementProof === input.proof
-    && samePublicationGuard(operation.retirementGuard, input.retirementGuard)
+    && sameRetirementGuard(operation.retirementGuard, input.retirementGuard)
     && operation.checksum?.value === storage.checksum.value
     && operation.byteSize === storage.byteSize
     && storage.bookId === operation.bookId

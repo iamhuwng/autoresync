@@ -41,6 +41,16 @@
     {"profile":null,"family":"choice","variant":"multi-select","presentationMode":"structured","responseCodec":"choice-multiple-v1","rendererId":"choice-v1","codecId":"choice-multiple-v1"},
     {"profile":null,"family":"choice","variant":"multi-select","presentationMode":"source-assisted","responseCodec":"choice-multiple-v1","rendererId":"choice-v1","codecId":"choice-multiple-v1"},
     {"profile":null,"family":"long-response","variant":"v1","presentationMode":"structured","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"},
-    {"profile":null,"family":"long-response","variant":"v1","presentationMode":"source-assisted","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"}
+    {"profile":null,"family":"long-response","variant":"v1","presentationMode":"source-assisted","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"},
+    {"profile":null,"family":"text-entry","variant":"short-answer","presentationMode":"structured","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
+    {"profile":null,"family":"text-entry","variant":"short-answer","presentationMode":"source-assisted","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
+    {"profile":null,"family":"text-entry","variant":"sentence-completion","presentationMode":"structured","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
+    {"profile":null,"family":"text-entry","variant":"sentence-completion","presentationMode":"source-assisted","responseCodec":"text-entry-v1","rendererId":"text-entry-v1","codecId":"text-entry-v1"},
+    {"profile":null,"family":"matching","variant":"matching-pairs","presentationMode":"structured","responseCodec":"matching-pairs-v1","rendererId":"matching-v1","codecId":"matching-pairs-v1"},
+    {"profile":null,"family":"matching","variant":"matching-pairs","presentationMode":"source-assisted","responseCodec":"matching-pairs-v1","rendererId":"matching-v1","codecId":"matching-pairs-v1"},
+    {"profile":null,"family":"ordering","variant":"sequence","presentationMode":"structured","responseCodec":"ordering-items-v1","rendererId":"ordering-v1","codecId":"ordering-items-v1"},
+    {"profile":null,"family":"ordering","variant":"sequence","presentationMode":"source-assisted","responseCodec":"ordering-items-v1","rendererId":"ordering-v1","codecId":"ordering-items-v1"},
+    {"profile":null,"family":"long-response","variant":"draft-response","presentationMode":"structured","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"},
+    {"profile":null,"family":"long-response","variant":"draft-response","presentationMode":"source-assisted","responseCodec":"long-response-v1","rendererId":"long-response-v1","codecId":"long-response-v1"}
   ]
 }

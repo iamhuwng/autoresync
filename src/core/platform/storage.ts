@@ -136,3 +136,99 @@ export const sessionStore = {
     sessionStorage.clear();
   },
 };
+
+/**
+ * Small IndexedDB adapter for structured, device-local state.
+ * Keep browser APIs in this platform boundary so callers stay portable.
+ */
+export const indexedDbStore = <T>(
+  databaseName: string,
+  storeName: string,
+  version = 1,
+  storeNames: readonly string[] = [storeName],
+) => {
+  let databasePromise: Promise<IDBDatabase> | null = null;
+  const open = (): Promise<IDBDatabase> => {
+    if (typeof indexedDB === 'undefined') {
+      return Promise.reject(new Error('indexeddb_unavailable'));
+    }
+    if (databasePromise) return databasePromise;
+    databasePromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(databaseName, version);
+      request.onerror = () => {
+        databasePromise = null;
+        reject(request.error ?? new Error('indexeddb_open_failed'));
+      };
+      request.onupgradeneeded = () => {
+        for (const name of storeNames) {
+          if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
+        }
+      };
+      request.onsuccess = () => {
+        request.result.onversionchange = () => {
+          request.result.close();
+          databasePromise = null;
+        };
+        resolve(request.result);
+      };
+    });
+    return databasePromise;
+  };
+  const request = <R>(operation: (store: IDBObjectStore) => IDBRequest<R>): Promise<R> =>
+    open().then((database) => new Promise((resolve, reject) => {
+      const transaction = database.transaction(storeName, 'readwrite');
+      let result: IDBRequest<R>;
+      try {
+        result = operation(transaction.objectStore(storeName));
+      } catch (error) {
+        transaction.abort();
+        reject(error);
+        return;
+      }
+      transaction.onabort = () => reject(transaction.error ?? new Error('indexeddb_transaction_aborted'));
+      transaction.onerror = () => reject(transaction.error ?? new Error('indexeddb_request_failed'));
+      transaction.oncomplete = () => resolve(result.result);
+    }));
+  // Read and write in one transaction so concurrent tabs always patch the latest record.
+  const update = async (key: IDBValidKey, updater: (current: T | null) => T | null): Promise<T | null> => (
+    open().then((database) => new Promise((resolve, reject) => {
+      const transaction = database.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      let next: T | null = null;
+      let settled = false;
+      const fail = (error: unknown): void => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+      const read = store.get(key);
+      read.onerror = () => fail(read.error ?? new Error('indexeddb_request_failed'));
+      read.onsuccess = () => {
+        try {
+          next = updater((read.result as T | undefined) ?? null);
+          if (next === null) store.delete(key);
+          else store.put(next, key);
+        } catch (error) {
+          try { transaction.abort(); } catch { /* transaction is already closing */ }
+          fail(error);
+        }
+      };
+      transaction.onerror = () => fail(transaction.error ?? new Error('indexeddb_request_failed'));
+      transaction.onabort = () => fail(transaction.error ?? new Error('indexeddb_transaction_aborted'));
+      transaction.oncomplete = () => {
+        if (!settled) {
+          settled = true;
+          resolve(next);
+        }
+      };
+    }))
+  );
+  return {
+    get: async (key: IDBValidKey): Promise<T | null> => (await request<T | undefined>((store) => store.get(key))) ?? null,
+    set: async (key: IDBValidKey, value: T): Promise<void> => { await request((store) => store.put(value, key)); },
+    update,
+    remove: async (key: IDBValidKey): Promise<void> => { await request((store) => store.delete(key)); },
+    keys: async (): Promise<IDBValidKey[]> => (await request<IDBValidKey[]>((store) => store.getAllKeys())) ?? [],
+    clear: async (): Promise<void> => { await request((store) => store.clear()); },
+  };
+};

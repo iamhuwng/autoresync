@@ -11,6 +11,7 @@ const varsPath = path.join(tempDir, '.dev.vars');
 const localViteOrigin = process.env.LOCAL_VITE_ORIGIN || 'http://localhost:5173';
 
 const localEntry = `import { createUploadWorker } from '../worker.js';
+import { createBookSourceReconciliationWorker } from '../src/book-source-worker/reconciliation-worker.ts';
 
 const decode = (segment) => JSON.parse(atob(segment.replace(/-/gu, '+').replace(/_/gu, '/') + '==='.slice((segment.length + 3) % 4)));
 const localFirebaseVerifier = {
@@ -29,7 +30,19 @@ const localFirebaseVerifier = {
   },
 };
 const worker = createUploadWorker({ firebaseVerifier: localFirebaseVerifier });
-export default { fetch(request, env, ctx) { return worker.fetch(request, { ...env, UPLOAD_RATE_LIMITER: env.BOOK_ROUTE_RATE_LIMITER }, ctx); } };
+const reconciliation = createBookSourceReconciliationWorker(fetch, () => new Date(), undefined, undefined, undefined, localFirebaseVerifier);
+export default { fetch(request, env, ctx) {
+  const pathname = new URL(request.url).pathname;
+  if (pathname.startsWith('/v1/book-source/books/') && pathname.endsWith('/reconcile')) {
+    const serviceAccount = JSON.parse(env.BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY);
+    return reconciliation.fetch(request, { ...env,
+      FIREBASE_DATABASE_URL: env.FIREBASE_DB_URL,
+      BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL: serviceAccount.client_email,
+      BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY: serviceAccount.private_key,
+    });
+  }
+  return worker.fetch(request, { ...env, UPLOAD_RATE_LIMITER: env.BOOK_ROUTE_RATE_LIMITER }, ctx);
+} };
 export { UploadGrantReplayLedger } from '../src/upload-worker/upload-grant-replay-ledger.js';
 `;
 
@@ -53,6 +66,11 @@ const localConfig = `{
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@demo-luyentap-local.iam.gserviceaccount.com",
     "BOOK_SUBMISSION_ROUTES_ENABLED": "enabled",
     "BOOK_SUBMISSION_SERVICE_IDENTITY": "book-source-worker-runtime@demo-luyentap-local.iam.gserviceaccount.com",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f",
+    "BOOK_SOURCE_RECONCILIATION_STATE": "enabled",
+    "BOOK_SOURCE_RECONCILIATION_ACTION_STATE": "enabled",
+    "BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE": "disabled",
+    "BOOK_SOURCE_RECONCILIATION_LEASE_OWNER": "local-book-source-reconciler",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": ${JSON.stringify(localViteOrigin)},
     "BOOK_SOURCE_B2_PROVIDER_STATE": "enabled",
     "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
@@ -67,7 +85,8 @@ const localConfig = `{
     "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID", "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
     "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY", "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
     "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY", "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
-    "BOOK_SOURCE_B2_READ_APPLICATION_KEY"
+    "BOOK_SOURCE_B2_READ_APPLICATION_KEY", "BOOK_SOURCE_B2_DELETE_APPLICATION_KEY_ID",
+    "BOOK_SOURCE_B2_DELETE_APPLICATION_KEY"
   ]}
 }`;
 

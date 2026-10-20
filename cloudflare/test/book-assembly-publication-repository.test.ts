@@ -1062,6 +1062,15 @@ describe('Book Assembly publication Firebase repository', () => {
   });
 
   it('fails closed on malformed nested records and replay results', async () => {
+    for (const title of ['', '  ', 42, 'x'.repeat(201)]) {
+      const invalid = completeScope();
+      Object.assign(invalid.versions!['manifest-1']!.manifest.nodes[0]!, { title });
+      const repository = new FirebaseRestBookAssemblyPublicationRepository({
+        env, fetchImpl: createFetchHarness(toWireScope(invalid)).fetchImpl,
+        getAccessToken: async () => 'test-token',
+      });
+      await expect(repository.readScope('book-1')).rejects.toThrow('invalid_book_assembly_publication_record');
+    }
     const malformedNested = JSON.parse(JSON.stringify(completeScope())) as Record<string, unknown>;
     const versions = malformedNested.versions as Record<string, Record<string, unknown>>;
     const version = versions['manifest-1']!;

@@ -88,7 +88,7 @@ describe('Activity renderer manifest', () => {
         { ...manifest.registrations[0], profile: null },
         manifest.registrations[0],
       ],
-    })).toBe(false);
+    })).toBe(true);
   });
 
   it('allows the same renderer selector in distinct presentation modes', () => {

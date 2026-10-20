@@ -5,14 +5,17 @@ import type { NormalizedActivity } from '../../../types/bookActivity.types';
 import { projectStudentActivity } from '../../../services/book-activity/activityProjection.service';
 import type { CandidateUnitPreviewProjection } from '../../../services/book-assembly/unitPreview.service';
 import { BookAssemblyStudentPreviewHost } from './BookAssemblyStudentPreviewHost';
+import type { BookPdfViewerHostProps } from '../../book-runtime/BookPdfViewerHost';
 
 vi.mock('../../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
 }));
 
 vi.mock('../../book-runtime/BookPdfViewerHost', () => ({
-  BookPdfViewerHost: ({ title, initialPage, route }: { title: string; initialPage?: number; route: { url: string } }) => (
-    <div data-testid="candidate-pdf" data-route={route.url}>{title} page {initialPage}</div>
+  BookPdfViewerHost: ({ title, initialPage, route, allowedPages, onPageChange }: BookPdfViewerHostProps) => (
+    <div data-testid="candidate-pdf" data-route={'url' in route ? route.url : undefined}>{title} page {initialPage}
+      {allowedPages?.map(page => <button key={page} onClick={() => onPageChange?.(page)}>View page {page}</button>)}
+    </div>
   ),
 }));
 
@@ -108,7 +111,7 @@ describe('BookAssemblyStudentPreviewHost', () => {
       'https://worker.example/v1/book-delivery/teacher-assembly/book-1/unit-1/candidate-1/1/full/version-1/3/2',
     );
     expect(screen.getByTestId('candidate-pdf')).toHaveTextContent('Book document page 2');
-    await user.click(screen.getByRole('button', { name: 'Next Activity' }));
+    await user.click(screen.getByRole('button', { name: 'View page 8' }));
     expect(screen.getByTestId('candidate-pdf')).toHaveTextContent('page 8');
     expect(screen.queryByRole('navigation', { name: 'Authorized Book components' })).not.toBeInTheDocument();
   });
@@ -125,7 +128,7 @@ describe('BookAssemblyStudentPreviewHost', () => {
     );
     expect(screen.queryByRole('navigation', { name: 'Authorized Book components' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Next Activity' }));
+    await user.click(screen.getByRole('button', { name: 'View page 8' }));
     expect(screen.getByRole('heading', { name: 'Activity two' })).toBeInTheDocument();
     expect(screen.getByTestId('candidate-pdf')).toHaveTextContent('page 8');
   });

@@ -26,7 +26,13 @@ const fullSources: SourceSetCandidate = {
 const authority: BookSourceVersionAuthority = {
   getSourceVersion: (sourceVersionId) => ({
     sourceVersionId,
+    sourceKey: 'full',
     bookId: 'book-1',
+    checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+    purpose: 'book-source',
+    studentSafeStatus: 'ready',
+    studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: NOW, sourceVersionId,
+      sha256Hex: 'a'.repeat(64), reasonCode: 'teacher-reviewed' },
     physicalPageCount: 10,
     verifiedUsable: true,
   }),
@@ -36,7 +42,7 @@ const manifest = (): BookAssemblyManifestCandidate => ({
   sourceSet: fullSources,
   nodes: [
     { nodeKey: 'section-root', parentNodeKey: null, nodeType: 'section', order: 1 },
-    { nodeKey: 'unit-1', parentNodeKey: 'section-root', nodeType: 'unit', order: 1 },
+    { nodeKey: 'unit-1', parentNodeKey: 'section-root', nodeType: 'unit', order: 1, title: 'Vocabulary Unit' },
   ],
   units: [{
     unitKey: 'unit-1',
@@ -123,6 +129,7 @@ const initialScope: BookAssemblyPublicationScope<BookAssemblyPublicationResult> 
       createdAt: NOW,
       sourcePages: [{ sourceKey: 'full', sourceVersionId: 'full-v1', physicalPageNumber: 2 }],
       payloadFingerprint: 'activity-fingerprint',
+      canonicalPayloadFingerprint: 'fnv1a64:1111111111111111',
     },
   },
   placements: {
@@ -208,6 +215,7 @@ describe('Ticket 18 mapping-revision Worker', () => {
       status: 'published',
       version: {
         adapterTicket: '18',
+        manifest: { nodes: expect.arrayContaining([expect.objectContaining({ nodeKey: 'unit-1', title: 'Vocabulary Unit' })]) },
         mappingRevisionLineage: {
           predecessorPublicationId: 'publication-1',
           preservedActivityVersionIds: ['activity-1-v1'],

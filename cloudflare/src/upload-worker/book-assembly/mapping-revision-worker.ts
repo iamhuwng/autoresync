@@ -120,13 +120,17 @@ const parseManifest = (value: unknown): BookAssemblyManifestCandidate => {
   const record = exact(value, ['bookId', 'sourceSet', 'nodes', 'units'], 'invalid_manifest');
   if (!Array.isArray(record.nodes) || !Array.isArray(record.units)) throw new MappingRevisionWorkerError('invalid_manifest');
   const nodes = record.nodes.map((entry) => {
-    const node = exact(entry, ['nodeKey', 'parentNodeKey', 'nodeType', 'order'], 'invalid_node');
+    const node = exact(entry, ['nodeKey', 'parentNodeKey', 'nodeType', 'order', 'title'], 'invalid_node');
+    if (node.title !== undefined && (typeof node.title !== 'string' || !node.title.trim() || node.title.length > 200)) {
+      throw new MappingRevisionWorkerError('invalid_node');
+    }
     if (node.parentNodeKey !== null && node.parentNodeKey !== undefined) id(node.parentNodeKey, 'invalid_parent_node');
     return {
       nodeKey: id(node.nodeKey, 'invalid_node_key'),
       parentNodeKey: node.parentNodeKey as string | null,
       nodeType: node.nodeType,
       order: revision(node.order, 'invalid_node_order'),
+      ...(node.title !== undefined ? { title: node.title as string } : {}),
     } as BookAssemblyManifestCandidate['nodes'][number];
   });
   const units = record.units.map((entry): BookUnitCandidate => {

@@ -94,3 +94,6 @@ Later-phase policy-surface changes must update this matrix in the same change se
 The Reading backend source reconciliation preserves already-deployed assignment ownership and teacher discovery. No FR status, parent checkbox, result shell, or visibility rollout is closed or expanded by this correction. Production service deployment and authenticated workflow acceptance remain unverified for the candidate.
 
 See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-nonbook-work.md).
+## 2026-10-21 Book runtime terminal recovery candidate
+
+No PRD-0040 FR status or parent checkbox is closed by this work. The change restores committed answers within the existing Book runtime host, without changing saved-result shells or ownership classification. Focused runtime recovery checks passed (62 tests), cache/shell/host checks passed (66 tests), and the affected hook rerun passed (28 tests). These are unit/integration proofs, not authenticated browser acceptance or a claim that historical multi-page Book result viewing is qualified. See `documentation/release-audits/2026-10-20-pdf-continuation.md` for the candidate's remaining gates.

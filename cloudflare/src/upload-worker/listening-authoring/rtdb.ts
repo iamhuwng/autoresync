@@ -425,7 +425,9 @@ const rtdbUrl = (env: RepositoryEnv, path: string): string => {
   const baseUrl = env.FIREBASE_DB_URL?.trim().replace(/\/$/u, '');
   if (!baseUrl) throw new Error('missing_firebase_db_url');
   const encodedPath = encodeRtdbPath(path);
-  return encodedPath ? `${baseUrl}/${encodedPath}.json` : `${baseUrl}/.json`;
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/$/u, '')}/${encodedPath}.json`;
+  return url.href;
 };
 
 const withQuery = (
@@ -433,7 +435,8 @@ const withQuery = (
   query?: FirebaseRtdbQuery,
   authToken?: string,
 ): string => {
-  const parameters = new URLSearchParams();
+  const parsed = new URL(url);
+  const parameters = parsed.searchParams;
   if (query) {
     parameters.set('orderBy', JSON.stringify(query.orderBy));
     if (query.equalTo !== undefined) parameters.set('equalTo', JSON.stringify(query.equalTo));
@@ -441,8 +444,7 @@ const withQuery = (
     if (query.limitToLast !== undefined) parameters.set('limitToLast', String(query.limitToLast));
   }
   if (authToken !== undefined) parameters.set('auth', authToken);
-  const encoded = parameters.toString();
-  return encoded ? `${url}?${encoded}` : url;
+  return parsed.href;
 };
 
 const PATCH_PATH = /^[A-Za-z0-9_:-]{1,160}(?:\/[A-Za-z0-9_:-]{1,160})*$/u;

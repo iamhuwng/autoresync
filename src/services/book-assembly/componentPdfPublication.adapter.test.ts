@@ -15,6 +15,8 @@ import { createCanonicalBookAssemblyPublicationService } from './canonicalPublic
 import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 import {
+  aggregateComponentPdfPublications,
+  buildComponentPdfPublication,
   createComponentPdfPublicationAdapter,
   createComponentPdfPublicationAdapterPlan,
   createComponentPdfPublicationCommandPlan,
@@ -626,10 +628,33 @@ describe('component-PDF publication adapter', () => {
     expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
       previewApproval: approval('2026-07-27T12:59:59.000Z'),
     }))).toThrow('component_pdfs_preview_approval_expired');
+    expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
+      previewApproval: undefined as never,
+    }))).toThrow('component_pdfs_preview_approval_expired');
     const body = manifest();
     expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
       candidate: candidate(body),
       authority: authority(body, false),
     }))).toThrow('component_pdfs_manifest_invalid');
+  });
+
+  it('builds approval-free Unit output and aggregates only exact manifest Units', () => {
+    const { previewApproval: _approval, ...input } = adapterInput();
+    const output = buildComponentPdfPublication(input);
+    expect(output.plan).not.toHaveProperty('previewApproval');
+    const aggregate = aggregateComponentPdfPublications({
+      aggregateCandidateId: 'activation-candidate-1',
+      manifest: manifest(),
+      outputs: [output],
+    });
+    expect(aggregate.plan.candidateId).toBe('activation-candidate-1');
+    expect(aggregate.plan.manifest.units).toEqual([manifest().units[0]]);
+    expect(() => buildComponentPdfPublication({ ...input, authority: authority(manifest(), false) }))
+      .toThrow('component_pdfs_manifest_invalid');
+    expect(() => aggregateComponentPdfPublications({
+      aggregateCandidateId: 'activation-candidate-1',
+      manifest: { ...manifest(), units: [] },
+      outputs: [output],
+    })).toThrow('component_pdfs_unit_coverage_invalid');
   });
 });

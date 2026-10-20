@@ -29,6 +29,20 @@ const releaseClaims: CourseBookAuthority102ReleaseClaims = {
 };
 
 describe('FirebaseRtdbRestClient multi-location patch', () => {
+  it('preserves an emulator namespace through path, query and scoped-auth construction', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({}));
+    const client = new FirebaseRtdbRestClient({
+      env: { FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local' }, fetchImpl,
+      firebaseAuthToken: true, getFirebaseAuthToken: async () => 'scoped-token',
+    });
+    await client.readValue('material_catalog/books', { orderBy: '$key', limitToFirst: 1 });
+    const url = new URL(String(fetchImpl.mock.calls[0][0]));
+    expect(url.pathname).toBe('/material_catalog/books.json');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ ns: 'demo-luyentap-local', auth: 'scoped-token', orderBy: '"$key"', limitToFirst: '1' });
+    await client.patchMultiLocation([{ path: 'a/one', value: 1 }, { path: 'b/two', value: 2 }]);
+    expect(String(fetchImpl.mock.calls[1][0])).toBe('http://localhost:9000/.json?ns=demo-luyentap-local&auth=scoped-token');
+  });
+
   it('uses one scoped Firebase Auth PATCH at the root', async () => {
     const operationId = 'action-1:homework:placement-1:regrade-objective';
     const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response('{}', { status: 200 }));

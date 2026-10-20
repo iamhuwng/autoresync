@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBookAssemblyPreviewClient } from './assemblyPublication.client';
 import type { BookAssemblyPublicationPointer } from '../../types/bookAssembly.types';
 
@@ -20,6 +20,26 @@ const pointer: BookAssemblyPublicationPointer = {
 };
 
 describe('BookAssemblyPreviewClient current publication', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('permits only the exact local Worker origin in development local-only mode', () => {
+    const create = (baseUrl: string) => createBookAssemblyPreviewClient({ baseUrl, getIdToken: async () => 'token' });
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+    expect(() => create('http://localhost:8787')).not.toThrow();
+    for (const url of ['http://localhost:8788', 'http://127.0.0.1:8787', 'http://worker.example',
+      'http://localhost:8787.evil.test', 'http://user:password@localhost:8787',
+      'http://localhost:8787?token=1', 'http://localhost:8787#fragment']) {
+      expect(() => create(url)).toThrow('unavailable');
+    }
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'false');
+    expect(() => create('http://localhost:8787')).toThrow('unavailable');
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+    vi.stubEnv('DEV', false);
+    expect(() => create('http://localhost:8787')).toThrow('unavailable');
+    expect(() => create('https://assembly.example')).not.toThrow();
+  });
+
   it('reads the authenticated current publication pointer', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ status: 'published', pointer, units }), { status: 200 }));
     const client = createBookAssemblyPreviewClient({ baseUrl: 'https://assembly.example', getIdToken: async () => 'token', fetchImpl });

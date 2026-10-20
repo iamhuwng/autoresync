@@ -14,6 +14,7 @@ import { createCanonicalBookAssemblyPublicationService } from './canonicalPublic
 import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 import {
+  buildFullPdfPublication,
   createFullPdfPublicationAdapter,
   createFullPdfPublicationAdapterPlan,
   createFullPdfPublicationCommandPlan,
@@ -328,10 +329,22 @@ describe('full-PDF publication adapter', () => {
     expect(() => createFullPdfPublicationAdapterPlan(adapterInput({
       previewApproval: approval('2026-07-27T12:59:59.000Z'),
     }))).toThrow('full_pdf_preview_approval_expired');
+    expect(() => createFullPdfPublicationAdapterPlan(adapterInput({
+      previewApproval: undefined as never,
+    }))).toThrow('full_pdf_preview_approval_expired');
     const body = manifest();
     expect(() => createFullPdfPublicationAdapterPlan(adapterInput({
       candidate: candidate(body),
       authority: authority(body, false),
     }))).toThrow('full_pdf_manifest_invalid');
+  });
+
+  it('builds ID-based publication output without approval and retains source validation', () => {
+    const { previewApproval: _approval, ...input } = adapterInput();
+    const output = buildFullPdfPublication(input);
+    expect(output.plan).not.toHaveProperty('previewApproval');
+    expect(output.canonicalActivityVersions).toHaveLength(1);
+    expect(() => buildFullPdfPublication({ ...input, authority: authority(manifest(), false) }))
+      .toThrow('full_pdf_manifest_invalid');
   });
 });

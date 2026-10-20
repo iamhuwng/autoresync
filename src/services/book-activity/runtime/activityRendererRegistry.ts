@@ -8,6 +8,7 @@ import {
   activityRendererRegistrations,
 } from './activityRendererManifest';
 import { MAX_ACTIVITY_RESPONSE_SERIALIZED_BYTES } from './activityResponseCodec.types';
+import { createMatchingResponseCodec, MATCHING_RESPONSE_CODEC_ID } from './codecs/matchingResponseCodec';
 import type {
   ActivityRendererRegistration,
   ActivityRendererContext,
@@ -58,7 +59,7 @@ const taskProfileMatches = (
   selector: ActivityRendererTaskProfileSelector | undefined,
   profile: ActivityTaskProfile | null,
 ): boolean => {
-  if (!selector) return true;
+  if (!selector) return profile === null;
   return (
     profile !== null &&
     selector.taxonomyId === profile.taxonomyId &&
@@ -85,7 +86,7 @@ const registrationsOverlap = (
 ): boolean => {
   if (left.family !== right.family || left.variant !== right.variant ||
       left.presentationMode !== right.presentationMode) return false;
-  if (!left.taskProfile || !right.taskProfile) return true;
+  if (!left.taskProfile || !right.taskProfile) return !left.taskProfile && !right.taskProfile;
   if (
     left.taskProfile.taxonomyId !== right.taskProfile.taxonomyId ||
     left.taskProfile.typeId !== right.taskProfile.typeId
@@ -178,6 +179,7 @@ export const createActivityRendererRegistry = (
     }
   }
 
+  const matchingByRule = new Map<string, RegisteredActivityRenderer>();
   return {
     registrations: () => ordered,
     resolve: (projection, context) => {
@@ -197,8 +199,20 @@ export const createActivityRendererRegistry = (
         candidate.presentationMode === validated.presentationMode &&
         taskProfileMatches(candidate.taskProfile, validated.taskProfile),
       );
-      return registration
-        ? { supported: true, registration, projection: validated }
+      let resolvedRegistration = registration;
+      if (registration?.family === 'matching' && registration.codecId === MATCHING_RESPONSE_CODEC_ID) {
+        const allowOptionReuse = validated.answerRule.allowOptionReuse === true;
+        const ruleKey = `${registrationKey(registration)}:${allowOptionReuse}`;
+        resolvedRegistration = matchingByRule.get(ruleKey);
+        if (!resolvedRegistration) {
+          // Bind before wrapping; retain renderer identity across answer updates.
+          const template = registrations.find((candidate) => registrationKey(candidate) === registrationKey(registration))!;
+          resolvedRegistration = registerActivityRenderer({ ...template, codec: createMatchingResponseCodec({ allowOptionReuse }) });
+          matchingByRule.set(ruleKey, resolvedRegistration);
+        }
+      }
+      return resolvedRegistration
+        ? { supported: true, registration: resolvedRegistration, projection: validated }
         : diagnostic('unknown-renderer', '$.interaction', 'No renderer is registered for this Activity.');
     },
   };

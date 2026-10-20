@@ -151,7 +151,7 @@ const isPairArray = (
     typeof item.rightItemId === 'string',
   );
 
-const isSubmissionAnswer = (value: unknown): value is ActivitySubmissionAnswer =>
+export const isSubmissionAnswer = (value: unknown): value is ActivitySubmissionAnswer =>
   value === null || typeof value === 'string' || isStringArray(value) || isPairArray(value);
 
 const savedSubmissionAnswer = (
@@ -168,9 +168,8 @@ const savedSubmissionAnswer = (
 };
 
 /**
- * Drafts created by the legacy activity runtime store one submission row per
- * interaction. Keep that stored value untouched, but present the current
- * renderer with the canonical response shape.
+ * Aggregate drafts and committed attempts store submission rows. Present each
+ * stored answer to the renderer using its canonical response shape.
  */
 export const normalizeSavedActivityResponse = (
   interactionId: string,
@@ -219,6 +218,29 @@ export const activitySubmissionFromRuntimeResponses = (
       answer: responseAnswer(interactionId, responses[interactionId]),
     };
   });
+};
+
+/** Every slot is present; an omitted answer records an untouched question. */
+export const activityDraftFromRuntimeResponses = (
+  interactionIds: readonly string[], responses: Readonly<Record<string, unknown>>,
+): readonly { readonly interactionId: string; readonly answer?: ActivitySubmissionAnswer }[] => (
+  interactionIds.map((interactionId) => Object.hasOwn(responses, interactionId)
+    ? { interactionId, answer: responseAnswer(interactionId, responses[interactionId]) }
+    : { interactionId })
+);
+
+export const runtimeResponsesFromActivityDraft = (
+  interactionIds: readonly string[], value: unknown,
+): Readonly<Record<string, unknown>> | null => {
+  if (!Array.isArray(value) || value.length !== interactionIds.length || interactionIds.length === 0) return null;
+  const responses: Record<string, unknown> = {};
+  for (const [index, entry] of value.entries()) {
+    if (!isPlainRecord(entry) || entry.interactionId !== interactionIds[index]
+      || Object.keys(entry).some((key) => key !== 'interactionId' && key !== 'answer')
+      || (Object.hasOwn(entry, 'answer') && !isSubmissionAnswer(entry.answer))) return null;
+    if (Object.hasOwn(entry, 'answer')) responses[entry.interactionId as string] = [structuredClone(entry)];
+  }
+  return responses;
 };
 
 export const createBookRuntimeActivitySubmissionBoundary = (input: {

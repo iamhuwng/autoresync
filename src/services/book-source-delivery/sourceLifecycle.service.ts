@@ -48,6 +48,8 @@ export interface SourceUploadReconciliationRepository extends Pick<
   | 'claimCleanup'
   | 'failCleanup'
   | 'releaseCleaned'
+  | 'retireVerifiedSource'
+  | 'completeTerminalCleanup'
   | 'recordCommittedVersionReconciliationFailure'
   | 'clearCommittedVersionReconciliationFailure'
 > {}
@@ -58,8 +60,14 @@ export interface SourceUploadReconciliationDependencies {
   readonly authorizeOwner: (input: {
     readonly actorId: string;
     readonly bookId: string;
+    readonly reservationId: string;
+    readonly operation: BookSourceUploadOperation;
   }) => boolean | Promise<boolean>;
   readonly repository: SourceUploadReconciliationRepository;
+  readonly prepareCanceledRetirement?: (
+    state: BookSourceUploadAccountState,
+    operation: BookSourceUploadOperation,
+  ) => Promise<BookSourceUploadAccountState | null>;
   readonly provider: SourceLifecycleProviderPort;
   readonly versionReconciliation: SourceLifecycleVersionReconciliationPort;
   /** Trusted metadata lookup. `null` is authoritative provider absence. */
@@ -135,8 +143,8 @@ const safeStatus = (operation: BookSourceUploadOperation): SourceUploadSafeStatu
   reservationId: operation.reservationId,
   bookId: operation.bookId,
   sourceVersionId: operation.sourceVersionId,
-  status: operation.status,
-  retryKind: operation.status === 'cleanup_pending'
+  status: operation.status === 'retired' ? 'released' : operation.status === 'retirement_pending' ? 'cleanup_pending' : operation.status,
+  retryKind: operation.status === 'cleanup_pending' || operation.status === 'retirement_pending'
     || (operation.status === 'verified_completed' && operation.versionReconciliation !== undefined)
     ? 'cleanup'
     : operation.status === 'reserved'
@@ -162,18 +170,16 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
     throw new SourceUploadReconciliationError('invalid_deployment');
   }
 
-  const authorize = async (actorId: string, bookId: string): Promise<void> => {
-    if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId)
-      || await dependencies.authorizeOwner({ actorId, bookId }) !== true) {
+  const readOwned = async (actorId: string, bookId: string, reservationId: string) => {
+    if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId) || !SAFE_ID.test(reservationId)) {
       throw new SourceUploadReconciliationError('authority_denied');
     }
-  };
-
-  const readOwned = async (actorId: string, bookId: string, reservationId: string) => {
-    await authorize(actorId, bookId);
     const state = await dependencies.readAccountState();
     const operation = operationFor(state, reservationId, bookId);
-    if (operation.ownerId !== actorId) throw new SourceUploadReconciliationError('authority_denied');
+    if (operation.ownerId !== actorId
+      || await dependencies.authorizeOwner({ actorId, bookId, reservationId, operation }) !== true) {
+      throw new SourceUploadReconciliationError('authority_denied');
+    }
     return { state: state!, operation };
   };
 
@@ -225,7 +231,15 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
     async reconcile(input: { readonly actorId: string; readonly bookId: string; readonly reservationId: string }) {
       if (dependencies.recoveryContext) throw new SourceUploadReconciliationError('recovery_suppressed');
       let { state, operation } = await readOwned(input.actorId, input.bookId, input.reservationId);
-      const startedAt = now(dependencies.clock);
+      let startedAt = now(dependencies.clock);
+      if (operation.status === 'verified_completed' && dependencies.prepareCanceledRetirement) {
+        const pending = await dependencies.prepareCanceledRetirement(state, operation);
+        if (pending) {
+          state = pending;
+          operation = operationFor(state, input.reservationId, input.bookId);
+          startedAt = now(dependencies.clock);
+        }
+      }
       if (operation.status === 'verified_completed') {
         if (Date.parse(operation.expiresAt) > startedAt.getTime()) {
           throw new SourceUploadReconciliationError('operation_not_eligible');
@@ -290,8 +304,13 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
         });
         operation = operationFor(state, input.reservationId, input.bookId);
       }
-      if (operation.status === 'released') return safeStatus(operation);
-      if (operation.status !== 'cleanup_pending' || !operation.cleanup) {
+      const terminalSweep = (operation.status === 'released' || operation.status === 'retired') && operation.cleanup !== undefined;
+      if ((operation.status === 'released' || operation.status === 'retired') && !terminalSweep) return safeStatus(operation);
+      const canceledRetirement = operation.status === 'retirement_pending'
+        && operation.retirementGuard && 'kind' in operation.retirementGuard
+        && operation.retirementGuard.kind === 'canceled-submission';
+      if ((operation.status !== 'cleanup_pending' && !canceledRetirement && !terminalSweep) || !operation.cleanup
+        || (canceledRetirement && Date.parse(operation.expiresAt) > startedAt.getTime())) {
         throw new SourceUploadReconciliationError('operation_not_eligible');
       }
 
@@ -308,7 +327,7 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
       try {
         const cleanup = operation.cleanup!;
         const proof = await dependencies.versionReconciliation.reconcileOperationVersions(
-          { operation },
+          { operation: operation.status === 'retired' ? { ...operation, ...operation.cleanupIdentity! } : operation },
           { timeoutMs: providerRequestTimeoutMs },
         ).then((result) => {
           if (result === 'provider_absent') return 'provider_absent' as const;
@@ -316,19 +335,30 @@ export const createSourceUploadReconciler = (dependencies: SourceUploadReconcili
           throw new SourceProviderError('provider_drift', false);
         });
         const releasedAt = now(dependencies.clock).toISOString();
-        const released = await dependencies.repository.releaseCleaned({
-          accountId: dependencies.accountId,
-          expectedRevision: claimed.revision,
-          reservationId: operation.reservationId,
-          leaseOwner: dependencies.leaseOwner,
-          releasedAt,
-          proof,
-        });
+        const released = terminalSweep
+          ? await dependencies.repository.completeTerminalCleanup({
+              accountId: dependencies.accountId, expectedRevision: claimed.revision,
+              reservationId: operation.reservationId, leaseOwner: dependencies.leaseOwner,
+              completedAt: releasedAt, nextRetryAt: new Date(Date.parse(releasedAt) + 60 * 60_000).toISOString(), proof,
+            })
+          : canceledRetirement
+          ? await dependencies.repository.retireVerifiedSource({
+              accountId: dependencies.accountId, expectedRevision: claimed.revision,
+              reservationId: operation.reservationId, bookId: operation.bookId,
+              ownerId: operation.ownerId, sourceKey: operation.sourceKey, sourceVersionId: operation.sourceVersionId,
+              verifiedStorage: operation.verifiedStorage!, deletionId: operation.retiredDeletionId!,
+              retirementGuard: operation.retirementGuard!, currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+              leaseOwner: dependencies.leaseOwner, retiredAt: releasedAt, proof,
+            })
+          : await dependencies.repository.releaseCleaned({
+              accountId: dependencies.accountId, expectedRevision: claimed.revision,
+              reservationId: operation.reservationId, leaseOwner: dependencies.leaseOwner, releasedAt, proof,
+            });
         const result = operationFor(released, input.reservationId, input.bookId);
         await emit(result, 'released', proof, cleanup.attempt);
         return safeStatus(result);
       } catch (error) {
-        if (error instanceof SourceProviderError && error.code === 'not_found') {
+        if (!canceledRetirement && !terminalSweep && error instanceof SourceProviderError && error.code === 'not_found') {
           const released = await dependencies.repository.releaseCleaned({
             accountId: dependencies.accountId,
             expectedRevision: claimed.revision,

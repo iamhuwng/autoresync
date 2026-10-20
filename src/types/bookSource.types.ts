@@ -17,6 +17,20 @@ export interface PublicationRetirementGuard {
   readonly sourceVersionIds: readonly string[];
 }
 
+/** Exact canceled submission identity, with no published source references. */
+export interface CanceledSubmissionRetirementGuard {
+  readonly kind: 'canceled-submission';
+  readonly bookId: string;
+  readonly sourceVersionId: string;
+  readonly deletionId: string;
+  readonly sourceVersionIds?: readonly string[];
+  readonly ownerId: string;
+  readonly submissionOperationId: string;
+  readonly inputFingerprint: string;
+}
+
+export type SourceRetirementGuard = PublicationRetirementGuard | CanceledSubmissionRetirementGuard;
+
 /** Immutable storage coordinates for one Book PDF Source Version. */
 export interface BookSourceVersionStorageIdentity {
   readonly bookId: string;
@@ -161,6 +175,10 @@ export interface BookSourceUploadReservation {
   readonly expiresAt: string;
 }
 
+/** Server-only scope retained to find versions from already-started canceled uploads. */
+export type BookSourceTerminalCleanupIdentity = Pick<BookSourceUploadReservation,
+  'storageLocationId' | 'providerKind' | 'privateBucketId' | 'providerObjectKey' | 'kind' | 'expectedChecksum' | 'expiresAt'>;
+
 /** Safe Assembly projection written only after trusted storage verification. */
 export interface BookSourceAssemblyProjection {
   readonly ownerId: string;
@@ -185,6 +203,8 @@ export interface BookSourceUploadOperation extends Omit<
   BookSourceUploadReservation,
   never
 > {
+  /** Exact submission operation that allocated this not-yet-canonical Book. */
+  readonly submissionOperationId?: string;
   /**
    * Worker-derived page count. It is absent until trusted completion reads the
    * immutable provider object through the bounded SourceProvider seam.
@@ -199,21 +219,24 @@ export interface BookSourceUploadOperation extends Omit<
   readonly verifiedStorage?: BookSourceVersionStorageIdentity;
   readonly completedAt?: string;
   readonly cleanup?: BookSourceUploadCleanupState;
+  readonly cleanupIdentity?: BookSourceTerminalCleanupIdentity;
   /** Retry state for deleting uncommitted siblings while preserving this committed version. */
   readonly versionReconciliation?: BookSourceCommittedVersionReconciliationState;
   readonly releasedAt?: string;
   readonly releaseProof?: 'exact_version_deleted' | 'provider_absent';
-  /** Retired rows retain only provider-free immutable history. */
+  /** Publication retirement retains provider-free immutable history. */
   readonly checksum?: BookSourceChecksum;
   readonly retiredAt?: string;
   readonly retirementProof?: 'exact_version_deleted' | 'provider_absent';
   readonly retiredDeletionId?: string;
-  readonly retirementGuard?: PublicationRetirementGuard;
+  readonly retirementGuard?: SourceRetirementGuard;
   readonly retirementPendingAt?: string;
 }
 
 export interface BookSourceUploadAccountState {
   readonly revision: number;
+  /** Round-robin reservation discovery progress; independent of domain revision. */
+  readonly canceledSubmissionScanAfterReservationId?: string;
   readonly capacity: BookSourceUploadAccountCapacityState;
   readonly operations: Readonly<Record<string, BookSourceUploadOperation>>;
   /** Atomically updated with reservations/completions in this account CAS. */
@@ -240,6 +263,6 @@ export interface BookSourceLifecycleAuditEvent {
   readonly sourceVersionId: string;
   readonly replacesSourceVersionId?: string;
   readonly deletionId?: string;
-  readonly retirementGuard?: PublicationRetirementGuard;
+  readonly retirementGuard?: SourceRetirementGuard;
   readonly retirementProof?: 'exact_version_deleted' | 'provider_absent';
 }

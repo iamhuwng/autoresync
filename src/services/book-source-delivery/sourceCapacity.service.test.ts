@@ -35,9 +35,23 @@ describe('Book Source capacity domain', () => {
     expect(() => assertBookSourceCapacityAvailable(usage)).not.toThrow();
     expect(() => assertBookSourceCapacityAvailable({ ...usage, temporaryBytes: 11 })).toThrow();
   });
+
+  it('keeps canceled upload capacity until authoritative cleanup releases it', () => {
+    const usage = calculateBookSourceCapacityUsage({
+      trackedAccountBytes: BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES - 40, temporaryBytes: 0,
+      operations: { initial: operation('initial', 'initial', 20, 'cleanup_pending'),
+        replacement: operation('replacement', 'replacement', 20, 'cleanup_pending') },
+    });
+    expect(totalBookSourceCapacityBytes(usage)).toBe(BOOK_SOURCE_ACCOUNT_CAPACITY_BYTES);
+    expect(() => assertBookSourceCapacityAvailable({ ...usage, pendingUploadBytes: 21 })).toThrow();
+    expect(totalBookSourceCapacityBytes(calculateBookSourceCapacityUsage({
+      trackedAccountBytes: 0, temporaryBytes: 0,
+      operations: { released: operation('released', 'initial', 20, 'released') },
+    }))).toBe(0);
+  });
 });
 
-function operation(reservationId: string, kind: 'initial' | 'replacement', byteSize: number, status: 'reserved' | 'verified_completed' = 'reserved', purpose: 'book-source' | 'student-document' = 'book-source') {
+function operation(reservationId: string, kind: 'initial' | 'replacement', byteSize: number, status: 'reserved' | 'verified_completed' | 'cleanup_pending' | 'released' = 'reserved', purpose: 'book-source' | 'student-document' = 'book-source') {
   return {
     reservationId, bookId: 'book-1', sourceVersionId: `source-${reservationId}`, sourceKey: 'unit-1', ownerId: 'teacher-1', storageLocationId: 'location-1',
     providerKind: 'b2', privateBucketId: 'bucket-1', providerObjectKey: `private/${reservationId}.pdf`, kind, byteSize,

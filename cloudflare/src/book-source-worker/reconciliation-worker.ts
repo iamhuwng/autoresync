@@ -9,13 +9,17 @@ import type {
 import {
   createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
   createTrustedFirebaseSourceUploadRtdbTransaction,
+  normalizeTrustedSourceUploadDatabaseUrl,
 } from '../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
 import {
   SourceUploadRtdbRepository,
   sourceUploadAccountPath,
   validateBookSourceUploadAccountState,
 } from '../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
-import { createBookSourceControlHost } from './control-host';
+import {
+  createBookSourceControlHost,
+  type BookSourceControlHostOptions,
+} from './control-host';
 import {
   createBackblazeB2ExactVersionCleanupAdapterFromEnv,
   type BackblazeB2ExactVersionCleanupEnv,
@@ -25,6 +29,8 @@ import {
   createCapacityProbeWorker,
 } from './capacity-probe-worker';
 import { isActiveBookSourceAuthorityProfile } from '../upload-worker/book-source/trusted-source-contract.ts';
+import { authorizesCanceledSubmissionRetirement, fenceCanceledSubmissionBook, findCanceledSubmissionSource } from '../upload-worker/book-source/canceled-submission-retirement.ts';
+import { FirebaseRtdbRestClient } from '../upload-worker/listening-authoring/rtdb.ts';
 
 const MAX_ACCOUNT_STATE_BYTES = 32 * 1024 * 1024;
 const MAX_SCHEDULED_CAPACITY_WORK_UNITS = 4;
@@ -45,6 +51,7 @@ interface ReconciliationWorkerEnv extends BackblazeB2ExactVersionCleanupEnv, Rec
   readonly FIREBASE_DATABASE_URL: string;
   readonly FIREBASE_PROJECT_ID: string;
   readonly BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN?: string;
+  readonly LOCAL_EMULATOR_AUTH?: string;
 }
 
 const required = (value: unknown): string => {
@@ -52,13 +59,34 @@ const required = (value: unknown): string => {
   return value.trim();
 };
 
-const databaseUrl = (value: string): string => {
-  const url = new URL(value);
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+const localEmulator = (env: ReconciliationWorkerEnv): boolean => {
+  const enabled = env.LOCAL_EMULATOR_AUTH === 'true';
+  if (enabled && env.FIREBASE_PROJECT_ID !== 'demo-luyentap-local') {
     throw new Error('invalid_deployment');
   }
-  return url.href.replace(/\/$/u, '');
+  return enabled;
 };
+
+const databaseUrl = (value: string, isLocal: boolean): string =>
+  normalizeTrustedSourceUploadDatabaseUrl(value, isLocal);
+
+const databasePathUrl = (baseUrl: string, path: string): string => {
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/$/u, '')}/${path}.json`;
+  return url.href;
+};
+
+const accessTokenProvider = (
+  env: ReconciliationWorkerEnv,
+  fetchImpl: typeof fetch,
+  isLocal: boolean,
+) => isLocal
+  ? { getAccessToken: async () => 'owner' }
+  : createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
+      serviceAccountEmail: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL),
+      serviceAccountPrivateKey: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY).replace(/\\n/gu, '\n'),
+      fetchImpl,
+    });
 
 const readBoundedJson = async (response: Response): Promise<unknown> => {
   const declared = response.headers.get('content-length');
@@ -123,6 +151,7 @@ const failureCode = (error: unknown): string => {
 
 interface ReconciliationRuntime {
   readonly readAccountState: () => Promise<BookSourceUploadAccountState | null>;
+  readonly findCanceledSubmission?: (state: BookSourceUploadAccountState, at: Date) => Promise<BookSourceUploadOperation | undefined>;
   readonly reconciler: ReturnType<typeof createSourceUploadReconciler>;
   readonly repository: Pick<
     SourceUploadRtdbRepository,
@@ -156,7 +185,10 @@ const scheduledCandidate = (
   if (!state) return undefined;
   return Object.values(state.operations)
     .filter((operation) => {
-      if (operation.status === 'cleanup_pending') {
+      if (operation.status === 'cleanup_pending' || (operation.status === 'retirement_pending'
+        && operation.retirementGuard && 'kind' in operation.retirementGuard
+        && operation.retirementGuard.kind === 'canceled-submission')
+        || ((operation.status === 'released' || operation.status === 'retired') && operation.cleanup !== undefined)) {
         return Date.parse(operation.cleanup?.nextRetryAt ?? '') <= at.getTime();
       }
       if (operation.status === 'reserved') {
@@ -197,19 +229,18 @@ export const createBookSourceReconciliationWorker = (
   capacityProbe = createCapacityProbeWorker({ fetchImpl }),
   runtimeFactory?: ReconciliationRuntimeFactory,
   capacityRuntimeFactory?: CapacityRuntimeFactory,
+  firebaseVerifier?: BookSourceControlHostOptions['verifier'],
 ) => {
   const createRuntime: ReconciliationRuntimeFactory = runtimeFactory ?? (async (env) => {
     const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID);
-    const baseUrl = databaseUrl(required(env.FIREBASE_DATABASE_URL));
-    const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
-      serviceAccountEmail: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL),
-      serviceAccountPrivateKey: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY).replace(/\\n/gu, '\n'),
-      fetchImpl,
-    });
+    const isLocal = localEmulator(env);
+    const baseUrl = databaseUrl(required(env.FIREBASE_DATABASE_URL), isLocal);
+    const tokenProvider = accessTokenProvider(env, fetchImpl, isLocal);
     const repository = new SourceUploadRtdbRepository(
       createTrustedFirebaseSourceUploadRtdbTransaction({
         databaseUrl: baseUrl,
-        accessTokenProvider,
+        localEmulator: isLocal,
+        accessTokenProvider: tokenProvider,
         fetchImpl,
       }),
       { now },
@@ -217,8 +248,8 @@ export const createBookSourceReconciliationWorker = (
     const cleanup = createBackblazeB2ExactVersionCleanupAdapterFromEnv(env, { fetch: fetchImpl });
     const readAccountState = async () => {
       const response = await fetchImpl(
-        `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
-        { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+        databasePathUrl(baseUrl, sourceUploadAccountPath(accountId)),
+        { headers: { Authorization: `Bearer ${await tokenProvider.getAccessToken()}` } },
       );
       if (!response.ok) throw new Error('account_state_unavailable');
       const value = await readBoundedJson(response);
@@ -226,40 +257,76 @@ export const createBookSourceReconciliationWorker = (
     };
     const readTrustedValue = async (path: string): Promise<unknown> => {
       const response = await fetchImpl(
-        `${baseUrl}/${path}.json`,
-        { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+        databasePathUrl(baseUrl, path),
+        { headers: { Authorization: `Bearer ${await tokenProvider.getAccessToken()}` } },
       );
       if (!response.ok) throw new Error('authority_unavailable');
       return readBoundedJson(response);
     };
+    const retirementAuthority = new FirebaseRtdbRestClient({
+      env: { FIREBASE_DB_URL: baseUrl }, fetchImpl, getAccessToken: () => tokenProvider.getAccessToken(),
+    });
     const authorizeOwner = async ({
       actorId,
       bookId,
-    }: { readonly actorId: string; readonly bookId: string }): Promise<boolean> => {
-      if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId)) return false;
-      const [state, book, profile] = await Promise.all([
-        readAccountState(),
+      reservationId,
+      operation,
+    }: { readonly actorId: string; readonly bookId: string; readonly reservationId: string; readonly operation: BookSourceUploadOperation }): Promise<boolean> => {
+      if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId) || !SAFE_ID.test(reservationId)
+        || operation.ownerId !== actorId || operation.bookId !== bookId
+        || operation.reservationId !== reservationId) return false;
+      const [book, profile, submission] = await Promise.all([
         readTrustedValue(`material_catalog/books/${bookId}`),
         readTrustedValue(`users/${actorId}`),
+        operation.submissionOperationId === undefined
+          ? Promise.resolve(null)
+          : SAFE_ID.test(operation.submissionOperationId)
+            ? readTrustedValue(`book_submission_operations/${actorId}/operations/${operation.submissionOperationId}`)
+            : Promise.resolve(undefined),
       ]);
-      const ownsOperation = state !== null
-        && Object.values(state.operations).some(
-          (operation) => operation.bookId === bookId && operation.ownerId === actorId,
-        );
+      const submissionRecord = record(submission);
+      const canceledSubmission = operation.submissionOperationId !== undefined
+        && submissionRecord?.operationId === operation.submissionOperationId
+        && submissionRecord.ownerId === actorId
+        && submissionRecord.finalBookId === bookId
+        && typeof submissionRecord.fingerprint === 'string'
+        && /^[a-f0-9]{64}$/iu.test(submissionRecord.fingerprint)
+        && submissionRecord.state === 'canceled';
       const bookRecord = record(book);
       const currentBookOwner = bookRecord !== null
         && bookRecord.bookId === bookId
         && bookRecord.ownerId === actorId
         && bookRecord.status !== 'archived';
-      return ownsOperation
-        && currentBookOwner
-        && isActiveBookSourceAuthorityProfile(profile, 'teacher');
+      if (!isActiveBookSourceAuthorityProfile(profile, 'teacher')) return false;
+      if (operation.submissionOperationId === undefined) return currentBookOwner;
+      if (canceledSubmission && book === null) {
+        return operation.status !== 'retirement_pending' && operation.status !== 'retired'
+          || authorizesCanceledSubmissionRetirement(readTrustedValue, operation);
+      }
+      // A committed submission can reconcile duplicate versions only while preserving its verified source.
+      return currentBookOwner && operation.status === 'verified_completed'
+        && submissionRecord?.state === 'committed'
+        && submissionRecord.operationId === operation.submissionOperationId
+        && submissionRecord.ownerId === actorId && submissionRecord.finalBookId === bookId;
     };
     const dependencies: SourceUploadReconciliationDependencies = {
       accountId,
       readAccountState,
       authorizeOwner,
       repository,
+      prepareCanceledRetirement: async (state, operation) => {
+        if (operation.submissionOperationId === undefined) return null;
+        const submission = record(await readTrustedValue(`book_submission_operations/${operation.ownerId}/operations/${operation.submissionOperationId}`));
+        if (submission?.state !== 'canceled') return null;
+        const retirementGuard = await fenceCanceledSubmissionBook(retirementAuthority, operation);
+        return repository.fenceVerifiedSource({
+          accountId, expectedRevision: state.revision, reservationId: operation.reservationId,
+          bookId: operation.bookId, ownerId: operation.ownerId, sourceKey: operation.sourceKey,
+          sourceVersionId: operation.sourceVersionId, verifiedStorage: operation.verifiedStorage!,
+          retirementGuard, deletionId: retirementGuard.deletionId, fencedAt: now().toISOString(),
+          currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+        });
+      },
       provider: cleanup,
       versionReconciliation: cleanup,
       resolveExactVersion: (operation, options) => cleanup.resolveExactVersion(operation, options),
@@ -269,6 +336,13 @@ export const createBookSourceReconciliationWorker = (
     };
     return {
       readAccountState,
+      findCanceledSubmission: async (state, at) => {
+        const result = await findCanceledSubmissionSource(state, at, readTrustedValue);
+        if (result.afterReservationId) await repository.advanceCanceledSubmissionScan({
+          accountId, expectedRevision: state.revision, afterReservationId: result.afterReservationId,
+        });
+        return result.operation;
+      },
       reconciler: createSourceUploadReconciler(dependencies),
       repository,
     };
@@ -284,26 +358,22 @@ export const createBookSourceReconciliationWorker = (
         }
       : async (env) => {
           const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID);
-          const baseUrl = databaseUrl(required(env.FIREBASE_DATABASE_URL));
-          const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
-            serviceAccountEmail: required(env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_EMAIL),
-            serviceAccountPrivateKey: required(
-              env.BOOK_SOURCE_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY,
-            ).replace(/\\n/gu, '\n'),
-            fetchImpl,
-          });
+          const isLocal = localEmulator(env);
+          const baseUrl = databaseUrl(required(env.FIREBASE_DATABASE_URL), isLocal);
+          const tokenProvider = accessTokenProvider(env, fetchImpl, isLocal);
           const repository = new SourceUploadRtdbRepository(
             createTrustedFirebaseSourceUploadRtdbTransaction({
               databaseUrl: baseUrl,
-              accessTokenProvider,
+              localEmulator: isLocal,
+              accessTokenProvider: tokenProvider,
               fetchImpl,
             }),
             { now },
           );
           const readAccountState = async () => {
             const response = await fetchImpl(
-              `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
-              { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
+              databasePathUrl(baseUrl, sourceUploadAccountPath(accountId)),
+              { headers: { Authorization: `Bearer ${await tokenProvider.getAccessToken()}` } },
             );
             if (!response.ok) throw new Error('account_state_unavailable');
             const value = await readBoundedJson(response);
@@ -322,6 +392,7 @@ export const createBookSourceReconciliationWorker = (
       const { reconciler } = await createRuntime(env);
       const actionsEnabled = env.BOOK_SOURCE_RECONCILIATION_ACTION_STATE?.trim() === 'enabled';
       return createBookSourceControlHost({
+        verifier: firebaseVerifier,
         service: {
           begin: async () => { throw { code: 'rollout_denied' }; },
           complete: async () => { throw { code: 'invalid_deployment' }; },
@@ -353,9 +424,11 @@ export const createBookSourceReconciliationWorker = (
     const at = now();
 
     if (env.BOOK_SOURCE_RECONCILIATION_ACTION_STATE?.trim() === 'enabled') {
+      let runtime: ReconciliationRuntime | undefined;
       try {
-        const runtime = await createRuntime(env);
-        const candidate = scheduledCandidate(await runtime.readAccountState(), at);
+        runtime = await createRuntime(env);
+        const state = await runtime.readAccountState();
+        const candidate = scheduledCandidate(state, at);
         if (candidate) {
           await runtime.reconciler.reconcile({
             actorId: candidate.ownerId,
@@ -367,6 +440,23 @@ export const createBookSourceReconciliationWorker = (
         console.error('book_source_reconciliation_scheduled_failure', {
           code: failureCode(error),
         });
+      }
+      if (runtime?.findCanceledSubmission) {
+        try {
+          const state = await runtime.readAccountState();
+          const candidate = state ? await runtime.findCanceledSubmission(state, at) : undefined;
+          if (candidate) {
+            await runtime.reconciler.reconcile({
+              actorId: candidate.ownerId,
+              bookId: candidate.bookId,
+              reservationId: candidate.reservationId,
+            });
+          }
+        } catch (error) {
+          console.error('book_source_canceled_submission_scheduled_failure', {
+            code: failureCode(error),
+          });
+        }
       }
     }
 

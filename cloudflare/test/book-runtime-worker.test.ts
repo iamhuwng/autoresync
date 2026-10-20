@@ -425,7 +425,9 @@ describe('Ticket 28A runtime Worker boundary', () => {
       schedulePolicy,
     });
 
-    await expect(parse(await handlers.command({ request: request(body()), env, uid: 'student-1' })))
+    await expect(parse(await handlers.command({ request: request(body({
+      contextId: classBinding.context.contextId,
+    })), env, uid: 'student-1' })))
       .resolves.toEqual({ status: 403, body: { code: 'runtime_class_membership_denied' } });
     expect(schedulePolicy.authorize).toHaveBeenCalledTimes(1);
     expect(schedulePolicy.revalidate).toHaveBeenCalledTimes(1);
@@ -492,6 +494,22 @@ describe('Ticket 28A runtime Worker boundary', () => {
     expect(repository.snapshot().attempts?.['attempt-1']?.terminalLate?.authorityRevision).toBe(1);
     expect(projectBookResult).toHaveBeenCalledTimes(2);
     expect(Object.keys(repository.snapshot().attempts ?? {})).toEqual(['attempt-1']);
+
+    const terminalAddress = {
+      request: new Request('https://worker.test/book-runtime/terminal'), env, uid: 'student-1',
+      bindingId: 'binding-1', bindingRevision: '1', contextId: 'context-1', placementId: 'placement-1',
+      activityId: 'activity-1', activityVersion: '1', interactionId: 'interaction-1',
+    };
+    await expect(parse(await handlers.readTerminal(terminalAddress))).resolves.toEqual({ status: 200, body: {
+      status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
+      response: [{ interactionId: 'interaction-1', answer: 'draft' }],
+    } });
+    const otherRecipient = await parse(await handlers.readTerminal({ ...terminalAddress, uid: 'student-2' }));
+    expect(otherRecipient.status).toBe(403);
+    expect(otherRecipient.body).not.toHaveProperty('response');
+    const otherContext = await parse(await handlers.readTerminal({ ...terminalAddress, contextId: 'other-context' }));
+    expect(otherContext).toEqual({ status: 409, body: { code: 'runtime_binding_stale' } });
+    expect(otherContext.body).not.toHaveProperty('response');
   });
 
   it('fails closed before schedule or mutation when the Interaction is not in the Activity', async () => {

@@ -147,8 +147,12 @@ export const validateBookAssemblyManifestCandidate = (
       errors.push(error('invalid-record', path, 'Content node must be an object.'));
       return;
     }
-    if (!exactKeys(rawNode, ['nodeKey', 'parentNodeKey', 'nodeType', 'order'])) {
+    if (!exactKeys(rawNode, ['nodeKey', 'parentNodeKey', 'nodeType', 'order'], ['title'])) {
       errors.push(error('unknown-field', path, 'Content node contains unknown or missing fields.'));
+    }
+    if (Object.hasOwn(rawNode, 'title') && (typeof rawNode.title !== 'string'
+      || rawNode.title.trim().length === 0 || rawNode.title.length > 200)) {
+      errors.push(error('invalid-value', `${path}.title`, 'Node title must be nonempty and at most 200 characters.'));
     }
     const nodeKey = rawNode.nodeKey;
     const parentNodeKey = rawNode.parentNodeKey;

@@ -206,7 +206,7 @@ const SOURCE_SET_KEYS = new Set(['sourceStrategy', 'sources']);
 const SOURCE_KEYS = new Set(['sourceKey', 'sourceVersionId', 'sourceOrder', 'ownerNodeKey']);
 const SOURCE_PAGE_KEYS = new Set(['sourceKey', 'sourceVersionId', 'physicalPageNumber']);
 const MANIFEST_KEYS = new Set(['bookId', 'sourceSet', 'nodes', 'units']);
-const NODE_KEYS = new Set(['nodeKey', 'parentNodeKey', 'nodeType', 'order']);
+const NODE_KEYS = new Set(['nodeKey', 'parentNodeKey', 'nodeType', 'order', 'title']);
 const UNIT_KEYS = new Set(['unitKey', 'activitySlots', 'pageGroups']);
 const ACTIVITY_SLOT_KEYS = new Set([
   'activityKey',
@@ -496,6 +496,7 @@ const manifest = (value: unknown, bookId: string): boolean => {
   return value.nodes.every((node) => {
     assertAllowedKeys(node, NODE_KEYS, 'invalid_book_assembly_publication_record');
     return nonEmptyString(node.nodeKey)
+      && (node.title === undefined || (typeof node.title === 'string' && node.title.trim().length > 0 && node.title.length <= 200))
       && (node.parentNodeKey === null || nonEmptyString(node.parentNodeKey))
       && nonEmptyString(node.nodeType)
       && safeIntegerAtLeast(node.order, 1);

@@ -1,4 +1,6 @@
 import { getAuth } from 'firebase/auth';
+import { isSubmissionAnswer } from './activityRuntimeAttempt.service';
+import type { ActivitySubmission } from '../../types/bookActivity.types';
 import { resolveBookDeliveryWorkerOrigin } from '../book-delivery/bookDelivery.browser';
 import type {
   BookRuntimeDraftRecord,
@@ -39,7 +41,6 @@ export interface BookRuntimeSaveDraftResult {
 
 export interface BookRuntimeSubmitActivityInput extends BookRuntimeDraftAddress {
   readonly operationId: string;
-  readonly draftOperationId: string;
   readonly clientRevision: number;
   readonly response: unknown;
 }
@@ -77,6 +78,7 @@ export type BookRuntimeClientErrorCode =
   | 'token_unavailable'
   | 'network_failure'
   | 'invalid_response'
+  | 'incomplete_response'
   | 'unauthorized'
   | 'forbidden'
   | 'conflict'
@@ -442,22 +444,13 @@ export const createBookRuntimeClient = (
 
     async submitActivity(input) {
       assertAddress(input);
-      if (!UUID.test(input.operationId) || !UUID.test(input.draftOperationId)) {
+      if (!UUID.test(input.operationId)) {
         throw new BookRuntimeClientError('invalid_response');
       }
       if (!Number.isSafeInteger(input.clientRevision) || input.clientRevision < 0) {
         throw new BookRuntimeClientError('invalid_response');
       }
       assertSafeResponse(input.response);
-
-      const flushed = await this.saveDraft({
-        ...input,
-        operationId: input.draftOperationId,
-      });
-      const acknowledgedRevision = flushed.receipt.draftRevision;
-      if (!Number.isSafeInteger(acknowledgedRevision) || (acknowledgedRevision as number) < 0) {
-        throw new BookRuntimeClientError('invalid_response');
-      }
 
       const body = await request('/book-runtime/commands', {
         method: 'POST',
@@ -472,7 +465,7 @@ export const createBookRuntimeClient = (
           activityId: input.activityId,
           activityVersion: input.activityVersion,
           interactionId: input.interactionId,
-          clientRevision: acknowledgedRevision,
+          clientRevision: input.clientRevision,
           response: input.response,
         }),
       });
@@ -515,18 +508,33 @@ export const createBookRuntimeClient = (
       assertAddress(input);
       const body = record(await request(terminalPath(input), { method: 'GET' }));
       if (!body) throw new BookRuntimeClientError('invalid_response');
-      exactKeys(body, ['status'], ['attemptId', 'resultStatus']);
-      if (body.status === 'absent') return { status: 'absent' };
+      if (body.status === 'absent') {
+        exactKeys(body, ['status']);
+        return { status: 'absent' };
+      }
+      exactKeys(body, ['status', 'attemptId', 'resultStatus', 'response']);
       if (body.status !== 'present'
         || typeof body.attemptId !== 'string'
         || !SAFE_ID.test(body.attemptId)
         || (body.resultStatus !== 'pending_review' && body.resultStatus !== 'submitted')) {
         throw new BookRuntimeClientError('invalid_response');
       }
+      assertSafeResponse(body.response);
+      if (!Array.isArray(body.response) || body.response.length === 0) throw new BookRuntimeClientError('invalid_response');
+      const interactionIds = new Set<string>();
+      for (const entry of body.response) {
+        const row = record(entry);
+        if (!row) throw new BookRuntimeClientError('invalid_response');
+        exactKeys(row, ['interactionId', 'answer']);
+        const id = safeId(row.interactionId);
+        if (interactionIds.has(id) || !isSubmissionAnswer(row.answer)) throw new BookRuntimeClientError('invalid_response');
+        interactionIds.add(id);
+      }
       return {
         status: 'present',
         attemptId: body.attemptId,
         resultStatus: body.resultStatus,
+        response: body.response as ActivitySubmission,
       };
     },
   };

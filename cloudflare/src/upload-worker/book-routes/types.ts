@@ -15,6 +15,7 @@ export const BOOK_ROUTE_DOMAINS = [
   'impact-snapshot',
   'updates',
   'replacement-cleanup',
+  'submission',
 ] as const;
 export type BookRouteDomain = (typeof BOOK_ROUTE_DOMAINS)[number];
 

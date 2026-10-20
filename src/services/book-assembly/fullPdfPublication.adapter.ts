@@ -84,6 +84,8 @@ export interface CreateFullPdfPublicationAdapterPlanInput {
   readonly existingLineageByActivityKey?: Readonly<Record<string, FullPdfActivityLineage>>;
 }
 
+export type BuildFullPdfPublicationInput = Omit<CreateFullPdfPublicationAdapterPlanInput, 'previewApproval'>;
+
 export interface FullPdfPublicationCommandInput extends Omit<CreateFullPdfPublicationAdapterPlanInput, 'ids'> {
   readonly allocateId: (kind: string, key: string) => string;
 }
@@ -109,7 +111,7 @@ const fingerprint = (value: unknown): string => {
 };
 
 const assertCurrentAuthority = (
-  input: CreateFullPdfPublicationAdapterPlanInput,
+  input: BuildFullPdfPublicationInput,
 ): BookAssemblyManifestCandidate => {
   const { candidate, authority } = input;
   if (input.ownerId !== authority.ownerId || candidate.ownerId !== input.ownerId) {
@@ -166,6 +168,9 @@ const assertPreviewApproval = (
   approval: BookAssemblyPreviewApprovalReference,
   now: string,
 ): void => {
+  if (!approval || typeof approval !== 'object') {
+    throw new FullPdfPublicationAdapterError('full_pdf_preview_approval_expired');
+  }
   const approvedAt = Date.parse(approval.approvedAt);
   const expiresAt = Date.parse(approval.expiresAt);
   const current = Date.parse(now);
@@ -208,7 +213,7 @@ const pagesForActivity = (
 };
 
 const createPublicationRecords = (
-  input: CreateFullPdfPublicationAdapterPlanInput,
+  input: BuildFullPdfPublicationInput,
   manifest: BookAssemblyManifestCandidate,
 ): {
   readonly atomicWrites: BookAssemblyPublicationAtomicWriteSet;
@@ -391,12 +396,11 @@ const createPublicationRecords = (
   };
 };
 
-export const createFullPdfPublicationAdapter = (
-  input: CreateFullPdfPublicationAdapterPlanInput,
+export const buildFullPdfPublication = (
+  input: BuildFullPdfPublicationInput,
 ): FullPdfPublicationAdapterOutput => {
   const manifest = assertCurrentAuthority(input);
   assertFullPdfSource(manifest, input.authority.sourceVersionAuthority);
-  assertPreviewApproval(input.previewApproval, input.now);
   const unit = manifest.units.find((candidate) => candidate.unitKey === input.unitKey);
   if (!unit) throw new FullPdfPublicationAdapterError('full_pdf_unit_missing');
   const selectedManifest: BookAssemblyManifestCandidate = {
@@ -428,11 +432,19 @@ export const createFullPdfPublicationAdapter = (
         units: [unit],
       },
       atomicWrites: records.atomicWrites,
-      previewApproval: input.previewApproval,
     },
   };
 };
 
+
+export const createFullPdfPublicationAdapter = (
+  input: CreateFullPdfPublicationAdapterPlanInput,
+): FullPdfPublicationAdapterOutput => {
+  assertPreviewApproval(input.previewApproval, input.now);
+  const { previewApproval, ...builderInput } = input;
+  const output = buildFullPdfPublication(builderInput);
+  return { ...output, plan: { ...output.plan, previewApproval } };
+};
 export const createFullPdfPublicationAdapterPlan = (
   input: CreateFullPdfPublicationAdapterPlanInput,
 ): BookAssemblyPublicationAdapterPlan => createFullPdfPublicationAdapter(input).plan;

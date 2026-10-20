@@ -158,6 +158,7 @@ export interface BookContentTreeNodeCandidate {
   readonly parentNodeKey: string | null;
   readonly nodeType: BookContentNodeType;
   readonly order: number;
+  readonly title?: string;
 }
 
 /** A physical page is always local to a named immutable source. */

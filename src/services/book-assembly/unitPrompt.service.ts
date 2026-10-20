@@ -8,11 +8,21 @@ import type { EditableActivity } from '../../types/bookActivity.types';
 export const UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION = 'prd0062.unit_activity_import.v1' as const;
 export const UNIT_ACTIVITY_IMPORT_PROMPT_VERSION = 'book-unit-json-v1' as const;
 
+export const BOOK_ACTIVITY_MODEL_GUIDANCE = [
+  'Book authoring model:',
+  '- The immutable PDF is source context. The Book Content Tree organizes sections and Units; its manifest maps Activity slots to source-qualified physical pages through Page Groups. Activity JSON supplies the interactive educational content, not a replacement PDF or custom UI.',
+  '- An Activity is the smallest reusable, editable, submitted, and graded task. It has one coherent interaction family and one shared answer rule, with one or more question/response Interactions. A printed heading can contain several Activities; several Activities may share the same passage or PDF pages.',
+  '- Separate tasks when their interaction family or shared answer rule changes. For example, matching questions and true/false questions on the same passage need separate Activities, not one mixed Activity or one generic essay.',
+  '- Shared Activity defaults include normalization, default points, selection count, and option reuse where supported. Individual Interactions hold their prompt, accepted answer, feedback, and optional points override. Instructions, stimulus, and source context are presentation, not new interaction families.',
+  '- Book/placement identity, source provenance, publication versions, and hidden Interaction IDs belong to the app. Keep them out of generated editable content. The app validates the JSON and renders it with shared components; the teacher reviews its meaning and exact student preview.',
+].join('\n');
+
 export interface UnitPromptInput {
   readonly bookTitle: string;
   readonly manifest: BookAssemblyManifestCandidate;
   readonly unitKey: string;
-  readonly sourceVersions: readonly TrustedBookSourceVersionProjection[];
+  readonly sourceVersions: readonly Pick<TrustedBookSourceVersionProjection, 'sourceVersionId' | 'physicalPageCount'>[];
+  readonly localAuthoring?: boolean;
 }
 
 export interface ActivityRevisionPromptInput {
@@ -75,6 +85,7 @@ export const buildUnitActivityImportPrompt = ({
   manifest,
   unitKey,
   sourceVersions,
+  localAuthoring = false,
 }: UnitPromptInput): string => {
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   if (!unit) {
@@ -117,8 +128,7 @@ export const buildUnitActivityImportPrompt = ({
     outputBundleShape: {
       promptVersion: UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
       schemaVersion: UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
-      bookId: manifest.bookId,
-      unitKey,
+      ...(localAuthoring ? {} : { bookId: manifest.bookId, unitKey }),
       slots: unit.activitySlots.map((slot) => ({
         activityKey: slot.activityKey,
         content: {
@@ -147,12 +157,15 @@ export const buildUnitActivityImportPrompt = ({
 
   return [
     'Create Activity JSON for this exact PRD0062 Book Unit.',
+    BOOK_ACTIVITY_MODEL_GUIDANCE,
     '',
     JSON.stringify(contract, null, 2),
     '',
     'Rules:',
     '- Return one JSON object only. No Markdown, comments, React, TSX, or custom components.',
-    '- Keep the same promptVersion, schemaVersion, bookId, unitKey, and every activityKey exactly.',
+    localAuthoring
+      ? '- Return only promptVersion, schemaVersion, slots. Do not generate bookId or unitKey; the local editor binds the selected Unit. Keep every activityKey exactly.'
+      : '- Keep the same promptVersion, schemaVersion, bookId, unitKey, and every activityKey exactly.',
     '- Every slot must use exactly one interaction family. Do not mix families inside one Activity.',
     '- Supported interaction families and variants are listed in supportedActivityContract; do not invent another family or variant.',
     '- Keep answer rules inside the editable Activity content only. Use review-required for long-response.',

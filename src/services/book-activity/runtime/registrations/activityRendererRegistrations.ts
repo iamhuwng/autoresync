@@ -5,6 +5,10 @@ import {
   SingleChoiceRenderer,
 } from '../../../../components/book-runtime/interactions/choice';
 import { TextEntryRenderer } from '../../../../components/book-runtime/interactions/text-entry';
+import { MatchingRenderer } from '../../../../components/book-runtime/interactions/matching';
+import { OrderingRenderer } from '../../../../components/book-runtime/interactions/ordering';
+import { matchingResponseCodec, MATCHING_RESPONSE_CODEC_ID } from '../codecs/matchingResponseCodec';
+import { orderingResponseCodec, ORDERING_RESPONSE_CODEC_ID } from '../codecs/orderingResponseCodec';
 import { LongResponseRenderer } from '../../../../components/book-runtime/interactions/long-response';
 import {
   choiceMultipleResponseCodec,
@@ -233,9 +237,24 @@ const createRegistration = (
 export const ticket23ActivityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] =
   supportedRegistrationSpecs.map(createRegistration);
 
+const genericRegistrationSpecs = [
+  { family: 'text-entry', variants: ['short-answer', 'sentence-completion'], renderer: asUnknownRenderer(TextEntryRenderer), codec: asUnknownCodec(textEntryResponseCodec), rendererId: 'text-entry-v1', codecId: TEXT_ENTRY_RESPONSE_CODEC_ID },
+  { family: 'matching', variants: ['matching-pairs'], renderer: asUnknownRenderer(MatchingRenderer), codec: asUnknownCodec(matchingResponseCodec), rendererId: 'matching-v1', codecId: MATCHING_RESPONSE_CODEC_ID },
+  { family: 'ordering', variants: ['sequence'], renderer: asUnknownRenderer(OrderingRenderer), codec: asUnknownCodec(orderingResponseCodec), rendererId: 'ordering-v1', codecId: ORDERING_RESPONSE_CODEC_ID },
+  { family: 'long-response', variants: ['draft-response'], renderer: asUnknownRenderer(LongResponseRenderer), codec: asUnknownCodec(longResponseResponseCodec), rendererId: 'long-response-v1', codecId: LONG_RESPONSE_RESPONSE_CODEC_ID },
+] as const;
+
+export const genericActivityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] =
+  genericRegistrationSpecs.flatMap(({ variants, ...spec }) => variants.flatMap((variant) =>
+    (['structured', 'source-assisted'] as const).map((presentationMode) => ({
+      ...spec, variant, presentationMode, responseCodec: spec.codecId,
+    })),
+  ));
+
 export const activityRendererRegistrations: readonly ActivityRendererRegistration<unknown>[] = [
   ...ticket23ActivityRendererRegistrations,
   ...matchingOrderingRendererRegistrations,
+  ...genericActivityRendererRegistrations,
   ...(['single-select', 'multi-select'] as const).flatMap((variant) =>
     (['structured', 'source-assisted'] as const).map((presentationMode) => ({
       family: 'choice' as const,
@@ -291,5 +310,5 @@ export const activityRendererRegistrations: readonly ActivityRendererRegistratio
 ];
 
 export const ticket25LongResponseRendererRegistration = activityRendererRegistrations.find((entry) => (
-  entry.family === 'long-response' && entry.presentationMode === 'structured'
+  entry.family === 'long-response' && entry.variant === 'v1' && entry.presentationMode === 'structured'
 ))!;

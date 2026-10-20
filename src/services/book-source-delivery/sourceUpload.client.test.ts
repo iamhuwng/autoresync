@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createSourceUploadClient,
   createSourceUploadSessionStatePort,
@@ -41,7 +41,42 @@ beforeEach(() => {
   sessionStorage.clear();
 });
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe('sourceUpload.client', () => {
+  it.each([
+    ['true', 'http://localhost:8787', true],
+    ['false', 'http://localhost:8787', false],
+    ['true', 'http://localhost:9999', false],
+    ['true', 'http://127.0.0.1:8787', false],
+    ['true', 'http://control.example', false],
+    ['true', 'http://user:password@localhost:8787', false],
+    ['true', 'http://localhost:8787?redirect=other', false],
+    ['true', 'http://localhost:8787#fragment', false],
+  ])('restricts HTTP control to explicit local mode (%s, %s)', async (localOnly, baseUrl, allowed) => {
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', localOnly);
+    vi.stubEnv('DEV', true);
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ sources: [] }));
+    const client = createSourceUploadClient({ baseUrl, getIdToken: async () => 'token', fetchImpl });
+    if (allowed) {
+      await expect(client.listSourceVersions('book-1')).resolves.toEqual([]);
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      expect(fetchImpl.mock.calls[0][0]).toBe('http://localhost:8787/v1/book-source/books/book-1/sources');
+    } else {
+      await expect(client.listSourceVersions('book-1')).rejects.toMatchObject({ code: 'unavailable', status: 0 });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects HTTP control in a production build even if the local-only flag is set', async () => {
+    vi.stubEnv('VITE_FIREBASE_LOCAL_ONLY', 'true');
+    vi.stubEnv('DEV', false);
+    const fetchImpl = vi.fn();
+    const client = createSourceUploadClient({ baseUrl: 'http://localhost:8787', getIdToken: async () => 'token', fetchImpl });
+    await expect(client.listSourceVersions('book-1')).rejects.toMatchObject({ code: 'unavailable', status: 0 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('sends metadata-only begin control and never serializes PDF bytes', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(init?.headers).toEqual({
@@ -88,6 +123,38 @@ describe('sourceUpload.client', () => {
       'https://control.example/v1/book-source/books/book%2Fone/upload/begin',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('sends the exact submission operation binding when one is supplied', async () => {
+    const command = { ...beginCommand, submissionOperationId: 'submission-1' };
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        operationId: command.operationId,
+        submissionOperationId: command.submissionOperationId,
+      });
+      return Response.json({
+        status: 'reserved',
+        reservationId: 'reservation-1',
+        sourceVersionId: 'version-1',
+        upload: {
+          url: 'https://upload.example/exact-object',
+          expiresAt: '2099-07-26T01:00:00.000Z',
+          requiredHeaders: {
+            'content-type': 'application/pdf',
+            'x-amz-content-sha256': command.inspection.sha256Hex,
+            'x-amz-meta-book-source-byte-size': String(command.inspection.exactByteSize),
+            'x-amz-meta-book-source-sha256': command.inspection.sha256Hex,
+          },
+        },
+      });
+    });
+    const client = createSourceUploadClient({
+      baseUrl: 'https://control.example',
+      getIdToken: async () => 'id-token',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(client.begin(command)).resolves.toMatchObject({ reservationId: 'reservation-1' });
   });
 
   it('sends only the operation identity and validates the completion response', async () => {

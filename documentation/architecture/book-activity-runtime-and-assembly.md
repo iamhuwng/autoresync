@@ -141,6 +141,10 @@ Forbidden:
 
 The student Book Runtime visual authority is the user-approved [D2 mockup amendment](../tasks/PRD0062/component-pdf-recovery-execution-plan-2026-09-14.md) and [cleanroom reference](../mockups/prd0062-student-book-runtime-cleanroom-prd0063.html). Its warm outlined appearance, stacked page-mapped Activity cards, physical-page navigation, splitter, question flags, native submission confirmation, and compact countdown override conflicting general student visual guidance for this Runtime surface only. Delivery, persistence, submission, integrity, and read-only teacher preview authority remain owned by their existing Book contracts.
 
+Teacher candidate previews default to read-only. Authoring previews may explicitly
+enable temporary practice answers through the shell's `responseMode`; those
+answers remain in component state and grant no autosave or submission authority.
+
 `StudentPracticePage` remains the shared asynchronous launcher pattern. Book may add one thin dispatch branch, then hand off to Book-owned delivery/runtime modules.
 
 Book Runtime owns:

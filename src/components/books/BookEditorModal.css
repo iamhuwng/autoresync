@@ -294,3 +294,9 @@
     padding: 0.5rem 1rem;
   }
 }
+
+.book-editor-modal__body--local {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+}

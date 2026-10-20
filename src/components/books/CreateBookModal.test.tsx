@@ -136,7 +136,7 @@ describe('CreateBookModal', () => {
     expect(screen.getByText('PDF source creation is not available yet.')).toBeInTheDocument();
   });
 
-  it('reveals the PDF Book details and Assembly handoff after PDF source selection', async () => {
+  it('starts a private local draft after PDF source selection', async () => {
     const user = userEvent.setup();
 
     render(
@@ -153,8 +153,8 @@ describe('CreateBookModal', () => {
 
     expect(screen.getByLabelText('PDF source')).toBeChecked();
     expect(screen.getByLabelText('Title')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save Book' })).toBeInTheDocument();
-    expect(screen.getByText('Complete the required Book details below, then choose Save Book to open PDF Assembly.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start draft' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Public')).toBeDisabled();
   });
 
   it('rejects PDF submission when PDF mode becomes disabled after selection', async () => {
@@ -170,7 +170,7 @@ describe('CreateBookModal', () => {
 
     await user.click(screen.getByLabelText('PDF source'));
     rerender(<CreateBookModal {...props} pdfModeEnabled={false} />);
-    await user.click(screen.getByRole('button', { name: 'Save Book' }));
+    await user.click(screen.getByRole('button', { name: 'Start draft' }));
 
     expect(await screen.findByText('PDF source is no longer available. Choose another option.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();

@@ -69,3 +69,6 @@ See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-
 ## 2026-10-20 Reading V2 multiple-slot review
 
 Rendering a multi-slot Reading V2 result as one prompt with a question-number range does not change student or teacher access. The existing `reviewState` release gate still controls correct-answer visibility, and the existing shared ownership verdict still controls teacher access and actions.
+## 2026-10-21 Book runtime terminal recovery candidate
+
+Runtime terminal reads retain existing actor, exact recipient/context, binding revision, placement, activity/version, schedule and recovery-hold checks before reading committed responses from `book_runtime/scopes`. Routing and cache keys do not grant authority. The response carries the submitted answers, not answer keys or correct-answer feedback; client shape validation and delivered-interaction checks reject unexpected content. Recipient/context/Book/pin cache identity prevents previous content surviving an identity change. Existing Worker service-identity RTDB rules remain dependencies; saved-result teacher ownership, guest claims and release gates are unchanged. Browser acceptance remains pending.

@@ -639,6 +639,7 @@ export const createBookRuntimeWorkerHandlers = (
           status: 'present',
           attemptId: latest.attempt.attemptId,
           resultStatus: latest.result.status,
+          response: latest.attempt.response,
         })
         : json({ status: 'absent' });
     } catch (error) {

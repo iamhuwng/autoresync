@@ -1,6 +1,7 @@
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
 import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import { validateEditableActivity } from '../book-activity/activitySchema.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
@@ -178,6 +179,7 @@ export const parseUnitActivityImportBundle = (
   text: string,
   manifest: BookAssemblyManifestCandidate,
   unitKey: string,
+  options: { readonly localAuthoring?: boolean } = {},
 ): UnitActivityImportBundle => {
   if (byteLength(text) > MAX_IMPORT_BYTES) {
     throw new UnitActivityImportError('payload-too-large', 'Import bundle is too large.');
@@ -187,14 +189,17 @@ export const parseUnitActivityImportBundle = (
     throw new UnitActivityImportError('invalid-json', 'Import bundle is malformed JSON.');
   }
   const bundle = record(parsed);
-  exact(bundle, ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots']);
+  exact(bundle,
+    options.localAuthoring ? ['promptVersion', 'schemaVersion', 'slots'] : ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots'],
+    options.localAuthoring ? ['bookId', 'unitKey'] : []);
   if (bundle.promptVersion !== UNIT_ACTIVITY_IMPORT_PROMPT_VERSION) {
     throw new UnitActivityImportError('invalid-prompt-version', 'Import bundle prompt version is unsupported.');
   }
   if (bundle.schemaVersion !== UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION) {
     throw new UnitActivityImportError('invalid-schema-version', 'Import bundle schema version is unsupported.');
   }
-  if (bundle.bookId !== manifest.bookId || bundle.unitKey !== unitKey) {
+  if ((!options.localAuthoring || bundle.bookId !== undefined) && bundle.bookId !== manifest.bookId
+    || (!options.localAuthoring || bundle.unitKey !== undefined) && bundle.unitKey !== unitKey) {
     throw new UnitActivityImportError('foreign-unit', 'Import bundle does not target the selected Book Unit.');
   }
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
@@ -226,6 +231,13 @@ export const parseUnitActivityImportBundle = (
     assertSourceRefs(evidenceRefs, slotRefs, 'evidenceRefs');
     assertSourceRefs(sourceEvidenceRefs, slotRefs, 'sourceEvidenceRefs');
     assertSourceRefs(answerEvidenceRefs, slotRefs, 'answerEvidenceRefs');
+    const validation = validateEditableActivity(slot.content, {
+      mappedBookPageRefs: clientMappedBookPageRefsForSlot(unit, slot.activityKey),
+    });
+    if (!validation.valid) {
+      const first = validation.errors[0];
+      throw new UnitActivityImportError('invalid-activity', `${slot.activityKey}: ${first?.message ?? 'Activity content is invalid.'} (${first?.path ?? '$'})`);
+    }
     return {
       activityKey: slot.activityKey,
       content: slot.content,

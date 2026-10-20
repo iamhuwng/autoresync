@@ -21,13 +21,44 @@ const address = {
 } as const;
 
 const operationId = '00000000-0000-4000-8000-000000000075';
-const draftOperationId = '00000000-0000-4000-8000-000000000076';
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { 'content-type': 'application/json' },
 });
 describe('Book Runtime browser client', () => {
+  it('reads a privacy-safe committed Activity response for recovery', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      status: 'present',
+      attemptId: 'attempt-1',
+      resultStatus: 'submitted',
+      response: [{ interactionId: 'interaction-1', answer: 'committed answer' }],
+    }));
+    const client = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'token',
+      fetchImpl,
+    });
+    await expect(client.readTerminal(address)).resolves.toEqual({
+      status: 'present',
+      attemptId: 'attempt-1',
+      resultStatus: 'submitted',
+      response: [{ interactionId: 'interaction-1', answer: 'committed answer' }],
+    });
+  });
+
+  it('rejects terminal responses containing answer-key fields', async () => {
+    const client = createBookRuntimeClient({
+      baseUrl: 'https://runtime.example',
+      getIdToken: async () => 'token',
+      fetchImpl: async () => jsonResponse({
+        status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
+        response: [{ interactionId: 'interaction-1', answerKey: 'secret' }],
+      }),
+    });
+    await expect(client.readTerminal(address)).rejects.toMatchObject({ code: 'invalid_response' });
+  });
+
   it('posts one codec-only autosave command with Firebase authorization', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
       status: 'accepted',
@@ -138,18 +169,8 @@ describe('Book Runtime browser client', () => {
     });
   });
 
-  it('flushes an acknowledged draft before terminal submit and exposes pending review', async () => {
+  it('submits the acknowledged draft revision without another autosave', async () => {
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
-        status: 'accepted',
-        receipt: {
-          operationId: draftOperationId,
-          status: 'accepted',
-          bindingId: 'binding-1',
-          draftRevision: 4,
-          createdAt: '2026-07-28T00:00:00.000Z',
-        },
-      }))
       .mockResolvedValueOnce(jsonResponse({
         status: 'accepted',
         resultStatus: 'pending_review',
@@ -172,7 +193,6 @@ describe('Book Runtime browser client', () => {
     await expect(client.submitActivity({
       ...address,
       operationId,
-      draftOperationId,
       clientRevision: 3,
       response: { interactionId: 'interaction-1', text: 'final response' },
     })).resolves.toMatchObject({
@@ -182,32 +202,17 @@ describe('Book Runtime browser client', () => {
       receipt: { attemptId: 'attempt-1', attemptNumber: 2 },
     });
 
-    const draftRequest = fetchImpl.mock.calls[0]?.[1] as RequestInit;
-    const submitRequest = fetchImpl.mock.calls[1]?.[1] as RequestInit;
-    expect(JSON.parse(String(draftRequest.body))).toMatchObject({
-      operationId: draftOperationId,
-      commandKind: 'autosave',
-      clientRevision: 3,
-    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const submitRequest = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(submitRequest.body))).toMatchObject({
       operationId,
       commandKind: 'submit',
-      clientRevision: 4,
+      clientRevision: 3,
     });
   });
 
   it('rejects a terminal response without an immutable attempt receipt', async () => {
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
-        status: 'accepted',
-        receipt: {
-          operationId: draftOperationId,
-          status: 'accepted',
-          bindingId: 'binding-1',
-          draftRevision: 1,
-          createdAt: '2026-07-28T00:00:00.000Z',
-        },
-      }))
       .mockResolvedValueOnce(jsonResponse({
         status: 'accepted',
         resultStatus: 'pending_review',
@@ -228,7 +233,6 @@ describe('Book Runtime browser client', () => {
     await expect(client.submitActivity({
       ...address,
       operationId,
-      draftOperationId,
       clientRevision: 0,
       response: { text: 'final response' },
     })).rejects.toMatchObject<BookRuntimeClientError>({ code: 'invalid_response' });
@@ -236,16 +240,6 @@ describe('Book Runtime browser client', () => {
 
   it('rejects a terminal response without a stable attempt number', async () => {
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
-        status: 'accepted',
-        receipt: {
-          operationId: draftOperationId,
-          status: 'accepted',
-          bindingId: 'binding-1',
-          draftRevision: 1,
-          createdAt: '2026-07-28T00:00:00.000Z',
-        },
-      }))
       .mockResolvedValueOnce(jsonResponse({
         status: 'accepted',
         resultStatus: 'pending_review',
@@ -267,7 +261,6 @@ describe('Book Runtime browser client', () => {
     await expect(client.submitActivity({
       ...address,
       operationId,
-      draftOperationId,
       clientRevision: 0,
       response: { text: 'final response' },
     })).rejects.toMatchObject<BookRuntimeClientError>({ code: 'invalid_response' });
