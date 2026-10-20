@@ -238,7 +238,13 @@ export const countReadingV2ProjectionInteractions = (
   projection?: Pick<ReadingV2DerivedProjection, 'content'> | null,
 ): number =>
   projection?.content?.taskGroups?.reduce(
-    (total, taskGroup) => total + (taskGroup.interactions?.length ?? 0),
+    (total, taskGroup) => total + (taskGroup.interactions?.reduce(
+      (groupTotal, interaction) => groupTotal + Math.max(
+        1,
+        (interaction.displayNumberEnd ?? interaction.displayNumber) - interaction.displayNumber + 1,
+      ),
+      0,
+    ) ?? 0),
     0,
   ) ?? 0;
 

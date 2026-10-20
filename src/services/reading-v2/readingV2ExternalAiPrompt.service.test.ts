@@ -76,6 +76,10 @@ describe('readingV2ExternalAiPrompt.service', () => {
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Choose headings for paragraphs/sections from List of Headings');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Complete each sentence with ending A-G');
     expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Choose TWO/THREE letters');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('questionRange { "start": 25, "end": 26 }, selectionLimit 2');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('questionNumber 26 has questionText "" as a continuation answer slot');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('preserve both rows in answerKeyText');
+    expect(READING_V2_EXTERNAL_AI_PROMPT).toContain('Do not duplicate the shared prompt or invent a second question');
   });
 
   it('defines Studio acceptance fields and avoids mixed structured-layout examples', () => {

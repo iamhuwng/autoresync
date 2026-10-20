@@ -18,6 +18,7 @@ import {
   type ReadingV2PassageParagraph,
   type ReadingV2PassageRef,
   type ReadingV2PublishedSnapshot,
+  type ReadingV2ReadingPassageMaterial,
   type ReadingV2ResponseShape,
   type ReadingV2StimulusContent,
   type ReadingV2StimulusNode,
@@ -31,6 +32,10 @@ import { buildReadingV2FirebasePublishUpdates } from './readingV2FirebasePublish
 import { publishReadingV2Material } from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import { normalizeReadingV2MultipleSelectSlots } from './readingV2MultipleSelectNormalization.service';
+import { countReadingV2QuestionSlots } from './readingV2Numbering.service';
+import { buildReadingV2DuplicateIndexRow, getReadingV2DuplicateIndexPath } from './readingV2PassageDuplicateGuard.service';
+import type { ReadingV2MaterialMetadata } from './readingV2MaterialMetadata.service';
 import {
   type ReadingV2AuditActorRole,
   buildReadingV2AuditEvent,
@@ -931,6 +936,94 @@ const readSelectedPassageSnapshots = async (
   }));
 };
 
+const prepareSelectedPassageSnapshots = async (
+  repository: ReadingV2TeacherCompositionRepository,
+  composition: ReadingV2FullTestComposition,
+  publishedAt: string,
+) => {
+  const snapshots = await readSelectedPassageSnapshots(repository, composition.passageRefs);
+  const updates: Record<string, unknown> = {};
+  const passageRefs = [...composition.passageRefs];
+  for (const [index, snapshot] of snapshots.entries()) {
+    const normalized = normalizeReadingV2MultipleSelectSlots(snapshot.document);
+    if (normalized === snapshot.document) continue;
+    if (!repository.update) {
+      throw new Error('Repairing selected Reading Passages requires atomic publish updates.');
+    }
+    const [sourceMaterial, sourceMetadata] = await Promise.all([
+      repository.read!(readingV2StoragePaths.readingPassageMaterials(snapshot.materialId)),
+      repository.read!(readingV2StoragePaths.materialMetadata(snapshot.materialId)),
+    ]);
+    if (!isRecord(sourceMaterial) || sourceMaterial.passageMaterialId !== snapshot.materialId
+      || sourceMaterial.ownerId !== snapshot.ownerId || sourceMaterial.state !== 'published'
+      || (snapshot.ownerId !== composition.ownerId && sourceMaterial.visibility !== 'public')) {
+      throw new Error('Selected Reading Passage repair requires an owned or readable public published source.');
+    }
+    const source = sourceMaterial as unknown as ReadingV2ReadingPassageMaterial;
+    const ref = passageRefs[index];
+    const materialId = readingV2Ids.materialId(`repair-${composition.testMaterialId}-${composition.publishedVersionId}-${index + 1}`);
+    const snapshotVersionId = readingV2Ids.snapshotVersionId(`repair-${composition.publishedVersionId}-${index + 1}`);
+    const document = { ...normalized, documentId: readingV2Ids.documentId(`${materialId}-document`) };
+    const published = publishReadingV2Material({
+      repository: createReadingV2Repository(), materialId, ownerId: composition.ownerId,
+      document, publishedBy: composition.ownerId, snapshotVersionId, publishedAt,
+      skipReadingPassageExtraction: true,
+      metadata: {
+        ...(isRecord(sourceMetadata) ? sourceMetadata as unknown as ReadingV2MaterialMetadata : {}),
+        materialKind: 'reading-passage', compositionId: undefined, title: source.title, visibility: 'private',
+        durationMinutes: source.durationMinutes, primaryTestTypeId: source.primaryTestTypeId,
+        testTypeIds: source.testTypeIds, sourceFullTestId: source.sourceFullTestId as ReadingV2MaterialId | undefined,
+        sourceSnapshotVersionId: source.sourceSnapshotVersionId,
+        sourceOrderKind: source.sourceOrder.kind, sourceOrderValue: source.sourceOrder.value,
+        sourceOrderLabelSnapshot: source.sourceOrder.labelSnapshot,
+        sourceOrderDisplaySnapshot: source.sourceOrder.displaySnapshot,
+        sourceQuestionRange: source.sourceQuestionRange, sourceTitleSnapshot: source.sourceTitleSnapshot,
+      },
+    });
+    const cloneUpdates = { ...buildReadingV2FirebasePublishUpdates(published.commitPlan, publishedAt).updates };
+    const materialPath = readingV2StoragePaths.readingPassageMaterials(materialId);
+    const material = {
+      ...sourceMaterial, ...cloneUpdates[materialPath] as ReadingV2ReadingPassageMaterial,
+      ...(source.provenance ? { provenance: source.provenance } : {}),
+      clonedFromMaterialId: snapshot.materialId, clonedFromSnapshotVersionId: snapshot.snapshotVersionId,
+      clonedFromOwnerId: snapshot.ownerId, clonedFromVisibilitySnapshot: source.visibility,
+      clonedAt: publishedAt, cloneReason: 'teacher-template-clone',
+    };
+    cloneUpdates[materialPath] = material;
+    cloneUpdates[readingV2StoragePaths.readingPassageMaterialVersions(materialId, snapshotVersionId)] = {
+      ...material, document, publishedAt, publishedBy: composition.ownerId,
+    };
+    const questionCount = countReadingV2QuestionSlots(Object.values(document.interactions));
+    cloneUpdates[getReadingV2DuplicateIndexPath(composition.ownerId, materialId)] = buildReadingV2DuplicateIndexRow({
+      ownerId: composition.ownerId, passageMaterialId: materialId, currentVersionId: snapshotVersionId,
+      title: source.title, state: 'published', visibility: 'private', updatedAt: publishedAt, questionCount,
+      source: { sourceFullTestId: source.sourceFullTestId, sourceOrderDisplay: source.sourceOrder.displaySnapshot },
+      testType: { primaryTestTypeId: source.primaryTestTypeId, testTypeIds: source.testTypeIds },
+      bodyText: JSON.stringify({ stimuli: document.stimuli }),
+      questionText: JSON.stringify({ taskGroups: document.taskGroups, optionSets: document.optionSets,
+        interactions: Object.fromEntries(Object.entries(document.interactions).map(([id, interaction]) => [id, {
+          interactionId: id, responseShape: interaction.responseShape, reviewLabel: interaction.reviewLabel,
+          promptText: interaction.promptText, primaryAnchorId: interaction.primaryAnchorId,
+          contextAnchorIds: interaction.contextAnchorIds,
+        }])),
+      }),
+    });
+    Object.assign(updates, cloneUpdates);
+    snapshots[index] = cloneUpdates[readingV2StoragePaths.publishedSnapshots(materialId, snapshotVersionId)] as ReadingV2PublishedSnapshot;
+    passageRefs[index] = {
+      ...ref, passageMaterialId: readingV2Ids.readingPassageMaterialId(materialId),
+      materialId: readingV2Ids.readingPassageMaterialId(materialId), snapshotVersionId,
+      currentVersionId: snapshotVersionId, ownerId: composition.ownerId, visibility: 'private',
+      questionCount, questionCountSnapshot: questionCount,
+    };
+  }
+  const { numbering, questionCount } = createReadingV2FullTestCompositionFromRefs({ ...composition, passageRefs });
+  return {
+    composition: { ...composition, passageRefs, numbering, questionCount },
+    snapshots, updates,
+  };
+};
+
 const buildReadingV2TeacherSelectedPassageDocument = (input: {
   readonly composition: ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition>;
   readonly snapshots: readonly ReadingV2PublishedSnapshot[];
@@ -1126,7 +1219,9 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
   readonly repository: ReadingV2TeacherCompositionRepository;
   readonly now?: string;
 }): Promise<CreateReadingV2TeacherCompositionResult> => {
-  const composition = buildReadingV2TeacherSelectedPassageComposition(input);
+  const selected = buildReadingV2TeacherSelectedPassageComposition(input);
+  const prepared = await prepareSelectedPassageSnapshots(input.repository, selected, selected.createdAt);
+  const composition = prepared.composition;
   const paths = {
     composition: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
     version: readingV2StoragePaths.fullTestCompositionVersions(
@@ -1134,8 +1229,7 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
       composition.publishedVersionId,
     ),
   };
-  const snapshots = await readSelectedPassageSnapshots(input.repository, composition.passageRefs);
-  const document = buildReadingV2TeacherSelectedPassageDocument({ composition, snapshots });
+  const document = buildReadingV2TeacherSelectedPassageDocument({ composition, snapshots: prepared.snapshots });
   const publishResult = publishReadingV2Material({
     repository: createReadingV2Repository(),
     materialId: composition.testMaterialId,
@@ -1168,6 +1262,7 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
   };
 
   await writeUpdates(input.repository, {
+    ...prepared.updates,
     ...firebaseUpdates.updates,
     ...buildMaterialCatalogUpdates({
       composition,
@@ -1225,12 +1320,14 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
     visibility,
     createdAt: input.composition.createdAt || publishedAt,
   });
-  const composition: ReadingV2FullTestComposition = {
+  const selected: ReadingV2FullTestComposition = {
     ...baseComposition,
     mode: 'published',
     updatedAt: publishedAt,
     state: 'published',
   } as ReadingV2FullTestComposition;
+  const prepared = await prepareSelectedPassageSnapshots(input.repository, selected, publishedAt);
+  const composition = prepared.composition;
   const paths = {
     composition: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
     version: readingV2StoragePaths.fullTestCompositionVersions(
@@ -1238,8 +1335,7 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
       composition.publishedVersionId,
     ),
   };
-  const snapshots = await readSelectedPassageSnapshots(input.repository, composition.passageRefs);
-  const document = buildReadingV2TeacherSelectedPassageDocument({ composition, snapshots });
+  const document = buildReadingV2TeacherSelectedPassageDocument({ composition, snapshots: prepared.snapshots });
   const publishResult = publishReadingV2Material({
     repository: createReadingV2Repository(),
     materialId: composition.testMaterialId,
@@ -1272,6 +1368,7 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
   };
 
   await writeUpdates(input.repository, {
+    ...prepared.updates,
     ...firebaseUpdates.updates,
     ...buildMaterialCatalogUpdates({
       composition,

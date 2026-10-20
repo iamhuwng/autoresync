@@ -1,5 +1,6 @@
 export interface ReadingV2CompositionNumberingInteractionInput {
   readonly interactionId: string;
+  readonly questionCount?: number;
 }
 
 export interface ReadingV2CompositionNumberingPassageInput {
@@ -39,13 +40,14 @@ export const composeReadingV2CompositionNumbering = (input: {
     const displayNumbers: number[] = [];
 
     passage.interactions.forEach((interaction) => {
+      const questionCount = Math.max(1, interaction.questionCount ?? 1);
       const preservedNumber = preserve
         ? input.previousInteractionDisplayNumbers?.[interaction.interactionId]
         : undefined;
       const displayNumber = preservedNumber ?? nextDisplayNumber;
       interactionDisplayNumbers[interaction.interactionId] = displayNumber;
-      displayNumbers.push(displayNumber);
-      nextDisplayNumber = Math.max(nextDisplayNumber, displayNumber + 1);
+      displayNumbers.push(displayNumber, displayNumber + questionCount - 1);
+      nextDisplayNumber = Math.max(nextDisplayNumber, displayNumber + questionCount);
     });
 
     passageRanges.push({
@@ -54,13 +56,16 @@ export const composeReadingV2CompositionNumbering = (input: {
       snapshotVersionId: passage.snapshotVersionId,
       firstDisplayNumber: displayNumbers[0] ?? null,
       lastDisplayNumber: displayNumbers.at(-1) ?? null,
-      questionCount: passage.interactions.length,
+      questionCount: passage.interactions.reduce(
+        (total, interaction) => total + Math.max(1, interaction.questionCount ?? 1),
+        0,
+      ),
     });
   });
 
   return {
     interactionDisplayNumbers,
     passageRanges,
-    totalQuestionCount: orderedPassages.reduce((total, passage) => total + passage.interactions.length, 0),
+    totalQuestionCount: passageRanges.reduce((total, passage) => total + passage.questionCount, 0),
   };
 };

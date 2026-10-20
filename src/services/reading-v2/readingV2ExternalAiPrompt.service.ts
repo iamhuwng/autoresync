@@ -86,6 +86,7 @@ export const READING_V2_EXTERNAL_AI_PROMPT = [
   '- matching-sentence-endings: Complete each sentence with ending A-G. Put endings in sectionReferences.',
   '- multiple-choice: Choose ONE letter A, B, C, or D. One answer label string.',
   '- multiple-select: Choose TWO/THREE letters. Answer is an array of labels, for example ["A", "C"].',
+  '- For one multiple-select prompt spanning answer slots 25-26, keep one sectionInstructions entry with taskType "multiple-select", questionRange { "start": 25, "end": 26 }, selectionLimit 2, and the full shared A-E labeledOptions bank. Keep both question records for number coverage: questionNumber 25 carries the shared questionText once; questionNumber 26 has questionText "" as a continuation answer slot. Copy each numbered teacher-key answer into its matching record and preserve both rows in answerKeyText. Do not duplicate the shared prompt or invent a second question. Apply the same rule to other shared multiple-answer ranges; retain genuinely separate prompts.',
   '- short-answer: Answer the questions below with words/numbers from the passage. Preserve wordLimit.',
   '',
   'Which option field to use:',

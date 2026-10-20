@@ -247,6 +247,7 @@ export interface ReadingV2ScoringRule {
 
 export interface ReadingV2ReviewLabel {
   readonly displayNumber?: number;
+  readonly answerSlotCount?: number;
   readonly localLabel?: string;
 }
 
@@ -562,12 +563,15 @@ export interface ReadingV2ResultInteraction {
   readonly interactionId: ReadingV2InteractionId;
   readonly taskGroupId: ReadingV2TaskGroupId;
   readonly displayNumber: number;
+  readonly displayNumberEnd?: number;
   readonly taskFamily: ReadingV2EngineeringFamily;
   readonly officialTaskType: ReadingV2CanonicalTaskType;
   readonly studentAnswer: unknown;
   readonly scoredAnswer: unknown;
   readonly score: number;
   readonly maxScore: number;
+  readonly answerSlotScores?: readonly number[];
+  readonly answerSlotAnswers?: readonly string[];
   readonly reviewState: 'pending' | 'released' | 'withheld';
   readonly anchorRef?: ReadingV2AnchorId;
 }

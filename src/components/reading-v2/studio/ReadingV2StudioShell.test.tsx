@@ -738,6 +738,17 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     }));
   });
 
+  it('creates a manual choose-two group as one prompt with two numbered marks', () => {
+    const document = createManualReadingV2TaskGroup(createReadingV2CanonicalFixture('sentence-completion'), 'multiple-select');
+    const group = Object.values(document.taskGroups).find((entry) => entry.officialTaskType === 'multiple-select')!;
+    expect(group.interactionIds).toHaveLength(1);
+    expect(document.interactions[group.interactionIds[0]]).toMatchObject({
+      responseShape: { kind: 'multi-select', selectionLimit: 2 },
+      scoringRule: { maxScore: 2, orderMatters: false },
+      reviewLabel: { answerSlotCount: 2 },
+    });
+  });
+
   it('offers completion blank repair and confirms destructive question deletes', () => {
     const completionDocument = createReadingV2CanonicalFixture('sentence-completion');
     const documentWithoutVisibleBlanks: ReadingV2Document = {

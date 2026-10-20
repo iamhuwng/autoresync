@@ -900,6 +900,7 @@ ${chunk.text}
     - KEY PHRASE: "Choose TWO/THREE letters"
     - Example: "Which TWO of the following are mentioned?"
     - Answer format may be array: ["B", "D"]
+    - For Reading Questions 25-26 with ONE shared prompt and "Choose TWO letters, A-E", emit both numbered answer-slot records. Put the shared questionText only on questionNumber 25; set questionNumber 26 questionText to "" as a continuation slot. Both records use type "multiple-select", the same complete A-E options and labeledOptions, and the same sectionInstruction preserving "Questions 25-26" and "Choose TWO letters". Do not duplicate the shared prompt or invent a second question. Preserve teacher-key rows 25 and 26 separately in answerKey (for example {"25":"B","26":"D"}); keep question.answer empty as instructed below. Apply this to other shared multiple-answer ranges, preserving genuinely separate prompts.
 
 **─────────────────────────────────────────────────────────────────**
 **GROUP 5: OTHER TYPES**

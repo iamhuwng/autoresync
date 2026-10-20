@@ -5828,7 +5828,7 @@ approver-role: Task Scope Reviewer
 status: approved
 -->
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/components/reading-v2/studio/ReadingV2StudioShell.tsx
 line-count: 3527
 responsibilities: Reading V2 studio shell composition, authoring navigation, workspace host state, protected route integration, and studio-level display behavior; owns protected Reading V2 shell boundaries that must stay stable while retired legacy material routes are removed
@@ -8358,3 +8358,29 @@ Verification for this review: the canonical `scripts/check-assessment-unificatio
 Human decision, 2026-10-18: The Lord explicitly answered "Approve these scoped exceptions" in this chat after reviewing the three paths, exact counts, and bounded decomposition deferral. The three proposed records above are now active approvals for this reconstruction only. This supersedes their pending status, does not approve future growth, and does not alter guard enforcement. The earlier failed check remains historical evidence; the current records require a fresh guard run.
 
 Post-approval verification: the complete promotion changed-file set was checked using `GITHUB_BASE_REF=main` and the existing guard against the reconstruction checkout. It passed with the three current approved records; the guard implementation and authoring source were unchanged. Guard unit tests passed 34/34 and the five focused shared assessment suites passed 39/39. These are local checks, not a claim of GitHub CI or deployment success.
+
+## 2026-10-20 Reading V2 multi-answer MCQ line-budget review
+
+Human decision, 2026-10-20: The Lord approved scoped exceptions for the two Studio files required by the Reading V2 multiple-answer correction. These exact counts and responsibilities apply to this task only; they do not approve future growth.
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2StudioShell.tsx
+line-count: 3548
+responsibilities: Reading V2 Studio shell composition and workflow orchestration; authoring navigation and host state for import task editing draft save publish preview revision and multi-slot number display
+split-alternatives: extract Studio workflow and draft/publish coordination into a bounded controller hook; extract import task-group and preview sections into separate route-local panel components
+rejection-reason: extract Studio workflow and draft/publish coordination into a bounded controller hook => this would move autosave and authoring state ownership while the fix only needs the existing shell to project preserved answer-slot ranges; extract import task-group and preview sections into separate route-local panel components => this would widen the correction into a cross-panel refactor and risk decoupling answer-slot numbering from the source interaction
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/components/reading-v2/studio/ReadingV2TaskGroupEditor.tsx
+line-count: 645
+responsibilities: Reading V2 task-group and interaction editing; prompt and answer-slot numbering; task configuration; option lists; and multi-select answer controls
+split-alternatives: extract interaction and option editing into separate bounded Studio panels; extract question numbering and task-group configuration into a route-local editor hook
+rejection-reason: extract interaction and option editing into separate bounded Studio panels => this would move the shared prompt selection-count and answer-slot contract behind another callback boundary during the root import-to-Studio correction; extract question numbering and task-group configuration into a route-local editor hook => this would separate derived slot counts from controlled editor state and widen the bounded feature correction
+approver: The Lord
+approver-role: Task Scope Reviewer
+status: approved
+-->
