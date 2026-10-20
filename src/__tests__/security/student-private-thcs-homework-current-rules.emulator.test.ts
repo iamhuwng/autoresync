@@ -64,9 +64,9 @@ describe('student-private THCS homework result against the exact current RTDB ru
             .find(key => key.startsWith('$'))!;
         const sha256 = (source: string) => createHash('sha256').update(source).digest('hex');
         expect(sha256(ruleTree.test_results[resultRuleKey]['.write']))
-            .toBe('0f9396a0832257ce472c7cab10c6dd350f5adc819624d98150876dfc1b84b8ab');
+            .toBe('2f4f21e7f321d5523dbd1896721f60f162c5f03ac31c50f0fe0de9735a91e028');
         expect(sha256(ruleTree.test_results_by_student[studentRuleKey][resultIndexRuleKey]['.write']))
-            .toBe('d2f7137d03f68e12c0904c8f298e37f2ced12ac874063343e65910b68f9cfca2');
+            .toBe('70612df5d6ac1e29442f09698689513ad2f66e3f24608cad80a6fef957c3d543');
         environment = await initializeTestEnvironment({
             projectId: 'demo-private-thcs-homework-current-rules',
             database: { host, port: Number(portText), rules: readFileSync(rulesPath, 'utf8') },

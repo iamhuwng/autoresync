@@ -27,9 +27,8 @@ const manifestSelectorsOverlap = (left, right) =>
   && left.variant === right.variant
   && left.presentationMode === right.presentationMode
   && (
-    left.profile === null
-    || right.profile === null
-    || profileKey(left.profile) === profileKey(right.profile)
+    (left.profile === null && right.profile === null)
+    || (left.profile !== null && right.profile !== null && profileKey(left.profile) === profileKey(right.profile))
   );
 const sameSet = (left, right) => left.length === right.length && left.every((item, index) => item === right[index]);
 const isKnownProfile = (profile, taxonomy) =>
