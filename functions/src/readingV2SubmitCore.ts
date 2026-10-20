@@ -1,4 +1,4 @@
-import { answerMatches, correctAnswerForInteraction, optionSetIdForInteraction } from '../../src/services/reading-v2/readingV2AnswerScoring';
+import { correctAnswerForInteraction, optionSetIdForInteraction, scoreReadingV2Answer } from '../../src/services/reading-v2/readingV2AnswerScoring';
 import { calculateIELTSReadingBandScore } from '../../src/config/scoring.config';
 import type { ReadingV2Interaction } from '../../src/types/readingV2.types';
 
@@ -397,7 +397,7 @@ const prefixedReviewContent = (input: {
   prefix: string;
   item: Record<string, any>;
   projection: Record<string, any>;
-  interactionDisplayNumbers: Readonly<Record<string, number>>;
+  interactionDisplayNumbers: Readonly<Record<string, { start: number; end: number }>>;
 }): Record<string, any> => {
   const content = input.projection.content ?? {};
   const title = passageItemTitle(input.item);
@@ -459,14 +459,21 @@ const prefixedReviewContent = (input: {
             'prefixed interactionId',
           );
 
-          return {
+          const displayRange = input.interactionDisplayNumbers[prefixedInteractionId];
+          const prefixedInteraction = {
             ...interaction,
             interactionId: prefixedInteractionId,
             taskGroupId: requiredString(prefixId(input.prefix, interaction.taskGroupId), 'prefixed taskGroupId'),
-            displayNumber: input.interactionDisplayNumbers[prefixedInteractionId] ?? Number(interaction.displayNumber ?? 0),
+            displayNumber: displayRange?.start ?? Number(interaction.displayNumber ?? 0),
             primaryAnchorId: prefixId(input.prefix, interaction.primaryAnchorId),
             contextAnchorIds: prefixIds(input.prefix, interaction.contextAnchorIds),
           };
+          if (displayRange && displayRange.end > displayRange.start) {
+            prefixedInteraction.displayNumberEnd = displayRange.end;
+          } else {
+            delete prefixedInteraction.displayNumberEnd;
+          }
+          return prefixedInteraction;
         })
         : [],
     })),
@@ -483,8 +490,8 @@ const prefixedReviewContent = (input: {
 const buildInteractionDisplayNumbers = (input: {
   items: readonly Record<string, any>[];
   passageRecords: readonly ReadingPassageSetTrustedPassageRecord[];
-}): Record<string, number> => {
-  const interactionDisplayNumbers: Record<string, number> = {};
+}): Record<string, { start: number; end: number }> => {
+  const interactionDisplayNumbers: Record<string, { start: number; end: number }> = {};
   let nextDisplayNumber = 1;
 
   input.items.forEach((item, index) => {
@@ -498,8 +505,11 @@ const buildInteractionDisplayNumbers = (input: {
       taskGroup.interactions.forEach((interaction: Record<string, any>) => {
         const prefixedInteractionId = prefixId(prefix, interaction.interactionId);
         if (prefixedInteractionId) {
-          interactionDisplayNumbers[prefixedInteractionId] = nextDisplayNumber;
-          nextDisplayNumber += 1;
+          const sourceInteraction = passageRecord.snapshot.document?.interactions?.[interaction.interactionId];
+          const answerSlotCount = Number(sourceInteraction?.reviewLabel?.answerSlotCount ?? 1);
+          const end = nextDisplayNumber + (Number.isInteger(answerSlotCount) && answerSlotCount > 0 ? answerSlotCount : 1) - 1;
+          interactionDisplayNumbers[prefixedInteractionId] = { start: nextDisplayNumber, end };
+          nextDisplayNumber = end + 1;
         }
       });
     });
@@ -959,12 +969,21 @@ const buildReviewPayload = (
             interactionId: resultInteraction.interactionId,
             taskGroupId: resultInteraction.taskGroupId,
             displayNumber: resultInteraction.displayNumber,
+            ...(resultInteraction.displayNumberEnd !== undefined
+              ? { displayNumberEnd: resultInteraction.displayNumberEnd }
+              : {}),
             taskFamily: resultInteraction.taskFamily,
             officialTaskType: resultInteraction.officialTaskType,
             studentAnswer: resultInteraction.studentAnswer,
             correctAnswer: resultInteraction.scoredAnswer,
             score: resultInteraction.score,
             maxScore: resultInteraction.maxScore,
+            ...(resultInteraction.answerSlotScores
+              ? {
+                answerSlotScores: resultInteraction.answerSlotScores,
+                answerSlotAnswers: resultInteraction.answerSlotAnswers,
+              }
+              : {}),
             reviewState: resultInteraction.reviewState,
             anchorRef: resultInteraction.anchorRef,
           };
@@ -1081,6 +1100,14 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     if (Number(projectedInteraction.displayNumber) !== answer.displayNumber) {
       throw new Error('Reading V2 answer display number binding does not match the assigned snapshot.');
     }
+
+    if (
+      canonicalInteraction.responseShape.kind === 'multi-select' &&
+      Array.isArray(answer.value) &&
+      answer.value.length > canonicalInteraction.responseShape.selectionLimit
+    ) {
+      throw new Error('Reading V2 multi-select answer exceeds the selection limit.');
+    }
   });
 
   const runtimeAnswers = answerMapFromRuntime(input.request.answers);
@@ -1120,18 +1147,23 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     const maxScore = Number(interaction.scoringRule?.maxScore ?? 0);
     const optionSetId = optionSetIdForInteraction(interaction);
     const optionSet = optionSetId ? snapshot.document?.optionSets?.[optionSetId] : undefined;
-    const score = answerMatches(answer?.value, interaction, optionSet) ? maxScore : 0;
+    const answerScore = scoreReadingV2Answer(answer?.value, interaction, optionSet);
 
     return {
       interactionId: interaction.interactionId,
       taskGroupId: interaction.taskGroupId,
       displayNumber: Number(projectedInteraction?.displayNumber ?? answer?.displayNumber ?? 0),
+      ...(projectedInteraction?.displayNumberEnd !== undefined
+        ? { displayNumberEnd: Number(projectedInteraction.displayNumberEnd) }
+        : {}),
       taskFamily: taskGroup.engineeringFamily,
       officialTaskType: taskGroup.officialTaskType,
       studentAnswer: answer?.value ?? '',
       scoredAnswer: correctAnswerForInteraction(interaction, optionSet),
-      score,
+      score: answerScore.score,
       maxScore,
+      ...(answerScore.answerSlotScores ? { answerSlotScores: answerScore.answerSlotScores } : {}),
+      ...(answerScore.answerSlotAnswers ? { answerSlotAnswers: answerScore.answerSlotAnswers } : {}),
       reviewState: 'released',
       anchorRef: interaction.primaryAnchorId,
     };
@@ -1148,6 +1180,32 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     interactions: resultInteractions,
   };
   const reviewPayload = buildReviewPayload(result, reviewProjection, materialId, input.records.metadata);
+  const questionResults = resultInteractions.flatMap((interaction) => {
+    if (!interaction.answerSlotScores) {
+      return [{
+        questionNumber: interaction.displayNumber,
+        questionType: interaction.officialTaskType,
+        isCorrect: interaction.score >= interaction.maxScore,
+        score: interaction.score,
+        maxScore: interaction.maxScore,
+        studentAnswer: interaction.studentAnswer,
+        correctAnswer: interaction.scoredAnswer,
+        feedback: '',
+      }];
+    }
+
+    const expectedAnswers = Array.isArray(interaction.scoredAnswer) ? interaction.scoredAnswer : [];
+    return interaction.answerSlotScores.map((score, index) => ({
+      questionNumber: interaction.displayNumber + index,
+      questionType: interaction.officialTaskType,
+      isCorrect: score === 1,
+      score,
+      maxScore: 1,
+      studentAnswer: interaction.answerSlotAnswers?.[index] ?? '',
+      correctAnswer: expectedAnswers[index] ?? '',
+      feedback: '',
+    }));
+  });
   const maxScore = resultInteractions.reduce((total, interaction) => total + interaction.maxScore, 0);
   const totalScore = resultInteractions.reduce((total, interaction) => total + interaction.score, 0);
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
@@ -1170,22 +1228,11 @@ export const buildReadingV2TrustedSubmissionPlan = (input: {
     maxScore,
     percentage,
     bandScore: maxScore > 0 ? calculateIELTSReadingBandScore(totalScore, maxScore) : 0,
-    questionResults: resultInteractions.map((interaction) => ({
-      questionNumber: interaction.displayNumber,
-      questionType: interaction.officialTaskType,
-      isCorrect: interaction.score >= interaction.maxScore,
-      score: interaction.score,
-      maxScore: interaction.maxScore,
-      studentAnswer: interaction.studentAnswer,
-      correctAnswer: interaction.scoredAnswer,
-      feedback: '',
-    })),
-    correct: resultInteractions.filter((interaction) => interaction.score >= interaction.maxScore).length,
-    incorrect: resultInteractions.filter((interaction) => interaction.score === 0).length,
-    partialCredit: resultInteractions.filter((interaction) =>
-      interaction.score > 0 && interaction.score < interaction.maxScore,
-    ).length,
-    totalQuestions: resultInteractions.length,
+    questionResults,
+    correct: questionResults.filter((question) => question.score >= question.maxScore).length,
+    incorrect: questionResults.filter((question) => question.score === 0).length,
+    partialCredit: questionResults.filter((question) => question.score > 0 && question.score < question.maxScore).length,
+    totalQuestions: questionResults.length,
     submittedAt: input.identity.submittedAtMs,
     timeElapsed: 0,
     testDuration: Number(input.records.metadata?.durationMinutes ?? 0),
