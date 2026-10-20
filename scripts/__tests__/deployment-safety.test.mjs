@@ -12,7 +12,7 @@ import {
   findForbiddenBundleMarker,
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
-import { replaceSnapshot } from '../local-firebase.mjs';
+import { publishGeneration } from '../local-firebase-recovery.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
@@ -344,20 +344,18 @@ test('Firestore import writes only to the local project and refuses redirects', 
   );
 });
 
-test('snapshot replacement preserves the previous snapshot on failure', async () => {
+test('invalid recovery publication preserves the selected generation', async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-snapshot-test-'));
-  const destinationDir = path.join(tempDir, 'snapshot');
+  const pointerPath = path.join(tempDir, 'latest.json');
   const stagingDir = path.join(tempDir, 'snapshot.next');
   try {
-    await mkdir(destinationDir);
-    await writeFile(path.join(destinationDir, 'data.json'), 'previous');
-    await assert.rejects(() => replaceSnapshot(stagingDir, destinationDir), { code: 'ENOENT' });
-    assert.equal(await readFile(path.join(destinationDir, 'data.json'), 'utf8'), 'previous');
+    await writeFile(pointerPath, 'previous-generation');
+    await assert.rejects(() => publishGeneration(stagingDir, { datasetId: 'dataset', root: tempDir }), { code: 'ENOENT' });
+    assert.equal(await readFile(pointerPath, 'utf8'), 'previous-generation');
     await mkdir(stagingDir);
-    await writeFile(path.join(stagingDir, 'data.json'), 'new');
-    await replaceSnapshot(stagingDir, destinationDir);
-    assert.equal(await readFile(path.join(destinationDir, 'data.json'), 'utf8'), 'new');
-    await assert.rejects(() => access(`${destinationDir}.previous`), { code: 'ENOENT' });
+    await writeFile(path.join(stagingDir, 'firebase-export-metadata.json'), '{}');
+    await assert.rejects(() => publishGeneration(stagingDir, { datasetId: 'dataset', root: tempDir }), /Incomplete three-store/);
+    assert.equal(await readFile(pointerPath, 'utf8'), 'previous-generation');
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
