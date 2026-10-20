@@ -225,14 +225,18 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   }
   const applicationFrontendChange = source.files.some(file => /^(src\/|vite\.config|index\.html)/u.test(file));
   let compatibilityReview = null;
-  if (applicationFrontendChange) {
+  if (applicationFrontendChange || compatibilityReviewPath) {
     if (!compatibilityReviewPath) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Explicit compatibility review is required for frontend dependence on deployed Worker endpoints, gates, payloads and Firebase permissions.' });
     else try {
       const raw = await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8');
       const review = JSON.parse(raw);
-      const valid = review.schemaVersion === 1 && review.decision === 'verified' && typeof review.reviewer === 'string' && review.reviewer.trim() && typeof review.reviewedAt === 'string' && !Number.isNaN(Date.parse(review.reviewedAt)) && Date.now() - Date.parse(review.reviewedAt) <= baselineMaxAgeMs && review.sourceRevision === source.revision && review.baseRevision === source.baseRevision && (!observation || review.observedFingerprint === observation.fingerprint) && Array.isArray(review.scope) && review.scope.length > 0;
+      const valid = review.schemaVersion === 1 && review.decision === 'verified' && typeof review.reviewer === 'string' && review.reviewer.trim() && typeof review.reviewedAt === 'string' && !Number.isNaN(Date.parse(review.reviewedAt)) && Date.parse(review.reviewedAt) <= Date.now() && Date.now() - Date.parse(review.reviewedAt) <= baselineMaxAgeMs && review.sourceRevision === source.revision && review.baseRevision === source.baseRevision && (!observation || review.observedFingerprint === observation.fingerprint) && Array.isArray(review.scope) && review.scope.length > 0;
       if (!valid) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Compatibility review is stale, incomplete, or bound to different source/baseline evidence.' });
-      else { compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope }; findings.push({ status: STATUS.PASS, message: `Compatibility review recorded by ${review.reviewer}.` }); }
+      else {
+        if (review.hotfixReconciliations !== undefined && !Array.isArray(review.hotfixReconciliations)) throw new Error('Hotfix reconciliations must be an array.');
+        compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope, hotfixReconciliations: review.hotfixReconciliations || [] };
+        findings.push({ status: STATUS.PASS, message: `Compatibility review recorded by ${review.reviewer}.` });
+      }
     } catch (error) { findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Compatibility review unavailable: ${error.message}` }); }
   }
   const observedHostingBaseline = isObserved(observation) && observation.revision === source.baseRevision && services.every(service => service === 'hosting' || service === 'tooling');
@@ -240,12 +244,23 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   else if (!baselinePath && !observation) findings.push({ status: STATUS.UNVERIFIED, message: 'A baseline file or independent provider observation is required.' });
   if (mode === 'hotfix' && (!isObserved(observation) || observation.revision !== source.baseRevision)) findings.push({ status: STATUS.UNVERIFIED, message: 'Hotfix base is not verified against production source.' });
   const hotfixes = [...(isObserved(observation) ? observation.manifest?.hotfixes || [] : []), ...(baseline?.hotfixes || [])];
+  const reconciliations = compatibilityReview?.hotfixReconciliations || [];
+  const validReconciliations = reconciliations.every((entry, index) => entry
+    && hotfixes.some(hotfix => hotfix.revision === entry.revision)
+    && reconciliations.findIndex(other => other?.revision === entry.revision) === index
+    && typeof entry.rationale === 'string' && entry.rationale.trim()
+    && Array.isArray(entry.paths) && entry.paths.length > 0 && entry.paths.every(file => typeof file === 'string'));
+  if (!validReconciliations) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Hotfix reconciliation review contains unknown, duplicate or incomplete entries.' });
   for (const hotfix of hotfixes) {
     if (!hotfix.revision) { findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Hotfix ${hotfix.id || 'unknown'} lacks Git/content evidence; filename overlap proves nothing.` }); continue; }
     try {
       const paths = names(git(['diff-tree', '--no-commit-id', '--name-only', '-r', hotfix.baseRevision || `${hotfix.revision}^`, hotfix.revision], cwd));
       const mismatched = paths.filter(file => git(['ls-tree', hotfix.revision, '--', file], cwd) !== git(['ls-tree', source.revision, '--', file], cwd));
-      findings.push({ status: mismatched.length ? STATUS.REVIEW_REQUIRED : STATUS.PASS, message: mismatched.length ? `Hotfix ${hotfix.id || hotfix.revision} content differs: review equivalence or regression (${mismatched.join(', ')}).` : `Hotfix ${hotfix.id || hotfix.revision} exact content is present.` });
+      const reconciliation = reconciliations.find(entry => entry?.revision === hotfix.revision);
+      const reviewedChange = validReconciliations && isObserved(observation) && observation.revision === source.baseRevision
+        && mismatched.length > 0 && reconciliation && JSON.stringify(reconciliation.paths) === JSON.stringify(mismatched);
+      if (reconciliation && !reviewedChange) findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Hotfix ${hotfix.id || hotfix.revision} reconciliation must cover exactly its sorted differing paths against the observed baseline.` });
+      findings.push({ status: mismatched.length && !reviewedChange ? STATUS.REVIEW_REQUIRED : STATUS.PASS, message: reviewedChange ? `Hotfix ${hotfix.id || hotfix.revision} successor changes explicitly reviewed: ${reconciliation.rationale}` : mismatched.length ? `Hotfix ${hotfix.id || hotfix.revision} content differs: review equivalence or regression (${mismatched.join(', ')}).` : `Hotfix ${hotfix.id || hotfix.revision} exact content is present.` });
     } catch { findings.push({ status: STATUS.UNVERIFIED, message: `Hotfix ${hotfix.id || hotfix.revision} Git evidence unavailable.` }); }
   }
   if (productionEnvFingerprint) findings.push({ status: STATUS.PASS, message: 'Production environment fingerprint is bound to this assessment.' });
