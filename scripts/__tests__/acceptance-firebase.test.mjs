@@ -25,20 +25,54 @@ test('ordinary local Firebase startup only checks existing services', async () =
     .replaceAll('import.meta.url', 'moduleUrl')
     .replace(/^export /gmu, '');
   let checked = 0;
+  let loaded = 0;
+  let preserved = 0;
+  const reads = [];
+  const manifest = { datasetId: 'fixture', generationId: 'generation', issues: [] };
   const forbidden = () => { throw new Error('Ordinary startup attempted a mutating setup operation'); };
   await runInNewContext(`(async () => { ${source} })()`, {
     assert, path, os, fileURLToPath, moduleUrl: url.href,
     process: { platform: 'linux', arch: 'x64', argv: ['node', fileURLToPath(url), 'start'], env: {} },
     console: { log() {}, error() {} },
     assertLocalEmulators: async () => { checked += 1; },
+    readGeneration: async () => { loaded += 1; return { manifest, documents: [], inventory: {} }; },
+    inventory: (database, auth, documents) => {
+      assert.equal(database.users.teacher.email, 'teacher@test.com');
+      assert.equal(auth.users[0].localId, 'teacher');
+      assert.equal(documents.length, 0);
+      return {};
+    },
+    assertInventoryPreserved: () => { preserved += 1; },
+    datasetIssues: () => [],
+    recoveryRoot: path.join(os.tmpdir(), 'read-only-recovery-fixture'),
+    readFile: async file => {
+      assert.equal(file, path.join(os.tmpdir(), 'read-only-recovery-fixture', 'status.json'));
+      return JSON.stringify({ state: 'saved', ...manifest, completedAt: new Date().toISOString() });
+    },
+    AbortSignal,
+    fetch: async (url, options) => {
+      assert.equal(options.method, undefined);
+      assert.equal(options.redirect, 'error');
+      reads.push(url);
+      return { ok: true, text: async () => JSON.stringify(url.includes(':9099/')
+        ? { users: [{ localId: 'teacher', email: 'teacher@test.com' }] }
+        : { users: { teacher: { email: 'teacher@test.com' } } }) };
+    },
     net: { createConnection() {
       const socket = { once(event, callback) { if (event === 'connect') queueMicrotask(callback); }, destroy() {} };
       return socket;
     } },
-    spawn: forbidden, access: forbidden, mkdir: forbidden, readFile: forbidden,
-    rename: forbidden, rm: forbidden, writeFile: forbidden, fetch: forbidden,
+    spawn: forbidden, spawnSync: forbidden, access: forbidden, mkdir: forbidden,
+    rename: forbidden, rm: forbidden, writeFile: forbidden, cp: forbidden,
+    atomicJson: forbidden, withCheckpointWriter: forbidden,
   });
   assert.equal(checked, 1);
+  assert.equal(loaded, 1);
+  assert.equal(preserved, 1);
+  assert.deepEqual(reads, [
+    'http://localhost:9000/.json?ns=demo-luyentap-local&format=export',
+    'http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/demo-luyentap-local/accounts:batchGet?maxResults=-1',
+  ]);
 });
 
 test('Vite validates preview CSP for builds and preview without rejecting local dev HTTP Workers', async () => {
