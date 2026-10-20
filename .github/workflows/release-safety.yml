@@ -95,3 +95,10 @@ jobs:
           const normalized = raw.replaceAll('../../luyentap/r2-backup-worker/node_modules/', 'node_modules/').replaceAll('../../../../../repos/luyentap-prd0062/node_modules/', '../node_modules/').replace(/(?:\.\.\/)*node_modules\//g, 'node_modules/').replace(/^\/\/# sourceMappingURL=.*$/gm, '').replace(/\r\n/g, '\n').trim();
           assert.equal(createHash('sha256').update(normalized).digest('hex'), process.env.EXPECTED_SHA);
           NODE
+      - name: Retain failed rebuild for exact comparison
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-homework-rebuild
+          path: tmp/deployed-homework-rebuild/index.js
+          retention-days: 1
