@@ -2,6 +2,7 @@ import type {
   BookAssemblyBookAuthority,
   BookAssemblyCandidateRecord,
 } from './unitAssembly.types';
+import { fingerprintComponentPdfActivationValue } from './componentPdfActivation.service';
 import {
   type BookAssemblyPublicationResult,
 } from './publicationTransaction.service';
@@ -279,7 +280,12 @@ export const createComponentPdfPublicationCommand = (
       manifestVersionId,
       publicationId: plan.studentSafeProjection.publicationId,
       publicationRevision: plan.studentSafeProjection.publicationRevision,
-      plan,
+      plan: { ...plan, studentDocument: {
+        sourceVersionId: whole.studentDocument.sourceVersionId,
+        descriptorRevision: whole.studentDocument.descriptorRevision,
+        sha256Hex: whole.studentDocument.sha256Hex,
+        descriptorFingerprint: fingerprintComponentPdfActivationValue(whole.studentDocument),
+      } },
       canonicalActivityVersions,
       operationFingerprint: request.operationFingerprint,
       now,

@@ -517,6 +517,17 @@ describe('Book Assembly publication Firebase repository', () => {
       .rejects.toThrow('book_assembly_publication_owner_mismatch');
   });
 
+  it('rejects malformed or full-PDF combined document pins at the storage boundary', async () => {
+    for (const pin of [null, { sourceVersionId: 'document-1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) }]) {
+      const wire = toWireScope(completeScope());
+      (wire.versions as Record<string, Record<string, unknown>>)['manifest-1']!.studentDocument = pin;
+      const repository = new FirebaseRestBookAssemblyPublicationRepository({
+        env, fetchImpl: createFetchHarness(wire).fetchImpl, getAccessToken: async () => 'test-token',
+      });
+      await expect(repository.readScope('book-1')).rejects.toThrow('invalid_book_assembly_publication_record');
+    }
+  });
+
   it('prepares exact immutable child paths, retries the pointer CAS, and heals prepared children', async () => {
     const concurrent = completeScope(concurrentOperationId);
     const scope = completeScope();

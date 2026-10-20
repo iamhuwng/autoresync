@@ -40,7 +40,7 @@ const assertId = (value: string): void => {
   if (!ID.test(value)) throw new BookDeliveryProjectionError('invalid-book-delivery-request');
 };
 
-const routeKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => {
+export const bookDeliveryDocumentRouteKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => {
   const raw = binding.sourceSet.strategy === 'component_pdfs' && sourceKey === 'student-document'
     ? `${binding.bindingId}-${binding.revision}-student-document`
     : `${binding.bindingId}-${binding.revision}-${sourceKey}-${sourceVersionId}`;
@@ -87,7 +87,7 @@ export const createBookDeliveryProjectionResolver = (options: {
     readonly pageGroups: readonly BookRuntimePageGroupContext[];
   } | null>;
 }) => {
-  const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? routeKey;
+  const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? bookDeliveryDocumentRouteKey;
   const allowedContexts = new Set<BookDeliveryContextKind>([
     ...runnableContexts, ...(options.allowedAdapterContexts ?? []),
   ]);

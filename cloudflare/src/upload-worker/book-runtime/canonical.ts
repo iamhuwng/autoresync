@@ -7,7 +7,9 @@ import type {
 import {
   createFirebaseBookResultProjectionWriter,
   projectCommittedBookResult,
+  projectCommittedBookSourceContext,
 } from '../book-results/production-projection.ts';
+import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/publication-repository.ts';
 import type {
   BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
@@ -230,14 +232,21 @@ export const createBookRuntimeProductionDependencies = (
     if (!result.attempt || !result.result || !result.completion || !result.index) {
       throw new Error('book_result_projection_terminal_reader_unavailable');
     }
+    const terminal = {
+      attempt: result.attempt,
+      result: result.result,
+      completion: result.completion,
+      index: result.index,
+    };
+    // Failed authority reads retry the committed terminal instead of persisting transient missing context.
+    const publicationScope = binding.sourceSet.strategy === 'component_pdfs'
+      ? await new FirebaseRestBookAssemblyPublicationRepository({
+          env: runtimeEnv, ownerId: binding.issuer.ownerId,
+        }).readScope(binding.book.bookId)
+      : undefined;
     await projectCommittedBookResult({
-      binding,
-      terminal: {
-        attempt: result.attempt,
-        result: result.result,
-        completion: result.completion,
-        index: result.index,
-      },
+      binding, terminal,
+      attemptSourceContext: projectCommittedBookSourceContext({ binding, terminal, publicationScope }),
       writer: createFirebaseBookResultProjectionWriter(runtimeEnv),
     });
   };

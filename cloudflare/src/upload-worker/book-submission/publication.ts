@@ -22,6 +22,7 @@ import {
 } from './publication-projections.ts';
 import { qualifyBookSubmissionPublication } from './qualification.ts';
 import { normalizeTrustedSourceUploadDatabaseUrl } from '../../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
+import { fingerprintComponentPdfActivationValue } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 
 export type BookSubmissionVerifiedSource = TrustedBookSourceVersionProjection & { readonly byteSize: number };
 
@@ -183,6 +184,12 @@ export const createProductionBookSubmissionPublicationFinalizer = (): BookSubmis
         return { manifestVersionId, publicationId: publicationIdValue, publicationRevision: 1,
           plan: {
             ...output.plan,
+            studentDocument: {
+              sourceVersionId: committedStudentDocument!.sourceVersionId,
+              descriptorRevision: committedStudentDocument!.descriptorRevision,
+              sha256Hex: committedStudentDocument!.sha256Hex,
+              descriptorFingerprint: fingerprintComponentPdfActivationValue(committedStudentDocument),
+            },
             atomicWrites: {
               ...output.plan.atomicWrites,
               deliveryPlans: output.plan.atomicWrites.deliveryPlans,

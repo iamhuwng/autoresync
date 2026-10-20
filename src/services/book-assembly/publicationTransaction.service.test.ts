@@ -7,6 +7,7 @@ import type {
 import {
   bookAssemblyActivityVersionScopeKey,
   createBookAssemblyPublicationService,
+  validateBookAssemblyPublicationInput,
 } from './publicationTransaction.service';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 
@@ -160,6 +161,15 @@ const adapterPlan = (
 };
 
 describe('Book Assembly publication transaction service', () => {
+  it('rejects malformed pins and pins on full PDF publications', () => {
+    const pin = { sourceVersionId: 'document-1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64), descriptorFingerprint: 'fnv1a64:1234567890123456' };
+    for (const studentDocument of [null, pin, { ...pin, descriptorRevision: -1 }, { ...pin, sha256Hex: {} }]) {
+      const plan = adapterPlan({ studentDocument } as unknown as Partial<BookAssemblyPublicationAdapterPlan>);
+      expect(validateBookAssemblyPublicationInput({ operationId: op('1'), expectedCurrentPublicationId: null,
+        manifestVersionId: 'manifest-v1', publicationId: 'publication-1', publicationRevision: 1,
+        plan, now: '2026-07-27T00:00:00.000Z' })).toMatchObject({ status: 'invalid' });
+    }
+  });
   it('atomically creates immutable manifest version, current pointer, operation, and bounded audit', async () => {
     const repository = new InMemoryBookAssemblyPublicationRepository();
     const service = createBookAssemblyPublicationService(repository);

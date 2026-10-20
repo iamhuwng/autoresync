@@ -120,8 +120,14 @@ export const authorizeHistoricalAttemptDocument = (input: {
     return { ok: false, status: 404, code: 'historical_source_unavailable' };
   }
   const metadata = input.projection.metadata;
+  const resource = input.projection.documentResource;
+  const document = resource.studentDocument;
   if (!historicalRequestMatches(input.request, input.projection)
-    || input.source.sourceVersionId !== metadata.sourceVersionId
+    || input.source.sourceVersionId !== resource.sourceVersionId
+    || (document && (resource.sourceKey !== 'student-document'
+      || input.source.byteSize !== document.expectedByteLength
+      || input.source.checksum.algorithm !== 'sha-256'
+      || input.source.checksum.value.toLowerCase() !== document.sha256Hex.toLowerCase()))
     || input.source.bookId !== metadata.bookId) {
     return { ok: false, status: 403, code: 'forbidden' };
   }
@@ -156,7 +162,7 @@ export const authorizeHistoricalAttemptDocument = (input: {
       contextId: metadata.contextId,
       contextKind: metadata.surface,
       ownerId: metadata.ownerId,
-      sourceVersionIds: [metadata.sourceVersionId],
+      sourceVersionIds: [resource.sourceVersionId],
       sourceLocations: [input.source],
     },
     source: input.source,

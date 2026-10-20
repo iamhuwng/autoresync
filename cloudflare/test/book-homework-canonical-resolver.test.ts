@@ -7,8 +7,10 @@ import type { BookHomeworkAssignmentPreviewSource } from '../../src/services/boo
 import {
   BookHomeworkCanonicalResolverError,
   createBookHomeworkCanonicalResolver,
+  resolveCombinedDocument,
 } from '../src/upload-worker/book-homework/canonical-resolver';
 import { makeBookAssemblyPublicationScope } from './book-delivery.fixture';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service';
 
 const createdAt = '2026-08-01T00:00:00.000Z';
 
@@ -293,8 +295,26 @@ describe('Book Homework canonical resolver', () => {
         ],
       },
     };
+    scope.versions['manifest-1'].studentDocument = {
+      sourceVersionId: 'student-document-v1', descriptorRevision: 3, sha256Hex: 'a'.repeat(64),
+      descriptorFingerprint: fingerprintComponentPdfActivationValue(scope.studentDocuments['student-document-v1']),
+    };
     return scope;
   };
+
+  it('resolves the exact combined document pin and refuses missing or mismatched history', () => {
+    const scope = componentScope();
+    const descriptor = scope.studentDocuments['student-document-v1'];
+    scope.studentDocuments['another-document'] = { ...descriptor, sourceVersionId: 'another-document' };
+    expect(resolveCombinedDocument(scope, 'manifest-1')).toEqual(descriptor);
+    descriptor.components[0].ownerNodeKey = 'tampered-unit';
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+    descriptor.components[0].ownerNodeKey = 'unit-1';
+    scope.versions['manifest-1'].studentDocument.sha256Hex = 'b'.repeat(64);
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+    delete scope.versions['manifest-1'].studentDocument;
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+  });
 
   const componentCommand = (preview: BookHomeworkAssignmentPreviewSource) => ({
     ...command(),

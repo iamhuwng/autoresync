@@ -9,9 +9,9 @@ vi.mock('./BookPdfViewerHost', () => ({
     route,
   }: {
     initialPage: number;
-    route: { url: string; sourceVersionId: string };
+    route: { url: string; sourceVersionId: string; expectedByteLength?: number; expectedEtag?: string };
   }) => (
-    <div data-testid="mock-historical-pdf">
+    <div data-testid="mock-historical-pdf" data-byte-length={route.expectedByteLength} data-etag={route.expectedEtag}>
       {`${route.url}:${route.sourceVersionId}:page-${initialPage}`}
     </div>
   ),
@@ -49,6 +49,34 @@ const available: BookAttemptSourceContextProjection = {
 };
 
 describe('BookAttemptSourceReview', () => {
+  it('opens the pinned combined page while preserving component-local provenance', () => {
+    render(
+      <BookAttemptSourceReview projection={{
+        ...available,
+        state: 'available',
+        metadata: { ...available.metadata!, combinedPhysicalPageNumber: 17,
+          pageGroupIds: ['page-group-1', 'page-group-2'],
+          pageContexts: [
+            { sourceKey: 'component-a', sourceVersionId: 'source-version-4', physicalPageNumber: 7, combinedPhysicalPageNumber: 17 },
+            { sourceKey: 'component-b', sourceVersionId: 'source-version-9', physicalPageNumber: 2, combinedPhysicalPageNumber: 22 },
+          ] },
+        documentResource: { sourceKey: 'student-document', sourceVersionId: 'combined-version-1',
+          opaqueRouteKey: 'pinned-combined', localPageScope: { kind: 'all', pages: [] },
+          studentDocument: { descriptorRevision: 4, sha256Hex: 'a'.repeat(64),
+            descriptorFingerprint: 'fnv1a64:1234567890abcdef', expectedByteLength: 1000, physicalPageCount: 30 } },
+      }}>
+        <p>Preserved response</p>
+      </BookAttemptSourceReview>,
+    );
+    expect(screen.getByRole('button', { name: 'Book page · page 17' })).toBeInTheDocument();
+    expect(screen.getByTestId('mock-historical-pdf')).toHaveTextContent(':combined-version-1:page-17');
+    expect(screen.getByTestId('mock-historical-pdf')).toHaveAttribute('data-byte-length', '1000');
+    expect(screen.getByTestId('mock-historical-pdf')).not.toHaveAttribute('data-etag');
+    fireEvent.click(screen.getByText('Technical source details'));
+    expect(screen.getByText('Local page 7 · book page 17')).toBeVisible();
+    expect(screen.getByText('Local page 2 · book page 22')).toBeVisible();
+    expect(screen.getByText('page-group-1, page-group-2')).toBeVisible();
+  });
   it('renders exact context pills, metadata, response, and historical PDF route', async () => {
     render(
       <BookAttemptSourceReview projection={available}>

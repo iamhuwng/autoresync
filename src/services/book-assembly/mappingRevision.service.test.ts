@@ -176,6 +176,22 @@ const input = (targetManifest: BookAssemblyManifestCandidate = manifest()) => ({
 });
 
 describe('mapping revision publication plan', () => {
+  it('retains the exact combined document pin through a component mapping revision', () => {
+    const target = manifest();
+    target.units[0]!.pageGroups = [...target.units[0]!.pageGroups].reverse();
+    const value = input(target);
+    const sourceSet: SourceSetCandidate = { sourceStrategy: 'component_pdfs', sources: [
+      { ...fullSources.sources[0]!, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'other', sourceVersionId: 'other-v1', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+    ] };
+    value.authority = { ...value.authority, sourceSet, sourceVersionAuthority: {
+      getSourceVersion: id => ({ ...authorityProjection(id), sourceKey: id === 'other-v1' ? 'other' : 'full' }),
+    } };
+    value.predecessor = { ...value.predecessor, strategy: 'component_pdfs', manifest: { ...value.predecessor.manifest, sourceSet },
+      studentDocument: { sourceVersionId: 'document-1', descriptorRevision: 4, sha256Hex: 'a'.repeat(64), descriptorFingerprint: 'fnv1a64:1234567890123456' } };
+    value.targetManifest = { ...target, sourceSet };
+    expect(createMappingRevisionPublicationPlan(value).plan.studentDocument).toEqual(value.predecessor.studentDocument);
+  });
   it('creates an immutable mapping revision with Activity references and stable placement lineage', () => {
     const target = manifest();
     target.units[0]!.pageGroups = [...target.units[0]!.pageGroups].reverse();

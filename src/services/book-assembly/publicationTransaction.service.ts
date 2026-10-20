@@ -331,6 +331,15 @@ export const validateBookAssemblyPublicationInput = (
   input: PublishBookAssemblyInput,
 ): BookAssemblyPublicationResult | null => {
   const { plan } = input;
+  if (plan.studentDocument !== undefined && (plan.strategy !== 'component_pdfs'
+    || plan.studentDocument === null || typeof plan.studentDocument !== 'object' || Array.isArray(plan.studentDocument)
+    || Object.keys(plan.studentDocument).sort().join(',') !== 'descriptorFingerprint,descriptorRevision,sha256Hex,sourceVersionId'
+    || !validId(plan.studentDocument.sourceVersionId)
+    || !Number.isSafeInteger(plan.studentDocument.descriptorRevision) || plan.studentDocument.descriptorRevision < 0
+    || typeof plan.studentDocument.sha256Hex !== 'string'
+    || typeof plan.studentDocument.descriptorFingerprint !== 'string'
+    || !/^fnv1a64:[a-f0-9]{16}$/iu.test(plan.studentDocument.descriptorFingerprint)
+    || !/^[a-f0-9]{64}$/iu.test(plan.studentDocument.sha256Hex))) return invalid('invalid-publication-plan');
   if (!validOperationId(input.operationId)
     || !validId(input.manifestVersionId)
     || !validId(input.publicationId)
@@ -443,6 +452,7 @@ export const createBookAssemblyPublicationService = (
         createdAt: input.now,
         manifest: clone(input.plan.manifest),
         studentSafeProjection: clone(input.plan.studentSafeProjection),
+        ...(input.plan.studentDocument ? { studentDocument: clone(input.plan.studentDocument) } : {}),
         ...(input.plan.successorLineage
           ? { successorLineage: clone(input.plan.successorLineage) }
           : {}),

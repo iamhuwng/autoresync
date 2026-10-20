@@ -88,6 +88,17 @@ const authorize = (overrides: Partial<Parameters<typeof authorizeHistoricalAttem
   });
 
 describe('historical attempt document authorization', () => {
+  it('authorizes pinned combined bytes while retaining component-local provenance', () => {
+    const combined = { ...projection, documentResource: {
+      ...projection.documentResource, sourceKey: 'student-document', sourceVersionId: 'combined-v1',
+      studentDocument: { descriptorRevision: 1, sha256Hex: 'a'.repeat(64), descriptorFingerprint: 'fnv1a64:1234567890123456', expectedByteLength: 1024, physicalPageCount: 10 },
+    } };
+    const combinedSource = { ...source, sourceVersionId: 'combined-v1' };
+    expect(authorize({ projection: combined, source: combinedSource })).toMatchObject({ ok: true, decision: { sourceVersionIds: ['combined-v1'] } });
+    expect(authorize({ projection: combined, source })).toMatchObject({ ok: false, status: 403 });
+    expect(authorize({ projection: combined, source: { ...combinedSource, byteSize: 1023 } })).toMatchObject({ ok: false, status: 403 });
+    expect(authorize({ projection: combined, source: { ...combinedSource, checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) } } })).toMatchObject({ ok: false, status: 403 });
+  });
   it('authorizes the student from immutable attempt provenance', () => {
     expect(authorize()).toMatchObject({
       ok: true,

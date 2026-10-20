@@ -1,0 +1,100 @@
+// Proposed isolated target; resources and credentials are NOT provisioned.
+// Action policy is intentionally absent: create/upload/publish/assign/launch/mutation fail closed.
+// Add a reviewed staging policy valid for at most 24 hours only after qualification authorization.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-book-qualification",
+  "account_id": "e41db829dabe9993f03674afdfd56510",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "ratelimits": [
+    {
+      "name": "BOOK_ROUTE_RATE_LIMITER",
+      "namespace_id": "205521",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "luyentap-pdf-qa-20261021",
+    "FIREBASE_DB_URL": "https://luyentap-pdf-qa-20261021-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
+    "BOOK_ROLLOUT_ENVIRONMENT": "staging",
+    "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",
+    "BOOK_SOURCE_B2_PROVIDER_STATE": "enabled",
+    "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
+    "BOOK_SOURCE_B2_REGION": "us-west-004",
+    "BOOK_SOURCE_B2_STORAGE_LOCATION_ID": "b2_book_primary",
+    "BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME": "bookpdf",
+    "BOOK_SOURCE_B2_OBJECT_KEY_PREFIX": "book-source/prd0062-preview-20260729/pdf-qa-20261019/",
+    "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f",
+    "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY": "book-authoring@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_ASSEMBLY_SERVICE_IDENTITY": "book-assembly@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_RUNTIME_SERVICE_IDENTITY": "book-runtime@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_RESULT_READ_SERVICE_IDENTITY": "book-result-read@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_SUBMISSION_SERVICE_IDENTITY": "book-submission@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_EVALUATION_SERVICE_IDENTITY": "book-evaluation@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_INTEGRITY_SERVICE_IDENTITY": "book-integrity@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "NOTIFICATION_COMMAND_SERVICE_IDENTITY": "book-notification@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "enabled",
+    "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED": "enabled",
+    "BOOK_RUNTIME_ROUTES_ENABLED": "enabled",
+    "BOOK_DELIVERY_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "enabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "enabled",
+    "BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "enabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "enabled",
+    "BOOK_RESULT_READ_ROUTES_ENABLED": "enabled",
+    "BOOK_INTEGRITY_ROUTES_ENABLED": "enabled",
+    "BOOK_SUBMISSION_ROUTES_ENABLED": "enabled",
+    "BOOK_RESULT_PROJECTION_ENABLED": "enabled",
+    "BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED": "enabled",
+    "BOOK_ASSEMBLY_MUTATIONS_ENABLED": "true",
+    "BOOK_FULL_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ENABLED": "true",
+    "BOOK_NOTIFICATIONS_EMISSION_ENABLED": "true"
+  },
+  "secrets": {
+    "required": [
+      "FIREBASE_WEB_API_KEY",
+      "BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY",
+      "BOOK_DELIVERY_GOOGLE_SA_KEY",
+      "BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY",
+      "BOOK_ASSEMBLY_GOOGLE_SA_KEY",
+      "BOOK_HOMEWORK_GOOGLE_SA_KEY",
+      "BOOK_RUNTIME_GOOGLE_SA_KEY",
+      "BOOK_RESULT_READ_GOOGLE_SA_KEY",
+      "BOOK_SUBMISSION_GOOGLE_SA_KEY",
+      "BOOK_ACTIVITY_EVALUATION_GOOGLE_SA_KEY",
+      "BOOK_INTEGRITY_GOOGLE_SA_KEY",
+      "NOTIFICATION_COMMAND_GOOGLE_SA_KEY",
+      "BOOK_SOURCE_B2_PRIVATE_BUCKET_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_UPLOAD_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_METADATA_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_READ_APPLICATION_KEY",
+      "BOOK_SOURCE_B2_DELETE_APPLICATION_KEY_ID",
+      "BOOK_SOURCE_B2_DELETE_APPLICATION_KEY"
+    ]
+  }
+}

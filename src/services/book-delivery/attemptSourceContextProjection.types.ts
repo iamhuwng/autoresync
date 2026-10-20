@@ -22,6 +22,14 @@ export interface BookAttemptSourceContextMetadata {
   readonly sourceKey: string;
   readonly sourceVersionId: string;
   readonly physicalPageNumber: number;
+  readonly combinedPhysicalPageNumber?: number;
+  readonly pageContexts?: readonly {
+    readonly sourceKey: string;
+    readonly sourceVersionId: string;
+    readonly physicalPageNumber: number;
+    readonly combinedPhysicalPageNumber: number;
+  }[];
+  readonly pageGroupIds?: readonly string[];
   readonly pageGroupId: string;
   readonly placementId: string;
   readonly activityId: string;
@@ -36,6 +44,13 @@ export interface BookAttemptHistoricalDocumentResource {
   readonly sourceVersionId: string;
   readonly opaqueRouteKey: string;
   readonly localPageScope: BookRuntimeDeliveryDocumentRequest['localPageScope'];
+  readonly studentDocument?: {
+    readonly descriptorRevision: number;
+    readonly sha256Hex: string;
+    readonly descriptorFingerprint: string;
+    readonly expectedByteLength: number;
+    readonly physicalPageCount: number;
+  };
 }
 
 export type BookAttemptSourceContextUnavailableReason =

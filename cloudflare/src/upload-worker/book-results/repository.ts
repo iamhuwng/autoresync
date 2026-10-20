@@ -181,6 +181,11 @@ const visibleSummary = (summary: BookResultAttemptSummary): BookResultAttemptSum
         documentResource: value.attemptSourceContext.documentResource ?? null,
       };
     }
+    const context = value.attemptSourceContext;
+    if (isRecord(context) && context.state === 'available' && isRecord(context.documentResource)) {
+      const scope = context.documentResource.localPageScope;
+      if (isRecord(scope) && scope.kind === 'all' && scope.pages === undefined) scope.pages = [];
+    }
     return value as unknown as BookResultAttemptSummary;
   })(),
   sourceProvenance: clone(summary.sourceProvenance ?? []),

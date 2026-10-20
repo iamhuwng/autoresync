@@ -8,7 +8,7 @@ import {
 } from '../src/upload-worker/book-submission/production.ts';
 import { computeBookSubmissionFingerprint, normalizeBookSubmissionMetadata } from '../../src/services/materialCatalog/bookSubmissionInput.service.ts';
 import { validateEditableActivity } from '../../src/services/book-activity/activitySchema.service.ts';
-import { activeComponentPdfActivation, resolveMaterialQualifiedAssemblyCandidate } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
+import { activeComponentPdfActivation, fingerprintComponentPdfActivationValue, resolveMaterialQualifiedAssemblyCandidate } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
 
 import { fingerprint, operationId, ownerId, bookId, now, sourceReceipt, editableActivity, activity, manifest, verifiedSource, operation, env, request, componentArtifact } from './fixtures/book-submission-publication.ts';
 
@@ -158,6 +158,15 @@ describe('production Book submission publication finalizer', () => {
       getAccessToken: async () => 'test-token',
     });
     const publication = await repository.readScope(bookId);
+    if (artifact) {
+      const committedDescriptor = { ...artifact.descriptor, descriptorRevision: 1 };
+      expect(publication.versions![publication.current!.manifestVersionId]!.studentDocument).toEqual({
+        sourceVersionId: committedDescriptor.sourceVersionId,
+        descriptorRevision: committedDescriptor.descriptorRevision,
+        sha256Hex: committedDescriptor.sha256Hex,
+        descriptorFingerprint: fingerprintComponentPdfActivationValue(committedDescriptor),
+      });
+    }
     expect(publication.versions![publication.current!.manifestVersionId]!.manifest.nodes[0]!.title)
       .toBe('Vocabulary Unit');
     const canonicalPath = Object.keys(writes).find((path) => path.startsWith('book_activity/versions/'))!;

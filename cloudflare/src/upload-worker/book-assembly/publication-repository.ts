@@ -251,6 +251,7 @@ const STORED_RECORD_KEYS: Record<PublicationFamily, ReadonlySet<string>> = {
     'createdAt',
     'manifest',
     'studentSafeProjection',
+    'studentDocument',
     'successorLineage',
     'mappingRevisionLineage',
   ]),
@@ -561,6 +562,17 @@ const assertStoredRecord = (
     throw new Error('invalid_book_assembly_publication_record');
   }
   if (family === 'versions') {
+    if (value.studentDocument !== undefined) {
+      const pin = value.studentDocument;
+      if (value.strategy !== 'component_pdfs' || !isRecord(pin)
+        || Object.keys(pin).sort().join(',') !== 'descriptorFingerprint,descriptorRevision,sha256Hex,sourceVersionId'
+        || typeof pin.sourceVersionId !== 'string' || !PATH_ID.test(pin.sourceVersionId)
+        || !safeIntegerAtLeast(pin.descriptorRevision, 0)
+        || typeof pin.descriptorFingerprint !== 'string' || !/^fnv1a64:[a-f0-9]{16}$/iu.test(pin.descriptorFingerprint)
+        || typeof pin.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/iu.test(pin.sha256Hex)) {
+        throw new Error('invalid_book_assembly_publication_record');
+      }
+    }
     if (value.successorLineage !== undefined) {
       if (!isRecord(value.successorLineage)) {
         throw new Error('invalid_book_assembly_publication_record');
