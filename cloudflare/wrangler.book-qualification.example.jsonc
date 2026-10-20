@@ -5,7 +5,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "luyentap-book-qualification",
   "account_id": "e41db829dabe9993f03674afdfd56510",
-  "main": "worker.js",
+  "main": "book-qualification-worker.js",
   "compatibility_date": "2026-07-29",
   "compatibility_flags": [
     "nodejs_compat"
@@ -32,11 +32,13 @@
     "BOOK_ROLLOUT_ENVIRONMENT": "staging",
     "BOOK_SOURCE_CONTROL_ALLOWED_ORIGIN": "http://localhost:5173",
     "BOOK_SOURCE_B2_PROVIDER_STATE": "enabled",
-    "BOOK_SOURCE_B2_ENDPOINT": "https://s3.us-west-004.backblazeb2.com",
-    "BOOK_SOURCE_B2_REGION": "us-west-004",
-    "BOOK_SOURCE_B2_STORAGE_LOCATION_ID": "b2_book_primary",
-    "BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME": "bookpdf",
-    "BOOK_SOURCE_B2_OBJECT_KEY_PREFIX": "book-source/prd0062-preview-20260729/pdf-qa-20261019/",
+    "BOOK_SOURCE_B2_CONFIGURATION": {
+      "endpoint": "https://s3.us-west-004.backblazeb2.com",
+      "region": "us-west-004",
+      "storageLocationId": "b2_book_primary",
+      "privateBucketName": "bookpdf",
+      "objectKeyPrefix": "book-source/prd0062-preview-20260729/pdf-qa-20261019/"
+    },
     "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f",
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
     "BOOK_DELIVERY_SERVICE_IDENTITY": "book-delivery@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
