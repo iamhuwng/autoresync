@@ -1251,7 +1251,7 @@ describe('readingV2ImportNormalization.service', () => {
     expect(questionFour?.scoringRule.acceptableAnswers).toEqual(['teacher phrase']);
   });
 
-  it('normalizes one choose-two prompt across two answer slots into one scored interaction', () => {
+  it.each([false, true])('normalizes choose-two answer slots with a separate second source record: %s', (hasSecondRecord) => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
       '```json',
@@ -1290,13 +1290,13 @@ describe('readingV2ImportNormalization.service', () => {
                 questionText: 'Which TWO options are correct?',
                 answer: 'B',
               },
-              {
+              ...(hasSecondRecord ? [{
                 questionNumber: 26,
                 type: 'multiple-select',
                 sectionInstructionId: 'p1-q25-26',
                 questionText: '',
                 answer: 'C',
-              },
+              }] : []),
             ],
           },
         ],

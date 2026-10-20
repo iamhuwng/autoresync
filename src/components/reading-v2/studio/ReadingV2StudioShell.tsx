@@ -592,7 +592,7 @@ export const createManualReadingV2TaskGroup = (
       )
     : [];
   const linkedStimulusId = isStructuredCompletion ? structuredStimulusId : stimulusId;
-  const interactionIds = [1, 2].map((questionIndex) =>
+  const interactionIds = (canonicalTaskType === 'multiple-select' ? [1] : [1, 2]).map((questionIndex) =>
     readingV2Ids.interactionId(`${taskGroupId}-question-${questionIndex}`),
   );
   const interactionOptionSetIds = usesPerQuestionChoiceOptions
@@ -649,11 +649,13 @@ export const createManualReadingV2TaskGroup = (
           taskGroupId,
           responseShape: interactionResponseShape,
           scoringRule: {
-            maxScore: 1,
+            maxScore: interactionResponseShape.kind === 'multi-select' ? interactionResponseShape.selectionLimit : 1,
             acceptableAnswers: [],
             orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
           },
-          reviewLabel: {},
+          reviewLabel: interactionResponseShape.kind === 'multi-select'
+            ? { answerSlotCount: interactionResponseShape.selectionLimit }
+            : {},
           promptText: isTableCompletion
             ? `Table blank ${index + 1}`
             : isFlowchartCompletion
@@ -1503,11 +1505,11 @@ const createQuestionForTaskGroup = (
     taskGroupId: taskGroup.taskGroupId,
     responseShape,
     scoringRule: {
-      maxScore: 1,
+      maxScore: responseShape.kind === 'multi-select' ? responseShape.selectionLimit : 1,
       acceptableAnswers: [],
       orderMatters: responseShape.kind === 'multi-select' ? false : undefined,
     },
-    reviewLabel: {},
+    reviewLabel: responseShape.kind === 'multi-select' ? { answerSlotCount: responseShape.selectionLimit } : {},
     promptText: structuredPromptText,
     primaryAnchorId: structuredAnchorId,
     contextAnchorIds: structuredAnchorId ? [structuredAnchorId] : undefined,

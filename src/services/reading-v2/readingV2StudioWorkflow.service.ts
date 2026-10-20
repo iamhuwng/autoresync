@@ -25,6 +25,7 @@ import {
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
+import { normalizeReadingV2MultipleSelectSlots } from './readingV2MultipleSelectNormalization.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
 import {
   commitReadingV2PublishPlanToFirebase,
@@ -517,7 +518,7 @@ export const resolveReadingV2StudioWorkflowContext = (input: {
         draftId,
         ownerId: revisionOwnerId,
         materialId,
-        document: latestSnapshot.document,
+        document: normalizeReadingV2MultipleSelectSlots(latestSnapshot.document),
         studioMetadata: toStudioMetadataRecord(createReadingV2StudioDefaultMetadata({
           title: input.sourceMetadata?.title ?? latestSnapshot.document.title,
           ownerId: revisionOwnerId,

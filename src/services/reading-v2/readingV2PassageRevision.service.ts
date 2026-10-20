@@ -6,6 +6,7 @@ import {
   type ReadingV2ReadingPassageMaterialId,
   type ReadingV2SnapshotVersionId,
 } from '../../types/readingV2.types';
+import { normalizeReadingV2MultipleSelectSlots } from './readingV2MultipleSelectNormalization.service';
 
 export type ReadingV2PassageRevisionDraftState =
   | 'draft-revision'
@@ -72,7 +73,7 @@ export const openReadingV2PassageRevisionDraft = (input: {
     ownerId: input.material.ownerId,
     sourcePassageMaterialId: input.material.passageMaterialId,
     baseSnapshotVersionId: input.material.currentSnapshotVersionId,
-    document: clone(input.publishedDocument),
+    document: normalizeReadingV2MultipleSelectSlots(clone(input.publishedDocument)),
     state: 'draft-revision',
     createdAt: now,
     updatedAt: now,
@@ -97,8 +98,12 @@ export const republishReadingV2PassageRevisionDraft = (input: {
 
   const publishedAt = input.now ?? new Date().toISOString();
   const previousSnapshotVersionId = input.currentMaterial.currentSnapshotVersionId;
+  const document = normalizeReadingV2MultipleSelectSlots(clone(input.draft.document));
+  const taskGroupIds = document.sectionIds.flatMap((id) => document.sections[id].taskGroupIds);
   const material: ReadingV2ReadingPassageMaterial = {
     ...input.currentMaterial,
+    taskGroupIds,
+    interactionIds: taskGroupIds.flatMap((id) => document.taskGroups[id].interactionIds),
     state: 'published',
     currentSnapshotVersionId: input.nextSnapshotVersionId,
     updatedAt: publishedAt,
@@ -111,7 +116,7 @@ export const republishReadingV2PassageRevisionDraft = (input: {
       passageMaterialId: input.currentMaterial.passageMaterialId,
       snapshotVersionId: input.nextSnapshotVersionId,
       previousSnapshotVersionId,
-      document: clone(input.draft.document),
+      document,
       publishedAt,
       publishedBy: input.publishedBy,
     },

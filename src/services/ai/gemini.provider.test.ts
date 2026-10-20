@@ -160,6 +160,25 @@ describe('Gemini Provider', () => {
   });
 
   describe('Split Parsing Retries', () => {
+    it('sends the shared Reading multiple-select prompt contract to Gemini', async () => {
+      const { GoogleGenerativeAI } = await import('./browser-provider-clients');
+      const generateContent = vi.fn().mockResolvedValue({
+        response: { text: () => JSON.stringify({ questions: [], answerKey: {}, confidence: 90 }) },
+      });
+      vi.mocked(GoogleGenerativeAI).mockImplementation(() => ({
+        getGenerativeModel: vi.fn().mockReturnValue({ generateContent }),
+      }) as any);
+
+      await provider.parseQuestionsAndAnswers('Questions 25-26\nChoose TWO letters, A-E.');
+
+      const prompt = generateContent.mock.calls[0][0];
+      expect(prompt).toContain('Put the shared questionText only on questionNumber 25');
+      expect(prompt).toContain('set questionNumber 26 questionText to "" as a continuation slot');
+      expect(prompt).toContain('same complete A-E options and labeledOptions');
+      expect(prompt).toContain('Preserve teacher-key rows 25 and 26 separately in answerKey');
+      expect(prompt).toContain('Do not duplicate the shared prompt or invent a second question');
+    });
+
     it('retries questions+answers on blocked Gemini key before provider fallback', async () => {
       const { GoogleGenerativeAI } = await import('./browser-provider-clients');
       vi.mocked(loadAllGeminiApiKeys).mockResolvedValue(['usable-key', 'blocked-key']);

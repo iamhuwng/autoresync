@@ -8365,7 +8365,7 @@ Human decision, 2026-10-20: The Lord approved scoped exceptions for the two Stud
 
 <!-- assessment-line-budget-exception
 path: src/components/reading-v2/studio/ReadingV2StudioShell.tsx
-line-count: 3546
+line-count: 3548
 responsibilities: Reading V2 Studio shell composition and workflow orchestration; authoring navigation and host state for import task editing draft save publish preview revision and multi-slot number display
 split-alternatives: extract Studio workflow and draft/publish coordination into a bounded controller hook; extract import task-group and preview sections into separate route-local panel components
 rejection-reason: extract Studio workflow and draft/publish coordination into a bounded controller hook => this would move autosave and authoring state ownership while the fix only needs the existing shell to project preserved answer-slot ranges; extract import task-group and preview sections into separate route-local panel components => this would widen the correction into a cross-panel refactor and risk decoupling answer-slot numbering from the source interaction
