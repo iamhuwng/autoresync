@@ -36,7 +36,7 @@
       "endpoint": "https://s3.us-west-004.backblazeb2.com",
       "region": "us-west-004",
       "storageLocationId": "b2_book_primary",
-      "privateBucketName": "bookpdf",
+      "privateBucketName": "luyentap-pdf-qa-20261021",
       "objectKeyPrefix": "book-source/prd0062-preview-20260729/pdf-qa-20261019/"
     },
     "BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION": "activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f",
