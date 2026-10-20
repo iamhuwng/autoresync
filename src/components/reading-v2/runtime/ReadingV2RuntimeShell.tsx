@@ -1697,6 +1697,7 @@ function RuntimeInteractionControls({
           const selected = asArray(value);
           const selectionLimit = interaction.responseShape.selectionLimit;
           const optionSet = getOptionSet(optionSets, interaction.responseShape.optionSetId);
+          const spansMultipleQuestions = (interaction.displayNumberEnd ?? interaction.displayNumber) > interaction.displayNumber;
           return (
             <section
               className="reading-v2-runtime__question-card"
@@ -1705,13 +1706,13 @@ function RuntimeInteractionControls({
               ref={(element) => registerQuestionAnchor?.(interaction, element)}
               aria-label={label}
             >
-              <ReadingV2QuestionBadge
-                className="reading-v2-runtime__question-number"
-                number={interaction.displayNumberEnd && interaction.displayNumberEnd > interaction.displayNumber
-                  ? `${interaction.displayNumber}-${interaction.displayNumberEnd}`
-                  : interaction.displayNumber}
-                state={isAnswered(value) ? 'answered' : 'empty'}
-              />
+              {!spansMultipleQuestions && (
+                <ReadingV2QuestionBadge
+                  className="reading-v2-runtime__question-number"
+                  number={interaction.displayNumber}
+                  state={isAnswered(value) ? 'answered' : 'empty'}
+                />
+              )}
               <p className="reading-v2-runtime__prompt"><ReadingV2FormattedText text={prompt} /></p>
               <p className="reading-v2-runtime__selection-count">
                 Selected {selected.length} of {selectionLimit}
