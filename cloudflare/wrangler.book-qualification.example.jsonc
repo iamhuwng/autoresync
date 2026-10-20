@@ -1,4 +1,4 @@
-// Proposed isolated target; resources and credentials are NOT provisioned.
+// Isolated target template; provisioning and remote state require separate evidence.
 // Action policy is intentionally absent: create/upload/publish/assign/launch/mutation fail closed.
 // Add a reviewed staging policy valid for at most 24 hours only after qualification authorization.
 {
@@ -64,6 +64,7 @@
     "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "enabled",
     "BOOK_RESULT_READ_ROUTES_ENABLED": "enabled",
     "BOOK_INTEGRITY_ROUTES_ENABLED": "enabled",
+    "BOOK_INTEGRITY_REPORT_ROUTES_ENABLED": "enabled",
     "BOOK_SUBMISSION_ROUTES_ENABLED": "enabled",
     "BOOK_RESULT_PROJECTION_ENABLED": "enabled",
     "BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED": "enabled",
