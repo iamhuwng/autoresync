@@ -1,6 +1,7 @@
 # Reading V2 multiple-answer release
 
-Preparation record. Deployment and live behavior are not yet verified.
+Worker deployment is verified. Hosting deployment and live material behavior
+remain pending.
 
 The product fix preserves one prompt covering slots 25–26, one choose-two
 interaction, and two order-independent one-mark answers. PR #161 merged to
@@ -63,3 +64,36 @@ Existing assigned snapshots remain immutable. A repaired editable revision
 must publish a new snapshot; changing a pinned attempt's interaction IDs would
 invalidate its answer bindings. No existing production content has been
 republished or regraded by this preparation record.
+
+## Review corrections and deployed Worker
+
+The requested follow-up review found missing single-record teacher-key
+aggregation, manual scaffolding, generation instructions and existing-content
+revision handling. Commit `fdf3e85f` corrects these routes and adds a chained
+import/save/publish/projection/trusted-submit regression. Selected-passage
+creation/editing now atomically creates private repaired copies and references
+their new versions; original source records and pinned attempts are preserved.
+First standalone publication omits nonexistent opposite-visibility cleanup
+writes, which cannot prove ownership under the deployed rules before a
+material exists.
+
+All 374 tests in 20 affected suites passed, plus targeted lint, assessment
+guardrails, UTF-8 and whitespace checks. The guarded production build-only
+route passed Vite, bundle budget and local-endpoint scans. The 112 release
+and deployment tests passed. Provider prompt tests capture the actual outbound
+prompt with a mocked response; actual generated Gemini content is not proved
+by those tests.
+
+After fresh native predeploy PASS, Wrangler deployed the pinned artifact with
+`--no-bundle --keep-vars` and the recorded Reading V2 message. New active
+version `ee60656a-44dd-48b7-82c6-3384fe189bb7` receives 100% of traffic.
+Native postdeploy observation returned PASS with exact candidate module bytes
+and unchanged effective bindings, settings, schedule and routes. The generated
+receipt is `tmp/release-receipts/reading-v2-worker-postdeploy-20261020.json`
+under the isolated Worker source checkout. Tag
+`deployed-reading-v2-worker-2026-10-20` pins that source.
+
+The deployed-service inventory now records this version. Rebuild comparison
+normalizes only the known dependency-owner path prefix in addition to the
+existing source-map/line-ending normalization; complete remaining code is
+hashed. The artifact's exact byte hash is independently pinned above.
