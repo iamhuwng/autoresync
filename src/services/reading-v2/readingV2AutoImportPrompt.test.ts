@@ -39,6 +39,10 @@ describe('readingV2AutoImportPrompt', () => {
     expect(prompt).toContain('Remove IELTS source instruction prose from student-visible content fields');
     expect(prompt).toContain('Do not put word-limit tags or phrases in questionText');
     expect(prompt).toContain('Do not convert Markdown to HTML');
+    expect(prompt).toContain('questionRange { "start": 25, "end": 26 }, selectionLimit 2');
+    expect(prompt).toContain('questionNumber 26 has questionText "" as a continuation answer slot');
+    expect(prompt).toContain('preserve both rows in answerKeyText');
+    expect(prompt).toContain('Do not duplicate the shared prompt or invent a second question');
     expect(prompt).toContain('Visible source answer-key text detected before AI:');
     expect(prompt).toContain('<RAW_READING_SOURCE>');
     expect(prompt).toContain('</RAW_READING_SOURCE>');

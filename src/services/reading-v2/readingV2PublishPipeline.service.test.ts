@@ -845,10 +845,14 @@ describe('readingV2PublishPipeline.service', () => {
     );
   });
 
-  it('updates standalone Reading Passage canonical and catalog rows on republish', () => {
+  it.each([false, true])('publishes standalone passage indexes with prior publication: %s', (previouslyPublished) => {
     const repository = createReadingV2Repository();
     const materialId = readingV2Ids.materialId('material-standalone-passage');
     const snapshotVersionId = readingV2Ids.snapshotVersionId('snapshot-standalone-passage');
+    if (previouslyPublished) {
+      repository.publishSnapshot({ materialId, snapshotVersionId: readingV2Ids.snapshotVersionId('previous-passage'),
+        ownerId: 'teacher-1', document: fixtureDocument(), publishedBy: 'teacher-1' });
+    }
     const result = publishReadingV2Material({
       repository,
       materialId,
@@ -899,7 +903,8 @@ describe('readingV2PublishPipeline.service', () => {
       visibility: 'public',
       materialKind: 'reading-passage',
     });
-    expect(byPath[`material_catalog/material_indexes/by_visibility/private/${materialId}`]).toBeNull();
+    expect(byPath[`material_catalog/material_indexes/by_visibility/private/${materialId}`])
+      .toBe(previouslyPublished ? null : undefined);
   });
 
   it('does not auto-extract Reading Passages for explicit task-group material publishes', () => {

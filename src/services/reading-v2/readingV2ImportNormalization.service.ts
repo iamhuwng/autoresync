@@ -3160,12 +3160,10 @@ const normalizeStructuredReadingPayload = (
       }
 
       const groupMultiSelectAnswerValues = taskType === 'multiple-select'
-        ? Array.from(new Set(groupQuestions.flatMap((question) => {
-            const questionNumber = structuredQuestionNumber(question);
-            return answerKeyRows.size > 0
-              ? answerKeyRows.get(questionNumber) ?? []
-              : structuredQuestionAnswers(question);
-          }).map((answer) => answer.trim()).filter(Boolean)))
+        ? Array.from(new Set((answerKeyRows.size > 0
+          ? Array.from({ length: end - start + 1 }, (_, offset) => answerKeyRows.get(start + offset) ?? []).flat()
+          : groupQuestions.flatMap(structuredQuestionAnswers))
+          .map((answer) => answer.trim()).filter(Boolean)))
         : [];
       const multiSelectQuestionNumbers = groupQuestions.map(structuredQuestionNumber);
       const multiSelectPrompts = new Set(groupQuestions

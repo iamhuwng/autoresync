@@ -20,6 +20,7 @@ import {
   buildMaterialCatalogIndexWrites,
 } from '../materialCatalog/materialCatalogIndexes.service';
 import type { createReadingV2Repository } from './readingV2Repository.service';
+import { normalizeReadingV2MultipleSelectSlots } from './readingV2MultipleSelectNormalization.service';
 import {
   assertReadingV2ProjectionIsStudentSanitized,
   generateReadingV2AnalyticsProjection,
@@ -672,6 +673,7 @@ const buildStandaloneReadingPassageStorageWrites = (input: {
   readonly metadata: ReadingV2MaterialMetadata;
   readonly publishedAt: string;
   readonly publishedBy: string;
+  readonly previouslyPublished: boolean;
 }): ReadingV2PublishStorageWrite[] => {
   const visibility = metadataVisibilityToReadingPassageVisibility(
     canonicalizeReadingV2MaterialVisibility(input.metadata.visibility),
@@ -736,7 +738,7 @@ const buildStandaloneReadingPassageStorageWrites = (input: {
     visibility: oppositeVisibility,
   };
   const indexWrites = [
-    ...buildMaterialCatalogIndexCleanup(previousIndexSummary, indexSummary),
+    ...(input.previouslyPublished ? buildMaterialCatalogIndexCleanup(previousIndexSummary, indexSummary) : []),
     ...buildMaterialCatalogIndexWrites(indexSummary),
   ];
 
@@ -997,8 +999,9 @@ export const dispatchReadingV2PublishCommitPlanToSinks = (
 };
 
 export const publishReadingV2Material = (
-  input: ReadingV2PublishPipelineInput,
+  source: ReadingV2PublishPipelineInput,
 ): ReadingV2PublishPipelineResult => {
+  const input = { ...source, document: normalizeReadingV2MultipleSelectSlots(source.document) };
   if (input.masterComposition) {
     assertReadingV2MasterHasNoBrokenRefs(
       getReadingV2BrokenReferenceSummaryFromComposition(input.masterComposition),
@@ -1140,6 +1143,8 @@ export const publishReadingV2Material = (
           metadata,
           publishedAt,
           publishedBy: input.publishedBy,
+          previouslyPublished: Array.from(input.repository.store.publishedSnapshots.values())
+            .some((snapshot) => snapshot.materialId === input.materialId),
         })
     : [];
   const commitPlan = buildReadingV2PublishCommitPlan({

@@ -54,6 +54,27 @@ const passageMaterial = (): ReadingV2ReadingPassageMaterial => {
 };
 
 describe('readingV2PassageRevision.service', () => {
+  it('keeps republished material references aligned when duplicate answer slots are repaired', () => {
+    const fixture = createReadingV2CanonicalFixture('multiple-select');
+    const group = Object.values(fixture.taskGroups)[0];
+    const document = {
+      ...fixture,
+      interactions: Object.fromEntries(group.interactionIds.map((id, index) => [id, {
+        ...fixture.interactions[id],
+        promptText: 'Which TWO options are correct?',
+        scoringRule: { ...fixture.interactions[id].scoringRule, acceptableAnswers: ['A', 'B'] },
+        reviewLabel: { displayNumber: 25 + index },
+      }])),
+    };
+    const material = { ...passageMaterial(), taskGroupIds: [group.taskGroupId], interactionIds: group.interactionIds };
+    const draft = openReadingV2PassageRevisionDraft({ material, publishedDocument: document, existingDrafts: [], openedBy: 'teacher-1', now: NOW });
+    const result = republishReadingV2PassageRevisionDraft({ draft, currentMaterial: material,
+      nextSnapshotVersionId: readingV2Ids.snapshotVersionId('repaired-version'), publishedBy: 'teacher-1', now: NOW });
+    expect(result.material.interactionIds).toEqual([group.interactionIds[0]]);
+    expect(result.material.interactionIds.every((id) => result.version.document.interactions[id])).toBe(true);
+    expect(material.interactionIds).toHaveLength(2);
+  });
+
   it('opens a published Reading Passage for editing by creating a draft revision', () => {
     const material = passageMaterial();
     const document = passageDocument();

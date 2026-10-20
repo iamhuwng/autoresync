@@ -9,12 +9,12 @@
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
-    "sourceRevision": "99bb3f073319c57f62b0889d7c0a98b054e06e95",
-    "sourceTag": "deployed-homework-worker-2026-10-18",
-    "providerVersion": "6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25",
-    "moduleSha256": "6e4bb95e53191b1a32e361e044765c4d6da7d39764d0e904abcf8ddd82e4f7ed",
-    "normalizedBuildSha256": "1b9892ae295a945205f36077a45847d5d5666d14faa517a39155804af36038fc",
-    "record": "2026-10-18-homework-worker-release.md"
+    "sourceRevision": "10786002eb459a1b54025a23590cda8a6f610112",
+    "sourceTag": "deployed-reading-v2-worker-2026-10-20",
+    "providerVersion": "ee60656a-44dd-48b7-82c6-3384fe189bb7",
+    "moduleSha256": "e7649edece98e3935adf49227dffc3ca019a4cda276578de4f51a45d5c3aec66",
+    "normalizedBuildSha256": "5189f879e76d16b2a15d788cb4bdd19f457789fa1262a941b608b40da1ccdd41",
+    "record": "2026-10-20-reading-v2-multiple-answer-release.md"
   },
   "notificationWorker": {
     "script": "luyentap-notification-command",

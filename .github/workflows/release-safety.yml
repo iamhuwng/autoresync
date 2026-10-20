@@ -92,6 +92,6 @@ jobs:
           import { readFileSync } from 'node:fs';
           import { createHash } from 'node:crypto';
           const raw = readFileSync('tmp/deployed-homework-rebuild/index.js', 'utf8');
-          const normalized = raw.replaceAll('../../../../../repos/luyentap-prd0062/node_modules/', '../node_modules/').replace(/(?:\.\.\/)*node_modules\//g, 'node_modules/').replace(/^\/\/# sourceMappingURL=.*$/gm, '').replace(/\r\n/g, '\n').trim();
+          const normalized = raw.replaceAll('../../luyentap/r2-backup-worker/node_modules/', 'node_modules/').replaceAll('../../../../../repos/luyentap-prd0062/node_modules/', '../node_modules/').replace(/(?:\.\.\/)*node_modules\//g, 'node_modules/').replace(/^\/\/# sourceMappingURL=.*$/gm, '').replace(/\r\n/g, '\n').trim();
           assert.equal(createHash('sha256').update(normalized).digest('hex'), process.env.EXPECTED_SHA);
           NODE

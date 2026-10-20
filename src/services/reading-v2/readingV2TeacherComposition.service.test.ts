@@ -280,6 +280,71 @@ describe('readingV2TeacherComposition.service', () => {
     expect(Object.keys(updates).some((path) => path.includes('reading_passage_materials/'))).toBe(false);
   });
 
+  it.each(['create', 'edit'] as const)('repairs selected legacy multiple-answer passages atomically on %s', async (mode) => {
+    const source = snapshotFor('passage-a', 'snapshot-a', 'multiple-select', (document) => {
+      Object.values(document.interactions).forEach((interaction, index) => {
+        interaction.reviewLabel = { displayNumber: 25 + index };
+        interaction.promptText = 'Which TWO options are correct?';
+        interaction.scoringRule = { ...interaction.scoringRule, acceptableAnswers: ['A', 'B'] };
+      });
+    });
+    const other = snapshotFor('passage-b', 'snapshot-b');
+    if (mode === 'edit') source.ownerId = 'source-teacher';
+    const before = structuredClone(source);
+    const sourceMaterial = {
+      passageMaterialId: 'passage-a', ownerId: source.ownerId, title: 'Passage A', state: 'published', visibility: mode === 'edit' ? 'public' : 'private',
+      currentSnapshotVersionId: 'snapshot-a', testTypeIds: ['ielts'], primaryTestTypeId: 'ielts',
+      sourceOrder: { kind: 'passage', value: 3, labelSnapshot: 'Passage', displaySnapshot: 'Passage 3' },
+      sourceFullTestId: 'original-test', sourceSnapshotVersionId: 'original-version',
+      sourceQuestionRange: '25-26', sourceTitleSnapshot: 'Original test',
+      provenance: { extractionMethod: 'manual', sourceTestId: 'original-test' },
+    };
+    const stored: Record<string, unknown> = {
+      [readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')]: source,
+      [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]: other,
+      [readingV2StoragePaths.readingPassageMaterials('passage-a')]: sourceMaterial,
+      [readingV2StoragePaths.materialMetadata('passage-a')]: { description: 'Retained description', difficulty: 'advanced', tags: ['source'] },
+    };
+    let updates: Record<string, unknown> = {};
+    const repository = {
+      read: vi.fn(async (path: string) => stored[path]), write: vi.fn(),
+      update: vi.fn(async (values: Record<string, unknown>) => { updates = values; }),
+    };
+    const input = { teacherId: 'teacher-1', passages, repository, now: '2026-10-20T00:00:00.000Z' };
+    const result = mode === 'create'
+      ? await createReadingV2TeacherSelectedPassageComposition(input)
+      : await publishReadingV2TeacherSelectedPassageCompositionEdit({ ...input,
+        composition: buildReadingV2TeacherSelectedPassageComposition(input) });
+    const [repairedRef, untouchedRef] = result.composition.passageRefs;
+    expect(repository.update).toHaveBeenCalledTimes(1);
+    expect(repository.write).not.toHaveBeenCalled();
+    expect(repairedRef.passageMaterialId).not.toBe('passage-a');
+    expect(untouchedRef.passageMaterialId).toBe('passage-b');
+    expect(source).toEqual(before);
+    expect(updates).not.toHaveProperty(readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a'));
+    const repaired = updates[readingV2StoragePaths.publishedSnapshots(repairedRef.passageMaterialId, repairedRef.snapshotVersionId)] as ReadingV2PublishedSnapshot;
+    expect(Object.values(repaired.document.interactions)).toHaveLength(1);
+    expect(Object.values(repaired.document.interactions)[0]).toMatchObject({
+      reviewLabel: { displayNumber: 25, answerSlotCount: 2 }, scoringRule: { maxScore: 2, acceptableAnswers: ['A', 'B'], orderMatters: false },
+    });
+    expect(updates[readingV2StoragePaths.reviewProjections(repairedRef.passageMaterialId, repairedRef.snapshotVersionId)]).toMatchObject({ sourceSnapshotVersionId: repairedRef.snapshotVersionId });
+    expect(updates[readingV2StoragePaths.readingPassageMaterials(repairedRef.passageMaterialId)]).toMatchObject({
+      ownerId: 'teacher-1', visibility: 'private', sourceFullTestId: 'original-test', sourceQuestionRange: '25-26',
+      provenance: sourceMaterial.provenance, clonedFromMaterialId: 'passage-a', clonedFromSnapshotVersionId: 'snapshot-a',
+    });
+    expect(updates[readingV2StoragePaths.materialMetadata(repairedRef.passageMaterialId)]).toMatchObject({
+      description: 'Retained description', difficulty: 'advanced', tags: ['source'],
+    });
+    const aggregate = updates[readingV2StoragePaths.publishedSnapshots(result.composition.testMaterialId, result.composition.publishedVersionId)] as ReadingV2PublishedSnapshot;
+    expect(Object.values(aggregate.document.interactions)).toHaveLength(3);
+    expect(Object.values(aggregate.document.interactions)[0].reviewLabel).toMatchObject({ answerSlotCount: 2 });
+    expect(updates[result.paths.version]).toMatchObject({ passageRefs: result.composition.passageRefs });
+    const nonAtomic = { read: repository.read, write: vi.fn() };
+    await expect(createReadingV2TeacherSelectedPassageComposition({ ...input, repository: nonAtomic }))
+      .rejects.toThrow('requires atomic publish updates');
+    expect(nonAtomic.write).not.toHaveBeenCalled();
+  });
+
   it('creates an unpublished ref-only draft master from selected published passages', async () => {
     const updates: Record<string, unknown> = {};
     const repository = {

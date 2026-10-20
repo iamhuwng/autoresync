@@ -23,7 +23,9 @@ review-answer formatting in
 `src/services/reading-v2/readingV2AnswerScoring.ts`. This resolves option IDs
 against the snapshot's option labels and applies the judgement vocabulary's
 canonical aliases. Scalar answers and multi-select arrays retain their distinct
-response shapes; multi-select uses the snapshot's exact-set/order policy.
+response shapes. Multi-select uses the snapshot's exact-set/order policy except
+when `reviewLabel.answerSlotCount` preserves multiple numbered answer slots:
+each correct selected answer earns one mark, independent of selection order.
 
 Both result writers use `calculateIELTSReadingBandScore` from the shared scoring
 configuration, with earned/possible points and an explicit zero-total guard.
@@ -32,6 +34,19 @@ to 40 questions and produce an estimated band, not a certified exam score.
 Neither path derives an IELTS band by dividing percentage by ten. Scoring still
 uses trusted, pinned snapshots; this shared module does not expose answer keys
 to student projections.
+
+## Multiple-Answer Authoring
+
+AutoV4, legacy Auto and external AI prompts preserve every raw answer number.
+For one choose-two prompt, the first record holds the prompt and the second
+is an empty continuation slot. Import normalization combines these into one
+canonical interaction; a single source record with separately numbered key
+rows is also supported. Manual authoring creates the same two-slot shape.
+
+New editable revisions and publication repair unambiguous legacy duplicates.
+Selected-passage tests create private repaired copies and atomically pin their
+new snapshot references, so the aggregate projection and trusted constituent
+grading agree. Existing source snapshots and pinned attempts remain immutable.
 
 ## Homework And Solo Practice
 
