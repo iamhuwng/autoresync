@@ -18,6 +18,7 @@ import {
 import { FirebaseRestBookDeliveryRepository } from '../src/upload-worker/book-delivery/repository.ts';
 import { FirebaseRestBookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 import * as resultComposition from '../src/upload-worker/book-results/production-composition.ts';
+import * as firebaseTokens from '../src/upload-worker/book-activity-authoring/firebase-token.ts';
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import { createBookRouter } from '../src/upload-worker/book-router.ts';
 
@@ -305,6 +306,46 @@ describe('Book Activity evaluation production composition', () => {
     };
     return { input, detail, tuples, handlers: createDefaultBookActivityEvaluationProductionHandlers() };
   };
+
+  it('reads the bound canonical Activity with scoped Firebase claims and no generic credential', async () => {
+    const { input, handlers } = await productionFixture();
+    const token = vi.fn().mockResolvedValue('scoped-reader-token');
+    const provider = vi.spyOn(firebaseTokens, 'createFirebaseClaimTokenProvider').mockReturnValue(token);
+    vi.spyOn(FirebaseRestBookActivityEvaluationRepository.prototype, 'readOperation').mockResolvedValue(null);
+    vi.spyOn(FirebaseRestBookDeliveryRepository.prototype, 'resolveCurrent').mockResolvedValue({ record: { binding: {
+      bindingId: target.bindingId, revision: target.bindingRevision,
+      issuer: { ownerId: 'teacher-1' }, context: { kind: target.contextKind },
+      book: { bookId: 'book-1', manifestVersionId: 'manifest-1' },
+      placements: [{ placementId: target.placementId, activityId: target.activityId,
+        activityVersionId: target.activityVersionId, activityVersion: target.activityVersion }],
+    } } } as never);
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('null'));
+    const assemblyKey = JSON.stringify({ client_email: 'assembly@example.test', private_key: 'unused-by-mock' });
+    const result = await handlers.command({
+      ...input,
+      env: { ...input.env, BOOK_ASSEMBLY_SERVICE_IDENTITY: 'assembly@example.test', BOOK_ASSEMBLY_GOOGLE_SA_KEY: assemblyKey },
+      request: new Request('https://worker.test/book-evaluation/commands', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ command: {
+          schemaVersion: 1, scorerVersion: 1, operationId: 'grade-1', kind: 'teacher_evaluation',
+          expectedEvaluationRevision: 0, target,
+          evaluation: { earnedScore: 1, maximumScore: 2, feedback: 'Good work.' },
+        } }),
+      }),
+    });
+    expect(provider).toHaveBeenCalledWith(expect.objectContaining({
+      serviceIdentity: 'assembly@example.test', serviceAccountJson: assemblyKey,
+    }));
+    expect(token).toHaveBeenCalledWith({
+      service: 'book_activity_runtime_reader', ownerId: 'teacher-1', bookId: 'book-1',
+      manifestVersionId: 'manifest-1', activityId: target.activityId, activityVersionId: target.activityVersionId,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, options] = fetch.mock.calls[0]!;
+    expect(String(url)).toBe('https://firebase.test/book_activity/versions/activity-1/activity-version-1.json?auth=scoped-reader-token');
+    expect(options?.headers).not.toHaveProperty('Authorization');
+    expect(result).toMatchObject({ body: { status: 'rejected', code: 'evaluation_attempt_not_found' } });
+  });
 
   it('resolves the browser locator from the authorized Results detail and exact submitted terminal', async () => {
     const { input, detail, tuples, handlers } = await productionFixture();

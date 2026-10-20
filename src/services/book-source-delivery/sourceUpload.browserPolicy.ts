@@ -48,7 +48,7 @@ export const createBookSourcePreviewCsp = (
     );
   }
   return [
-    "connect-src 'self'",
+    "connect-src 'self' blob:",
     'https://*.googleapis.com',
     'https://*.firebaseio.com',
     'wss://*.firebaseio.com',
