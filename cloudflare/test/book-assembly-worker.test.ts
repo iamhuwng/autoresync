@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BookAssemblyBookAuthority } from '../../src/services/book-assembly/unitAssembly.types';
+import type { BookAssemblyBookAuthority, BookAssemblyCandidateRecord } from '../../src/services/book-assembly/unitAssembly.types';
 import type { BookAssemblyManifestCandidate } from '../../src/types/bookAssembly.types';
 import {
   createBookAssemblyWorkerHandlers,
@@ -148,6 +148,55 @@ const mutationEnv = () => ({
 });
 
 describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
+  it('loads a committed full-PDF current candidate without component activation', async () => {
+    const repository = new MemoryRepository();
+    const candidateManifest = manifest();
+    candidateManifest.nodes[1]!.nodeKey = 'qa-full-unit-1';
+    candidateManifest.units[0]!.unitKey = 'qa-full-unit-1';
+    repository.book = authority({ bookRevision: 5, sourceSetRevision: 3 });
+    const candidate: BookAssemblyCandidateRecord = {
+      candidateId: 'submission-book-1', ownerId: 'teacher-1', bookId: 'book-1',
+      bookRevision: 5, sourceSetRevision: 3, unitKey: 'qa-full-unit-1', revision: 2,
+      lifecycle: 'validated', manifest: candidateManifest,
+      validation: { valid: true, errors: [] }, updatedAt: '2026-10-21T00:00:00.000Z',
+    };
+    repository.root = {
+      current: {
+        candidateId: candidate.candidateId, candidateRevision: candidate.revision,
+        bookRevision: candidate.bookRevision, sourceSetRevision: candidate.sourceSetRevision,
+        updatedAt: candidate.updatedAt,
+      },
+      candidates: { [candidate.candidateId]: candidate },
+    };
+    let verifiedCandidate: BookAssemblyCandidateRecord | undefined;
+    const handlers = createBookAssemblyWorkerHandlers({
+      repository,
+      readBookAuthority: async () => repository.book,
+      verifyDraftActivities: async ({ candidate: value }) => {
+        verifiedCandidate = value;
+        return ['activity-1'];
+      },
+    });
+
+    await expect(handlers.loadCurrent({
+      env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'qa-full-unit-1',
+    })).resolves.toMatchObject({
+      body: { status: 'loaded', candidate: { unitKey: 'qa-full-unit-1' },
+        savedActivityKeysByUnit: { 'qa-full-unit-1': ['activity-1'] } },
+      init: { status: 200 },
+    });
+    expect(verifiedCandidate).toEqual(candidate);
+    repository.root.current = { ...repository.root.current!, candidateRevision: candidate.revision + 1 };
+    await expect(handlers.loadCurrent({
+      env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'qa-full-unit-1',
+    })).resolves.toMatchObject({ body: { status: 'empty' } });
+    repository.root.current = { ...repository.root.current!, candidateRevision: candidate.revision };
+    repository.book = { ...repository.book, sourceSetRevision: 4 };
+    await expect(handlers.loadCurrent({
+      env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'qa-full-unit-1',
+    })).resolves.toMatchObject({ body: { status: 'empty' } });
+  });
+
   it('discovers only a qualified owner draft before the first Material activation', async () => {
     const repository = new MemoryRepository();
     repository.book = componentAuthority('source-a-v1', 0, 0);

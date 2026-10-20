@@ -727,6 +727,36 @@ export const createBookAssemblyWorkerHandlers = (options: {
         if (!authority || authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
           return { body: { status: 'not-found' }, init: { status: 404 } };
         }
+        if (authority.sourceSet.sourceStrategy === 'full_pdf') {
+          const pointer = scope.current;
+          const candidate = pointer && scope.candidates?.[pointer.candidateId];
+          if (!pointer || !candidate || candidate.candidateId !== pointer.candidateId
+            || candidate.ownerId !== input.uid || candidate.bookId !== bookId
+            || candidate.unitKey !== unitKey || candidate.lifecycle !== 'validated' || !candidate.manifest
+            || candidate.revision !== pointer.candidateRevision
+            || candidate.bookRevision !== pointer.bookRevision || candidate.bookRevision !== authority.bookRevision
+            || candidate.sourceSetRevision !== pointer.sourceSetRevision
+            || candidate.sourceSetRevision !== authority.sourceSetRevision
+            || candidate.updatedAt !== pointer.updatedAt
+            || !hasUnit(candidate.manifest, unitKey) || !checkManifest(candidate.manifest, authority).valid) {
+            return { body: { status: 'empty' }, init: { status: 200 } };
+          }
+          const savedActivityKeys = await options.verifyDraftActivities?.({ env: input.env, candidate: clone(candidate) });
+          if (!savedActivityKeys) return { body: { status: 'empty' }, init: { status: 200 } };
+          const unit = candidate.manifest.units.find((entry) => entry.unitKey === unitKey)!;
+          return {
+            body: {
+              status: 'loaded',
+              candidate: clone(candidate),
+              savedActivityKeysByUnit: {
+                [unitKey]: unit.activitySlots.map((slot) => slot.activityKey)
+                  .filter((activityKey) => savedActivityKeys.includes(activityKey)),
+              },
+              conflict: null,
+            },
+            init: { status: 200 },
+          };
+        }
         const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, unitKey, scope.candidates);
         if (!candidate) return { body: { status: 'empty' }, init: { status: 200 } };
         const activation = activeComponentPdfActivation(authority);
