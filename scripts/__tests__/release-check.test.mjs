@@ -80,6 +80,67 @@ test('deployed multi-commit hotfix detects loss of an earlier correction', async
   } finally { await rm(cwd, {recursive: true, force: true}); }
 });
 
+test('hotfix successor review binds the exact differing paths and preserves every obligation', async t => {
+  const cwd = await fixture();
+  const reviewDirectory = await mkdtemp(path.join(os.tmpdir(), 'hotfix-review-'));
+  const reviewPath = path.join(reviewDirectory, 'review.json');
+  try {
+    const originalBase = git(cwd, 'rev-parse', 'HEAD^');
+    const earlierHotfix = git(cwd, 'rev-parse', 'HEAD');
+    const paths = ['src/App.jsx', 'src/Badge.jsx'];
+    for (const file of paths) await writeFile(path.join(cwd, file), 'published correction');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'published hotfix');
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    const hotfixes = [{ revision: earlierHotfix, baseRevision: originalBase }, { revision: base, baseRevision: earlierHotfix }];
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: base,
+      tree: git(cwd, 'rev-parse', 'HEAD^{tree}'), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('x').digest('hex') }], hotfixes };
+    const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'x') }) });
+    for (const file of paths) await writeFile(path.join(cwd, file), 'reviewed successor');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'deliberate successor');
+    const review = { schemaVersion: 1, decision: 'verified', reviewer: 'independent reviewer', reviewedAt: new Date().toISOString(),
+      sourceRevision: git(cwd, 'rev-parse', 'HEAD'), baseRevision: base, observedFingerprint: observation.fingerprint,
+      scope: ['runtime presentation'], hotfixReconciliations: [{ revision: base, paths, rationale: 'Preserves the correction while removing the repeated badge.' }] };
+    const assessReview = async value => {
+      await writeFile(reviewPath, JSON.stringify(value));
+      return assess({ cwd, base, mode: 'hotfix', hostingObservation: observation, compatibilityReviewPath: reviewPath, productionEnvFingerprint: 'env' });
+    };
+    const accepted = await assessReview(review);
+    assert.equal(accepted.decision, STATUS.PASS);
+    assert.deepEqual(accepted.hotfixes.slice(0, 2), hotfixes);
+    assert.equal(accepted.hotfixes[2].revision, review.sourceRevision);
+    assert.deepEqual(accepted.compatibilityReview.hotfixReconciliations, review.hotfixReconciliations);
+    for (const [name, mutate] of [
+      ['generic compatibility only', value => { delete value.hotfixReconciliations; }],
+      ['unknown revision', value => { value.hotfixReconciliations[0].revision = originalBase; }],
+      ['extra revision', value => { value.hotfixReconciliations.push({ ...value.hotfixReconciliations[0], revision: originalBase }); }],
+      ['duplicate revision', value => { value.hotfixReconciliations.push(value.hotfixReconciliations[0]); }],
+      ['missing path', value => { value.hotfixReconciliations[0].paths.pop(); }],
+      ['extra path', value => { value.hotfixReconciliations[0].paths.push('public/index.html'); }],
+      ['unsorted paths', value => { value.hotfixReconciliations[0].paths.reverse(); }],
+      ['empty rationale', value => { value.hotfixReconciliations[0].rationale = ' '; }],
+      ['malformed entry', value => { value.hotfixReconciliations = [null]; }],
+      ['malformed array', value => { value.hotfixReconciliations = {}; }],
+      ['different source', value => { value.sourceRevision = base; }],
+      ['different base', value => { value.baseRevision = originalBase; }],
+      ['different live fingerprint', value => { value.observedFingerprint = 'changed'; }],
+      ['stale review', value => { value.reviewedAt = '2000-01-01T00:00:00Z'; }],
+      ['future review', value => { value.reviewedAt = '2100-01-01T00:00:00Z'; }],
+    ]) await t.test(name, async () => {
+      const changed = structuredClone(review);
+      mutate(changed);
+      assert.equal((await assessReview(changed)).decision, STATUS.REVIEW_REQUIRED);
+    });
+    await writeFile(path.join(cwd, 'public', 'index.html'), 'lost earlier hotfix');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'unreviewed regression in another hotfix');
+    const extraDrift = { ...review, sourceRevision: git(cwd, 'rev-parse', 'HEAD') };
+    assert.equal((await assessReview(extraDrift)).decision, STATUS.REVIEW_REQUIRED);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(reviewDirectory, { recursive: true, force: true });
+  }
+});
+
 test('receipts cannot overwrite tracked or outside files', async () => { const cwd=await fixture(); try { assert.equal(await main(['--base','HEAD^','--receipt','src/App.jsx'],cwd),1); assert.equal(await main(['--base','HEAD^','--receipt','outside.json'],cwd),1); } finally { await rm(cwd,{recursive:true,force:true}); } });
 
 test('receipt generation succeeds only in the generated receipt directory', async () => { const cwd=await fixture(); try { const exit = await main(['--base','HEAD^','--receipt','tmp/release-receipts/assessment.json'],cwd); assert.equal(exit,2); await access(path.join(cwd,'tmp','release-receipts','assessment.json')); } finally { await rm(cwd,{recursive:true,force:true}); } });
