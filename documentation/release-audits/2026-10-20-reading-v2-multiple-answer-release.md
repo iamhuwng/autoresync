@@ -1,7 +1,8 @@
 # Reading V2 multiple-answer release
 
-Worker deployment is verified. Hosting deployment and live material behavior
-remain pending.
+Worker and Hosting deployments are verified. Live teacher publication, student
+partial/full credit and the final badge presentation passed within the scope
+below. The exact disposable QA records were removed and independently read back.
 
 The product fix preserves one prompt covering slots 25–26, one choose-two
 interaction, and two order-independent one-mark answers. PR #161 merged to
@@ -54,11 +55,11 @@ is unknown; current provider module bytes and configuration are directly read.
 
 ## Hosting and content
 
-Hosting must be qualified against the directly observed live source, currently
+The initial Hosting candidate was qualified against directly observed source
 `091a1746c630658052978a0c75caa74c04318722`, through the guarded
-`npm run deploy:hosting` route. A Worker-only PASS does not qualify Hosting.
-Require a source-bound compatibility review, fresh remote/environment
-fingerprints, and live Studio/student proof using disposable material.
+`npm run deploy:hosting` route. The final successor was qualified against the
+intermediate deployed `5671d39a` source, with an exact source-bound compatibility
+and historical hotfix successor review. Final evidence follows below.
 
 Existing assigned snapshots remain immutable. A repaired editable revision
 must publish a new snapshot; changing a pinned attempt's interaction IDs would
@@ -120,3 +121,92 @@ Fresh native postdeploy verification returned PASS for the corrected version:
 and routing. Receipt:
 `tmp/release-receipts/reading-v2-worker-esm-postdeploy-20261020.json` under the
 isolated Worker source checkout.
+
+## Final Hosting release and live acceptance
+
+| Release identity | Verified value |
+| --- | --- |
+| Hosting source | `1299617ed871cc0e4100f1c3b1c5b8346c295117` |
+| Source tree | `36109b89da22e9135fefecf087d6646871c791e9` |
+| Immutable source tag | `stable-2026-10-20-reading-multiple-answer` |
+| Finalized Hosting version | `be797fbc4160e904` |
+| Released UTC | `2026-10-20T14:45:21.100Z` |
+| Production environment SHA-256 | `8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57` |
+| Manifest SHA-256 | `f3cd967b2a4c5e70cfe646061792d3e1b3b2c46c51ebe78ffe9d5b92131210e2` |
+| Previous Hosting / recovery target | `019f8d563a345f76`, source `5671d39a` |
+
+The normal guarded deployment route passed clean-source, source/environment/
+remote fingerprints, compatibility, production build and bundle-budget checks.
+All 453 manifest-listed files were independently fetched and hashed after the
+final deployment. The custom domain `hocthem.net` served identical manifest
+bytes, root/index HTML and the five critical Reading V2 runtime, Studio,
+review, submission and feature-flag JavaScript assets. Native Firebase channel
+readback confirmed the same finalized version and configuration before and
+after the content observation. Firebase omitted optional provider file counts;
+the existing metadata helper rejects that response, so separate native CLI
+finalization evidence was retained without changing the parser or release gate.
+
+The user-requested final presentation removes the repeated per-prompt badge
+for a shared multiple-answer interaction. A fresh custom-domain runtime visit
+retained the group range/instructions, one prompt and five checkboxes, with
+zero per-prompt badge nodes. Evidence: `outputs/reading-v2-live-badge-removed.jpg`.
+The 63-test runtime suite passed. PR #164 merged the badge change; PR #165
+merged the release gate correction, with all CI checks passing. Product and
+guard changes are on main at `b409b443`; the service tag identifies the exact
+isolated deployed Hosting source, including its historical tooling baseline.
+
+Live teacher Paste Text import parsed, accepted, saved, validated, published
+and reopened disposable public passage `studio-material-mvgrlcsv`, snapshot
+`snapshot-studio-material-mvgrlcsv-mvgrlu9g`. One shared prompt, selection limit
+two and answer key B/C survived. Student D then B submission returned trusted
+1/2; saved review showed D/B versus B/C (result
+`reading-v2-result-1e55cac1-24fd-4810-9799-e872ae13f536`). A second student
+submission selected C then B and returned trusted 2/2, proving reversed-order
+full credit. These submits ran on the initial deployed multi-answer source;
+the final badge-only runtime was visually verified after a fresh reload and
+exited without a third submission.
+
+The gate correction accepts intentional successor changes only through a fresh
+review bound to source, base and observed Hosting fingerprint, naming the exact
+historical hotfix revision, sorted differing paths and rationale. Unknown,
+duplicate, incomplete, stale and future-dated reviews fail closed; manifest
+hotfix obligations remain intact. The final feature release-check suite passed
+41 tests; the isolated historical Hosting candidate passed 38. The broader
+release/deployment/Worker suite passed 127 before the final timestamp hardening;
+the affected checker suite was rerun afterward. No old baseline or manifest
+hotfix entry was removed to release the badge change.
+
+Ignored evidence in canonical `tmp/` includes
+`reading-v2-hosting-badge-deployed-proof-20261020.json`,
+`reading-v2-hosting-deployed-proof-20261020.json`,
+`reading-v2-hosting-badge-compatibility-review.json` and both guarded deploy logs.
+The qualified Hosting and Worker receipts were preserved in canonical
+`tmp/reading-v2-release-evidence-20261020/hosting/` and `worker/` before any
+worktree removal. They include
+`reading-v2-hosting-badge-final-qualified-20261020.json` and
+`reading-v2-worker-current-20261020-1405.json`. Worktree cleanup is a separate
+operation; this record does not claim it has completed.
+
+Actual Auto V4/Gemini generated content remains unverified: provider tests
+capture the outbound instructions with mocked responses. Live acceptance proves
+the Paste Text fixture and the described publication/runtime/scoring paths,
+not every imported document or existing legacy source. Historical published
+snapshots and assignments were not rewritten. Rollback has not been rehearsed
+and cannot reverse content/result writes.
+
+## Disposable QA cleanup
+
+The authorized cleanup completed successfully: all 47 planned fixture/result/
+index paths read back null, the shallow attempt-key set remained exactly the
+same 34 keys before and after, and both exact QA draft IDs read back null.
+Canonical `tmp/reading-v2-qa-cleanup-summary-20261020.json`, the exact plan,
+readback and applied log retain the scope and deletion proof. Operational report
+events and analytics telemetry remain: no result/attempt lookup index exists for
+those events, and emitted Google Analytics events are not reversible.
+
+Fresh Academic Record navigation showed the 114 original tests with no QA
+cards. The existing manual progressive-feedback refresh completed using those
+remaining results at `2026-10-20T15:25:37Z`. Its normal 24-hour manual-refresh
+cooldown now applies to the test account. This is a derived feedback refresh,
+not restoration of the prior feedback bytes. Screenshot:
+`outputs/reading-v2-live-cleanup.jpg`.

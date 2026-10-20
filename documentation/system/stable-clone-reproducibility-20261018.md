@@ -8,15 +8,16 @@ the reviewed releases, not an automatically refreshed provider observation.
 
 | Surface | Source tag | Source commit |
 | --- | --- | --- |
-| Hosting app | `stable-2026-10-18-books` | `091a1746c630658052978a0c75caa74c04318722` |
-| Homework/backup Worker | `deployed-homework-worker-2026-10-18` | `99bb3f073319c57f62b0889d7c0a98b054e06e95` |
+| Hosting app | `stable-2026-10-20-reading-multiple-answer` | `1299617ed871cc0e4100f1c3b1c5b8346c295117` |
+| Homework/backup Worker | `deployed-reading-v2-worker-2026-10-20` | `10786002eb459a1b54025a23590cda8a6f610112` |
 | Notification command Worker | `deployed-notification-worker-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
 | RTDB rules | `deployed-rtdb-rules-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
 
 The Worker tag is published in the same Git repository. Preserve published
 release tags; use a new tag for another release. The recorded provider version
-is `6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25`. Its exact deployed module SHA is in
-the inventory and [release record](../release-audits/2026-10-18-homework-worker-release.md).
+is `bb4fc431-e84d-4b50-8c11-9f9c0ddecd4f`. Its exact deployed module SHA and
+the complete normalized CI rebuild hash are in the inventory and
+[release record](../release-audits/2026-10-20-reading-v2-multiple-answer-release.md).
 Hosting and Worker deployments are separate; one Git revision is not proof that
 every live service runs that revision.
 
@@ -35,8 +36,8 @@ From a clean ordinary clone, inspect status and select the release source:
 
 ```powershell
 git status --short --branch
-git fetch origin tag deployed-homework-worker-2026-10-18
-git switch --detach deployed-homework-worker-2026-10-18
+git fetch origin tag deployed-reading-v2-worker-2026-10-20
+git switch --detach deployed-reading-v2-worker-2026-10-20
 git rev-parse HEAD
 ```
 
@@ -63,6 +64,22 @@ Normalization covers dependency debug-path prefixes, the source-map comment
 and line endings; it retains all function bodies. This is build reproducibility
 proof, not historical Git provenance or deployment authorization. Exact live
 module bytes remain the separate provider SHA in the inventory.
+
+The October 20 Worker release corrected a Windows package-directory alias that
+selected CommonJS exports. Use the locked exact ESM package entry files when
+reusing dependencies outside the selected checkout; the complete normalized
+output must equal standard clean Linux CI, SHA-256
+`c3e30ff1b8e7ea0c7ee63363cd5ce32dd9a7b7d15da2d3b30008a0c311fccedf`.
+Its exact deployed module SHA-256 is
+`341d0bb25ffd992da94a9b67d086a8a1edce99a49ef4260b7c595d891e2fc4f8`.
+Do not deploy the superseded `e7649ede…` artifact.
+
+The final Reading V2 Hosting release is `be797fbc4160e904`; all 453 manifest
+files and custom-domain HTML/critical Reading assets were independently checked.
+Main contains the merged product and gate fixes at `b409b443`; use the Hosting
+tag above for exact deployed source, since main retains newer service tooling
+and Book safety work. Teacher fixture publication and student partial/full credit
+passed; actual AI-generated import output and rollback remain outside that proof.
 
 ## Main and local startup boundaries
 

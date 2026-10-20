@@ -2,10 +2,10 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "091a1746c630658052978a0c75caa74c04318722",
-    "sourceTag": "stable-2026-10-18-books",
-    "providerVersion": "ffd0c61f899cb275",
-    "record": "2026-10-18-book-hosting-release.md"
+    "sourceRevision": "1299617ed871cc0e4100f1c3b1c5b8346c295117",
+    "sourceTag": "stable-2026-10-20-reading-multiple-answer",
+    "providerVersion": "be797fbc4160e904",
+    "record": "2026-10-20-reading-v2-multiple-answer-release.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
