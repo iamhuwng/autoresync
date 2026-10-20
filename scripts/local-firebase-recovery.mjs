@@ -163,6 +163,17 @@ export const assertInventoryPreserved = (previous, current) => {
     if (doc.revision !== undefined) assert(current.documents[key].revision >= doc.revision, `Stale Firestore revision ${key}`);
   }
 };
+export const assertFirestoreDocumentsEqual = (expected, current) => {
+  const documents = rows => rows.map(({ path: documentPath, fields }) => ({ path: documentPath, fields }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  assert.equal(digest(documents(current)), digest(documents(expected)), 'Restored Firestore documents differ from selected generation');
+};
+export const assertAuthUsersEqual = (expected, current) => {
+  // The Auth importer recreates token/password timestamps and drops refresh-session metadata.
+  const users = rows => rows.map(({ validSince, passwordUpdatedAt, lastRefreshAt, ...user }) => user)
+    .sort((a, b) => a.localId.localeCompare(b.localId));
+  assert.equal(digest(users(current)), digest(users(expected)), 'Restored Auth users differ from selected generation');
+};
 export const datasetIssues = (database, auth, documents) => {
   const issues = [];
   for (const account of auth.users ?? []) {
@@ -183,7 +194,7 @@ export const inspectSnapshot = async (directory, { freshDataset = false } = {}) 
   assert(metadata.auth && metadata.database && metadata.firestore, 'Incomplete three-store snapshot');
   const database = await json(path.join(directory, 'database_export', `${project}.json`));
   const auth = await json(path.join(directory, 'auth_export', 'accounts.json'));
-  await json(path.join(directory, 'auth_export', 'config.json'));
+  const authConfig = await json(path.join(directory, 'auth_export', 'config.json'));
   await stat(path.join(directory, 'firestore_export', 'firestore_export.overall_export_metadata'));
   const files = await snapshotFiles(directory);
   const documents = [];
@@ -191,7 +202,7 @@ export const inspectSnapshot = async (directory, { freshDataset = false } = {}) 
   assert(freshDataset || documents.length > 0, 'No readable Firestore records');
   const identities = inventory(database, auth, documents);
   assert(Object.keys(identities.accounts).length > 0 && (freshDataset || Object.keys(identities.records).length > 0), 'Empty/seed-only recovery dataset');
-  return { database, auth, documents, files, inventory: identities, issues: datasetIssues(database, auth, documents) };
+  return { database, auth, authConfig, documents, files, inventory: identities, issues: datasetIssues(database, auth, documents) };
 };
 export const readGeneration = async (root = recoveryRoot) => {
   const selected = await json(path.join(root, 'latest.json'));

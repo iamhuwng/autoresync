@@ -11,8 +11,19 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $taskName = "LuyenTap-firebase-$Name"
+
+function Assert-TaskOwner($Task) {
+  if (!$Task) { return }
+  $actions = @($Task.Actions)
+  if ($actions.Count -ne 1 -or $actions[0].WorkingDirectory -ne $repoRoot -or
+      !$actions[0].Arguments.Contains('-File "' + $PSCommandPath + '" -Run ')) {
+    throw "Scheduled task $taskName belongs to another checkout. Explicitly transfer ownership before registering it."
+  }
+}
+
 if (!$Run) {
   $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+  Assert-TaskOwner $existingTask
   if ($existingTask.State -eq 'Running') { return }
   $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Run -Name $Name -Jar `"$Jar`" -Port $Port -ProjectId `"$ProjectId`" -Rules `"$Rules`""
   if ($ImportMetadata) { $arguments += " -ImportMetadata `"$ImportMetadata`"" }

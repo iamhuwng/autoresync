@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import protobuf from 'protobufjs/minimal.js';
-import { adoptSnapshot, assertInventoryPreserved, atomicJson, datasetIssues, decodeFirestoreExport, inspectSnapshot, inventory, maskedCrc32c, publishGeneration, readGeneration, recoveryRoot, withCheckpointWriter } from '../local-firebase-recovery.mjs';
+import { adoptSnapshot, assertAuthUsersEqual, assertFirestoreDocumentsEqual, assertInventoryPreserved, atomicJson, datasetIssues, decodeFirestoreExport, inspectSnapshot, inventory, maskedCrc32c, publishGeneration, readGeneration, recoveryRoot, withCheckpointWriter } from '../local-firebase-recovery.mjs';
 import { fileURLToPath } from 'node:url';
 import { firestoreValue } from '../local-firebase.mjs';
 
@@ -43,6 +43,39 @@ test('partial populated datasets, stale revisions, changed bindings and missing 
   for (const change of changes) { const after = structuredClone(before); change(after); assert.throws(() => assertInventoryPreserved(before, after)); }
   const newer = structuredClone(before); newer.records['material_catalog/books/book'].bookRevision = 4;
   assert.doesNotThrow(() => assertInventoryPreserved(before, newer));
+});
+
+test('exact Firestore restore compares every path and field while ignoring document order', () => {
+  const expected = [
+    { path: 'homework_assignments/first', fields: { revision: 3, nested: { enabled: true } } },
+    { path: 'homework_assignments/second', fields: { answer: ['a', 'b'] } },
+  ];
+  assert.doesNotThrow(() => assertFirestoreDocumentsEqual(expected, [...expected].reverse()));
+  assert.throws(() => assertFirestoreDocumentsEqual(expected, [
+    expected[0], { ...expected[1], fields: { answer: ['a', 'c'] } },
+  ]), /Restored Firestore documents differ/u);
+  assert.throws(() => assertFirestoreDocumentsEqual(expected, [...expected, {
+    path: 'extra/document', fields: { unexpected: true },
+  }]), /Restored Firestore documents differ/u);
+});
+
+test('Auth restore compares all account fields except importer-recreated session metadata', () => {
+  const expected = [
+    { localId: 'student-1', email: 'student@test.com', emailVerified: true, displayName: 'Student', providerUserInfo: [{ providerId: 'password' }] },
+    { localId: 'teacher-1', email: 'teacher@test.com', emailVerified: true, displayName: 'Teacher', disabled: false },
+  ];
+  assert.doesNotThrow(() => assertAuthUsersEqual(expected, [...expected].reverse()));
+  assert.throws(() => assertAuthUsersEqual(expected, [
+    { ...expected[0], emailVerified: false }, expected[1],
+  ]), /Restored Auth users differ/u);
+  assert.doesNotThrow(() => assertAuthUsersEqual(expected, expected.map(user => ({
+    ...user, validSince: '1800000000', passwordUpdatedAt: 1800000000000,
+  }))));
+  for (const field of ['passwordHash', 'salt', 'customAttributes', 'unexpectedField']) {
+    assert.throws(() => assertAuthUsersEqual(expected, [
+      { ...expected[0], [field]: 'changed' }, expected[1],
+    ]), /Restored Auth users differ/u);
+  }
 });
 
 test('readiness identifies missing cross-store Books and actual provider drift', () => {

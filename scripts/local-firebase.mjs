@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertLocalEmulators } from './import-live-firebase.mjs';
 import { randomUUID } from 'node:crypto';
-import { adoptSnapshot, assertInventoryPreserved, atomicJson, datasetIssues, digest, inspectSnapshot, inventory, pruneAutomaticGenerations, publishGeneration, readGeneration, recoveryRoot, withCheckpointWriter } from './local-firebase-recovery.mjs';
+import { adoptSnapshot, assertAuthUsersEqual, assertFirestoreDocumentsEqual, assertInventoryPreserved, atomicJson, datasetIssues, digest, inspectSnapshot, inventory, pruneAutomaticGenerations, publishGeneration, readGeneration, recoveryRoot, withCheckpointWriter } from './local-firebase-recovery.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -146,8 +146,17 @@ const restoreEmulators = async () => {
   await launchEmulators(generation);
   const restored = await readLiveState(generation);
   assert.equal(digest(restored.database), digest(generation.database), 'Restored RTDB differs from the selected generation');
-  assert.equal(digest(restored.auth.users.map(({ localId, email }) => ({ localId, email })).sort((a,b)=>a.localId.localeCompare(b.localId))), digest(generation.auth.users.map(({ localId, email }) => ({ localId, email })).sort((a,b)=>a.localId.localeCompare(b.localId))), 'Restored Auth identities differ');
-  console.log(`[Firebase] Exact generation restored; product readiness still requires check.`);
+  assertAuthUsersEqual(generation.auth.users, restored.auth.users);
+  const verificationDir = path.join(recoveryRoot, `restore-verification-${randomUUID()}`);
+  try {
+    await captureSnapshot(verificationDir, restored);
+    const exported = await inspectSnapshot(verificationDir, { freshDataset: generation.manifest.freshDataset === true });
+    assertFirestoreDocumentsEqual(generation.documents, exported.documents);
+    assert.equal(digest(exported.authConfig), digest(generation.authConfig), 'Restored Auth configuration differs from selected generation');
+  } finally {
+    await rm(verificationDir, { recursive: true, force: true });
+  }
+  console.log(`[Firebase] Selected generation content verified; Auth session metadata is recreated by import. Product readiness still requires check.`);
 };
 
 const readResponse = async (response) => {
