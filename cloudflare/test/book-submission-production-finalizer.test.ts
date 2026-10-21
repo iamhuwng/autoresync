@@ -9,6 +9,13 @@ import {
 import { computeBookSubmissionFingerprint, normalizeBookSubmissionMetadata } from '../../src/services/materialCatalog/bookSubmissionInput.service.ts';
 import { validateEditableActivity } from '../../src/services/book-activity/activitySchema.service.ts';
 import { activeComponentPdfActivation, fingerprintComponentPdfActivationValue, resolveMaterialQualifiedAssemblyCandidate } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
+import { buildFullPdfPublication, retainPublishedFullPdfUnits } from '../../src/services/book-assembly/fullPdfPublication.adapter.ts';
+import { createCanonicalBookAssemblyPublicationService } from '../../src/services/book-assembly/canonicalPublication.service.ts';
+import { InMemoryCanonicalActivityVersionRepository } from '../../src/services/book-assembly/canonicalPublicationRepository.ts';
+import { InMemoryBookAssemblyPublicationRepository, type BookAssemblyPublicationScope } from '../../src/services/book-assembly/publicationRepository.ts';
+import type { BookAssemblyPublicationResult } from '../../src/services/book-assembly/publicationTransaction.service.ts';
+import type { CanonicalPublishedActivityVersionRecord } from '../../src/services/book-assembly/canonicalActivityVersion.service.ts';
+import { createTrustedBookDeliveryPublication } from '../src/upload-worker/book-delivery/worker.ts';
 
 import { fingerprint, operationId, ownerId, bookId, now, sourceReceipt, editableActivity, activity, manifest, verifiedSource, operation, env, request, componentArtifact } from './fixtures/book-submission-publication.ts';
 
@@ -31,6 +38,87 @@ const capturePatch = async (records: Record<string, unknown> = {}) => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('production Book submission publication finalizer', () => {
+  it('retains immutable sibling Units when one Unit of an atomic full-PDF Book is republished', async () => {
+    const captured = await capturePatch();
+    const body = structuredClone(manifest('full_pdf'));
+    body.nodes.push({ ...body.nodes[0]!, nodeKey: 'unit-2', order: 2, title: 'Second Unit' });
+    body.units.push({ unitKey: 'unit-2', activitySlots: [{ ...body.units[0]!.activitySlots[0]!, activityKey: 'activity-2', pageGroupKeys: ['pages-2'] }],
+      pageGroups: [{ ...body.units[0]!.pageGroups[0]!, pageGroupKey: 'pages-2', activityKeys: ['activity-2'] }] });
+    const sources = [verifiedSource(sourceReceipt('full', 'full-v1'))];
+    await createProductionBookSubmissionPublicationFinalizer().commit({
+      operation: { ...operation, commitLeaseExpiresAt: Date.now() + 120_000 }, uid: ownerId, operationId, finalBookId: bookId, fingerprint,
+      metadata: { title: 'Two Units', authors: [], testTypeIds: ['reading'], tags: [] },
+      prepared: { strategy: 'full_pdf', manifest: body, activitiesByKey: { 'unit-1:activity-1': activity, 'unit-2:activity-2': activity } },
+      sources, env: { ...env, BOOK_SUBMISSION_GOOGLE_SA_KEY: captured.serviceAccount }, request,
+    });
+    const writes = JSON.parse(String(captured.calls.find(call => call.init?.method === 'PATCH')!.init!.body)) as Record<string, unknown>;
+    const prefix = `book_assembly_publications/books/${bookId}/`;
+    const families = { versions: 'versions', activityVersions: 'activity_versions', activitySafeProjections: 'activity_safe_projections',
+      placements: 'placements', unitProjections: 'unit_projections', deliveryPlans: 'delivery_plans' };
+    const scope = { current: writes[`${prefix}current`], ...Object.fromEntries(Object.entries(families).map(([key, family]) => [key,
+      Object.fromEntries(Object.entries(writes).filter(([path]) => path.startsWith(`${prefix}${family}/`))
+        .map(([path, value]) => [path.slice(`${prefix}${family}/`.length), value])),
+    ])) } as BookAssemblyPublicationScope<BookAssemblyPublicationResult>;
+    const previous = structuredClone(scope);
+    const repository = new InMemoryBookAssemblyPublicationRepository({ [bookId]: scope });
+    const canonical = new InMemoryCanonicalActivityVersionRepository();
+    for (const [path, value] of Object.entries(writes)) {
+      if (path.startsWith('book_activity/versions/')) await canonical.prepare(value as CanonicalPublishedActivityVersionRecord);
+    }
+    const selected = Object.values(scope.activityVersions!).find(row => row.unitKey === 'unit-1')!;
+    const sibling = Object.values(scope.activityVersions!).find(row => row.unitKey === 'unit-2')!;
+    const nextOperation = '00000000-0000-4000-8000-000000000299';
+    const candidate = { candidateId: 'edited-candidate', ownerId, bookId, bookRevision: 1, sourceSetRevision: 1,
+      unitKey: 'unit-1', revision: 2, lifecycle: 'validated' as const, manifest: body,
+      validation: { valid: true, errors: [] }, updatedAt: now };
+    // The current preview approves the full outline while sibling Activity payloads remain immutable.
+    body.nodes[0]!.order = 2;
+    body.nodes[1]!.order = 1;
+    body.nodes[1]!.title = 'Renamed second Unit';
+    const edited = buildFullPdfPublication({ operationId: nextOperation, now, ownerId, unitKey: 'unit-1', candidate,
+      authority: { bookId, ownerId, bookMode: 'pdf', bookRevision: 1, sourceSetRevision: 1,
+        sourceSet: body.sourceSet, sourceVersionAuthority: { getSourceVersion: id => {
+          const source = sources.find(entry => entry.sourceVersionId === id);
+          if (!source) return undefined;
+          const { byteSize: _byteSize, ...projection } = source;
+          return projection;
+        } } },
+      expectedCandidateRevision: 2, expectedBookRevision: 1, expectedSourceSetRevision: 1,
+      existingLineageByActivityKey: { 'activity-1': { activityId: selected.activityId,
+        lastActivityVersionId: selected.activityVersionId, lastActivityVersion: selected.activityVersion } },
+      activitiesByKey: { 'activity-1': { activityKey: 'activity-1', ownerId, revision: 2, lifecycle: 'draft', activity: { ...activity, title: 'Edited Unit 1' } } },
+      ids: { planId: 'plan-next', manifestVersionId: 'manifest-next', publicationId: 'publication-next', publicationRevision: 2,
+        unitProjectionId: 'unit-next', deliveryPlanId: 'delivery-next', activitiesByKey: { 'activity-1': {
+          activityId: selected.activityId, activityVersionId: 'activity-next-v2', activityVersion: 2,
+          projectionId: 'projection-next', placementId: 'placement-next' } } },
+    });
+    const retain = (draft = candidate) => retainPublishedFullPdfUnits({ plan: edited.plan, candidate: draft, scope,
+      operationId: nextOperation, now, allocateId: (kind, key) => `${kind}:${key}` });
+    const changedSibling = structuredClone(candidate);
+    changedSibling.manifest.units[1]!.pageGroups[0]!.pages = [2];
+    expect(() => retain(changedSibling)).toThrow('full_pdf_sibling_review_required');
+    const removedSibling = structuredClone(candidate);
+    removedSibling.manifest.units = removedSibling.manifest.units.slice(0, 1);
+    expect(() => retain(removedSibling)).toThrow('full_pdf_sibling_review_required');
+    const result = await createCanonicalBookAssemblyPublicationService(repository, canonical).publish({
+      operationId: nextOperation, now, expectedCurrentPublicationId: scope.current!.publicationId,
+      manifestVersionId: 'manifest-next', publicationId: 'publication-next', publicationRevision: 2,
+      plan: retain(), canonicalActivityVersions: edited.canonicalActivityVersions,
+    });
+    expect(result.status).toBe('published');
+    const current = await repository.readScope(bookId);
+    expect(current.versions!['manifest-next']!.studentSafeProjection.units.map(unit => unit.unitKey)).toEqual(['unit-1', 'unit-2']);
+    expect(current.versions!['manifest-next']!.manifest.nodes).toEqual(body.nodes);
+    expect(current.versions![scope.current!.manifestVersionId]).toEqual(previous.versions![scope.current!.manifestVersionId]);
+    expect(Object.values(current.activityVersions!).filter(row => row.unitKey === 'unit-2').every(row => row.activityVersionId === sibling.activityVersionId)).toBe(true);
+    const delivery = createTrustedBookDeliveryPublication({ bookId, publicationId: 'publication-next', publicationRevision: 2,
+      recipientId: 'student-1', contextKind: 'solo', contextId: 'solo-1',
+      scope: { kind: 'subtree', nodeKeys: ['unit-2'], placementIds: [] } }, current,
+    { policyId: 'schedule-1', policyRevision: 1, basis: 'immutable-reference' });
+    expect(delivery.placements).toHaveLength(1);
+    expect(delivery.placements[0]).toMatchObject({ activityId: sibling.activityId, activityVersionId: sibling.activityVersionId });
+    expect(delivery.outline).toEqual([{ nodeKey: 'unit-2', parentNodeKey: null, nodeType: 'unit', order: 1, titleSnapshot: 'Renamed second Unit' }]);
+  });
   it.each(['registry', 'source decision', 'foreign source', 'missing activity', 'extra activity', 'expired lease'] as const)(
     'rejects invalid %s during shared server qualification before any external call', async (kind) => {
       const sources = [verifiedSource(sourceReceipt('full', 'full-v1'))];

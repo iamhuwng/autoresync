@@ -18,6 +18,7 @@ import type {
   FullPdfActivityLineage,
   FullPdfValidatedActivityPayload,
 } from '../../../../src/services/book-assembly/fullPdfPublication.adapter.ts';
+import { retainPublishedFullPdfUnits } from '../../../../src/services/book-assembly/fullPdfPublication.adapter.ts';
 import type {
   BookAssemblyBookAuthority,
   BookAssemblyCandidateRecord,
@@ -265,11 +266,21 @@ export const createFullPdfPublicationWorkerHandlers = (options: {
           readPreviewApproval: options.readPreviewApproval,
           sourceIsPreviewReady: options.sourceIsPreviewReady,
           publish: async (request) => {
-            const current = (await options.repository.readScope(request.plan.bookId)).current;
+            const scope = await options.repository.readScope(request.plan.bookId);
+            const current = scope.current;
             if ((current?.publicationId ?? null) !== request.expectedCurrentPublicationId) {
               return { status: 'conflict', failureCode: 'stale-current-pointer' };
             }
-            return service.publish(request);
+            const unitKey = request.plan.manifest.units[0]!.unitKey;
+            const candidate = await options.readCandidate(request.plan.bookId, unitKey, request.plan.candidateId);
+            if (!candidate || candidate.ownerId !== request.plan.ownerId || candidate.bookId !== request.plan.bookId
+              || candidate.revision !== request.plan.candidateRevision || candidate.bookRevision !== request.plan.bookRevision
+              || candidate.sourceSetRevision !== request.plan.sourceSetRevision) {
+              throw new FullPdfPublicationCommandError('full_pdf_revision_conflict', 422);
+            }
+            return service.publish({ ...request, plan: retainPublishedFullPdfUnits({
+              plan: request.plan, candidate, scope, operationId: request.operationId, allocateId, now: request.now,
+            }) });
           },
           allocateOperationId: () => requestOperationId,
           allocateId,

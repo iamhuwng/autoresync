@@ -50,19 +50,25 @@ const book: MaterialBookMetadata = {
 };
 
 describe('BookPdfEditWorkspace', () => {
-  it('switches between editing-specific tabs with keyboard navigation', async () => {
+  it('opens Content and keeps setup options secondary with keyboard navigation', async () => {
     const user = userEvent.setup();
     render(<BookPdfEditWorkspace access="owner" book={book} presentation="modal" />);
 
-    const metadataTab = screen.getByRole('tab', { name: 'Metadata' });
-    metadataTab.focus();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Content', 'Preview']);
+    expect(screen.queryByRole('button', { name: 'PDF files' })).not.toBeInTheDocument();
+    const activitiesTab = screen.getByRole('tab', { name: 'Content' });
+    expect(activitiesTab).toHaveAttribute('aria-selected', 'true');
+    activitiesTab.focus();
     await user.keyboard('{ArrowRight}');
-    expect(screen.getByRole('tab', { name: 'PDF files' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('Assembly surface: pdf-files')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Assembly surface: preview')).toBeInTheDocument();
 
-    await user.keyboard('{End}');
-    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Home}');
+    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('button', { name: 'Book options' }));
+    await user.click(screen.getByRole('button', { name: 'Book details' }));
     expect(screen.getByText('Metadata surface: settings')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Content' })).toHaveAttribute('tabindex', '0');
   });
 
   it('keeps the editor dirty until both mounted editing surfaces are clean', async () => {
@@ -70,13 +76,16 @@ describe('BookPdfEditWorkspace', () => {
     const onDirtyChange = vi.fn();
     render(<BookPdfEditWorkspace access="owner" book={book} presentation="modal" onDirtyChange={onDirtyChange} />);
 
+    await user.click(screen.getByRole('button', { name: 'Book options' }));
+    await user.click(screen.getByRole('button', { name: 'Book details' }));
     await user.click(screen.getByRole('button', { name: 'Dirty metadata' }));
-    await user.click(screen.getByRole('tab', { name: 'Content tree' }));
+    await user.click(screen.getByRole('tab', { name: 'Content' }));
     await user.click(screen.getByRole('button', { name: 'Dirty assembly' }));
     await user.click(screen.getByRole('button', { name: 'Clean assembly' }));
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
 
-    await user.click(screen.getByRole('tab', { name: 'Metadata' }));
+    await user.click(screen.getByRole('button', { name: 'Book options' }));
+    await user.click(screen.getByRole('button', { name: 'Book details' }));
     await user.click(screen.getByRole('button', { name: 'Clean metadata' }));
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });

@@ -663,6 +663,36 @@ describe('canonical Activity Version Firebase repositories', () => {
     expect(rtdbRequests).toHaveLength(4);
   });
 
+  it('reads an existing immutable publication reference using dedicated scoped reader claims', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const privatePem = await exportPKCS8(privateKey);
+    const harness = createFetchHarness(committedState());
+    const claims: Record<string, unknown>[] = [];
+    const writer = new FirebaseRestCanonicalActivityVersionWriter({
+      env: { FIREBASE_DB_URL: dbUrl, FIREBASE_PROJECT_ID: 'project-1', FIREBASE_WEB_API_KEY: 'web-key',
+        BOOK_ASSEMBLY_SERVICE_IDENTITY: writerIdentity,
+        BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({ client_email: writerIdentity, private_key: privatePem }),
+        BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: readerIdentity,
+        BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: JSON.stringify({ client_email: readerIdentity, private_key: privatePem }) },
+      fetchImpl: async (url, init) => {
+        if (String(url).includes('identitytoolkit.googleapis.com')) {
+          claims.push(decodeJwt(JSON.parse(String(init?.body)).token));
+          return Response.json({ idToken: 'scoped-reader-token', expiresIn: '300' });
+        }
+        expect(new URL(String(url)).searchParams.get('auth')).toBe('scoped-reader-token');
+        return harness.fetchImpl(url, init);
+      },
+    });
+    const reference = { activityId: request.activityId, activityVersionId: request.activityVersionId,
+      activityVersion: request.activityVersion, canonicalPayloadFingerprint: request.payloadFingerprint };
+    await expect(writer.readPrepared(reference)).resolves.toBeNull();
+    await expect(writer.readPrepared(reference, request)).resolves.toEqual(canonicalRecord());
+    expect(harness.calls.every(call => call.startsWith('GET '))).toBe(true);
+    expect(claims.length).toBeGreaterThan(0);
+    expect(claims.every(claim => claim.iss === readerIdentity && claim.uid === request.ownerId)).toBe(true);
+    await expect(writer.readPrepared(reference, { ...request, activityVersionId: 'foreign-version' })).resolves.toBeNull();
+  });
+
   it('retries a crash after version creation and heals the missing safe sibling', async () => {
     const harness = createFetchHarness({}, {
       failPutOnce: true,

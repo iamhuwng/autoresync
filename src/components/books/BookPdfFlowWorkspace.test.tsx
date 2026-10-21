@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BookAssemblyCurrentPublication, BookAssemblyPreviewClient } from '../../services/book-assembly/assemblyPublication.client';
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
+import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
 import type { SourceUploadBrowserWorkflow } from '../../services/book-source-delivery/sourceUpload.browserWorkflow';
 import { SourceUploadClientError, type SourceSetAttachmentClient, type SourceUploadSafeOperationState } from '../../services/book-source-delivery/sourceUpload.client';
 import type { SourcePdfInspectionClaim } from '../../services/book-source-delivery/sourcePdfInspection.browser';
@@ -946,6 +947,89 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(screen.queryByText('temporary preview failure')).not.toBeInTheDocument();
   });
 
+  it('previews the selected saved Unit and invalidates preview when the Unit or saved candidate changes', async () => {
+    const user = userEvent.setup();
+    const selected = { ...candidate('full_pdf'), candidateId: 'candidate-a', unitKey: 'unit-a' };
+    const fullSource = { ...sourceVersion('source-b'), sourceKey: 'full', checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) } };
+    const loadCurrent = vi.fn(async () => ({ candidate: selected, savedActivityKeysByUnit: {} }));
+    const replace = vi.fn(async (input: { manifest: BookAssemblyCandidateRecord['manifest'] }) => ({
+      status: 'replaced', candidate: { ...candidate('full_pdf'), manifest: input.manifest, revision: 5 },
+    }));
+    const client = previewClient('full_pdf');
+    client.preview = vi.fn(async () => ({ preview: createCandidateUnitPreview({
+      candidate: selected, sourceVersions: [fullSource], sourceIsPreviewReady: () => true,
+      activitiesByKey: { 'activity-a': previewActivity }, registryVersion: 'registry-v1',
+    }) }));
+    const props = {
+      access: 'owner' as const, bookId: 'book-1', title: 'Book', presentation: 'modal' as const,
+      experience: 'focused-editing' as const, editingSection: 'preview' as const, uploadWorkflow: null,
+      assemblySourceVersions: [fullSource], assemblyInitialCandidate: candidate('full_pdf'),
+      assemblyBookRevision: 2, assemblySourceSetRevision: 3, assemblyPreviewClient: client,
+      assemblyRepository: { loadCurrent, replace } as unknown as UnitAssemblyRepository,
+    };
+    const view = render(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-a" />);
+    await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
+    expect(loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a');
+    expect(client.preview).toHaveBeenCalledWith(expect.objectContaining({ unitKey: 'unit-a', candidateId: 'candidate-a' }));
+    expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeEnabled();
+    view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-b" />);
+    expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeDisabled();
+    view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-a" />);
+    await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
+    expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeEnabled();
+    view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-a" editingSection="content-tree" />);
+    const changedPlan = candidate('full_pdf').manifest!;
+    fireEvent.change(screen.getByLabelText('Book plan JSON'), { target: { value: JSON.stringify({
+      nodes: changedPlan.nodes.map((node) => ({ ...node, title: 'Updated chapter' })), units: changedPlan.units,
+    }) } });
+    await user.click(screen.getByRole('button', { name: 'Import plan' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledOnce());
+    view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-a" />);
+    expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeDisabled();
+  });
+
+  it('shows saved Unit content on opening Content without opening or approving the explicit preview', async () => {
+    const savedCandidate = {
+      ...candidate('full_pdf'), unitKey: 'unit-a',
+      manifest: {
+        ...candidate('full_pdf').manifest!,
+        nodes: candidate('full_pdf').manifest!.nodes.map((node) => node.nodeKey === 'unit-a' ? { ...node, title: 'Getting Started' } : node),
+      },
+    };
+    const loadCurrent = vi.fn(async () => ({ candidate: savedCandidate, savedActivityKeysByUnit: { 'unit-a': ['activity-a'] } }));
+    const client = previewClient('full_pdf');
+    client.preview = vi.fn(async () => ({ preview: createCandidateUnitPreview({
+      candidate: savedCandidate, sourceVersions: [sourceVersion('source-b')], sourceIsPreviewReady: () => true,
+      activitiesByKey: { 'activity-a': { ...previewActivity, title: 'Choose the best answer', instructions: [{ text: 'Read the short passage, then select one answer.' }] } },
+      registryVersion: 'registry-v1',
+    }) }));
+
+    render(
+      <BookPdfFlowWorkspace
+        access="owner" bookId="book-1" title="Book" presentation="modal" experience="focused-editing"
+        editingSection="activity-json" previewUnitKey="unit-a" uploadWorkflow={null}
+        assemblySourceVersions={[sourceVersion('source-b')]} assemblyInitialCandidate={savedCandidate}
+        assemblyInitialSavedActivityKeysByUnit={{ 'unit-a': ['activity-a'] }}
+        assemblyBookRevision={2} assemblySourceSetRevision={3} assemblyPreviewClient={client}
+        assemblyRepository={{ loadCurrent } as unknown as UnitAssemblyRepository}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Getting Started activities' })).toBeInTheDocument();
+    expect(await screen.findByText('Choose the best answer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace activities' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Import activities' })).not.toBeInTheDocument();
+    expect(screen.getByText('Read the short passage, then select one answer.')).toBeInTheDocument();
+    expect(loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a');
+    expect(client.preview).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('heading', { name: 'Student Book preview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve this preview' })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit Choose the best answer' }));
+    expect(screen.getByRole('button', { name: 'Save activity' })).toBeDisabled();
+    expect(screen.getByLabelText('Paste returned JSON')).toBeInTheDocument();
+  });
+
   it('keeps focused preview fail-closed while the persisted PDF source is not ready', () => {
     const client = previewClient('full_pdf');
     render(
@@ -990,7 +1074,6 @@ describe('BookPdfFlowWorkspace student preview', () => {
 
     await user.click(screen.getByRole('button', { name: 'Replace PDF' }));
 
-    expect(screen.getByText('1 file')).toBeInTheDocument();
     expect(screen.getByText('Choose your PDF', { selector: 'strong' })).toBeInTheDocument();
     expect(screen.getByText('We will check the file in your browser before anything is uploaded.')).toBeInTheDocument();
   });
@@ -1085,20 +1168,18 @@ describe('BookPdfFlowWorkspace student preview', () => {
     const view = render(<BookPdfFlowWorkspace {...commonProps} editingSection="content-tree" />);
 
     expect(screen.queryByRole('navigation', { name: 'PDF Book progress' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Edit the content tree' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Book content tree editor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Book hierarchy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy plan prompt' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Unit 1 content' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="activity-json" />);
-    expect(screen.getByRole('heading', { name: 'Edit Activity JSON' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Activity JSON editor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Activity JSON for Unit 1' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Unit activities' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Edit Activity JSON' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book hierarchy' })).not.toBeInTheDocument();
 
-    view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="page-mapping" />);
-    expect(screen.getByRole('heading', { name: 'Edit page mapping' })).toBeInTheDocument();
+    view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="preview" />);
+    expect(screen.getByRole('region', { name: 'Preview corrections' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 });

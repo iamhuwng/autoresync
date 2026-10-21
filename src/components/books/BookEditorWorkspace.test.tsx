@@ -469,6 +469,48 @@ describe('BookEditorWorkspace', () => {
     expect(screen.queryByLabelText('ISBN')).not.toBeInTheDocument();
   });
 
+  it('saves compact PDF details while preserving hidden metadata and PDF authority', async () => {
+    const user = userEvent.setup();
+    let currentBook = makeBook();
+    const repository = {
+      readBook: vi.fn(async () => currentBook),
+      listBookNodes: vi.fn(async () => []),
+      listBooksByIndex: vi.fn(async () => []),
+      write: vi.fn(),
+      remove: vi.fn(),
+      update: vi.fn(async (payload: Record<string, any>) => {
+        const next = payload['material_catalog/books/book-123'];
+        if (next) currentBook = next as MaterialBookMetadata;
+      }),
+    };
+
+    render(
+      <BookEditorWorkspace
+        bookId="book-123"
+        initialBook={currentBook}
+        initialNodes={[]}
+        repository={repository}
+        materialCandidates={[]}
+        presentation="modal"
+        activeTab="settings"
+        compactPdfDetails
+        showInlineSaveActions
+      />,
+    );
+
+    expect(screen.getByLabelText('Title')).toHaveValue('IELTS Book');
+    expect(screen.queryByLabelText('Test Type ids')).not.toBeInTheDocument();
+    await user.click(screen.getByText('More details'));
+    await user.clear(screen.getByLabelText('Authors'));
+    await user.type(screen.getByLabelText('Authors'), 'Teacher Two');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(currentBook.authors).toEqual(['Teacher Two']));
+    expect(currentBook.isbn).toBe('9780000000000');
+    expect(currentBook.testTypeIds).toEqual([materialCatalogIds.testTypeId('ielts')]);
+    expect(Object.keys(repository.update.mock.calls[0][0]).some((path) => path.includes('book_nodes'))).toBe(false);
+  });
+
   it('uploads Book cover to permanent Cloudflare R2 storage from Settings', async () => {
     const user = userEvent.setup();
 

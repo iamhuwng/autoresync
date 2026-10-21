@@ -59,6 +59,18 @@ const promptContract = (prompt: string): unknown => {
 };
 
 describe('buildUnitActivityImportPrompt', () => {
+  it('limits an explicit Activity correction to that slot while retaining its Book context', () => {
+    const fullManifest = structuredClone(manifest);
+    fullManifest.units[0]!.activitySlots.push({ ...fullManifest.units[0]!.activitySlots[0]!, activityKey: 'sibling', order: 2 });
+    const contract = promptContract(buildUnitActivityImportPrompt({ bookTitle: 'Book', manifest: fullManifest,
+      unitKey: 'unit-1', sourceVersions, selectedActivityKey: 'activity-choice' })) as {
+        unit: { activitySlots: { activityKey: string }[] }; outputBundleShape: { slots: { activityKey: string }[]; bookId: string };
+      };
+    expect(contract.unit.activitySlots.map(slot => slot.activityKey)).toEqual(['activity-choice']);
+    expect(contract.outputBundleShape.slots.map(slot => slot.activityKey)).toEqual(['activity-choice']);
+    expect(contract.outputBundleShape.bookId).toBe(manifest.bookId);
+    expect(fullManifest.units[0]!.activitySlots).toHaveLength(2);
+  });
   it('binds local output in the editor while keeping canonical output identities by default', () => {
     const input = { bookTitle: 'Local Book', manifest, unitKey: 'unit-1',
       sourceVersions: sourceVersions.map(({ sourceVersionId, physicalPageCount }) => ({ sourceVersionId, physicalPageCount })) };

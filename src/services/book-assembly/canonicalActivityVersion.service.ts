@@ -743,7 +743,10 @@ const validateProvenance = (
     validId(value.unitKey, `${path}.unitKey`, errors);
     validId(value.activityKey, `${path}.activityKey`, errors);
     const sourcePages = validateSourcePages(value.sourcePages, `${path}.sourcePages`, errors);
-    if (hasPredecessor || activityVersion !== 1) add(errors, path, 'cross-family-mismatch');
+    // Book-bound publication also publishes successors of the same Activity.
+    if ((activityVersion === 1 && hasPredecessor) || (activityVersion > 1 && !hasPredecessor)) {
+      add(errors, path, 'cross-family-mismatch');
+    }
     return {
       kind: 'initial-book-publication',
       bookId: value.bookId as string,

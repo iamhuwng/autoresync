@@ -416,7 +416,10 @@ describeEmulator('PRD0062 #118 assembled production-normal RTDB rules', () => {
     const bindingPath = 'book_assembly_activity_bindings/owners/teacher-1/books/book-1/units/unit-1/activities/activity-1';
     await assertSucceeds(bindingService.ref(bindingPath).set(binding()));
     await assertSucceeds(bindingService.ref(bindingPath).update({ candidateId: 'candidate-2', candidateRevision: 2, candidateLifecycle: 'saved' }));
-    await assertFails(bindingService.ref(bindingPath).update({ candidateId: 'candidate-old', candidateRevision: 1 }));
+    await assertFails(bindingService.ref(bindingPath).update({ candidateId: 'candidate-stale', candidateRevision: 2 }));
+    await assertFails(bindingService.ref(bindingPath).update({ activityId: 'activity-remapped', candidateRevision: 3 }));
+    await assertFails(bindingService.ref(bindingPath).update({ candidateRevision: 3, activityVersionId: 'published-version', activityVersion: 1 }));
+    await assertFails(teacher.ref(bindingPath).update({ candidateId: 'browser-candidate', candidateRevision: 3 }));
     await assertFails(assembly.ref(bindingPath).once('value'));
     await assertFails(wrongAssembly.ref(bindingPath).set(binding()));
     await assertFails(bindingService.ref('book_assembly_activity_bindings/owners/teacher-1/books/book-1/units/unit-1').set({ activities: { 'activity-1': binding() } }));
@@ -496,8 +499,12 @@ describeEmulator('PRD0062 #118 assembled production-normal RTDB rules', () => {
     await assertFails(exact.ref('book_assembly_activity_bindings/owners/teacher-1/books/book-1/units/unit-1/activities').once('value'));
 
     await assertSucceeds(exact.ref(bindingPath).set(binding({ activityKey: 'activity-absent' })));
+    await assertSucceeds(exact.ref(bindingPath).update({ candidateId: 'candidate-2', candidateRevision: 3 }));
+    await assertFails(wrongOwner.ref(bindingPath).update({ candidateId: 'candidate-3', candidateRevision: 4 }));
+    await assertFails(wrongBook.ref(bindingPath).update({ candidateId: 'candidate-3', candidateRevision: 4 }));
+    await assertFails(wrongUnit.ref(bindingPath).update({ candidateId: 'candidate-3', candidateRevision: 4 }));
     const snapshot = await exact.ref(bindingPath).once('value');
-    expect(snapshot.val()).toMatchObject({ activityKey: 'activity-absent' });
+    expect(snapshot.val()).toMatchObject({ activityKey: 'activity-absent', candidateId: 'candidate-2', candidateRevision: 3 });
   });
 
   it('permits exact result group-summary child reads in both scopes while denying broader or browser access', async () => {

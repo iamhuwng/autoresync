@@ -161,11 +161,10 @@ describe('Book Activity authoring Worker boundary', () => {
       draftContext: async () => ({ seal: currentSeal,
         contract: { activityKey: 'slot-1', contextRequirement: 'none' },
         mappedBookPageRefs: ['source:component-a:page:1'] }),
-      bindingRepositoryFactory: () => ({ read: async () => null, bindCandidate: async () => 'created',
-        recordPublication: async () => 'updated' }),
+      bindingRepositoryFactory: () => ({ read: async () => null, bindCandidate: async () => 'created' }),
     });
     const stageInput = { operationId: operation('301'), expectedRevision: 0,
-      targetActivityId: 'ba_626f6f6b2d31_736c6f742d31', unitActivityBinding: binding, content: activity };
+      unitActivityBinding: binding, content: activity };
     const staged = await current.handlers.stage({ request: request(stageInput), env: {}, uid: 'teacher-1' });
     expect(staged.body).toMatchObject({ status: 'staged' });
     const candidateId = String((staged.body as Record<string, unknown>).candidateId);
@@ -341,7 +340,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const bindCandidate = vi.fn(async () => 'created' as const);
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
-      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate }),
     });
     const staged = await current.handlers.stage({
       request: request({ operationId: operation('081'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
@@ -378,7 +377,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const bindCandidate = vi.fn(async () => { throw new Error('binding transport unavailable'); });
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
-      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate }),
     });
     const staged = await current.handlers.stage({ request: request({ operationId: operation('084'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
     const candidateId = String((staged.body as Record<string, unknown>).candidateId);
@@ -415,7 +414,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const bindCandidate = vi.fn(async () => { throw new Error('binding transport unavailable'); });
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
-      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate }),
     });
     const staged = await current.handlers.stage({
       request: request({ operationId: operation('091'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
@@ -458,7 +457,7 @@ describe('Book Activity authoring Worker boundary', () => {
     };
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
-      bindingRepositoryFactory: () => ({ read: vi.fn(async () => existing), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(async () => existing), bindCandidate }),
     });
     const staged = await current.handlers.stage({ request: request({ operationId: operation('087'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
     const candidateId = String((staged.body as Record<string, unknown>).candidateId);
@@ -473,7 +472,7 @@ describe('Book Activity authoring Worker boundary', () => {
     expect((current.state['teacher-1'].candidates![candidateId] as Record<string, unknown>)).toMatchObject({ lifecycle: 'validated', revision: 2 });
     expect(current.state['teacher-1'].operations?.[operation('089')]).toBeUndefined();
 
-    const staleScope = worker({ assemblyActivityKeys: ['different-slot'], bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }) });
+    const staleScope = worker({ assemblyActivityKeys: ['different-slot'], bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate }) });
     const stagedScope = await staleScope.handlers.stage({ request: request({ operationId: operation('090'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
     const scopeCandidateId = String((stagedScope.body as Record<string, unknown>).candidateId);
     await staleScope.handlers.validate({ request: request({ operationId: operation('091'), candidateId: scopeCandidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
@@ -481,6 +480,54 @@ describe('Book Activity authoring Worker boundary', () => {
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'slot-1' } }), env: {}, uid: 'teacher-1' }))
       .resolves.toMatchObject({ init: { status: 409 }, body: { code: 'unit_activity_binding_scope_invalid' } });
     expect(staleScope.state['teacher-1'].activities ?? {}).toEqual({});
+  });
+
+  it('edits an atomically seeded arbitrary Activity identity using explicit replacement and existing CAS', async () => {
+    let binding: Parameters<UnitActivityBindingRepository['bindCandidate']>[0] | null = null;
+    const current = worker({ assemblyActivityKeys: ['slot-1'], bindingRepositoryFactory: () => ({
+      read: vi.fn(async () => binding), bindCandidate: vi.fn(async (next: Parameters<UnitActivityBindingRepository['bindCandidate']>[0]) => {
+        binding = next; return 'updated' as const;
+      }),
+    }) });
+    const targetActivityId = 'activity-atomic-publication-slot-1';
+    const seeded = await current.handlers.stage({ request: request({ operationId: operation('130'),
+      expectedRevision: 0, targetActivityId, content: activity }), env: {}, uid: 'teacher-1' });
+    const seededCandidateId = String((seeded.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('131'), candidateId: seededCandidateId, expectedRevision: 1 }), env: {}, uid: 'teacher-1' });
+    await current.handlers.saveDraft({ request: request({ operationId: operation('132'), candidateId: seededCandidateId, expectedRevision: 2 }), env: {}, uid: 'teacher-1' });
+    binding = { schemaVersion: 1, ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-1',
+      activityId: targetActivityId, candidateId: seededCandidateId, candidateRevision: 3, candidateLifecycle: 'saved' };
+    const unitActivityBinding = { unitKey: 'unit-1', activityKey: 'slot-1' };
+    await expect(current.handlers.stage({ request: request({ operationId: operation('133'), expectedRevision: 0,
+      unitActivityBinding, content: activity }), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 409 }, body: { status: 'conflict', currentRevision: 1 } });
+    const staged = await current.handlers.stage({ request: request({ operationId: operation('134'), expectedRevision: 1,
+      unitActivityBinding, content: { ...activity, title: 'Edited existing Activity' } }), env: {}, uid: 'teacher-1' });
+    expect(staged.body).toMatchObject({ status: 'staged', targetActivityId });
+    const candidateId = String((staged.body as Record<string, unknown>).candidateId);
+    await current.handlers.validate({ request: request({ operationId: operation('135'), candidateId, expectedRevision: 1,
+      unitActivityBinding }), env: {}, uid: 'teacher-1' });
+    await expect(current.handlers.saveDraft({ request: request({ operationId: operation('136'), candidateId, expectedRevision: 2,
+      unitActivityBinding, replaceExistingUnitActivityBinding: true }), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ init: { status: 200 }, body: { status: 'saved', activityId: targetActivityId, binding: { phase: 'complete' } } });
+    expect(binding).toMatchObject({ activityId: targetActivityId, candidateId });
+    expect(Object.keys(current.state['teacher-1'].activities ?? {})).toEqual([targetActivityId]);
+  });
+
+  it('allocates a short canonical ID for a long valid Unit slot and replays stage idempotently', async () => {
+    const activityKey = 'slot-'.concat('a'.repeat(120));
+    const current = worker({ assemblyActivityKeys: [activityKey], bindingRepositoryFactory: () => ({
+      read: vi.fn(async () => null), bindCandidate: vi.fn(),
+    }) });
+    const input = { operationId: operation('137'), expectedRevision: 0, content: activity,
+      unitActivityBinding: { unitKey: 'unit-1', activityKey } };
+    const first = await current.handlers.stage({ request: request(input), env: {}, uid: 'teacher-1' });
+    expect(first.body).toMatchObject({ status: 'staged' });
+    const target = String((first.body as Record<string, unknown>).targetActivityId);
+    expect(target.length).toBeLessThanOrEqual(160);
+    expect(target).not.toBe(activityKey);
+    await expect(current.handlers.stage({ request: request(input), env: {}, uid: 'teacher-1' }))
+      .resolves.toMatchObject({ body: { status: 'staged', targetActivityId: target, replayed: true } });
   });
 
   it('replaces an unpublished same-Activity binding only with explicit intent and exact CAS', async () => {
@@ -492,22 +539,21 @@ describe('Book Activity authoring Worker boundary', () => {
         storedBinding = input;
         return status;
       }),
-      recordPublication: vi.fn(),
     };
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
       bindingRepositoryFactory: () => bindingRepository,
     });
-    const targetActivityId = 'ba_626f6f6b2d31_736c6f742d31';
     const unitActivityBinding = { unitKey: 'unit-1', activityKey: 'slot-1' };
 
     const firstStage = await current.handlers.stage({
       request: request({
-        operationId: operation('120'), expectedRevision: 0, targetActivityId,
+        operationId: operation('120'), expectedRevision: 0,
         unitActivityBinding, content: activity,
       }), env: {}, uid: 'teacher-1',
     });
     const firstCandidateId = String((firstStage.body as Record<string, unknown>).candidateId);
+    const targetActivityId = String((firstStage.body as Record<string, unknown>).targetActivityId);
     await current.handlers.validate({
       request: request({ operationId: operation('121'), candidateId: firstCandidateId, expectedRevision: 1,
         unitActivityBinding }), env: {}, uid: 'teacher-1',
@@ -519,7 +565,7 @@ describe('Book Activity authoring Worker boundary', () => {
 
     const replacementStage = await current.handlers.stage({
       request: request({
-        operationId: operation('123'), expectedRevision: 1, targetActivityId,
+        operationId: operation('123'), expectedRevision: 1,
         unitActivityBinding, content: { ...activity, title: 'Replacement' },
       }), env: {}, uid: 'teacher-1',
     });
@@ -558,7 +604,7 @@ describe('Book Activity authoring Worker boundary', () => {
 
     const nextStage = await current.handlers.stage({
       request: request({
-        operationId: operation('127'), expectedRevision: 2, targetActivityId,
+        operationId: operation('127'), expectedRevision: 2,
         unitActivityBinding, content: { ...activity, title: 'Next replacement' },
       }), env: {}, uid: 'teacher-1',
     });
@@ -581,7 +627,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
       assemblyActivityContracts: [{ activityKey: 'slot-1', contextRequirement: 'required' }],
-      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(), bindCandidate }),
     });
     const staged = await current.handlers.stage({
       request: request({ operationId: operation('096'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1',
@@ -629,7 +675,7 @@ describe('Book Activity authoring Worker boundary', () => {
     const bindCandidate = vi.fn(async () => 'conflict' as const);
     const current = worker({
       assemblyActivityKeys: ['slot-1'],
-      bindingRepositoryFactory: () => ({ read: vi.fn(async () => null), bindCandidate, recordPublication: vi.fn() }),
+      bindingRepositoryFactory: () => ({ read: vi.fn(async () => null), bindCandidate }),
     });
     const staged = await current.handlers.stage({ request: request({ operationId: operation('093'), expectedRevision: 0, content: activity }), env: {}, uid: 'teacher-1' });
     const candidateId = String((staged.body as Record<string, unknown>).candidateId);

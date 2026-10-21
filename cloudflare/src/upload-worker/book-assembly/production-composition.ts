@@ -749,7 +749,6 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
     }),
   },
   assemblyPublication: {
-    bindingRepositoryFactory: (env) => bindings(env as Env),
     fullPdf: {
       readUser: async ({ env, actorId }) => new FirebaseRestBookActivityAuthoringRepository({ env: env as never })
         .readValue(`users/${actorId}`),

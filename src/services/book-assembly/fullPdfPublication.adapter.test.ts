@@ -18,6 +18,7 @@ import {
   createFullPdfPublicationAdapter,
   createFullPdfPublicationAdapterPlan,
   createFullPdfPublicationCommandPlan,
+  createFullPdfPublicationCommandOutput,
   FullPdfPublicationAdapterError,
   type FullPdfPublicationIds,
 } from './fullPdfPublication.adapter';
@@ -294,8 +295,8 @@ describe('full-PDF publication adapter', () => {
     expect(plan.atomicWrites.placements[0]?.placementId).toBe('placement:slot-a');
   });
 
-  it('fails before publication when initial payload is paired with later lineage', () => {
-    expect(() => createFullPdfPublicationCommandPlan({
+  it('publishes an explicit successor while preserving the canonical Activity identity', () => {
+    const output = createFullPdfPublicationCommandOutput({
       ...adapterInput(),
       existingLineageByActivityKey: {
         'slot-a': {
@@ -305,7 +306,12 @@ describe('full-PDF publication adapter', () => {
         },
       },
       allocateId: (kind, key) => `${kind}:${key}`,
-    })).toThrow('full_pdf_activity_payload_invalid');
+    });
+    expect(output.canonicalActivityVersions[0]).toMatchObject({
+      activityId: 'activity-existing', activityVersion: 5, predecessorActivityVersionId: 'activity-existing-v4',
+      provenance: { kind: 'initial-book-publication', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-a' },
+    });
+    expect(output.plan.atomicWrites.activityVersions[0]).toMatchObject({ activityId: 'activity-existing', activityVersion: 5 });
   });
 
   it('fails closed on component strategy, stale revision, expired approval, and unusable source', () => {

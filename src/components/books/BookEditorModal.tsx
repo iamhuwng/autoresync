@@ -274,11 +274,11 @@ const BookEditorModal = ({
         <header className="book-editor-modal__header">
           <div className="book-editor-modal__title-group">
             <h2 id={titleId}>{title}</h2>
-            <div className="book-editor-modal__chips" aria-label="Book editor status">
+            {isMaterialsEditor && <div className="book-editor-modal__chips" aria-label="Book editor status">
               <span>{formatStatus(displayBook?.status)}</span>
               <span>{formatVisibility(displayBook?.visibility)}</span>
               <span>{displayBook?.testTypeIds?.join(', ') || 'No Test Type'}</span>
-            </div>
+            </div>}
           </div>
           <div className="book-editor-modal__header-actions">
             {isMaterialsEditor && (

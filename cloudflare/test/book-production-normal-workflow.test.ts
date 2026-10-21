@@ -291,7 +291,7 @@ describe('production-normal #59 workflow', () => {
     expect(validated.body).toMatchObject({ status: 'validated', candidate: { candidateId, lifecycle: 'validated', revision: 2 } });
 
     const staged = await fetchRoute('/book-activity-authoring/stage', {
-      operationId: operation('004'), expectedRevision: 0, bookId, targetActivityId: 'ba_626f6f6b2d31_736c6f742d31',
+      operationId: operation('004'), expectedRevision: 0, bookId,
       unitActivityBinding: { unitKey, activityKey }, content: activity,
     });
     expect(staged.response.status, JSON.stringify(staged.body)).toBe(200);
@@ -379,23 +379,25 @@ describe('production-normal #59 workflow', () => {
       const response = await worker.fetch(publicationHttpRequest, env);
       return { response, body: await payload(response) };
     };
-    bindingWriteFailures.remaining = 1;
-    const interruptedPublication = await publish();
-    expect(interruptedPublication.response.status).toBe(503);
     const publicationScopePath = `book_assembly_publications/books/${bookId}`;
-    const committedPublication = clone(readTree(tree, publicationScopePath));
+    const bindingBeforePublication = clone(readTree(tree, bindingPath));
+    const bindingRequestsBeforePublication = transport.requests.filter((entry) => entry.path === bindingPath && entry.method !== 'GET').length;
+    bindingWriteFailures.remaining = 1;
     const published = await publish();
     expect(published.response.status).toBe(200);
-    expect(published.body).toMatchObject({ operationId: publicationOperationId, result: { status: 'replayed' } });
-    expect(readTree(tree, publicationScopePath)).toEqual(committedPublication);
-    expect(readTree(tree, bindingPath)).toMatchObject({
-      activityId: saved.body.activityId, candidateId: activityCandidateId, candidateRevision: 3,
-      activityVersion: 1,
-    });
+    expect(published.body).toMatchObject({ operationId: publicationOperationId, result: { status: 'published' } });
+    const committedPublication = clone(readTree(tree, publicationScopePath));
+    expect(Object.values((committedPublication as { activity_versions?: Record<string, { activityVersionId?: string }> }).activity_versions ?? {}))
+      .toEqual([expect.objectContaining({ activityVersionId: expect.any(String) })]);
+    expect(readTree(tree, bindingPath)).toEqual(bindingBeforePublication);
+    expect(transport.requests.filter((entry) => entry.path === bindingPath && entry.method !== 'GET')).toHaveLength(bindingRequestsBeforePublication);
+    expect(bindingWriteFailures.remaining).toBe(1);
     const exactReplay = await publish();
     expect(exactReplay.response.status).toBe(200);
-    expect(exactReplay.body).toEqual(published.body);
+    expect(exactReplay.body).toEqual({ ...published.body, result: { ...published.body.result, status: 'replayed' } });
     expect(readTree(tree, publicationScopePath)).toEqual(committedPublication);
+    expect(readTree(tree, bindingPath)).toEqual(bindingBeforePublication);
+    expect(bindingWriteFailures.remaining).toBe(1);
     const changedReplayRequest = request(publicationPath, { ...publicationRequest, expectedSourceSetRevision: 2 });
     changedReplayRequest.headers.set('Idempotency-Key', publicationOperationId);
     const changedReplay = await worker.fetch(changedReplayRequest, env);

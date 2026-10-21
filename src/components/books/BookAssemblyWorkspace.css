@@ -402,6 +402,12 @@
   gap: .4rem;
 }
 
+.book-assembly-edit__unit-list {
+  max-height: min(60vh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .book-assembly-edit__unit-list > button,
 .book-assembly-edit__source-list > div > button:first-child {
   display: grid;

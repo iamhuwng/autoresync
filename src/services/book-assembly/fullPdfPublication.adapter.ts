@@ -5,6 +5,7 @@ import type {
 import type {
   BookAssemblyManifestCandidate,
   BookAssemblyActivityVersionRecord,
+  BookAssemblyActivityVersionReference,
   BookAssemblyActivitySafeProjectionRecord,
   BookAssemblyPlacementRecord,
   BookAssemblyPreviewApprovalReference,
@@ -13,6 +14,8 @@ import type {
   BookSourceVersionAuthority,
   SourceQualifiedPageIdentity,
 } from '../../types/bookAssembly.types';
+import type { BookAssemblyPublicationScope } from './publicationRepository';
+import { bookAssemblyActivityVersionScopeKey } from './publicationTransaction.service';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
 import { projectStudentActivity } from '../book-activity/activityProjection.service';
 import {
@@ -436,6 +439,89 @@ export const buildFullPdfPublication = (
   };
 };
 
+
+export const retainPublishedFullPdfUnits = (input: {
+  readonly plan: BookAssemblyPublicationAdapterPlan;
+  readonly candidate: BookAssemblyCandidateRecord;
+  readonly scope: BookAssemblyPublicationScope;
+  readonly operationId: string;
+  readonly allocateId: (kind: string, key: string) => string;
+  readonly now: string;
+}): BookAssemblyPublicationAdapterPlan => {
+  const { plan, candidate, scope } = input;
+  if (!scope.current) return plan;
+  const previous = scope.versions?.[scope.current.manifestVersionId];
+  const selectedKey = plan.manifest.units[0]?.unitKey;
+  const reject = (): never => { throw new FullPdfPublicationAdapterError('full_pdf_sibling_review_required'); };
+  if (!previous || !candidate.manifest || plan.manifest.units.length !== 1
+    || candidate.lifecycle !== 'validated' || candidate.unitKey !== selectedKey
+    || stable(candidate.manifest.sourceSet) !== stable(plan.sourceSet)
+    || previous.strategy !== 'full_pdf' || previous.lifecycle !== 'published'
+    || previous.ownerId !== plan.ownerId || previous.bookId !== plan.bookId
+    || previous.manifestVersionId !== scope.current.manifestVersionId || previous.bookRevision !== scope.current.bookRevision
+    || previous.sourceSetRevision !== scope.current.sourceSetRevision
+    || previous.publicationId !== scope.current.publicationId || previous.publicationRevision !== scope.current.publicationRevision
+    || previous.sourceSetRevision !== plan.sourceSetRevision
+    || stable(previous.manifest.sourceSet) !== stable(plan.sourceSet)) return reject();
+  const siblings = previous.manifest.units.filter(unit => unit.unitKey !== selectedKey);
+  if (siblings.length === 0) return plan;
+  const atomic = plan.atomicWrites;
+  const refs: BookAssemblyActivityVersionReference[] = [...(atomic.activityVersionRefs ?? [])];
+  const projections = [...atomic.activitySafeProjections];
+  const placements = [...atomic.placements];
+  const unitProjections = [...atomic.unitProjections];
+  const deliveryPlans = [...atomic.deliveryPlans];
+  const firstPlan = deliveryPlans[0]!;
+  const common = { schemaVersion: 1 as const, ownerId: plan.ownerId, bookId: plan.bookId,
+    manifestVersionId: firstPlan.manifestVersionId, publicationId: firstPlan.publicationId,
+    publicationRevision: firstPlan.publicationRevision };
+  for (const unit of siblings) {
+    const nextUnit = candidate.manifest.units.find(entry => entry.unitKey === unit.unitKey);
+    if (!nextUnit || stable(nextUnit) !== stable(unit)) return reject();
+    const unitProjectionId = input.allocateId('unit-projection', `retained:${unit.unitKey}`);
+    const placementIds: string[] = [];
+    for (const slot of unit.activitySlots) {
+      const matches = Object.values(scope.placements ?? {}).filter(entry => entry.manifestVersionId === previous.manifestVersionId
+        && entry.publicationId === previous.publicationId && entry.publicationRevision === previous.publicationRevision
+        && entry.ownerId === plan.ownerId && entry.bookId === plan.bookId && entry.unitKey === unit.unitKey && entry.activityKey === slot.activityKey);
+      if (matches.length !== 1) return reject();
+      const oldPlacement = matches[0]!;
+      if (stable(oldPlacement.pageGroupKeys) !== stable(slot.pageGroupKeys)) return reject();
+      const version = scope.activityVersions?.[bookAssemblyActivityVersionScopeKey(previous.manifestVersionId, oldPlacement.activityVersionId)];
+      const safe = Object.values(scope.activitySafeProjections ?? {}).find(entry => entry.manifestVersionId === previous.manifestVersionId
+        && entry.publicationId === previous.publicationId && entry.publicationRevision === previous.publicationRevision
+        && entry.ownerId === plan.ownerId && entry.bookId === plan.bookId
+        && entry.activityId === oldPlacement.activityId && entry.activityVersionId === oldPlacement.activityVersionId
+        && entry.placementIds.includes(oldPlacement.placementId));
+      if (!version?.canonicalPayloadFingerprint || version.activityId !== oldPlacement.activityId || !safe
+        || stable(safe.sourcePages) !== stable(oldPlacement.sourcePages)
+        || stable(version.sourcePages) !== stable(oldPlacement.sourcePages)) return reject();
+      refs.push({ activityId: version.activityId, activityVersionId: version.activityVersionId,
+        activityVersion: version.activityVersion, canonicalPayloadFingerprint: version.canonicalPayloadFingerprint });
+      const placementId = input.allocateId('placement', `retained:${unit.unitKey}:${slot.activityKey}`);
+      const projectionId = input.allocateId('projection', `retained:${unit.unitKey}:${slot.activityKey}`);
+      placementIds.push(placementId);
+      placements.push({ ...structuredClone(oldPlacement), ...common, placementId, predecessorPlacementId: oldPlacement.placementId });
+      projections.push({ ...structuredClone(safe), ...common, projectionId, placementIds: [placementId],
+        payloadFingerprint: fingerprint({ activityId: version.activityId, activityVersionId: version.activityVersionId,
+          manifestVersionId: common.manifestVersionId, sourcePages: safe.sourcePages }) });
+    }
+    const oldUnit = Object.values(scope.unitProjections ?? {}).find(entry => entry.manifestVersionId === previous.manifestVersionId
+      && entry.publicationId === previous.publicationId && entry.publicationRevision === previous.publicationRevision
+      && entry.ownerId === plan.ownerId && entry.bookId === plan.bookId && entry.unitKey === unit.unitKey);
+    if (!oldUnit) return reject();
+    unitProjections.push({ ...structuredClone(oldUnit), ...common, unitProjectionId, placementIds,
+      createdByCommandId: input.operationId, createdAt: input.now });
+    deliveryPlans.push({ ...common, deliveryPlanId: input.allocateId('delivery-plan', `retained:${unit.unitKey}`),
+      sourceStrategy: 'full_pdf', sourceSet: structuredClone(plan.sourceSet), placementIds,
+      unitProjectionIds: [unitProjectionId], createdByCommandId: input.operationId, createdAt: input.now });
+  }
+  const retainedKeys = new Set(siblings.map(unit => unit.unitKey));
+  const units = candidate.manifest.units.filter(unit => unit.unitKey === selectedKey || retainedKeys.has(unit.unitKey))
+    .map(unit => structuredClone(unit));
+  return { ...plan, manifest: { ...plan.manifest, units }, studentSafeProjection: { ...plan.studentSafeProjection, units },
+    atomicWrites: { ...atomic, activityVersionRefs: refs, activitySafeProjections: projections, placements, unitProjections, deliveryPlans } };
+};
 
 export const createFullPdfPublicationAdapter = (
   input: CreateFullPdfPublicationAdapterPlanInput,

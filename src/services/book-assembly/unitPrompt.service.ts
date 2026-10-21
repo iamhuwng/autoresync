@@ -23,6 +23,7 @@ export interface UnitPromptInput {
   readonly unitKey: string;
   readonly sourceVersions: readonly Pick<TrustedBookSourceVersionProjection, 'sourceVersionId' | 'physicalPageCount'>[];
   readonly localAuthoring?: boolean;
+  readonly selectedActivityKey?: string;
 }
 
 export interface ActivityRevisionPromptInput {
@@ -86,11 +87,16 @@ export const buildUnitActivityImportPrompt = ({
   unitKey,
   sourceVersions,
   localAuthoring = false,
+  selectedActivityKey,
 }: UnitPromptInput): string => {
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   if (!unit) {
     throw new Error('Selected Unit has no Activity slot contract.');
   }
+  const activitySlots = selectedActivityKey
+    ? unit.activitySlots.filter((slot) => slot.activityKey === selectedActivityKey)
+    : unit.activitySlots;
+  if (activitySlots.length === 0) throw new Error('Selected Activity is unavailable.');
   const sourcePageCounts = new Map(sourceVersions.map((source) => [
     source.sourceVersionId,
     source.physicalPageCount,
@@ -116,7 +122,7 @@ export const buildUnitActivityImportPrompt = ({
         defaultPhysicalPageNumber: group.defaultPhysicalPageNumber ?? null,
         mode: group.mode,
       })),
-      activitySlots: unit.activitySlots.map((slot) => ({
+      activitySlots: activitySlots.map((slot) => ({
         activityKey: slot.activityKey,
         order: slot.order,
         contextRequirement: slot.contextRequirement,
@@ -129,7 +135,7 @@ export const buildUnitActivityImportPrompt = ({
       promptVersion: UNIT_ACTIVITY_IMPORT_PROMPT_VERSION,
       schemaVersion: UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION,
       ...(localAuthoring ? {} : { bookId: manifest.bookId, unitKey }),
-      slots: unit.activitySlots.map((slot) => ({
+      slots: activitySlots.map((slot) => ({
         activityKey: slot.activityKey,
         content: {
           schemaVersion: 1,

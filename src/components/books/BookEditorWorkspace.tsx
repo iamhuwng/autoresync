@@ -4,6 +4,7 @@ import { FEATURE_IDS } from '../../config/featureRegistry';
 import { useAuth } from '../../hooks/useAuth';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { database } from '../../services/firebase';
+import { toast } from '../modern';
 import r2StorageService from '../../services/r2Storage';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../../services/materialCatalog/testTypeConfig.service';
 import {
@@ -57,6 +58,7 @@ interface BookEditorWorkspaceProps {
   readonly onSaved?: (bookId: string) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly showInlineSaveActions?: boolean;
+  readonly compactPdfDetails?: boolean;
 }
 
 export interface BookEditorWorkspaceHandle {
@@ -447,6 +449,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
   onSaved,
   onDirtyChange,
   showInlineSaveActions = false,
+  compactPdfDetails = false,
 }, workspaceRef) => {
   const { user, profile } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
@@ -892,11 +895,13 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
       setBook(next);
       setMetadataForm(formFromBook(next));
       setSaveMessage('Metadata saved.');
+      if (compactPdfDetails) toast.success('Book details saved.');
       trackAction('editBookMetadata', { bookId: next.bookId, source: 'book_editor' });
       trackAction('teacher_materials_book_updated', { bookId: next.bookId, source: 'book_editor_metadata' });
       onSaved?.(next.bookId);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save Book metadata.');
+      if (compactPdfDetails) toast.error(saveError instanceof Error ? saveError.message : 'Unable to save Book details.');
     }
   };
 
@@ -1349,10 +1354,10 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
 
   const renderMetadataFields = () => (
       <div className="book-editor-page__form-grid">
-        <label>
+        {!compactPdfDetails && <label>
           <span>Title</span>
           <input value={metadataForm.title} onChange={(event) => updateForm('title', event.target.value)} />
-        </label>
+        </label>}
         <label>
           <span>Subtitle</span>
           <input value={metadataForm.subtitle} onChange={(event) => updateForm('subtitle', event.target.value)} />
@@ -1381,10 +1386,10 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
           <span>Tags</span>
           <input value={metadataForm.tags} onChange={(event) => updateForm('tags', event.target.value)} />
         </label>
-        <label>
+        {!compactPdfDetails && <label>
           <span>Test Type ids</span>
           <input value={metadataForm.testTypeIds} onChange={(event) => updateForm('testTypeIds', event.target.value)} />
-        </label>
+        </label>}
         <label className="book-editor-page__wide-field">
           <span>Description</span>
           <textarea value={metadataForm.description} onChange={(event) => updateForm('description', event.target.value)} />
@@ -1392,7 +1397,41 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
       </div>
   );
 
-  const renderSettingsTab = () => (
+  const renderSettingsTab = () => compactPdfDetails ? (
+    <section className="book-editor-page__section" aria-labelledby="book-editor-settings">
+      <div className="book-editor-page__form-grid">
+        <label className="book-editor-page__wide-field">
+          <span>Title</span>
+          <input value={metadataForm.title} onChange={(event) => updateForm('title', event.target.value)} />
+        </label>
+        <label>
+          <span>Visibility</span>
+          <select value={metadataForm.visibility} onChange={(event) => updateForm('visibility', event.target.value)}>
+            <option value="private">Private</option>
+            <option value="public-library-pending-review">Public review requested</option>
+          </select>
+        </label>
+      </div>
+      <details>
+        <summary>More details</summary>
+        {renderMetadataFields()}
+      </details>
+      <details>
+        <summary>Book cover</summary>
+        <div className="book-editor-page__cover-body">
+          <div className="book-editor-page__cover-preview" aria-label="Current Book cover">
+            {metadataForm.coverUrl ? <img src={metadataForm.coverUrl} alt="Current Book cover" /> : <span>No cover</span>}
+          </div>
+          <label className="book-editor-page__cover-upload">
+            <span>Upload cover image</span>
+            <input type="file" accept={BOOK_COVER_ACCEPT} onChange={(event) => void handleBookCoverUpload(event)} disabled={coverUploadState.status === 'uploading'} />
+          </label>
+          {coverUploadState.message && <p role={coverUploadState.status === 'error' ? 'alert' : 'status'}>{coverUploadState.message}</p>}
+        </div>
+      </details>
+      {showInlineSaveActions && <button type="button" onClick={() => void handleSaveMetadata()}>Save changes</button>}
+    </section>
+  ) : (
     <section className="book-editor-page__section" aria-labelledby="book-editor-settings">
       <div className="book-editor-page__section-heading">
         <div>
@@ -1801,7 +1840,7 @@ const BookEditorWorkspace = forwardRef<BookEditorWorkspaceHandle, BookEditorWork
             )}
           </div>
         )}
-        {saveMessage && <p className="book-editor-page__status">{saveMessage}</p>}
+        {!compactPdfDetails && saveMessage && <p className="book-editor-page__status">{saveMessage}</p>}
 
         {book && !publicProjection && presentation === 'page-compat' && (
           <nav className="book-editor-page__tabs" aria-label="Book editor tabs" role="tablist">

@@ -1,3 +1,4 @@
+import { bookAssemblyActivityVersionScopeKey } from '../../src/services/book-assembly/publicationTransaction.service';
 import { describe, expect, it, vi } from 'vitest';
 import type { BookDeliveryPublishedPublicationReference } from '../../src/services/book-delivery/bookDelivery.publication';
 import type {
@@ -282,7 +283,7 @@ describe('Book Homework canonical resolver', () => {
       { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', physicalPageNumber: 1 },
     ];
     scope.placements['placement-1'].sourcePages = pages;
-    scope.activityVersions['activity-1-v1'].sourcePages = pages;
+    scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].sourcePages = pages;
     scope.activitySafeProjections['projection-1'].sourcePages = pages;
     scope.studentDocuments = {
       'student-document-v1': {

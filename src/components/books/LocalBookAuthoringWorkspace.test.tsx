@@ -1,10 +1,10 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import LocalBookAuthoringWorkspace from './LocalBookAuthoringWorkspace';
 import type { BookPdfViewerProps } from '../book-runtime/BookPdfViewer';
 import type { LocalBookAuthoringDraft } from '../../services/materialCatalog/localBookAuthoring.service';
 import { BOOK_ACTIVITY_MODEL_GUIDANCE } from '../../services/book-assembly/unitPrompt.service';
-import { ToastContainer } from '../modern/ToastNotification';
+import { toast, ToastContainer } from '../modern/ToastNotification';
 
 const mocks = vi.hoisted(() => {
   let stored: LocalBookAuthoringDraft | null = null;
@@ -80,6 +80,8 @@ const previewDraft = (): LocalBookAuthoringDraft => {
 };
 beforeAll(() => { Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.setAttribute('open', ''); } }); });
 beforeEach(() => { vi.clearAllMocks(); mocks.reset(); mocks.prompts.length = 0; mocks.loadPdf.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' })); mocks.inspect.mockResolvedValue(300); });
+
+afterEach(() => { act(() => toast.clear()); });
 
 describe('local PDF Book modal', () => {
   it.each([true, false])('discards a failed submission only after authoritative resolution (%s)', async (resolved) => {

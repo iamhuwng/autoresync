@@ -20,6 +20,7 @@ export interface CanonicalActivityVersionWriter {
   ): Promise<CanonicalActivityVersionPrepareResult>;
   readPrepared(
     reference: BookAssemblyActivityVersionReference,
+    publication?: ExactPublishedActivityVersionRequest,
   ): Promise<CanonicalPublishedActivityVersionRecord | null>;
 }
 

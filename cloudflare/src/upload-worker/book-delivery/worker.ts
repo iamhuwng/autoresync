@@ -1,4 +1,5 @@
 import { BookDeliveryEntitlementLifecycle, BookDeliveryLifecycleError } from '../../../../src/services/book-delivery/bookDelivery.entitlementLifecycle.ts';
+import { bookAssemblyActivityVersionScopeKey } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import { createBookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.entitlementFactory.ts';
 import { createBookDeliveryPublicationReference } from '../../../../src/services/book-delivery/bookDelivery.publication.ts';
 import type { BookDeliveryPublishedPublicationReference } from '../../../../src/services/book-delivery/bookDelivery.publication.ts';
@@ -374,9 +375,9 @@ export const createTrustedBookDeliveryPublication = (
   );
 
   const placements = selectedPlacements.map((placement, index) => {
-    const activityVersion = Object.values(scope.activityVersions ?? {}).find((candidate) => (
-      candidate.activityVersionId === placement.activityVersionId
-    ));
+    const activityVersion = scope.activityVersions?.[bookAssemblyActivityVersionScopeKey(version.manifestVersionId, placement.activityVersionId)]
+      ?? Object.values(scope.activityVersions ?? {}).find(candidate => candidate.activityVersionId === placement.activityVersionId
+        && preservedByMappingChain(candidate));
     const safeProjection = Object.values(scope.activitySafeProjections ?? {}).find((projection) => (
       projection.activityVersionId === placement.activityVersionId
       && projection.activityId === placement.activityId
@@ -439,6 +440,7 @@ export const createTrustedBookDeliveryPublication = (
         sourceVersionByKey.get(page.sourceKey) !== page.sourceVersionId
       ))
       || activityVersion.activityId !== placement.activityId
+      || activityVersion.activityVersionId !== placement.activityVersionId
       || activityVersion.activityKey !== placement.activityKey
       || activityVersion.unitKey !== placement.unitKey
       || activityVersion.ownerId !== version.ownerId
@@ -491,7 +493,10 @@ export const createTrustedBookDeliveryPublication = (
     schedulePolicy,
   };
   if ((BOOK_DELIVERY_SCHEMA_VERSION as number) >= 3) {
-    publication.outline = outline.map((node) => ({ ...node }));
+    publication.outline = outline.map(({ title, ...node }) => ({
+      ...node,
+      ...(title === undefined ? {} : { titleSnapshot: title }),
+    }));
   }
   return createBookDeliveryPublicationReference(publication);
 };

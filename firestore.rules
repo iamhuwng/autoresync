@@ -203,6 +203,16 @@ service cloud.firestore {
         && request.resource.data.bookHomeworkCompatibility.sourceFingerprint.size() > 0;
     }
 
+    function isValidBookHomeworkFrozenPolicy(policy) {
+      return policy is map
+        && policy.keys().hasAll(['intent', 'integrityDefault', 'integrityOverride', 'integrityEffective'])
+        && policy.keys().hasOnly(['intent', 'integrityDefault', 'integrityOverride', 'integrityEffective'])
+        && policy.intent in ['accountable', 'practice']
+        && policy.integrityDefault is bool
+        && policy.integrityOverride is bool
+        && policy.integrityEffective is bool;
+    }
+
     function isValidBookHomeworkAuthorityRecord(data, authorityId, assignmentId, ownerId) {
       return isBookHomework(data)
         && data.keys().hasAll([
@@ -212,8 +222,9 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'assignmentId', 'assignmentKind', 'schemaVersion', 'ownerId', 'bookManifest',
           'schedule', 'studentExtensions', 'saga', 'visibility', 'revision', 'createdAt', 'updatedAt',
-          'activityPolicies', 'operations'
+          'activityPolicies', 'frozenPolicy', 'operations'
         ])
+        && (!data.keys().hasAny(['frozenPolicy']) || isValidBookHomeworkFrozenPolicy(data.frozenPolicy))
         && data.assignmentId == authorityId
         && data.assignmentKind == 'book_activity_bundle'
         && data.schemaVersion == 1
@@ -245,6 +256,7 @@ service cloud.firestore {
 
     function isLegalBookHomeworkAuthorityUpdate() {
       return request.resource.data.revision == resource.data.revision + 1
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['frozenPolicy'])
         && request.resource.data.assignmentId == resource.data.assignmentId
         && request.resource.data.assignmentKind == resource.data.assignmentKind
         && request.resource.data.schemaVersion == resource.data.schemaVersion

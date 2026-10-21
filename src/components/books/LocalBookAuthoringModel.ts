@@ -43,7 +43,22 @@ export const validationSummary = (errors: ReturnType<typeof validateLocalBookAut
 };
 const recordValue = (value: unknown): Record<string, unknown> | null => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
-export const buildLocalBookStructurePrompt = (current: LocalBookAuthoringDraft, pdfPageCounts: Readonly<Record<string, number>>) => {
+export interface LocalBookStructurePromptInput {
+  readonly metadata: Pick<LocalBookAuthoringDraft['metadata'], 'title'>;
+  readonly strategy: LocalBookAuthoringDraft['strategy'];
+  readonly pdfs: readonly Pick<LocalBookAuthoringDraft['pdfs'][number], 'sourceKey' | 'name'>[];
+}
+
+export interface LocalBookStructurePromptContext {
+  readonly unitKeys: readonly string[];
+  readonly sourceOwnership: readonly { readonly sourceKey: string; readonly unitKeys: readonly string[] }[];
+}
+
+export const buildLocalBookStructurePrompt = (
+  current: LocalBookStructurePromptInput,
+  pdfPageCounts: Readonly<Record<string, number>>,
+  existing?: LocalBookStructurePromptContext,
+) => {
   return [
     'Create JSON for this local LuyenTap Book structure.',
     JSON.stringify({
@@ -68,10 +83,13 @@ ${JSON.stringify({
     }, null, 2)}`,
     'Allowed nodeType values: intro-placeholder, toc-placeholder, note-placeholder, section, chapter, unit, test. Allowed contextRequirement values: required, optional, none. Allowed Page Group modes: activity, reference_only.',
     'Map every Activity slot reciprocally to at least one Page Group. Use one of the listed sourceKey values and one-based physical pages within that source PDF. Do not include Activity content, answers, bookId, sourceVersionId, ownership, storage, or provider data.',
+    ...(existing && (existing.unitKeys.length > 0 || existing.sourceOwnership.length > 0) ? [
+      `This is an edit. Use the current structure context to preserve existing Unit keys and PDF-to-Unit assignments unless the teacher explicitly changes them. Do not return this context or add ownership fields to the JSON:\n${JSON.stringify(existing, null, 2)}`,
+    ] : []),
     BOOK_ACTIVITY_MODEL_GUIDANCE,
     'Create a separate Activity slot when the task family or shared answer rule changes, even within one printed heading. Preserve the source question grouping and map every page needed to answer each Activity.',
     'Use readable section and Unit titles from the PDF. Map each Activity to all pages it needs, including a passage or another exercise it refers to on an earlier or later page; do not map only the page where its instruction appears.',
-    'For component strategy, assign all Page Groups for a given source PDF to one Unit only, and ensure every source PDF appears in at least one Page Group. For full strategy, use one Unit for the full source.',
+    'For component strategy, assign all Page Groups for a given source PDF to one Unit only, and ensure every source PDF appears in at least one Page Group. For full strategy, the full source may serve multiple Units; map each Unit to the pages it needs.',
   ].join('\n\n');
 
 };

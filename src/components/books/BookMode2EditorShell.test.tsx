@@ -245,7 +245,7 @@ describe('BookMode2EditorShell', () => {
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-a');
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-b');
     });
-    expect(await screen.findByText('No unsaved changes', {}, { timeout: 10_000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
     await saveThroughEditor();
     await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(2));
 
@@ -395,6 +395,21 @@ describe('BookMode2EditorShell', () => {
     });
   });
 
+  it('loads the actual published Full-PDF Units after publication resolves', async () => {
+    const loadCurrent = vi.fn().mockResolvedValue(null);
+    const readCurrentPublication = vi.fn().mockResolvedValue(currentPublication([publishedUnit('qa-unit-a'), publishedUnit('qa-unit-b')]));
+    render(<BookMode2EditorShell
+      access="owner"
+      book={{ ...book, sourceSet: { sourceStrategy: 'full_pdf', sources: [{ sourceKey: 'full', sourceVersionId: 'source-1', sourceOrder: 1 }] } }}
+      presentation="modal"
+      experience="focused-editing"
+      assemblyRepository={{ loadCurrent } as unknown as UnitAssemblyRepository}
+      assemblyPreviewClient={{ readCurrentPublication } as unknown as BookAssemblyPreviewClient}
+    />);
+    await waitFor(() => expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'qa-unit-a'));
+    expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'qa-unit-b');
+  });
+
   it('loads current publication independently from the saved draft', async () => {
     const readCurrentPublication = vi.fn().mockResolvedValue(null);
     const assemblyPreviewClient = { readCurrentPublication } as unknown as BookAssemblyPreviewClient;
@@ -412,7 +427,7 @@ describe('BookMode2EditorShell', () => {
     await waitFor(() => expect(readCurrentPublication).toHaveBeenCalledWith('pdf-book'));
   });
 
-  it('requires an explicit selection when the trusted publication has multiple units', async () => {
+  it('selects the visible preview Unit for homework without exposing Unit keys', async () => {
     const user = userEvent.setup();
     render(
       <BookMode2EditorShell
@@ -420,12 +435,15 @@ describe('BookMode2EditorShell', () => {
         book={book}
         presentation="modal"
         experience="focused-editing"
+        editingSection="preview"
         assemblyInitialPublication={currentPublication([publishedUnit('unit-a'), publishedUnit('unit-b')])}
       />,
     );
 
-    const select = screen.getByRole('combobox', { name: 'Published unit' });
-    expect(select).toHaveValue('');
+    const select = screen.getByRole('combobox', { name: 'Unit' });
+    expect(select).toHaveValue('unit-a');
+    expect(screen.getByRole('option', { name: 'Unit 1' })).toBeInTheDocument();
+    expect(screen.queryByText('unit-a')).not.toBeInTheDocument();
     await user.selectOptions(select, 'unit-b');
     expect(select).toHaveValue('unit-b');
   });
@@ -441,7 +459,7 @@ describe('BookMode2EditorShell', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Published unit' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Unit' })).not.toBeInTheDocument());
   });
 
   it('does not restart candidate loading for a structurally unchanged Source Set', async () => {

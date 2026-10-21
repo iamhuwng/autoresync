@@ -7,7 +7,7 @@ interface Props {
   readonly unit: BookUnitCandidate;
   readonly initialActivityKey: string;
   readonly titles: Readonly<Record<string, string>>;
-  readonly sources: readonly LocalBookPdfDescriptor[];
+  readonly sources: readonly Pick<LocalBookPdfDescriptor, 'sourceKey' | 'name'>[];
   readonly pageCounts: Readonly<Record<string, number>>;
   readonly onSave: (unit: BookUnitCandidate) => Promise<void>;
   readonly onClose: () => void;

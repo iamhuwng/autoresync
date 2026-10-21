@@ -4,7 +4,6 @@ import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.ser
 import type { EditableActivity } from '../../types/bookActivity.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import {
-  bookScopedActivityTargetId,
   discardStagedUnitActivities,
   parseUnitActivityImportBundle,
   stageUnitActivityImportBundle,
@@ -75,8 +74,8 @@ const bundle = (overrides: Record<string, unknown> = {}) => JSON.stringify({
 const authoring = (): ActivityAuthoringService => ({
   stage: vi.fn(async (input) => ({
     status: 'staged',
-    candidateId: `candidate-${input.targetActivityId}`,
-    targetActivityId: input.targetActivityId ?? 'generated',
+    candidateId: `candidate-${input.unitActivityBinding?.activityKey}`,
+    targetActivityId: input.unitActivityBinding?.activityKey ?? 'generated',
     revision: 1,
     lifecycle: 'staged',
     validation: { valid: true, errors: [] },
@@ -107,26 +106,54 @@ const authoring = (): ActivityAuthoringService => ({
 });
 
 describe('unit Activity JSON import', () => {
-  it('derives collision-free Activity targets from the Book and logical slot identities', () => {
-    expect(bookScopedActivityTargetId('book-1', 'activity-a'))
-      .toBe('ba_626f6f6b2d31_61637469766974792d61');
-    expect(bookScopedActivityTargetId('book-2', 'activity-a'))
-      .not.toBe(bookScopedActivityTargetId('book-1', 'activity-a'));
-    expect(bookScopedActivityTargetId('book-1', 'activity:a'))
-      .not.toBe(bookScopedActivityTargetId('book-1', 'activity_3aa'));
-  });
-
-  it('fails closed when a Book-scoped Activity target cannot fit the authoring ID contract', () => {
-    expect(() => bookScopedActivityTargetId('b'.repeat(128), 'a'.repeat(128)))
-      .toThrowError(expect.objectContaining({ code: 'activity-target-too-long' }));
-  });
-
   it('parses one bounded exact-slot bundle for the selected Unit', () => {
     const parsed = parseUnitActivityImportBundle(bundle(), manifest, 'unit-1');
 
     expect(parsed.slots.map((slot) => slot.activityKey)).toEqual(['activity-a', 'activity-b']);
     expect(parsed.slots[0]?.sourceEvidenceRefs).toEqual(['source:full:page:2']);
   });
+
+  it('edits exactly the selected Activity using its full-manifest page context and explicit replacement', async () => {
+    const service = authoring();
+    const before = structuredClone(manifest);
+    const slot = JSON.parse(bundle()).slots[1];
+    const text = bundle({ slots: [slot] });
+    const result = await stageUnitActivityImportBundle({ text, manifest, unitKey: 'unit-1',
+      selectedActivityKey: 'activity-b', activityAuthoring: service,
+      expectedActivityRevisions: { 'activity-b': 7 } });
+    expect(result.bundle.slots.map(entry => entry.activityKey)).toEqual(['activity-b']);
+    expect(service.stage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      expectedRevision: 7, unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' },
+      clientValidationContext: { mappedBookPageRefs: ['source:full:page:3'] },
+      sourceEvidenceRefs: ['source:full:page:3'],
+    }));
+    expect(service.validate).toHaveBeenCalledTimes(1);
+    expect(service.saveDraft).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-b' }, replaceExistingUnitActivityBinding: true,
+    }));
+    expect(manifest).toEqual(before);
+    expect(() => parseUnitActivityImportBundle(text, manifest, 'unit-1')).toThrow(/exactly match/);
+  });
+
+  it.each(['foreign selection', 'missing slot', 'wrong slot', 'duplicate slot', 'extra sibling', 'sibling evidence'])(
+    'rejects selected-Activity %s before authoring writes', async kind => {
+      const slots = JSON.parse(bundle()).slots;
+      let selectedActivityKey = 'activity-b';
+      let selectedSlots = [slots[1]];
+      if (kind === 'foreign selection') selectedActivityKey = 'activity-foreign';
+      if (kind === 'missing slot') selectedSlots = [];
+      if (kind === 'wrong slot') selectedSlots = [slots[0]];
+      if (kind === 'duplicate slot') selectedSlots = [slots[1], slots[1]];
+      if (kind === 'extra sibling') selectedSlots = slots;
+      if (kind === 'sibling evidence') selectedSlots[0].sourceEvidenceRefs = ['source:full:page:2'];
+      const service = authoring();
+      await expect(stageUnitActivityImportBundle({ text: bundle({ slots: selectedSlots }), manifest,
+        unitKey: 'unit-1', selectedActivityKey, activityAuthoring: service }))
+        .rejects.toBeInstanceOf(UnitActivityImportError);
+      expect(service.stage).not.toHaveBeenCalled();
+      expect(service.saveDraft).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ['malformed JSON', '{', 'invalid-json'],
@@ -166,7 +193,6 @@ describe('unit Activity JSON import', () => {
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => slot.activityKey,
     })).rejects.toMatchObject({ code });
     expect(service.stage).not.toHaveBeenCalled();
   });
@@ -178,12 +204,10 @@ describe('unit Activity JSON import', () => {
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => slot.activityKey,
     });
 
     expect(result.staged).toHaveLength(2);
     expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      targetActivityId: 'activity-a',
       expectedRevision: 0,
       sourceEvidenceRefs: ['source:full:page:2'],
       answerEvidenceRefs: ['pageGroup:pages-full-2'],
@@ -197,19 +221,19 @@ describe('unit Activity JSON import', () => {
     }));
   });
 
-  it('uses trusted slot-to-Activity target resolution instead of treating logical keys as the only authority', async () => {
+  it('sends logical slot identity and leaves canonical Activity target selection to the server', async () => {
     const service = authoring();
     await stageUnitActivityImportBundle({
       text: bundle(),
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => `resolved-${slot.activityKey}`,
     });
 
     expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      targetActivityId: 'resolved-activity-a',
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     }));
+    expect(vi.mocked(service.stage).mock.calls[0]?.[0]).not.toHaveProperty('targetActivityId');
   });
 
   it('surfaces the authoritative Activity target revision without overwriting it', async () => {
@@ -224,7 +248,6 @@ describe('unit Activity JSON import', () => {
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => slot.activityKey,
     })).rejects.toEqual(expect.objectContaining<UnitActivityImportConflictError>({
       code: 'activity-revision-conflict',
       activityKey: 'activity-a',
@@ -232,7 +255,6 @@ describe('unit Activity JSON import', () => {
     }));
 
     expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      targetActivityId: 'activity-a',
       expectedRevision: 0,
     }));
     expect(service.stage).toHaveBeenCalledTimes(1);
@@ -248,11 +270,9 @@ describe('unit Activity JSON import', () => {
       unitKey: 'unit-1',
       activityAuthoring: service,
       expectedActivityRevisions: { 'activity-a': 1 },
-      resolveActivityTargetId: (slot) => slot.activityKey,
     });
 
     expect(service.stage).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      targetActivityId: 'activity-a',
       expectedRevision: 1,
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     }));
@@ -282,26 +302,12 @@ describe('unit Activity JSON import', () => {
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => slot.activityKey,
     })).rejects.toThrow('stage failed');
     expect(service.discard).toHaveBeenCalledWith({
       candidateId: 'candidate-activity-a',
       expectedRevision: 9,
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-a' },
     });
-  });
-
-  it('rejects unresolved Activity target IDs before 12C staging', async () => {
-    const service = authoring();
-
-    await expect(stageUnitActivityImportBundle({
-      text: bundle(),
-      manifest,
-      unitKey: 'unit-1',
-      activityAuthoring: service,
-      resolveActivityTargetId: () => null,
-    })).rejects.toMatchObject({ code: 'unresolved-activity-target' });
-    expect(service.stage).not.toHaveBeenCalled();
   });
 
   it('honors cancellation before staging a slot', async () => {
@@ -314,7 +320,6 @@ describe('unit Activity JSON import', () => {
       manifest,
       unitKey: 'unit-1',
       activityAuthoring: service,
-      resolveActivityTargetId: (slot) => slot.activityKey,
       signal: controller.signal,
     })).rejects.toMatchObject({ code: 'canceled' });
     expect(service.stage).not.toHaveBeenCalled();

@@ -23,6 +23,9 @@
   font-size: 14px;
 }
 .book-mode2-editor-shell[data-presentation='modal'] { max-width: none; }
+.book-mode2-editor-shell__unit-actions { display: flex; align-items: center; gap: .65rem; padding: .75rem 1rem; background: #fff; }
+.book-mode2-editor-shell__unit-actions select { min-width: 0; max-width: 55%; padding: .45rem; border: 1px solid #dce0eb; border-radius: 4px; }
+.book-mode2-editor-shell__unit-actions .pbf-button { margin-left: auto; }
 .book-mode2-editor-shell h1,
 .book-mode2-editor-shell h2,
 .book-mode2-editor-shell h3,

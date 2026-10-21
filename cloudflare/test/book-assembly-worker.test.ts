@@ -276,7 +276,6 @@ describe('PRD0062 ticket 13A Assembly candidate Worker', () => {
           candidateLifecycle: 'saved',
         }),
         bindCandidate: async () => 'created',
-        recordPublication: async () => 'updated',
       }),
     });
     const scopedEnv = {

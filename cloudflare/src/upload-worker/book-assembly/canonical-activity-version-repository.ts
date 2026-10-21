@@ -41,7 +41,7 @@ export const CANONICAL_ACTIVITY_VERSION_READER_KEY_ENV =
 const MAX_RETRIES = 5;
 const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 
-export interface CanonicalActivityVersionWriterEnv extends RepositoryEnv {
+export interface CanonicalActivityVersionWriterEnv extends CanonicalActivityVersionReaderEnv {
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_GOOGLE_SA_KEY?: string;
   /** Existing Assembly credential fallback for initial full-PDF publication. */
@@ -578,10 +578,18 @@ implements CanonicalActivityVersionWriter {
 
   async readPrepared(
     reference: BookAssemblyActivityVersionReference,
+    publication?: ExactPublishedActivityVersionRequest,
   ): Promise<CanonicalPublishedActivityVersionRecord | null> {
     const path = canonicalPath(reference.activityId, reference.activityVersionId);
     const prepared = this.prepared.get(path);
     if (prepared) return sameReference(prepared, reference) ? structuredClone(prepared) : null;
+    if (publication) {
+      if (publication.activityId !== reference.activityId || publication.activityVersionId !== reference.activityVersionId
+        || publication.activityVersion !== reference.activityVersion || publication.payloadFingerprint !== reference.canonicalPayloadFingerprint) return null;
+      return new FirebaseRestExactPublishedActivityVersionReader({
+        env: this.options.env, fetchImpl: this.options.fetchImpl, getAccessToken: this.options.getAccessToken,
+      }).readExact(publication);
+    }
     if (!this.allowCompatibilityRead) return null;
     const parsed = parseCanonicalFromRtdb(await this.rtdb.readValue(path));
     if (!parsed || !sameReference(parsed, reference)) return null;

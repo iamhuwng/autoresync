@@ -632,7 +632,7 @@ const nextBookRevision = (current: MaterialBookMetadata): number | undefined => 
 };
 
 /**
- * Metadata/tree/moderation writes own the Book revision, while source fields
+ * Tree/lifecycle writes own the Book revision, while source fields
  * remain copied from the current row. Source attach/replace must use its own
  * trusted workflow and is intentionally not implemented here.
  */
@@ -731,6 +731,8 @@ export const updateBookMetadata = async (
   const nodes = await repository.listBookNodes(bookId);
   const now = contextNow(context);
   const moderationOnly = Object.keys(updates).every((key) => ['visibility', 'publicReview', 'updatedAt', 'updatedBy'].includes(key));
+  const pdfMetadataOnly = current.bookMode === 'pdf'
+    && (updates.status === undefined || updates.status === current.status);
   let next: MaterialBookMetadata = {
     ...current,
     ...updates,
@@ -743,12 +745,12 @@ export const updateBookMetadata = async (
     createdAt: current.createdAt,
     createdBy: current.createdBy,
     testTypeIds: updates.testTypeIds ? unique(updates.testTypeIds) : current.testTypeIds,
-    status: moderationOnly ? current.status : updates.status ?? deriveMaterialBookStatus(nodes, current.status === 'archived'),
+    status: moderationOnly || pdfMetadataOnly ? current.status : updates.status ?? deriveMaterialBookStatus(nodes, current.status === 'archived'),
     updatedAt: now,
     updatedBy: context.actorId,
   };
-  // Moderation changes eligibility; content/source authority keeps its existing revision.
-  if (!moderationOnly) {
+  // Descriptive PDF details do not change the Assembly or its source authority.
+  if (!moderationOnly && !pdfMetadataOnly) {
     next = withBookRevisionBump(current, next);
   }
 

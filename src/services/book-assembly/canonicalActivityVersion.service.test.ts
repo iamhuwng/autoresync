@@ -388,7 +388,8 @@ describe('canonicalActivityVersion.service', () => {
       },
     })).toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
     expect(resultErrors({
-      ...revisionRecord(),
+      ...initialRecord(),
+      activityVersion: 2,
       provenance: {
         kind: 'initial-book-publication',
         bookId: 'book-1',
@@ -400,6 +401,15 @@ describe('canonicalActivityVersion.service', () => {
         sourcePages: [sourcePage],
       },
     })).toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
+  });
+
+  it('requires paired version and predecessor lineage for Book publication successors', () => {
+    const record = initialRecord();
+    expect(resultErrors({ ...record, predecessorActivityVersionId: 'activity-before-v1' }))
+      .toEqual(expect.arrayContaining([expect.stringContaining('cross-family-mismatch')]));
+    const successor = withFingerprint({ ...withoutFingerprint(record), activityVersion: 2,
+      predecessorActivityVersionId: 'activity-before-v1' });
+    expect(validateCanonicalPublishedActivityVersion(successor).valid).toBe(true);
   });
 
   it('rejects malformed IDs, oversized arrays, and oversized payloads', () => {
