@@ -158,11 +158,58 @@ describe('Book Delivery projection resolver', () => {
         activityId: 'activity-1',
         activityVersion: 2,
         activityVersionId: 'activity-1-v2',
-        sourceContext: expect.objectContaining({ pageGroupKeys: ['group-1'] }),
+        sourceContext: expect.objectContaining({ pageGroupKeys: ['placement-1'] }),
       }),
     ]);
+    expect(projection.pageGroups).toEqual([{ pageGroupKey: 'placement-1', combinedPhysicalPages: [1] }]);
     expect(JSON.stringify(projection)).not.toMatch(/answerKey|teacher|objectKey|credential|private|providerAuthority|storage/iu);
   });
+
+  it('keeps full-PDF placement pages separate despite shared Unit-local group keys', async () => {
+    const repository = await activatedRepository('full_pdf');
+    const current = (await repository.resolveCurrent('student-1', 'homework-1'))!;
+    const first = current.record.binding.placements[0]!;
+    const binding = { ...current.record.binding, placements: [
+      { ...first, sourcePageScopes: [{ sourceKey: 'full', pages: [1, 3] }] },
+      { ...first, placementId: 'placement-2', activityId: 'activity-2', activityVersionId: 'activity-2-v1', order: 2,
+        sourcePageScopes: [{ sourceKey: 'full', pages: [2] }] },
+      { ...first, placementId: 'placement-3', activityId: 'activity-3', activityVersionId: 'activity-3-v1', order: 3,
+        contextMode: 'none' as const, pageGroupKeys: [], sourcePageScopes: [] },
+    ] };
+    const before = structuredClone(binding);
+    repository.resolveCurrent = vi.fn(async () => ({ ...current, record: { ...current.record, binding } }));
+    const resolver = createBookDeliveryProjectionResolver({ repository });
+    const input = { recipientId: 'student-1', contextId: 'homework-1', actor: { uid: 'student-1' } };
+    const projection = await resolver.resolve(input);
+    expect(projection.pageGroups).toEqual([
+      { pageGroupKey: 'placement-1', combinedPhysicalPages: [1, 3] },
+      { pageGroupKey: 'placement-2', combinedPhysicalPages: [2] },
+    ]);
+    expect(projection.activities.map(row => row.sourceContext.pageGroupKeys)).toEqual([['placement-1'], ['placement-2'], []]);
+    expect(projection.activities.map(row => row.sourceContext.sourcePageScopes)).toEqual(binding.placements.map(row => row.sourcePageScopes));
+    expect(await resolver.resolve(input)).toEqual(projection);
+    expect(binding).toEqual(before);
+  });
+
+  it.each(['missing', 'invalid', 'foreign', 'outside authorized scope'])(
+    'rejects %s full-PDF placement pages before building runtime context', async kind => {
+      const repository = await activatedRepository('full_pdf');
+      const current = (await repository.resolveCurrent('student-1', 'homework-1'))!;
+      const first = current.record.binding.placements[0]!;
+      const binding = { ...current.record.binding,
+        sourceSet: { ...current.record.binding.sourceSet, sources: current.record.binding.sourceSet.sources.map(source => ({
+          ...source, localPageScope: { kind: 'pages' as const, pages: [1] },
+        })) },
+        placements: [{ ...first, sourcePageScopes: kind === 'missing' ? [] : [{
+          sourceKey: kind === 'foreign' ? 'foreign' : 'full', pages: kind === 'invalid' ? [0] : [2],
+        }] }],
+      };
+      repository.resolveCurrent = vi.fn(async () => ({ ...current, record: { ...current.record, binding } }));
+      await expect(createBookDeliveryProjectionResolver({ repository }).resolve({ recipientId: 'student-1',
+        contextId: 'homework-1', actor: { uid: 'student-1' } }))
+        .rejects.toMatchObject({ code: 'book-delivery-stale-binding' });
+    },
+  );
 
   it('fails closed for component delivery before constructing document requests or route keys', async () => {
     const repository = await activatedRepository('component_pdfs');

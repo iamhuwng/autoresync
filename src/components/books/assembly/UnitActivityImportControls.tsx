@@ -124,10 +124,10 @@ const UnitActivityImportControls = ({
           <textarea readOnly value={promptText} rows={8} />
         </label>
       )}
-      {statusText && (!focused || !statusText.startsWith('Imported ')) && <p role="status">{statusText}</p>}
+      {statusText && (!focused || (!conflict && !statusText.startsWith('Imported '))) && <p role="status">{statusText}</p>}
       {conflict && (
         <div role="alert" className="book-assembly-guided__error">
-          <p>{focused ? 'These activities have a newer saved version. Replace them with the pasted content?' : `${conflict.activityKey} already has a newer saved draft. Replacing it will use this imported JSON as the next revision.`}</p>
+          <p>{focused ? singleActivity ? 'This activity has a saved version. Replace it with the pasted content?' : 'These activities have a saved version. Replace them with the pasted content?' : `${conflict.activityKey} already has a newer saved draft. Replacing it will use this imported JSON as the next revision.`}</p>
           <button type="button" disabled={busy} onClick={onReplaceExisting}>Replace existing Activity draft</button>
         </div>
       )}

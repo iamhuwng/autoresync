@@ -131,7 +131,7 @@ const BookAssemblyStudentPreviewReady = ({
       <div className="book-assembly-workspace__section-heading">
         <div>
           <h2 id="book-assembly-student-preview-title">Student Book preview</h2>
-          <p role="status">This is the learner Book interface. Answers stay in memory and clear on exit, reload, or candidate/source revision change.</p>
+          <p role="status">Try the activities as a student. Preview answers are not saved.</p>
         </div>
         {onExit ? (
           <button
@@ -158,8 +158,7 @@ const BookAssemblyStudentPreviewReady = ({
         deliveryProjection={preview.runtime}
         display={{
           bookTitle,
-          unitTitle: preview.unitKey,
-          contextLabel: 'Teacher preview · unpublished',
+          contextLabel: 'Teacher preview',
         }}
         onAction={trackRuntimeAction}
         onResponseChange={(interactionId, response) => {

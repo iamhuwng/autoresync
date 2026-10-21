@@ -231,9 +231,15 @@ describe('BookRuntimeShell', () => {
       ...delivery(),
       sourceSet: { strategy: 'full_pdf' as const, sources: [{ sourceKey: 'pdf', sourceVersionId: 'source-1', lifecycle: 'verified-usable' as const, localPageScope: request.localPageScope }] },
       documentRequests: [request],
+      pageGroups: [{ pageGroupKey: 'placement-2', combinedPhysicalPages: [3] }],
+      activities: delivery(true).activities.map(placement => ({ ...placement,
+        sourceContext: { ...placement.sourceContext, pageGroupKeys: placement.contextMode === 'none' ? [] : [placement.placementId] },
+      })),
     };
     const { rerender } = render(<BookRuntimeShell {...shellProps({ deliveryProjection: fullPdf, viewer: { ...viewer, render: renderViewer } })} />);
     expect(renderViewer).toHaveBeenCalledWith(expect.objectContaining({ request }));
+    expect(renderViewer).toHaveBeenCalledWith(expect.objectContaining({ pageGroupKey: 'placement-2', combinedPhysicalPage: 3 }));
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
     expect(renderViewer.mock.lastCall?.[0].request).not.toHaveProperty('expectedByteLength');
     rerender(<BookRuntimeShell {...shellProps({ deliveryProjection: { ...fullPdf, projectionKind: 'book-runtime-candidate-preview', candidateId: 'candidate-1', candidateRevision: 1, sourceSetRevision: 1, unitKey: 'unit-1', context: { contextId: 'candidate-1', kind: 'preview', entitlementBasis: 'candidate-preview' }, actionFlags: { canAutosave: false, canSubmit: false, canReview: false } }, viewer: { ...viewer, render: renderViewer } })} />);
     expect(screen.getByTestId('book-runtime-shell')).toBeInTheDocument();
