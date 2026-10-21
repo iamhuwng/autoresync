@@ -610,6 +610,35 @@ describe('Book Homework assignment saga', () => {
     expect((await repository.read('assignment-1'))?.recipients).toHaveLength(2);
   });
 
+  it('resumes partial fan-out with the original timestamp while rejecting changed retry choices', async () => {
+    let crashing = true;
+    const seenTimestamps: string[] = [];
+    const resolveCanonical = vi.fn(async (input: BookHomeworkSagaCommand) => {
+      seenTimestamps.push(input.createdAt);
+      const state = canonical();
+      return { ...state, manifest: { ...state.manifest, createdAt: input.createdAt } };
+    });
+    const { saga, repository } = makeSaga(undefined, {
+      beforeStep: (step, recipientId) => {
+        if (crashing && step === 'delivery-prepare' && recipientId === 'student-2') {
+          throw new BookHomeworkSagaCrash(step);
+        }
+      },
+    }, resolveCanonical);
+    await expect(saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    const partial = await repository.read('assignment-1');
+    expect(partial).toMatchObject({ state: 'fanout_pending', createdAt,
+      recipients: [expect.objectContaining({ state: 'committed' }), expect.objectContaining({ state: 'pending' })] });
+    const retry = command({ createdAt: '2026-07-29T00:05:00.000Z' });
+    await expect(saga.execute({ ...retry, intent: { ...retry.intent,
+      presentation: { title: 'Changed request' } } })).rejects.toMatchObject({ code: 'idempotency-conflict' });
+    expect(resolveCanonical).toHaveBeenCalledTimes(1);
+    crashing = false;
+    await expect(saga.execute(retry)).resolves.toMatchObject({ status: 'committed',
+      record: { createdAt, fingerprint: partial!.fingerprint } });
+    expect(seenTimestamps).toEqual([createdAt, createdAt, createdAt]);
+  });
+
   it('commits the root before projection, reports pending, and repairs terminal replay without canonical reads', async () => {
     const projectionRepository = new BookHomeworkCompatibilityRepository(
       new InMemoryBookHomeworkCompatibilityDocumentStore(),

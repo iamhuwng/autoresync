@@ -657,6 +657,9 @@ export class BookHomeworkAssignmentSaga {
       if (record.requestFingerprint !== requestFingerprint(command)) {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Saga request fingerprint differs.');
       }
+      // HTTP retries receive a new server clock; the frozen manifest must keep
+      // the timestamp established by the first identical assignment command.
+      command = { ...command, createdAt: record.createdAt };
     }
     if (record?.state === 'compensating') return this.compensate(record, command);
     const canonical = await this.dependencies.resolveCanonical(command);
