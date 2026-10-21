@@ -434,10 +434,15 @@ describe('Ticket 28A runtime Worker boundary', () => {
     expect(repository.snapshot()).toMatchObject({ drafts: {}, attempts: {}, operations: {} });
   });
 
-  it('keeps a committed submit for replay when result projection fails', async () => {
+  it.each([
+    ['firebase_rtdb_put_failed:403', 'firebase_rtdb_put_failed:403'],
+    ['Too many subrequests.', 'worker_subrequest_limit'],
+    ['provider failure with private-token=do-not-log', 'unexpected_error'],
+  ])('keeps committed submits replayable with bounded diagnostics for %s', async (message, failureCode) => {
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const repository = new InMemoryBookRuntimeRepository();
     const projectBookResult = vi.fn()
-      .mockRejectedValueOnce(new Error('projection unavailable'))
+      .mockRejectedValueOnce(new Error(message))
       .mockResolvedValue(undefined);
     let currentAuthorityRevision = 1;
     const schedulePolicy = {
@@ -467,6 +472,11 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.command({ request: request(submit), env, uid: 'student-1' })))
       .resolves.toMatchObject({ status: 500, body: { code: 'book_runtime_command_failed' } });
+    expect(diagnostic).toHaveBeenCalledExactlyOnceWith('book_runtime_command_failed', {
+      phase: 'book_result_projection', errorClass: 'Error', failureCode,
+    });
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('private-token');
+    diagnostic.mockRestore();
     expect(repository.snapshot()).toMatchObject({
       attempts: {
         'attempt-1': {
@@ -504,12 +514,10 @@ describe('Ticket 28A runtime Worker boundary', () => {
       status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
       response: [{ interactionId: 'interaction-1', answer: 'draft' }],
     } });
-    const otherRecipient = await parse(await handlers.readTerminal({ ...terminalAddress, uid: 'student-2' }));
-    expect(otherRecipient.status).toBe(403);
-    expect(otherRecipient.body).not.toHaveProperty('response');
-    const otherContext = await parse(await handlers.readTerminal({ ...terminalAddress, contextId: 'other-context' }));
-    expect(otherContext).toEqual({ status: 409, body: { code: 'runtime_binding_stale' } });
-    expect(otherContext.body).not.toHaveProperty('response');
+    await expect(handlers.readTerminal({ ...terminalAddress, uid: 'student-2' }).then(parse))
+      .resolves.toEqual({ status: 403, body: { code: 'runtime_recipient_forbidden' } });
+    await expect(handlers.readTerminal({ ...terminalAddress, contextId: 'other-context' }).then(parse))
+      .resolves.toEqual({ status: 409, body: { code: 'runtime_binding_stale' } });
   });
 
   it('fails closed before schedule or mutation when the Interaction is not in the Activity', async () => {

@@ -832,6 +832,13 @@ const BookAssemblyWorkspace = ({
   }, [previewUnitKey]);
 
   useEffect(() => {
+    if (!editingPanel || editingPanel === 'content-tree' || unitImportText.trim() || unitImportBusy) return;
+    if (previewUnitKey && nodes.some((node) => node.nodeKey === previewUnitKey && node.nodeType === 'unit')) {
+      setSelectedNodeKey(previewUnitKey);
+    }
+  }, [editingPanel, nodes, previewUnitKey, unitImportBusy, unitImportText]);
+
+  useEffect(() => {
     setValidationMessage(null);
     setErrorMessage(null);
     setUnitImportStatus(null);
@@ -1828,12 +1835,13 @@ const BookAssemblyWorkspace = ({
         {unitOptions.length > 0 ? (
           <div className="book-assembly-edit__unit-list">
             {unitOptions.map(({ unit, label, selected }) => (
-              <button key={unit.unitKey} type="button" className={selected ? 'is-selected' : undefined} aria-pressed={selected} onClick={() => { requestNodeFocus(unit.unitKey); onUnitSelect?.(unit.unitKey); setFocusedActivityImportOpen(false); setEditingActivityKey(undefined); }}>
+              <button key={unit.unitKey} type="button" className={selected ? 'is-selected' : undefined} aria-pressed={selected} disabled={Boolean(unitImportText.trim()) || unitImportBusy} onClick={() => { if (selected) return; requestNodeFocus(unit.unitKey); onUnitSelect?.(unit.unitKey); setFocusedActivityImportOpen(false); setEditingActivityKey(undefined); }}>
                 <strong>{label}</strong>
               </button>
             ))}
           </div>
         ) : <p className="book-assembly-edit__empty">Add a Unit in Content tree first.</p>}
+        {Boolean(unitImportText.trim()) && <p>Save or clear this edit before changing Units.</p>}
       </aside>
     );
 

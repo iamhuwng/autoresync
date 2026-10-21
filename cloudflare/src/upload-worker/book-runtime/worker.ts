@@ -258,6 +258,7 @@ export const createBookRuntimeWorkerHandlers = (
     readonly env: BookRuntimeWorkerEnv;
     readonly uid: string;
   }) => {
+    let phase = 'command';
     try {
       if (!options.repository || !options.resolveBinding) {
         throw new BookRuntimeWorkerError('book_runtime_repository_unavailable', 503);
@@ -307,9 +308,11 @@ export const createBookRuntimeWorkerHandlers = (
             && replayed.result
             && replayed.completion
             && replayed.index) {
+            phase = 'homework_completion_projection';
             await projectHomeworkCompletion(binding, replayed, input.env);
           }
           if (replayed.status === 'replayed') {
+            phase = 'book_result_projection';
             await projectBookResult(binding, replayed, input.env);
           }
           if (replayed.status === 'replayed') {
@@ -410,6 +413,7 @@ export const createBookRuntimeWorkerHandlers = (
         schedulePolicy,
         now(),
       );
+      phase = 'runtime_commit';
       const result = await options.repository.applyCommand({
         command: payload,
         context: revalidatedContext,
@@ -428,6 +432,7 @@ export const createBookRuntimeWorkerHandlers = (
         && result.result
         && result.completion
         && result.index) {
+        phase = 'homework_completion_projection';
         await projectHomeworkCompletion(binding, result, input.env);
       }
       if (options.projectBookResult
@@ -437,6 +442,7 @@ export const createBookRuntimeWorkerHandlers = (
         && result.result
         && result.completion
         && result.index) {
+        phase = 'book_result_projection';
         await projectBookResult(binding, result, input.env);
       }
       if (payload.commandKind === 'submit'
@@ -459,6 +465,15 @@ export const createBookRuntimeWorkerHandlers = (
       if (error instanceof BookRuntimeRepositoryError) {
         return json({ code: error.code }, 409);
       }
+      const message = error instanceof Error ? error.message : '';
+      const failureCode = /too many subrequests/iu.test(message) ? 'worker_subrequest_limit'
+        : /^(?:firebase_rtdb_|book_result_|book_firebase_)[a-z0-9_]{1,96}(?::[0-9]{3})?$/u.test(message)
+          ? message : 'unexpected_error';
+      console.error('book_runtime_command_failed', {
+        phase,
+        errorClass: error instanceof Error && /^[A-Za-z]{1,64}$/u.test(error.name) ? error.name : 'unknown',
+        failureCode,
+      });
       return json({ code: 'book_runtime_command_failed' }, 500);
     }
   };

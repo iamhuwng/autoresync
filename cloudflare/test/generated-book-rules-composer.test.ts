@@ -430,6 +430,8 @@ describe('generated Book RTDB rule manifest and composer', () => {
     }
     expect(String(readRule(candidate.rules, leaf + '/$other/.validate'))).not.toContain('activityVersion');
     expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain('candidateRevision');
+    expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain('auth.token.book_submission_service == true && !data.exists()');
+    expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain("newData.child('candidateRevision').val() == 1 && newData.child('candidateLifecycle').val() == 'saved'");
   });
 
   it('preserves canonical inbox writes and composes idempotently without touching unowned leaves', () => {

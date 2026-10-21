@@ -297,6 +297,8 @@ const currentPointer = (): BookAssemblyPublicationPointer => ({
 const currentVersion = (ownerId = 'teacher-1'): BookAssemblyImmutableManifestVersion => ({
   bookId: 'book-1',
   ownerId,
+  candidateId: 'candidate-1',
+  candidateRevision: 4,
   publicationId: 'publication-1',
   publicationRevision: 2,
   studentSafeProjection: {

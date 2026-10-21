@@ -577,6 +577,32 @@ describe('BookAssemblyWorkspace', () => {
     expect(screen.queryByText('Drop Unit JSON here')).not.toBeInTheDocument();
   });
 
+  it('keeps pasted edits on their Unit and follows Preview selection after the edit is cleared', async () => {
+    const user = userEvent.setup();
+    const current = componentReadyCandidate();
+    const onUnitSelect = vi.fn();
+    const { props, rerender } = renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'activity-json',
+      previewUnitKey: 'unit-b',
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+      onUnitSelect,
+    });
+    expect(screen.getByRole('heading', { name: 'Unit 2 activities' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Paste returned JSON' }), { target: { value: '{"pending":true}' } });
+    const firstUnit = within(screen.getByRole('complementary', { name: 'Book Units' })).getByRole('button', { name: 'Unit 1' });
+    expect(firstUnit).toBeDisabled();
+    await user.click(firstUnit);
+    expect(onUnitSelect).not.toHaveBeenCalled();
+    rerender(<BookAssemblyWorkspace {...props} previewUnitKey="unit-a" />);
+    expect(screen.getByRole('heading', { name: 'Unit 2 activities' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Paste returned JSON' })).toHaveValue('{"pending":true}');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Paste returned JSON' }), { target: { value: '' } });
+    expect(screen.getByRole('heading', { name: 'Unit 1 activities' })).toBeInTheDocument();
+  });
+
   it('opens page corrections on demand in Preview and preserves other Activity page groups', async () => {
     const user = userEvent.setup();
     const current = candidate();

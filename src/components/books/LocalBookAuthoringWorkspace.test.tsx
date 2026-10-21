@@ -87,8 +87,10 @@ describe('local PDF Book modal', () => {
   it.each([true, false])('discards a failed submission only after authoritative resolution (%s)', async (resolved) => {
     const p = props();
     const onResolveDiscard = vi.fn(async () => resolved);
-    render(<LocalBookAuthoringWorkspace draft={{ ...draft, step: 5, submission: { state: 'retryable', operationId: 'submission-1' } }}
+    render(<LocalBookAuthoringWorkspace draft={{ ...draft, step: 5, submission: { state: 'retryable', operationId: 'submission-1', lastError: 'book_submission_book_submission_unavailable' } }}
       {...p} onResolveDiscard={onResolveDiscard} />);
+    expect(screen.getByText('Could not confirm Book creation. Your draft is saved. Try again to check its status.')).toBeVisible();
+    expect(screen.queryByText('book_submission_book_submission_unavailable')).not.toBeInTheDocument();
     const discard = screen.getByText('Discard draft');
     expect(discard).toBeEnabled();
     await act(async () => fireEvent.click(discard));

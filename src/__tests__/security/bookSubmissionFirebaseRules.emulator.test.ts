@@ -37,8 +37,8 @@ describe('Book submission atomic publication rules', () => {
     await seed();
   });
 
-  it.each(['full_pdf', 'component_pdfs'] as const)('accepts the complete real %s finalizer PATCH once', async (strategy) => {
-    payload = await captureSubmissionPublication(strategy);
+  it.each(['full_pdf', 'component_pdfs'] as const)('accepts the complete real two-Unit %s finalizer PATCH once', async (strategy) => {
+    payload = await captureSubmissionPublication(strategy, true);
     await seed();
     await assertSucceeds(service().ref().update(payload.writes));
     await env.withSecurityRulesDisabled(async (context) => {
@@ -168,6 +168,16 @@ describe('Book submission atomic publication rules', () => {
       { [`book_activity_authoring/owners/${ownerId}/activities/foreign-activity`]: { ...payload.writes[authoringPath] as object, activityId: 'foreign-activity' } },
       { [candidatePath]: { ...payload.writes[candidatePath] as object, targetActivityId: 'foreign-activity' } },
     ]) await assertFails(service().ref().update({ ...payload.writes, ...extra }));
+  });
+
+  it('rejects binding seeds with foreign scope or immutable publication fields', async () => {
+    const bindingPath = Object.keys(payload.writes).find(path => path.startsWith('book_assembly_activity_bindings/'))!;
+    for (const change of [{ ownerId: 'teacher-2' }, { bookId: 'book-2' }, { unitKey: 'unit-2' },
+      { activityVersionId: 'forged-version' }, { manifestVersionId: 'forged-manifest' }]) {
+      await assertFails(service().ref().update({ ...payload.writes, [bindingPath]: { ...payload.writes[bindingPath] as object, ...change } }));
+    }
+    await seed({ [bindingPath]: payload.writes[bindingPath] });
+    await assertFails(service().ref().update({ ...payload.writes, [bindingPath]: { ...payload.writes[bindingPath] as object, candidateRevision: 2 } }));
   });
 
   it('denies browser finalization, owner-shaped service identity and ancestor operation writes', async () => {

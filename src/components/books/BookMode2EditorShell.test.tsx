@@ -41,6 +41,8 @@ const publishedUnit = (unitKey: string): BookAssemblyCurrentPublication['units']
 });
 
 const currentPublication = (units: readonly BookAssemblyCurrentPublication['units'][number][]): BookAssemblyCurrentPublication => ({
+  candidateId: 'candidate-1',
+  candidateRevision: 1,
   pointer: {
     publicationId: 'publication-1',
     publicationRevision: 1,
@@ -460,6 +462,32 @@ describe('BookMode2EditorShell', () => {
     );
 
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Unit' })).not.toBeInTheDocument());
+  });
+
+  it('retains an unpublished draft Unit from Content to Preview without assigning a published fallback', async () => {
+    const user = userEvent.setup();
+    const props = {
+      access: 'owner' as const, presentation: 'modal' as const, experience: 'focused-editing' as const,
+      book: { ...book, sourceSet: componentManifest.sourceSet, bookRevision: 3, sourceSetRevision: 4 },
+      assemblyInitialCandidate: { ...componentCandidate, manifest: { ...componentManifest,
+        nodes: componentManifest.nodes.map((node, index) => ({ ...node, title: `Chapter ${index + 1}` })),
+      } },
+      assemblyInitialPublication: currentPublication([publishedUnit('unit-a')]),
+      assemblyRepository: null, assemblyPreviewClient: null, activityAuthoring: null, uploadWorkflow: null,
+    };
+    const view = render(<BookMode2EditorShell {...props} editingSection="activity-json" />);
+    await user.click(await screen.findByRole('button', { name: 'Chapter 2' }));
+    expect(screen.getByRole('heading', { name: 'Chapter 2 activities' })).toBeInTheDocument();
+
+    view.rerender(<BookMode2EditorShell {...props} editingSection="preview" />);
+    expect(screen.getByRole('combobox', { name: 'Unit' })).toHaveValue('unit-b');
+    expect(screen.getByRole('option', { name: 'Chapter 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign as homework' })).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit' }), 'unit-a');
+    expect(screen.getByRole('button', { name: 'Assign as homework' })).toBeEnabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit' }), 'unit-b');
+    view.rerender(<BookMode2EditorShell {...props} editingSection="activity-json" />);
+    expect(screen.getByRole('heading', { name: 'Chapter 2 activities' })).toBeInTheDocument();
   });
 
   it('does not restart candidate loading for a structurally unchanged Source Set', async () => {

@@ -7,9 +7,10 @@ import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAs
 import type { SourceUploadBrowserWorkflow } from '../../services/book-source-delivery/sourceUpload.browserWorkflow';
 import { SourceUploadClientError, type SourceSetAttachmentClient, type SourceUploadSafeOperationState } from '../../services/book-source-delivery/sourceUpload.client';
 import type { SourcePdfInspectionClaim } from '../../services/book-source-delivery/sourcePdfInspection.browser';
-import { createCandidateUnitPreview } from '../../services/book-assembly/unitPreview.service';
+import { createCandidateUnitPreview, previewInputFingerprint } from '../../services/book-assembly/unitPreview.service';
 import { createComponentStudentDocument } from '../../services/book-assembly/componentStudentDocument.types';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
+import type { TrustedBookSourceVersionProjection } from '../../types/bookAssembly.types';
 import BookPdfFlowWorkspace from './BookPdfFlowWorkspace';
 import { composeComponentPdfs } from '../../services/book-source-delivery/componentPdfComposition.browser';
 import { inspectSourcePdf } from '../../services/book-source-delivery/sourcePdfInspection.browser';
@@ -166,6 +167,17 @@ const sourceVersion = (sourceVersionId: string, physicalPageCount = 2) => ({
   verifiedUsable: true,
 });
 
+const trustedSourceVersion = (sourceVersionId: string, sourceKey: string): TrustedBookSourceVersionProjection => ({
+  sourceKey,
+  sourceVersionId,
+  bookId: 'book-1',
+  checksum: { algorithm: 'sha-256', value: 'a'.repeat(64) },
+  purpose: 'book-source',
+  studentSafeStatus: 'unreviewed',
+  physicalPageCount: 2,
+  verifiedUsable: true,
+});
+
 const verifiedUploadState: SourceUploadSafeOperationState = {
   schemaVersion: 1,
   bookId: 'book-1',
@@ -209,12 +221,16 @@ const fullUploadWorkflow = (
   retryCleanup: vi.fn(async () => 'cleanup_pending' as const),
 });
 
-const previewClient = (strategy: 'component_pdfs' | 'full_pdf' = 'component_pdfs'): BookAssemblyPreviewClient => ({
+const previewClient = (
+  strategy: 'component_pdfs' | 'full_pdf' = 'component_pdfs',
+  candidateOverride?: ReturnType<typeof candidate>,
+  activityOverride: NormalizedActivity = previewActivity,
+): BookAssemblyPreviewClient => {
+  return {
   readCurrentPublication: vi.fn(async () => null),
-  preview: vi.fn(async () => ({
-    status: 'previewed' as const,
-    preview: createCandidateUnitPreview({
-      candidate: candidate(strategy),
+  preview: vi.fn(async () => {
+    const preview = createCandidateUnitPreview({
+      candidate: candidateOverride ?? candidate(strategy),
       sourceVersions: strategy === 'component_pdfs'
         ? [
             sourceVersion('source-a'),
@@ -222,7 +238,7 @@ const previewClient = (strategy: 'component_pdfs' | 'full_pdf' = 'component_pdfs
           ]
         : [sourceVersion('source-b')],
       sourceIsPreviewReady: () => true,
-      activitiesByKey: { 'activity-b': previewActivity },
+      activitiesByKey: { 'activity-b': activityOverride },
       registryVersion: 'registry-v1',
       ...(strategy === 'component_pdfs' ? { studentDocument: {
         descriptor: createComponentStudentDocument({
@@ -236,15 +252,17 @@ const previewClient = (strategy: 'component_pdfs' | 'full_pdf' = 'component_pdfs
         }),
         request: { opaqueRouteKey: 'student-document-route', expectedByteLength: 123 },
       } } : {}),
-    }),
-  })),
+    });
+    return { status: 'previewed' as const, preview };
+  }),
   approve: vi.fn(async () => ({ approval: {
     approvalId: 'approval-1', approvalRevision: 1,
     approvedAt: '2026-08-28T00:00:00.000Z', expiresAt: '2026-08-29T00:00:00.000Z',
   } })),
   publishFull: vi.fn(async () => ({ operationId: 'operation-1', manifestVersionId: 'manifest-1', publicationId: 'publication-1', publicationRevision: 1, result: { pointer: currentPublication.pointer, version: { studentSafeProjection: { units: currentPublication.units } } } })),
   publishComponent: vi.fn(async () => ({ operationId: 'operation-1', manifestVersionId: 'manifest-1', publicationId: 'publication-1', publicationRevision: 1, result: { pointer: currentPublication.pointer, version: { studentSafeProjection: { units: currentPublication.units } } } })),
-});
+  };
+};
 
 const currentPublication: BookAssemblyCurrentPublication = {
   pointer: { publicationId: 'publication-1', publicationRevision: 1, manifestVersionId: 'manifest-1',
@@ -591,6 +609,55 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(screen.getAllByRole('heading', { name: 'Unit 1 is published' })).toHaveLength(2);
   });
 
+  it('offers publication for another approved Activity revision with unchanged Book and source revisions', async () => {
+    const user = userEvent.setup();
+    const titledCandidate = {
+      ...candidate('full_pdf'),
+      manifest: {
+        ...candidate('full_pdf').manifest!,
+        nodes: candidate('full_pdf').manifest!.nodes.map((node) => node.nodeKey === 'unit-b' ? { ...node, title: 'Growing Up' } : node),
+      },
+    };
+    const priorPublication = {
+      ...currentPublication,
+      pointer: { ...currentPublication.pointer, publicationId: 'publication-2', publicationRevision: 2, manifestVersionId: 'manifest-2' },
+    };
+    const updatedActivity = { ...previewActivity, instructions: [{ text: 'Review the revised source pages before responding.' }] };
+    const client = previewClient('full_pdf', titledCandidate, updatedActivity);
+    render(
+      <BookPdfFlowWorkspace
+        access="owner" bookId="book-1" title="Full-PDF Book" presentation="modal"
+        experience="focused-editing" editingSection="preview" previewUnitKey="unit-b"
+        uploadWorkflow={null} assemblySourceVersions={[trustedSourceVersion('source-b', 'full')]}
+        assemblyInitialCandidate={titledCandidate} assemblyInitialPublication={priorPublication}
+        assemblyInitialPublicationStatus="loaded" assemblyBookRevision={2} assemblySourceSetRevision={3}
+        assemblyPreviewClient={client}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
+    const approveButton = screen.getByRole('button', { name: 'Approve this preview' });
+    await waitFor(() => expect(approveButton).toBeEnabled());
+    await user.click(approveButton);
+    const publishButton = screen.getByRole('button', { name: 'Publish Growing Up' });
+    await waitFor(() => expect(publishButton).toBeEnabled());
+
+    expect(client.approve).toHaveBeenCalledOnce();
+    const approvalResult = await client.approve.mock.results[0]!.value;
+    expect(approvalResult.approval).not.toHaveProperty('approvedInputFingerprint');
+    expect(approvalResult.approval).not.toHaveProperty('candidateId');
+    expect(approvalResult.approval).not.toHaveProperty('inputFingerprint');
+    expect(priorPublication.pointer.bookRevision).toBe(titledCandidate.bookRevision);
+    expect(priorPublication.pointer.sourceSetRevision).toBe(titledCandidate.sourceSetRevision);
+    expect(screen.queryByRole('button', { name: 'Review publication' })).not.toBeInTheDocument();
+    expect(screen.getByText('Reviewed version ready to publish')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Unit 1 is published' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Publish Growing Up' }));
+    const confirmation = screen.getByRole('dialog', { name: 'Publish Growing Up?' });
+    expect(confirmation).toHaveTextContent('Students can open Growing Up after you assign it as homework.');
+    expect(confirmation).toHaveTextContent('Existing homework keeps the currently published version.');
+  });
+
   it('decides the full PDF immediately before publishing through the existing confirmation', async () => {
     const user = userEvent.setup();
     const client = previewClient('full_pdf');
@@ -859,7 +926,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(await screen.findByRole('heading', { name: 'Student Book preview' })).toBeInTheDocument();
   });
 
-  it('requires explicit preview and approval of every activated component Unit before publishing', async () => {
+  it('publishes a focused component successor after exact approval of every Unit at unchanged Book/source revisions', async () => {
     const user = userEvent.setup();
     const descriptor = createComponentStudentDocument({ sourceVersionId: 'student-document-v1', descriptorRevision: 1,
       sha256Hex: 'a'.repeat(64), byteSize: 123, physicalPageCount: 4, compositionFingerprint: 'composition-v1', components: [
@@ -870,35 +937,47 @@ describe('BookPdfFlowWorkspace student preview', () => {
       { unitKey: 'unit-b', candidateId: 'candidate-1', candidateRevision: 4 },
       { unitKey: 'unit-a', candidateId: 'candidate-2', candidateRevision: 5 },
     ] };
+    let latestFingerprints: Record<string, string> = {};
     const preview = vi.fn(async (input: { unitKey: string; candidateId: string; expectedCandidateRevision: number }) => {
       const selected = { ...candidate('component_pdfs'), unitKey: input.unitKey,
         candidateId: input.candidateId, revision: input.expectedCandidateRevision };
-      return { preview: createCandidateUnitPreview({ candidate: selected,
-        sourceVersions: [sourceVersion('source-a'), sourceVersion('source-b')], sourceIsPreviewReady: () => true,
+      const projection = createCandidateUnitPreview({ candidate: selected,
+        sourceVersions: [trustedSourceVersion('source-a', 'component-a'), trustedSourceVersion('source-b', 'component-b')], sourceIsPreviewReady: () => true,
         activitiesByKey: { [input.unitKey === 'unit-a' ? 'activity-a' : 'activity-b']: previewActivity },
         registryVersion: 'registry-v1', studentDocument: { descriptor,
-          request: { opaqueRouteKey: 'student-document-route', expectedByteLength: 123 } } }), qualification };
+          request: { opaqueRouteKey: 'student-document-route', expectedByteLength: 123 } } });
+      latestFingerprints[input.unitKey] = previewInputFingerprint(projection);
+      return { preview: projection, qualification };
     });
-    const approve = vi.fn(async (input: { unitKey: string }) => ({ approval: { approvalId: `approval-${input.unitKey}`,
-        approvalRevision: 1, approvedAt: '2026-08-28T00:00:00.000Z', expiresAt: '2026-08-29T00:00:00.000Z',
-        unitInputFingerprint: 'server-preview-fingerprint', wholeActivationFingerprint: 'server-activation-fingerprint' } }));
+    const approve = vi.fn(async (input: { unitKey: string; candidateId: string; expectedCandidateRevision: number; expectedUnitInputFingerprint?: string; expectedWholeActivationFingerprint?: string }) => ({ approval: { approvalId: `approval-${input.unitKey}`,
+        approvalRevision: 1, approvedAt: '2026-08-28T00:00:00.000Z', expiresAt: '2026-08-29T00:00:00.000Z' } }));
     const publishComponent = vi.fn(async () => ({ operationId: 'operation-1', manifestVersionId: 'manifest-1',
       publicationId: 'publication-1', publicationRevision: 1, result: {} }));
     const client: BookAssemblyPreviewClient = { readCurrentPublication: vi.fn(async () => null), preview, approve,
       publishComponent, publishFull: vi.fn(async () => { throw new Error('wrong publication path'); }) };
+    const priorComponentPublication = { ...currentPublication, units: candidate('component_pdfs').manifest!.units };
+    expect(candidate('component_pdfs').bookRevision).toBe(currentPublication.pointer.bookRevision);
+    expect(candidate('component_pdfs').sourceSetRevision).toBe(currentPublication.pointer.sourceSetRevision);
     render(<BookPdfFlowWorkspace access="owner" bookId="book-1" title="Component Book" presentation="modal"
-      experience="guided-creation" uploadWorkflow={null} assemblySourceVersions={[sourceVersion('source-a'), sourceVersion('source-b')]}
-      assemblyInitialCandidate={candidate('component_pdfs')} assemblyBookRevision={2} assemblySourceSetRevision={3}
+      experience="focused-editing" editingSection="preview" mode="component" uploadWorkflow={null}
+      assemblySourceVersions={[trustedSourceVersion('source-a', 'component-a'), trustedSourceVersion('source-b', 'component-b')]}
+      assemblyInitialCandidate={candidate('component_pdfs')} assemblyInitialPublication={priorComponentPublication}
+      assemblyInitialPublicationStatus="loaded" assemblyBookRevision={2} assemblySourceSetRevision={3}
       assemblyPreviewClient={client} />);
-    await user.click(screen.getByRole('button', { name: /Check & preview/i }));
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
-    expect(screen.getByRole('button', { name: /5 Publish/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publish Book' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Preview as a student' }));
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
-    await user.click(screen.getByRole('button', { name: /Publish$/i }));
     await user.click(screen.getByRole('button', { name: 'Publish Book' }));
-    expect(screen.getByRole('dialog', { name: 'Publish 2 approved Units?' })).toHaveTextContent('unit-b, unit-a');
+    expect(approve.mock.calls.map(([input]) => input.expectedUnitInputFingerprint)).toEqual([
+      latestFingerprints['unit-b'], latestFingerprints['unit-a'],
+    ]);
+    expect(approve.mock.calls.every(([input]) => input.expectedWholeActivationFingerprint === qualification.wholeActivationFingerprint)).toBe(true);
+    const confirmation = screen.getByRole('dialog', { name: 'Publish 2 approved Units?' });
+    expect(confirmation).toHaveTextContent('Unit 1, Unit 2');
+    expect(confirmation).not.toHaveTextContent('unit-b');
+    expect(confirmation).toHaveTextContent('after you assign them as homework');
     await user.click(screen.getByRole('button', { name: 'Publish approved Units' }));
     expect(preview).toHaveBeenCalledTimes(2);
     expect(approve).toHaveBeenCalledTimes(2);

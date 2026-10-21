@@ -409,14 +409,19 @@ const BookMode2EditorShell = ({
   const [homeworkHandoffOpen, setHomeworkHandoffOpen] = useState(false);
   const [bookHomeworkRecovery, setBookHomeworkRecovery] = useState<BookHomeworkRecoveryState | null>(null);
   const publishedUnits = resolvedInitialPublication?.units ?? [];
-  const [selectedPublishedUnitKey, setSelectedPublishedUnitKey] = useState<string | null>(null);
-  useEffect(() => {
-    if (publishedUnits.length <= 1) return;
-    setSelectedPublishedUnitKey((current) => current && publishedUnits.some((unit) => unit.unitKey === current) ? current : null);
-  }, [publishedUnits]);
-  const publishedUnit = publishedUnits.length === 1
-    ? publishedUnits[0]
-    : publishedUnits.find((unit) => unit.unitKey === selectedPublishedUnitKey) ?? publishedUnits[0] ?? null;
+  const [unitSelection, setUnitSelection] = useState<{ bookId: string; unitKey: string } | null>(null);
+  const selectedUnitKey = unitSelection?.bookId === book.bookId ? unitSelection.unitKey
+    : resolvedInitialCandidate?.manifest?.units[0]?.unitKey ?? publishedUnits[0]?.unitKey;
+  const editorUnitKeys = [...new Set([
+    ...(resolvedInitialCandidate?.manifest?.units.map((unit) => unit.unitKey) ?? []),
+    ...publishedUnits.map((unit) => unit.unitKey),
+    ...(selectedUnitKey ? [selectedUnitKey] : []),
+  ])];
+  const selectUnit = (unitKey: string) => {
+    setUnitSelection({ bookId: book.bookId, unitKey });
+    trackAction('teacher_materials_book_assembly_component_unit_selected', { bookId: book.bookId, unitKey, source });
+  };
+  const publishedUnit = publishedUnits.find((unit) => unit.unitKey === selectedUnitKey) ?? null;
   const openHomeworkHandoff = () => {
     if (!publishedUnit) return;
     trackAction('assignBookUnit', { bookId: book.bookId, unitKey: publishedUnit.unitKey, source });
@@ -450,17 +455,17 @@ const BookMode2EditorShell = ({
 
   return <>
     <main className="book-mode2-editor-shell" data-book-mode="pdf" data-presentation={presentation} data-flow="pdf-book-flow">
-      {experience === 'focused-editing' && editingSection === 'preview' && publishedUnits.length > 0 && <div className="book-mode2-editor-shell__unit-actions">
-        {publishedUnits.length > 1 && <><label htmlFor="book-mode2-published-unit">Unit</label>
+      {experience === 'focused-editing' && editingSection === 'preview' && editorUnitKeys.length > 0 && <div className="book-mode2-editor-shell__unit-actions">
+        {editorUnitKeys.length > 1 && <><label htmlFor="book-mode2-published-unit">Unit</label>
         <select
           id="book-mode2-published-unit"
-          value={publishedUnit?.unitKey ?? ''}
-          onChange={(event) => setSelectedPublishedUnitKey(event.currentTarget.value || null)}
+          value={selectedUnitKey ?? ''}
+          onChange={(event) => selectUnit(event.currentTarget.value)}
         >
-          {publishedUnits.map((unit, index) => <option key={unit.unitKey} value={unit.unitKey}>{resolvedInitialCandidate?.manifest?.nodes.find((node) => node.nodeKey === unit.unitKey)?.title || `Unit ${index + 1}`}</option>)}
+          {editorUnitKeys.map((unitKey, index) => <option key={unitKey} value={unitKey}>{resolvedInitialCandidate?.manifest?.nodes.find((node) => node.nodeKey === unitKey)?.title || `Unit ${index + 1}`}</option>)}
         </select>
         </>}
-        <button type="button" className="pbf-button" onClick={openHomeworkHandoff}>Assign as homework</button>
+        <button type="button" className="pbf-button" disabled={!publishedUnit} onClick={openHomeworkHandoff}>Assign as homework</button>
       </div>}
       {candidateLoading
         ? <p aria-busy="true">Loading saved Book draft...</p>
@@ -474,8 +479,8 @@ const BookMode2EditorShell = ({
         experience={experience}
         editingSection={editingSection}
         onOpenPlan={onOpenPlan}
-        previewUnitKey={publishedUnit?.unitKey}
-        onPreviewUnitChange={setSelectedPublishedUnitKey}
+        previewUnitKey={selectedUnitKey}
+        onPreviewUnitChange={selectUnit}
         uploadWorkflow={resolvedUploadWorkflow}
         uploadWorkflowForSource={resolvedUploadWorkflowForSource}
         uploadUnavailableMessage={uploadUnavailableMessage}
