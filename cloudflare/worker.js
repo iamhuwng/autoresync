@@ -300,11 +300,37 @@ export function createUploadWorker({
 
         return text('Method not allowed', { status: 405 });
       } catch (error) {
+        const isListeningUploadTransport = request.method === 'PUT'
+          && url.pathname === '/upload'
+          && url.searchParams.has('assetGrant');
         if (error instanceof PathAuthorityError) {
+          if (isListeningUploadTransport) {
+            console.warn('listening_upload_diag_v2_rejected', {
+              reason: error.reason,
+              status: error.status,
+              requestOrigin: request.headers.get('Origin') ?? '',
+              contentLength: request.headers.get('Content-Length'),
+            });
+          }
           return json({ error: error.reason }, { status: error.status });
         }
         if (error instanceof GrantAuthorityError) {
+          if (isListeningUploadTransport) {
+            console.warn('listening_upload_diag_v2_rejected', {
+              reason: error.reason,
+              status: error.status,
+              requestOrigin: request.headers.get('Origin') ?? '',
+              contentLength: request.headers.get('Content-Length'),
+            });
+          }
           return json({ error: error.reason }, { status: error.status });
+        }
+        if (isListeningUploadTransport) {
+          console.error('listening_upload_diag_v2_failed', {
+            errorName: error instanceof Error ? error.name : 'unknown',
+            requestOrigin: request.headers.get('Origin') ?? '',
+            contentLength: request.headers.get('Content-Length'),
+          });
         }
         console.error('Worker request failed');
         return json({ error: 'Internal server error' }, { status: 500 });

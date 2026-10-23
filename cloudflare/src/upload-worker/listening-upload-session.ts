@@ -408,6 +408,7 @@ export const createListeningUploadSessionHandlers = (options: {
     uid: string;
     now: () => number;
   }) {
+    const startedAt = input.now();
     try {
       let service: ReturnType<typeof createServiceFromEnv>;
       try {
@@ -429,15 +430,25 @@ export const createListeningUploadSessionHandlers = (options: {
         if (error instanceof ListeningUploadSessionError) throw error;
         throw new ListeningUploadSessionError('bridge_body_read_failed', 500);
       }
-      return {
-        body: await service.createSession({
-          uid: input.uid,
-          idempotencyKey: input.request.headers.get('Idempotency-Key'),
-          body,
-        }),
-      };
+      const responseBody = await service.createSession({
+        uid: input.uid,
+        idempotencyKey: input.request.headers.get('Idempotency-Key'),
+        body,
+      });
+      console.info('listening_upload_diag_v2_session_ready', {
+        uploadSessionId: typeof responseBody?.uploadSessionId === 'string'
+          ? responseBody.uploadSessionId
+          : undefined,
+        elapsedMs: input.now() - startedAt,
+      });
+      return { body: responseBody };
     } catch (error) {
       const safeError = asError(error);
+      console.warn('listening_upload_diag_v2_session_failed', {
+        code: safeError.code,
+        status: safeError.statusCode,
+        elapsedMs: input.now() - startedAt,
+      });
       return { body: { code: safeError.code }, init: { status: safeError.statusCode } };
     }
   },
@@ -448,6 +459,7 @@ export const createListeningUploadSessionHandlers = (options: {
     uid: string;
     now: () => number;
   }) {
+    const startedAt = input.now();
     try {
       const service = createServiceFromEnv({
         env: input.env,
@@ -457,16 +469,35 @@ export const createListeningUploadSessionHandlers = (options: {
         idempotencySecret: options.idempotencySecret,
         grantSecret: options.grantSecret,
       });
-      return {
-        body: await service.issueAsset({
-          uid: input.uid,
-          idempotencyKey: input.request.headers.get('Idempotency-Key'),
-          body: await readJsonBody(input.request),
-          uploadTransportOrigin: resolveLocalUploadTransportOrigin(input.request, input.env),
-        }),
-      };
+      const requestBody = await readJsonBody(input.request);
+      const requestRecord = requestBody && typeof requestBody === 'object' && !Array.isArray(requestBody)
+        ? requestBody as Record<string, unknown>
+        : {};
+      const responseBody = await service.issueAsset({
+        uid: input.uid,
+        idempotencyKey: input.request.headers.get('Idempotency-Key'),
+        body: requestBody,
+        uploadTransportOrigin: resolveLocalUploadTransportOrigin(input.request, input.env),
+      });
+      console.info('listening_upload_diag_v2_asset_ready', {
+        assetId: typeof responseBody?.assetId === 'string' ? responseBody.assetId : undefined,
+        uploadSessionId: typeof responseBody?.uploadSessionId === 'string'
+          ? responseBody.uploadSessionId
+          : undefined,
+        sizeBytes: typeof requestRecord.sizeBytes === 'number' ? requestRecord.sizeBytes : undefined,
+        contentType: typeof requestRecord.declaredMimeType === 'string'
+          ? requestRecord.declaredMimeType
+          : undefined,
+        elapsedMs: input.now() - startedAt,
+      });
+      return { body: responseBody };
     } catch (error) {
       const safeError = asError(error);
+      console.warn('listening_upload_diag_v2_asset_failed', {
+        code: safeError.code,
+        status: safeError.statusCode,
+        elapsedMs: input.now() - startedAt,
+      });
       return { body: { code: safeError.code }, init: { status: safeError.statusCode } };
     }
   },
