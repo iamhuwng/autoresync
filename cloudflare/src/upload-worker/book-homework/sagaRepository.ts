@@ -255,9 +255,7 @@ export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaR
   async create(record: BookHomeworkSagaRecord): Promise<boolean> {
     assertValidBookHomeworkSagaRecord(record);
     const rtdb = this.clientForOwner(record.ownerId);
-    const { data, etag } = await rtdb.readWithEtag<unknown>(sagaPath(record.assignmentId));
-    if (data !== null) return false;
-    return rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), etag);
+    return rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), 'null_etag');
   }
 
   async compareAndSet(record: BookHomeworkSagaRecord, expectedRevision: number): Promise<boolean> {

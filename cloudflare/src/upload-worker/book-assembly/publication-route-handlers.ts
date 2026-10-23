@@ -179,7 +179,8 @@ export interface BookAssemblyPublicationRouteOptions {
   readonly allocateId?: (kind: string, key: string) => string;
   readonly now?: () => string;
   readonly fullPdf?: FullPdfPublicationRoutePorts;
-  readonly componentPdf?: ComponentPdfPublicationRoutePorts;
+  readonly componentPdf?: ComponentPdfPublicationRoutePorts | ((env: BookRouterEnv, ownerId: string,
+    readInitialScope: BookAssemblyPublicationRepository<BookAssemblyPublicationResult>['readScope']) => ComponentPdfPublicationRoutePorts);
 }
 
 export interface BookAssemblyPublicationRouteHandlers {
@@ -317,14 +318,18 @@ const createFullPdfHandler = (
 const createComponentPdfHandler = (
   options: BookAssemblyPublicationRouteOptions,
 ): BookAssemblyPublicationRouteHandlers['componentPdfPublish'] => {
-  const ports = options.componentPdf;
-  if (!ports) return unavailable('book_component_pdf_publication_dependencies_unavailable');
+  const configuredPorts = options.componentPdf;
+  if (!configuredPorts) return unavailable('book_component_pdf_publication_dependencies_unavailable');
   return async (input) => {
     let worker: ReturnType<typeof createComponentPdfPublicationWorkerHandlers>;
     try {
+      const repository = (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid);
+      let initialScope: ReturnType<typeof repository.readScope> | undefined;
+      const readInitialScope = (bookId: string) => initialScope ??= repository.readScope(bookId);
+      const ports = typeof configuredPorts === 'function' ? configuredPorts(input.env, input.uid, readInitialScope) : configuredPorts;
       worker = createComponentPdfPublicationWorkerHandlers({
         readUser: (uid) => ports.readUser({ env: input.env, actorId: uid }),
-        repository: (options.repositoryFactory ?? defaultRepositoryFactory)(input.env, input.uid),
+        repository: { readScope: readInitialScope, transaction: repository.transaction.bind(repository) },
         activityVersionWriter: (
           options.activityVersionWriterFactory ?? defaultActivityVersionWriterFactory
         )(input.env),

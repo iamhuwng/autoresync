@@ -18,8 +18,9 @@ export const createCanonicalBookHomeworkHandlers = (
 ) => createBookHomeworkWorkerHandlers({
   ...options,
   ...(options.saga || options.sagaFactory ? {} : {
-    sagaFactory: (env) => createBookHomeworkProductionRuntime(
+    sagaFactory: (env, runtimeOptions) => createBookHomeworkProductionRuntime(
       env as BookHomeworkTrustedRuntimeEnv,
+      runtimeOptions,
     ),
   }),
   ...(options.contextResolver || options.contextResolverFactory ? {} : {

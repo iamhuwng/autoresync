@@ -1170,6 +1170,22 @@ const BookAssemblyWorkspace = ({
     if (componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
       throw new Error('component_pdf_activation_recovery_invalid');
     }
+    if (matchingComponentPdfActivationRecovery && repository!.loadCurrent) {
+      const reference = matchingComponentPdfActivationRecovery.unitCandidates.find((entry) => entry.unitKey === unitKey);
+      const loaded = reference && await repository!.loadCurrent(bookId, unitKey);
+      if (!loaded || loaded.candidate.ownerId !== matchingComponentPdfActivationRecovery.ownerId
+        || loaded.candidate.bookId !== bookId || loaded.candidate.unitKey !== unitKey
+        || loaded.candidate.candidateId !== reference!.candidateId
+        || loaded.candidate.revision !== reference!.candidateRevision
+        || loaded.candidate.bookRevision !== authority.bookRevision
+        || loaded.candidate.sourceSetRevision !== authority.sourceSetRevision
+        || loaded.candidate.lifecycle !== 'validated'
+        || fingerprintComponentPdfActivationValue(loaded.candidate.manifest)
+          !== fingerprintComponentPdfActivationValue(validManifest)) {
+        throw new Error('component_pdf_activation_readback_mismatch');
+      }
+      return { status: 'validated', candidate: loaded.candidate };
+    }
     if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
       && componentPdfActivationClient
       && (componentPdfActivationRecovery
@@ -1833,13 +1849,12 @@ const BookAssemblyWorkspace = ({
           <h3>Units</h3>
         </div>
         {unitOptions.length > 0 ? (
-          <div className="book-assembly-edit__unit-list">
-            {unitOptions.map(({ unit, label, selected }) => (
-              <button key={unit.unitKey} type="button" className={selected ? 'is-selected' : undefined} aria-pressed={selected} disabled={Boolean(unitImportText.trim()) || unitImportBusy} onClick={() => { if (selected) return; requestNodeFocus(unit.unitKey); onUnitSelect?.(unit.unitKey); setFocusedActivityImportOpen(false); setEditingActivityKey(undefined); }}>
-                <strong>{label}</strong>
-              </button>
-            ))}
-          </div>
+          <label>Unit
+            <select value={selectedUnitKey ?? ''} disabled={Boolean(unitImportText.trim()) || unitImportBusy}
+              onChange={(event) => { const key = event.currentTarget.value; if (key === selectedUnitKey) return; requestNodeFocus(key); onUnitSelect?.(key); setFocusedActivityImportOpen(false); setEditingActivityKey(undefined); }}>
+              {unitOptions.map(({ unit, label }) => <option key={unit.unitKey} value={unit.unitKey}>{label}</option>)}
+            </select>
+          </label>
         ) : <p className="book-assembly-edit__empty">Add a Unit in Content tree first.</p>}
         {Boolean(unitImportText.trim()) && <p>Save or clear this edit before changing Units.</p>}
       </aside>
@@ -1868,6 +1883,11 @@ const BookAssemblyWorkspace = ({
                 </ul>
                 ) : <p className="book-assembly-edit__empty">No plan imported yet.</p>}
               </details>
+              {selectedNode && <label className="book-assembly-workspace__import-editor">Selected outline title
+                <input value={selectedNode.title ?? ''} disabled={status === 'saving'}
+                  onChange={(event) => { const title = event.currentTarget.value; setNodes((current) => current.map((node) => node.nodeKey === selectedNode.nodeKey ? { ...node, title } : node)); }}
+                  onBlur={() => emit('teacher_materials_book_node_renamed', { nodeKey: selectedNode.nodeKey })} />
+              </label>}
               <div className="book-assembly-edit__plan-import">
                 <button type="button" className="pbf-button" disabled={!structurePromptContext || status === 'saving'} onClick={() => void copyBookStructurePrompt()}>Copy plan prompt</button>
                 <label className="book-assembly-workspace__import-editor">

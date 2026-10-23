@@ -320,6 +320,28 @@ const currentPublicationInput = (uid = 'teacher-1') => ({
 });
 
 describe('Book publication route composition', () => {
+  it('creates fresh component proof readers for every authenticated command', async () => {
+    const reads: string[][] = [];
+    const componentPdf = vi.fn((_env, _owner, _scope) => {
+      const current: string[] = [];
+      reads.push(current);
+      return {
+        readUser: async (context: { actorId: string }) => { current.push(context.actorId); return { role: 'teacher', status: 'active' }; },
+        readAuthority: async () => null, readWholeActivationApprovalInput: async () => null,
+        readActivities: async () => ({}), readPreviewApproval: async () => null, sourceIsPreviewReady: async () => false,
+      };
+    });
+    const handler = createBookAssemblyPublicationRouteHandlers({ componentPdf,
+      repositoryFactory: () => new InMemoryBookAssemblyPublicationRepository(),
+      activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
+    }).componentPdfPublish;
+    for (const uid of ['teacher-1', 'teacher-2']) {
+      expect((await handler({ request: request('/book-assembly/component-pdf-publications'), env: {}, uid })).init.status).toBe(503);
+    }
+    expect(componentPdf).toHaveBeenCalledTimes(2);
+    expect(reads).toEqual([['teacher-1'], ['teacher-2']]);
+  });
+
   it('binds both publication descriptors to the canonical bookAssembly namespace', () => {
     const handlers = createBookRouteHandlers({
       assemblyPublication: {},

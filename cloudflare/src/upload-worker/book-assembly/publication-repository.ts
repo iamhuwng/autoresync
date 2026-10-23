@@ -943,6 +943,7 @@ export class FirebaseRestBookAssemblyPublicationRepository
 implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
   private readonly rtdb: FirebaseRtdbRestClient;
   private readonly readRtdb: FirebaseRtdbRestClient;
+  private readonly supportsAtomicCreate: boolean;
 
   constructor(private readonly options: {
     env: BookAssemblyPublicationRepositoryEnv;
@@ -1053,6 +1054,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       fetchImpl,
       getAccessToken: options.getAccessToken,
     });
+    this.supportsAtomicCreate = scopedClient !== undefined;
     this.readRtdb = firebaseProvider
       ? new FirebaseRtdbRestClient({
           env: { ...options.env, GOOGLE_SA_KEY: undefined },
@@ -1234,6 +1236,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     next: Record<string, unknown>,
     families: readonly string[],
   ): Promise<void> {
+    let additions: { path: string; value: unknown }[] = [];
     for (const family of families) {
       const before = isRecord(current[family]) ? current[family] as Record<string, unknown> : {};
       const after = isRecord(next[family]) ? next[family] as Record<string, unknown> : {};
@@ -1247,8 +1250,34 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
           }
           continue;
         }
-        await this.prepareExact(childPath(bookId, `${family}/${key}`), value);
+        additions.push({ path: `${family}/${key}`, value });
       }
+    }
+    if (this.supportsAtomicCreate && additions.length > 1) {
+      try {
+        // Native create-only rules protect every leaf; visibility still waits for pointer CAS.
+        await this.rtdb.patchMultiLocation(additions, scopePath(bookId));
+        return;
+      } catch {
+        // Reconcile ambiguous success with one authorized read, then retry only still-absent leaves.
+        const observed = await this.rtdb.readValue(scopePath(bookId));
+        additions = additions.filter(({ path, value }) => {
+          const existing = path.split('/').reduce<unknown>((parent, segment) =>
+            isRecord(parent) ? parent[segment] : undefined, observed);
+          if (existing === undefined || existing === null) return true;
+          if (stable(existing) !== stable(value)) {
+            throw new Error(`book_assembly_publication_immutable_conflict:${childPath(bookId, path)}`);
+          }
+          return false;
+        });
+        if (additions.length > 1) {
+          await this.rtdb.patchMultiLocation(additions, scopePath(bookId));
+          return;
+        }
+      }
+    }
+    for (const addition of additions) {
+      await this.prepareExact(childPath(bookId, addition.path), addition.value);
     }
   }
 

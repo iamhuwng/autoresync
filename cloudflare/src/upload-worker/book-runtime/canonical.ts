@@ -175,9 +175,10 @@ export const createBookRuntimeProductionDependencies = (
       },
     });
   };
+  let homeworkDocumentStore: FirebaseRestBookHomeworkDocumentStore | undefined;
   const authorityStore = {
     read: (scope: BookHomeworkAuthorityScope) =>
-      new FirebaseRestBookHomeworkDocumentStore({ env }).read(scope),
+      (homeworkDocumentStore ??= new FirebaseRestBookHomeworkDocumentStore({ env })).read(scope),
   };
   const effectiveActivitySchedulePolicy = activitySchedulePolicy
     ?? createBookHomeworkActivitySchedulePolicyResolver({

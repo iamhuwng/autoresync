@@ -29,6 +29,27 @@ const releaseClaims: CourseBookAuthority102ReleaseClaims = {
 };
 
 describe('FirebaseRtdbRestClient multi-location patch', () => {
+  it('keeps publication patches under one authenticated Book while supporting composite reference keys', async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => Response.json(null));
+    const getFirebaseAuthToken = vi.fn(async () => 'book-token');
+    const client = new FirebaseRtdbRestClient({
+      env: { FIREBASE_DB_URL: 'https://database.example.test' }, fetchImpl,
+      firebaseAuthToken: true, getFirebaseAuthToken,
+    });
+    const basePath = 'book_assembly_publications/books/book-1';
+    const reference = 'm160:' + 'a'.repeat(160) + 'a160:' + 'b'.repeat(160);
+    const updates = [{ path: `activity_versions/${reference}`, value: { revision: 1 } },
+      { path: 'versions/manifest-1', value: { revision: 1 } }];
+    await client.patchMultiLocation(updates, basePath);
+    expect(getFirebaseAuthToken).toHaveBeenCalledWith({ path: basePath, query: undefined });
+    expect(String(fetchImpl.mock.calls[0][0])).toBe(`https://database.example.test/${basePath}.json?auth=book-token`);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toEqual(Object.fromEntries(updates.map(({ path, value }) => [path, value])));
+    for (const invalid of ['../book-1', '/book-1', 'book-1/', 'book-1//other']) {
+      await expect(client.patchMultiLocation(updates, invalid)).rejects.toThrow('firebase_rtdb_multi_location_patch_invalid');
+    }
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves an emulator namespace through path, query and scoped-auth construction', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({}));
     const client = new FirebaseRtdbRestClient({

@@ -92,6 +92,16 @@ const repository = (fetchImpl: typeof fetch, getIdToken = vi.fn(async () => 'fir
 });
 
 describe('durable book assembly preview approval repository', () => {
+  it('reuses an immutable approval but observes a new revocation on the next read', async () => {
+    const fixture = harness();
+    fixture.values.set(approvalPath, approval());
+    const repo = repository(fixture.fetchImpl);
+    expect((await repo.read(BOOK, UNIT, APPROVAL_ID)).revocation).toBeNull();
+    fixture.values.set(revocationPath, revocation());
+    expect((await repo.read(BOOK, UNIT, APPROVAL_ID)).revocation).toEqual(revocation());
+    expect(fixture.calls.filter(call => call.path === approvalPath)).toHaveLength(1);
+    expect(fixture.calls.filter(call => call.path === revocationPath)).toHaveLength(2);
+  });
   it('hydrates an RTDB-omitted empty fingerprint map and replays the reference-only approval', async () => {
     const empty = approval({ canonicalActivityFingerprintsByKey: {} });
     const { canonicalActivityFingerprintsByKey: _empty, ...wire } = empty;

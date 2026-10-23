@@ -538,6 +538,17 @@ implements CanonicalActivityVersionWriter {
     const expectedProjection = canonicalActivityVersionStudentSafeProjection(parsedRecord);
     const rtdb = this.rtdbForPrepare(parsedRecord);
 
+    if (!this.allowCompatibilityRead) {
+      try {
+        await rtdb.patchMultiLocation([{ path: versionPath, value: parsedRecord },
+          { path: projectionPath, value: expectedProjection }]);
+        this.prepared.set(versionPath, parsedRecord);
+        return { status: 'created' };
+      } catch {
+        // Create-only rules reject existing leaves; exact reads reconcile replay or a lost response.
+      }
+    }
+
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const currentVersion = await rtdb.readWithEtag<unknown>(versionPath);
       const currentProjection = await rtdb.readWithEtag<unknown>(projectionPath);
@@ -587,7 +598,15 @@ implements CanonicalActivityVersionWriter {
       if (publication.activityId !== reference.activityId || publication.activityVersionId !== reference.activityVersionId
         || publication.activityVersion !== reference.activityVersion || publication.payloadFingerprint !== reference.canonicalPayloadFingerprint) return null;
       return new FirebaseRestExactPublishedActivityVersionReader({
-        env: this.options.env, fetchImpl: this.options.fetchImpl, getAccessToken: this.options.getAccessToken,
+        // Publication reuses the Assembly identity with exact reader claims when no dedicated override is configured.
+        env: this.options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY
+          || this.options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY
+          ? this.options.env : {
+            ...this.options.env,
+            BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: this.options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY,
+            BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: this.options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY,
+          },
+        fetchImpl: this.options.fetchImpl, getAccessToken: this.options.getAccessToken,
       }).readExact(publication);
     }
     if (!this.allowCompatibilityRead) return null;

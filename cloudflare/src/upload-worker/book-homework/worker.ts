@@ -427,7 +427,7 @@ const teacherRole = (value: unknown): boolean => {
 export const createBookHomeworkOwnerReader = (
   env: BookHomeworkWorkerEnv,
   ownerId: string,
-): ((path: string) => Promise<unknown>) => {
+): ((path: string) => Promise<unknown>) & { readonly getAccessToken?: () => Promise<string> } => {
   const injected = env.readDatabaseValue;
   if (typeof injected === 'function') return injected;
   const serviceAccountJson = typeof env.BOOK_HOMEWORK_GOOGLE_SA_KEY === 'string'
@@ -455,13 +455,17 @@ export const createBookHomeworkOwnerReader = (
     firebaseAuthToken: true,
     getFirebaseAuthToken: () => tokenProvider({ service: 'book_homework', ownerId }),
   });
-  return (path) => client.readValue(path);
+  return Object.assign((path: string) => client.readValue(path), {
+    getAccessToken: () => tokenProvider({ service: 'book_homework', ownerId }),
+  });
 };
 
-const assertTeacher = async (env: BookHomeworkWorkerEnv, uid: string): Promise<void> => {
-  if (!teacherRole(await createBookHomeworkOwnerReader(env, uid)(`users/${uid}`))) {
+const assertTeacher = async (env: BookHomeworkWorkerEnv, uid: string) => {
+  const reader = createBookHomeworkOwnerReader(env, uid);
+  if (!teacherRole(await reader(`users/${uid}`))) {
     throw new BookHomeworkWorkerError('teacher_required', 403);
   }
+  return reader;
 };
 
 const statusFor = (status: BookHomeworkSagaResult['status']): number => {
@@ -499,8 +503,9 @@ export const createBookHomeworkWorkerHandlers = (
   }
   const resolveSaga = async (
     env: BookHomeworkWorkerEnv,
+    runtimeOptions?: Parameters<BookHomeworkTrustedSagaFactory>[1],
   ): Promise<BookHomeworkSagaPort | undefined> =>
-    options.saga ?? await options.sagaFactory?.(env);
+    options.saga ?? await options.sagaFactory?.(env, runtimeOptions);
   const resolveContextResolver = async (
     env: BookHomeworkWorkerEnv,
   ): Promise<BookHomeworkContextResolverPort | undefined> =>
@@ -605,13 +610,14 @@ export const createBookHomeworkWorkerHandlers = (
     readonly executionContext?: Pick<ExecutionContext, 'waitUntil'>;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
-      await assertTeacher(input.env, input.uid);
+      const ownerReader = await assertTeacher(input.env, input.uid);
       const command = parseCommand(
         await readBody(input.request),
         assignmentRouteId(input.assignmentId),
         input.request.headers.get('idempotency-key'),
       );
-      const saga = await resolveSaga(input.env);
+      const saga = await resolveSaga(input.env, ownerReader.getAccessToken
+        ? { getSagaAccessToken: ownerReader.getAccessToken } : undefined);
       const notificationEmitter = saga?.readCommittedAssignment
         ? createBookHomeworkNotificationEmitter({
           ownerId: input.uid,

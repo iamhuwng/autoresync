@@ -607,7 +607,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'teacher_materials_book_assembly_local_discarded', 'teacher_materials_book_assembly_component_unit_selected',
       'teacher_materials_book_assembly_strategy_migration_confirmed', 'teacher_materials_book_assembly_strategy_migration_failed',
       'teacher_materials_book_material_attached', 'teacher_materials_book_material_removed',
-      'teacher_materials_book_node_added', 'teacher_materials_book_node_reordered',
+      'teacher_materials_book_node_added', 'teacher_materials_book_node_reordered', 'teacher_materials_book_node_renamed',
       'teacher_materials_book_node_deleted', 'teacher_materials_book_ref_removed',
       'teacher_materials_book_ref_repaired_existing', 'teacher_materials_book_ref_restore_started',
       'teacher_materials_reading_passage_assigned',

@@ -291,7 +291,9 @@ const makeFirebase = () => {
       });
     }
     const expected = new Headers(init?.headers).get('if-match');
-    if (expected !== `"${versions.get(path) ?? 0}"`) return new Response('', { status: 412 });
+    if (expected === 'null_etag' ? values.has(path) : expected !== `"${versions.get(path) ?? 0}"`) {
+      return new Response('', { status: 412 });
+    }
     values.set(path, JSON.parse(String(init?.body)));
     versions.set(path, (versions.get(path) ?? 0) + 1);
     return new Response('{}', { status: 200 });
@@ -301,9 +303,11 @@ const makeFirebase = () => {
 
 describe('Book Homework assignment saga', () => {
   it('fans out exact recipients, persists extensions, and commits one visibility gate', async () => {
-    const { saga, authority, repository } = makeSaga();
+    const { saga, authority, repository, delivery } = makeSaga();
+    const deliveryReads = vi.spyOn(delivery, 'readBinding');
     const result = await saga.execute(command());
     expect(result.status).toBe('committed');
+    expect(deliveryReads).toHaveBeenCalledTimes(2);
     expect(result.record.visibility).toBe('committed');
     expect(result.record.recipients.map((entry) => entry.recipientId)).toEqual(['student-1', 'student-2']);
     expect((await saga.resolveStudentProjection('assignment-1', 'student-1'))?.delivery.record.status).toBe('active');
@@ -831,7 +835,11 @@ describe('Book Homework assignment saga', () => {
       createdAt,
       updatedAt: createdAt,
     };
-    await expect(repository.create(record)).resolves.toBe(true);
+    await expect(Promise.all([
+      repository.create(record),
+      repository.create({ ...record, fingerprint: 'racing-fingerprint' }),
+    ])).resolves.toEqual([true, false]);
+    expect(firebase.requests[0]?.headers.get('if-match')).toBe('null_etag');
     expect(firebase.requests[0]?.url.searchParams.get('auth')).toBe('test-token');
     expect(firebase.requests[0]?.headers.has('authorization')).toBe(false);
     expect((firebase.values.get('book_homework/operations/assignment-firebase') as {

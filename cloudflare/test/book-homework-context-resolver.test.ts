@@ -232,6 +232,23 @@ describe('Book Homework authoritative return-path resolver', () => {
   });
 
   it.each([
+    ['student launch', recipientId, { kind: 'student-launch', placementId: 'placement-vocab-u1' } as const],
+    ['teacher read', ownerId, { kind: 'teacher-read', recipientId, placementId: 'placement-vocab-u1' } as const],
+  ])('retains the exact assigned publication after a newer publication becomes current for %s', async (_label, actorUid, action) => {
+    const ports = dependencies();
+    const scope = publicationScope();
+    ports.publications.readScope = vi.fn(async () => ({ ...scope,
+      current: { ...scope.current, manifestVersionId: 'manifest-new', publicationId: 'publication-new',
+        publicationRevision: 5, bookRevision: 3 },
+      versions: { ...scope.versions, 'manifest-new': { ...scope.versions['manifest-vocab-u1'],
+        manifestVersionId: 'manifest-new', publicationId: 'publication-new', publicationRevision: 5, bookRevision: 3 } },
+    }) as never);
+    const resolved = await new BookHomeworkAuthoritativeContextResolver(ports).resolve({ assignmentId, actorUid, action });
+    expect(resolved).toMatchObject({ manifestVersionId: 'manifest-vocab-u1', publicationId: 'publication-vocab-u1',
+      publicationRevision: 4, activityVersionId: 'activity-version-vocab-u1', activityVersion: 5 });
+  });
+
+  it.each([
     ['root owner', () => ({ roots: { read: vi.fn(async () => ({ ...root(), ownerId: 'crossed-owner' }) as never) } })],
     ['authority recipient', () => ({ authorities: { read: vi.fn(async () => ({
       ...authority(),
@@ -240,6 +257,12 @@ describe('Book Homework authoritative return-path resolver', () => {
     ['Delivery binding revision', () => ({ deliveries: { resolveCurrent: vi.fn(async () => ({
       ...delivery(),
       record: { ...delivery().record, binding: { ...delivery().record.binding, revision: 99 } },
+    }) as never) } })],
+    ['missing historical publication', () => ({ publications: { readScope: vi.fn(async () => ({
+      ...publicationScope(), versions: {},
+    }) as never) } })],
+    ['historical publication owner', () => ({ publications: { readScope: vi.fn(async () => ({
+      ...publicationScope(), versions: { 'manifest-vocab-u1': { ...publicationScope().versions['manifest-vocab-u1'], ownerId: 'foreign-owner' } },
     }) as never) } })],
     ['publication revision', () => ({ publications: { readScope: vi.fn(async () => ({
       ...publicationScope(),

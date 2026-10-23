@@ -111,12 +111,6 @@ const exactManifest = (
   authority: BookHomeworkAuthorityRecord,
 ): BookAssemblyImmutableManifestVersion | null => {
   const book = authority.bookManifest.book;
-  const current = scope.current;
-  if (!current
-    || current.manifestVersionId !== authority.bookManifest.manifestVersionId
-    || current.publicationId !== book.publicationId
-    || current.publicationRevision !== book.publicationRevision
-    || current.bookRevision !== book.bookRevision) return null;
   return sole(Object.values(scope.versions ?? {}).filter((manifest) => (
     manifest.lifecycle === 'published'
     && manifest.ownerId === authority.ownerId

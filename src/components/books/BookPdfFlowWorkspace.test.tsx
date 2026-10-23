@@ -650,7 +650,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(priorPublication.pointer.bookRevision).toBe(titledCandidate.bookRevision);
     expect(priorPublication.pointer.sourceSetRevision).toBe(titledCandidate.sourceSetRevision);
     expect(screen.queryByRole('button', { name: 'Review publication' })).not.toBeInTheDocument();
-    expect(screen.getByText('Reviewed version ready to publish')).toBeInTheDocument();
+    expect(screen.getByText('Review the revised source pages before responding.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Unit 1 is published' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Publish Growing Up' }));
     const confirmation = screen.getByRole('dialog', { name: 'Publish Growing Up?' });
@@ -681,6 +681,10 @@ describe('BookPdfFlowWorkspace student preview', () => {
 
     await waitFor(() => expect(decideStudentSafeSource).toHaveBeenCalledWith('book-1'));
     expect(client.publishFull).toHaveBeenCalledTimes(1);
+    expect(client.publishFull.mock.calls[0]![0].previewApproval).toEqual({
+      approvalId: 'approval-1', approvalRevision: 1,
+      approvedAt: '2026-08-28T00:00:00.000Z', expiresAt: '2026-08-29T00:00:00.000Z',
+    });
   });
 
   it('keeps the publish confirmation open and publishes nothing on stale or hash-mismatched safety failure', async () => {
@@ -858,7 +862,7 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(client.publishFull).toHaveBeenCalledTimes(1);
   });
 
-  it('treats a persisted publication pointer as live after reopen', async () => {
+  it('keeps the persisted publication live while offering a reviewed successor after reopen', async () => {
     const user = userEvent.setup();
     const client = previewClient('full_pdf');
     render(
@@ -875,7 +879,9 @@ describe('BookPdfFlowWorkspace student preview', () => {
     await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
     await user.click(screen.getByRole('button', { name: /Publish$/i }));
 
-    expect(screen.getAllByRole('heading', { name: 'Unit 1 is published' })).toHaveLength(2);
+    expect(screen.getByText('Reviewed version ready to publish')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish Unit 1', exact: true })).toBeEnabled();
+    expect(client.publishFull).not.toHaveBeenCalled();
     expect(screen.queryByText('Nothing is published yet')).not.toBeInTheDocument();
   });
 
@@ -1029,7 +1035,10 @@ describe('BookPdfFlowWorkspace student preview', () => {
   it('previews the selected saved Unit and invalidates preview when the Unit or saved candidate changes', async () => {
     const user = userEvent.setup();
     const selected = { ...candidate('full_pdf'), candidateId: 'candidate-a', unitKey: 'unit-a' };
-    const fullSource = { ...sourceVersion('source-b'), sourceKey: 'full', checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) } };
+    const fullSource = { ...trustedSourceVersion('source-b', 'full'), studentSafeStatus: 'ready' as const,
+      studentSafeDecision: safetyDecision().studentSafeDecision };
+    const decideStudentSafeSource = vi.fn(async () => { throw new Error('invalid_operation'); });
+    const workflow = { ...fullUploadWorkflow(decideStudentSafeSource), load: vi.fn(async () => null) };
     const loadCurrent = vi.fn(async () => ({ candidate: selected, savedActivityKeysByUnit: {} }));
     const replace = vi.fn(async (input: { manifest: BookAssemblyCandidateRecord['manifest'] }) => ({
       status: 'replaced', candidate: { ...candidate('full_pdf'), manifest: input.manifest, revision: 5 },
@@ -1041,8 +1050,10 @@ describe('BookPdfFlowWorkspace student preview', () => {
     }) }));
     const props = {
       access: 'owner' as const, bookId: 'book-1', title: 'Book', presentation: 'modal' as const,
-      experience: 'focused-editing' as const, editingSection: 'preview' as const, uploadWorkflow: null,
+      experience: 'focused-editing' as const, editingSection: 'preview' as const,
+      uploadWorkflow: workflow,
       assemblySourceVersions: [fullSource], assemblyInitialCandidate: candidate('full_pdf'),
+      assemblyInitialPublication: currentPublication, assemblyInitialPublicationStatus: 'loaded' as const,
       assemblyBookRevision: 2, assemblySourceSetRevision: 3, assemblyPreviewClient: client,
       assemblyRepository: { loadCurrent, replace } as unknown as UnitAssemblyRepository,
     };
@@ -1051,6 +1062,19 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a');
     expect(client.preview).toHaveBeenCalledWith(expect.objectContaining({ unitKey: 'unit-a', candidateId: 'candidate-a' }));
     expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Approve this preview' }));
+    const publishButton = screen.getByRole('button', { name: 'Publish Selected Unit', exact: true });
+    expect(publishButton).toBeEnabled();
+    await user.click(publishButton);
+    await user.click(within(screen.getByRole('dialog', { name: 'Publish Selected Unit?' }))
+      .getByRole('button', { name: 'Publish Selected Unit', exact: true }));
+    await waitFor(() => expect(client.publishFull).toHaveBeenCalledWith(expect.objectContaining({
+      bookId: 'book-1', unitKey: 'unit-a', candidateId: 'candidate-a', expectedCandidateRevision: selected.revision,
+      expectedBookRevision: 2, expectedSourceSetRevision: 3,
+      expectedCurrentPublicationId: currentPublication.pointer.publicationId,
+    })));
+    expect(decideStudentSafeSource).not.toHaveBeenCalled();
+    expect(workflow.start).not.toHaveBeenCalled();
     view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-b" />);
     expect(screen.getByRole('button', { name: 'Approve this preview' })).toBeDisabled();
     view.rerender(<BookPdfFlowWorkspace {...props} previewUnitKey="unit-a" />);
@@ -1256,6 +1280,11 @@ describe('BookPdfFlowWorkspace student preview', () => {
     expect(screen.getByRole('region', { name: 'Unit activities' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Edit Activity JSON' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Book hierarchy' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Paste returned JSON'), { target: { value: '{"unfinished":' } });
+    view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="pdf-files" />);
+    expect(screen.queryByRole('region', { name: 'Unit activities' })).not.toBeInTheDocument();
+    view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="activity-json" />);
+    expect(screen.getByLabelText('Paste returned JSON')).toHaveValue('{"unfinished":');
 
     view.rerender(<BookPdfFlowWorkspace {...commonProps} editingSection="preview" />);
     expect(screen.getByRole('region', { name: 'Preview corrections' })).toBeInTheDocument();

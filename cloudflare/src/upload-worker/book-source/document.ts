@@ -54,7 +54,7 @@ import {
   FirebaseRestBookDeliveryRepository,
 } from '../book-delivery/repository.ts';
 import {
-  createTrustedBookDeliveryPublication,
+  createTrustedBookDeliveryBindingPublication,
 } from '../book-delivery/worker.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
@@ -582,15 +582,7 @@ export const defaultRuntimeFactory = (
         throw new Error('unsupported_book_document_context');
       }
       const scope = await publicationRepository.readScope(binding.book.bookId);
-      const publication = createTrustedBookDeliveryPublication({
-        bookId: binding.book.bookId,
-        publicationId: binding.book.publicationId,
-        publicationRevision: binding.book.publicationRevision,
-        recipientId: binding.recipient.recipientId,
-        contextKind: binding.context.kind as 'solo' | 'preview' | 'homework' | 'course' | 'class',
-        contextId: binding.context.contextId,
-        scope: binding.scope,
-      }, scope, binding.schedulePolicy);
+      const publication = createTrustedBookDeliveryBindingPublication(binding, scope);
       const accountState = await readAccountState();
       const sourceVersionIds = publication.sourceSet.sources.map(
         (source) => source.sourceVersionId,

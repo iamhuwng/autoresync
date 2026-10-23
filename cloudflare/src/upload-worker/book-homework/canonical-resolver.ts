@@ -710,10 +710,11 @@ const loadPublication = async (
   command: BookHomeworkSagaCommand,
   target: BookHomeworkSelectionTarget,
   recipientId: string,
+  scope?: AssemblyScope<BookAssemblyPublicationResult>,
 ): Promise<BookDeliveryPublishedPublicationReference> => {
   const loader = options.loadTrustedPublication ?? options.loadPublication;
   if (loader) {
-    const publication = await loader({ command, recipientId });
+    const publication = await loader({ command, recipientId, ...(scope ? { scope } : {}) });
     try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
       fail('invalid-publication', error instanceof Error ? error.message : 'Trusted publication is invalid.');
     }
@@ -721,7 +722,7 @@ const loadPublication = async (
   }
   const readScope = options.readPublicationScope as NonNullable<typeof options.readPublicationScope> | undefined;
   if (!readScope) fail('invalid-publication', 'No trusted publication loader or Assembly scope reader is configured.');
-  const scope = await (readScope as NonNullable<typeof readScope>)(command.intent.bookId);
+  scope ??= await (readScope as NonNullable<typeof readScope>)(command.intent.bookId);
   const selection = targetSelectionForScope(target, scope, command.intent.expectedPublication);
   const publication = createTrustedBookDeliveryPublication(
     {
@@ -753,7 +754,10 @@ const resolveCanonical = async (
   const classId = command.intent.target.classId;
   await authorizeClassRecipients(options, command.ownerId, classId, selected);
 
-  const publication = await loadPublication(options, command, target, selected[0]!);
+  const scope = options.readPublicationScope
+    ? await options.readPublicationScope(command.intent.bookId)
+    : undefined;
+  const publication = await loadPublication(options, command, target, selected[0]!, scope);
   try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
     fail('invalid-publication', error instanceof Error ? error.message : 'Published Delivery reference is invalid.');
   }
@@ -772,9 +776,6 @@ const resolveCanonical = async (
   }
   publicationTargetMatches(target, publication);
 
-  const scope = options.readPublicationScope
-    ? await options.readPublicationScope(command.intent.bookId)
-    : undefined;
   if (publication.sourceSet.strategy === 'component_pdfs' && !scope) {
     fail('not-ready', 'Book Homework requires one complete student-safe PDF.');
   }

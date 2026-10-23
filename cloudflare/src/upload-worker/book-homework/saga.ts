@@ -758,6 +758,7 @@ export class BookHomeworkAssignmentSaga {
     const binding = this.createBinding(entry, canonical, command.createdAt);
     await this.step('delivery-prepare', entry.recipientId);
     const existingDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
+    let currentDelivery = existingDelivery;
     if (!existingDelivery) {
       const prepared = await this.dependencies.deliveryRepository.createDraft({
         binding,
@@ -767,6 +768,7 @@ export class BookHomeworkAssignmentSaga {
       if (!['created', 'replayed'].includes(prepared.status)) {
         throw new BookHomeworkSagaError('delivery-prepare-failed', `Delivery prepare failed: ${prepared.status}.`);
       }
+      currentDelivery = prepared.record ?? null;
     } else if (existingDelivery.binding.recipient.recipientId !== entry.recipientId
       || existingDelivery.binding.context.contextId !== record.contextId
       || !['draft', 'active'].includes(existingDelivery.status)
@@ -776,8 +778,13 @@ export class BookHomeworkAssignmentSaga {
     next = await this.replaceEntry(next, index, { ...entry, state: 'prepared' }, command.createdAt);
     entry = next.recipients[index];
 
-    const currentDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
     if (!currentDelivery) throw new BookHomeworkSagaError('delivery-missing', 'Prepared Delivery binding disappeared.');
+    if (currentDelivery.binding.recipient.recipientId !== entry.recipientId
+      || currentDelivery.binding.context.contextId !== record.contextId
+      || deliveryContract(currentDelivery.binding) !== deliveryContract(binding)) {
+      throw new BookHomeworkSagaError('delivery-conflict', 'Prepared Delivery binding crosses the recipient boundary.');
+    }
+    let activeDelivery = currentDelivery;
     if (currentDelivery.status === 'draft') {
       await this.step('delivery-activate', entry.recipientId);
       const activated = await this.dependencies.deliveryRepository.activate({
@@ -789,11 +796,17 @@ export class BookHomeworkAssignmentSaga {
       if (!['activated', 'replayed'].includes(activated.status)) {
         throw new BookHomeworkSagaError('delivery-activate-failed', `Delivery activation failed: ${activated.status}.`);
       }
+      if (!activated.record) throw new BookHomeworkSagaError('delivery-missing', 'Active Delivery mutation has no record.');
+      activeDelivery = activated.record;
     } else if (currentDelivery.status !== 'active') {
       throw new BookHomeworkSagaError('delivery-conflict', 'Delivery binding is no longer activatable.');
     }
-    const activeDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
     if (!activeDelivery || activeDelivery.status !== 'active') throw new BookHomeworkSagaError('delivery-missing', 'Active Delivery binding could not be read back.');
+    if (activeDelivery.binding.recipient.recipientId !== entry.recipientId
+      || activeDelivery.binding.context.contextId !== record.contextId
+      || deliveryContract(activeDelivery.binding) !== deliveryContract(binding)) {
+      throw new BookHomeworkSagaError('delivery-conflict', 'Active Delivery binding crosses the recipient boundary.');
+    }
     next = await this.replaceEntry(next, index, {
       ...entry,
       state: 'active',

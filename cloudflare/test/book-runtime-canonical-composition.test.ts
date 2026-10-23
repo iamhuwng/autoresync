@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { decodeJwt, exportPKCS8, generateKeyPair } from 'jose';
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
 import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service.ts';
 import {
@@ -223,6 +224,47 @@ const env = {
 };
 
 describe('Ticket #59 canonical Book Runtime composition', () => {
+  it('reuses authority credentials within one command without caching live authority reads', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const identity = 'homework@synthetic.test';
+    const runtimeEnv = {
+      ...env,
+      BOOK_HOMEWORK_SERVICE_IDENTITY: identity,
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({ client_email: identity, private_key: await exportPKCS8(privateKey) }),
+    };
+    const claims: unknown[] = [];
+    let authorityReads = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input, init) => {
+      if (String(input).includes('identitytoolkit.googleapis.com')) {
+        claims.push(decodeJwt(JSON.parse(String(init?.body)).token).claims);
+        return Response.json({ idToken: 'synthetic-token', expiresIn: '3600' });
+      }
+      expect(String(input)).toContain('firestore.googleapis.com');
+      authorityReads += 1;
+      return new Response('', { status: 404 });
+    });
+    try {
+      const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
+      const resolve = (dependencies = production, current = binding()) => dependencies.resolveAttemptPolicy!({
+        binding: current, placementId: 'placement-1', activityId: 'activity-1',
+        activityVersion: 1, interactionId: 'interaction-1', env: runtimeEnv,
+      });
+      // A fresh submit reads authority six times across scheduling and durable projections.
+      for (let read = 0; read < 6; read += 1) await expect(resolve()).resolves.toBeNull();
+      expect(authorityReads).toBe(6);
+      expect(claims).toHaveLength(1);
+      await resolve(production, { ...binding(), context: { ...binding().context, contextId: 'context-2' } });
+      expect(claims).toHaveLength(2);
+      expect(claims[0]).not.toEqual(claims[1]);
+      await resolve(createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined));
+      expect(authorityReads).toBe(8);
+      expect(claims).toHaveLength(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('registers runtime handlers through the default route composition', () => {
     const handlers = createBookRouteHandlers();
     expect(typeof handlers['bookRuntime.command']).toBe('function');

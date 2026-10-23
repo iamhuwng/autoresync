@@ -8,6 +8,7 @@ import {
   BookDeliveryWorkerError,
   createBookDeliveryWorkerHandlers,
   createTrustedBookDeliveryPublication,
+  createTrustedBookDeliveryBindingPublication,
 } from '../src/upload-worker/book-delivery/worker';
 import {
   makeBookAssemblyPublicationScope,
@@ -259,6 +260,25 @@ describe('Book Delivery Worker contract', () => {
       publicationId: 'publication-1',
       placements: [{ activityVersionId: 'activity-1-v1', sourcePageScopes: [{ sourceKey: 'full', pages: [1] }] }],
     });
+  });
+
+  it('reads an assigned immutable publication after current advances while refusing new issuance from it', () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope());
+    scope.current = { ...scope.current!, publicationId: 'publication-new', manifestVersionId: 'manifest-new', publicationRevision: 5 };
+    const binding = makeBookDeliveryTestBinding();
+    expect(() => createTrustedBookDeliveryPublication(makeBookDeliveryIssuanceIntent(), scope, binding.schedulePolicy))
+      .toThrow('book_delivery_publication_stale');
+    expect(createTrustedBookDeliveryBindingPublication(binding, scope)).toMatchObject({
+      manifestVersionId: binding.book.manifestVersionId, publicationId: binding.book.publicationId,
+      placements: [{ activityVersionId: 'activity-1-v1' }],
+    });
+    for (const change of [{ ownerId: 'foreign-owner' }, { publicationRevision: 99 }, { bookRevision: 99 }, { lifecycle: 'draft' }]) {
+      const crossed = structuredClone(scope);
+      Object.assign(crossed.versions!['manifest-1'], change);
+      expect(() => createTrustedBookDeliveryBindingPublication(binding, crossed)).toThrow('book_delivery_publication_invalid');
+    }
+    delete scope.versions!['manifest-1'];
+    expect(() => createTrustedBookDeliveryBindingPublication(binding, scope)).toThrow('book_delivery_publication_invalid');
   });
 
   it('accepts a preserved Activity Version stored under a composite key', () => {

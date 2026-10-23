@@ -243,6 +243,7 @@ describe('Book Homework canonical resolver', () => {
   });
 
   const previewOptions = (scope = makeBookAssemblyPublicationScope()) => {
+    const readPublicationScope = vi.fn(async () => scope);
     const readClass = vi.fn(async () => ({
       classId: 'class-1',
       ownerId: 'teacher-1',
@@ -251,9 +252,10 @@ describe('Book Homework canonical resolver', () => {
     }));
     return {
       readClass,
+      readPublicationScope,
       options: createBookHomeworkCanonicalResolver({
         classReader: readClass,
-        readPublicationScope: async () => scope,
+        readPublicationScope,
       }),
     };
   };
@@ -345,20 +347,23 @@ describe('Book Homework canonical resolver', () => {
 
   it('requires real component document and preview receipts and rejects omitted, synthetic, or crossed confirmation facts', async () => {
     const scope = componentScope();
-    const { options: resolver } = previewOptions(scope);
+    const { options: resolver, readPublicationScope } = previewOptions(scope);
     const preview = await resolver.resolvePreviewSource({
       ownerId: 'teacher-1', bookId: 'book-pdf-1', unitKey: 'unit-1', classId: 'class-1',
       selectedRecipientIds: ['student-1'], contextId: 'preview-component', createdAt,
     });
     const valid = componentCommand(preview);
+    readPublicationScope.mockClear();
     await expect(resolver.resolve(valid)).resolves.toMatchObject({
       manifest: { studentDocument: valid.intent.expectedStudentDocument },
     });
+    expect(readPublicationScope).toHaveBeenCalledTimes(1);
     for (const intent of [
       { ...valid.intent, expectedStudentDocument: undefined, expectedPreviewFingerprint: undefined },
       { ...valid.intent, expectedStudentDocument: { sourceVersionId: 'student-document-v1', descriptorRevision: 0, sha256Hex: '0'.repeat(64) } },
       { ...valid.intent, expectedPreviewFingerprint: 'crossed-preview' },
     ]) await expect(resolver.resolve({ ...valid, intent })).rejects.toMatchObject({ code: 'stale-input' });
+    expect(readPublicationScope).toHaveBeenCalledTimes(4);
   });
 
   it.each([

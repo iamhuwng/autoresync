@@ -223,6 +223,38 @@ export const createTrustedBookDeliveryPublication = (
     || version.sourceSetRevision !== current.sourceSetRevision) {
     throw new BookDeliveryWorkerError('book_delivery_publication_invalid', 409);
   }
+  return projectTrustedBookDeliveryPublication(intent, scope, schedulePolicy, version);
+};
+
+export const createTrustedBookDeliveryBindingPublication = (
+  binding: BookDeliveryBinding,
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+): BookDeliveryPublishedPublicationReference => {
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version || version.lifecycle !== 'published'
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.bookId !== binding.book.bookId || version.bookRevision !== binding.book.bookRevision
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.strategy !== binding.sourceSet.strategy) {
+    throw new BookDeliveryWorkerError('book_delivery_publication_invalid', 409);
+  }
+  return projectTrustedBookDeliveryPublication({
+    bookId: binding.book.bookId, publicationId: binding.book.publicationId,
+    publicationRevision: binding.book.publicationRevision,
+    recipientId: binding.recipient.recipientId,
+    contextKind: binding.context.kind as RunnableContextKind,
+    contextId: binding.context.contextId, scope: binding.scope,
+  }, scope, binding.schedulePolicy, version);
+};
+
+const projectTrustedBookDeliveryPublication = (
+  intent: BookDeliveryIssuanceIntent,
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+  schedulePolicy: BookDeliverySchedulePolicyReference,
+  version: NonNullable<BookAssemblyPublicationScope<BookAssemblyPublicationResult>['versions']>[string],
+): BookDeliveryPublishedPublicationReference => {
   const preservedByMappingChain = (
     activityVersion: NonNullable<typeof scope.activityVersions>[string],
   ): boolean => {
@@ -514,21 +546,13 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
     if (!authority) return null;
     const scope = await new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId }).readScope(binding.book.bookId);
     const qualified = resolveActiveComponentStudentDocument(authority, scope);
-    const current = scope.current;
-    if (!qualified || !current
+    const version = scope.versions?.[binding.book.manifestVersionId];
+    if (!qualified || !version
       || qualified.activation.bookRevision !== binding.book.bookRevision
-      || qualified.activation.sourceSetRevision !== current.sourceSetRevision
-      || current.bookRevision !== binding.book.bookRevision) return null;
+      || qualified.activation.sourceSetRevision !== version.sourceSetRevision
+      || version.bookRevision !== binding.book.bookRevision) return null;
     try {
-      createTrustedBookDeliveryPublication({
-        bookId: binding.book.bookId,
-        publicationId: binding.book.publicationId,
-        publicationRevision: binding.book.publicationRevision,
-        recipientId: binding.recipient.recipientId,
-        contextKind: binding.context.kind as RunnableContextKind,
-        contextId: binding.context.contextId,
-        scope: binding.scope,
-      }, scope, binding.schedulePolicy);
+      createTrustedBookDeliveryBindingPublication(binding, scope);
     } catch {
       return null;
     }
