@@ -21,11 +21,17 @@ Catalog summaries remain metadata-only.
 - Observed prior Worker: `r2-upload-signer`, version
   `0204f76d-e1bd-4595-96f3-492a332ecb38`, allocated 100%.
 - Deployed source matched the stable bundle plus temporary upload diagnostics.
-  The three diagnostic Worker files are preserved in commit `4a5761c4`.
+  The three diagnostic Worker files were captured in commit `4a5761c4` for
+  source provenance. The user then requested completing the interrupted
+  diagnostic cleanup, so the final candidate removes those hooks and retains
+  the publication correction. Live frontend bundles already contain no
+  temporary upload diagnostics; no Hosting release is needed.
 - Original repository regression: 3 failing tests reproduced absent runtime and
   lobby indexes and missing projection-failure recovery.
 - Final affected Worker checks: 49 tests passed across six files, covering the
   projection, repository, RTDB client, authoring, uploads, and audio delivery.
+- After diagnostic cleanup: the 20 affected upload/authoring checks passed
+  again, and the clean Worker audited dry run passed.
 - Audited Wrangler dry run passed. The ignored verification configuration only
   resolves existing canonical `pdfjs-dist` dependencies; production bindings
   and runtime settings are unchanged.
@@ -34,5 +40,12 @@ Catalog summaries remain metadata-only.
 The live test's existing successful publication operation can be replayed with
 the corrected repository to reconstruct its missing projections. Restrict the
 repair to its stable test/version identity and verify every resulting path.
-This is separate from deploying the Worker; local checks alone do not prove
-the deployed version or the repaired live browser flow.
+The existing operation was replayed successfully: all 38 projection paths were
+read back and verified. The real teacher Public Library search now displays
+the exact title, 40 questions, IELTS Listening, and 50-minute duration. This
+repair created no additional immutable version and changed no other material.
+
+Local browser verification was unavailable because the local RTDB and Worker
+were not listening. The authenticated deployed browser flow was verified
+instead. Full test completion, grading, and a new large audio upload were not
+repeated; the affected Worker contracts were covered by the checks above.

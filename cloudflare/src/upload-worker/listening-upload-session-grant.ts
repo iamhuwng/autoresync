@@ -9,21 +9,6 @@ const LOCAL_APP_ORIGINS = new Set([
   'http://localhost:5174',
 ]);
 
-const readListeningUploadNetwork = (request: Request) => {
-  const cf = (request as Request & { cf?: Record<string, unknown> }).cf;
-  const edgeL4 = cf?.edgeL4;
-  const edgeDeliveryRate = edgeL4 && typeof edgeL4 === 'object'
-    ? (edgeL4 as Record<string, unknown>).deliveryRate
-    : undefined;
-  return {
-    colo: typeof cf?.colo === 'string' ? cf.colo : undefined,
-    httpProtocol: typeof cf?.httpProtocol === 'string' ? cf.httpProtocol : undefined,
-    clientTcpRttMs: typeof cf?.clientTcpRtt === 'number' ? cf.clientTcpRtt : undefined,
-    quicRttMs: typeof cf?.quicRtt === 'number' ? cf.quicRtt : undefined,
-    edgeDeliveryRateBytesPerSecond: typeof edgeDeliveryRate === 'number' ? edgeDeliveryRate : undefined,
-  };
-};
-
 const fail = (reason: string, status = 403): never => {
   throw new GrantAuthorityError(reason, status);
 };
@@ -122,7 +107,6 @@ const parseBridgeGrant = async (input: {
   }
   return {
     payload,
-    assetId,
     key,
     contentType,
     sizeBytes,
@@ -137,7 +121,6 @@ export const handleListeningUploadSessionGrant = async (input: {
   uid: string;
   now: () => number;
 }) => {
-  const startedAt = input.now();
   const grant = await parseBridgeGrant({
     env: input.env,
     grant: input.url.searchParams.get('assetGrant'),
@@ -160,46 +143,11 @@ export const handleListeningUploadSessionGrant = async (input: {
   if (grant.sizeBytes <= 0 || sizeBytes <= 0) fail('invalid_bridge_grant');
   if (sizeBytes !== grant.sizeBytes) fail('size_mismatch', 400);
 
-  console.info('listening_upload_diag_v2_transport_authorized', {
-    assetId: grant.assetId,
-    sizeBytes: grant.sizeBytes,
-    contentType: grant.contentType,
-    contentLength,
-    requestOrigin,
-    authorizationElapsedMs: input.now() - startedAt,
-    network: readListeningUploadNetwork(input.request),
-  });
-
   await consumeGrantNonce({ env: input.env, payload: grant.payload });
   const existingObject = await input.env.R2_BUCKET.get(grant.key);
-  if (existingObject) {
-    console.warn('listening_upload_diag_v2_transport_destination_exists', {
-      assetId: grant.assetId,
-      sizeBytes: grant.sizeBytes,
-      totalElapsedMs: input.now() - startedAt,
-    });
-    return { body: { error: 'Destination already exists' }, init: { status: 409 } };
-  }
-  const r2StartedAt = input.now();
-  try {
-    await input.env.R2_BUCKET.put(grant.key, input.request.body, {
-      httpMetadata: { contentType: grant.contentType },
-    });
-  } catch (error) {
-    console.error('listening_upload_diag_v2_transport_failed', {
-      assetId: grant.assetId,
-      sizeBytes: grant.sizeBytes,
-      r2ElapsedMs: input.now() - r2StartedAt,
-      totalElapsedMs: input.now() - startedAt,
-      errorName: error instanceof Error ? error.name : 'unknown',
-    });
-    throw error;
-  }
-  console.info('listening_upload_diag_v2_transport_completed', {
-    assetId: grant.assetId,
-    sizeBytes: grant.sizeBytes,
-    r2ElapsedMs: input.now() - r2StartedAt,
-    totalElapsedMs: input.now() - startedAt,
+  if (existingObject) return { body: { error: 'Destination already exists' }, init: { status: 409 } };
+  await input.env.R2_BUCKET.put(grant.key, input.request.body, {
+    httpMetadata: { contentType: grant.contentType },
   });
   return {
     body: { success: true, url: `${input.env.PUBLIC_URL}/${grant.key}`, key: grant.key },
