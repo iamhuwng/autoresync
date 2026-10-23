@@ -507,6 +507,19 @@ export class FirebaseRtdbRestClient {
     if (!this.options.firebaseAuthToken) {
       throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
     }
+    await this.patchLocations(updates);
+  }
+
+  async patchAdminMultiLocation(updates: Readonly<Record<string, unknown>>): Promise<void> {
+    if (this.options.firebaseAuthToken) {
+      throw new Error('firebase_rtdb_admin_patch_requires_service_account');
+    }
+    await this.patchLocations(Object.entries(updates).map(([path, value]) => ({ path, value })));
+  }
+
+  private async patchLocations(
+    updates: readonly { readonly path: string; readonly value: unknown }[],
+  ): Promise<void> {
     if (!Array.isArray(updates) || updates.length < 2) {
       throw new Error('firebase_rtdb_multi_location_patch_invalid');
     }
