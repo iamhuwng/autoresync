@@ -20,6 +20,7 @@ export interface CanonicalActivityVersionWriter {
   ): Promise<CanonicalActivityVersionPrepareResult>;
   readPrepared(
     reference: BookAssemblyActivityVersionReference,
+    publication?: ExactPublishedActivityVersionRequest,
   ): Promise<CanonicalPublishedActivityVersionRecord | null>;
 }
 
@@ -32,6 +33,8 @@ export interface ExactPublishedActivityVersionRequest {
   readonly activityVersionId: string;
   readonly activityVersion: number;
   readonly payloadFingerprint: string;
+  /** When supplied, the reader must prove this placement in the exact local publication. */
+  readonly placementId?: string;
 }
 
 /**

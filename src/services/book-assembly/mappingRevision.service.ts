@@ -462,6 +462,8 @@ export const createMappingRevisionPublicationPlan = (
     },
   };
   const plan: BookAssemblyPublicationAdapterPlan = {
+    ...(input.predecessor.studentDocument && stable(input.predecessor.manifest.sourceSet) === stable(input.targetManifest.sourceSet)
+      ? { studentDocument: clone(input.predecessor.studentDocument) } : {}),
     strategy: input.predecessor.strategy,
     planId: input.ids.planId,
     adapterTicket: '18',

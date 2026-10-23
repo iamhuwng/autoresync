@@ -40,7 +40,7 @@ type PdfFlowStep = 1 | 2 | 3 | 4 | 5;
 type AssemblyStep = 'mode' | 'outline' | 'pages' | 'review';
 type PublicationRefreshStatus = 'ready' | 'pending' | 'error';
 export type BookCurrentPublicationStatus = 'loading' | 'loaded' | 'error';
-export type BookPdfEditorSection = 'pdf-files' | 'content-tree' | 'activity-json' | 'page-mapping' | 'preview';
+export type BookPdfEditorSection = 'pdf-files' | 'content-tree' | 'activity-json' | 'preview';
 
 interface SourceSlot {
   readonly id: string;
@@ -91,6 +91,9 @@ export interface BookPdfFlowWorkspaceProps {
   readonly presentation: 'modal' | 'page-compat';
   readonly experience: 'guided-creation' | 'focused-editing';
   readonly editingSection?: BookPdfEditorSection;
+  readonly previewUnitKey?: string;
+  readonly onPreviewUnitChange?: (unitKey: string) => void;
+  readonly onOpenPlan?: () => void;
   readonly uploadWorkflow: SourceUploadBrowserWorkflow | null;
   readonly uploadWorkflowForSource?: (sourceKey: string) => SourceUploadBrowserWorkflow | null;
   readonly uploadUnavailableMessage?: string;
@@ -151,6 +154,7 @@ const isConflictFailure = (error: unknown): boolean => {
 const actionableFailureToast = (error: unknown, fallback: string): string => {
   const code = failureCode(error);
   const status = failureStatus(error);
+  if (code === 'full_pdf_sibling_review_required') return 'Another published Unit has changed or is missing from this plan. Review those changes before publishing. Your draft is unchanged.';
   if (isConflictFailure(error)) return 'The Book changed elsewhere. Refresh and retry.';
   if (status === 401 || code.includes('unauthorized')) return 'Your session expired. Sign in again and retry.';
   if (status === 403 || code.includes('forbidden') || code.includes('permission')) return 'You no longer have access to this Book. Reopen it and retry.';
@@ -202,6 +206,9 @@ const BookPdfFlowWorkspace = ({
   presentation,
   experience,
   editingSection,
+  previewUnitKey,
+  onPreviewUnitChange,
+  onOpenPlan,
   uploadWorkflow,
   uploadWorkflowForSource,
   uploadUnavailableMessage,
@@ -251,13 +258,16 @@ const BookPdfFlowWorkspace = ({
   const [replacingSourceId, setReplacingSourceId] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<BookAssemblyCandidateRecord | null>(assemblyInitialCandidate ?? null);
   const [previewProjection, setPreviewProjection] = useState<CandidateUnitPreviewProjection | null>(null);
+  const [savedActivitySummary, setSavedActivitySummary] = useState<CandidateUnitPreviewProjection | null>(null);
+  const [savedActivitySummaryLoad, setSavedActivitySummaryLoad] = useState<{ key: string; status: 'loading' | 'error' } | null>(null);
+  const [savedActivitySummaryRetry, setSavedActivitySummaryRetry] = useState(0);
   const [dismissedPreviewIdentity, setDismissedPreviewIdentity] = useState<string | null>(null);
-  const [previewApproval, setPreviewApproval] = useState<BookAssemblyPreviewApprovalReference | null>(null);
+  const [previewApproval, setPreviewApproval] = useState<FlowPreviewApproval | null>(null);
   const [previewQualification, setPreviewQualification] = useState<WholeActivationApprovalQualification | null>(null);
   const [componentPreviewInput, setComponentPreviewInput] = useState<{
     readonly bookId: string; readonly unitKey: string; readonly candidateId: string; readonly expectedCandidateRevision: number;
   } | null>(null);
-  const [componentApprovals, setComponentApprovals] = useState<Record<string, BookAssemblyPreviewApprovalReference>>({});
+  const [componentApprovals, setComponentApprovals] = useState<Record<string, FlowPreviewApproval>>({});
   const [currentPublication, setCurrentPublication] = useState<BookAssemblyCurrentPublication | null>(
     assemblyInitialPublicationStatus === 'loaded' ? assemblyInitialPublication ?? null : null,
   );
@@ -271,6 +281,7 @@ const BookPdfFlowWorkspace = ({
   const [effectiveAssemblyBookRevision, setEffectiveAssemblyBookRevision] = useState(assemblyBookRevision);
   const [effectiveAssemblySourceSetRevision, setEffectiveAssemblySourceSetRevision] = useState(assemblySourceSetRevision);
   const [assemblyDirty, setAssemblyDirty] = useState(false);
+  const [previewBlocked, setPreviewBlocked] = useState(true);
   const [combinedFiles, setCombinedFiles] = useState<CombinedPdfSelection[]>([]);
   const [combinedPhase, setCombinedPhase] = useState<CombinedPdfPhase>('files');
   const [combinedResult, setCombinedResult] = useState<ComponentPdfCompositionResult | null>(null);
@@ -293,6 +304,48 @@ const BookPdfFlowWorkspace = ({
   const [replacementOperationId, setReplacementOperationId] = useState<string | null>(null);
   const [fullAttachmentBusy, setFullAttachmentBusy] = useState(false);
   const [fullAttachmentOperationId, setFullAttachmentOperationId] = useState<string | null>(null);
+
+  const savedActivitySummaryUnitKey = previewUnitKey ?? candidate?.unitKey ?? null;
+  const savedActivitySummaryKey = savedActivitySummaryUnitKey
+    ? `${bookId}:${effectiveAssemblyBookRevision}:${effectiveAssemblySourceSetRevision}:${savedActivitySummaryUnitKey}:${candidate?.candidateId ?? ''}:${candidate?.revision ?? ''}`
+    : '';
+
+  useEffect(() => {
+    if (experience !== 'focused-editing' || editingSection !== 'activity-json' || !savedActivitySummaryUnitKey
+      || !assemblyRepository?.loadCurrent || !assemblyPreviewClient) return undefined;
+
+    let active = true;
+    const key = savedActivitySummaryKey;
+    setSavedActivitySummaryLoad({ key, status: 'loading' });
+    void (async () => {
+      try {
+        const loaded = await assemblyRepository.loadCurrent!(bookId, savedActivitySummaryUnitKey);
+        const savedCandidate = loaded?.candidate;
+        if (!savedCandidate || savedCandidate.bookId !== bookId || savedCandidate.unitKey !== savedActivitySummaryUnitKey
+          || savedCandidate.bookRevision !== effectiveAssemblyBookRevision
+          || savedCandidate.sourceSetRevision !== effectiveAssemblySourceSetRevision) throw new Error('saved_activity_summary_unavailable');
+        const result = await assemblyPreviewClient.preview({ bookId, unitKey: savedCandidate.unitKey,
+          candidateId: savedCandidate.candidateId, expectedCandidateRevision: savedCandidate.revision });
+        const projection = result.preview;
+        if (projection.bookId !== bookId || projection.bookRevision !== effectiveAssemblyBookRevision
+          || projection.candidateId !== savedCandidate.candidateId || projection.candidateRevision !== savedCandidate.revision
+          || projection.sourceSetRevision !== effectiveAssemblySourceSetRevision || projection.unitKey !== savedActivitySummaryUnitKey) {
+          throw new Error('saved_activity_summary_unavailable');
+        }
+        if (active) {
+          setSavedActivitySummary(projection);
+          setSavedActivitySummaryLoad(null);
+        }
+      } catch {
+        if (active) setSavedActivitySummaryLoad({ key, status: 'error' });
+      }
+    })();
+    return () => { active = false; };
+  }, [
+    assemblyPreviewClient, assemblyRepository, bookId, editingSection, effectiveAssemblyBookRevision,
+    effectiveAssemblySourceSetRevision, experience, savedActivitySummaryRetry, savedActivitySummaryKey,
+    savedActivitySummaryUnitKey,
+  ]);
 
   useEffect(() => {
     combinedMountedRef.current = true;
@@ -328,15 +381,25 @@ const BookPdfFlowWorkspace = ({
   const publicationStatusReady = assemblyInitialPublicationStatus === 'loaded';
   const hasCurrentPublication = publicationStatusReady && currentPublication !== null;
   const isPublished = publication !== null || hasCurrentPublication;
-  const reviewedDraftDiffers = hasCurrentPublication
-    && previewApproval?.approvedInputFingerprint !== undefined
-    && previewApproval.approvedInputFingerprint !== currentPublication.pointer.inputFingerprint;
-  const showPublishControls = !isPublished || reviewedDraftDiffers;
   const selectedMode = mode ?? 'full';
   const componentReadyToPublish = previewQualification !== null
-    && previewQualification.units.every((unit) => componentApprovals[unit.unitKey] !== undefined);
+    && previewQualification.units.length > 0
+    && Object.keys(componentApprovals).length === previewQualification.units.length
+    && previewQualification.units.every((unit) => {
+      const approval = componentApprovals[unit.unitKey];
+      return approval?.candidateId === unit.candidateId
+        && approval.candidateRevision === unit.candidateRevision
+        && approval.wholeActivationFingerprint === previewQualification.wholeActivationFingerprint
+        && typeof approval.inputFingerprint === 'string';
+    });
   const approvedComponentUnitKeys = previewQualification?.units
-    .filter((unit) => componentApprovals[unit.unitKey] !== undefined)
+    .filter((unit) => {
+      const approval = componentApprovals[unit.unitKey];
+      return approval?.candidateId === unit.candidateId
+        && approval.candidateRevision === unit.candidateRevision
+        && approval.wholeActivationFingerprint === previewQualification?.wholeActivationFingerprint
+        && typeof approval.inputFingerprint === 'string';
+    })
     .map((unit) => unit.unitKey) ?? [];
   const visibleSlots = selectedMode === 'full' ? slots.slice(0, 1) : slots;
   const componentSelectionMatchesBinding = combinedBinding !== null
@@ -376,6 +439,8 @@ const BookPdfFlowWorkspace = ({
     setEffectiveAssemblySourceSetRevision((current) => Math.max(current, revisions.sourceSetRevision));
   };
   const candidateManifest = candidate?.manifest;
+  const approvedComponentUnitTitles = approvedComponentUnitKeys.map((unitKey, index) =>
+    candidateManifest?.nodes.find((node) => node.nodeKey === unitKey)?.title?.trim() || `Unit ${index + 1}`);
   const structureReady = Boolean(candidateManifest
     && candidateManifest.nodes.some((node) => node.nodeType !== 'unit')
     && candidateManifest.units.length > 0
@@ -424,7 +489,18 @@ const BookPdfFlowWorkspace = ({
 
   useEffect(() => {
     setPublicationOperationId(null);
+    setPreviewProjection(null);
+    setPreviewApproval(null);
+    setComponentPreviewInput(null);
+    setPreviewQualification(null);
+    setComponentApprovals({});
   }, [candidate?.candidateId, candidate?.revision]);
+
+  useEffect(() => {
+    setPreviewProjection(null);
+    setPreviewApproval(null);
+    setComponentPreviewInput(null);
+  }, [previewUnitKey]);
 
   const track = (action: string, metadata?: Record<string, unknown>) => {
     onTrackAction?.(action, { bookId, mode, step, ...metadata });
@@ -1105,11 +1181,6 @@ const BookPdfFlowWorkspace = ({
       setAssemblyStep('outline');
       return;
     }
-    if (editingSection === 'page-mapping') {
-      setStep(3);
-      setAssemblyStep('pages');
-      return;
-    }
     setStep(4);
     setAssemblyStep('review');
   }, [editingSection, focusedEditing, mode]);
@@ -1229,7 +1300,28 @@ const BookPdfFlowWorkspace = ({
     candidateId: candidate.candidateId,
     expectedCandidateRevision: candidate.revision,
   } : null;
-  const activePreviewInput = selectedMode === 'component' ? componentPreviewInput ?? previewInput : previewInput;
+  const activePreviewInput = componentPreviewInput ?? previewInput;
+  const publicationUnitKey = previewUnitKey ?? activePreviewInput?.unitKey ?? candidate?.unitKey;
+  const publicationUnitTitle = candidateManifest?.nodes.find((node) => node.nodeKey === publicationUnitKey)?.title?.trim() || 'Selected Unit';
+  const publicationSubject = selectedMode === 'component' ? title : publicationUnitTitle;
+  const fullPreviewApprovedCurrent = Boolean(previewApproval && previewProjection && activePreviewInput
+    && activePreviewInput.bookId === bookId
+    && previewProjection.bookId === bookId
+    && previewProjection.bookRevision === effectiveAssemblyBookRevision
+    && previewProjection.sourceSetRevision === effectiveAssemblySourceSetRevision
+    && previewProjection.candidateId === activePreviewInput.candidateId
+    && previewProjection.candidateRevision === activePreviewInput.expectedCandidateRevision
+    && previewProjection.unitKey === activePreviewInput.unitKey
+    && (!focusedEditing || !previewUnitKey || activePreviewInput.unitKey === previewUnitKey)
+    && previewApproval.candidateId === activePreviewInput.candidateId
+    && previewApproval.candidateRevision === activePreviewInput.expectedCandidateRevision
+    && previewApproval.inputFingerprint === previewInputFingerprint(previewProjection));
+  const reviewedDraftReady = Boolean(hasCurrentPublication && publication === null
+    && (selectedMode === 'component' ? componentReadyToPublish : fullPreviewApprovedCurrent));
+  const showPublishControls = !isPublished || reviewedDraftReady;
+  const focusedPublishReady = publicationStatusReady && publicationRefreshStatus === 'ready'
+    && sourceReady && !assemblyDirty && !previewBlocked && Boolean(assemblyPreviewClient && candidate
+      && (selectedMode === 'component' ? componentReadyToPublish : fullPreviewApprovedCurrent));
   const trustedRuntimePreview = useMemo(() => {
     const preview = previewProjection ?? assemblyCandidateRuntimePreview;
     const expected = activePreviewInput;
@@ -1266,13 +1358,27 @@ const BookPdfFlowWorkspace = ({
       return;
     }
     try {
-      const result = await assemblyPreviewClient.preview(activePreviewInput);
+      let input = activePreviewInput;
+      if (focusedEditing && previewUnitKey && previewUnitKey !== input.unitKey) {
+        const loaded = await assemblyRepository?.loadCurrent?.(bookId, previewUnitKey);
+        if (!loaded?.candidate) throw new Error('unit_preview_unavailable');
+        input = { bookId, unitKey: loaded.candidate.unitKey, candidateId: loaded.candidate.candidateId,
+          expectedCandidateRevision: loaded.candidate.revision };
+        setComponentPreviewInput(input);
+      }
+      const result = await assemblyPreviewClient.preview(input);
       setPreviewProjection(result.preview);
       if (result.qualification) {
+        if (previewQualification?.wholeActivationFingerprint !== result.qualification.wholeActivationFingerprint) {
+          setComponentApprovals({});
+        }
         setPreviewQualification(result.qualification);
         const current = result.qualification.units.find((unit) => unit.unitKey === result.preview.unitKey);
         if (current) setComponentPreviewInput({ bookId, unitKey: current.unitKey, candidateId: current.candidateId,
           expectedCandidateRevision: current.candidateRevision });
+      } else {
+        setPreviewQualification(null);
+        setComponentApprovals({});
       }
       setDismissedPreviewIdentity(null);
       setPreviewApproval(null);
@@ -1287,29 +1393,47 @@ const BookPdfFlowWorkspace = ({
       toast.warning('Open the trusted student preview before approving it.');
       return;
     }
+    if (previewProjection.bookId !== bookId
+      || previewProjection.unitKey !== activePreviewInput.unitKey
+      || previewProjection.candidateId !== activePreviewInput.candidateId
+      || previewProjection.candidateRevision !== activePreviewInput.expectedCandidateRevision) {
+      toast.warning('This preview is out of date. Open the current student preview before approving it.');
+      return;
+    }
     try {
+      const inputFingerprint = previewInputFingerprint(previewProjection);
       const result = await assemblyPreviewClient.approve({
         ...activePreviewInput,
         ...(previewQualification ? {
-          expectedUnitInputFingerprint: previewInputFingerprint(previewProjection),
+          expectedUnitInputFingerprint: inputFingerprint,
           expectedWholeActivationFingerprint: previewQualification.wholeActivationFingerprint,
         } : {}),
       });
+      const approvalSnapshot: FlowPreviewApproval = {
+        ...result.approval,
+        candidateId: activePreviewInput.candidateId,
+        candidateRevision: activePreviewInput.expectedCandidateRevision,
+        inputFingerprint,
+        ...(previewQualification ? { wholeActivationFingerprint: previewQualification.wholeActivationFingerprint } : {}),
+      };
       if (previewQualification) {
-        const nextApprovals = { ...componentApprovals, [activePreviewInput.unitKey]: result.approval };
+        const nextApprovals = { ...componentApprovals, [activePreviewInput.unitKey]: approvalSnapshot };
         setComponentApprovals(nextApprovals);
         const next = previewQualification.units.find((unit) => !nextApprovals[unit.unitKey]);
         setPreviewProjection(null);
         if (next) {
+          onPreviewUnitChange?.(next.unitKey);
           setComponentPreviewInput({ bookId, unitKey: next.unitKey, candidateId: next.candidateId,
             expectedCandidateRevision: next.candidateRevision });
-          toast.success(`Preview approved. Open ${next.unitKey} before publishing.`);
+          const nextUnitTitle = candidateManifest?.nodes.find((node) => node.nodeKey === next.unitKey)?.title?.trim()
+            || `Unit ${previewQualification.units.findIndex((unit) => unit.unitKey === next.unitKey) + 1}`;
+          toast.success(`Preview approved. Open ${nextUnitTitle} before publishing.`);
         } else {
-          setPreviewApproval(result.approval);
+          setPreviewApproval(approvalSnapshot);
           toast.success('Every Unit preview is approved. You can now publish this Book.');
         }
       } else {
-        setPreviewApproval(result.approval);
+        setPreviewApproval(approvalSnapshot);
         toast.success('Preview approved. You can now publish this draft.');
       }
       track('teacher_materials_book_assembly_candidate_preview_approved', { status: 'approved' });
@@ -1350,19 +1474,29 @@ const BookPdfFlowWorkspace = ({
       toast.warning('Current publication status is not verified. Retry the check or reopen the editor before publishing.');
       return;
     }
-    if (!assemblyPreviewClient || !previewInput || !previewApproval || !candidate) {
+    if (!assemblyPreviewClient || !activePreviewInput || !previewApproval || !candidate) {
       toast.warning('Save and approve the trusted preview before publishing.');
       return;
     }
+    if (selectedMode === 'full' && (!fullPreviewApprovedCurrent || !sourceReady || assemblyDirty
+      || (focusedEditing && previewBlocked))) {
+      toast.warning('Save and approve the current student preview before publishing.');
+      return;
+    }
     const sourceWorkflow = workflowFor('full');
-    if (selectedMode === 'full' && !sourceWorkflow?.decideStudentSafeSource) {
+    const requiresSourceDecision = selectedMode === 'full' && !(persistedSourceReady && !sourceDirty
+      && assemblySourceVersions.some((source) => candidateSourceIds.has(source.sourceVersionId)
+        && source.bookId === bookId && source.purpose === 'book-source' && source.studentSafeStatus === 'ready'
+        && source.studentSafeDecision?.sourceVersionId === source.sourceVersionId
+        && source.studentSafeDecision.sha256Hex.toLowerCase() === source.checksum.value.toLowerCase()));
+    if (requiresSourceDecision && !sourceWorkflow?.decideStudentSafeSource) {
       toast.warning('The Book PDF cannot be confirmed for student access. Reopen the upload and retry.');
       track('teacher_materials_book_pdf_student_safe_decision', { status: 'unavailable' });
       return;
     }
     setPublishBusy(true);
     try {
-      if (selectedMode === 'full') {
+      if (requiresSourceDecision) {
         await sourceWorkflow!.decideStudentSafeSource!(bookId);
         track('teacher_materials_book_pdf_student_safe_decision', { status: 'ready' });
       }
@@ -1383,12 +1517,17 @@ const BookPdfFlowWorkspace = ({
           }),
         })
         : await assemblyPreviewClient.publishFull({
-        ...previewInput,
+        ...activePreviewInput,
         operationId: requestOperationId,
         expectedCurrentPublicationId: currentPublication?.pointer.publicationId ?? null,
-        expectedBookRevision: candidate.bookRevision,
-        expectedSourceSetRevision: candidate.sourceSetRevision,
-        previewApproval,
+        expectedBookRevision: effectiveAssemblyBookRevision,
+        expectedSourceSetRevision: effectiveAssemblySourceSetRevision,
+        previewApproval: {
+          approvalId: previewApproval.approvalId,
+          approvalRevision: previewApproval.approvalRevision,
+          approvedAt: previewApproval.approvedAt,
+          expiresAt: previewApproval.expiresAt,
+        },
       });
       setPublication(result);
       setPublicationOperationId(null);
@@ -1424,9 +1563,13 @@ const BookPdfFlowWorkspace = ({
         <div className="pbf-row">
           <div>
             <h3 id={`${slot.id}-title`}>{slot.label}</h3>
-            <p className="pbf-muted">{verified ? `${slot.selection?.claim.displayFilename ?? 'PDF'} is ready privately.` : 'Check this file on your device before uploading.'}</p>
+            {focusedEditing && verified
+              ? <p className="pbf-muted">{persistedVersion?.physicalPageCount ?? slot.selection?.claim.physicalPageCount} pages</p>
+              : !focusedEditing && <p className="pbf-muted">{verified ? `${slot.selection?.claim.displayFilename ?? 'PDF'} is ready privately.` : 'Check this file on your device before uploading.'}</p>}
           </div>
-          <span className={`pbf-status${verified ? ' is-good' : ''}`}>{verified ? 'Ready' : 'Needs file'}</span>
+          {focusedEditing && verified
+            ? <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => requestSourceReplacement(slot)}>Replace PDF</button>
+            : <span className={`pbf-status${verified ? ' is-good' : ''}`}>{verified ? 'Ready' : 'Needs file'}</span>}
         </div>
         {activeUpload && workflow && !persistedReady ? (
           <div className="pbf-real-upload">
@@ -1469,11 +1612,10 @@ const BookPdfFlowWorkspace = ({
               </button>
             </div>
           </div>
-        ) : verified ? (
+        ) : verified ? focusedEditing ? null : (
           <div className="pbf-callout is-good" style={{ marginTop: 14 }}>
             <strong>{selectedMode === 'full' ? 'Your PDF is ready' : 'PDF ready'}</strong>
             <span>{persistedReady ? 'This verified PDF is already part of the saved Book draft.' : 'Nothing is published yet. You can continue to assemble the Book.'}</span>
-            {focusedEditing && <div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={() => requestSourceReplacement(slot)}>Replace PDF</button></div>}
           </div>
         ) : (
           <div className="pbf-real-source-panel">
@@ -1495,7 +1637,8 @@ const BookPdfFlowWorkspace = ({
 
   const renderFiles = () => (
     <FlowView
-      title={focusedEditing ? 'Manage PDF files' : selectedMode === 'full' ? 'Start with one PDF' : 'Combine your PDF sections'}
+      quiet={focusedEditing}
+      title={focusedEditing ? 'PDFs' : selectedMode === 'full' ? 'Start with one PDF' : 'Combine your PDF sections'}
       subtitle={focusedEditing
         ? selectedMode === 'full'
           ? 'This Book uses one complete PDF. Replace that file here without rebuilding the Book structure.'
@@ -1506,12 +1649,11 @@ const BookPdfFlowWorkspace = ({
       status={sourceReady ? 'Ready' : selectedMode === 'full' ? '1 file' : combinedFiles.length > 0 ? `${combinedFiles.length} selected` : 'Add PDFs'}
       statusKind={sourceReady ? 'good' : undefined}
     >
-      {selectedMode === 'component' && renderCombinedPdfFlow()}
+      {selectedMode === 'component' && !focusedEditing && renderCombinedPdfFlow()}
       {selectedMode === 'component' && visibleSlots.map(renderSourceCard)}
       {selectedMode === 'full' && visibleSlots.map(renderSourceCard)}
       {focusedEditing && (
         <div className="pbf-actions" style={{ marginTop: 14, justifyContent: 'space-between' }}>
-          <span className="pbf-status">PDF mode: {selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}</span>
           <button type="button" className="pbf-button" disabled={fullAttachmentBusy} onClick={requestSetupChange}>Change PDF setup</button>
         </div>
       )}
@@ -1529,17 +1671,9 @@ const BookPdfFlowWorkspace = ({
         : assemblyStep === 'review'
           ? { title: 'Take a look before you publish', subtitle: 'Review the Book as a teacher, then open the student view for the Unit you are about to share.' }
           : { title: 'Build the Book structure', subtitle: 'Start with the outline students will follow, then add the content for the first Unit.' };
-    const assemblyView = focusedEditing
-      ? editingSection === 'content-tree'
-        ? { title: 'Edit the content tree', subtitle: selectedMode === 'full' ? 'Change the Book hierarchy while keeping the existing full PDF.' : 'Change the Book hierarchy and the section owned by each PDF.' }
-        : editingSection === 'activity-json'
-          ? { title: 'Edit Activity JSON', subtitle: 'Choose a Unit, then add or replace its student activities.' }
-          : editingSection === 'page-mapping'
-            ? { title: 'Edit page mapping', subtitle: 'Connect each activity to the exact PDF pages students should see.' }
-            : { title: 'Preview the student Book', subtitle: 'Review the complete Book experience before publishing.' }
-      : guidedAssemblyView;
+    const assemblyView = guidedAssemblyView;
     return (
-      <FlowView title={assemblyView.title} subtitle={assemblyView.subtitle} status={assemblyStep === 'review' ? 'Review' : 'In progress'}>
+      <FlowView quiet={focusedEditing} title={assemblyView.title} subtitle={assemblyView.subtitle} status={assemblyStep === 'review' ? 'Review' : 'In progress'}>
         <BookAssemblyWorkspace
           access={access as 'owner' | 'administrator'}
           activityAuthoring={activityAuthoring}
@@ -1562,9 +1696,29 @@ const BookPdfFlowWorkspace = ({
             : undefined}
           onAction={onTrackAction}
           onCandidateChange={setCandidate}
+          onActivitiesSaved={() => {
+            setSavedActivitySummary(null);
+            setSavedActivitySummaryRetry((value) => value + 1);
+            setPreviewProjection(null);
+            setPreviewApproval(null);
+            setPreviewQualification(null);
+            setComponentApprovals({});
+          }}
           onDirtyChange={setAssemblyDirty}
           onGuidedStepChange={onAssemblyStepChange}
           presentation={presentation}
+          candidateRuntimePreview={focusedEditing ? trustedRuntimePreview?.preview : undefined}
+          savedActivitySummary={savedActivitySummary?.bookId === bookId
+            && savedActivitySummary.bookRevision === effectiveAssemblyBookRevision
+            && savedActivitySummary.sourceSetRevision === effectiveAssemblySourceSetRevision
+            && savedActivitySummary.unitKey === savedActivitySummaryUnitKey
+            && (!candidate || candidate.unitKey !== savedActivitySummary.unitKey
+              || (candidate.candidateId === savedActivitySummary.candidateId && candidate.revision === savedActivitySummary.candidateRevision))
+              ? savedActivitySummary : null}
+          savedActivitySummaryStatus={savedActivitySummaryKey && savedActivitySummaryLoad?.key === savedActivitySummaryKey
+            ? savedActivitySummaryLoad.status
+            : assemblyRepository?.loadCurrent && assemblyPreviewClient ? 'loading' : 'error'}
+          onRetrySavedActivitySummary={() => setSavedActivitySummaryRetry((value) => value + 1)}
           previewDocuments={assemblyPreviewDocuments}
           previewGetIdToken={assemblyPreviewGetIdToken}
           repository={assemblyRepository ?? undefined}
@@ -1576,8 +1730,12 @@ const BookPdfFlowWorkspace = ({
           guided
           guidedUiVariant="mockup"
           guidedStep={assemblyStep}
+          previewUnitKey={previewUnitKey}
+          onUnitSelect={onPreviewUnitChange}
+          onOpenPlan={onOpenPlan}
+          onPreviewBlockedChange={setPreviewBlocked}
           editingPanel={focusedEditing
-            ? editingSection === 'content-tree' || editingSection === 'activity-json' || editingSection === 'page-mapping' || editingSection === 'preview'
+            ? editingSection === 'content-tree' || editingSection === 'activity-json' || editingSection === 'preview'
               ? editingSection
               : undefined
             : undefined}
@@ -1587,11 +1745,14 @@ const BookPdfFlowWorkspace = ({
         />
         {assemblyStep === 'review' && (
           <FlowSurface>
-            <div className="pbf-row"><div><h3>Preview as a student</h3><p className="pbf-muted">Open the trusted preview before publishing. Nothing is published by opening it.</p></div><span className={`pbf-status${previewApproval ? ' is-good' : ''}`}>{previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : 'Review needed'}</span></div>
-            <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={!sourceReady || !candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={!sourceReady || !previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
-            {focusedEditing && sourceReady && previewApproval && (
+            {!focusedEditing && <div className="pbf-row"><div><h3>Preview as a student</h3><p className="pbf-muted">Open the trusted preview before publishing. Nothing is published by opening it.</p></div><span className={`pbf-status${previewApproval ? ' is-good' : ''}`}>{previewApproval ? 'Approved' : previewProjection ? 'Ready to approve' : 'Review needed'}</span></div>}
+            {focusedEditing && assemblyDirty && <p>Save your changes before previewing.</p>}
+            <div className="pbf-actions" style={{ marginTop: 14 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => void requestPreview()} disabled={(focusedEditing && (assemblyDirty || previewBlocked)) || !sourceReady || !candidate || candidate.lifecycle !== 'validated' || !assemblyPreviewClient}>{previewProjection ? 'Refresh preview' : 'Preview as a student'}</button><button type="button" className="pbf-button" onClick={() => void approvePreview()} disabled={(focusedEditing && (assemblyDirty || previewBlocked)) || !sourceReady || !previewProjection || Boolean(previewApproval) || !assemblyPreviewClient}>Approve this preview</button></div>
+            {focusedEditing && (
               <div className="pbf-actions" style={{ marginTop: 10 }}>
-                <button type="button" className="pbf-button" onClick={() => setStep(5)}>Review publication</button>
+                <button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!focusedPublishReady}>
+                  {selectedMode === 'component' ? 'Publish Book' : `Publish ${publicationSubject}`}
+                </button>
               </div>
             )}
             {trustedRuntimePreview ? (
@@ -1609,20 +1770,22 @@ const BookPdfFlowWorkspace = ({
   };
 
   const renderPublish = () => (
-    <FlowView title={isPublished ? 'Unit 1 is published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking publication status' : assemblyInitialPublicationStatus === 'error' ? 'Unable to verify publication status' : 'Ready to share Unit 1?'} subtitle={isPublished ? 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.' : assemblyInitialPublicationStatus === 'loading' ? 'Publishing stays locked until the current publication is confirmed.' : assemblyInitialPublicationStatus === 'error' ? 'Publishing stays locked until the current publication can be confirmed.' : 'This will publish Unit 1. Students receive access only after you assign it as homework.'} status={isPublished ? 'Published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking' : assemblyInitialPublicationStatus === 'error' ? 'Blocked' : 'Ready'} statusKind={isPublished ? 'good' : assemblyInitialPublicationStatus === 'loaded' ? undefined : 'warn'}>
+    <FlowView title={focusedEditing ? 'Publication' : isPublished ? 'Unit 1 is published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking publication status' : assemblyInitialPublicationStatus === 'error' ? 'Unable to verify publication status' : 'Ready to share Unit 1?'} subtitle={focusedEditing
+      ? reviewedDraftReady ? `The current publication stays available until this reviewed version is published.` : isPublished ? `Assign ${publicationSubject} as homework to give selected students access.` : `Review and publish ${publicationSubject}. Students receive access only after you assign it as homework.`
+      : isPublished ? 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.' : assemblyInitialPublicationStatus === 'loading' ? 'Publishing stays locked until the current publication is confirmed.' : assemblyInitialPublicationStatus === 'error' ? 'Publishing stays locked until the current publication can be confirmed.' : 'This will publish Unit 1. Students receive access only after you assign it as homework.'} status={reviewedDraftReady ? 'Ready to publish' : isPublished ? 'Published' : assemblyInitialPublicationStatus === 'loading' ? 'Checking' : assemblyInitialPublicationStatus === 'error' ? 'Blocked' : 'Ready'} statusKind={reviewedDraftReady ? undefined : isPublished ? 'good' : assemblyInitialPublicationStatus === 'loaded' ? undefined : 'warn'}>
       <FlowSurface className="pbf-publish-surface">
         {focusedEditing && (
           <div className="pbf-actions" style={{ marginBottom: 14 }}>
             <button type="button" className="pbf-button" onClick={() => setFlowStep(4)}>Back to preview</button>
           </div>
         )}
-        {isPublished && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>Unit 1 is published</h2><p>Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" onClick={onHomeworkHandoff} disabled={!onHomeworkHandoff}>Assign as homework</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
-        {assemblyInitialPublicationStatus === 'loading' && <p className="pbf-callout is-warn" aria-busy="true">Checking whether Unit 1 is already published. Publishing is locked until this finishes.</p>}
+        {isPublished && !reviewedDraftReady && <div className="pbf-success"><div className="pbf-success-mark" aria-hidden="true">✓</div><h2>{focusedEditing ? `${publicationSubject} is published` : 'Unit 1 is published'}</h2><p>{focusedEditing ? `Assign ${publicationSubject} as homework to give selected students access.` : 'Assign this Unit as homework to give selected students access. Unit 2 and existing homework are unchanged.'}</p><div className="pbf-actions" style={{ marginTop: 18, justifyContent: 'center' }}><button type="button" className="pbf-button" onClick={onHomeworkHandoff} disabled={!onHomeworkHandoff}>Assign as homework</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => { if (focusedEditing) { setPublication(null); setFlowStep(4); } else { setMode(null); setStep(1); } track('teacher_materials_book_pdf_returned_to_book'); }}>Return to Book</button></div></div>}
+        {assemblyInitialPublicationStatus === 'loading' && <p className="pbf-callout is-warn" aria-busy="true">Checking whether {focusedEditing ? publicationSubject : 'Unit 1'} is already published. Publishing is locked until this finishes.</p>}
         {assemblyInitialPublicationStatus === 'error' && <><p className="pbf-callout is-warn" role="alert">We could not verify the current publication. Retry the check or close and reopen the editor before publishing.</p>{onRetryCurrentPublication && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button" onClick={onRetryCurrentPublication}>Retry publication check</button></div>}</>}
         {publicationRefreshStatus === 'pending' && <p className="pbf-callout is-warn" aria-busy="true">The publication was accepted. Confirming the current publication before another submission.</p>}
         {publicationRefreshStatus === 'error' && <div className="pbf-callout is-warn" role="status"><strong>The publication was accepted</strong><span>Refresh the current publication before resubmitting this draft.</span><div className="pbf-actions" style={{ marginTop: 12 }}><button type="button" className="pbf-button" onClick={() => void refreshCurrentPublication()}>Refresh publication status</button></div></div>}
-        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <><div className="pbf-callout is-warn"><strong>{reviewedDraftDiffers ? 'A reviewed successor is ready' : 'Nothing is published yet'}</strong><span>{reviewedDraftDiffers ? 'The current publication remains assignable until this successor is committed.' : 'Publishing Unit 1 will not change later Units or existing homework.'}</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">Unit 1 will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and later Units will remain safe</div></div></>}
-        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !previewApproval || !assemblyPreviewClient || !candidate || (selectedMode === 'component' && !componentReadyToPublish)}>{assemblyPreviewClient ? selectedMode === 'full' ? 'Publish Unit 1' : componentReadyToPublish ? 'Publish Book' : 'Combine PDFs before publishing' : 'Publication service unavailable'}</button></div>}
+        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <><div className="pbf-callout is-warn"><strong>{reviewedDraftReady ? 'Reviewed version ready to publish' : 'Nothing is published yet'}</strong><span>{reviewedDraftReady ? 'The current publication stays available until this reviewed version is published.' : focusedEditing ? `Publishing ${publicationSubject} will not change your other saved Units or existing homework.` : 'Publishing Unit 1 will not change later Units or existing homework.'}</span></div><div className="pbf-checklist" style={{ marginTop: 16 }}><div className="pbf-checklist-item">{publicationSubject} will be published with its current activities</div><div className="pbf-checklist-item">Students will see only the pages connected to this Unit</div><div className="pbf-checklist-item">Your current Book and other Units will remain safe</div></div></>}
+        {showPublishControls && publicationStatusReady && publicationRefreshStatus === 'ready' && <div className="pbf-actions" style={{ marginTop: 18 }}><button type="button" className="pbf-button pbf-button-primary" onClick={() => setPublishConfirmOpen(true)} disabled={!sourceReady || !previewApproval || !assemblyPreviewClient || !candidate || (selectedMode === 'component' && !componentReadyToPublish)}>{assemblyPreviewClient ? selectedMode === 'full' ? focusedEditing ? `Publish ${publicationSubject}` : 'Publish Unit 1' : componentReadyToPublish ? 'Publish Book' : 'Combine PDFs before publishing' : 'Publication service unavailable'}</button></div>}
       </FlowSurface>
     </FlowView>
   );
@@ -1665,8 +1828,12 @@ const BookPdfFlowWorkspace = ({
     return (
       <section className="book-pdf-flow" data-access={access} data-presentation={presentation} data-mode={mode} data-experience="focused-editing">
         <div className="pbf-window pbf-window--focused">
-          <main className="pbf-main">{renderStep()}</main>
-           {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students will be able to open every approved Unit: ${approvedComponentUnitKeys.join(', ')}.` : 'Students will be able to open this Unit immediately.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : 'Publish Unit 1'}</button></div></div></div>}
+          <main className="pbf-main">
+            <div hidden={step === 1 || step === 5}>{renderAssembly()}</div>
+            {step === 1 && renderFiles()}
+            {step === 5 && renderPublish()}
+          </main>
+           {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{focusedEditing && selectedMode === 'full' ? `Publish ${publicationSubject}?` : selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students can open these Units after you assign them as homework: ${approvedComponentUnitTitles.join(', ')}. Existing homework keeps the currently published version.` : focusedEditing ? `Students can open ${publicationSubject === title ? 'this Book' : publicationSubject} after you assign it as homework. Existing homework keeps the currently published version.` : 'Students can open this Unit after you assign it as homework.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : focusedEditing ? 'Your other saved Units remain unchanged' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : focusedEditing ? `Publish ${publicationSubject}` : 'Publish Unit 1'}</button></div></div></div>}
           {migrationOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-migration-title"><h2 id="pbf-migration-title">Change your PDF setup</h2><p>This creates a reviewed draft. Your current Book stays safe while you check the new setup.</p><div className="pbf-surface" style={{ marginTop: 15 }}><div className="pbf-row"><strong>Current setup</strong><span>{selectedMode === 'full' ? 'One complete PDF' : 'Several component PDFs'}</span></div><div className="pbf-row"><strong>New setup</strong><span>{selectedMode === 'full' ? 'Several component PDFs' : 'One complete PDF'}</span></div><div className="pbf-row"><strong>Page connections</strong><span className="pbf-status is-warn">Review before publishing</span></div></div><div className="pbf-callout is-warn" style={{ marginTop: 13 }}><strong>Your current Book stays safe</strong><span>The new setup is prepared and confirmed separately. Nothing is published by changing setup.</span></div><div className="pbf-overlay-footer"><button type="button" className="pbf-button" disabled={migrationBusy} onClick={() => setMigrationOpen(false)}>Cancel</button><button type="button" className="pbf-button pbf-button-primary" disabled={migrationBusy} onClick={() => void confirmSetupChange()}>{migrationBusy ? 'Preparing reviewed change…' : 'Prepare reviewed change'}</button></div></div></div>}
         </div>
       </section>
@@ -1689,16 +1856,23 @@ const BookPdfFlowWorkspace = ({
         </nav>
         <main className="pbf-main">{renderStep()}</main>
         <footer className="pbf-footer"><p>{step === 1 ? 'Your original files stay on your device until you choose to upload.' : `Step ${step} of 5 · ${selectedMode === 'full' ? 'Full PDF' : 'Component PDFs'}`}</p><div className="pbf-actions"><button type="button" className="pbf-button pbf-button-quiet" onClick={() => setFlowStep(Math.max(1, step - 1) as PdfFlowStep)} disabled={step === 1 || fullAttachmentBusy}>Back</button>{step === 1 && <button type="button" className="pbf-button pbf-button-primary" onClick={() => void continueFromFiles()} disabled={!sourceReady || fullAttachmentBusy}>{fullAttachmentBusy ? 'Attaching…' : 'Continue'}</button>}{step === 4 && <button type="button" className="pbf-button pbf-button-primary" onClick={() => setFlowStep(5)} disabled={!previewApproval}>Continue</button>}</div></footer>
-         {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students will be able to open every approved Unit: ${approvedComponentUnitKeys.join(', ')}.` : 'Students will be able to open this Unit immediately.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : 'Publish Unit 1'}</button></div></div></div>}
+         {publishConfirmOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-publish-title"><h2 id="pbf-publish-title">{selectedMode === 'component' ? `Publish ${approvedComponentUnitKeys.length} approved Units?` : 'Publish Unit 1?'}</h2><p>{selectedMode === 'component' ? `Students can open these Units after you assign them as homework: ${approvedComponentUnitTitles.join(', ')}. Existing homework keeps the currently published version.` : 'Students can open this Unit after you assign it as homework.'}</p><ul className="pbf-checklist" style={{ marginTop: 15 }}><li>{selectedMode === 'full' ? 'Full PDF source is ready' : 'Component PDF sources are ready'}</li><li>{selectedMode === 'component' ? `All ${approvedComponentUnitKeys.length} Unit previews are approved` : 'Student preview is approved'}</li><li>{selectedMode === 'component' ? 'Every listed Unit will be published together' : 'Later Units remain private'}</li></ul><div className="pbf-overlay-footer"><button type="button" className="pbf-button" onClick={() => setPublishConfirmOpen(false)} disabled={publishBusy}>Not yet</button><button type="button" className="pbf-button pbf-button-primary" onClick={() => void publish()} disabled={publishBusy}>{publishBusy ? 'Publishing…' : selectedMode === 'component' ? 'Publish approved Units' : 'Publish Unit 1'}</button></div></div></div>}
         {migrationOpen && <div className="pbf-overlay"><div className="pbf-overlay-shell" role="dialog" aria-modal="true" aria-labelledby="pbf-migration-title"><h2 id="pbf-migration-title">Change your PDF setup</h2><p>This creates a reviewed draft. Your current Book stays safe while you check the new setup.</p><div className="pbf-surface" style={{ marginTop: 15 }}><div className="pbf-row"><strong>Current setup</strong><span>{selectedMode === 'full' ? 'One complete PDF' : 'Several component PDFs'}</span></div><div className="pbf-row"><strong>New setup</strong><span>{selectedMode === 'full' ? 'Several component PDFs' : 'One complete PDF'}</span></div><div className="pbf-row"><strong>Page connections</strong><span className="pbf-status is-warn">Review before publishing</span></div></div><div className="pbf-callout is-warn" style={{ marginTop: 13 }}><strong>Your current Book stays safe</strong><span>The new setup is prepared and confirmed separately. Nothing is published by changing setup.</span></div><div className="pbf-overlay-footer"><button type="button" className="pbf-button" disabled={migrationBusy} onClick={() => setMigrationOpen(false)}>Cancel</button><button type="button" className="pbf-button pbf-button-primary" disabled={migrationBusy} onClick={() => void confirmSetupChange()}>{migrationBusy ? 'Preparing reviewed change…' : 'Prepare reviewed change'}</button></div></div></div>}
       </div>
     </section>
   );
 };
 
-const FlowView = ({ title, subtitle, status, statusKind, children }: { readonly title: string; readonly subtitle: string; readonly status: string; readonly statusKind?: 'good' | 'warn'; readonly children: ReactNode }) => (
-  <div className="pbf-view"><div className="pbf-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><span className={`pbf-status${statusKind ? ` is-${statusKind}` : ''}`}>{status}</span></div>{children}</div>
+const FlowView = ({ title, subtitle, status, statusKind, quiet, children }: { readonly title: string; readonly subtitle: string; readonly status: string; readonly statusKind?: 'good' | 'warn'; readonly quiet?: boolean; readonly children: ReactNode }) => (
+  <div className="pbf-view">{!quiet && <div className="pbf-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><span className={`pbf-status${statusKind ? ` is-${statusKind}` : ''}`}>{status}</span></div>}{children}</div>
 );
+
+type FlowPreviewApproval = BookAssemblyPreviewApprovalReference & {
+  readonly candidateId: string;
+  readonly candidateRevision: number;
+  readonly inputFingerprint: string;
+  readonly wholeActivationFingerprint?: string;
+};
 
 const FlowSurface = ({ children, className }: { readonly children: ReactNode; readonly className?: string }) => <div className={`pbf-surface${className ? ` ${className}` : ''}`}>{children}</div>;
 

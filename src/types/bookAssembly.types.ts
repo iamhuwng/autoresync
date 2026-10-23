@@ -158,6 +158,7 @@ export interface BookContentTreeNodeCandidate {
   readonly parentNodeKey: string | null;
   readonly nodeType: BookContentNodeType;
   readonly order: number;
+  readonly title?: string;
 }
 
 /** A physical page is always local to a named immutable source. */
@@ -449,6 +450,7 @@ export interface BookAssemblyPublicationAtomicWriteSet {
 }
 
 export interface BookAssemblyPublicationAdapterPlan {
+  readonly studentDocument?: Pick<import('../services/book-assembly/componentStudentDocument.types').ComponentStudentDocument, 'sourceVersionId' | 'descriptorRevision' | 'sha256Hex'> & { readonly descriptorFingerprint: string };
   readonly strategy: BookSourceStrategy;
   readonly planId: string;
   readonly adapterTicket: '16' | '17' | '18' | '20C' | 'fixture';
@@ -468,6 +470,7 @@ export interface BookAssemblyPublicationAdapterPlan {
 }
 
 export interface BookAssemblyImmutableManifestVersion {
+  readonly studentDocument?: BookAssemblyPublicationAdapterPlan['studentDocument'];
   readonly schemaVersion: 1;
   readonly manifestVersionId: string;
   readonly publicationId: string;

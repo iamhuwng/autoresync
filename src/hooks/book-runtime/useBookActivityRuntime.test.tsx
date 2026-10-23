@@ -94,13 +94,142 @@ const runtimeClient = (overrides: Partial<BookRuntimeClient> = {}): BookRuntimeC
 });
 
 describe('useBookActivityRuntime', () => {
+  it('does not replace an aggregate with older local recovery', async () => {
+    const recovery = store();
+    const savedAt = Date.now();
+    for (const interactionId of ['interaction-1', 'interaction-2']) {
+      await recovery.set(`book-runtime-draft:v1:student-1:binding-1:1:context-1:placement-1:activity-1:1:${interactionId}`, {
+        schemaVersion: 1, ownerId: 'tab-1', address: { ...address, recipientId: 'student-1', interactionId },
+        response: { text: 'older local answer' }, clientRevision: 99,
+        updatedAt: savedAt - 1_000, expiresAt: savedAt + 60_000,
+      });
+    }
+    const client = runtimeClient({ readDraft: vi.fn(async (input) => ({
+      schemaVersion: 1, ...input, recipientId: 'student-1', revision: 4,
+      response: [{ interactionId: 'interaction-1', answer: 'newer aggregate answer' }, { interactionId: 'interaction-2' }],
+      updatedByOperationId: operationId, updatedAt: new Date(savedAt).toISOString(),
+    })) });
+    const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+      interactionIds: ['interaction-1', 'interaction-2'], storage: recovery }));
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    expect(result.current.responses).toEqual({ 'interaction-1': [{ interactionId: 'interaction-1', answer: 'newer aggregate answer' }] });
+    expect(client.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('keeps edits made while a local recovery read is in flight', async () => {
+    let release!: (value: unknown) => void;
+    const recovery = { ...store(), get: vi.fn(() => new Promise<unknown>((resolve) => { release = resolve; })) };
+    const client = runtimeClient();
+    const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+      interactionIds: ['interaction-1'], storage: recovery }));
+    await waitFor(() => expect(recovery.get).toHaveBeenCalled());
+    act(() => { expect(result.current.change('interaction-1', { text: 'new edit' })).toBe(true); });
+    const savedAt = Date.now();
+    await act(async () => { release({ schemaVersion: 1, ownerId: 'tab-1',
+      address: { ...address, recipientId: 'student-1', interactionId: 'interaction-1' },
+      response: { text: 'old recovered edit' }, clientRevision: 0, updatedAt: savedAt - 1_000, expiresAt: savedAt + 60_000 }); });
+    await waitFor(() => expect(result.current.responses).toEqual({ 'interaction-1': { text: 'new edit' } }));
+    await act(async () => { await result.current.flush(); });
+    expect(client.saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({ response: [{ interactionId: 'interaction-1', answer: 'new edit' }] }));
+  });
+
+  it('restores one Activity snapshot and submits its acknowledged revision', async () => {
+    const ids = ['interaction-1', 'interaction-2'];
+    const rows = [{ interactionId: ids[0], answer: '' }, { interactionId: ids[1], answer: 'saved answer' }];
+    const client = runtimeClient({ readDraft: vi.fn(async (input) => ({
+      schemaVersion: 1, ...input, recipientId: 'student-1', revision: 4,
+      response: rows,
+      updatedByOperationId: operationId, updatedAt: new Date().toISOString(),
+    })) });
+    const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+      interactionIds: ids, storage: store() }));
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    expect(client.readDraft).toHaveBeenCalledOnce();
+    expect(client.saveDraft).not.toHaveBeenCalled();
+    await act(async () => { await result.current.submitActivity(ids[0]); });
+    expect(client.saveDraft).not.toHaveBeenCalled();
+    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({ response: rows, clientRevision: 4 }));
+  });
+
+  it('saves six rapid answers as one Activity snapshot and submits its acknowledged revision', async () => {
+    const client = runtimeClient();
+    const ids = Array.from({ length: 6 }, (_, index) => `interaction-${index + 1}`);
+    const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+      interactionIds: ids, storage: store() }));
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    act(() => { ids.forEach((id, index) => result.current.change(id, { text: `answer ${index + 1}` })); });
+    await act(async () => { await result.current.flush(); });
+    expect(client.saveDraft).toHaveBeenCalledTimes(1);
+    expect(client.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ interactionId: ids[0], clientRevision: 0,
+      response: ids.map((interactionId, index) => ({ interactionId, answer: `answer ${index + 1}` })) }));
+    await act(async () => { await result.current.submitActivity(ids[0]); });
+    expect(client.saveDraft).toHaveBeenCalledTimes(1);
+    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({ clientRevision: 1 }));
+  });
+  it('distinguishes untouched questions from an uncertain submission and preserves explicit blank answers', async () => {
+    const client = runtimeClient();
+    const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+      interactionIds: ['interaction-1', 'interaction-2'], storage: store() }));
+    await waitFor(() => expect(result.current.status).toBe('saved'));
+    await act(async () => {
+      await expect(result.current.submitActivity('interaction-1')).rejects.toMatchObject({ code: 'incomplete_response' });
+    });
+    expect(client.submitActivity).not.toHaveBeenCalled();
+    expect(result.current.terminalReadStatus).toBe('confirmed-absent');
+    act(() => {
+      result.current.change('interaction-1', { text: '' });
+      result.current.change('interaction-2', { text: 'answer' });
+    });
+    await act(async () => { await result.current.flush(); });
+    await act(async () => { await result.current.submitActivity('interaction-1'); });
+    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({ response: [
+      { interactionId: 'interaction-1', answer: '' }, { interactionId: 'interaction-2', answer: 'answer' },
+    ] }));
+  });
+  it.each(['reload', 'reconnect'] as const)('automatically saves restored local work after %s finishes hydration', async (entry) => {
+    const previousOnline = navigator.onLine;
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: entry === 'reload' });
+    try {
+      const savedAt = Date.now() - 1_000;
+      const recovery = store();
+      const key = 'book-runtime-draft:v1:student-1:binding-1:1:context-1:placement-1:activity-1:1:interaction-1';
+      await recovery.set(key, { schemaVersion: 1, ownerId: 'tab-1',
+        address: { ...address, recipientId: 'student-1', interactionId: 'interaction-1' },
+        response: { text: 'latest local answer' }, clientRevision: 4,
+        updatedAt: savedAt, expiresAt: savedAt + 60_000 });
+      const client = runtimeClient({ readDraft: vi.fn(async () => ({
+        schemaVersion: 1, ...address, recipientId: 'student-1', interactionId: 'interaction-1',
+        revision: 4, response: [{ interactionId: 'interaction-1', answer: 'previous server answer' }], updatedByOperationId: operationId,
+        updatedAt: new Date(savedAt - 1_000).toISOString(),
+      })) });
+      const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
+        interactionIds: ['interaction-1'], storage: recovery, tabId: 'tab-1' }));
+      if (entry === 'reconnect') {
+        await waitFor(() => expect(result.current.status).toBe('offline'));
+        expect(client.saveDraft).not.toHaveBeenCalled();
+        Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+        act(() => { window.dispatchEvent(new Event('online')); });
+      }
+      await waitFor(() => expect(client.saveDraft).toHaveBeenCalledOnce());
+      expect(client.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+        response: [{ interactionId: 'interaction-1', answer: 'latest local answer' }], clientRevision: 4,
+      }));
+      await waitFor(() => expect(result.current.status).toBe('saved'));
+      expect(result.current.isDirty).toBe(false);
+      expect(await recovery.get(key)).toBeNull();
+    } finally {
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: previousOnline });
+    }
+  });
+
   it('hydrates an exhausted submitted placement without allowing writes', async () => {
     const client = runtimeClient({ readDraft: vi.fn(async () => ({
       schemaVersion: 1, ...address, recipientId: 'student-1', interactionId: 'interaction-1',
       revision: 1, response: { text: 'submitted answer' }, updatedByOperationId: operationId,
       updatedAt: '2026-07-28T00:00:00.000Z',
     })) });
-    const readTerminal = vi.fn(async () => ({ status: 'confirmed-present' as const, resultStatus: 'submitted' as const }));
+    const readTerminal = vi.fn(async () => ({ status: 'confirmed-present' as const, resultStatus: 'submitted' as const,
+      responses: { 'interaction-1': { text: 'submitted answer' } } }));
     const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
       interactionIds: ['interaction-1'], storage: store(), canAutosave: false, canSubmit: false, readTerminal }));
     await waitFor(() => expect(result.current.status).toBe('saved'));
@@ -110,18 +239,18 @@ describe('useBookActivityRuntime', () => {
     act(() => { expect(result.current.change('interaction-1', { text: 'overwrite' })).toBe(false); });
     await act(async () => { await result.current.flush(); await expect(result.current.submitActivity('interaction-1')).rejects.toThrow(); });
     expect(readTerminal).toHaveBeenCalledOnce();
-    expect(client.readDraft).toHaveBeenCalledOnce();
+    expect(client.readDraft).not.toHaveBeenCalled();
     expect(client.saveDraft).not.toHaveBeenCalled();
     expect(client.submitActivity).not.toHaveBeenCalled();
   });
   it('rejects edits during hydration and after a restored terminal', async () => {
-    let resolveTerminal!: (value: { status: 'confirmed-present'; resultStatus: 'submitted' }) => void;
-    const readTerminal = () => new Promise<{ status: 'confirmed-present'; resultStatus: 'submitted' }>((resolve) => { resolveTerminal = resolve; });
+    let resolveTerminal!: (value: { status: 'confirmed-present'; resultStatus: 'submitted'; responses: Record<string, unknown> }) => void;
+    const readTerminal = () => new Promise<{ status: 'confirmed-present'; resultStatus: 'submitted'; responses: Record<string, unknown> }>((resolve) => { resolveTerminal = resolve; });
     const client = runtimeClient();
     const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
       interactionIds: ['interaction-1'], storage: store(), readTerminal }));
     act(() => { expect(result.current.change('interaction-1', { text: 'early' })).toBe(false); });
-    await act(async () => { resolveTerminal({ status: 'confirmed-present', resultStatus: 'submitted' }); });
+    await act(async () => { resolveTerminal({ status: 'confirmed-present', resultStatus: 'submitted', responses: {} }); });
     await waitFor(() => expect(result.current.status).toBe('saved'));
     act(() => { expect(result.current.change('interaction-1', { text: 'completed edit' })).toBe(false); });
     expect(result.current.responses).toEqual({});
@@ -139,7 +268,8 @@ describe('useBookActivityRuntime', () => {
         receipt: { operationId: input.operationId, fingerprint: '', status: 'denied' as const, bindingId: input.bindingId, createdAt: '2026-07-28T00:00:00.000Z' } };
       throw new BookRuntimeClientError(outcome);
     }) });
-    const readTerminal = vi.fn(async () => committed ? { status: 'confirmed-present' as const, resultStatus: 'submitted' as const } : { status: 'confirmed-absent' as const });
+    const readTerminal = vi.fn(async () => committed ? { status: 'confirmed-present' as const, resultStatus: 'submitted' as const,
+      responses: { 'interaction-1': { text: 'final' } } } : { status: 'confirmed-absent' as const });
     const { result } = renderHook(() => useBookActivityRuntime({ client, recipientId: 'student-1', address,
       interactionIds: ['interaction-1'], storage: store(), readTerminal }));
     await waitFor(() => expect(result.current.status).toBe('saved'));
@@ -173,7 +303,7 @@ describe('useBookActivityRuntime', () => {
         recipientId: 'student-1',
         interactionId: 'interaction-1',
         revision: 1,
-        response: { text: 'saved response' },
+        response: [{ interactionId: 'interaction-1', answer: 'saved response' }],
         updatedByOperationId: operationId,
         updatedAt: '2026-07-28T00:00:00.000Z',
       })),
@@ -195,13 +325,13 @@ describe('useBookActivityRuntime', () => {
 
     await waitFor(() => expect(result.current.status).toBe('saved'));
     expect(result.current.responses).toEqual({
-      'interaction-1': { text: 'saved response' },
+      'interaction-1': [{ interactionId: 'interaction-1', answer: 'saved response' }],
     });
     expect(client.readDraft).toHaveBeenCalledOnce();
   });
 
-  it('submits a preserved legacy saved response through the current submission boundary', async () => {
-    const legacy = [{ interactionId: 'interaction-1', answer: ['option-a'] }];
+  it('submits a saved choice snapshot through the current submission boundary', async () => {
+    const response = [{ interactionId: 'interaction-1', answer: ['option-a'] }];
     const client = runtimeClient({
       readDraft: vi.fn(async () => ({
         schemaVersion: 1 as const,
@@ -209,7 +339,7 @@ describe('useBookActivityRuntime', () => {
         recipientId: 'student-1',
         interactionId: 'interaction-1',
         revision: 1,
-        response: legacy,
+        response,
         updatedByOperationId: operationId,
         updatedAt: '2026-07-28T00:00:00.000Z',
       })),
@@ -224,7 +354,7 @@ describe('useBookActivityRuntime', () => {
 
     await waitFor(() => expect(result.current.status).toBe('saved'));
     await act(async () => { await result.current.submitActivity('interaction-1'); });
-    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({ response: legacy }));
+    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({ response }));
   });
 
   it('consumes explicit permissions and never reconstructs release or late policy from browser time', async () => {
@@ -319,7 +449,7 @@ describe('useBookActivityRuntime', () => {
     expect(result.current.status).toBe('saved');
     expect(client.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
       clientRevision: 0,
-      response: { text: 'draft' },
+      response: [{ interactionId: 'interaction-1', answer: 'draft' }],
     }));
     expect(metrics).toEqual(expect.arrayContaining([
       expect.objectContaining({ event: 'autosave-ack' }),
@@ -333,15 +463,28 @@ describe('useBookActivityRuntime', () => {
     let releaseFirst!: () => void;
     const firstSave = new Promise<void>((resolve) => { releaseFirst = resolve; });
     let callCount = 0;
+    const operationPayloads = new Map<string, string>();
     let inFlight = 0;
     let maxInFlight = 0;
     const client = runtimeClient({
       saveDraft: vi.fn(async (input) => {
         callCount += 1;
+        const payload = JSON.stringify(input.response);
+        const previousPayload = operationPayloads.get(input.operationId);
+        operationPayloads.set(input.operationId, payload);
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
         if (callCount === 1) await firstSave;
         inFlight -= 1;
+        if (previousPayload !== undefined && previousPayload !== payload) {
+          return {
+            status: 'conflict' as const,
+            receipt: {
+              operationId: input.operationId, fingerprint: '', status: 'conflict' as const, bindingId: input.bindingId,
+              draftRevision: input.clientRevision, createdAt: '2026-07-28T00:00:00.000Z',
+            },
+          };
+        }
         return {
           status: 'accepted' as const,
           receipt: {
@@ -359,7 +502,7 @@ describe('useBookActivityRuntime', () => {
       client,
       recipientId: 'student-1',
       address,
-      interactionIds: ['interaction-1'],
+      interactionIds: ['interaction-1', 'interaction-2'],
       storage: store(),
       debounceMs: 20,
       tabId: 'tab-1',
@@ -367,7 +510,7 @@ describe('useBookActivityRuntime', () => {
 
     act(() => { result.current.change('interaction-1', { text: 'first' }); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1_500); await Promise.resolve(); });
-    act(() => { result.current.change('interaction-1', { text: 'latest' }); });
+    act(() => { result.current.change('interaction-1', { text: 'latest' }); result.current.change('interaction-2', { text: 'second' }); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1_500); await Promise.resolve(); });
     expect(callCount).toBe(1);
     expect(maxInFlight).toBe(1);
@@ -380,11 +523,15 @@ describe('useBookActivityRuntime', () => {
     });
     expect(callCount).toBe(2);
     expect(client.saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
-      response: { text: 'latest' },
+      response: [{ interactionId: 'interaction-1', answer: 'latest' }, { interactionId: 'interaction-2', answer: 'second' }],
       clientRevision: 1,
     }));
-    const saveCalls = vi.mocked(client.saveDraft).mock.calls;
-    expect(saveCalls[0]?.[0].operationId).toBe(saveCalls[1]?.[0].operationId);
+    expect(result.current.status).toBe('saved');
+    expect(result.current.isDirty).toBe(false);
+    await act(async () => { await result.current.submitActivity('interaction-1'); });
+    expect(client.submitActivity).toHaveBeenCalledWith(expect.objectContaining({
+      response: [{ interactionId: 'interaction-1', answer: 'latest' }, { interactionId: 'interaction-2', answer: 'second' }],
+    }));
   });
 
   it('counts forced flushes against the six-write trailing Activity budget', async () => {
@@ -403,7 +550,7 @@ describe('useBookActivityRuntime', () => {
 
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     for (let index = 0; index < 6; index += 1) {
-      act(() => { result.current.change('interaction-1', { index }); });
+      act(() => { result.current.change('interaction-1', { text: String(index) }); });
       await act(async () => { await result.current.flush('navigation'); });
     }
     expect(client.saveDraft).toHaveBeenCalledTimes(6);
@@ -411,7 +558,7 @@ describe('useBookActivityRuntime', () => {
     rerender({ currentAddress: { ...address, bindingId: 'binding-addition', bindingRevision: 2, activityVersion: 2 } });
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
-    act(() => { result.current.change('interaction-1', { index: 6 }); });
+    act(() => { result.current.change('interaction-1', { text: '6' }); });
     let seventh!: Awaited<ReturnType<typeof result.current.flush>>;
     await act(async () => {
       const pending = result.current.flush('navigation');
@@ -573,7 +720,7 @@ describe('useBookActivityRuntime', () => {
         recipientId: 'student-1',
         interactionId: 'interaction-1',
         revision: 2,
-        response: { text: 'server' },
+        response: [{ interactionId: 'interaction-1', answer: 'server' }],
         updatedByOperationId: operationId,
         updatedAt: '2026-07-28T00:00:00.000Z',
       })),
@@ -595,14 +742,14 @@ describe('useBookActivityRuntime', () => {
     expect(result.current.responses).toEqual({ 'interaction-1': { text: 'local' } });
     expect(result.current.conflict).toMatchObject({
       interactionId: 'interaction-1',
-      localResponse: { text: 'local' },
-      serverResponse: { text: 'server' },
+      localResponse: [{ interactionId: 'interaction-1', answer: 'local' }],
+      serverResponse: [{ interactionId: 'interaction-1', answer: 'server' }],
       serverRevision: 2,
     });
   });
 
   it('reloads acknowledged server state and discards retained local state', async () => {
-    let serverResponse: unknown = { text: 'server' };
+    let serverResponse: unknown = [{ interactionId: 'interaction-1', answer: 'server' }];
     const client = runtimeClient({
       readDraft: vi.fn(async () => ({
         schemaVersion: 1 as const,
@@ -625,13 +772,13 @@ describe('useBookActivityRuntime', () => {
       tabId: 'tab-1',
     }));
 
-    await waitFor(() => expect(result.current.responses).toEqual({ 'interaction-1': { text: 'server' } }));
+    await waitFor(() => expect(result.current.responses).toEqual({ 'interaction-1': [{ interactionId: 'interaction-1', answer: 'server' }] }));
     act(() => { result.current.change('interaction-1', { text: 'local' }); });
     await act(async () => { await result.current.discardLocal(); });
-    expect(result.current.responses).toEqual({ 'interaction-1': { text: 'server' } });
-    serverResponse = { text: 'reloaded' };
+    expect(result.current.responses).toEqual({ 'interaction-1': [{ interactionId: 'interaction-1', answer: 'server' }] });
+    serverResponse = [{ interactionId: 'interaction-1', answer: 'reloaded' }];
     await act(async () => { await result.current.reload(); });
-    expect(result.current.responses).toEqual({ 'interaction-1': { text: 'reloaded' } });
+    expect(result.current.responses).toEqual({ 'interaction-1': [{ interactionId: 'interaction-1', answer: 'reloaded' }] });
   });
 
   it('flushes before terminal submission and reuses the immutable acknowledgement on double submit', async () => {
@@ -665,29 +812,19 @@ describe('useBookActivityRuntime', () => {
     expect(result.current.terminalReadStatus).toBe('confirmed-absent');
   });
 
-  it('restores terminal status after remount without fabricating a runtime receipt', async () => {
+  it('restores committed answers after remount when submission cleared the drafts', async () => {
     const terminal = {
       status: 'confirmed-present' as const,
       resultStatus: 'submitted' as const,
+      responses: { 'interaction-1': { text: 'submitted response' }, 'interaction-2': { selectedOptionId: 'option-a' } },
     };
-    const client = runtimeClient({
-      readDraft: vi.fn(async () => ({
-        schemaVersion: 1 as const,
-        ...address,
-        recipientId: 'student-1',
-        interactionId: 'interaction-1',
-        revision: 1,
-        response: { text: 'saved response' },
-        updatedByOperationId: operationId,
-        updatedAt: '2026-07-28T00:00:00.000Z',
-      })),
-    });
+    const client = runtimeClient();
     const readTerminal = vi.fn(async () => terminal);
     const options = {
       client,
       recipientId: 'student-1',
       address,
-      interactionIds: ['interaction-1'],
+      interactionIds: ['interaction-1', 'interaction-2'],
       storage: store(),
       readTerminal,
     };
@@ -697,7 +834,7 @@ describe('useBookActivityRuntime', () => {
 
     const second = renderHook(() => useBookActivityRuntime(options));
     await waitFor(() => expect(second.result.current.terminalReadStatus).toBe('confirmed-present'));
-    expect(second.result.current.responses).toEqual({ 'interaction-1': { text: 'saved response' } });
+    expect(second.result.current.responses).toEqual(terminal.responses);
     expect(second.result.current.terminalResult).toBeNull();
     expect(second.result.current.terminalReadResultStatus).toBe(terminal.resultStatus);
     expect(client.submitActivity).not.toHaveBeenCalled();
@@ -719,7 +856,7 @@ describe('useBookActivityRuntime', () => {
   });
 
   it('does not apply a stale terminal read after the runtime generation changes', async () => {
-    let resolveFirst!: (value: { readonly status: 'confirmed-present'; readonly resultStatus: 'submitted' }) => void;
+    let resolveFirst!: (value: { readonly status: 'confirmed-present'; readonly resultStatus: 'submitted'; readonly responses: Record<string, unknown> }) => void;
     const readTerminal = vi.fn()
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValueOnce({ status: 'confirmed-absent' as const });
@@ -737,7 +874,7 @@ describe('useBookActivityRuntime', () => {
     );
 
     rerender({ contextId: 'context-2' });
-    resolveFirst({ status: 'confirmed-present', resultStatus: 'submitted' });
+    resolveFirst({ status: 'confirmed-present', resultStatus: 'submitted', responses: {} });
 
     await waitFor(() => expect(result.current.terminalReadStatus).toBe('confirmed-absent'));
     expect(result.current.terminalReadResultStatus).toBeNull();

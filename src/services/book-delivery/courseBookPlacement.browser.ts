@@ -364,10 +364,12 @@ const assertGenericRuntimeProjection = (value: Record<string, unknown>): void =>
   if (value.pageGroups !== undefined) {
     if (!Array.isArray(value.pageGroups)) fail('invalid_response', 502);
     value.pageGroups.forEach((group) => {
-      if (!isRecord(group) || !exactKeys(group, ['pageGroupKey', 'combinedPhysicalPages'])
+      if (!isRecord(group) || !exactKeys(group, ['pageGroupKey', 'combinedPhysicalPages'], ['defaultCombinedPhysicalPage'])
         || typeof group.pageGroupKey !== 'string' || !ID.test(group.pageGroupKey)
         || !Array.isArray(group.combinedPhysicalPages)
-        || group.combinedPhysicalPages.some((page) => !Number.isSafeInteger(page) || (page as number) < 1)) {
+        || group.combinedPhysicalPages.some((page) => !Number.isSafeInteger(page) || (page as number) < 1)
+        || (group.defaultCombinedPhysicalPage !== undefined && (!Number.isSafeInteger(group.defaultCombinedPhysicalPage)
+          || !group.combinedPhysicalPages.includes(group.defaultCombinedPhysicalPage)))) {
         fail('invalid_response', 502);
       }
     });

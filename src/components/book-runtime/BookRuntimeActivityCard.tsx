@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { BookRuntimeDeliveryProjection } from '../../services/book-delivery/bookDelivery.types';
-import { createBookRuntimeClient } from '../../services/book-activity/activityRuntime.browser';
+import { BookRuntimeClientError, createBookRuntimeClient } from '../../services/book-activity/activityRuntime.browser';
 import type { ActivityRendererRegistry } from '../../services/book-activity/runtime/activityRendererRegistry';
 import { useBookActivityRuntime, type BookRuntimeTerminalRead } from '../../hooks/book-runtime/useBookActivityRuntime';
 import { ActivityRendererHost } from './interactions/ActivityRendererHost';
@@ -28,9 +28,14 @@ export const BookRuntimeActivityCard = ({ activity, projection, registry, onActi
       const terminal = await client.readTerminal({ bindingId: projection.bindingId, bindingRevision: projection.bindingRevision,
         contextId: projection.context.contextId, placementId: placement.placementId, activityId: placement.activityId,
         activityVersion: placement.activityVersion, interactionId: interactionIds[0] ?? '' });
-      return terminal.status === 'absent' ? { status: 'confirmed-absent' } : { status: 'confirmed-present', resultStatus: terminal.resultStatus };
+      if (terminal.status === 'absent') return { status: 'confirmed-absent' };
+      if (!resolution.supported || terminal.response.length !== interactionIds.length
+        || terminal.response.some((entry) => !interactionIds.includes(entry.interactionId))) throw new Error('Invalid submitted Activity response.');
+      return { status: 'confirmed-present', resultStatus: terminal.resultStatus,
+        responses: Object.fromEntries(terminal.response.map((entry) => [entry.interactionId,
+          normalizeSavedActivityResponse(entry.interactionId, [entry], resolution.registration.responseCodec)])) };
     } catch { return { status: 'unavailable' }; }
-  }, [client, interactionIds, placement, projection.bindingId, projection.bindingRevision, projection.context.contextId]);
+  }, [client, interactionIds, placement, projection.bindingId, projection.bindingRevision, projection.context.contextId, resolution]);
   const serializeResponse = useCallback((_id: string, value: unknown) => {
     if (!resolution.supported) throw new Error('Activity renderer unavailable.');
     return resolution.registration.codec.serialize(value);
@@ -99,7 +104,14 @@ export const BookRuntimeActivityCard = ({ activity, projection, registry, onActi
       const result = await runtime.submitActivity(interactionIds[0]);
       if (result.resultStatus === 'pending_review') toast.info('Activity submitted for teacher review.');
       else toast.success(result.status === 'replayed' ? 'Activity submission already saved.' : 'Activity submitted.');
-    } catch { toast.error('Could not confirm submission. Your saved response remains available; check the Activity status before retrying.'); }
+    } catch (error) {
+      const unanswered = interactionIds.flatMap((id, index) => summary.answered.includes(id) ? [] : [index + 1]);
+      toast.error(error instanceof BookRuntimeClientError && error.code === 'incomplete_response'
+        ? unanswered.length
+          ? `Answer question${unanswered.length === 1 ? '' : 's'} ${unanswered.join(', ')} before submitting this Activity.`
+          : 'Check your answers before submitting this Activity.'
+        : 'Could not confirm submission. Your saved response remains available; check the Activity status before retrying.');
+    }
     finally { setSubmitting(false); }
   };
   return <>

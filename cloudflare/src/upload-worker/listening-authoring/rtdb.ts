@@ -425,7 +425,9 @@ const rtdbUrl = (env: RepositoryEnv, path: string): string => {
   const baseUrl = env.FIREBASE_DB_URL?.trim().replace(/\/$/u, '');
   if (!baseUrl) throw new Error('missing_firebase_db_url');
   const encodedPath = encodeRtdbPath(path);
-  return encodedPath ? `${baseUrl}/${encodedPath}.json` : `${baseUrl}/.json`;
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/$/u, '')}/${encodedPath}.json`;
+  return url.href;
 };
 
 const withQuery = (
@@ -433,7 +435,8 @@ const withQuery = (
   query?: FirebaseRtdbQuery,
   authToken?: string,
 ): string => {
-  const parameters = new URLSearchParams();
+  const parsed = new URL(url);
+  const parameters = parsed.searchParams;
   if (query) {
     parameters.set('orderBy', JSON.stringify(query.orderBy));
     if (query.equalTo !== undefined) parameters.set('equalTo', JSON.stringify(query.equalTo));
@@ -441,11 +444,11 @@ const withQuery = (
     if (query.limitToLast !== undefined) parameters.set('limitToLast', String(query.limitToLast));
   }
   if (authToken !== undefined) parameters.set('auth', authToken);
-  const encoded = parameters.toString();
-  return encoded ? `${url}?${encoded}` : url;
+  return parsed.href;
 };
 
 const PATCH_PATH = /^[A-Za-z0-9_:-]{1,160}(?:\/[A-Za-z0-9_:-]{1,160})*$/u;
+const SCOPED_PATCH_PATH = /^[A-Za-z0-9_:-]{1,768}(?:\/[A-Za-z0-9_:-]{1,768})*$/u;
 
 export class FirebaseRtdbRestClient {
   constructor(
@@ -503,24 +506,25 @@ export class FirebaseRtdbRestClient {
 
   async patchMultiLocation(
     updates: readonly { readonly path: string; readonly value: unknown }[],
+    basePath = '',
   ): Promise<void> {
     if (!this.options.firebaseAuthToken) {
       throw new Error('firebase_rtdb_multi_location_patch_requires_firebase_auth_token');
     }
-    if (!Array.isArray(updates) || updates.length < 2) {
+    if (!Array.isArray(updates) || updates.length < 2 || (basePath !== '' && !PATCH_PATH.test(basePath))) {
       throw new Error('firebase_rtdb_multi_location_patch_invalid');
     }
     const payload: Record<string, unknown> = {};
     for (const update of updates) {
       const path = update?.path;
-      if (typeof path !== 'string' || !PATCH_PATH.test(path)
+      if (typeof path !== 'string' || !(basePath ? SCOPED_PATCH_PATH : PATCH_PATH).test(path)
         || Object.prototype.hasOwnProperty.call(payload, path)
         || Object.keys(payload).some((other) => path.startsWith(`${other}/`) || other.startsWith(`${path}/`))) {
         throw new Error('firebase_rtdb_multi_location_patch_invalid');
       }
       payload[path] = update.value;
     }
-    const auth = await this.requestAuth('');
+    const auth = await this.requestAuth(basePath);
     let response: Response;
     try {
       response = await this.options.fetchImpl.call(globalThis, auth.url, {

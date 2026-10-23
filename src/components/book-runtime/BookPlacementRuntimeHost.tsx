@@ -78,17 +78,20 @@ const StateView = ({
   title,
   message,
   onReturn,
+  onRetry,
   error = false,
 }: {
   readonly title: string;
   readonly message: string;
   readonly onReturn: () => void;
+  readonly onRetry?: () => void;
   readonly error?: boolean;
 }) => (
   <main className="student-view-root" style={pageStyle} data-testid="book-placement-runtime-host">
     <section style={panelStyle} role={error ? 'alert' : 'status'} aria-live="polite">
       <h1 style={{ marginTop: 0, fontSize: '1.5rem' }}>{title}</h1>
       <p>{message}</p>
+      {onRetry && <button type="button" onClick={onRetry} style={{ minHeight: 44, padding: '10px 16px', marginRight: 12 }}>Retry Activities</button>}
       <ReturnButton onClick={onReturn} />
     </section>
   </main>
@@ -152,19 +155,29 @@ export const BookPlacementRuntimeHost = ({
   const [activities, setActivities] = useState<readonly BookRuntimeShellActivity[]>([]);
   const [loading, setLoading] = useState(!launchError);
   const [error, setError] = useState<string | null>(launchError);
+  const [retryRevision, setRetryRevision] = useState(0);
   const flushBeforeProjectionRefresh = useRef<(() => Promise<void>) | null>(null);
-  const activityPinsKey = projection.activities
-    .map(({ placementId, activityId, activityVersionId }) => `${placementId}:${activityId}:${activityVersionId}`)
-    .join('|');
-  const loadedActivityPinsKey = useRef<string | null>(null);
+  const activityPinsKey = JSON.stringify(projection.activities
+    .map(({ placementId, activityId, activityVersionId }) => [placementId, activityId, activityVersionId]));
+  const activityContentKey = JSON.stringify([
+    projection.recipientId, projection.context.kind, projection.context.contextId,
+    projection.book.bookId, activityPinsKey,
+  ]);
+  const activityRequestKey = JSON.stringify([activityContentKey, projection.bindingId, projection.bindingRevision]);
+  const loadedActivityContentKey = useRef<string | null>(null);
   const registerFlush = useCallback((flush: (() => Promise<void>) | null) => {
     flushBeforeProjectionRefresh.current = flush;
   }, []);
 
   const client = useMemo(
     () => activityClient ?? createBookActivityLaunchBrowserClient(),
-    [activityClient?.readActivities],
+    [activityClient?.readActivities, activityClient?.readHomeworkActivities],
   );
+  const activityRequest = useRef<{
+    key: string;
+    client: typeof client;
+    promise: Promise<readonly BookRuntimeShellActivity[]>;
+  } | null>(null);
   const integrityClient = useMemo(() => createBookIntegrityCaptureClient({
     baseUrl: resolveBookDeliveryWorkerOrigin(),
     getIdToken: async () => {
@@ -222,6 +235,8 @@ export const BookPlacementRuntimeHost = ({
 
   useEffect(() => {
     if (launchError) {
+      loadedActivityContentKey.current = null;
+      activityRequest.current = null;
       setLoading(false);
       setError(launchError);
       setActivities([]);
@@ -231,13 +246,16 @@ export const BookPlacementRuntimeHost = ({
     let mounted = true;
     setLoading(true);
     setError(null);
-    if (activities.length > 0 && loadedActivityPinsKey.current === activityPinsKey) {
+    if (loadedActivityContentKey.current === activityContentKey) {
       setLoading(false);
       return;
     }
     setActivities([]);
 
-    const load = projection.context.kind === 'homework'
+    const pending = activityRequest.current;
+    const load = pending?.key === activityRequestKey && pending.client === client
+      ? pending.promise
+      : projection.context.kind === 'homework'
       ? client.readHomeworkActivities?.({
         assignmentId: projection.context.contextId,
         placements: projection.activities.map((activity) => ({
@@ -247,12 +265,16 @@ export const BookPlacementRuntimeHost = ({
         })),
       }) ?? Promise.reject(new Error('book_homework_context_unavailable'))
       : client.readActivities(launchInput);
+    activityRequest.current = { key: activityRequestKey, client, promise: load };
     void load
       .then((loaded) => {
         if (!mounted) return;
         setActivities(loaded);
-        loadedActivityPinsKey.current = activityPinsKey;
+        loadedActivityContentKey.current = activityContentKey;
         setLoading(false);
+      })
+      .finally(() => {
+        if (activityRequest.current?.promise === load) activityRequest.current = null;
       })
       .catch(() => {
         if (!mounted) return;
@@ -263,19 +285,24 @@ export const BookPlacementRuntimeHost = ({
     return () => {
       mounted = false;
     };
-  }, [activities.length, activityPinsKey, client, launchError, launchInput, projection]);
+  }, [activityContentKey, activityRequestKey, client, launchError, launchInput, projection, retryRevision]);
 
-  if (loading) {
-    return <StateView title="Loading Book" message="Loading the published Activities for this Book." onReturn={returnToEntry} />;
+  const currentError = launchError ?? error;
+  if (currentError) {
+    return <StateView title="Book unavailable" message={currentError} onReturn={returnToEntry}
+      onRetry={!launchError ? () => {
+        onAction?.('bookRuntimeLaunchRetried', { surface: projection.context.kind, bindingId: projection.bindingId });
+        setRetryRevision((revision) => revision + 1);
+      } : undefined} error />;
   }
 
-  if (error) {
-    return <StateView title="Book unavailable" message={error} onReturn={returnToEntry} error />;
+  if (loading || loadedActivityContentKey.current !== activityContentKey) {
+    return <StateView title="Loading Book" message="Loading the published Activities for this Book." onReturn={returnToEntry} />;
   }
 
   return (
     <main className="student-view-root book-runtime-host" data-testid="book-placement-runtime-host">
-        <BookPersistentRuntimeReady key={`${projection.recipientId}:${projection.context.contextId}:${activityPinsKey}`}
+        <BookPersistentRuntimeReady key={activityContentKey}
           activities={activities}
           onAction={onAction}
           onFlushRegistration={registerFlush}

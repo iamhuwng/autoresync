@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
+import { decodeJwt } from 'jose';
 import type {
   BookHomeworkSagaRecord,
 } from '../../src/services/book-homework/bookHomeworkSaga.types.ts';
@@ -92,14 +94,49 @@ const workerEnv = {
 };
 
 describe('canonical Book Homework composition', () => {
+  it('reuses the authenticated owner token inside each command without sharing it across owners', async () => {
+    const privateKey = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+      .export({ type: 'pkcs8', format: 'pem' }).toString();
+    const owners: unknown[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      if (String(input).includes('identitytoolkit.googleapis.com')) {
+        const claims = decodeJwt(JSON.parse(String(init?.body)).token).claims as Record<string, unknown>;
+        owners.push(claims.book_homework_ownerId);
+        return Response.json({ idToken: `token-${owners.length}`, expiresIn: '3600' });
+      }
+      return Response.json({ role: 'teacher', status: 'active' });
+    });
+    vi.stubGlobal('fetch', fetchImpl);
+    const env = {
+      FIREBASE_PROJECT_ID: 'project-test', FIREBASE_WEB_API_KEY: 'web-key', FIREBASE_DB_URL: 'https://firebase.test',
+      BOOK_HOMEWORK_SERVICE_IDENTITY: 'homework@example.test',
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'homework@example.test', private_key: privateKey }),
+      BOOK_NOTIFICATIONS_EMISSION_ENABLED: false,
+    };
+    const handlers = createCanonicalBookHomeworkHandlers({
+      sagaFactory: async (_env, options) => {
+        expect(options?.getSagaAccessToken).toBeTypeOf('function');
+        const token = await options!.getSagaAccessToken!();
+        expect(await options!.getSagaAccessToken!()).toBe(token);
+        return { execute: async () => ({ status: 'committed', record: record() }) };
+      },
+    });
+    try {
+      for (const uid of ['teacher-1', 'teacher-2']) {
+        const result = await handlers.homeworkAssignmentCommand({ request: request(), env, uid, assignmentId });
+        expect(result.init.status).toBe(200);
+      }
+      expect(owners).toEqual(['teacher-1', 'teacher-2']);
+    } finally { vi.unstubAllGlobals(); }
+  });
   it('injects one trusted runtime and the in-process notification adapter', async () => {
     const notifications = new InMemoryNotificationCommandRepository();
     const trustedRecord = record();
     const sagaFactory = vi.fn(async () => ({
-      execute: vi.fn(async () => ({
-        status: 'committed' as const,
-        record: trustedRecord,
-      })),
+      execute: vi.fn(async (_command, emit) => {
+        await emit?.(trustedRecord, trustedRecord.recipients.map(entry => entry.recipientId));
+        return { status: 'committed' as const, record: trustedRecord };
+      }),
       readCommittedAssignment: vi.fn(async () => trustedRecord),
     }));
     const handlers = createCanonicalBookHomeworkHandlers({
@@ -118,8 +155,7 @@ describe('canonical Book Homework composition', () => {
 
     expect(result.init.status).toBe(200);
     expect(sagaFactory).toHaveBeenCalledTimes(1);
-    expect(tasks).toHaveLength(1);
-    await tasks[0];
+    expect(tasks).toHaveLength(0);
     expect(Object.keys(notifications.snapshot())).toHaveLength(1);
   });
 

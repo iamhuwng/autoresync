@@ -284,7 +284,7 @@ export const createComponentPdfCompositionWorkerMessageHandler = (
   };
 };
 
-if (typeof document === 'undefined') {
+if (typeof document === 'undefined' && typeof globalThis.addEventListener === 'function') {
   const handler = createComponentPdfCompositionWorkerMessageHandler();
   globalThis.addEventListener('message', handler as EventListener);
 }

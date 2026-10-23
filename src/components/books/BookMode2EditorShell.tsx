@@ -43,6 +43,7 @@ export interface BookMode2EditorShellProps {
   readonly presentation: 'modal' | 'page-compat';
   readonly experience: 'guided-creation' | 'focused-editing';
   readonly editingSection?: BookPdfEditorSection;
+  readonly onOpenPlan?: () => void;
   readonly uploadWorkflow?: SourceUploadBrowserWorkflow | null;
   readonly uploadWorkflowForSource?: (sourceKey: string) => SourceUploadBrowserWorkflow | null;
   readonly assemblyRepository?: UnitAssemblyRepository | null;
@@ -152,6 +153,7 @@ const BookMode2EditorShell = ({
   presentation,
   experience,
   editingSection,
+  onOpenPlan,
   uploadWorkflow,
   uploadWorkflowForSource,
   assemblyRepository,
@@ -197,13 +199,26 @@ const BookMode2EditorShell = ({
     [assemblyRepository],
   );
   const sourceSetSignature = JSON.stringify(book.sourceSet ?? null);
+  const [loadedAssemblyPublication, setLoadedAssemblyPublication] = useState<{
+    readonly bookId: string;
+    readonly status: BookCurrentPublicationStatus;
+    readonly publication: BookAssemblyCurrentPublication | null;
+  }>({
+    bookId: book.bookId,
+    status: assemblyInitialPublication !== undefined ? 'loaded' : 'loading',
+    publication: assemblyInitialPublication ?? null,
+  });
+  const fullPdfCandidateUnitKeys = (assemblyInitialPublication
+    ?? (loadedAssemblyPublication.bookId === book.bookId ? loadedAssemblyPublication.publication : null))
+    ?.units.map((unit) => unit.unitKey) ?? [FULL_PDF_PRIMARY_UNIT_KEY];
+  const fullPdfCandidateUnitSignature = JSON.stringify(fullPdfCandidateUnitKeys);
   const candidateOwnerKeys = useMemo(() => book.sourceSet?.sourceStrategy === 'full_pdf'
-    ? [FULL_PDF_PRIMARY_UNIT_KEY]
+    ? fullPdfCandidateUnitKeys
     : [...new Set(
       (book.sourceSet?.sources ?? [])
         .map((source) => source.ownerNodeKey)
         .filter((ownerNodeKey): ownerNodeKey is string => typeof ownerNodeKey === 'string' && ownerNodeKey.length > 0),
-    )], [sourceSetSignature]);
+    )], [sourceSetSignature, fullPdfCandidateUnitSignature]);
   const firstComponentDraft = book.bookMode === 'pdf' && book.bookRevision === 0
     && book.sourceSetRevision === 0 && !book.sourceSet && !book.setupActivations;
   const [loadedAssemblyCandidate, setLoadedAssemblyCandidate] = useState<{
@@ -260,7 +275,7 @@ const BookMode2EditorShell = ({
           bookId: book.bookId,
           status: 'loaded',
           candidate: draft?.candidate ?? null,
-          savedActivityKeysByUnit: draft?.savedActivityKeysByUnit ?? {},
+          savedActivityKeysByUnit: Object.assign({}, ...candidates.map((value) => value?.savedActivityKeysByUnit ?? {})),
         });
       })
       .catch(() => {
@@ -331,15 +346,6 @@ const BookMode2EditorShell = ({
     () => assemblyPreviewClient === undefined ? configuredAssemblyPreviewClient() : assemblyPreviewClient,
     [assemblyPreviewClient],
   );
-  const [loadedAssemblyPublication, setLoadedAssemblyPublication] = useState<{
-    readonly bookId: string;
-    readonly status: BookCurrentPublicationStatus;
-    readonly publication: BookAssemblyCurrentPublication | null;
-  }>({
-    bookId: book.bookId,
-    status: assemblyInitialPublication !== undefined ? 'loaded' : 'loading',
-    publication: assemblyInitialPublication ?? null,
-  });
   const [publicationLoadAttempt, setPublicationLoadAttempt] = useState(0);
   useEffect(() => {
     if (assemblyInitialPublication !== undefined || access === 'public-readonly') {
@@ -403,15 +409,24 @@ const BookMode2EditorShell = ({
   const [homeworkHandoffOpen, setHomeworkHandoffOpen] = useState(false);
   const [bookHomeworkRecovery, setBookHomeworkRecovery] = useState<BookHomeworkRecoveryState | null>(null);
   const publishedUnits = resolvedInitialPublication?.units ?? [];
-  const [selectedPublishedUnitKey, setSelectedPublishedUnitKey] = useState<string | null>(null);
-  useEffect(() => {
-    if (publishedUnits.length <= 1) return;
-    setSelectedPublishedUnitKey((current) => current && publishedUnits.some((unit) => unit.unitKey === current) ? current : null);
-  }, [publishedUnits]);
-  const publishedUnit = publishedUnits.length === 1
-    ? publishedUnits[0]
-    : publishedUnits.find((unit) => unit.unitKey === selectedPublishedUnitKey) ?? null;
-  const openHomeworkHandoff = useCallback(() => setHomeworkHandoffOpen(true), []);
+  const [unitSelection, setUnitSelection] = useState<{ bookId: string; unitKey: string } | null>(null);
+  const selectedUnitKey = unitSelection?.bookId === book.bookId ? unitSelection.unitKey
+    : resolvedInitialCandidate?.manifest?.units[0]?.unitKey ?? publishedUnits[0]?.unitKey;
+  const editorUnitKeys = [...new Set([
+    ...(resolvedInitialCandidate?.manifest?.units.map((unit) => unit.unitKey) ?? []),
+    ...publishedUnits.map((unit) => unit.unitKey),
+    ...(selectedUnitKey ? [selectedUnitKey] : []),
+  ])];
+  const selectUnit = (unitKey: string) => {
+    setUnitSelection({ bookId: book.bookId, unitKey });
+    trackAction('teacher_materials_book_assembly_component_unit_selected', { bookId: book.bookId, unitKey, source });
+  };
+  const publishedUnit = publishedUnits.find((unit) => unit.unitKey === selectedUnitKey) ?? null;
+  const openHomeworkHandoff = () => {
+    if (!publishedUnit) return;
+    trackAction('assignBookUnit', { bookId: book.bookId, unitKey: publishedUnit.unitKey, source });
+    setHomeworkHandoffOpen(true);
+  };
   const updateCurrentPublication = useCallback((publication: BookAssemblyCurrentPublication) => {
     setLoadedAssemblyPublication({ bookId: book.bookId, status: 'loaded', publication });
   }, [book.bookId]);
@@ -440,18 +455,17 @@ const BookMode2EditorShell = ({
 
   return <>
     <main className="book-mode2-editor-shell" data-book-mode="pdf" data-presentation={presentation} data-flow="pdf-book-flow">
-      {publishedUnits.length > 1 && <div>
-        <label htmlFor="book-mode2-published-unit">Published unit</label>
+      {experience === 'focused-editing' && editingSection === 'preview' && editorUnitKeys.length > 0 && <div className="book-mode2-editor-shell__unit-actions">
+        {editorUnitKeys.length > 1 && <><label htmlFor="book-mode2-published-unit">Unit</label>
         <select
           id="book-mode2-published-unit"
-          aria-describedby="book-mode2-published-unit-help"
-          value={selectedPublishedUnitKey ?? ''}
-          onChange={(event) => setSelectedPublishedUnitKey(event.currentTarget.value || null)}
+          value={selectedUnitKey ?? ''}
+          onChange={(event) => selectUnit(event.currentTarget.value)}
         >
-          <option value="">Select a published unit</option>
-          {publishedUnits.map((unit) => <option key={unit.unitKey} value={unit.unitKey}>{unit.unitKey}</option>)}
+          {editorUnitKeys.map((unitKey, index) => <option key={unitKey} value={unitKey}>{resolvedInitialCandidate?.manifest?.nodes.find((node) => node.nodeKey === unitKey)?.title || `Unit ${index + 1}`}</option>)}
         </select>
-        <p id="book-mode2-published-unit-help">Choose the published unit to assign as homework.</p>
+        </>}
+        <button type="button" className="pbf-button" disabled={!publishedUnit} onClick={openHomeworkHandoff}>Assign as homework</button>
       </div>}
       {candidateLoading
         ? <p aria-busy="true">Loading saved Book draft...</p>
@@ -464,6 +478,9 @@ const BookMode2EditorShell = ({
         presentation={presentation}
         experience={experience}
         editingSection={editingSection}
+        onOpenPlan={onOpenPlan}
+        previewUnitKey={selectedUnitKey}
+        onPreviewUnitChange={selectUnit}
         uploadWorkflow={resolvedUploadWorkflow}
         uploadWorkflowForSource={resolvedUploadWorkflowForSource}
         uploadUnavailableMessage={uploadUnavailableMessage}

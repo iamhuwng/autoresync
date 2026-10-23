@@ -42,7 +42,7 @@ describe('Ticket #38 renderer registrations', () => {
     expect(activityRendererManifest.registrations.map(key).sort()).toEqual(
       activityRendererRegistrations.map(key).sort(),
     );
-    expect(bookActivityRendererRegistry.registrations()).toHaveLength(40);
+    expect(bookActivityRendererRegistry.registrations()).toHaveLength(50);
     expect(activityRendererRegistrations.filter((entry) =>
       entry.taskProfile === undefined
       && entry.family === 'choice'
@@ -54,7 +54,7 @@ describe('Ticket #38 renderer registrations', () => {
       rendererId: 'choice-v1',
       codecId: 'choice-single-v1',
     });
-    expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(2);
+    expect(activityRendererRegistrations.filter((entry) => entry.family === 'long-response')).toHaveLength(4);
     expect(activityRendererRegistrations.find((entry) => entry.family === 'long-response')?.taskProfile).toBeUndefined();
     expect(activityRendererManifest.registrations.find((entry) =>
       entry.family === 'long-response' && entry.variant === 'v1')).toMatchObject({
@@ -64,7 +64,7 @@ describe('Ticket #38 renderer registrations', () => {
       codecId: 'long-response-v1',
     });
     expect(activityRendererRegistrations.find((entry) => entry.family === 'long-response'
-      && entry.presentationMode === 'source-assisted')).toMatchObject({
+      && entry.variant === 'v1' && entry.presentationMode === 'source-assisted')).toMatchObject({
       variant: 'v1',
       responseCodec: 'long-response-v1',
       rendererId: 'long-response-v1',

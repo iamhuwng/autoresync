@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 export type BookRuntimeDesktopView = 'split' | 'pdf-focus';
 export type BookRuntimeMobileTab = 'page' | 'activity';
 export interface BookRuntimeNavigationActivity { readonly runtimeKey: string; readonly activityId: string; readonly pageGroupKeys: readonly string[] }
-export interface BookRuntimeNavigationPageGroup { readonly pageGroupKey: string; readonly combinedPhysicalPages: readonly number[] }
+export interface BookRuntimeNavigationPageGroup { readonly pageGroupKey: string; readonly combinedPhysicalPages: readonly number[]; readonly defaultCombinedPhysicalPage?: number }
 export interface BookRuntimeNavigationState {
   readonly pageGroupKey: string;
   readonly runtimeKey: string;
@@ -39,7 +39,8 @@ const normalizeState = (activities: readonly BookRuntimeNavigationActivity[], pa
     && (!requested.pageGroupKey || requested.pageGroupKey === pageGroupKey)
     && group?.combinedPhysicalPages.includes(requested.combinedPhysicalPage)
     ? requested.combinedPhysicalPage
-    : firstPage;
+    : group?.defaultCombinedPhysicalPage !== undefined && group.combinedPhysicalPages.includes(group.defaultCombinedPhysicalPage)
+      ? group.defaultCombinedPhysicalPage : firstPage;
   return { pageGroupKey, runtimeKey: active.runtimeKey, activityId: active.activityId, combinedPhysicalPage, desktopView: requested?.desktopView === 'pdf-focus' ? 'pdf-focus' : 'split', mobileTab: requested?.mobileTab === 'activity' ? 'activity' : 'page', navigatorCollapsed: requested?.navigatorCollapsed === true };
 };
 

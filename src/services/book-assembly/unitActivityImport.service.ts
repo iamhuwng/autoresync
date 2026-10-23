@@ -1,11 +1,11 @@
 import type { ActivityAuthoringService } from '../book-activity/activityAuthoring.service';
 import type { ActivityStageResult } from '../book-activity/activityAuthoring.repository';
 import { ActivityAuthoringHttpError } from '../book-activity/activityStorage.service';
+import { validateEditableActivity } from '../book-activity/activitySchema.service';
 import type { BookAssemblyManifestCandidate, BookUnitCandidate } from '../../types/bookAssembly.types';
 import { UNIT_ACTIVITY_IMPORT_PROMPT_VERSION, UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION } from './unitPrompt.service';
 
 const MAX_IMPORT_BYTES = 512 * 1024;
-const MAX_ACTIVITY_TARGET_ID_LENGTH = 160;
 const FORBIDDEN_KEYS = /^(activityId|candidateId|ownerId|ownerNodeKey|interactionId|itemId|sourceVersionId|providerObjectKey|providerUrl|objectKey|bucket|credential|credentials|token|privateKey|teacherNotes|react|tsx)$/iu;
 const FORBIDDEN_TEXT = /(https?:\/\/|b2:\/\/|backblaze|providerObjectKey|private_key|BEGIN PRIVATE KEY|tsx|<script|function\s+[A-Za-z0-9_]+\s*\()/iu;
 
@@ -53,27 +53,6 @@ export class UnitActivityImportConflictError extends UnitActivityImportError {
     this.name = 'UnitActivityImportConflictError';
   }
 }
-
-const hexUtf8 = (value: string): string => Array.from(
-  new TextEncoder().encode(value),
-  (byte) => byte.toString(16).padStart(2, '0'),
-).join('');
-
-/**
- * Activity authoring storage is owner-scoped, while Assembly slot identities
- * are Book-scoped. Encode both identities into the mutation target so the same
- * logical slot key can be reused safely by another Book without weakening CAS.
- */
-export const bookScopedActivityTargetId = (bookId: string, activityKey: string): string => {
-  const targetActivityId = `ba_${hexUtf8(bookId)}_${hexUtf8(activityKey)}`;
-  if (targetActivityId.length > MAX_ACTIVITY_TARGET_ID_LENGTH) {
-    throw new UnitActivityImportError(
-      'activity-target-too-long',
-      'The Book and Activity slot identifiers are too long for a safe authoring target.',
-    );
-  }
-  return targetActivityId;
-};
 
 const byteLength = (value: string): number => new TextEncoder().encode(value).byteLength;
 const record = (value: unknown, code = 'invalid-json'): Record<string, unknown> => {
@@ -178,6 +157,7 @@ export const parseUnitActivityImportBundle = (
   text: string,
   manifest: BookAssemblyManifestCandidate,
   unitKey: string,
+  options: { readonly localAuthoring?: boolean; readonly selectedActivityKey?: string } = {},
 ): UnitActivityImportBundle => {
   if (byteLength(text) > MAX_IMPORT_BYTES) {
     throw new UnitActivityImportError('payload-too-large', 'Import bundle is too large.');
@@ -187,14 +167,17 @@ export const parseUnitActivityImportBundle = (
     throw new UnitActivityImportError('invalid-json', 'Import bundle is malformed JSON.');
   }
   const bundle = record(parsed);
-  exact(bundle, ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots']);
+  exact(bundle,
+    options.localAuthoring ? ['promptVersion', 'schemaVersion', 'slots'] : ['promptVersion', 'schemaVersion', 'bookId', 'unitKey', 'slots'],
+    options.localAuthoring ? ['bookId', 'unitKey'] : []);
   if (bundle.promptVersion !== UNIT_ACTIVITY_IMPORT_PROMPT_VERSION) {
     throw new UnitActivityImportError('invalid-prompt-version', 'Import bundle prompt version is unsupported.');
   }
   if (bundle.schemaVersion !== UNIT_ACTIVITY_IMPORT_SCHEMA_VERSION) {
     throw new UnitActivityImportError('invalid-schema-version', 'Import bundle schema version is unsupported.');
   }
-  if (bundle.bookId !== manifest.bookId || bundle.unitKey !== unitKey) {
+  if ((!options.localAuthoring || bundle.bookId !== undefined) && bundle.bookId !== manifest.bookId
+    || (!options.localAuthoring || bundle.unitKey !== undefined) && bundle.unitKey !== unitKey) {
     throw new UnitActivityImportError('foreign-unit', 'Import bundle does not target the selected Book Unit.');
   }
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
@@ -202,7 +185,13 @@ export const parseUnitActivityImportBundle = (
   if (!Array.isArray(bundle.slots)) {
     throw new UnitActivityImportError('invalid-slots', 'Import bundle slots must be an array.');
   }
-  const expected = unit.activitySlots.map((slot) => slot.activityKey).sort();
+  if (options.selectedActivityKey !== undefined
+    && !unit.activitySlots.some(slot => slot.activityKey === options.selectedActivityKey)) {
+    throw new UnitActivityImportError('slot-mismatch', 'Selected Activity does not belong to this Unit.');
+  }
+  const expected = options.selectedActivityKey === undefined
+    ? unit.activitySlots.map((slot) => slot.activityKey).sort()
+    : [options.selectedActivityKey];
   const expectedSet = new Set(expected);
   const seen = new Set<string>();
   const slots = bundle.slots.map((entry, index): UnitActivityImportSlot => {
@@ -226,6 +215,13 @@ export const parseUnitActivityImportBundle = (
     assertSourceRefs(evidenceRefs, slotRefs, 'evidenceRefs');
     assertSourceRefs(sourceEvidenceRefs, slotRefs, 'sourceEvidenceRefs');
     assertSourceRefs(answerEvidenceRefs, slotRefs, 'answerEvidenceRefs');
+    const validation = validateEditableActivity(slot.content, {
+      mappedBookPageRefs: clientMappedBookPageRefsForSlot(unit, slot.activityKey),
+    });
+    if (!validation.valid) {
+      const first = validation.errors[0];
+      throw new UnitActivityImportError('invalid-activity', `${slot.activityKey}: ${first?.message ?? 'Activity content is invalid.'} (${first?.path ?? '$'})`);
+    }
     return {
       activityKey: slot.activityKey,
       content: slot.content,
@@ -274,7 +270,7 @@ export const stageUnitActivityImportBundle = async ({
   unitKey,
   activityAuthoring,
   expectedActivityRevisions = {},
-  resolveActivityTargetId,
+  selectedActivityKey,
   signal,
 }: {
   readonly text: string;
@@ -282,10 +278,10 @@ export const stageUnitActivityImportBundle = async ({
   readonly unitKey: string;
   readonly activityAuthoring: ActivityAuthoringService;
   readonly expectedActivityRevisions?: Readonly<Record<string, number>>;
-  readonly resolveActivityTargetId: (slot: UnitActivityImportSlot) => string | null | undefined;
+  readonly selectedActivityKey?: string;
   readonly signal?: AbortSignal;
 }): Promise<UnitActivityImportResult> => {
-  const bundle = parseUnitActivityImportBundle(text, manifest, unitKey);
+  const bundle = parseUnitActivityImportBundle(text, manifest, unitKey, { selectedActivityKey });
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   if (!unit) throw new UnitActivityImportError('missing-unit', 'Selected Unit has no Activity slot contract.');
   const staged: StagedUnitActivity[] = [];
@@ -294,13 +290,8 @@ export const stageUnitActivityImportBundle = async ({
       if (signal?.aborted) {
         throw new UnitActivityImportError('canceled', 'Import was canceled.');
       }
-      const targetActivityId = resolveActivityTargetId(slot);
-      if (typeof targetActivityId !== 'string' || targetActivityId.length === 0) {
-        throw new UnitActivityImportError('unresolved-activity-target', `Activity slot ${slot.activityKey} has no trusted target Activity ID.`);
-      }
       const result = await stageOrSurfaceRevisionConflict(activityAuthoring, slot.activityKey, {
         bookId: manifest.bookId,
-        targetActivityId,
         expectedRevision: expectedActivityRevisions[slot.activityKey] ?? 0,
         unitActivityBinding: { unitKey, activityKey: slot.activityKey },
         clientValidationContext: {

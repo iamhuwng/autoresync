@@ -59,6 +59,27 @@ const promptContract = (prompt: string): unknown => {
 };
 
 describe('buildUnitActivityImportPrompt', () => {
+  it('limits an explicit Activity correction to that slot while retaining its Book context', () => {
+    const fullManifest = structuredClone(manifest);
+    fullManifest.units[0]!.activitySlots.push({ ...fullManifest.units[0]!.activitySlots[0]!, activityKey: 'sibling', order: 2 });
+    const contract = promptContract(buildUnitActivityImportPrompt({ bookTitle: 'Book', manifest: fullManifest,
+      unitKey: 'unit-1', sourceVersions, selectedActivityKey: 'activity-choice' })) as {
+        unit: { activitySlots: { activityKey: string }[] }; outputBundleShape: { slots: { activityKey: string }[]; bookId: string };
+      };
+    expect(contract.unit.activitySlots.map(slot => slot.activityKey)).toEqual(['activity-choice']);
+    expect(contract.outputBundleShape.slots.map(slot => slot.activityKey)).toEqual(['activity-choice']);
+    expect(contract.outputBundleShape.bookId).toBe(manifest.bookId);
+    expect(fullManifest.units[0]!.activitySlots).toHaveLength(2);
+  });
+  it('binds local output in the editor while keeping canonical output identities by default', () => {
+    const input = { bookTitle: 'Local Book', manifest, unitKey: 'unit-1',
+      sourceVersions: sourceVersions.map(({ sourceVersionId, physicalPageCount }) => ({ sourceVersionId, physicalPageCount })) };
+    const local = promptContract(buildUnitActivityImportPrompt({ ...input, localAuthoring: true })) as { outputBundleShape: Record<string, unknown> };
+    const canonical = promptContract(buildUnitActivityImportPrompt(input)) as { outputBundleShape: Record<string, unknown> };
+    expect(local.outputBundleShape).not.toHaveProperty('bookId');
+    expect(local.outputBundleShape).not.toHaveProperty('unitKey');
+    expect(canonical.outputBundleShape).toMatchObject({ bookId: manifest.bookId, unitKey: 'unit-1' });
+  });
   it('serializes exact Unit slot, source, evidence, profile, and presentation guidance', () => {
     const prompt = buildUnitActivityImportPrompt({
       bookTitle: 'Fixture Book',

@@ -54,7 +54,7 @@ import {
   FirebaseRestBookDeliveryRepository,
 } from '../book-delivery/repository.ts';
 import {
-  createTrustedBookDeliveryPublication,
+  createTrustedBookDeliveryBindingPublication,
 } from '../book-delivery/worker.ts';
 import {
   FirebaseRestBookAssemblyPublicationRepository,
@@ -62,6 +62,9 @@ import {
 import { FirebaseRestBookAssemblyRepository } from '../book-assembly/repository.ts';
 import { readProductionBookAssemblyAuthority, resolveActiveComponentStudentDocument } from '../book-assembly/production-composition.ts';
 import { resolveMaterialQualifiedAssemblyCandidate } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
+import { fingerprintComponentPdfActivationValue } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
+import type { ComponentStudentDocument } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import { resolveCombinedDocument } from '../book-homework/canonical-resolver.ts';
 import {
   authorizeTeacherAssemblyDocumentRequest,
   type TeacherAssemblyAuthorizationFailureCode,
@@ -130,10 +133,12 @@ export interface BookSourceDocumentRuntime {
   readonly readHistoricalSource?: (input: {
     readonly binding: BookDeliveryBinding;
     readonly sourceVersionId: string;
+    readonly studentDocument?: ComponentStudentDocument;
   }) => Promise<{
     readonly availability: 'available' | 'missing' | 'deleted' | 'replaced' | 'revoked';
     readonly source: BookDocumentAuthorizedSource | null;
   }>;
+  readonly readHistoricalStudentDocument?: (binding: BookDeliveryBinding) => Promise<ComponentStudentDocument | null>;
   readonly readTeacherBookAuthority?: (
     uid: string,
     bookId: string,
@@ -441,7 +446,18 @@ export const defaultRuntimeFactory = (
           : 'unresolved',
       };
     },
-    readHistoricalSource: async ({ binding, sourceVersionId }) => {
+    readHistoricalStudentDocument: async (binding) => {
+      const scope = await publicationRepository.readScope(binding.book.bookId);
+      const version = scope.versions?.[binding.book.manifestVersionId];
+      if (!version || version.ownerId !== binding.issuer.ownerId || version.bookId !== binding.book.bookId
+        || version.publicationId !== binding.book.publicationId || version.publicationRevision !== binding.book.publicationRevision
+        || version.bookRevision !== binding.book.bookRevision) return null;
+      try { return resolveCombinedDocument(scope, binding.book.manifestVersionId); } catch { return null; }
+    },
+    readHistoricalSource: async ({ binding, sourceVersionId, studentDocument }) => {
+      if (binding.sourceSet.strategy === 'component_pdfs' && (!studentDocument || studentDocument.sourceVersionId !== sourceVersionId)) {
+        return { availability: 'missing', source: null };
+      }
       const accountState = await readAccountState();
       const matches = Object.values(accountState.operations).filter(
         (operation) => operation.bookId === binding.book.bookId
@@ -458,6 +474,11 @@ export const defaultRuntimeFactory = (
         readySourceOperation,
       );
       if (available.length !== 1) return { availability: 'missing', source: null };
+      if (studentDocument && (available[0]!.purpose !== 'student-document'
+        || available[0]!.sourceKey !== 'student-document'
+        || !studentDocumentOperationMatchesDescriptor(available[0]!, studentDocument))) {
+        return { availability: 'missing', source: null };
+      }
       const storage = available[0]!.verifiedStorage!;
       return {
         availability: 'available',
@@ -494,7 +515,7 @@ export const defaultRuntimeFactory = (
         } : null,
         candidate: scope.candidates?.[candidateId] ?? null,
       };
-      const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates);
+      const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates, scope.current);
       return {
         current: candidate ? { candidateId: candidate.candidateId, candidateRevision: candidate.revision } : null,
         candidate: candidate?.candidateId === candidateId ? candidate : null,
@@ -508,7 +529,7 @@ export const defaultRuntimeFactory = (
         env: env as never, ownerId: uid,
       }).readScope(input.bookId, input.unitKey);
       const candidate = bookAuthority
-        ? resolveMaterialQualifiedAssemblyCandidate(bookAuthority, input.unitKey, candidateScope.candidates) : null;
+        ? resolveMaterialQualifiedAssemblyCandidate(bookAuthority, input.unitKey, candidateScope.candidates, candidateScope.current) : null;
       const accountState = await readAccountState();
       const operation = qualified ? findReadyStudentDocumentOperation(accountState.operations, {
         bookId: input.bookId, ownerId: uid, sourceVersionId: qualified.descriptor.sourceVersionId,
@@ -561,15 +582,7 @@ export const defaultRuntimeFactory = (
         throw new Error('unsupported_book_document_context');
       }
       const scope = await publicationRepository.readScope(binding.book.bookId);
-      const publication = createTrustedBookDeliveryPublication({
-        bookId: binding.book.bookId,
-        publicationId: binding.book.publicationId,
-        publicationRevision: binding.book.publicationRevision,
-        recipientId: binding.recipient.recipientId,
-        contextKind: binding.context.kind as 'solo' | 'preview' | 'homework' | 'course' | 'class',
-        contextId: binding.context.contextId,
-        scope: binding.scope,
-      }, scope, binding.schedulePolicy);
+      const publication = createTrustedBookDeliveryBindingPublication(binding, scope);
       const accountState = await readAccountState();
       const sourceVersionIds = publication.sourceSet.sources.map(
         (source) => source.sourceVersionId,
@@ -589,22 +602,21 @@ export const defaultRuntimeFactory = (
       const componentDocument = binding.sourceSet.strategy === 'component_pdfs'
         ? await (async () => {
           try {
-            const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
-            return authority ? resolveActiveComponentStudentDocument(authority, scope) : null;
+            return resolveCombinedDocument(scope, binding.book.manifestVersionId);
           } catch {
             return null;
           }
         })()
         : null;
       if (binding.sourceSet.strategy === 'component_pdfs') {
-        const descriptor = componentDocument?.activation.bookRevision === binding.book.bookRevision
-          ? componentDocument.descriptor
-          : undefined;
+        const descriptor = componentDocument ?? undefined;
         const operation = descriptor
           ? findReadyStudentDocumentOperation(accountState.operations, {
             bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, sourceVersionId: descriptor.sourceVersionId,
           }) : null;
-        if (descriptor && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
+        if (descriptor && binding.sourceSet.sources.every(source => descriptor.components.some(component =>
+          component.sourceKey === source.sourceKey && component.sourceVersionId === source.sourceVersionId))
+          && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
           sourceLocations.push({ ...operation.verifiedStorage, provider: 'b2', bucket: privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
           return {
             publicationStatus: 'published', scheduleOpen,
@@ -614,7 +626,7 @@ export const defaultRuntimeFactory = (
             studentDocument: {
               sourceVersionId: descriptor.sourceVersionId,
               descriptorRevision: descriptor.descriptorRevision,
-              descriptorFingerprint: componentDocument!.activation.studentDocument.descriptorFingerprint,
+              descriptorFingerprint: fingerprintComponentPdfActivationValue(descriptor),
             },
           };
         }
@@ -830,7 +842,10 @@ export const createBookHistoricalAttemptDocumentDeliveryHandler = (
       ) {
         return { ok: false, status: 403, code: 'forbidden' };
       }
-      const resolved = await resolveDocumentRoute(runtime.repository, routeKey);
+      const combined = projection.documentResource.studentDocument;
+      const resolved = combined
+        ? await resolveStudentDocumentRoute(runtime.repository, routeKey)
+        : await resolveDocumentRoute(runtime.repository, routeKey);
       const placement = resolved?.binding.placements.find(
         (candidate) => candidate.placementId === metadata.placementId,
       );
@@ -849,9 +864,9 @@ export const createBookHistoricalAttemptDocumentDeliveryHandler = (
         || resolved.binding.context.kind !== metadata.surface
         || resolved.binding.context.ownerId !== metadata.ownerId
         || resolved.binding.issuer.ownerId !== metadata.ownerId
-        || resolved.source.sourceKey !== metadata.sourceKey
-        || resolved.source.sourceVersionId !== metadata.sourceVersionId
-        || !bindingPageAllowed
+        || (!combined && (resolved.binding.sourceSet.strategy !== 'full_pdf'
+          || resolved.source.sourceKey !== metadata.sourceKey
+          || resolved.source.sourceVersionId !== metadata.sourceVersionId || !bindingPageAllowed))
         || !placement
         || placement.activityId !== metadata.activityId
         || placement.activityVersionId !== metadata.activityVersionId
@@ -862,9 +877,43 @@ export const createBookHistoricalAttemptDocumentDeliveryHandler = (
       ) {
         return { ok: false, status: 403, code: 'forbidden' };
       }
+      let studentDocument: ComponentStudentDocument | undefined;
+      if (combined) {
+        const descriptor = await runtime.readHistoricalStudentDocument?.(resolved.binding);
+        if (!descriptor) return { ok: false, status: 404, code: 'historical_source_unavailable' };
+        const contexts = metadata.pageContexts;
+        if (projection.documentResource.sourceKey !== 'student-document'
+          || descriptor.sourceVersionId !== projection.documentResource.sourceVersionId
+          || descriptor.descriptorRevision !== combined.descriptorRevision || descriptor.sha256Hex !== combined.sha256Hex
+          || fingerprintComponentPdfActivationValue(descriptor) !== combined.descriptorFingerprint
+          || descriptor.byteSize !== combined.expectedByteLength || descriptor.physicalPageCount !== combined.physicalPageCount
+          || resolved.binding.sourceSet.sources.some((source) => !descriptor.components.some((component) =>
+            component.sourceKey === source.sourceKey && component.sourceVersionId === source.sourceVersionId))
+          || !contexts || !metadata.pageGroupIds
+          || JSON.stringify(metadata.pageGroupIds) !== JSON.stringify(placement.pageGroupKeys)
+          || contexts.length !== placement.sourcePageScopes.reduce((count, scope) => count + scope.pages.length, 0)
+          || !placement.sourcePageScopes.every((scope) => scope.pages.every((page) => contexts.some((context) =>
+            context.sourceKey === scope.sourceKey && context.physicalPageNumber === page)))
+          || !contexts.every((context) => {
+            const bound = resolved.binding.sourceSet.sources.find((source) => source.sourceKey === context.sourceKey);
+            const component = descriptor.components.find((source) => source.sourceKey === context.sourceKey);
+            return bound && component && bound.sourceVersionId === context.sourceVersionId
+              && component.sourceVersionId === context.sourceVersionId
+              && (bound.localPageScope.kind === 'all' || bound.localPageScope.pages.includes(context.physicalPageNumber))
+              && context.physicalPageNumber >= 1 && context.physicalPageNumber <= component.localPageCount
+              && context.combinedPhysicalPageNumber === component.combinedStartPage + context.physicalPageNumber - 1;
+          })
+          || !contexts.some((context) => context.sourceKey === metadata.sourceKey
+            && context.sourceVersionId === metadata.sourceVersionId && context.physicalPageNumber === metadata.physicalPageNumber
+            && context.combinedPhysicalPageNumber === metadata.combinedPhysicalPageNumber)) {
+          return { ok: false, status: 403, code: 'forbidden' };
+        }
+        studentDocument = descriptor;
+      }
       const historical = await runtime.readHistoricalSource!({
         binding: resolved.binding,
-        sourceVersionId: metadata.sourceVersionId,
+        sourceVersionId: projection.documentResource.sourceVersionId,
+        ...(studentDocument ? { studentDocument } : {}),
       });
       const homeworkAuthority = metadata.surface === 'homework'
         ? await runtime.readHomeworkAuthority!(

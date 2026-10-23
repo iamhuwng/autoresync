@@ -294,3 +294,25 @@
     padding: 0.5rem 1rem;
   }
 }
+
+.book-editor-modal__body--local {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] .book-editor-modal__header {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  padding: 0.8rem 1rem;
+  background: #fff;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] .book-editor-modal__header h2 {
+  font-size: 1.05rem;
+}
+
+.book-editor-modal__frame[data-book-mode='pdf'] .book-editor-modal__header-actions {
+  width: auto;
+  flex: 0 0 auto;
+}

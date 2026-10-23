@@ -298,7 +298,7 @@ const authorizeDraftReadBinding = async (
   };
 };
 
-export const authorizeRuntimeDraftRead = async (
+export const authorizeRuntimeDraftRead = (
   actor: BookRuntimeActor,
   input: BookRuntimeDraftReadInput,
   binding: BookDeliveryBinding | null,

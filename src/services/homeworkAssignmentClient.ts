@@ -23,13 +23,13 @@ const BOOK_STATUSES = new Set([
     'failed_retryable',
     'failed_terminal',
 ]);
-type BookHomeworkWorkerCommandStatus = BookHomeworkSagaState | 'committed_projection_pending';
+type BookHomeworkWorkerCommandStatus = BookHomeworkSagaState | 'committed_projection_pending' | 'committed_notifications_pending';
 
 const isBookState = (value: unknown): value is BookHomeworkSagaState => (
     typeof value === 'string' && BOOK_STATUSES.has(value)
 );
 const isBookCommandStatus = (value: unknown): value is BookHomeworkWorkerCommandStatus => (
-    isBookState(value) || value === 'committed_projection_pending'
+    isBookState(value) || value === 'committed_projection_pending' || value === 'committed_notifications_pending'
 );
 
 const isSafeInteger = (value: unknown): value is number => Number.isSafeInteger(value);
@@ -72,6 +72,7 @@ export interface BookHomeworkWorkerCommandResult {
     readonly visibility: 'hidden' | 'committed';
     readonly recipientCount: number;
     readonly committedRecipientCount: number;
+    readonly notifiedRecipientCount?: number;
     readonly revision: number;
 }
 
@@ -243,8 +244,10 @@ const parseBookResponse = (
         || typeof result.operationId !== 'string'
         || !isBookCommandStatus(result.status)
         || !isBookState(result.state)
-        || (result.status === 'committed_projection_pending'
+        || (['committed_projection_pending', 'committed_notifications_pending'].includes(String(result.status))
             && (responseStatus !== 202 || result.state !== 'committed' || result.visibility !== 'committed'))
+        || (result.notifiedRecipientCount !== undefined && (!isSafeInteger(result.notifiedRecipientCount)
+            || result.notifiedRecipientCount < 0 || result.notifiedRecipientCount > Number(result.recipientCount)))
         || (result.visibility !== 'hidden' && result.visibility !== 'committed')
         || !isSafeInteger(result.recipientCount)
         || !isSafeInteger(result.committedRecipientCount)
@@ -263,6 +266,7 @@ const parseBookResponse = (
         visibility: result.visibility,
         recipientCount: result.recipientCount,
         committedRecipientCount: result.committedRecipientCount,
+        ...(result.notifiedRecipientCount === undefined ? {} : { notifiedRecipientCount: result.notifiedRecipientCount as number }),
         revision: result.revision,
     };
 };
@@ -334,6 +338,14 @@ const assertPreviewSourceResponse = (
         bookId: input.bookId,
         nodeKey: input.unitKey ?? '',
     };
+    const targetKeys = requestedTarget.kind === 'book' ? ['kind', 'bookId']
+        : requestedTarget.kind === 'activity' ? ['kind', 'bookId', 'activityId',
+            ...(requestedTarget.placementId === undefined ? [] : ['placementId'])]
+        : ['kind', 'bookId', 'nodeKey'];
+    const initialTarget = body.initialTarget;
+    const matchesTarget = isRecord(initialTarget)
+        && Object.keys(initialTarget).length === targetKeys.length
+        && targetKeys.every(key => initialTarget[key] === (requestedTarget as unknown as Record<string, unknown>)[key]);
     if (!isRecord(body.delivery) || !isRecord(body.identity)
         || !isSafeId(body.classId)
         || body.classId !== input.classId
@@ -342,9 +354,7 @@ const assertPreviewSourceResponse = (
         || body.selectedRecipientIds.length > 30
         || !body.selectedRecipientIds.every(isSafeId)
         || new Set(body.selectedRecipientIds).size !== body.selectedRecipientIds.length
-        || !isRecord(body.initialTarget)
-        || JSON.stringify(body.initialTarget) !== JSON.stringify(requestedTarget)
-        || !isRecord(body.studentDocument)
+        || !matchesTarget
         || !isRecord(body.targetPreview)) invalid();
 
     const delivery = body.delivery as Record<string, unknown>;
@@ -411,19 +421,19 @@ const assertPreviewSourceResponse = (
         && isRecord(entry.localPageScope)
         && (entry.localPageScope.kind === 'all' || entry.localPageScope.kind === 'pages')
         && Array.isArray(entry.localPageScope.pages))) invalid();
-    const document = body.studentDocument as Record<string, unknown>;
+    const document = body.studentDocument;
     const preview = body.targetPreview as Record<string, unknown>;
-    if (!isSafeId(document.sourceVersionId)
+    if (document !== undefined && (!isRecord(document) || !isSafeId(document.sourceVersionId)
         || !Number.isSafeInteger(document.descriptorRevision) || Number(document.descriptorRevision) < 0
-        || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex)
-        || typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0
+        || typeof document.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/u.test(document.sha256Hex))) invalid();
+    if (typeof preview.fingerprint !== 'string' || preview.fingerprint.length === 0
         || !Array.isArray(preview.rows) || preview.rows.length === 0
         || !preview.rows.every(isRecord)
         || !Number.isSafeInteger(preview.includedCount) || Number(preview.includedCount) < 1
         || !Number.isSafeInteger(preview.excludedCount) || Number(preview.excludedCount) < 0
         || !isRecord(preview.excludedReasonCounts)) invalid();
     if (sourceSet.strategy === 'component_pdfs'
-        && (Number(document.descriptorRevision) < 1
+        && (!isRecord(document) || Number(document.descriptorRevision) < 1
             || document.sha256Hex === '0'.repeat(64)
             || !Array.isArray(document.components)
             || document.components.length < 2)) invalid();

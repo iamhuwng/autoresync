@@ -11,6 +11,7 @@ import type { BookAssemblyCurrentPublication, BookAssemblyPreviewClient } from '
 import type { BookAssemblyCandidateRecord } from '../../services/book-assembly/unitAssembly.types';
 import { createComponentPdfActivationReceipt, fingerprintComponentPdfActivationValue } from '../../services/book-assembly/componentPdfActivation.service';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
+import { createBookAssemblyWorkerHandlers } from '../../../cloudflare/src/upload-worker/book-assembly/worker';
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
   useFeatureTracking: () => ({ trackAction: vi.fn() }),
@@ -41,6 +42,8 @@ const publishedUnit = (unitKey: string): BookAssemblyCurrentPublication['units']
 });
 
 const currentPublication = (units: readonly BookAssemblyCurrentPublication['units'][number][]): BookAssemblyCurrentPublication => ({
+  candidateId: 'candidate-1',
+  candidateRevision: 1,
   pointer: {
     publicationId: 'publication-1',
     publicationRevision: 1,
@@ -54,7 +57,7 @@ const currentPublication = (units: readonly BookAssemblyCurrentPublication['unit
   units,
 });
 
-const componentManifest = {
+const componentManifest: BookAssemblyManifestCandidate = {
   bookId: 'pdf-book',
   sourceSet: {
     sourceStrategy: 'component_pdfs' as const,
@@ -106,6 +109,82 @@ const componentActivation = createComponentPdfActivationReceipt({
 });
 
 describe('BookMode2EditorShell', () => {
+  it('reopens saved outline edits while retaining the untouched component sibling', async () => {
+    const user = userEvent.setup();
+    const drafts = new Map(['unit-a', 'unit-b'].map((unitKey) => [unitKey, {
+      ...componentCandidate, unitKey, candidateId: unitKey === 'unit-a' ? 'candidate-a' : 'candidate-b',
+      updatedAt: '2026-10-22T19:24:45.086Z',
+    }]));
+    const assemblyRepository: UnitAssemblyRepository = {
+      loadCurrent: vi.fn<NonNullable<UnitAssemblyRepository['loadCurrent']>>(async (_bookId, unitKey) => {
+        const current = drafts.get(unitKey)!;
+        const original = { ...componentCandidate, unitKey, candidateId: unitKey === 'unit-a' ? 'candidate-a' : 'candidate-b' };
+        const handlers = createBookAssemblyWorkerHandlers({
+          repository: {
+            readValue: async () => ({ role: 'teacher', status: 'active' }),
+            readScope: async () => ({ candidates: { [original.candidateId]: original, [current.candidateId]: current },
+              ...(current.revision > 1 ? { current: { candidateId: current.candidateId, candidateRevision: current.revision,
+                bookRevision: current.bookRevision, sourceSetRevision: current.sourceSetRevision, updatedAt: current.updatedAt } } : {}),
+            }),
+            transaction: vi.fn(),
+          },
+          readBookAuthority: async () => ({ bookId: 'pdf-book', ownerId: 'teacher-1', bookMode: 'pdf',
+            bookRevision: 3, sourceSetRevision: 4, sourceSet: componentManifest.sourceSet, setupActivations: [componentActivation], sourceVersionAuthority: {
+            getSourceVersion: (sourceVersionId) => props.assemblySourceVersions.find((source) => source.sourceVersionId === sourceVersionId),
+          } }),
+          verifyDraftActivities: async () => ['activity-a'], verifyActivatedActivities: async () => true,
+        });
+        const response = await handlers.loadCurrent({ env: {} as never, uid: 'teacher-1', bookId: 'pdf-book', unitKey });
+        return 'candidate' in response.body && response.body.candidate && response.body.savedActivityKeysByUnit ? { candidate: response.body.candidate,
+          savedActivityKeysByUnit: response.body.savedActivityKeysByUnit } : null;
+      }),
+      replace: vi.fn<UnitAssemblyRepository['replace']>(async (input) => {
+        const current = drafts.get(input.unitKey)!;
+        const candidate: BookAssemblyCandidateRecord = { ...current, candidateId: 'edited-a', manifest: input.manifest,
+          revision: current.revision + 1, lifecycle: 'draft', updatedAt: '2026-10-23T14:13:56.851Z' };
+        drafts.set(input.unitKey, candidate);
+        return { status: 'replaced', candidate, receipt: { operationId: input.operationId,
+          fingerprint: 'replacement', status: 'replaced', createdAt: candidate.updatedAt } };
+      }),
+      validate: vi.fn<UnitAssemblyRepository['validate']>(async (input) => {
+        const current = drafts.get(input.unitKey)!;
+        const candidate: BookAssemblyCandidateRecord = { ...current, revision: current.revision + 1, lifecycle: 'validated' };
+        drafts.set(input.unitKey, candidate);
+        return { status: 'validated', candidate, receipt: { operationId: input.operationId,
+          fingerprint: 'validation', status: 'validated', createdAt: candidate.updatedAt } };
+      }),
+      create: vi.fn(), discard: vi.fn(), load: vi.fn(),
+    };
+    const props = {
+      access: 'owner' as const, presentation: 'modal' as const, experience: 'focused-editing' as const,
+      editingSection: 'content-tree' as const, assemblyRepository, assemblyPreviewClient: null,
+      uploadWorkflow: null, activityAuthoring: null, sourceSetAttachmentClient: null,
+      componentPdfActivationClient: { activateComponentPdf: vi.fn() },
+      book: { ...book, bookRevision: 3, sourceSetRevision: 4, sourceSet: componentManifest.sourceSet,
+        setupActivations: [componentActivation] },
+      assemblySourceVersions: componentManifest.sourceSet.sources.map((source) => ({
+        sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId, bookId: 'pdf-book',
+        physicalPageCount: 10, verifiedUsable: true,
+        checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) },
+        purpose: 'book-source' as const, studentSafeStatus: 'unreviewed' as const,
+      })),
+    };
+    const mounted = render(<BookMode2EditorShell {...props} />);
+    await user.click(await screen.findByText('Current outline'));
+    await user.click(screen.getByRole('button', { name: 'Unit 1' }));
+    fireEvent.change(screen.getByLabelText('Selected outline title'), { target: { value: 'Growing up — reviewed' } });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(assemblyRepository.validate).toHaveBeenCalledTimes(1));
+    expect(drafts.get('unit-a')!.manifest!.nodes[0]!.title).toBe('Growing up — reviewed');
+    expect(drafts.get('unit-b')!.manifest).toEqual(componentManifest);
+    mounted.unmount();
+    render(<BookMode2EditorShell {...props} />);
+    await user.click(await screen.findByText('Current outline'));
+    await user.click(screen.getByRole('button', { name: 'Growing up — reviewed' }));
+    expect(screen.getByLabelText('Selected outline title')).toHaveValue('Growing up — reviewed');
+    expect(props.componentPdfActivationClient.activateComponentPdf).not.toHaveBeenCalled();
+  });
+
   it('rehydrates saved pre-activation Unit content after a true remount without replacement writes', async () => {
     const user = userEvent.setup();
     const candidate = { ...componentCandidate, bookRevision: 0, sourceSetRevision: 0 };
@@ -138,7 +217,7 @@ describe('BookMode2EditorShell', () => {
     expect(repository.validate).not.toHaveBeenCalled();
   });
 
-  it('replays the original Component-PDF activation receipt after a true Shell remount', async () => {
+  it('recovers the original Component-PDF activation by exact readback after a true Shell remount', async () => {
     const user = userEvent.setup();
     let activatedManifest: BookAssemblyManifestCandidate | null = null;
     let receipt: typeof componentActivation | null = null;
@@ -245,9 +324,10 @@ describe('BookMode2EditorShell', () => {
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-a');
       expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-b');
     });
-    expect(await screen.findByText('No unsaved changes', {}, { timeout: 10_000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
     await saveThroughEditor();
-    await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(assemblyRepository.loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-a'));
+    expect(activateComponentPdf).toHaveBeenCalledTimes(1);
 
     for (const [command] of activateComponentPdf.mock.calls) {
       expect(command).toMatchObject({
@@ -259,7 +339,6 @@ describe('BookMode2EditorShell', () => {
       });
       expect(command).not.toHaveProperty('preparation');
     }
-    expect(activateComponentPdf.mock.calls[1]![0]).toEqual(activateComponentPdf.mock.calls[0]![0]);
     expect(assemblyRepository.loadCurrent).toHaveBeenCalledWith('pdf-book', 'unit-a');
     expect(replace).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
@@ -395,6 +474,21 @@ describe('BookMode2EditorShell', () => {
     });
   });
 
+  it('loads the actual published Full-PDF Units after publication resolves', async () => {
+    const loadCurrent = vi.fn().mockResolvedValue(null);
+    const readCurrentPublication = vi.fn().mockResolvedValue(currentPublication([publishedUnit('qa-unit-a'), publishedUnit('qa-unit-b')]));
+    render(<BookMode2EditorShell
+      access="owner"
+      book={{ ...book, sourceSet: { sourceStrategy: 'full_pdf', sources: [{ sourceKey: 'full', sourceVersionId: 'source-1', sourceOrder: 1 }] } }}
+      presentation="modal"
+      experience="focused-editing"
+      assemblyRepository={{ loadCurrent } as unknown as UnitAssemblyRepository}
+      assemblyPreviewClient={{ readCurrentPublication } as unknown as BookAssemblyPreviewClient}
+    />);
+    await waitFor(() => expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'qa-unit-a'));
+    expect(loadCurrent).toHaveBeenCalledWith('pdf-book', 'qa-unit-b');
+  });
+
   it('loads current publication independently from the saved draft', async () => {
     const readCurrentPublication = vi.fn().mockResolvedValue(null);
     const assemblyPreviewClient = { readCurrentPublication } as unknown as BookAssemblyPreviewClient;
@@ -412,7 +506,7 @@ describe('BookMode2EditorShell', () => {
     await waitFor(() => expect(readCurrentPublication).toHaveBeenCalledWith('pdf-book'));
   });
 
-  it('requires an explicit selection when the trusted publication has multiple units', async () => {
+  it('selects the visible preview Unit for homework without exposing Unit keys', async () => {
     const user = userEvent.setup();
     render(
       <BookMode2EditorShell
@@ -420,12 +514,15 @@ describe('BookMode2EditorShell', () => {
         book={book}
         presentation="modal"
         experience="focused-editing"
+        editingSection="preview"
         assemblyInitialPublication={currentPublication([publishedUnit('unit-a'), publishedUnit('unit-b')])}
       />,
     );
 
-    const select = screen.getByRole('combobox', { name: 'Published unit' });
-    expect(select).toHaveValue('');
+    const select = screen.getByRole('combobox', { name: 'Unit' });
+    expect(select).toHaveValue('unit-a');
+    expect(screen.getByRole('option', { name: 'Unit 1' })).toBeInTheDocument();
+    expect(screen.queryByText('unit-a')).not.toBeInTheDocument();
     await user.selectOptions(select, 'unit-b');
     expect(select).toHaveValue('unit-b');
   });
@@ -441,7 +538,33 @@ describe('BookMode2EditorShell', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Published unit' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Unit' })).not.toBeInTheDocument());
+  });
+
+  it('retains an unpublished draft Unit from Content to Preview without assigning a published fallback', async () => {
+    const user = userEvent.setup();
+    const props = {
+      access: 'owner' as const, presentation: 'modal' as const, experience: 'focused-editing' as const,
+      book: { ...book, sourceSet: componentManifest.sourceSet, bookRevision: 3, sourceSetRevision: 4 },
+      assemblyInitialCandidate: { ...componentCandidate, manifest: { ...componentManifest,
+        nodes: componentManifest.nodes.map((node, index) => ({ ...node, title: `Chapter ${index + 1}` })),
+      } },
+      assemblyInitialPublication: currentPublication([publishedUnit('unit-a')]),
+      assemblyRepository: null, assemblyPreviewClient: null, activityAuthoring: null, uploadWorkflow: null,
+    };
+    const view = render(<BookMode2EditorShell {...props} editingSection="activity-json" />);
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Unit' }), 'unit-b');
+    expect(screen.getByRole('heading', { name: 'Chapter 2 activities' })).toBeInTheDocument();
+
+    view.rerender(<BookMode2EditorShell {...props} editingSection="preview" />);
+    expect(screen.getByRole('combobox', { name: 'Unit' })).toHaveValue('unit-b');
+    expect(screen.getByRole('option', { name: 'Chapter 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign as homework' })).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit' }), 'unit-a');
+    expect(screen.getByRole('button', { name: 'Assign as homework' })).toBeEnabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Unit' }), 'unit-b');
+    view.rerender(<BookMode2EditorShell {...props} editingSection="activity-json" />);
+    expect(screen.getByRole('heading', { name: 'Chapter 2 activities' })).toBeInTheDocument();
   });
 
   it('does not restart candidate loading for a structurally unchanged Source Set', async () => {

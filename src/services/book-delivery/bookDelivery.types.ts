@@ -154,6 +154,7 @@ export interface BookRuntimeStudentDocumentRequest {
 export interface BookRuntimePageGroupContext {
   readonly pageGroupKey: string;
   readonly combinedPhysicalPages: readonly number[];
+  readonly defaultCombinedPhysicalPage?: number;
 }
 
 export interface BookRuntimeActivityPlacementProjection {

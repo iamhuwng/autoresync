@@ -31,7 +31,8 @@ import type { BookHomeworkManifest, BookHomeworkSelectionTarget } from '../../..
 import type { BookHomeworkAssignmentPreviewSource } from '../../../../src/services/book-homework/bookHomeworkAssignmentIntent.ts';
 import { validateBookDeliveryComponentProjection } from '../../../../src/services/book-delivery/bookDeliveryComponentProjection.service.ts';
 import { createTrustedBookDeliveryPublication } from '../book-delivery/worker.ts';
-import type { ComponentStudentDocument } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import { createComponentStudentDocument, type ComponentStudentDocument } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
+import { fingerprintComponentPdfActivationValue } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
 import type { BookHomeworkTargetPreviewReceipt } from '../../../../src/types/homework.types.ts';
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$/u;
@@ -115,18 +116,24 @@ export const resolveCombinedDocument = (
   const version = scope.versions?.[manifestVersionId];
   if (!version || version.strategy !== 'component_pdfs') fail('not-ready', 'Combined student document is unavailable.');
   const sources = version.manifest.sourceSet.sources;
-  const matches = Object.values(scope.studentDocuments ?? {}).filter((document) => (
-    document.studentSafeStatus === 'ready'
-    && document.components.length === sources.length
-    && document.components.every((component, index) => {
+  const pin = version.studentDocument;
+  const document = pin ? scope.studentDocuments?.[pin.sourceVersionId] : undefined;
+  if (!pin || !document
+    || document.sourceVersionId !== pin.sourceVersionId
+    || document.descriptorRevision !== pin.descriptorRevision
+    || document.sha256Hex !== pin.sha256Hex
+    || fingerprintComponentPdfActivationValue(document) !== pin.descriptorFingerprint
+    || document.studentSafeStatus !== 'ready'
+    || document.components.length !== sources.length
+    || !document.components.every((component, index) => {
       const source = sources[index];
       return source?.sourceKey === component.sourceKey
         && source.sourceVersionId === component.sourceVersionId
         && component.sourceOrder === index + 1;
     })
-  ));
-  if (matches.length !== 1) fail('not-ready', 'Published components do not resolve exactly one combined student document.');
-  return clone(matches[0]!);
+  ) fail('not-ready', 'Pinned combined student document is unavailable.');
+  try { return createComponentStudentDocument(document); }
+  catch { return fail('not-ready', 'Pinned combined student document is invalid.'); }
 };
 
 const targetPreviewFacts = (
@@ -236,10 +243,8 @@ export class BookHomeworkCanonicalResolverError extends Error {
   }
 }
 
-const fail = (
-  code: BookHomeworkCanonicalResolverCode,
-  message: string,
-): never => { throw new BookHomeworkCanonicalResolverError(code, message); };
+const fail: (code: BookHomeworkCanonicalResolverCode, message: string) => never =
+  (code, message) => { throw new BookHomeworkCanonicalResolverError(code, message); };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   value !== null
@@ -705,10 +710,11 @@ const loadPublication = async (
   command: BookHomeworkSagaCommand,
   target: BookHomeworkSelectionTarget,
   recipientId: string,
+  scope?: AssemblyScope<BookAssemblyPublicationResult>,
 ): Promise<BookDeliveryPublishedPublicationReference> => {
   const loader = options.loadTrustedPublication ?? options.loadPublication;
   if (loader) {
-    const publication = await loader({ command, recipientId });
+    const publication = await loader({ command, recipientId, ...(scope ? { scope } : {}) });
     try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
       fail('invalid-publication', error instanceof Error ? error.message : 'Trusted publication is invalid.');
     }
@@ -716,7 +722,7 @@ const loadPublication = async (
   }
   const readScope = options.readPublicationScope as NonNullable<typeof options.readPublicationScope> | undefined;
   if (!readScope) fail('invalid-publication', 'No trusted publication loader or Assembly scope reader is configured.');
-  const scope = await (readScope as NonNullable<typeof readScope>)(command.intent.bookId);
+  scope ??= await (readScope as NonNullable<typeof readScope>)(command.intent.bookId);
   const selection = targetSelectionForScope(target, scope, command.intent.expectedPublication);
   const publication = createTrustedBookDeliveryPublication(
     {
@@ -748,7 +754,10 @@ const resolveCanonical = async (
   const classId = command.intent.target.classId;
   await authorizeClassRecipients(options, command.ownerId, classId, selected);
 
-  const publication = await loadPublication(options, command, target, selected[0]!);
+  const scope = options.readPublicationScope
+    ? await options.readPublicationScope(command.intent.bookId)
+    : undefined;
+  const publication = await loadPublication(options, command, target, selected[0]!, scope);
   try { assertPublishedBookDeliveryPublication(publication); } catch (error) {
     fail('invalid-publication', error instanceof Error ? error.message : 'Published Delivery reference is invalid.');
   }
@@ -767,9 +776,6 @@ const resolveCanonical = async (
   }
   publicationTargetMatches(target, publication);
 
-  const scope = options.readPublicationScope
-    ? await options.readPublicationScope(command.intent.bookId)
-    : undefined;
   if (publication.sourceSet.strategy === 'component_pdfs' && !scope) {
     fail('not-ready', 'Book Homework requires one complete student-safe PDF.');
   }

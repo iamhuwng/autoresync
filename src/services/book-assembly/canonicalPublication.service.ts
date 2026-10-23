@@ -119,8 +119,22 @@ export const createCanonicalBookAssemblyPublicationService = (
         }
       }
 
-      for (const reference of input.plan.atomicWrites.activityVersionRefs ?? []) {
-        const existing = await activityVersions.readPrepared(reference);
+      const references = input.plan.atomicWrites.activityVersionRefs ?? [];
+      const scope = references.length ? await repository.readScope(input.plan.bookId) : null;
+      for (const reference of references) {
+        const metadata = Object.values(scope?.activityVersions ?? {}).find(candidate =>
+          candidate.ownerId === input.plan.ownerId && candidate.bookId === input.plan.bookId
+          && candidate.activityId === reference.activityId && candidate.activityVersionId === reference.activityVersionId
+          && candidate.activityVersion === reference.activityVersion
+          && candidate.canonicalPayloadFingerprint === reference.canonicalPayloadFingerprint);
+        if (!metadata || !reference.canonicalPayloadFingerprint) return invalid();
+        const existing = await activityVersions.readPrepared(reference, {
+          bookId: input.plan.bookId, ownerId: input.plan.ownerId,
+          manifestVersionId: metadata.canonicalOriginManifestVersionId ?? metadata.manifestVersionId,
+          publicationId: metadata.canonicalOriginPublicationId ?? metadata.publicationId,
+          activityId: reference.activityId, activityVersionId: reference.activityVersionId,
+          activityVersion: reference.activityVersion, payloadFingerprint: reference.canonicalPayloadFingerprint,
+        });
         if (!existing
           || existing.lifecycle !== 'published'
           || existing.activityId !== reference.activityId

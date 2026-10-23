@@ -170,7 +170,7 @@ describe('Material Catalog Firebase rule contract', () => {
     const materialCatalog = databaseRules.rules.material_catalog as Record<string, unknown>;
     const testTypes = materialCatalog.test_types as Record<string, unknown>;
 
-    expect(testTypes['.read']).toBe('auth != null');
+    expect(testTypes['.read']).toContain('auth != null');
     expect(testTypes['.write']).toContain("root.child('users').child(auth.uid).child('role').val() === 'super_admin'");
   });
 

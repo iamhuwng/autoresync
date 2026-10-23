@@ -1,3 +1,4 @@
+import { bookAssemblyActivityVersionScopeKey } from '../../src/services/book-assembly/publicationTransaction.service';
 import { describe, expect, it, vi } from 'vitest';
 import type { BookDeliveryPublishedPublicationReference } from '../../src/services/book-delivery/bookDelivery.publication';
 import type {
@@ -7,8 +8,10 @@ import type { BookHomeworkAssignmentPreviewSource } from '../../src/services/boo
 import {
   BookHomeworkCanonicalResolverError,
   createBookHomeworkCanonicalResolver,
+  resolveCombinedDocument,
 } from '../src/upload-worker/book-homework/canonical-resolver';
 import { makeBookAssemblyPublicationScope } from './book-delivery.fixture';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service';
 
 const createdAt = '2026-08-01T00:00:00.000Z';
 
@@ -240,6 +243,7 @@ describe('Book Homework canonical resolver', () => {
   });
 
   const previewOptions = (scope = makeBookAssemblyPublicationScope()) => {
+    const readPublicationScope = vi.fn(async () => scope);
     const readClass = vi.fn(async () => ({
       classId: 'class-1',
       ownerId: 'teacher-1',
@@ -248,9 +252,10 @@ describe('Book Homework canonical resolver', () => {
     }));
     return {
       readClass,
+      readPublicationScope,
       options: createBookHomeworkCanonicalResolver({
         classReader: readClass,
-        readPublicationScope: async () => scope,
+        readPublicationScope,
       }),
     };
   };
@@ -280,7 +285,7 @@ describe('Book Homework canonical resolver', () => {
       { sourceKey: 'component-b', sourceVersionId: 'source-b-v1', physicalPageNumber: 1 },
     ];
     scope.placements['placement-1'].sourcePages = pages;
-    scope.activityVersions['activity-1-v1'].sourcePages = pages;
+    scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].sourcePages = pages;
     scope.activitySafeProjections['projection-1'].sourcePages = pages;
     scope.studentDocuments = {
       'student-document-v1': {
@@ -293,8 +298,26 @@ describe('Book Homework canonical resolver', () => {
         ],
       },
     };
+    scope.versions['manifest-1'].studentDocument = {
+      sourceVersionId: 'student-document-v1', descriptorRevision: 3, sha256Hex: 'a'.repeat(64),
+      descriptorFingerprint: fingerprintComponentPdfActivationValue(scope.studentDocuments['student-document-v1']),
+    };
     return scope;
   };
+
+  it('resolves the exact combined document pin and refuses missing or mismatched history', () => {
+    const scope = componentScope();
+    const descriptor = scope.studentDocuments['student-document-v1'];
+    scope.studentDocuments['another-document'] = { ...descriptor, sourceVersionId: 'another-document' };
+    expect(resolveCombinedDocument(scope, 'manifest-1')).toEqual(descriptor);
+    descriptor.components[0].ownerNodeKey = 'tampered-unit';
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+    descriptor.components[0].ownerNodeKey = 'unit-1';
+    scope.versions['manifest-1'].studentDocument.sha256Hex = 'b'.repeat(64);
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+    delete scope.versions['manifest-1'].studentDocument;
+    expect(() => resolveCombinedDocument(scope, 'manifest-1')).toThrow();
+  });
 
   const componentCommand = (preview: BookHomeworkAssignmentPreviewSource) => ({
     ...command(),
@@ -324,20 +347,23 @@ describe('Book Homework canonical resolver', () => {
 
   it('requires real component document and preview receipts and rejects omitted, synthetic, or crossed confirmation facts', async () => {
     const scope = componentScope();
-    const { options: resolver } = previewOptions(scope);
+    const { options: resolver, readPublicationScope } = previewOptions(scope);
     const preview = await resolver.resolvePreviewSource({
       ownerId: 'teacher-1', bookId: 'book-pdf-1', unitKey: 'unit-1', classId: 'class-1',
       selectedRecipientIds: ['student-1'], contextId: 'preview-component', createdAt,
     });
     const valid = componentCommand(preview);
+    readPublicationScope.mockClear();
     await expect(resolver.resolve(valid)).resolves.toMatchObject({
       manifest: { studentDocument: valid.intent.expectedStudentDocument },
     });
+    expect(readPublicationScope).toHaveBeenCalledTimes(1);
     for (const intent of [
       { ...valid.intent, expectedStudentDocument: undefined, expectedPreviewFingerprint: undefined },
       { ...valid.intent, expectedStudentDocument: { sourceVersionId: 'student-document-v1', descriptorRevision: 0, sha256Hex: '0'.repeat(64) } },
       { ...valid.intent, expectedPreviewFingerprint: 'crossed-preview' },
     ]) await expect(resolver.resolve({ ...valid, intent })).rejects.toMatchObject({ code: 'stale-input' });
+    expect(readPublicationScope).toHaveBeenCalledTimes(4);
   });
 
   it.each([

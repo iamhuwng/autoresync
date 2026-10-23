@@ -316,7 +316,11 @@ const setup = async () => {
     deliveryRepository,
     canonicalState,
   } = harness;
-  const committed = await saga.execute(command(canonicalState));
+  let committed = await saga.execute(command(canonicalState));
+  for (let step = 0; step < 4 && committed.status !== 'committed'; step += 1) {
+    committed = await saga.execute(command(canonicalState));
+  }
+  expect(committed.status).toBe('committed');
   const entry = committed.record.recipients[0];
   if (!entry) throw new Error('missing_committed_recipient');
   const authority = await authorityRepository.read({

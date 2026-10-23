@@ -46,12 +46,10 @@ const keyPath = (key: UnitActivityBindingKey): string => (
 export const assertUnitActivityBinding = (value: unknown): UnitActivityBinding => {
   const source = record(value);
   if (!source) throw new Error('invalid_book_assembly_activity_binding');
-  const withVersion = source.activityVersionId !== undefined || source.activityVersion !== undefined;
   const keys = Object.keys(source).sort();
   const expected = [
     'schemaVersion', 'ownerId', 'bookId', 'unitKey', 'activityKey', 'activityId',
     'candidateId', 'candidateRevision', 'candidateLifecycle',
-    ...(withVersion ? ['activityVersionId', 'activityVersion'] : []),
   ].sort();
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])
     || source.schemaVersion !== 1
@@ -64,7 +62,6 @@ export const assertUnitActivityBinding = (value: unknown): UnitActivityBinding =
     activityId: id(source.activityId), candidateId: id(source.candidateId),
     candidateRevision: revision(source.candidateRevision),
     candidateLifecycle: source.candidateLifecycle as UnitActivityBinding['candidateLifecycle'],
-    ...(withVersion ? { activityVersionId: id(source.activityVersionId), activityVersion: revision(source.activityVersion) } : {}),
   };
   return clone(result);
 };
@@ -136,35 +133,13 @@ export class FirebaseRestUnitActivityBindingRepository implements UnitActivityBi
       }
       const existing = assertUnitActivityBinding(current.data);
       if (!sameKey(existing, next) || existing.activityId !== next.activityId) return 'conflict';
-      if (existing.activityVersionId !== undefined) return 'conflict';
-      if (existing.candidateId === next.candidateId) {
-        if (next.candidateRevision < existing.candidateRevision) return 'stale';
-        if (next.candidateRevision === existing.candidateRevision
-          && next.candidateLifecycle === existing.candidateLifecycle) return 'replayed';
-      }
+      if (existing.candidateId === next.candidateId
+        && existing.candidateRevision === next.candidateRevision
+        && existing.candidateLifecycle === next.candidateLifecycle) return 'replayed';
+      if (next.candidateRevision <= existing.candidateRevision) return 'stale';
       if (await this.rtdb.writeIfMatch(path, next, current.etag)) return 'updated';
     }
     throw new Error('book_assembly_activity_binding_cas_retries_exhausted');
   }
 
-  async recordPublication(input: UnitActivityBindingKey & {
-    readonly activityId: string; readonly candidateId: string; readonly candidateRevision: number;
-    readonly activityVersionId: string; readonly activityVersion: number;
-  }): Promise<UnitActivityBindingWriteStatus> {
-    const key: UnitActivityBindingKey = { ownerId: id(input.ownerId), bookId: id(input.bookId), unitKey: id(input.unitKey), activityKey: id(input.activityKey) };
-    const path = keyPath(key);
-    for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
-      const current = await this.rtdb.readWithEtag<unknown>(path);
-      if (current.data === null || current.data === undefined) return 'conflict';
-      const existing = assertUnitActivityBinding(current.data);
-      if (!sameKey(existing, key) || existing.activityId !== id(input.activityId)
-        || existing.candidateId !== id(input.candidateId) || existing.candidateRevision !== revision(input.candidateRevision)) return 'conflict';
-      const next: UnitActivityBinding = { ...existing, activityVersionId: id(input.activityVersionId), activityVersion: revision(input.activityVersion) };
-      if (existing.activityVersionId !== undefined) {
-        return existing.activityVersionId === next.activityVersionId && existing.activityVersion === next.activityVersion ? 'replayed' : 'conflict';
-      }
-      if (await this.rtdb.writeIfMatch(path, next, current.etag)) return 'updated';
-    }
-    throw new Error('book_assembly_activity_binding_cas_retries_exhausted');
-  }
 }

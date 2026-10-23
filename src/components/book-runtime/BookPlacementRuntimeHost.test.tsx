@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, Suspense, useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -13,6 +13,7 @@ const {
   runtimeChangeMock,
   runtimeFlushMock,
   runtimeSubmitMock,
+  runtimeReadTerminalMock,
   runtimeTerminalState,
   runtimeResponsesState,
   runtimeHookOptionsMock,
@@ -23,6 +24,7 @@ const {
   runtimeChangeMock: vi.fn(() => true),
   runtimeFlushMock: vi.fn(async () => ({ status: 'saved', safeToLeave: true })),
   runtimeSubmitMock: vi.fn(async () => ({ resultStatus: 'submitted' })),
+  runtimeReadTerminalMock: vi.fn(async () => ({ status: 'absent' })),
   runtimeTerminalState: {
     current: null as { resultStatus: 'pending_review' | 'submitted' } | null,
     status: 'confirmed-absent' as 'unknown' | 'unavailable' | 'confirmed-absent' | 'confirmed-present',
@@ -36,8 +38,9 @@ vi.mock('../../hooks/useNavigation', () => ({
   useNavigation: () => ({ navigateTo: navigateToMock }),
 }));
 
-vi.mock('../../services/book-activity/activityRuntime.browser', () => ({
-  createBookRuntimeClient: () => ({}),
+vi.mock('../../services/book-activity/activityRuntime.browser', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../services/book-activity/activityRuntime.browser')>(),
+  createBookRuntimeClient: () => ({ readTerminal: runtimeReadTerminalMock }),
 }));
 
 vi.mock('../../hooks/book-runtime/useBookActivityRuntime', () => ({
@@ -139,21 +142,44 @@ describe('BookPlacementRuntimeHost', () => {
     runtimeTerminalState.current = null;
     runtimeTerminalState.status = 'confirmed-absent';
     runtimeResponsesState.current = {};
+    runtimeReadTerminalMock.mockReset();
+    runtimeReadTerminalMock.mockResolvedValue({ status: 'absent' });
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     HTMLDialogElement.prototype.close = function () { this.open = false; };
   });
 
-  it('loads the exact Delivery Activity pins once and renders a standalone shell', async () => {
+  it('restores only the committed responses for the exact delivered Activity interactions', async () => {
+    runtimeReadTerminalMock.mockResolvedValue({ status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
+      response: [{ interactionId: 'interaction-1', answer: ['A'] }] } as never);
+    render(<BookPlacementRuntimeHost
+      activityClient={{ readActivities: async () => [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: studentActivity('interaction-1') }] }}
+      projection={projection}
+      viewer={{ title: 'Book', render: () => null }}
+    />);
+    await waitFor(() => expect(runtimeHookOptionsMock).toHaveBeenCalled());
+    const options = runtimeHookOptionsMock.mock.calls.at(-1)![0];
+    await expect(options.readTerminal()).resolves.toEqual({ status: 'confirmed-present', resultStatus: 'submitted',
+      responses: { 'interaction-1': { interactionId: 'interaction-1', selectedOptionId: 'A' } } });
+    expect(runtimeReadTerminalMock).toHaveBeenCalledWith(expect.objectContaining({
+      bindingId: 'binding-1', bindingRevision: 2, contextId: 'course-material-1',
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1, interactionId: 'interaction-1',
+    }));
+    runtimeReadTerminalMock.mockResolvedValue({ status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
+      response: [{ interactionId: 'other-interaction', answer: ['A'] }] } as never);
+    await expect(options.readTerminal()).resolves.toEqual({ status: 'unavailable' });
+  });
+
+  it('loads the exact Delivery Activity pins once across StrictMode effects and renders a standalone shell', async () => {
     const activities: readonly BookRuntimeShellActivity[] = [{
       activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: {},
     }];
     const readActivities = vi.fn(async () => activities);
     const { rerender } = render(
-      <BookPlacementRuntimeHost
+      <StrictMode><BookPlacementRuntimeHost
         activityClient={{ readActivities }}
         projection={projection}
         viewer={{ title: 'Book', render: () => null }}
-      />,
+      /></StrictMode>,
     );
 
     await waitFor(() => expect(screen.getByTestId('standalone-book-runtime-shell')).toBeInTheDocument());
@@ -168,15 +194,66 @@ describe('BookPlacementRuntimeHost', () => {
     expect(shellMock).toHaveBeenCalledWith(expect.objectContaining({ activities }));
 
     rerender(
-      <BookPlacementRuntimeHost
+      <StrictMode><BookPlacementRuntimeHost
         activityClient={{ readActivities }}
         onAction={onActionMock}
         projection={projection}
         viewer={{ title: 'Book', render: () => null }}
-      />,
+      /></StrictMode>,
     );
     expect(readActivities).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('student-layout')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['recipient', { ...projection, recipientId: 'student-2' }],
+    ['context', { ...projection, context: { ...projection.context, contextId: 'course-material-2' } }],
+    ['context kind', { ...projection, context: { ...projection.context, kind: 'solo' } }],
+    ['Book', { ...projection, book: { ...projection.book, bookId: 'book-2' } }],
+    ['pins', { ...projection, activities: [{ ...projection.activities[0], activityVersionId: 'activity-1-v2', activityVersion: 2 }] }],
+  ])('reloads Activities for a changed %s without rendering the prior content', async (_name, nextProjection) => {
+    const original = [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: {} }];
+    let finish!: (activities: typeof original) => void;
+    const readActivities = vi.fn().mockResolvedValueOnce(original)
+      .mockImplementationOnce(() => new Promise<typeof original>((resolve) => { finish = resolve; }));
+    const { rerender } = render(<BookPlacementRuntimeHost activityClient={{ readActivities }} projection={projection}
+      viewer={{ title: 'Book', render: () => null }} />);
+    await screen.findByTestId('standalone-book-runtime-shell');
+    shellMock.mockClear();
+    rerender(<BookPlacementRuntimeHost activityClient={{ readActivities }} projection={nextProjection as BookRuntimeDeliveryProjection}
+      viewer={{ title: 'Book', render: () => null }} />);
+    expect(screen.queryByTestId('standalone-book-runtime-shell')).not.toBeInTheDocument();
+    expect(shellMock).not.toHaveBeenCalled();
+    expect(readActivities).toHaveBeenCalledTimes(2);
+    await act(async () => { finish(original); });
+    expect(screen.getByTestId('standalone-book-runtime-shell')).toBeInTheDocument();
+  });
+
+  it('discards an earlier identity response that settles after the current request', async () => {
+    let finishOld!: (activities: readonly BookRuntimeShellActivity[]) => void;
+    const current = [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: { title: 'Current' } }];
+    const readActivities = vi.fn().mockImplementationOnce(() => new Promise<readonly BookRuntimeShellActivity[]>((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce(current);
+    const { rerender } = render(<BookPlacementRuntimeHost activityClient={{ readActivities }} projection={projection}
+      viewer={{ title: 'Book', render: () => null }} />);
+    rerender(<BookPlacementRuntimeHost activityClient={{ readActivities }} projection={{ ...projection, recipientId: 'student-2' }}
+      viewer={{ title: 'Book', render: () => null }} />);
+    await screen.findByTestId('standalone-book-runtime-shell');
+    await act(async () => { finishOld([{ ...current[0], projection: { title: 'Old' } }]); });
+    expect(shellMock.mock.calls.at(-1)?.[0].activities).toEqual(current);
+  });
+
+  it('clears loaded content while launch authority is unavailable and reloads when restored', async () => {
+    const readActivities = vi.fn(async () => [{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: {} }]);
+    const props = { activityClient: { readActivities }, projection, viewer: { title: 'Book', render: () => null } };
+    const { rerender } = render(<BookPlacementRuntimeHost {...props} />);
+    await screen.findByTestId('standalone-book-runtime-shell');
+    rerender(<BookPlacementRuntimeHost {...props} launchError="Book access unavailable." />);
+    expect(screen.queryByTestId('standalone-book-runtime-shell')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry Activities' })).not.toBeInTheDocument();
+    rerender(<BookPlacementRuntimeHost {...props} />);
+    await screen.findByTestId('standalone-book-runtime-shell');
+    expect(readActivities).toHaveBeenCalledTimes(2);
   });
 
   it('shows bounded loading errors and returns through the navigation abstraction', async () => {
@@ -195,6 +272,11 @@ describe('BookPlacementRuntimeHost', () => {
     expect(document.body).not.toHaveTextContent('provider');
     expect(document.body).not.toHaveTextContent('objectKey');
     expect(document.body).not.toHaveTextContent('private.example');
+    await user.click(screen.getByRole('button', { name: 'Retry Activities' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Book Activities could not be loaded.');
+    expect(readActivities).toHaveBeenCalledTimes(2);
+    expect(readActivities.mock.calls[1]).toEqual(readActivities.mock.calls[0]);
+    expect(onActionMock).toHaveBeenCalledWith('bookRuntimeLaunchRetried', expect.objectContaining({ bindingId: 'binding-1' }));
     await user.click(screen.getByRole('button', { name: 'Return' }));
     expect(onActionMock).toHaveBeenCalledWith('bookRuntimeReturn', expect.objectContaining({
       surface: 'course',
@@ -203,6 +285,23 @@ describe('BookPlacementRuntimeHost', () => {
       outcome: 'returned',
     }));
     expect(navigateToMock).toHaveBeenCalledWith('STUDENT_COURSES', undefined, expect.objectContaining({ reason: 'book_runtime_return' }));
+  });
+
+  it('retries the exact Homework Activity request after a transient failure', async () => {
+    const user = userEvent.setup();
+    const readActivities = vi.fn();
+    const readHomeworkActivities = vi.fn().mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce([{ activityId: 'activity-1', activityVersionId: 'activity-1-v1', projection: {} }]);
+    render(<BookPlacementRuntimeHost activityClient={{ readActivities, readHomeworkActivities }}
+      projection={{ ...projection, context: { ...projection.context, kind: 'homework', contextId: 'assignment-1' } } as BookRuntimeDeliveryProjection}
+      onAction={onActionMock} viewer={{ title: 'Book', render: () => null }} />);
+    await user.click(await screen.findByRole('button', { name: 'Retry Activities' }));
+    await screen.findByTestId('standalone-book-runtime-shell');
+    expect(readHomeworkActivities).toHaveBeenCalledTimes(2);
+    expect(readHomeworkActivities.mock.calls[1]).toEqual(readHomeworkActivities.mock.calls[0]);
+    expect(readActivities).not.toHaveBeenCalled();
+    expect(onActionMock).toHaveBeenCalledWith('bookRuntimeLaunchRetried', expect.objectContaining({ surface: 'homework' }));
+    expect(screen.queryByRole('button', { name: 'Retry Activities' })).not.toBeInTheDocument();
   });
 
   it('preserves unchanged-pin response, selected Activity, and viewer state after an abandoned StrictMode replacement render', async () => {

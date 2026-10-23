@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { BookHomeworkAssignmentSaga } from '../src/upload-worker/book-homework/saga';
 import type {
   BookHomeworkSagaRecord,
 } from '../../src/services/book-homework/bookHomeworkSaga.types.ts';
@@ -53,6 +54,16 @@ const record = (
     createdAt: '2026-08-03T11:59:00.000Z',
     updatedAt: committedAt,
   };
+};
+
+const emitCommitted: BookHomeworkAssignmentSaga['execute'] = async (_command, emit) => {
+  const root = record();
+  try {
+    await emit?.(root, root.recipients.map(entry => entry.recipientId));
+    return { status: 'committed', record: root };
+  } catch {
+    return { status: 'committed_notifications_pending', record: root };
+  }
 };
 
 const identity = {
@@ -127,13 +138,13 @@ describe('Book Homework committed notification integration', () => {
       const requestValue = request();
       requestValue.headers.set('authorization', 'Bearer teacher-actor-token');
       const handlers = createBookHomeworkWorkerHandlers({
-        saga: { execute: async () => ({ status: 'committed', record: record() }),
+        saga: { execute: emitCommitted,
           readCommittedAssignment: async () => record() },
         notificationRepositoryFactory: () => ({ create: async () => { throw new Error('private-provider-error'); } }),
       });
       const result = await runCommand(handlers, { request: requestValue, uid: 'teacher-1', assignmentId,
         env: { ...env(true), FIREBASE_DB_URL: 'https://example.firebaseio.com' } });
-      expect(result.init.status).toBe(200);
+      expect(result.init.status).toBe(202);
       expect(result.body).toMatchObject({ state: 'committed', operationId });
       expect(fetchImpl).toHaveBeenCalledTimes(1);
       const [url, init] = fetchImpl.mock.calls[0];
@@ -213,7 +224,7 @@ describe('Book Homework committed notification integration', () => {
     const sagaRepository = new InMemoryBookHomeworkSagaRepository();
     await sagaRepository.create(record());
     const notifications = new InMemoryNotificationCommandRepository();
-    const execute = vi.fn(async () => ({ status: 'committed' as const, record: record() }));
+    const execute = vi.fn(emitCommitted);
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
@@ -264,10 +275,7 @@ describe('Book Homework committed notification integration', () => {
     expect(source).not.toHaveBeenCalled();
     expect(notificationRepositoryFactory).not.toHaveBeenCalled();
 
-    const disabledExecute = vi.fn(async () => ({
-      status: 'committed' as const,
-      record: record(),
-    }));
+    const disabledExecute = vi.fn(emitCommitted);
     const disabledHandlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute: disabledExecute,
@@ -294,7 +302,7 @@ describe('Book Homework committed notification integration', () => {
     const notifications = new InMemoryNotificationCommandRepository();
     const execute = vi.fn()
       .mockResolvedValueOnce({ status: 'committed_projection_pending' as const, record: record() })
-      .mockResolvedValue({ status: 'committed' as const, record: record() });
+      .mockImplementation(emitCommitted);
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
@@ -326,10 +334,7 @@ describe('Book Homework committed notification integration', () => {
     const sagaRepository = new InMemoryBookHomeworkSagaRepository();
     await sagaRepository.create(record());
     const notifications = new InMemoryNotificationCommandRepository();
-    const execute = vi.fn(async () => ({
-      status: 'committed' as const,
-      record: record(),
-    }));
+    const execute = vi.fn(emitCommitted);
     let repositoryUnavailable = true;
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
@@ -354,7 +359,7 @@ describe('Book Homework committed notification integration', () => {
       uid: 'teacher-1',
       assignmentId,
     });
-    expect(first).toMatchObject({ body: { state: 'committed' }, init: { status: 200 } });
+    expect(first).toMatchObject({ body: { state: 'committed', status: 'committed_notifications_pending' }, init: { status: 202 } });
     expect(notifications.snapshot()).toEqual({});
 
     const replay = await runCommand(handlers, {
@@ -386,11 +391,7 @@ describe('Book Homework committed notification integration', () => {
         return result;
       }),
     };
-    const surroundingRecipients = ['student-2', 'student-1'];
-    const execute = vi.fn(async () => ({
-      status: 'committed' as const,
-      record: record('committed', surroundingRecipients),
-    }));
+    const execute = vi.fn(emitCommitted);
     const handlers = createBookHomeworkWorkerHandlers({
       saga: {
         execute,
@@ -408,10 +409,9 @@ describe('Book Homework committed notification integration', () => {
       uid: 'teacher-1',
       assignmentId,
     });
-    expect(first.init.status).toBe(200);
+    expect(first.init.status).toBe(202);
     expect(Object.keys(durable.snapshot())).toHaveLength(1);
 
-    surroundingRecipients.push('student-3');
     const replay = await runCommand(handlers, {
       request: request(),
       env: env(true),

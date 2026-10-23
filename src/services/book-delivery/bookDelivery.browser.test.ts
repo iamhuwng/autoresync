@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { webcrypto } from 'node:crypto';
 import {
   createBookHistoricalAttemptDocumentRoute,
   createBookDeliveryDocumentTransport,
@@ -6,6 +7,7 @@ import {
   resolveBookDeliveryWorkerOrigin,
 } from './bookDelivery.browser';
 import { BookDocumentTransportError } from './bookDocumentTransport.browser';
+import { opaqueBookDocumentEtag } from '../../../cloudflare/src/upload-worker/book-delivery/document-worker';
 
 const etag = `"${'b'.repeat(64)}"`;
 
@@ -94,14 +96,43 @@ describe('bookDelivery.browser', () => {
       resultId: 'result-1',
       opaqueRouteKey: 'opaque-historical',
       sourceVersionId: 'source-version-4',
+      expectedByteLength: 4,
     }, {
       VITE_BOOK_DELIVERY_WORKER_URL: 'https://worker.example',
     })).toEqual({
       url: 'https://worker.example/v1/book-delivery/historical-document'
         + '/book-1/student-1/result-1/opaque-historical',
       sourceVersionId: 'source-version-4',
+      expectedByteLength: 4,
       physicalPageNumber: undefined,
     });
+  });
+
+  it('accepts the historical Worker opaque ETag without guessing it from the document checksum', async () => {
+    const checksum = 'a'.repeat(64);
+    vi.stubGlobal('crypto', webcrypto);
+    let opaqueEtag: string;
+    try { opaqueEtag = await opaqueBookDocumentEtag({
+      bookId: 'book-1', sourceVersionId: 'combined-v1', storageLocationId: 'location-1',
+      providerKind: 'backblaze-b2-s3', privateBucketId: 'bucket-1', providerObjectKey: 'private/combined.pdf',
+      providerFileId: 'file-1', providerFileVersionId: 'file-version-1',
+      checksum: { algorithm: 'sha-256', value: checksum }, byteSize: 4,
+    }); } finally { vi.unstubAllGlobals(); }
+    expect(opaqueEtag).not.toBe(`"${checksum}"`);
+    const route = createBookHistoricalAttemptDocumentRoute({
+      bookId: 'book-1', studentId: 'student-1', resultId: 'result-1',
+      opaqueRouteKey: 'combined-route', sourceVersionId: 'combined-v1', expectedByteLength: 4,
+    }, { VITE_BOOK_DELIVERY_WORKER_URL: 'https://worker.example' });
+    expect(route).not.toHaveProperty('expectedEtag');
+    const transport = createBookDeliveryDocumentTransport({ route, getIdToken: async () => 'token',
+      trustedWorkerOrigins: ['https://worker.example'],
+      fetchImpl: vi.fn(async (url: string | URL | Request) => {
+        const response = okResponse(String(url));
+        response.headers.set('etag', opaqueEtag);
+        return response;
+      }),
+    });
+    await expect(transport.get({ kind: 'closed', start: 0, end: 3 })).resolves.toMatchObject({ etag: opaqueEtag });
   });
 
   it('builds a document transport without accepting provider authority', async () => {

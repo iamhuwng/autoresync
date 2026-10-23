@@ -144,6 +144,50 @@
   font-weight: 600;
 }
 
+.create-book-modal__draft-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.create-book-modal__draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.create-book-modal__draft-details {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  color: #334155;
+  font-size: 0.8rem;
+}
+
+.create-book-modal__draft-details strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.create-book-modal__draft-details time {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+@media (max-width: 640px) {
+  .create-book-modal__draft-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .create-book-modal__button {
   min-height: 38px;
   border: 1px solid rgba(203, 213, 225, 0.9);

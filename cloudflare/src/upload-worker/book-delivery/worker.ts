@@ -1,4 +1,5 @@
 import { BookDeliveryEntitlementLifecycle, BookDeliveryLifecycleError } from '../../../../src/services/book-delivery/bookDelivery.entitlementLifecycle.ts';
+import { bookAssemblyActivityVersionScopeKey } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
 import { createBookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.entitlementFactory.ts';
 import { createBookDeliveryPublicationReference } from '../../../../src/services/book-delivery/bookDelivery.publication.ts';
 import type { BookDeliveryPublishedPublicationReference } from '../../../../src/services/book-delivery/bookDelivery.publication.ts';
@@ -12,7 +13,7 @@ import {
   type BookRuntimePageGroupContext,
 } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
 import { projectCombinedPageContext } from '../../../../src/services/book-assembly/componentStudentDocument.types.ts';
-import { resolveMaterialQualifiedAssemblyCandidate } from '../../../../src/services/book-assembly/componentPdfActivation.service.ts';
+import { resolveCombinedDocument } from '../book-homework/canonical-resolver.ts';
 import {
   createBookDeliveryProjectionResolver,
   BookDeliveryProjectionError,
@@ -52,11 +53,10 @@ import {
   type BookRuntimeRepositoryEnv,
 } from '../book-runtime/repository.ts';
 import { isActiveBookSourceAuthorityProfile, readTrustedSourceSafety } from '../book-source/trusted-source-contract.ts';
-import { readProductionBookAssemblyAuthority, resolveActiveComponentStudentDocument, sourceUploadAccess } from '../book-assembly/production-composition.ts';
+import { sourceUploadAccess } from '../book-assembly/production-composition.ts';
 import { opaqueBookDocumentEtag } from './document-worker.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
 import { sourceUploadAccountPath, validateBookSourceUploadAccountState } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
-import { FirebaseRestBookAssemblyRepository } from '../book-assembly/repository.ts';
 import { resolveBookIntegrityCaptureLaunch } from '../book-activity-integrity/production-composition.ts';
 import type { BookIntegrityWorkerEnv } from '../book-activity-integrity/worker.ts';
 
@@ -222,6 +222,38 @@ export const createTrustedBookDeliveryPublication = (
     || version.sourceSetRevision !== current.sourceSetRevision) {
     throw new BookDeliveryWorkerError('book_delivery_publication_invalid', 409);
   }
+  return projectTrustedBookDeliveryPublication(intent, scope, schedulePolicy, version);
+};
+
+export const createTrustedBookDeliveryBindingPublication = (
+  binding: BookDeliveryBinding,
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+): BookDeliveryPublishedPublicationReference => {
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version || version.lifecycle !== 'published'
+    || version.manifestVersionId !== binding.book.manifestVersionId
+    || version.ownerId !== binding.issuer.ownerId
+    || version.bookId !== binding.book.bookId || version.bookRevision !== binding.book.bookRevision
+    || version.publicationId !== binding.book.publicationId
+    || version.publicationRevision !== binding.book.publicationRevision
+    || version.strategy !== binding.sourceSet.strategy) {
+    throw new BookDeliveryWorkerError('book_delivery_publication_invalid', 409);
+  }
+  return projectTrustedBookDeliveryPublication({
+    bookId: binding.book.bookId, publicationId: binding.book.publicationId,
+    publicationRevision: binding.book.publicationRevision,
+    recipientId: binding.recipient.recipientId,
+    contextKind: binding.context.kind as RunnableContextKind,
+    contextId: binding.context.contextId, scope: binding.scope,
+  }, scope, binding.schedulePolicy, version);
+};
+
+const projectTrustedBookDeliveryPublication = (
+  intent: BookDeliveryIssuanceIntent,
+  scope: BookAssemblyPublicationScope<BookAssemblyPublicationResult>,
+  schedulePolicy: BookDeliverySchedulePolicyReference,
+  version: NonNullable<BookAssemblyPublicationScope<BookAssemblyPublicationResult>['versions']>[string],
+): BookDeliveryPublishedPublicationReference => {
   const preservedByMappingChain = (
     activityVersion: NonNullable<typeof scope.activityVersions>[string],
   ): boolean => {
@@ -374,9 +406,9 @@ export const createTrustedBookDeliveryPublication = (
   );
 
   const placements = selectedPlacements.map((placement, index) => {
-    const activityVersion = Object.values(scope.activityVersions ?? {}).find((candidate) => (
-      candidate.activityVersionId === placement.activityVersionId
-    ));
+    const activityVersion = scope.activityVersions?.[bookAssemblyActivityVersionScopeKey(version.manifestVersionId, placement.activityVersionId)]
+      ?? Object.values(scope.activityVersions ?? {}).find(candidate => candidate.activityVersionId === placement.activityVersionId
+        && preservedByMappingChain(candidate));
     const safeProjection = Object.values(scope.activitySafeProjections ?? {}).find((projection) => (
       projection.activityVersionId === placement.activityVersionId
       && projection.activityId === placement.activityId
@@ -439,6 +471,7 @@ export const createTrustedBookDeliveryPublication = (
         sourceVersionByKey.get(page.sourceKey) !== page.sourceVersionId
       ))
       || activityVersion.activityId !== placement.activityId
+      || activityVersion.activityVersionId !== placement.activityVersionId
       || activityVersion.activityKey !== placement.activityKey
       || activityVersion.unitKey !== placement.unitKey
       || activityVersion.ownerId !== version.ownerId
@@ -491,7 +524,10 @@ export const createTrustedBookDeliveryPublication = (
     schedulePolicy,
   };
   if ((BOOK_DELIVERY_SCHEMA_VERSION as number) >= 3) {
-    publication.outline = outline.map((node) => ({ ...node }));
+    publication.outline = outline.map(({ title, ...node }) => ({
+      ...node,
+      ...(title === undefined ? {} : { titleSnapshot: title }),
+    }));
   }
   return createBookDeliveryPublicationReference(publication);
 };
@@ -504,56 +540,63 @@ const bindingIdFor = async (operationId: string): Promise<string> => {
   return `bd_${[...digest.slice(0, 20)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 };
 
+export const resolveTrustedBookDeliveryFullPageDefaults = async (
+  env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding,
+  repository: Pick<BookAssemblyPublicationRepository<BookAssemblyPublicationResult>, 'readScope'> = new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId }),
+) => {
+  const scope = await repository.readScope(binding.book.bookId);
+  const version = scope.versions?.[binding.book.manifestVersionId];
+  if (!version) return null;
+  try { createTrustedBookDeliveryBindingPublication(binding, scope); } catch { return null; }
+  const defaults: Record<string, number> = {};
+  for (const placement of binding.placements.filter(entry => entry.contextMode !== 'none')) {
+    const published = Object.values(scope.placements ?? {}).find(entry => entry.placementId === placement.placementId
+      && entry.manifestVersionId === version.manifestVersionId && entry.activityId === placement.activityId
+      && entry.activityVersionId === placement.activityVersionId);
+    const unit = version.manifest.units.find(entry => entry.unitKey === published?.unitKey);
+    const slot = unit?.activitySlots.find(entry => entry.activityKey === published?.activityKey);
+    const group = unit?.pageGroups.find(entry => entry.pageGroupKey === slot?.pageGroupKeys[0]);
+    const opening = group?.defaultPhysicalPageNumber ?? group?.pages[0];
+    if (opening === undefined || !group?.pages.includes(opening)
+      || !placement.sourcePageScopes.some(entry => entry.sourceKey === group.sourceKey && entry.pages.includes(opening))) return null;
+    defaults[placement.placementId] = opening;
+  }
+  return defaults;
+};
+
 export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding) => {
-    const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
-    if (!authority) return null;
     const scope = await new FirebaseRestBookAssemblyPublicationRepository({ env, ownerId: binding.issuer.ownerId }).readScope(binding.book.bookId);
-    const qualified = resolveActiveComponentStudentDocument(authority, scope);
-    const current = scope.current;
-    if (!qualified || !current
-      || qualified.activation.bookRevision !== binding.book.bookRevision
-      || qualified.activation.sourceSetRevision !== current.sourceSetRevision
-      || current.bookRevision !== binding.book.bookRevision) return null;
+    const version = scope.versions?.[binding.book.manifestVersionId];
+    if (!version) return null;
+    let descriptor: ReturnType<typeof resolveCombinedDocument>;
     try {
-      createTrustedBookDeliveryPublication({
-        bookId: binding.book.bookId,
-        publicationId: binding.book.publicationId,
-        publicationRevision: binding.book.publicationRevision,
-        recipientId: binding.recipient.recipientId,
-        contextKind: binding.context.kind as RunnableContextKind,
-        contextId: binding.context.contextId,
-        scope: binding.scope,
-      }, scope, binding.schedulePolicy);
+      createTrustedBookDeliveryBindingPublication(binding, scope);
+      descriptor = resolveCombinedDocument(scope, binding.book.manifestVersionId);
     } catch {
       return null;
     }
+    if (binding.sourceSet.sources.some(source => !descriptor.components.some(component =>
+      component.sourceKey === source.sourceKey && component.sourceVersionId === source.sourceVersionId))) return null;
     const pageGroups: BookRuntimePageGroupContext[] = [];
     const groupFacts = new Map<string, {
       sourceKey: string; pages: readonly number[]; activityKeys: readonly string[]; unitKey: string;
     }>();
-    const assemblyRepository = new FirebaseRestBookAssemblyRepository({
-      env: env as never, ownerId: binding.issuer.ownerId,
-    });
-    for (const reference of qualified.activation.unitCandidates) {
-      const candidateScope = await assemblyRepository.readScope(binding.book.bookId, reference.unitKey);
-      const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, reference.unitKey, candidateScope.candidates);
-      const unit = candidate?.manifest?.units.find((entry) => entry.unitKey === reference.unitKey);
-      if (!candidate || !unit) return null;
+    for (const unit of version.manifest.units) {
       for (const group of unit.pageGroups) {
         if (groupFacts.has(group.pageGroupKey)) return null;
         groupFacts.set(group.pageGroupKey, { ...group, unitKey: unit.unitKey });
       }
-      try { pageGroups.push(...projectCombinedPageContext(qualified.descriptor, unit.pageGroups)); } catch { return null; }
+      try { pageGroups.push(...projectCombinedPageContext(descriptor, unit.pageGroups)); } catch { return null; }
     }
     for (const placement of binding.placements) {
-      const activity = qualified.activation.activities.find((entry) => entry.activityId === placement.activityId);
+      const activity = Object.values(scope.placements ?? {}).find(entry => entry.placementId === placement.placementId
+        && entry.manifestVersionId === version.manifestVersionId && entry.activityId === placement.activityId
+        && entry.activityVersionId === placement.activityVersionId);
       const groups = placement.pageGroupKeys.map((key) => groupFacts.get(key));
       if (!activity || groups.some((group) => !group)
         || groups.some((group) => group!.unitKey !== activity.unitKey
           || !group!.activityKeys.includes(activity.activityKey))) return null;
-      const candidateScope = await assemblyRepository.readScope(binding.book.bookId, activity.unitKey);
-      const candidate = resolveMaterialQualifiedAssemblyCandidate(authority, activity.unitKey, candidateScope.candidates);
-      const slot = candidate?.manifest?.units.find((entry) => entry.unitKey === activity.unitKey)
+      const slot = version.manifest.units.find((entry) => entry.unitKey === activity.unitKey)
         ?.activitySlots.find((entry) => entry.activityKey === activity.activityKey);
       const allowedSources = new Map(binding.sourceSet.sources.map((source) => [source.sourceKey, source.sourceVersionId]));
       const canonicalScopes = [...new Map(groups.flatMap((group) => group!.pages.map((page) => [
@@ -581,19 +624,19 @@ export const resolveTrustedBookDeliveryStudentDocument = async (env: BookDeliver
         && operation.ownerId === binding.issuer.ownerId
         && operation.bookId === binding.book.bookId
         && operation.sourceKey === 'student-document'
-        && operation.sourceVersionId === qualified.descriptor.sourceVersionId
+        && operation.sourceVersionId === descriptor.sourceVersionId
         && operation.verifiedStorage !== undefined
         && safety?.studentSafeStatus === 'ready'
-        && safety.studentSafeDecision?.sha256Hex === qualified.descriptor.sha256Hex
-        && operation.verifiedStorage.byteSize === qualified.descriptor.byteSize
+        && safety.studentSafeDecision?.sha256Hex === descriptor.sha256Hex
+        && operation.verifiedStorage.byteSize === descriptor.byteSize
         && operation.verifiedStorage.checksum.algorithm === 'sha-256'
-        && operation.verifiedStorage.checksum.value.toLowerCase() === qualified.descriptor.sha256Hex;
+        && operation.verifiedStorage.checksum.value.toLowerCase() === descriptor.sha256Hex;
     });
     if (operations.length !== 1 || !operations[0]!.verifiedStorage) return null;
     return {
-      expectedByteLength: qualified.descriptor.byteSize,
+      expectedByteLength: descriptor.byteSize,
       expectedEtag: await opaqueBookDocumentEtag(operations[0]!.verifiedStorage),
-      physicalPageCount: qualified.descriptor.physicalPageCount,
+      physicalPageCount: descriptor.physicalPageCount,
       pageGroups: Object.freeze(pageGroups),
     };
 };
@@ -611,6 +654,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
   now?: () => string;
   homeworkAuthorityStore?: Pick<FirebaseRestBookHomeworkDocumentStore, 'read'>;
   activitySchedulePolicy?: BookHomeworkActivitySchedulePolicyResolver;
+  resolveFullPageDefaults?: typeof resolveTrustedBookDeliveryFullPageDefaults;
   resolveStudentDocument?: (env: BookDeliveryWorkerEnv, binding: BookDeliveryBinding) => Promise<{
     readonly expectedByteLength: number;
     readonly expectedEtag: string;
@@ -786,6 +830,7 @@ export const createBookDeliveryWorkerHandlers = (options: {
         const repository = repositoryFor(input.env);
         const result = await createBookDeliveryProjectionResolver({
           repository,
+          resolveFullPageDefaults: binding => (options.resolveFullPageDefaults ?? resolveTrustedBookDeliveryFullPageDefaults)(input.env, binding, publicationRepositoryFor(input.env, binding.issuer.ownerId)),
           resolveStudentDocument: (binding) => resolveStudentDocument(input.env, binding),
         }).resolve({
           recipientId: input.recipientId,

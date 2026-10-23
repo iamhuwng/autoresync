@@ -72,7 +72,6 @@ const draft = (): BookHomeworkPreviewDraft => {
     createdByCommandId: 'command-1',
     createdAt: '2026-07-28T00:00:00.000Z',
     bindingRevision: 2,
-    studentDocument: { sourceVersionId: 'source-v4', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
   });
   const policy = createDefaultBookHomeworkPolicy(manifest, 'practice');
   const preview = buildBookHomeworkPreview({ source, manifest, policy });
@@ -126,11 +125,6 @@ describe('createBookHomeworkAssignmentIntent', () => {
         publicationRevision: 2,
         manifestVersionId: 'manifest-v1',
       },
-      expectedStudentDocument: {
-        sourceVersionId: 'source-v4',
-        descriptorRevision: 1,
-        sha256Hex: 'a'.repeat(64),
-      },
       expectedPreviewFingerprint: expect.any(String),
       presentation: { title: 'Preview Book' },
     });
@@ -138,8 +132,21 @@ describe('createBookHomeworkAssignmentIntent', () => {
     expect(command).not.toHaveProperty('createdAt');
     expect(command).not.toHaveProperty('manifest');
     expect(command).not.toHaveProperty('delivery');
-    expect(command.intent.expectedStudentDocument.sourceVersionId).toBe('source-v4');
+    expect(command.intent).not.toHaveProperty('expectedStudentDocument');
     expect(JSON.stringify(command)).not.toContain('activity-1-v1');
+  });
+
+  it('requires and forwards the trusted component document pin', () => {
+    const componentSource = { ...source, delivery: { ...delivery,
+      sourceSet: { ...delivery.sourceSet, strategy: 'component_pdfs' as const } } };
+    const fullDraft = draft();
+    expect(() => createBookHomeworkAssignmentIntent({ source: componentSource, draft: fullDraft,
+      createId: () => '00000000-0000-4000-8000-000000000001' })).toThrow(/combined document preview/);
+    const pin = { sourceVersionId: 'combined-v1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) };
+    const command = createBookHomeworkAssignmentIntent({ source: componentSource,
+      draft: { ...fullDraft, manifest: { ...fullDraft.manifest, studentDocument: pin } },
+      createId: () => '00000000-0000-4000-8000-000000000001' });
+    expect(command.intent.expectedStudentDocument).toEqual(pin);
   });
 
   it('rejects extensions outside the selected recipient and outline boundaries', () => {

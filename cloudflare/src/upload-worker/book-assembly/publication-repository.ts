@@ -206,7 +206,7 @@ const SOURCE_SET_KEYS = new Set(['sourceStrategy', 'sources']);
 const SOURCE_KEYS = new Set(['sourceKey', 'sourceVersionId', 'sourceOrder', 'ownerNodeKey']);
 const SOURCE_PAGE_KEYS = new Set(['sourceKey', 'sourceVersionId', 'physicalPageNumber']);
 const MANIFEST_KEYS = new Set(['bookId', 'sourceSet', 'nodes', 'units']);
-const NODE_KEYS = new Set(['nodeKey', 'parentNodeKey', 'nodeType', 'order']);
+const NODE_KEYS = new Set(['nodeKey', 'parentNodeKey', 'nodeType', 'order', 'title']);
 const UNIT_KEYS = new Set(['unitKey', 'activitySlots', 'pageGroups']);
 const ACTIVITY_SLOT_KEYS = new Set([
   'activityKey',
@@ -251,6 +251,7 @@ const STORED_RECORD_KEYS: Record<PublicationFamily, ReadonlySet<string>> = {
     'createdAt',
     'manifest',
     'studentSafeProjection',
+    'studentDocument',
     'successorLineage',
     'mappingRevisionLineage',
   ]),
@@ -496,6 +497,7 @@ const manifest = (value: unknown, bookId: string): boolean => {
   return value.nodes.every((node) => {
     assertAllowedKeys(node, NODE_KEYS, 'invalid_book_assembly_publication_record');
     return nonEmptyString(node.nodeKey)
+      && (node.title === undefined || (typeof node.title === 'string' && node.title.trim().length > 0 && node.title.length <= 200))
       && (node.parentNodeKey === null || nonEmptyString(node.parentNodeKey))
       && nonEmptyString(node.nodeType)
       && safeIntegerAtLeast(node.order, 1);
@@ -560,6 +562,17 @@ const assertStoredRecord = (
     throw new Error('invalid_book_assembly_publication_record');
   }
   if (family === 'versions') {
+    if (value.studentDocument !== undefined) {
+      const pin = value.studentDocument;
+      if (value.strategy !== 'component_pdfs' || !isRecord(pin)
+        || Object.keys(pin).sort().join(',') !== 'descriptorFingerprint,descriptorRevision,sha256Hex,sourceVersionId'
+        || typeof pin.sourceVersionId !== 'string' || !PATH_ID.test(pin.sourceVersionId)
+        || !safeIntegerAtLeast(pin.descriptorRevision, 0)
+        || typeof pin.descriptorFingerprint !== 'string' || !/^fnv1a64:[a-f0-9]{16}$/iu.test(pin.descriptorFingerprint)
+        || typeof pin.sha256Hex !== 'string' || !/^[a-f0-9]{64}$/iu.test(pin.sha256Hex)) {
+        throw new Error('invalid_book_assembly_publication_record');
+      }
+    }
     if (value.successorLineage !== undefined) {
       if (!isRecord(value.successorLineage)) {
         throw new Error('invalid_book_assembly_publication_record');
@@ -930,6 +943,7 @@ export class FirebaseRestBookAssemblyPublicationRepository
 implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
   private readonly rtdb: FirebaseRtdbRestClient;
   private readonly readRtdb: FirebaseRtdbRestClient;
+  private readonly supportsAtomicCreate: boolean;
 
   constructor(private readonly options: {
     env: BookAssemblyPublicationRepositoryEnv;
@@ -1040,6 +1054,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
       fetchImpl,
       getAccessToken: options.getAccessToken,
     });
+    this.supportsAtomicCreate = scopedClient !== undefined;
     this.readRtdb = firebaseProvider
       ? new FirebaseRtdbRestClient({
           env: { ...options.env, GOOGLE_SA_KEY: undefined },
@@ -1221,6 +1236,7 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
     next: Record<string, unknown>,
     families: readonly string[],
   ): Promise<void> {
+    let additions: { path: string; value: unknown }[] = [];
     for (const family of families) {
       const before = isRecord(current[family]) ? current[family] as Record<string, unknown> : {};
       const after = isRecord(next[family]) ? next[family] as Record<string, unknown> : {};
@@ -1234,8 +1250,34 @@ implements BookAssemblyPublicationRepository<BookAssemblyPublicationResult> {
           }
           continue;
         }
-        await this.prepareExact(childPath(bookId, `${family}/${key}`), value);
+        additions.push({ path: `${family}/${key}`, value });
       }
+    }
+    if (this.supportsAtomicCreate && additions.length > 1) {
+      try {
+        // Native create-only rules protect every leaf; visibility still waits for pointer CAS.
+        await this.rtdb.patchMultiLocation(additions, scopePath(bookId));
+        return;
+      } catch {
+        // Reconcile ambiguous success with one authorized read, then retry only still-absent leaves.
+        const observed = await this.rtdb.readValue(scopePath(bookId));
+        additions = additions.filter(({ path, value }) => {
+          const existing = path.split('/').reduce<unknown>((parent, segment) =>
+            isRecord(parent) ? parent[segment] : undefined, observed);
+          if (existing === undefined || existing === null) return true;
+          if (stable(existing) !== stable(value)) {
+            throw new Error(`book_assembly_publication_immutable_conflict:${childPath(bookId, path)}`);
+          }
+          return false;
+        });
+        if (additions.length > 1) {
+          await this.rtdb.patchMultiLocation(additions, scopePath(bookId));
+          return;
+        }
+      }
+    }
+    for (const addition of additions) {
+      await this.prepareExact(childPath(bookId, addition.path), addition.value);
     }
   }
 

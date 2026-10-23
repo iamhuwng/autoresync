@@ -167,6 +167,26 @@ describe('Book metadata backup/restore inventory', () => {
     expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
   });
 
+  it('captures submission operation identity and state in the Book inventory', () => {
+    const data = { 'teacher-1': { operations: { 'operation-1': {
+      ownerId: 'teacher-1', finalBookId: 'book-1', state: 'committed', fingerprint: 'a'.repeat(64),
+    } } } };
+    const inventory = makeInventory('book_submission_operations', data);
+    expect(inventory.roots.find((root) => root.path === 'book_submission_operations')).toMatchObject({ present: true, data });
+    expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
+  });
+
+  it('retains permanent canceled-submission creation fences in restore writes', () => {
+    const data = { 'book-1': { bookId: 'book-1', ownerId: 'teacher-1',
+      submissionOperationId: 'operation-1', inputFingerprint: 'a'.repeat(64) } };
+    const inventory = makeInventory('material_catalog/book_creation_fences', data);
+    expect(inventory.roots.find((root) => root.path === 'material_catalog/book_creation_fences'))
+      .toMatchObject({ present: true, data });
+    expect(validateBookMetadataBackupInventory(inventory).valid).toBe(true);
+    const plan = prepareBookSourceRestore({ snapshot: inventory, sourceVersionAvailability: {}, recoveryOperationId: 'recovery-fence' });
+    expect(plan.orderedWrites).toContainEqual(expect.objectContaining({ path: 'material_catalog/book_creation_fences', data }));
+  });
+
   it('inventories the #121 recovery ledger roots with stable count and fingerprints', () => {
     const inventory = makeInventory('book_recovery/operations', {
       operationId: 'operation-121',
@@ -178,7 +198,7 @@ describe('Book metadata backup/restore inventory', () => {
     const recoveryIndex = inventory.roots.find((root) => root.path === 'book_recovery/indexes/by_snapshot_idempotency');
 
     expect(inventory.inventoryVersion).toBe('prd0062-48b-v2');
-    expect(BOOK_METADATA_ROOT_COUNT).toBe(69);
+    expect(BOOK_METADATA_ROOT_COUNT).toBe(71);
     expect(inventory.rootCount).toBe(BOOK_METADATA_ROOT_COUNT);
     expect(paths.slice(-3)).toEqual([
       'book_recovery/operations',

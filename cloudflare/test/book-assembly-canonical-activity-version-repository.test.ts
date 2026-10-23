@@ -1,5 +1,8 @@
-import { decodeJwt, exportPKCS8, generateKeyPair } from 'jose';
+import { decodeJwt, exportPKCS8, generateKeyPair, UnsecuredJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
+import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import generatedRules from '../../database.rules.json?raw';
+import { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service';
 import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service';
@@ -206,6 +209,26 @@ const committedState = () => ({
   [paths.studentSafeProjection]: safeProjectionRecord(),
 });
 
+const retainedState = () => {
+  const local = { manifestVersionId: 'manifest-retained', publicationId: 'publication-retained' };
+  const versionPath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_versions/${bookAssemblyActivityVersionScopeKey(local.manifestVersionId, request.activityVersionId)}`;
+  return {
+    request: { ...request, ...local, placementId: 'placement-retained' },
+    versionPath,
+    values: {
+      ...committedState(),
+      [`${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/versions/${local.manifestVersionId}`]: { ...manifestRecord(), ...local },
+      [versionPath]: { ...bookActivityVersionRecord(), ...local, canonicalOriginManifestVersionId: request.manifestVersionId,
+        canonicalOriginPublicationId: request.publicationId, canonicalOriginOperationId: 'operation-1' },
+      [paths.current]: local,
+      [paths.bookSafeProjection]: { ...bookSafeProjectionRecord(), ...local, placementIds: ['placement-retained'] },
+      [`${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-retained`]: {
+        ...bookPlacementRecord(), ...local, placementId: 'placement-retained', predecessorPlacementId: 'placement-intermediate',
+      },
+    } as Record<string, unknown>,
+  };
+};
+
 const pathFromInput = (input: RequestInfo | URL): string => {
   const url = new URL(String(input));
   return decodeURIComponent(url.pathname.replace(/^\/+|\.json$/gu, ''));
@@ -335,6 +358,61 @@ const productionCommittedState = (canonical: unknown = productionRawCanonical) =
 });
 
 describe('canonical Activity Version Firebase repositories', () => {
+  it('proves a retained publication placement directly against immutable original mapping without rewriting the canonical version', async () => {
+    const retained = retainedState();
+    const harness = createFetchHarness(retained.values);
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({ env: readerEnv(), fetchImpl: harness.fetchImpl, getAccessToken: accessToken });
+    await expect(reader.readExact(retained.request)).resolves.toEqual(canonicalRecord());
+    expect(harness.calls).toContain(`GET ${paths.bookPlacement}`);
+    expect(harness.calls.some(call => call.includes('placement-intermediate'))).toBe(false);
+    expect(harness.values.get(paths.canonical)).toEqual(canonicalRecord());
+    await expect(reader.readExact({ ...retained.request, placementId: 'placement-foreign' })).resolves.toBeNull();
+  });
+
+  it.each(['origin', 'original-placement', 'unit', 'activity', 'source', 'page-groups', 'payload'])(
+    'denies a retained placement with crossed %s proof', async (crossed) => {
+      const retained = retainedState();
+      const localPath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-retained`;
+      const original = retained.values[paths.bookPlacement] as Record<string, unknown>;
+      const local = retained.values[localPath] as Record<string, unknown>;
+      const version = retained.values[retained.versionPath] as Record<string, unknown>;
+      if (crossed === 'origin') version.canonicalOriginOperationId = 'operation-crossed';
+      if (crossed === 'original-placement') original.publicationId = 'publication-crossed';
+      if (crossed === 'unit') local.unitKey = 'unit-crossed';
+      if (crossed === 'activity') local.activityKey = 'activity-crossed';
+      if (crossed === 'source') original.sourcePages = [{ sourceKey: 'source-crossed', sourceVersionId: 'source-version-1', physicalPageNumber: 1 }];
+      if (crossed === 'page-groups') local.pageGroupKeys = ['group-crossed'];
+      if (crossed === 'payload') version.canonicalPayloadFingerprint = 'fnv1a64:0000000000000000';
+      const harness = createFetchHarness(retained.values);
+      const reader = new FirebaseRestExactPublishedActivityVersionReader({ env: readerEnv(), fetchImpl: harness.fetchImpl, getAccessToken: accessToken });
+      await expect(reader.readExact(retained.request)).resolves.toBeNull();
+    },
+  );
+
+  it.runIf(Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST))('atomically creates an exact canonical pair and denies a mixed overwrite under native Rules', async () => {
+    const projectId = 'demo-canonical-pair-budget';
+    const [host, port] = process.env.FIREBASE_DATABASE_EMULATOR_HOST!.split(':');
+    const environment = await initializeTestEnvironment({ projectId, database: { host, port: Number(port), rules: generatedRules } });
+    const token = new UnsecuredJWT({ user_id: 'writer', auth_time: Math.floor(Date.now() / 1000), firebase: { sign_in_provider: 'custom' },
+      book_activity_publication_writer_service: true, book_activity_publication_writer_ownerId: request.ownerId,
+      book_activity_publication_writer_activityId: request.activityId, book_activity_publication_writer_activityVersionId: request.activityVersionId,
+    }).setSubject('writer').setIssuer(`https://securetoken.google.com/${projectId}`).setAudience(projectId).setIssuedAt().setExpirationTime('1h').encode();
+    const client = new FirebaseRtdbRestClient({ env: { FIREBASE_DB_URL: `http://${host}:${port}?ns=${projectId}` },
+      fetchImpl: globalThis.fetch, firebaseAuthToken: true, getFirebaseAuthToken: async () => token });
+    try {
+      await environment.clearDatabase();
+      await client.patchMultiLocation([{ path: paths.canonical, value: canonicalRecord() },
+        { path: paths.studentSafeProjection, value: safeProjectionRecord() }]);
+      const before = await client.readValue(paths.canonical);
+      await expect(client.patchMultiLocation([{ path: paths.canonical, value: { ...canonicalRecord(), ownerId: 'intruder' } },
+        { path: paths.studentSafeProjection, value: safeProjectionRecord() }])).rejects.toThrow('firebase_rtdb_multi_location_patch_failed:401');
+      expect(await client.readValue(paths.canonical)).toEqual(before);
+      await environment.clearDatabase();
+      await expect(client.patchMultiLocation([{ path: paths.canonical, value: canonicalRecord() },
+        { path: paths.studentSafeProjection, value: { ...safeProjectionRecord(), ownerId: 'intruder' } }])).rejects.toThrow('firebase_rtdb_multi_location_patch_failed:401');
+      expect(await client.readValue(paths.canonical)).toBeNull();
+    } finally { await environment.cleanup(); }
+  });
   it('keeps the exact production wire record red under raw validation and reads it only after bounded hydration', async () => {
     const rawBefore = structuredClone(productionRawCanonical);
     const studentSafeBefore = structuredClone(productionCommittedState()[productionPaths.studentSafeProjection]);
@@ -621,6 +699,10 @@ describe('canonical Activity Version Firebase repositories', () => {
         values.set(path, JSON.parse(String(init?.body ?? 'null')) as unknown);
         return new Response('{}', { status: 200 });
       }
+      if (method === 'PATCH') {
+        for (const [key, value] of Object.entries(JSON.parse(String(init?.body)))) values.set(key, value);
+        return Response.json(null);
+      }
       return new Response('', { status: 405 });
     };
     const writer = new FirebaseRestCanonicalActivityVersionWriter({
@@ -649,10 +731,7 @@ describe('canonical Activity Version Firebase repositories', () => {
       },
     })]);
     expect(rtdbRequests).toEqual([
-      { method: 'GET', path: paths.canonical, auth: 'assembly-firebase-id-token', authorization: null },
-      { method: 'GET', path: paths.studentSafeProjection, auth: 'assembly-firebase-id-token', authorization: null },
-      { method: 'PUT', path: paths.canonical, auth: 'assembly-firebase-id-token', authorization: null },
-      { method: 'PUT', path: paths.studentSafeProjection, auth: 'assembly-firebase-id-token', authorization: null },
+      { method: 'PATCH', path: '', auth: 'assembly-firebase-id-token', authorization: null },
     ]);
     await expect(writer.readPrepared({
       activityId: request.activityId,
@@ -660,7 +739,39 @@ describe('canonical Activity Version Firebase repositories', () => {
       activityVersion: request.activityVersion,
       canonicalPayloadFingerprint: request.payloadFingerprint,
     })).resolves.toEqual(canonicalRecord());
-    expect(rtdbRequests).toHaveLength(4);
+    expect(rtdbRequests).toHaveLength(1);
+  });
+
+  it.each([true, false])('reads an existing immutable publication reference with dedicated reader override=%s', async (dedicatedReader) => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const privatePem = await exportPKCS8(privateKey);
+    const harness = createFetchHarness(committedState());
+    const claims: Record<string, unknown>[] = [];
+    const writer = new FirebaseRestCanonicalActivityVersionWriter({
+      env: { FIREBASE_DB_URL: dbUrl, FIREBASE_PROJECT_ID: 'project-1', FIREBASE_WEB_API_KEY: 'web-key',
+        BOOK_ASSEMBLY_SERVICE_IDENTITY: writerIdentity,
+        BOOK_ASSEMBLY_GOOGLE_SA_KEY: JSON.stringify({ client_email: writerIdentity, private_key: privatePem }),
+        ...(dedicatedReader ? {
+          BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: readerIdentity,
+          BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: JSON.stringify({ client_email: readerIdentity, private_key: privatePem }),
+        } : {}) },
+      fetchImpl: async (url, init) => {
+        if (String(url).includes('identitytoolkit.googleapis.com')) {
+          claims.push(decodeJwt(JSON.parse(String(init?.body)).token));
+          return Response.json({ idToken: 'scoped-reader-token', expiresIn: '300' });
+        }
+        expect(new URL(String(url)).searchParams.get('auth')).toBe('scoped-reader-token');
+        return harness.fetchImpl(url, init);
+      },
+    });
+    const reference = { activityId: request.activityId, activityVersionId: request.activityVersionId,
+      activityVersion: request.activityVersion, canonicalPayloadFingerprint: request.payloadFingerprint };
+    await expect(writer.readPrepared(reference)).resolves.toBeNull();
+    await expect(writer.readPrepared(reference, request)).resolves.toEqual(canonicalRecord());
+    expect(harness.calls.every(call => call.startsWith('GET '))).toBe(true);
+    expect(claims.length).toBeGreaterThan(0);
+    expect(claims.every(claim => claim.iss === (dedicatedReader ? readerIdentity : writerIdentity) && claim.uid === request.ownerId)).toBe(true);
+    await expect(writer.readPrepared(reference, { ...request, activityVersionId: 'foreign-version' })).resolves.toBeNull();
   });
 
   it('retries a crash after version creation and heals the missing safe sibling', async () => {

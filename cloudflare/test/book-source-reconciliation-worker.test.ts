@@ -36,6 +36,87 @@ describe('Book Source reconciliation Worker', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('uses only the namespaced Firebase emulator and owner bearer in strict local mode', async () => {
+    const firebaseFetch = vi.fn<typeof fetch>(async () => Response.json(null));
+    const verifier = {
+      verifyAuthorizationHeader: vi.fn(async (authorization: string | null) => ({
+        valid: authorization === 'Bearer local-user-token',
+        uid: authorization === 'Bearer local-user-token' ? 'teacher-1' : undefined,
+      })),
+    };
+    const worker = createBookSourceReconciliationWorker(
+      firebaseFetch,
+      () => new Date('2026-10-19T00:00:00.000Z'),
+      undefined,
+      undefined,
+      undefined,
+      verifier,
+    );
+    const response = await worker.fetch(
+      new Request('http://localhost:8787/v1/book-source/books/book-1/upload/reservation-1/reconcile', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer local-user-token', 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+      {
+        LOCAL_EMULATOR_AUTH: 'true',
+        FIREBASE_PROJECT_ID: 'demo-luyentap-local',
+        FIREBASE_DATABASE_URL: 'http://localhost:9000/?ns=demo-luyentap-local',
+        BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
+        BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',
+        BOOK_SOURCE_UPLOAD_ACCOUNT_ID: 'book_b2_primary',
+        BOOK_SOURCE_RECONCILIATION_LEASE_OWNER: 'local-reconciler',
+        BOOK_SOURCE_B2_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com',
+        BOOK_SOURCE_B2_REGION: 'us-west-004',
+        BOOK_SOURCE_B2_STORAGE_LOCATION_ID: 'b2_book_primary',
+        BOOK_SOURCE_B2_PRIVATE_BUCKET_ID: 'bucket-id',
+        BOOK_SOURCE_B2_PRIVATE_BUCKET_NAME: 'bookpdf',
+        BOOK_SOURCE_B2_OBJECT_KEY_PREFIX: 'book-source/test/',
+        BOOK_SOURCE_B2_DELETE_APPLICATION_KEY_ID: 'delete-id',
+        BOOK_SOURCE_B2_DELETE_APPLICATION_KEY: 'delete-key',
+        BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: 'metadata-id',
+        BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: 'metadata-key',
+      } as never,
+    );
+
+    expect(response.status).toBe(404);
+    expect(firebaseFetch).toHaveBeenCalledTimes(1);
+    const [request, init] = firebaseFetch.mock.calls[0]!;
+    expect(String(request)).toBe(
+      'http://localhost:9000/book_source_upload_accounts/book_b2_primary.json?ns=demo-luyentap-local',
+    );
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer owner');
+    expect(verifier.verifyAuthorizationHeader).toHaveBeenCalledWith(
+      'Bearer local-user-token',
+      expect.objectContaining({ FIREBASE_PROJECT_ID: 'demo-luyentap-local' }),
+    );
+  });
+
+  it.each([
+    { project: 'temp-a1437', url: 'http://localhost:9000/?ns=demo-luyentap-local' },
+    { project: 'demo-luyentap-local', url: 'http://localhost:9000/?ns=other' },
+    { project: 'demo-luyentap-local', url: 'https://database.example' },
+  ])('fails closed for non-canonical local Firebase target $project $url', async ({ project, url }) => {
+    const firebaseFetch = vi.fn<typeof fetch>();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const response = await createBookSourceReconciliationWorker(firebaseFetch).fetch(
+      new Request('http://localhost:8787/v1/book-source/books/book-1/upload/reservation-1/reconcile', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer local-user-token', 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+      {
+        LOCAL_EMULATOR_AUTH: 'true',
+        FIREBASE_PROJECT_ID: project,
+        FIREBASE_DATABASE_URL: url,
+        BOOK_SOURCE_RECONCILIATION_STATE: 'enabled',
+      } as never,
+    );
+    expect(response.status).toBe(503);
+    expect(firebaseFetch).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it('logs only a bounded failure code for enabled deployment errors', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const response = await createBookSourceReconciliationWorker().fetch(
@@ -163,6 +244,33 @@ describe('Book Source reconciliation Worker', () => {
       BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'disabled',
     }, context);
     expect(runtimeFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it('discovers canceled verified sources after a primary reconciliation failure using fresh account state', async () => {
+    const primary = { reservationId: 'reservation-a', ownerId: 'teacher-a', bookId: 'book-a',
+      status: 'reserved', expiresAt: '2026-07-29T00:01:00.000Z' };
+    const canceled = { reservationId: 'reservation-b', ownerId: 'teacher-b', bookId: 'book-b', status: 'verified_completed' };
+    const state = { revision: 1, operations: { 'reservation-a': primary } };
+    const fresh = { revision: 2, operations: { 'reservation-b': canceled } };
+    const readAccountState = vi.fn().mockResolvedValueOnce(state).mockResolvedValueOnce(fresh);
+    const findCanceledSubmission = vi.fn(async () => canceled);
+    const reconcile = vi.fn().mockRejectedValueOnce({ code: 'authority_denied' }).mockResolvedValueOnce({ status: 'released' });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const worker = createBookSourceReconciliationWorker(
+      vi.fn<typeof globalThis.fetch>(), () => new Date('2026-07-29T00:02:00.000Z'),
+      { fetch: vi.fn() }, async () => ({ readAccountState, findCanceledSubmission, reconciler: { reconcile } }) as never,
+    );
+    await worker.scheduled({} as ScheduledController, {
+      BOOK_SOURCE_RECONCILIATION_STATE: 'enabled', BOOK_SOURCE_RECONCILIATION_SCHEDULE_STATE: 'enabled',
+      BOOK_SOURCE_RECONCILIATION_ACTION_STATE: 'enabled',
+    } as never, {} as ExecutionContext);
+    expect(readAccountState).toHaveBeenCalledTimes(2);
+    expect(findCanceledSubmission).toHaveBeenCalledOnce();
+    expect(findCanceledSubmission).toHaveBeenCalledWith(fresh, new Date('2026-07-29T00:02:00.000Z'));
+    expect(reconcile).toHaveBeenCalledTimes(2);
+    expect(reconcile).toHaveBeenNthCalledWith(2, { actorId: 'teacher-b', bookId: 'book-b', reservationId: 'reservation-b' });
+    expect(error).toHaveBeenCalledWith('book_source_reconciliation_scheduled_failure', { code: 'authority_denied' });
+    error.mockRestore();
   });
 
   it('advances one bounded capacity page while cleanup actions remain disabled', async () => {

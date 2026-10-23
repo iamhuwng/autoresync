@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { decodeJwt, exportPKCS8, generateKeyPair } from 'jose';
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
 import { projectStudentActivity } from '../../src/services/book-activity/activityProjection.service.ts';
 import {
@@ -16,6 +17,11 @@ import {
 } from '../src/upload-worker/book-runtime/canonical.ts';
 import { InMemoryBookRuntimeRepository, type BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 import * as resultProjection from '../src/upload-worker/book-results/production-projection.ts';
+import { FirebaseRestExactPublishedActivityVersionReader } from '../src/upload-worker/book-assembly/canonical-activity-version-repository.ts';
+import { FirebaseRestBookAssemblyPublicationRepository } from '../src/upload-worker/book-assembly/publication-repository.ts';
+import { createComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types.ts';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
+import type { BookAssemblyImmutableManifestVersion } from '../../src/types/bookAssembly.types.ts';
 
 const BOOK_HOMEWORK_PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----\nredacted\n-----END PRIVATE KEY-----';
 
@@ -219,6 +225,67 @@ const env = {
 };
 
 describe('Ticket #59 canonical Book Runtime composition', () => {
+  it('uses exact local publication proof for retained placements and denies a missing proof', async () => {
+    const canonical = canonicalActivityVersion();
+    const readExact = vi.spyOn(FirebaseRestExactPublishedActivityVersionReader.prototype, 'readExact')
+      .mockResolvedValueOnce(canonical as never).mockResolvedValueOnce(null);
+    const runtimeEnv = { ...env, BOOK_ASSEMBLY_SERVICE_IDENTITY: env.BOOK_RUNTIME_SERVICE_IDENTITY,
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: env.BOOK_RUNTIME_GOOGLE_SA_KEY,
+      readDatabaseValue: async () => canonical };
+    const delivery = binding();
+    const retained = { ...delivery, placements: delivery.placements.map(p => ({ ...p, placementId: 'placement-retained' })) };
+    const dependencies = createBookRuntimeProductionDependencies(runtimeEnv, schedulePolicy, undefined);
+    const input = { binding: retained, placementId: 'placement-retained', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', env: runtimeEnv };
+    try {
+      await expect(dependencies.resolveActivity!(input)).resolves.toEqual(canonical.activity);
+      expect(readExact).toHaveBeenCalledWith(expect.objectContaining({ placementId: 'placement-retained',
+        manifestVersionId: delivery.book.manifestVersionId, payloadFingerprint: canonical.payloadFingerprint }));
+      await expect(dependencies.resolveActivity!(input)).resolves.toBeNull();
+    } finally { readExact.mockRestore(); }
+  });
+
+  it('reuses authority credentials within one command without caching live authority reads', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const identity = 'homework@synthetic.test';
+    const runtimeEnv = {
+      ...env,
+      BOOK_HOMEWORK_SERVICE_IDENTITY: identity,
+      BOOK_HOMEWORK_GOOGLE_SA_KEY: JSON.stringify({ client_email: identity, private_key: await exportPKCS8(privateKey) }),
+    };
+    const claims: unknown[] = [];
+    let authorityReads = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input, init) => {
+      if (String(input).includes('identitytoolkit.googleapis.com')) {
+        claims.push(decodeJwt(JSON.parse(String(init?.body)).token).claims);
+        return Response.json({ idToken: 'synthetic-token', expiresIn: '3600' });
+      }
+      expect(String(input)).toContain('firestore.googleapis.com');
+      authorityReads += 1;
+      return new Response('', { status: 404 });
+    });
+    try {
+      const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
+      const resolve = (dependencies = production, current = binding()) => dependencies.resolveAttemptPolicy!({
+        binding: current, placementId: 'placement-1', activityId: 'activity-1',
+        activityVersion: 1, interactionId: 'interaction-1', env: runtimeEnv,
+      });
+      // A fresh submit reads authority six times across scheduling and durable projections.
+      for (let read = 0; read < 6; read += 1) await expect(resolve()).resolves.toBeNull();
+      expect(authorityReads).toBe(6);
+      expect(claims).toHaveLength(1);
+      await resolve(production, { ...binding(), context: { ...binding().context, contextId: 'context-2' } });
+      expect(claims).toHaveLength(2);
+      expect(claims[0]).not.toEqual(claims[1]);
+      await resolve(createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined));
+      expect(authorityReads).toBe(8);
+      expect(claims).toHaveLength(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('registers runtime handlers through the default route composition', () => {
     const handlers = createBookRouteHandlers();
     expect(typeof handlers['bookRuntime.command']).toBe('function');
@@ -344,7 +411,7 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
     const writer = vi.spyOn(resultProjection, 'createFirebaseBookResultProjectionWriter').mockReturnValue({ write });
     try {
       const runtimeEnv = { ...env, BOOK_RESULT_PROJECTION_ENABLED: 'enabled' };
-      const production = createBookRuntimeProductionDependencies(runtimeEnv);
+      const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
       const scan = vi.spyOn(production.repository, 'listTerminalTuples').mockRejectedValue(new Error('bounded scan unavailable'));
       for (const status of ['accepted', 'replayed'] as const) {
         await production.projectBookResult!({ binding: binding(), result: { ...submitted, status }, env: runtimeEnv });
@@ -359,6 +426,62 @@ describe('Ticket #59 canonical Book Runtime composition', () => {
       expect(write).toHaveBeenCalledTimes(2);
     } finally {
       writer.mockRestore();
+    }
+  });
+
+  it('retries a transient publication read without persisting unavailable immutable result detail', async () => {
+    const current: BookDeliveryBinding = { ...binding(), sourceSet: { ...binding().sourceSet, strategy: 'component_pdfs' } };
+    const runtime = new InMemoryBookRuntimeRepository();
+    const command = { operationId: '00000000-0000-4000-8000-000000000201', commandKind: 'autosave' as const,
+      bindingId: current.bindingId, bindingRevision: current.revision, contextId: current.context.contextId,
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', clientRevision: 0, response: 'draft' };
+    const context = { actorUid: 'student-1', operationKind: 'autosave' as const, binding: current,
+      placementId: 'placement-1', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', now: new Date().toISOString(), scheduleAuthority: scheduleAuthority('submit') };
+    await runtime.applyCommand({ command, context, attemptId: 'unused' });
+    const submitted = await runtime.applyCommand({
+      command: { ...command, operationId: '00000000-0000-4000-8000-000000000202', commandKind: 'submit', clientRevision: 1 },
+      context: { ...context, operationKind: 'submit' }, attemptId: 'attempt-1',
+      attemptPolicy: { maxAttempts: null, feedbackPolicy: 'immediate' }, score: { status: 'review_required' },
+    });
+    expect(submitted.status).toBe('accepted');
+    const descriptor = createComponentStudentDocument({ sourceVersionId: 'combined-1', descriptorRevision: 1,
+      sha256Hex: 'a'.repeat(64), byteSize: 20, physicalPageCount: 2, compositionFingerprint: 'composition-1', components: [
+        { sourceKey: 'source-1', sourceVersionId: 'source-version-1', sourceOrder: 1, ownerNodeKey: 'unit-1', localPageCount: 1, combinedStartPage: 1, combinedEndPage: 1 },
+        { sourceKey: 'source-2', sourceVersionId: 'source-version-2', sourceOrder: 2, ownerNodeKey: 'unit-2', localPageCount: 1, combinedStartPage: 2, combinedEndPage: 2 },
+      ] });
+    const version = { ...current.book, ownerId: current.issuer.ownerId, lifecycle: 'published', strategy: 'component_pdfs',
+      manifest: { sourceSet: { sources: descriptor.components } }, studentDocument: {
+        sourceVersionId: descriptor.sourceVersionId, descriptorRevision: descriptor.descriptorRevision,
+        sha256Hex: descriptor.sha256Hex, descriptorFingerprint: fingerprintComponentPdfActivationValue(descriptor),
+      } } as unknown as BookAssemblyImmutableManifestVersion;
+    const readScope = vi.spyOn(FirebaseRestBookAssemblyPublicationRepository.prototype, 'readScope')
+      .mockRejectedValueOnce(new Error('transient_publication_read_failure'))
+      .mockResolvedValue({ versions: { 'manifest-1': version }, studentDocuments: { [descriptor.sourceVersionId]: descriptor } });
+    let immutableDetail: unknown;
+    const write = vi.fn(async ({ projection }: Parameters<resultProjection.BookResultProjectionWriter['write']>[0]) => {
+      if (immutableDetail !== undefined) expect(projection.detail).toEqual(immutableDetail);
+      immutableDetail = structuredClone(projection.detail);
+    });
+    const writer = vi.spyOn(resultProjection, 'createFirebaseBookResultProjectionWriter').mockReturnValue({ write });
+    try {
+      const runtimeEnv = { ...env, BOOK_RESULT_PROJECTION_ENABLED: 'enabled',
+        BOOK_ASSEMBLY_PUBLICATION_SERVICE_IDENTITY: 'publication@example.test',
+        BOOK_ASSEMBLY_PUBLICATION_GOOGLE_SA_KEY: JSON.stringify({ ...JSON.parse(env.BOOK_RUNTIME_GOOGLE_SA_KEY), client_email: 'publication@example.test' }) };
+      const production = createBookRuntimeProductionDependencies(runtimeEnv, undefined, undefined);
+      await expect(production.projectBookResult!({ binding: current, result: submitted, env: runtimeEnv }))
+        .rejects.toThrow('transient_publication_read_failure');
+      expect(write).not.toHaveBeenCalled();
+      expect(immutableDetail).toBeUndefined();
+      await production.projectBookResult!({ binding: current, result: { ...submitted, status: 'replayed' }, env: runtimeEnv });
+      expect(immutableDetail).toMatchObject({ attemptId: 'attempt-1', attemptSourceContext: { state: 'available',
+        documentResource: { sourceKey: 'student-document', sourceVersionId: descriptor.sourceVersionId } } });
+      await production.projectBookResult!({ binding: current, result: { ...submitted, status: 'replayed' }, env: runtimeEnv });
+      expect(write).toHaveBeenCalledTimes(2);
+    } finally {
+      writer.mockRestore();
+      readScope.mockRestore();
     }
   });
 

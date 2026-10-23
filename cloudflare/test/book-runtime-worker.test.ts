@@ -425,17 +425,24 @@ describe('Ticket 28A runtime Worker boundary', () => {
       schedulePolicy,
     });
 
-    await expect(parse(await handlers.command({ request: request(body()), env, uid: 'student-1' })))
+    await expect(parse(await handlers.command({ request: request(body({
+      contextId: classBinding.context.contextId,
+    })), env, uid: 'student-1' })))
       .resolves.toEqual({ status: 403, body: { code: 'runtime_class_membership_denied' } });
     expect(schedulePolicy.authorize).toHaveBeenCalledTimes(1);
     expect(schedulePolicy.revalidate).toHaveBeenCalledTimes(1);
     expect(repository.snapshot()).toMatchObject({ drafts: {}, attempts: {}, operations: {} });
   });
 
-  it('keeps a committed submit for replay when result projection fails', async () => {
+  it.each([
+    ['firebase_rtdb_put_failed:403', 'firebase_rtdb_put_failed:403'],
+    ['Too many subrequests.', 'worker_subrequest_limit'],
+    ['provider failure with private-token=do-not-log', 'unexpected_error'],
+  ])('keeps committed submits replayable with bounded diagnostics for %s', async (message, failureCode) => {
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const repository = new InMemoryBookRuntimeRepository();
     const projectBookResult = vi.fn()
-      .mockRejectedValueOnce(new Error('projection unavailable'))
+      .mockRejectedValueOnce(new Error(message))
       .mockResolvedValue(undefined);
     let currentAuthorityRevision = 1;
     const schedulePolicy = {
@@ -465,6 +472,11 @@ describe('Ticket 28A runtime Worker boundary', () => {
 
     await expect(parse(await handlers.command({ request: request(submit), env, uid: 'student-1' })))
       .resolves.toMatchObject({ status: 500, body: { code: 'book_runtime_command_failed' } });
+    expect(diagnostic).toHaveBeenCalledExactlyOnceWith('book_runtime_command_failed', {
+      phase: 'book_result_projection', errorClass: 'Error', failureCode,
+    });
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('private-token');
+    diagnostic.mockRestore();
     expect(repository.snapshot()).toMatchObject({
       attempts: {
         'attempt-1': {
@@ -492,6 +504,20 @@ describe('Ticket 28A runtime Worker boundary', () => {
     expect(repository.snapshot().attempts?.['attempt-1']?.terminalLate?.authorityRevision).toBe(1);
     expect(projectBookResult).toHaveBeenCalledTimes(2);
     expect(Object.keys(repository.snapshot().attempts ?? {})).toEqual(['attempt-1']);
+
+    const terminalAddress = {
+      request: new Request('https://worker.test/book-runtime/terminal'), env, uid: 'student-1',
+      bindingId: 'binding-1', bindingRevision: '1', contextId: 'context-1', placementId: 'placement-1',
+      activityId: 'activity-1', activityVersion: '1', interactionId: 'interaction-1',
+    };
+    await expect(parse(await handlers.readTerminal(terminalAddress))).resolves.toEqual({ status: 200, body: {
+      status: 'present', attemptId: 'attempt-1', resultStatus: 'submitted',
+      response: [{ interactionId: 'interaction-1', answer: 'draft' }],
+    } });
+    await expect(handlers.readTerminal({ ...terminalAddress, uid: 'student-2' }).then(parse))
+      .resolves.toEqual({ status: 403, body: { code: 'runtime_recipient_forbidden' } });
+    await expect(handlers.readTerminal({ ...terminalAddress, contextId: 'other-context' }).then(parse))
+      .resolves.toEqual({ status: 409, body: { code: 'runtime_binding_stale' } });
   });
 
   it('fails closed before schedule or mutation when the Interaction is not in the Activity', async () => {

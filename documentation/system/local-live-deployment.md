@@ -326,12 +326,38 @@ For Backblaze:
 - never use a Backblaze master key;
 - keep permissions/prefix restrictions bounded;
 - never print key IDs and secrets together in logs or chat;
-- local acceptance may deliberately reuse a restricted credential across some
-  provider roles, but production still requires the reviewed role separation
-  and exact capability bundles.
+- use distinct upload, metadata and read credentials locally as well as in
+  production; the provider rejects a shared credential across these roles;
+- exact minimal role permissions are `writeFiles` for upload, `listFiles` plus
+  `readFiles` for metadata, and `readFiles` for reads. Existing exact console
+  capability bundles remain supported. Cleanup uses a separate `deleteFiles`
+  key; the capacity probe uses its separately restricted listing key.
 
 The local Worker accepts only `demo-luyentap-local` emulator identity. A local
 browser should never need a deployed production Worker for Book creation.
+
+Source Upload's local database mode additionally requires the exact
+`http://localhost:9000?ns=demo-luyentap-local` target. Its transaction and
+attachment requests retain that namespace. Submission publication uses a
+scoped token from local Auth at `localhost:9099`, so the candidate RTDB rules
+must be installed locally before testing its final atomic write. The local
+Worker carries the checked-in renderer registry version used for qualification.
+
+Local source reconciliation is mounted at the existing control Worker's
+`/v1/book-source/books/{bookId}/upload/{reservationId}/reconcile` route. It reuses
+the dedicated reconciler, exact demo namespace and local verifier; it requires
+the separate restricted delete credentials. Scheduled cleanup remains disabled
+locally. Only an exact canceled submission can authorize an unpublished
+reservation. Verified canceled sources use a distinct retirement guard: the
+trusted service first permanently fences creation of that Book ID, confirms
+that no Book/publication/delivery exists, then removes its Assembly projection.
+The verified identity and tracked capacity remain until the signed upload
+expires and exact-key version cleanup proves absence. A small private terminal
+record retains cleanup coordinates for hourly sweeps of late-arriving uploads;
+it never authorizes a Book or publication. Canceled component drafts also check
+the server-composed student document. Pending unverified cleanup continues to
+reserve capacity until provider absence/deletion is proven. Local scheduled
+execution remains disabled; explicit reconciliation exercises the same lifecycle.
 
 ## 7. The hybrid Backblaze capacity invariant
 

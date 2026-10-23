@@ -41,6 +41,16 @@ import {
   createBookRuntimeLaunchCanonicalHandlers,
   type BookRuntimeLaunchCanonicalHandlersOptions,
 } from './book-runtime-launch/canonical.ts';
+import {
+  createBookSubmissionWorkerHandlers,
+  type BookSubmissionWorkerOptions,
+} from './book-submission/worker.ts';
+import { createFirebaseBookSubmissionRepository } from './book-submission/repository.ts';
+import {
+  createProductionBookSubmissionCommitAdapter,
+  createProductionComponentPreparationAdapter,
+  type BookSubmissionPublicationFinalizer,
+} from './book-submission/production.ts';
 import type {
   BookRouteParams,
   BookRouterEnv,
@@ -143,6 +153,11 @@ export interface BookRouteHandlersOptions {
   readonly classBookPlacement?: ClassBookPlacementWorkerHandlerOptions;
   /** #104 runtime-launch contributor; disabled unless composed by #59. */
   readonly runtimeLaunch?: BookRuntimeLaunchCanonicalHandlersOptions;
+  readonly bookSubmission?: BookSubmissionWorkerOptions;
+  readonly bookSubmissionHandlers?: Record<string, unknown>;
+  readonly bookSubmissionPublication?: BookSubmissionPublicationFinalizer;
+  readonly bookSubmissionComponentPreparation?: BookSubmissionWorkerOptions['componentPreparationAdapter'];
+  readonly bookSubmissionComponentPreparationDependenciesFactory?: NonNullable<Parameters<typeof createProductionComponentPreparationAdapter>[0]>['dependenciesFactory'];
 }
 
 type PreviewWorkerResult = { body: unknown; init: ResponseInit };
@@ -269,6 +284,18 @@ export const createBookRouteHandlers = (
   const courseBook = options.courseBookHandlers ?? createCourseBookPlacementWorkerHandlers();
   const classBookPlacement = createClassBookPlacementWorkerHandlers(options.classBookPlacement);
   const runtimeLaunch = createBookRuntimeLaunchCanonicalHandlers(options.runtimeLaunch);
+  const bookSubmission = options.bookSubmissionHandlers ?? createBookSubmissionWorkerHandlers({
+    ...options.bookSubmission,
+    componentPreparationAdapter: options.bookSubmission?.componentPreparationAdapter
+      ?? options.bookSubmissionComponentPreparation
+      ?? createProductionComponentPreparationAdapter({
+        dependenciesFactory: options.bookSubmissionComponentPreparationDependenciesFactory,
+      }),
+    commitAdapter: options.bookSubmission?.commitAdapter
+      ?? createProductionBookSubmissionCommitAdapter({ publication: options.bookSubmissionPublication }),
+    repositoryFactory: options.bookSubmission?.repositoryFactory
+      ?? ((env) => createFirebaseBookSubmissionRepository(env)),
+  });
 
   addFactoryHandlers(handlers, delivery as Record<string, unknown>,
     ['create', 'activate', 'supersede', 'revoke'], 'bookDelivery', () => []);
@@ -348,6 +375,9 @@ export const createBookRouteHandlers = (
     'classId', 'copyId', 'classPlacementId', 'classCourseMaterialId', 'bindingId',
   ]);
   addFactoryHandlers(handlers, runtimeLaunch, ['launch'], 'bookRuntimeLaunch');
+  addFactoryHandlers(handlers, bookSubmission,
+    ['begin', 'status', 'cancel', 'commit', 'prepareComponent'], 'bookSubmission',
+    (name) => name === 'begin' ? [] : ['operationId']);
 
   const documentHandler = options.documentHandler
     ?? createBookSourceDocumentDeliveryHandler(options.sourceDocument);

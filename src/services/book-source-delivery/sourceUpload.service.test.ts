@@ -669,6 +669,14 @@ describe('provider-neutral Source Upload control domain', () => {
     })).resolves.toMatchObject({ studentSafeStatus: 'ready' });
     expect(harness.state().operations[begin.reservationId]?.ownerId).toBe('teacher-1');
     expect(harness.state().assemblyBooks?.['book-1']?.[begin.sourceVersionId]?.ownerId).toBe('teacher-1');
+
+    const pending = createHarness({ authorizedActor: 'teacher-1', authorizedDecisionActor: 'super-admin-1' });
+    const reservation = await pending.control.begin({ ...BEGIN_INPUT, submissionOperationId: 'submission-1' });
+    await pending.control.complete(completionInput(reservation.reservationId));
+    await expectCode(pending.control.decideStudentSafeSource({
+      actorId: 'super-admin-1', bookId: 'book-1', reservationId: reservation.reservationId,
+      operationId: BEGIN_INPUT.idempotencyKey, studentSafeStatus: 'ready', reasonCode: 'teacher-reviewed',
+    }), 'authority_denied');
   });
 
   it('keeps safety decisions immutable and fails closed for disabled or cross-owner actors', async () => {

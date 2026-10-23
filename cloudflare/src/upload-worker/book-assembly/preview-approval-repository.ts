@@ -195,6 +195,7 @@ export class FirebaseRestBookAssemblyPreviewApprovalRepository
 implements BookAssemblyPreviewApprovalRepository {
   private readonly rtdb: FirebaseRtdbRestClient;
   private readonly maxRetries: number;
+  private readonly approvals = new Map<string, BookAssemblyPreviewApprovalRecord>();
 
   constructor(options: FirebaseRestBookAssemblyPreviewApprovalRepositoryOptions) {
     const tokenProvider = options.getIdToken
@@ -238,7 +239,7 @@ implements BookAssemblyPreviewApprovalRepository {
     const approvalChildPath = approvalPath(bookId, unitKey, approvalId);
     const revocationChildPath = revocationPath(bookId, unitKey, approvalId);
     const [approvalRaw, revocationRaw] = await Promise.all([
-      this.rtdb.readValue(approvalChildPath),
+      this.approvals.get(approvalChildPath) ?? this.rtdb.readValue(approvalChildPath),
       this.rtdb.readValue(revocationChildPath),
     ]);
     const approval = absent(approvalRaw) ? null : assertBookAssemblyPreviewApprovalRecord(approvalRaw);
@@ -251,6 +252,7 @@ implements BookAssemblyPreviewApprovalRepository {
     if (revocation && !scopeMatches(revocation, bookId, unitKey, approvalId)) {
       throw new Error('book_assembly_preview_approval_revocation_scope_mismatch');
     }
+    if (approval) this.approvals.set(approvalChildPath, clone(approval));
     return { approval: clone(approval), revocation: clone(revocation) };
   }
 

@@ -318,6 +318,8 @@ const runtimeProjection = (
       : Object.freeze(unit.pageGroups.map((group) => Object.freeze({
         pageGroupKey: group.pageGroupKey,
         combinedPhysicalPages: Object.freeze([...group.pages]),
+        ...(group.defaultPhysicalPageNumber !== undefined && group.defaultPhysicalPageNumber !== group.pages[0]
+          ? { defaultCombinedPhysicalPage: group.defaultPhysicalPageNumber } : {}),
       }))),
     activities: Object.freeze(placements),
     actionFlags: { canAutosave: false as const, canSubmit: false as const, canReview: false as const },

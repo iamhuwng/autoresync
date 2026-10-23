@@ -784,13 +784,25 @@ export function HomeworkCreateModal({
                     notice: 'Book Homework assignment is being submitted.',
                 };
                 setBookHomeworkRecovery(recovery);
-                const result = await createBookHomeworkAssignmentViaWorker(command);
-                if (result.status === 'committed_projection_pending') {
-                    const notice = 'Book Homework assignment committed, delivery sync pending. Retry synchronization before treating it as student-ready.';
-                    setBookHomeworkRecovery({ ...recovery, outcome: 'committed_projection_pending', notice });
-                    setError(notice);
-                    toast.warning(notice);
-                    return;
+                let previousProgress = '';
+                const maxSteps = command.selectedRecipientIds.length * 2 + (command.intent.schedule.studentExtensions?.length ?? 0) + 10;
+                for (let step = 0; step < maxSteps; step += 1) {
+                    const result = await createBookHomeworkAssignmentViaWorker(command);
+                    if (result.status === 'committed') break;
+                    const notice = result.status === 'committed_projection_pending'
+                        ? 'Book Homework assignment committed, delivery sync pending. Retry synchronization before treating it as student-ready.'
+                        : result.status === 'committed_notifications_pending'
+                            ? `Assignment saved. Delivering notifications (${result.notifiedRecipientCount ?? 0}/${result.recipientCount}).`
+                            : `Preparing Book Homework (${result.committedRecipientCount}/${result.recipientCount}).`;
+                    setBookHomeworkRecovery({ ...recovery,
+                        outcome: result.status === 'committed_projection_pending' ? 'committed_projection_pending' : 'pending', notice });
+                    const progress = `${result.state}:${result.revision}:${result.notifiedRecipientCount ?? 0}`;
+                    if (progress === previousProgress || step === maxSteps - 1) {
+                        setError(notice);
+                        toast.warning(notice);
+                        return;
+                    }
+                    previousProgress = progress;
                 }
             }
             setBookHomeworkRecovery(null);
@@ -828,6 +840,7 @@ export function HomeworkCreateModal({
     const handleExactBookHomeworkRetry = (): void => {
         const cached = activeBookHomeworkRecovery;
         if (!cached || bookHomeworkSubmitInFlight.current) return;
+        trackAction('bookHomeworkProgressRetry', { assignmentId: cached.assignmentId });
         void handleBookHomeworkConfirm(cached.draft);
     };
 

@@ -40,7 +40,7 @@ const assertId = (value: string): void => {
   if (!ID.test(value)) throw new BookDeliveryProjectionError('invalid-book-delivery-request');
 };
 
-const routeKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => {
+export const bookDeliveryDocumentRouteKey = (binding: BookDeliveryBinding, sourceKey: string, sourceVersionId: string): string => {
   const raw = binding.sourceSet.strategy === 'component_pdfs' && sourceKey === 'student-document'
     ? `${binding.bindingId}-${binding.revision}-student-document`
     : `${binding.bindingId}-${binding.revision}-${sourceKey}-${sourceVersionId}`;
@@ -79,6 +79,7 @@ export const createBookDeliveryProjectionResolver = (options: {
     sourceKey: string,
     sourceVersionId: string,
   ) => string;
+  readonly resolveFullPageDefaults?: (binding: BookDeliveryBinding) => Promise<Readonly<Record<string, number>> | null>;
   /** Supplied only by the trusted A0-qualified document authority. */
   readonly resolveStudentDocument?: (binding: BookDeliveryBinding) => Promise<{
     readonly expectedByteLength: number;
@@ -87,7 +88,7 @@ export const createBookDeliveryProjectionResolver = (options: {
     readonly pageGroups: readonly BookRuntimePageGroupContext[];
   } | null>;
 }) => {
-  const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? routeKey;
+  const makeOpaqueRouteKey = options.makeOpaqueRouteKey ?? bookDeliveryDocumentRouteKey;
   const allowedContexts = new Set<BookDeliveryContextKind>([
     ...runnableContexts, ...(options.allowedAdapterContexts ?? []),
   ]);
@@ -134,6 +135,23 @@ export const createBookDeliveryProjectionResolver = (options: {
               || page < 1 || page > combined.physicalPageCount)))) {
         throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
       }
+      // A binding preserves each placement's authorized page union, not the
+      // original per-group attribution. Runtime groups therefore use placement IDs.
+      const fullDefaults = binding.sourceSet.strategy === 'full_pdf' && options.resolveFullPageDefaults
+        ? await options.resolveFullPageDefaults(binding) : undefined;
+      if (fullDefaults === null) throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+      const fullPageGroups: BookRuntimePageGroupContext[] = binding.sourceSet.strategy === 'full_pdf'
+        ? binding.placements.filter(placement => placement.contextMode !== 'none').map(placement => {
+          const pages = [...new Set(placement.sourcePageScopes.flatMap(scope => scope.pages))].sort((a, b) => a - b);
+          if (pages.length === 0) throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+          const openingPage = fullDefaults?.[placement.placementId];
+          if (fullDefaults && (!Number.isSafeInteger(openingPage) || !pages.includes(openingPage!))) {
+            throw new BookDeliveryProjectionError('book-delivery-stale-binding', 409);
+          }
+          return { pageGroupKey: placement.placementId, combinedPhysicalPages: pages,
+            ...(openingPage !== undefined && openingPage !== pages[0] ? { defaultCombinedPhysicalPage: openingPage } : {}),
+          };
+        }) : [];
       const documentRequests = combined ? [{
         opaqueRouteKey: makeOpaqueRouteKey(binding, 'student-document', 'student-document'),
         expectedByteLength: combined.expectedByteLength,
@@ -160,7 +178,7 @@ export const createBookDeliveryProjectionResolver = (options: {
         outline: binding.outline,
         sourceSet: combined ? { strategy: 'component_pdfs' as const, sources: [] } : binding.sourceSet,
         documentRequests,
-        pageGroups: combined ? combined.pageGroups : [],
+        pageGroups: combined ? combined.pageGroups : fullPageGroups,
         activities: binding.placements.map((placement) => ({
           placementId: placement.placementId,
           activityId: placement.activityId,
@@ -174,7 +192,8 @@ export const createBookDeliveryProjectionResolver = (options: {
               ? placement.pageGroupKeys.length > 0 && placement.pageGroupKeys.every((key) => combined.pageGroups.some((group) => group.pageGroupKey === key))
               : placement.sourcePageScopes.length > 0,
             description: combined ? 'Combined student document.' : contextDescription(binding.sourceSet, placement),
-            pageGroupKeys: placement.pageGroupKeys,
+            pageGroupKeys: combined ? placement.pageGroupKeys
+              : placement.contextMode === 'none' ? [] : [placement.placementId],
             sourcePageScopes: combined ? [] : placement.sourcePageScopes,
           },
         })),

@@ -28,6 +28,7 @@ export interface BookHistoricalAttemptDocumentRouteInput {
   readonly resultId: string;
   readonly opaqueRouteKey: string;
   readonly sourceVersionId: string;
+  readonly expectedByteLength?: number;
 }
 
 const ROUTE_KEY = /^[A-Za-z0-9._~-]{1,160}$/u;
@@ -106,6 +107,7 @@ export const createBookHistoricalAttemptDocumentRoute = (
       + `/${encodeURIComponent(input.resultId)}`
       + `/${encodeURIComponent(input.opaqueRouteKey)}`,
     sourceVersionId: input.sourceVersionId,
+    expectedByteLength: input.expectedByteLength,
     physicalPageNumber: undefined,
   });
 };

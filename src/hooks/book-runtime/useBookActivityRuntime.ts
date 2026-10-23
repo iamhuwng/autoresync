@@ -9,7 +9,7 @@ import {
   type BookRuntimeSubmitActivityResult,
 } from '../../services/book-activity/activityRuntime.browser';
 import type { BookRuntimeDraftRecord } from '../../services/book-activity/activityRuntimeAttempt.types';
-import { activitySubmissionFromRuntimeResponses } from '../../services/book-activity/activityRuntimeAttempt.service';
+import { activityDraftFromRuntimeResponses, activitySubmissionFromRuntimeResponses, runtimeResponsesFromActivityDraft } from '../../services/book-activity/activityRuntimeAttempt.service';
 import {
   requireBookScheduleWindowDecision,
   type BookScheduleWindowDecision,
@@ -137,19 +137,20 @@ export type BookRuntimeTerminalRead =
   | {
     readonly status: 'confirmed-present';
     readonly resultStatus: BookRuntimeSubmitActivityResult['resultStatus'];
+    readonly responses: Readonly<Record<string, unknown>>;
   };
 
 interface PendingEntry {
   response: unknown;
-  attempts: number;
   version: number;
   operationId: string;
 }
 
-interface AcknowledgedEntry {
-  response: unknown;
-  revision: number;
-  updatedAt: string;
+interface ActivityWriteSnapshot {
+  readonly responses: Readonly<Record<string, unknown>>;
+  readonly versions: ReadonlyMap<string, number>;
+  readonly operationId: string;
+  attempts: number;
 }
 
 type SaveSettlement = BookRuntimeFlushResult | null;
@@ -285,6 +286,9 @@ export const useBookActivityRuntime = (
   const [responses, setResponses] = useState<Readonly<Record<string, unknown>>>(
     options.initialResponses ?? {},
   );
+  const responsesRef = useRef(responses);
+  const acknowledgedDraftRef = useRef<BookRuntimeDraftRecord | null>(null);
+  const writeSnapshotRef = useRef<ActivityWriteSnapshot | null>(null);
   const [status, setStatus] = useState<BookActivityRuntimeStatus>(
     options.enabled === false ? 'idle' : 'loading',
   );
@@ -300,7 +304,7 @@ export const useBookActivityRuntime = (
     try { return requireBookScheduleWindowDecision(options.windowDecision); } catch { return null; }
   });
   const pendingRef = useRef(new Map<string, PendingEntry>());
-  const acknowledgedRef = useRef(new Map<string, AcknowledgedEntry>());
+  const recoveryRevisionsRef = useRef(new Map<string, number>());
   const generationRef = useRef(0);
   const terminalStatusRef = useRef(terminalReadStatus);
   terminalStatusRef.current = terminalReadStatus;
@@ -370,6 +374,19 @@ export const useBookActivityRuntime = (
     }
   }, []);
 
+  const restoreCommittedResponses = useCallback(async (terminal: Extract<BookRuntimeTerminalRead, { status: 'confirmed-present' }>, generation: number): Promise<void> => {
+    await Promise.all(optionsRef.current.interactionIds.map(removeRecovery));
+    if (generation !== generationRef.current) return;
+    pendingRef.current.clear();
+    recoveryRevisionsRef.current.clear();
+    acknowledgedDraftRef.current = null;
+    writeSnapshotRef.current = null;
+    responsesRef.current = structuredClone(terminal.responses);
+    setResponses(structuredClone(terminal.responses));
+    setConflict(null);
+    setTerminalResult(null);
+  }, [removeRecovery]);
+
   const load = useCallback(async (preserveLocal: boolean): Promise<void> => {
     const generation = generationRef.current;
     if (optionsRef.current.enabled === false) {
@@ -384,7 +401,23 @@ export const useBookActivityRuntime = (
       ? await readTerminal().catch((): BookRuntimeTerminalRead => ({ status: 'unavailable' }))
       : { status: 'confirmed-absent' as const };
     try {
-      await Promise.all(optionsRef.current.interactionIds.map(async (interactionId) => {
+      if (generation !== generationRef.current) return;
+      if (restoredTerminal.status === 'confirmed-present') {
+        await restoreCommittedResponses(restoredTerminal, generation);
+        if (generation !== generationRef.current) return;
+        setTerminalReadStatus(restoredTerminal.status);
+        setTerminalReadResultStatus(restoredTerminal.resultStatus);
+        setRuntimeStatus('saved', 'Submitted response loaded.');
+        return;
+      }
+      const ids = optionsRef.current.interactionIds;
+      const anchor = ids[0];
+      const anchorDraft = anchor ? await optionsRef.current.client.readDraft(addressFor(anchor)) : null;
+      if (generation !== generationRef.current) return;
+      acknowledgedDraftRef.current = anchorDraft;
+      const aggregate = anchorDraft ? runtimeResponsesFromActivityDraft(ids, anchorDraft.response) : null;
+      if (anchorDraft && aggregate === null) throw new BookRuntimeClientError('invalid_response');
+      await Promise.all(ids.map(async (interactionId) => {
         const localValue = await store.get(recoveryKey(
           optionsRef.current.recipientId,
           optionsRef.current.address,
@@ -398,30 +431,21 @@ export const useBookActivityRuntime = (
             interactionId,
           ));
         }
-        let server: BookRuntimeDraftRecord | null = null;
-        try {
-          server = await optionsRef.current.client.readDraft(addressFor(interactionId));
-        } catch (error) {
-          consumeCurrentWindow(error);
-          if (!(error instanceof BookRuntimeClientError) || error.code !== 'not_found') throw error;
-        }
+        const server = aggregate !== null && Object.hasOwn(aggregate, interactionId)
+          ? { ...anchorDraft!, response: aggregate[interactionId] } : null;
         if (server) {
-          acknowledgedRef.current.set(interactionId, {
-            response: structuredClone(server.response),
-            revision: server.revision,
-            updatedAt: server.updatedAt,
-          });
+          recoveryRevisionsRef.current.set(interactionId, server.revision);
         }
+        if (pendingRef.current.has(interactionId)) return;
         const keepLocal = preserveLocal && restoredTerminal.status === 'confirmed-absent'
           && optionsRef.current.canAutosave !== false && local !== null && (
-          server === null || local.clientRevision > server.revision || local.updatedAt > Date.parse(server.updatedAt)
+          anchorDraft === null || local.updatedAt > Date.parse(anchorDraft.updatedAt)
         );
         if (keepLocal && local) {
           loaded[interactionId] = structuredClone(local.response);
           localEntries.push({ interactionId, record: local });
           pendingRef.current.set(interactionId, {
             response: structuredClone(local.response),
-            attempts: 0,
             version: 1,
             operationId: randomId(),
           });
@@ -434,16 +458,13 @@ export const useBookActivityRuntime = (
       }));
       if (generation !== generationRef.current) return;
       // Preserve edits made while the asynchronous reads were in flight.
-      setResponses((current) => {
-        const merged = { ...loaded };
-        for (const [interactionId, pending] of pendingRef.current) merged[interactionId] = pending.response;
-        return merged;
-      });
+      const merged = { ...loaded };
+      for (const [interactionId, pending] of pendingRef.current) merged[interactionId] = pending.response;
+      responsesRef.current = merged;
+      setResponses(merged);
       setConflict(null);
       setTerminalReadStatus(restoredTerminal.status);
-      setTerminalReadResultStatus(restoredTerminal.status === 'confirmed-present'
-        ? restoredTerminal.resultStatus
-        : null);
+      setTerminalReadResultStatus(null);
       setTerminalResult(null);
       if (localEntries.length > 0) {
         setRuntimeStatus(online ? 'pending' : 'offline', online
@@ -463,7 +484,7 @@ export const useBookActivityRuntime = (
       setRuntimeStatus('offline', 'Saved response retained locally; Worker unavailable.');
       optionsRef.current.onMetric?.({ event: 'offline-retained' });
     }
-  }, [addressFor, consumeCurrentWindow, now, online, removeRecovery, setRuntimeStatus, store]);
+  }, [addressFor, consumeCurrentWindow, now, online, removeRecovery, restoreCommittedResponses, setRuntimeStatus, store]);
 
   const flush = useCallback(async (reason = 'manual'): Promise<BookRuntimeFlushResult> => {
     if (flushPromiseRef.current) return flushPromiseRef.current;
@@ -471,10 +492,19 @@ export const useBookActivityRuntime = (
       const deadline = now() + (optionsRef.current.flushDeadlineMs ?? DEFAULT_FLUSH_DEADLINE_MS);
       if (!online) {
         for (const [interactionId, entry] of pendingRef.current) {
-          await persist(interactionId, entry.response, acknowledgedRef.current.get(interactionId)?.revision ?? 0);
+          await persist(interactionId, entry.response, recoveryRevisionsRef.current.get(interactionId) ?? 0);
         }
         setRuntimeStatus('offline', 'Offline response retained locally.');
         return { status: 'offline', safeToLeave: false };
+      }
+      if (pendingRef.current.size === 0) {
+        const saved = acknowledgedDraftRef.current;
+        const snapshot = activityDraftFromRuntimeResponses(optionsRef.current.interactionIds, responsesRef.current);
+        if (reason === 'submit' && JSON.stringify(saved?.response) !== JSON.stringify(snapshot)) {
+          for (const [id, response] of Object.entries(responsesRef.current)) {
+            pendingRef.current.set(id, { response, version: 1, operationId: randomId() });
+          }
+        }
       }
       if (pendingRef.current.size === 0) {
         setRuntimeStatus('saved', reason === 'reload' ? 'Saved response loaded.' : 'All responses saved.');
@@ -484,33 +514,44 @@ export const useBookActivityRuntime = (
         return { status: 'deadline', safeToLeave: false };
       }
       setRuntimeStatus('saving', 'Saving response.');
+      const retainPending = async () => {
+        await Promise.all([...pendingRef.current].map(([id, entry]) => persist(
+          id, entry.response, acknowledgedDraftRef.current?.revision ?? 0,
+        )));
+      };
       while (pendingRef.current.size > 0) {
         if (now() >= deadline) {
           setRuntimeStatus('unsafe-to-leave', 'Response still saving; keep this page open.');
           return { status: 'deadline', safeToLeave: false };
         }
-        const next = [...pendingRef.current.entries()][0];
-        if (!next) continue;
-        const [interactionId, entry] = next;
+        const interactionId = optionsRef.current.interactionIds[0]!;
+        if (!writeSnapshotRef.current) {
+          writeSnapshotRef.current = {
+            responses: structuredClone(responsesRef.current),
+            versions: new Map([...pendingRef.current].map(([id, entry]) => [id, entry.version])),
+            operationId: [...pendingRef.current.values()][0]!.operationId,
+            attempts: 0,
+          };
+        }
+        const snapshot = writeSnapshotRef.current;
         let settlement = inFlightRef.current.get(interactionId);
         if (!settlement) {
           const generation = generationRef.current;
-          const snapshotVersion = entry.version;
-          const snapshotResponse = structuredClone(entry.response);
-          const acknowledged = acknowledgedRef.current.get(interactionId);
+          const snapshotResponse = activityDraftFromRuntimeResponses(optionsRef.current.interactionIds, snapshot.responses);
+          const acknowledged = acknowledgedDraftRef.current;
           const targetAddress = addressFor(interactionId);
           const startedAt = now();
           let created!: Promise<SaveSettlement>;
           created = (async (): Promise<SaveSettlement> => {
             try {
               if (!await acquireDraftWriteSlot(budgetKey, now, deadline)) {
-                await persist(interactionId, snapshotResponse, acknowledged?.revision ?? 0);
+                await retainPending();
                 setRuntimeStatus('unsafe-to-leave', 'Response still saving; keep this page open.');
                 return { status: 'deadline', safeToLeave: false };
               }
               const result = await optionsRef.current.client.saveDraft({
                 ...targetAddress,
-                operationId: entry.operationId,
+                operationId: snapshot.operationId,
                 clientRevision: acknowledged?.revision ?? 0,
                 response: snapshotResponse,
               });
@@ -525,27 +566,31 @@ export const useBookActivityRuntime = (
                   serverResponse: current?.response ?? null,
                   serverRevision: current?.revision ?? null,
                 });
-                await persist(interactionId, snapshotResponse, acknowledged?.revision ?? 0);
+                await retainPending();
                 optionsRef.current.onMetric?.({ event: 'conflict' });
                 setRuntimeStatus('conflict', 'Server changed this response. Choose retry, reload, or discard local.');
                 return { status: 'conflict', safeToLeave: false };
               }
-              acknowledgedRef.current.set(interactionId, {
-                response: snapshotResponse,
-                revision,
-                updatedAt: new Date(now()).toISOString(),
-              });
+              if (result.status !== 'accepted' && result.status !== 'replayed') throw new BookRuntimeClientError('forbidden');
+              const updatedAt = new Date(now()).toISOString();
+              acknowledgedDraftRef.current = { schemaVersion: 1, ...targetAddress,
+                recipientId: optionsRef.current.recipientId, response: snapshotResponse, revision,
+                updatedAt, updatedByOperationId: snapshot.operationId };
+              for (const id of Object.keys(snapshot.responses)) {
+                recoveryRevisionsRef.current.set(id, revision);
+              }
               optionsRef.current.onMetric?.({
                 event: 'autosave-ack',
                 durationMs: Math.max(0, now() - startedAt),
               });
-              if (pendingRef.current.get(interactionId)?.version === snapshotVersion) {
-                pendingRef.current.delete(interactionId);
-                await removeRecovery(interactionId);
-              } else {
-                await persist(interactionId, pendingRef.current.get(interactionId)?.response, revision);
-                queueMicrotask(() => flushAgainRef.current());
+              for (const [id, version] of snapshot.versions) {
+                if (pendingRef.current.get(id)?.version === version) {
+                  pendingRef.current.delete(id);
+                  await removeRecovery(id);
+                }
               }
+              writeSnapshotRef.current = null;
+              await retainPending();
               optionsRef.current.onMetric?.({
                 event: 'autosave-write',
                 payloadBytes: responseSize(snapshotResponse),
@@ -558,12 +603,10 @@ export const useBookActivityRuntime = (
             } catch (error) {
               if (generation !== generationRef.current) return null;
               consumeCurrentWindow(error);
-              const current = pendingRef.current.get(interactionId);
               if (error instanceof BookRuntimeClientError
                 && error.currentWindow
                 && !error.currentWindow.permissions.canAutosave) {
-                const localResponse = current?.response ?? snapshotResponse;
-                await persist(interactionId, localResponse, acknowledged?.revision ?? 0);
+                await retainPending();
                 setRuntimeStatus('error', error.currentWindow.phase === 'unreleased'
                   ? 'This Activity is not released yet.'
                   : 'This Activity is read-only.');
@@ -572,30 +615,29 @@ export const useBookActivityRuntime = (
               if (error instanceof BookRuntimeClientError && error.code === 'conflict') {
                 let serverDraft: BookRuntimeDraftRecord | null = null;
                 try { serverDraft = await optionsRef.current.client.readDraft(targetAddress); } catch { /* retain local */ }
-                const localResponse = current?.response ?? snapshotResponse;
                 setConflict({
                   interactionId,
-                  localResponse,
+                  localResponse: snapshotResponse,
                   serverResponse: serverDraft?.response ?? null,
                   serverRevision: serverDraft?.revision ?? error.currentRevision ?? null,
                 });
-                await persist(interactionId, localResponse, acknowledged?.revision ?? 0);
+                await retainPending();
                 optionsRef.current.onMetric?.({ event: 'conflict' });
                 setRuntimeStatus('conflict', 'Server changed this response. Choose retry, reload, or discard local.');
                 return { status: 'conflict', safeToLeave: false };
               }
-              if (current) {
-                current.attempts += 1;
-                await persist(interactionId, current.response, acknowledged?.revision ?? 0);
+              if (pendingRef.current.size > 0) {
+                snapshot.attempts += 1;
+                await retainPending();
                 const maxRetries = optionsRef.current.maxRetries ?? DEFAULT_MAX_RETRIES;
-                if (current.attempts <= maxRetries) {
-                  setRuntimeStatus('retrying', `Save retry ${current.attempts} of ${maxRetries}.`);
-                  optionsRef.current.onMetric?.({ event: 'retry', attempt: current.attempts });
+                if (snapshot.attempts <= maxRetries) {
+                  setRuntimeStatus('retrying', `Save retry ${snapshot.attempts} of ${maxRetries}.`);
+                  optionsRef.current.onMetric?.({ event: 'retry', attempt: snapshot.attempts });
                   if (!retryTimerRef.current) {
                     retryTimerRef.current = setTimeout(() => {
                       retryTimerRef.current = null;
                       flushAgainRef.current();
-                    }, (optionsRef.current.retryBaseMs ?? DEFAULT_RETRY_BASE_MS) * 2 ** (current.attempts - 1));
+                    }, (optionsRef.current.retryBaseMs ?? DEFAULT_RETRY_BASE_MS) * 2 ** (snapshot.attempts - 1));
                   }
                   return { status: 'error', safeToLeave: false };
                 }
@@ -654,22 +696,24 @@ export const useBookActivityRuntime = (
       serialized = optionsRef.current.serializeResponse?.(interactionId, response) ?? response;
       structuredClone(serialized);
       JSON.stringify(serialized);
+      activityDraftFromRuntimeResponses([interactionId], { [interactionId]: serialized });
     } catch {
       setRuntimeStatus('error', 'Activity response could not be serialized.');
       return false;
     }
-    setResponses((current) => ({ ...current, [interactionId]: structuredClone(serialized) }));
+    responsesRef.current = { ...responsesRef.current, [interactionId]: structuredClone(serialized) };
+    setResponses(responsesRef.current);
     const previous = pendingRef.current.get(interactionId);
     pendingRef.current.set(interactionId, {
       response: structuredClone(serialized),
-      attempts: previous?.attempts ?? 0,
       version: (previous?.version ?? 0) + 1,
-      operationId: previous?.operationId ?? randomId(),
+      // Each response snapshot needs its own id because the Worker fingerprints the payload.
+      operationId: randomId(),
     });
     void persist(
       interactionId,
       serialized,
-      acknowledgedRef.current.get(interactionId)?.revision ?? 0,
+      recoveryRevisionsRef.current.get(interactionId) ?? 0,
     );
     setConflict(null);
     setRuntimeStatus(online ? 'pending' : 'offline', online
@@ -684,14 +728,16 @@ export const useBookActivityRuntime = (
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
-    for (const entry of pendingRef.current.values()) entry.attempts = 0;
+    if (writeSnapshotRef.current) writeSnapshotRef.current.attempts = 0;
     return flush('manual-retry');
   }, [flush]);
 
   const reload = useCallback(async (): Promise<void> => {
     generationRef.current += 1;
     pendingRef.current.clear();
-    acknowledgedRef.current.clear();
+    recoveryRevisionsRef.current.clear();
+    acknowledgedDraftRef.current = null;
+    writeSnapshotRef.current = null;
     inFlightRef.current.clear();
     await load(false);
   }, [load]);
@@ -702,12 +748,16 @@ export const useBookActivityRuntime = (
     setTerminalReadStatus('unknown');
     const result = await optionsRef.current.readTerminal?.().catch((): BookRuntimeTerminalRead => ({ status: 'unavailable' })) ?? { status: 'confirmed-absent' as const };
     if (generation !== generationRef.current) return;
+    if (result.status === 'confirmed-present') {
+      await restoreCommittedResponses(result, generation);
+      if (generation !== generationRef.current) return;
+    }
     terminalStatusRef.current = result.status;
     setTerminalReadStatus(result.status);
     setTerminalReadResultStatus(result.status === 'confirmed-present' ? result.resultStatus : null);
     setRuntimeStatus(result.status === 'unavailable' ? 'error' : pendingRef.current.size ? 'pending' : 'saved',
       result.status === 'unavailable' ? 'Submission status unavailable. Reload status to check again.' : result.status === 'confirmed-present' ? 'Activity submitted.' : 'Submission status checked.');
-  }, [setRuntimeStatus]);
+  }, [restoreCommittedResponses, setRuntimeStatus]);
 
   const discardLocal = useCallback(async (): Promise<void> => {
     for (const interactionId of optionsRef.current.interactionIds) {
@@ -743,30 +793,23 @@ export const useBookActivityRuntime = (
       throw new BookRuntimeClientError('forbidden', 403, undefined, windowDecision);
     }
     const run = (async () => {
+      let submission;
+      try {
+        submission = activitySubmissionFromRuntimeResponses(optionsRef.current.interactionIds, responsesRef.current);
+      } catch {
+        throw new BookRuntimeClientError(optionsRef.current.interactionIds.some(
+          (id) => !Object.hasOwn(responsesRef.current, id),
+        ) ? 'incomplete_response' : 'invalid_response');
+      }
       const flushed = await flush('submit');
       if (!flushed.safeToLeave) {
         throw new BookRuntimeClientError('network_failure');
       }
-      const acknowledged = acknowledgedRef.current.get(anchorInteractionId);
-      if (!acknowledged
-        || optionsRef.current.interactionIds.some((id) => !acknowledgedRef.current.has(id))) {
-        throw new BookRuntimeClientError('invalid_response');
-      }
-      let submission;
-      try {
-        submission = activitySubmissionFromRuntimeResponses(
-          optionsRef.current.interactionIds,
-          responses,
-        );
-      } catch {
+      const acknowledged = acknowledgedDraftRef.current;
+      if (!acknowledged || JSON.stringify(acknowledged.response) !== JSON.stringify(submission)) {
         throw new BookRuntimeClientError('invalid_response');
       }
       setRuntimeStatus('saving', 'Submitting Activity.');
-      const deadline = now() + (optionsRef.current.flushDeadlineMs ?? DEFAULT_FLUSH_DEADLINE_MS);
-      if (!await acquireDraftWriteSlot(budgetKey, now, deadline)) {
-        setRuntimeStatus('unsafe-to-leave', 'Response still saving; keep this page open.');
-        throw new BookRuntimeClientError('rate_limited');
-      }
       let result: BookRuntimeSubmitActivityResult;
       let requestStarted = false;
       try {
@@ -774,7 +817,6 @@ export const useBookActivityRuntime = (
         result = await optionsRef.current.client.submitActivity({
         ...addressFor(anchorInteractionId),
         operationId: randomId(),
-        draftOperationId: randomId(),
         clientRevision: acknowledged.revision,
         response: submission,
       }); } catch (error) {
@@ -805,12 +847,14 @@ export const useBookActivityRuntime = (
     } finally {
       submitPromiseRef.current.delete(anchorInteractionId);
     }
-  }, [addressFor, budgetKey, consumeCurrentWindow, flush, now, responses, setRuntimeStatus, terminalReadStatus, windowDecision]);
+  }, [addressFor, consumeCurrentWindow, flush, setRuntimeStatus, terminalReadStatus, windowDecision]);
 
   useEffect(() => {
     generationRef.current += 1;
     pendingRef.current.clear();
-    acknowledgedRef.current.clear();
+    recoveryRevisionsRef.current.clear();
+    acknowledgedDraftRef.current = null;
+    writeSnapshotRef.current = null;
     terminalByInteractionRef.current.clear();
     submitPromiseRef.current.clear();
     setTerminalResult(null);
@@ -827,8 +871,16 @@ export const useBookActivityRuntime = (
     }
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    setResponses(optionsRef.current.initialResponses ?? {});
-    void load(true);
+    responsesRef.current = optionsRef.current.initialResponses ?? {};
+    setResponses(responsesRef.current);
+    const generation = generationRef.current;
+    // Finish the previous connectivity generation's flush before restoring its queued work.
+    void (async () => {
+      if (flushPromiseRef.current) await flushPromiseRef.current;
+      if (generation !== generationRef.current) return;
+      await load(true);
+      if (generation === generationRef.current && pendingRef.current.size > 0) void flush('recovery');
+    })();
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);

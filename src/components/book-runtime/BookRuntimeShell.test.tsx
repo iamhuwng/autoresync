@@ -28,10 +28,10 @@ const codec: ActivityResponseCodec<string> = {
   toReviewProjection: (value) => ({ text: value }),
 };
 
-const Renderer = ({ interaction, response, onChange }: ActivityRendererProps<string>) => (
+const Renderer = ({ interaction, response, onChange, mode }: ActivityRendererProps<string>) => (
   <label>
     {interaction.prompt}
-    <input aria-label={interaction.prompt} onChange={(event) => onChange(event.target.value)} value={response} />
+    <input aria-label={interaction.prompt} disabled={mode === 'read-only'} onChange={(event) => onChange(event.target.value)} value={response} />
   </label>
 );
 
@@ -131,6 +131,22 @@ const shellProps = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('BookRuntimeShell', () => {
+  it('defaults candidate previews to read-only and permits explicit temporary practice answers', async () => {
+    const base = delivery();
+    const candidate = { ...base, projectionKind: 'book-runtime-candidate-preview', candidateId: 'candidate-1', candidateRevision: 1, sourceSetRevision: 1, unitKey: 'unit-1', context: { contextId: 'candidate-1', kind: 'preview', entitlementBasis: 'candidate-preview' }, actionFlags: { canAutosave: false, canSubmit: false, canReview: false } };
+    const onResponseChange = vi.fn();
+    const props = shellProps({ deliveryProjection: candidate, onResponseChange });
+    const { rerender } = render(<BookRuntimeShell {...props} />);
+    expect(screen.getAllByRole('textbox')[0]).toBeDisabled();
+    expect(screen.getByText('Read-only preview')).toBeVisible();
+    rerender(<BookRuntimeShell {...props} responseMode="editable" />);
+    expect(screen.getAllByRole('textbox')[0]).toBeEnabled();
+    await userEvent.setup().type(screen.getAllByRole('textbox')[0], 'A');
+    expect(onResponseChange).toHaveBeenCalledWith('interaction-1', 'A');
+    expect(screen.getByText('Practice preview · answers are temporary')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Submit/ })).not.toBeInTheDocument();
+  });
+
   it('retains independent drafts and flags for two placements of the same immutable Activity', async () => {
     const user = userEvent.setup();
     const base = delivery();
@@ -215,9 +231,15 @@ describe('BookRuntimeShell', () => {
       ...delivery(),
       sourceSet: { strategy: 'full_pdf' as const, sources: [{ sourceKey: 'pdf', sourceVersionId: 'source-1', lifecycle: 'verified-usable' as const, localPageScope: request.localPageScope }] },
       documentRequests: [request],
+      pageGroups: [{ pageGroupKey: 'placement-2', combinedPhysicalPages: [3] }],
+      activities: delivery(true).activities.map(placement => ({ ...placement,
+        sourceContext: { ...placement.sourceContext, pageGroupKeys: placement.contextMode === 'none' ? [] : [placement.placementId] },
+      })),
     };
     const { rerender } = render(<BookRuntimeShell {...shellProps({ deliveryProjection: fullPdf, viewer: { ...viewer, render: renderViewer } })} />);
     expect(renderViewer).toHaveBeenCalledWith(expect.objectContaining({ request }));
+    expect(renderViewer).toHaveBeenCalledWith(expect.objectContaining({ pageGroupKey: 'placement-2', combinedPhysicalPage: 3 }));
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
     expect(renderViewer.mock.lastCall?.[0].request).not.toHaveProperty('expectedByteLength');
     rerender(<BookRuntimeShell {...shellProps({ deliveryProjection: { ...fullPdf, projectionKind: 'book-runtime-candidate-preview', candidateId: 'candidate-1', candidateRevision: 1, sourceSetRevision: 1, unitKey: 'unit-1', context: { contextId: 'candidate-1', kind: 'preview', entitlementBasis: 'candidate-preview' }, actionFlags: { canAutosave: false, canSubmit: false, canReview: false } }, viewer: { ...viewer, render: renderViewer } })} />);
     expect(screen.getByTestId('book-runtime-shell')).toBeInTheDocument();

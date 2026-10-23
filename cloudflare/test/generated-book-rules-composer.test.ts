@@ -422,6 +422,18 @@ describe('generated Book RTDB rule manifest and composer', () => {
     expect(changedOutsideOwnedLocations).toEqual([]);
   });
 
+  it('composes the current authoring head without immutable version pins', () => {
+    const candidate = composeGeneratedBookRules(currentFragmentSources(), { baseRules: generatedRules.rules });
+    const leaf = 'book_assembly_activity_bindings/owners/$ownerId/books/$bookId/units/$unitKey/activities/$activityKey';
+    for (const suffix of ['/.read', '/.write', '/.validate', '/$other/.validate']) {
+      expect(readRule(candidate.rules, leaf + suffix)).toBe(readRule(generatedRules.rules, leaf + suffix));
+    }
+    expect(String(readRule(candidate.rules, leaf + '/$other/.validate'))).not.toContain('activityVersion');
+    expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain('candidateRevision');
+    expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain('auth.token.book_submission_service == true && !data.exists()');
+    expect(String(readRule(candidate.rules, leaf + '/.write'))).toContain("newData.child('candidateRevision').val() == 1 && newData.child('candidateLifecycle').val() == 'saved'");
+  });
+
   it('preserves canonical inbox writes and composes idempotently without touching unowned leaves', () => {
     const once = composeGeneratedBookRules(currentFragmentSources(), { baseRules: generatedRules.rules });
     const twice = composeGeneratedBookRules(currentFragmentSources(), { baseRules: once.rules });

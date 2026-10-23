@@ -15,6 +15,8 @@ import { createCanonicalBookAssemblyPublicationService } from './canonicalPublic
 import { InMemoryCanonicalActivityVersionRepository } from './canonicalPublicationRepository';
 import { InMemoryBookAssemblyPublicationRepository } from './publicationRepository';
 import {
+  aggregateComponentPdfPublications,
+  buildComponentPdfPublication,
   createComponentPdfPublicationAdapter,
   createComponentPdfPublicationAdapterPlan,
   createComponentPdfPublicationCommandPlan,
@@ -275,6 +277,44 @@ const adapterInput = (
 };
 
 describe('component-PDF publication adapter', () => {
+  it.each(['valid', 'source', 'topology', 'shared title', 'coverage'] as const)(
+    'combines exact approved Unit plans without stale sibling copies (%s)', (change) => {
+      const original = manifest();
+      const edited = { ...original, nodes: original.nodes.map((node) => node.nodeKey === 'unit-1'
+        ? { ...node, title: 'Growing up — reviewed' } : node), units: original.units.map((unit) => unit.unitKey === 'unit-1'
+        ? { ...unit, pageGroups: unit.pageGroups.map((group) => ({ ...group, pages: [1, 2], defaultPhysicalPageNumber: 2 })) } : unit) };
+      let sibling = structuredClone(original);
+      if (change === 'source' && sibling.sourceSet.sourceStrategy === 'component_pdfs') sibling = { ...sibling, sourceSet: {
+        sourceStrategy: 'component_pdfs', sources: [
+          { ...sibling.sourceSet.sources[0], sourceVersionId: 'replacement' }, ...sibling.sourceSet.sources.slice(1),
+        ],
+      } };
+      if (change === 'topology') sibling = { ...sibling, nodes: sibling.nodes.map((node) => node.nodeKey === 'unit-1'
+        ? { ...node, order: 3 } : node) };
+      if (change === 'shared title') sibling = { ...sibling, nodes: sibling.nodes.map((node) => node.nodeKey === 'section-root'
+        ? { ...node, title: 'Conflicting shared section' } : node) };
+      if (change === 'coverage') sibling = { ...sibling, units: sibling.units.slice(1) };
+      const units = [edited, sibling].map((body, index) => {
+        const unitKey = index === 0 ? 'unit-1' : 'unit-2';
+        const { ids: _ids, ...unit } = adapterInput({ candidate: { ...candidate(body), candidateId: `candidate-${index + 1}`, unitKey }, unitKey, ...(index === 1 ? { activitiesByKey: {} } : {}) });
+        return { ...unit, allocateId: (kind: string, key: string) => ['publication', 'plan', 'manifest-version'].includes(kind)
+          ? `${kind}:shared` : `${kind}:${key}` };
+      });
+      const before = JSON.stringify(units);
+      const publish = () => createComponentPdfMultiUnitPublicationOutput({ aggregateCandidateId: 'combined', previewApproval: approval(), units });
+      if (change !== 'valid') expect(publish).toThrow('component_pdfs_manifest_mismatch');
+      else {
+        const output = publish();
+        expect(output.plan.manifest.nodes.find((node) => node.nodeKey === 'unit-1')?.title).toBe('Growing up — reviewed');
+        expect(output.plan.manifest.units).toEqual([edited.units[0], original.units[1]]);
+        expect(output.plan.studentSafeProjection.units).toEqual([edited.units[0], original.units[1]]);
+        expect(output.canonicalActivityVersions.map((entry) => entry.activity.title)).toEqual(
+          [activity('component-choice-a').title, activity('component-choice-b').title]);
+      }
+      expect(JSON.stringify(units)).toBe(before);
+    },
+  );
+
   it('publishes the normalized source-assisted long-response answer key', () => {
     const input = adapterInput({ activitiesByKey: {
       'slot-a': {
@@ -626,10 +666,33 @@ describe('component-PDF publication adapter', () => {
     expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
       previewApproval: approval('2026-07-27T12:59:59.000Z'),
     }))).toThrow('component_pdfs_preview_approval_expired');
+    expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
+      previewApproval: undefined as never,
+    }))).toThrow('component_pdfs_preview_approval_expired');
     const body = manifest();
     expect(() => createComponentPdfPublicationAdapterPlan(adapterInput({
       candidate: candidate(body),
       authority: authority(body, false),
     }))).toThrow('component_pdfs_manifest_invalid');
+  });
+
+  it('builds approval-free Unit output and aggregates only exact manifest Units', () => {
+    const { previewApproval: _approval, ...input } = adapterInput();
+    const output = buildComponentPdfPublication(input);
+    expect(output.plan).not.toHaveProperty('previewApproval');
+    const aggregate = aggregateComponentPdfPublications({
+      aggregateCandidateId: 'activation-candidate-1',
+      manifest: manifest(),
+      outputs: [output],
+    });
+    expect(aggregate.plan.candidateId).toBe('activation-candidate-1');
+    expect(aggregate.plan.manifest.units).toEqual([manifest().units[0]]);
+    expect(() => buildComponentPdfPublication({ ...input, authority: authority(manifest(), false) }))
+      .toThrow('component_pdfs_manifest_invalid');
+    expect(() => aggregateComponentPdfPublications({
+      aggregateCandidateId: 'activation-candidate-1',
+      manifest: { ...manifest(), units: [] },
+      outputs: [output],
+    })).toThrow('component_pdfs_unit_coverage_invalid');
   });
 });

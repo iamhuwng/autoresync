@@ -32,7 +32,7 @@ const pagePillLabel = (
   projection: BookAttemptSourceContextProjection,
 ): string => projection.metadata
   ? projection.state === 'available'
-    ? `Book page · page ${projection.metadata.physicalPageNumber}`
+    ? `Book page · page ${projection.metadata.combinedPhysicalPageNumber ?? projection.metadata.physicalPageNumber}`
     : `Book page · page ${projection.metadata.physicalPageNumber} · unavailable`
   : 'Book page unavailable';
 
@@ -125,7 +125,13 @@ export const BookAttemptSourceReview = ({
                 <div><dt>Component</dt><dd>{metadata.componentId}</dd></div>
                 <div><dt>Source Version</dt><dd>{metadata.sourceVersionId}</dd></div>
                 <div><dt>Local physical page</dt><dd>{metadata.physicalPageNumber}</dd></div>
-                <div><dt>Page Group</dt><dd>{metadata.pageGroupId}</dd></div>
+                {metadata.pageContexts?.map((context) => (
+                  <div key={`${context.sourceKey}:${context.physicalPageNumber}`}>
+                    <dt>{context.sourceKey} · {context.sourceVersionId}</dt>
+                    <dd>Local page {context.physicalPageNumber} · book page {context.combinedPhysicalPageNumber}</dd>
+                  </div>
+                ))}
+                <div><dt>Page Group</dt><dd>{metadata.pageGroupIds?.join(', ') ?? metadata.pageGroupId}</dd></div>
                 <div><dt>Placement</dt><dd>{metadata.placementId}</dd></div>
                 <div><dt>Correspondence</dt><dd>{metadata.correspondence}</dd></div>
               </dl>
@@ -135,7 +141,7 @@ export const BookAttemptSourceReview = ({
           {projection.state === 'available' ? (
             <div className="book-attempt-review__viewer" data-testid="historical-source-viewer">
               <BookPdfViewerHost
-                initialPage={projection.metadata.physicalPageNumber}
+                initialPage={projection.metadata.combinedPhysicalPageNumber ?? projection.metadata.physicalPageNumber}
                 key={`${projection.metadata.attemptId}:${projection.documentResource.opaqueRouteKey}`}
                 route={createBookHistoricalAttemptDocumentRoute({
                   bookId: projection.metadata.bookId,
@@ -143,6 +149,7 @@ export const BookAttemptSourceReview = ({
                   resultId: projection.metadata.resultId,
                   opaqueRouteKey: projection.documentResource.opaqueRouteKey,
                   sourceVersionId: projection.documentResource.sourceVersionId,
+                  expectedByteLength: projection.documentResource.studentDocument?.expectedByteLength,
                 })}
                 title="Historical source document"
               />

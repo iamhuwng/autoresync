@@ -221,4 +221,5 @@ export type BookRuntimeTerminalStatus =
     readonly status: 'present';
     readonly attemptId: string;
     readonly resultStatus: 'pending_review' | 'submitted';
+    readonly response: import('../../types/bookActivity.types').ActivitySubmission;
   };

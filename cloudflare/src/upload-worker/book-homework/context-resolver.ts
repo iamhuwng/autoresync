@@ -111,12 +111,6 @@ const exactManifest = (
   authority: BookHomeworkAuthorityRecord,
 ): BookAssemblyImmutableManifestVersion | null => {
   const book = authority.bookManifest.book;
-  const current = scope.current;
-  if (!current
-    || current.manifestVersionId !== authority.bookManifest.manifestVersionId
-    || current.publicationId !== book.publicationId
-    || current.publicationRevision !== book.publicationRevision
-    || current.bookRevision !== book.bookRevision) return null;
   return sole(Object.values(scope.versions ?? {}).filter((manifest) => (
     manifest.lifecycle === 'published'
     && manifest.ownerId === authority.ownerId
@@ -237,6 +231,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       activityVersionId: activity.activityVersionId,
       activityVersion: activity.activityVersion,
       payloadFingerprint: activity.canonicalPayloadFingerprint,
+      placementId: storedPlacement.placementId,
     });
     if (!canonical
       || canonical.lifecycle !== 'published'
@@ -244,8 +239,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       || canonical.activityId !== activity.activityId
       || canonical.activityVersionId !== activity.activityVersionId
       || canonical.activityVersion !== activity.activityVersion
-      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint
-      || !canonical.placementIds.includes(storedPlacement.placementId)) return null;
+      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint) return null;
 
     return {
       assignmentId: root.assignmentId,

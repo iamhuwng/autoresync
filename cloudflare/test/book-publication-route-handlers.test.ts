@@ -15,7 +15,6 @@ import { InMemoryCanonicalActivityVersionRepository } from '../../src/services/b
 import { createBookRouteHandlers } from '../src/upload-worker/book-route-handlers.ts';
 import { createBookRouter } from '../src/upload-worker/book-router.ts';
 import { createBookAssemblyPublicationRouteHandlers } from '../src/upload-worker/book-assembly/publication-route-handlers.ts';
-import type { UnitActivityBinding, UnitActivityBindingRepository } from '../../src/services/book-assembly/unitActivityBinding.repository.ts';
 import {
   createCandidateUnitPreview,
   createPreviewApproval,
@@ -298,6 +297,8 @@ const currentPointer = (): BookAssemblyPublicationPointer => ({
 const currentVersion = (ownerId = 'teacher-1'): BookAssemblyImmutableManifestVersion => ({
   bookId: 'book-1',
   ownerId,
+  candidateId: 'candidate-1',
+  candidateRevision: 4,
   publicationId: 'publication-1',
   publicationRevision: 2,
   studentSafeProjection: {
@@ -319,6 +320,28 @@ const currentPublicationInput = (uid = 'teacher-1') => ({
 });
 
 describe('Book publication route composition', () => {
+  it('creates fresh component proof readers for every authenticated command', async () => {
+    const reads: string[][] = [];
+    const componentPdf = vi.fn((_env, _owner, _scope) => {
+      const current: string[] = [];
+      reads.push(current);
+      return {
+        readUser: async (context: { actorId: string }) => { current.push(context.actorId); return { role: 'teacher', status: 'active' }; },
+        readAuthority: async () => null, readWholeActivationApprovalInput: async () => null,
+        readActivities: async () => ({}), readPreviewApproval: async () => null, sourceIsPreviewReady: async () => false,
+      };
+    });
+    const handler = createBookAssemblyPublicationRouteHandlers({ componentPdf,
+      repositoryFactory: () => new InMemoryBookAssemblyPublicationRepository(),
+      activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
+    }).componentPdfPublish;
+    for (const uid of ['teacher-1', 'teacher-2']) {
+      expect((await handler({ request: request('/book-assembly/component-pdf-publications'), env: {}, uid })).init.status).toBe(503);
+    }
+    expect(componentPdf).toHaveBeenCalledTimes(2);
+    expect(reads).toEqual([['teacher-1'], ['teacher-2']]);
+  });
+
   it('binds both publication descriptors to the canonical bookAssembly namespace', () => {
     const handlers = createBookRouteHandlers({
       assemblyPublication: {},
@@ -578,34 +601,14 @@ describe('Book publication route composition', () => {
     });
   });
 
-  it('reconciles a response-loss binding failure on publication replay without another publication version', async () => {
+  it('keeps published ActivityVersion references in the immutable publication scope', async () => {
     const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
     const writer = new InMemoryCanonicalActivityVersionRepository();
-    const prepare = vi.spyOn(writer, 'prepare');
-    const retryOperationId = '22222222-2222-4222-8222-222222222222';
-    let operationAllocations = 0;
-    let failOnce = true;
-    let recordCalls = 0;
-    let binding: UnitActivityBinding = {
-      schemaVersion: 1, ownerId: 'teacher-1', bookId: 'book-1', unitKey: 'unit-1', activityKey: 'slot-a',
-      activityId: 'activity:slot-a', candidateId: 'activity-candidate-1', candidateRevision: 3, candidateLifecycle: 'saved',
-    };
-    const bindings: UnitActivityBindingRepository = {
-      read: async () => structuredClone(binding),
-      bindCandidate: async () => 'replayed',
-      recordPublication: async (value) => {
-        recordCalls += 1;
-        if (failOnce) { failOnce = false; throw new Error('response_lost_after_commit'); }
-        binding = { ...binding, activityVersionId: value.activityVersionId, activityVersion: value.activityVersion };
-        return recordCalls === 2 ? 'updated' : 'replayed';
-      },
-    };
     const handlers = createBookAssemblyPublicationRouteHandlers({
       repositoryFactory: () => repository,
       activityVersionWriterFactory: () => writer,
-      bindingRepositoryFactory: () => bindings,
-      allocateOperationId: () => operationAllocations++ === 0 ? operationId : retryOperationId,
-      allocateId: (kind, key) => kind === 'activity' ? `activity:${key}` : `${kind}:${key}`,
+      allocateOperationId: () => operationId,
+      allocateId: (kind, key) => `${kind}:${key}`,
       now: () => now,
       fullPdf: {
         readUser: async () => ({ role: 'teacher', status: 'active' }),
@@ -613,98 +616,18 @@ describe('Book publication route composition', () => {
         readActivities, ...fullPdfApprovalPorts,
       },
     });
-    const env = { BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true', readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }) };
-    const first = await handlers.fullPdfPublish({
-      request: request(undefined, body(), { 'Idempotency-Key': operationId }), env, uid: 'teacher-1',
-    });
-    expect(first).toMatchObject({ init: { status: 503 }, body: { code: 'book_assembly_activity_binding_unavailable' } });
-    const committed = await repository.readScope('book-1');
-    expect(Object.keys(committed.versions ?? {})).toHaveLength(1);
-    expect(Object.keys(committed.activityVersions ?? {})).toHaveLength(1);
-
-    const mismatched = await handlers.fullPdfPublish({
-      request: request(undefined, { ...body(), expectedCandidateRevision: 5 }, { 'Idempotency-Key': retryOperationId }),
-      env,
+    const result = await handlers.fullPdfPublish({
+      request: request(undefined, body(), { 'Idempotency-Key': operationId }),
+      env: { BOOK_FULL_PDF_PUBLICATION_ENABLED: 'true', readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }) },
       uid: 'teacher-1',
     });
-    expect(mismatched).toMatchObject({ init: { status: 422 }, body: { code: 'full_pdf_revision_conflict' } });
-    expect(recordCalls).toBe(1);
 
-    const retried = await handlers.fullPdfPublish({
-      request: request(undefined, body(), { 'Idempotency-Key': operationId }), env, uid: 'teacher-1',
-    });
-    expect(retried.init.status).toBe(200);
-    expect((retried.body as { result: { status: string } }).result.status).toBe('replayed');
-    expect((retried.body as { operationId: string }).operationId).toBe(operationId);
-    expect(operationAllocations).toBe(0);
-    expect(recordCalls).toBe(2);
-    expect(prepare).toHaveBeenCalledOnce();
-    expect(binding.activityVersionId).toBe('activity-version:slot-a');
-    expect(binding).toMatchObject({ candidateId: 'activity-candidate-1', candidateRevision: 3 });
-    const after = await repository.readScope('book-1');
-    expect(Object.keys(after.versions ?? {})).toHaveLength(1);
-    expect(Object.keys(after.activityVersions ?? {})).toHaveLength(1);
+    expect(result.init.status).toBe(200);
+    const published = await repository.readScope('book-1');
+    expect(Object.values(published.activityVersions ?? {})).toEqual([expect.objectContaining({
+      activityId: 'activity:slot-a', activityVersionId: 'activity-version:slot-a',
+    })]);
   });
-
-  it.each(['exact', 'candidate', 'revision', 'activity', 'lifecycle', 'cas'] as const)(
-    'reconciles Component receipt-pinned Activity identity: %s', async (change) => {
-      const repository = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
-      let loseResponse = change === 'exact';
-      const recordPublication = vi.fn(async () => {
-        if (loseResponse) { loseResponse = false; throw new Error('response_lost_after_commit'); }
-        return change === 'cas' ? 'conflict' as const : 'updated' as const;
-      });
-      const handlers = createBookAssemblyPublicationRouteHandlers({
-        repositoryFactory: () => repository,
-        activityVersionWriterFactory: () => new InMemoryCanonicalActivityVersionRepository(),
-        bindingRepositoryFactory: () => ({
-          read: async ({ ownerId, bookId, unitKey, activityKey }) => ({
-            schemaVersion: 1, ownerId, bookId, unitKey, activityKey,
-            activityId: change === 'activity' ? 'other-activity' : unitKey === 'unit-1' ? 'activity-a' : 'activity-b',
-            candidateId: change === 'candidate' ? 'candidate-1' : unitKey === 'unit-1' ? 'activity-candidate-a' : 'activity-candidate-b',
-            candidateRevision: change === 'revision' ? 2 : 1,
-            candidateLifecycle: change === 'lifecycle' ? 'validated' : 'saved',
-          }),
-          bindCandidate: async () => 'replayed', recordPublication,
-        }),
-        allocateOperationId: () => operationId,
-        allocateId: (kind, key) => `${kind}:${key}`,
-        now: () => now,
-        componentPdf: {
-          readUser: async () => ({ role: 'teacher', status: 'active' }),
-          readAuthority: async () => authority('component_pdfs'),
-          readCandidate: async ({ unitKey }) => candidate('component_pdfs', unitKey),
-          readActivities,
-          readLineage: async ({ unitKey }) => unitKey === 'unit-1'
-            ? { 'slot-a': { activityId: 'activity-a' } }
-            : { 'slot-b': { activityId: 'activity-b' } },
-          ...componentPdfApprovalPorts,
-        },
-      });
-      const publish = () => handlers.componentPdfPublish({
-        request: request('/book-assembly/component-pdf-publications', componentBody(), { 'Idempotency-Key': operationId }),
-        env: { BOOK_COMPONENT_PDF_PUBLICATION_ENABLED: 'true',
-          readDatabaseValue: async () => ({ role: 'teacher', status: 'active' }) }, uid: 'teacher-1',
-      });
-      let result = await publish();
-      if (change === 'exact') {
-        expect(result.init.status).toBe(503);
-        const committed = await repository.readScope('book-1');
-        result = await publish();
-        expect((result.body as { result: { status: string } }).result.status).toBe('replayed');
-        expect(await repository.readScope('book-1')).toEqual(committed);
-      }
-      expect(result.init.status).toBe(change === 'exact' ? 200 : 503);
-      if (change === 'exact') {
-        expect(recordPublication).toHaveBeenCalledTimes(3);
-        expect(recordPublication).toHaveBeenCalledWith(expect.objectContaining({
-          activityId: 'activity-a', candidateId: 'activity-candidate-a', candidateRevision: 1,
-        }));
-      } else if (change !== 'cas') expect(recordPublication).not.toHaveBeenCalled();
-      expect((await repository.readScope('book-1')).current?.publicationRevision).toBe(1);
-    },
-  );
-
   it.each([
     ['/book-assembly/full-pdf-publications', 'BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED', 'book_full_pdf_publication_dependencies_unavailable'],
     ['/book-assembly/component-pdf-publications', 'BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED', 'book_component_pdf_publication_dependencies_unavailable'],

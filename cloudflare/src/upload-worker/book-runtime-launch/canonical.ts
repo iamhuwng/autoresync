@@ -270,14 +270,14 @@ const productionProjectionReader: BookRuntimeLaunchProjectionReader = {
       activityVersionId: activity.activityVersionId,
       activityVersion: activity.activityVersion,
       payloadFingerprint: activity.canonicalPayloadFingerprint,
+      placementId: placement.placementId,
     });
     if (!canonical
       || canonical.activityId !== activity.activityId
       || canonical.activityVersionId !== activity.activityVersionId
       || canonical.activityVersion !== activity.activityVersion
       || canonical.ownerId !== trusted.binding.issuer.ownerId
-      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint
-      || !canonical.placementIds.includes(placement.placementId)) return null;
+      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint) return null;
     return {
       activityId: canonical.activityId,
       activityVersionId: canonical.activityVersionId,

@@ -4,6 +4,8 @@ import { useClipboard } from '../../../core/platform';
 export interface UnitActivityImportControlsProps {
   readonly disabled?: boolean;
   readonly guided?: boolean;
+  readonly focused?: boolean;
+  readonly singleActivity?: boolean;
   readonly promptText: string;
   readonly importText: string;
   readonly manualCopyFallback: boolean;
@@ -25,6 +27,8 @@ const readFileText = async (file: File): Promise<string> => file.text();
 const UnitActivityImportControls = ({
   disabled = false,
   guided = false,
+  focused = false,
+  singleActivity = false,
   promptText,
   importText,
   manualCopyFallback,
@@ -66,25 +70,24 @@ const UnitActivityImportControls = ({
 
   return (
     <section className="book-assembly-workspace__unit-import" aria-labelledby="book-assembly-unit-import-title">
-      <div className="book-assembly-workspace__section-heading">
+      {!focused && <div className="book-assembly-workspace__section-heading">
         <div>
           <h2 id="book-assembly-unit-import-title">{guided ? 'Add Unit content' : 'Unit Activity import'}</h2>
           <p>{guided
             ? 'Choose a JSON file from your Unit authoring flow, or paste the returned content below.'
             : 'Copy the Unit prompt, then stage returned JSON through trusted Activity authoring.'}</p>
         </div>
-      </div>
+      </div>}
       <div className="book-assembly-workspace__import-actions">
         <button type="button" disabled={disabled || !canUsePrompt} onClick={() => void copyPrompt()}>
-          {guided ? 'Copy instructions' : 'Copy Unit prompt'}
-        </button>
-        <button type="button" disabled={disabled || busy || !canUsePrompt} onClick={() => fileInputRef.current?.click()}>
-          {guided ? 'Choose JSON file' : 'Select JSON file'}
+          {focused ? 'Copy prompt' : guided ? 'Copy instructions' : 'Copy Unit prompt'}
         </button>
         {busy ? (
           <button type="button" disabled={!canCancel} onClick={onCancel}>Cancel import</button>
-        ) : <button type="button" disabled={!canImport} onClick={onImport}>{guided ? 'Add Unit content' : 'Stage Unit JSON'}</button>}
+        ) : <button type="button" className={focused ? 'pbf-button-primary' : undefined} disabled={!canImport} onClick={onImport}>{focused ? singleActivity ? 'Save activity' : 'Import activities' : guided ? 'Add Unit content' : 'Stage Unit JSON'}</button>}
       </div>
+      {focused && <button type="button" className="pbf-button-link" disabled={disabled || busy || !canUsePrompt} onClick={() => fileInputRef.current?.click()}>Choose a JSON file</button>}
+      {!focused && <button type="button" disabled={disabled || busy || !canUsePrompt} onClick={() => fileInputRef.current?.click()}>{guided ? 'Choose JSON file' : 'Select JSON file'}</button>}
       <input
         ref={fileInputRef}
         aria-label="Unit Activity JSON file"
@@ -94,15 +97,15 @@ const UnitActivityImportControls = ({
         onChange={(event) => void useFile(event.currentTarget.files?.[0])}
       />
       <label className="book-assembly-workspace__import-editor">
-        {guided ? 'Paste the returned Unit content' : 'Paste Unit Activity JSON'}
+        {focused ? 'Paste returned JSON' : guided ? 'Paste activities' : 'Paste Unit Activity JSON'}
         <textarea
           value={importText}
           onChange={(event) => onImportTextChange(event.target.value)}
           disabled={disabled || busy}
-          rows={8}
+          rows={focused ? 5 : 8}
         />
       </label>
-      <div
+      {!focused && <div
         className={`book-assembly-workspace__dropzone${dropActive ? ' is-active' : ''}`}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -114,17 +117,17 @@ const UnitActivityImportControls = ({
         onDrop={drop}
       >
         Drop Unit JSON here
-      </div>
+      </div>}
       {manualCopyFallback && (
         <label className="book-assembly-workspace__manual-copy">
-          Manual copy fallback
+          {focused ? 'Copy prompt' : 'Manual copy fallback'}
           <textarea readOnly value={promptText} rows={8} />
         </label>
       )}
-      {statusText && <p role="status">{statusText}</p>}
+      {statusText && (!focused || (!conflict && !statusText.startsWith('Imported '))) && <p role="status">{statusText}</p>}
       {conflict && (
         <div role="alert" className="book-assembly-guided__error">
-          <p>{conflict.activityKey} already has a newer saved draft. Replacing it will use this imported JSON as the next revision.</p>
+          <p>{focused ? singleActivity ? 'This activity has a saved version. Replace it with the pasted content?' : 'These activities have a saved version. Replace them with the pasted content?' : `${conflict.activityKey} already has a newer saved draft. Replacing it will use this imported JSON as the next revision.`}</p>
           <button type="button" disabled={busy} onClick={onReplaceExisting}>Replace existing Activity draft</button>
         </div>
       )}

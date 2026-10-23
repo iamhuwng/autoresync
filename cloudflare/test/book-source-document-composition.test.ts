@@ -28,7 +28,12 @@ import {
 import { bookHomeworkRecipientAuthorityId, bookHomeworkRecipientDeliveryBindingId } from '../src/upload-worker/book-homework/identity';
 import {
   makeBookDeliveryTestBinding,
+  makeBookAssemblyPublicationScope,
 } from './book-delivery.fixture';
+import { createComponentStudentDocument, type ComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types';
+import type { BookSourceUploadOperation } from '../../src/types/bookSource.types';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service';
+import { createTrustedBookDeliveryPublication, resolveTrustedBookDeliveryStudentDocument } from '../src/upload-worker/book-delivery/worker';
 
 const operation = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -169,6 +174,104 @@ const documentRuntimeEnvironment = (): Record<string, unknown> => {
 };
 
 describe('Ticket #49 canonical source document composition', () => {
+  it.each(['projection', 'bytes'] as const)('keeps assigned component %s pinned after source and plan replacement', async (surface) => {
+    const scope = { ...structuredClone(makeBookAssemblyPublicationScope()), studentDocuments: {} as Record<string, ComponentStudentDocument> };
+    const version = scope.versions!['manifest-1']!;
+    Object.assign(Object.values(scope.activityVersions!)[0]!, { safeProjectionId: 'projection-1',
+      canonicalOriginManifestVersionId: 'manifest-1', canonicalOriginPublicationId: 'publication-1', canonicalOriginOperationId: operation(101) });
+    const sources = [
+      { sourceKey: 'full', sourceVersionId: 'source-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' },
+      { sourceKey: 'second', sourceVersionId: 'source-v2', sourceOrder: 2, ownerNodeKey: 'unit-1' },
+    ];
+    const sourceSet = { sourceStrategy: 'component_pdfs' as const, sources };
+    const descriptor = createComponentStudentDocument({
+      sourceVersionId: 'student-v1', descriptorRevision: 2, sha256Hex: 'a'.repeat(64),
+      byteSize: 578, physicalPageCount: 2, compositionFingerprint: 'composition-1',
+      components: sources.map((source, index) => ({ ...source, localPageCount: 1, combinedStartPage: index + 1, combinedEndPage: index + 1 })),
+    });
+    Object.assign(version, { strategy: 'component_pdfs', studentDocument: {
+      sourceVersionId: descriptor.sourceVersionId, descriptorRevision: descriptor.descriptorRevision,
+      sha256Hex: descriptor.sha256Hex, descriptorFingerprint: fingerprintComponentPdfActivationValue(descriptor),
+    } });
+    Object.assign(version.manifest, { sourceSet });
+    Object.assign(version.studentSafeProjection, { sourceStrategy: 'component_pdfs', sourceSet });
+    Object.assign(scope.deliveryPlans!['delivery-plan-1']!, { sourceStrategy: 'component_pdfs', sourceSet });
+    scope.studentDocuments = { [descriptor.sourceVersionId]: descriptor };
+    const binding = { ...studentBinding(), sourceSet: { strategy: 'component_pdfs' as const,
+      sources: sources.map(source => ({ ...source, lifecycle: 'verified-usable' as const, localPageScope: { kind: 'all' as const, pages: [] } })),
+    } };
+    // Only current authoring/publication authority advances; every assigned immutable record stays exact.
+    const successor = structuredClone(version);
+    Object.assign(successor, { manifestVersionId: 'manifest-next', publicationId: 'publication-next', bookRevision: 4, sourceSetRevision: 3 });
+    Object.assign(successor.studentSafeProjection, { publicationId: 'publication-next' });
+    Object.assign(successor.manifest.units[0]!.pageGroups[0]!, { pages: [2] });
+    Object.assign(successor.manifest.sourceSet.sources[0]!, { sourceVersionId: 'replacement-v1' });
+    scope.versions!['manifest-next'] = successor;
+    Object.assign(scope.current!, { manifestVersionId: 'manifest-next', publicationId: 'publication-next', bookRevision: 4, sourceSetRevision: 3, operationFingerprint: 'operation-next' });
+    expect(() => createTrustedBookDeliveryPublication({ bookId: binding.book.bookId, publicationId: binding.book.publicationId,
+      publicationRevision: binding.book.publicationRevision, recipientId: binding.recipient.recipientId,
+      contextKind: 'solo', contextId: binding.context.contextId, scope: binding.scope }, scope, binding.schedulePolicy)).toThrow('book_delivery_publication_stale');
+    const storage = { ...sourceLocation(), sourceVersionId: descriptor.sourceVersionId };
+    const { provider: _provider, bucket: _bucket, objectKey: _objectKey, ...verifiedStorage } = storage;
+    const uploadOperation: BookSourceUploadOperation = {
+      reservationId: 'reservation-1', bookId: binding.book.bookId, ownerId: binding.issuer.ownerId,
+      sourceKey: 'student-document', sourceVersionId: descriptor.sourceVersionId, kind: 'initial', purpose: 'student-document',
+      storageLocationId: storage.storageLocationId, providerKind: storage.providerKind, privateBucketId: storage.privateBucketId,
+      providerObjectKey: storage.providerObjectKey, byteSize: storage.byteSize, originalFilename: 'combined.pdf',
+      expectedChecksum: storage.checksum, createdAt: '2026-07-30T00:00:00.000Z', expiresAt: '2026-07-30T00:15:00.000Z',
+      status: 'verified_completed', completedAt: '2026-07-30T00:01:00.000Z', physicalPageCount: 2, verifiedStorage,
+      studentSafeStatus: 'ready', studentSafeDecision: { decidedBy: 'teacher-1', decidedAt: '2026-07-30T00:02:00.000Z',
+        sourceVersionId: descriptor.sourceVersionId, sha256Hex: descriptor.sha256Hex, reasonCode: 'teacher-reviewed' },
+    };
+    const uploadAccount = { revision: 1, capacity: { trackedAccountBytes: storage.byteSize, temporaryBytes: 0 },
+      operations: { 'reservation-1': uploadOperation } as Record<string, BookSourceUploadOperation> };
+    const environment = documentRuntimeEnvironment();
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const key = await exportPKCS8(privateKey);
+    for (const service of ['DELIVERY', 'ASSEMBLY', 'SOURCE_UPLOAD']) {
+      const identity = `${service.toLowerCase()}@temp-a143.iam.gserviceaccount.com`;
+      environment[`BOOK_${service}_SERVICE_IDENTITY`] = identity;
+      environment[`BOOK_${service}_GOOGLE_SA_KEY`] = JSON.stringify({ client_email: identity, private_key: key });
+    }
+    const requests: string[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)); requests.push(url.pathname);
+      if (url.hostname === 'oauth2.googleapis.com') return Response.json({ access_token: 'synthetic', expires_in: 3600 });
+      if (url.hostname === 'identitytoolkit.googleapis.com') return Response.json({ idToken: 'synthetic', expiresIn: '3600' });
+      if (url.pathname === '/book_assembly_publications/books/book-pdf-1.json') return Response.json({
+        current: scope.current, versions: scope.versions, placements: scope.placements, activity_versions: scope.activityVersions,
+        activity_safe_projections: scope.activitySafeProjections, delivery_plans: scope.deliveryPlans, student_documents: scope.studentDocuments,
+      }, { headers: { etag: '"fixture"' } });
+      if (url.pathname === '/book_source_upload_accounts/upload-account.json') return Response.json(uploadAccount);
+      if (url.pathname === '/material_catalog/books/book-pdf-1.json') return Response.json({
+        bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, bookMode: 'pdf', bookRevision: 4, sourceSetRevision: 3,
+        sourceSet: successor.manifest.sourceSet,
+      });
+      return Response.json(null);
+    });
+    try {
+      if (surface === 'projection') {
+        const document = await resolveTrustedBookDeliveryStudentDocument(environment, binding);
+        expect(document).toMatchObject({ expectedByteLength: descriptor.byteSize, physicalPageCount: 2,
+          pageGroups: [{ pageGroupKey: 'group-1', combinedPhysicalPages: [1] }] });
+      } else {
+        const authority = await defaultRuntimeFactory(environment).readCurrentAuthority(binding);
+        expect(authority).toMatchObject({ publicationStatus: 'published', scheduleOpen: true,
+          sourceVersionIds: [descriptor.sourceVersionId], studentDocument: { sourceVersionId: descriptor.sourceVersionId } });
+      }
+      expect(requests.some(path => path.startsWith('/material_catalog/'))).toBe(false);
+      for (const failure of ['missing-descriptor', 'tampered-descriptor', 'missing-source', 'unreviewed-source', 'foreign-source']) {
+        scope.studentDocuments = failure === 'missing-descriptor' ? {} : { [descriptor.sourceVersionId]:
+          failure === 'tampered-descriptor' ? { ...descriptor, sha256Hex: 'b'.repeat(64) } : descriptor };
+        uploadAccount.operations = failure === 'missing-source' ? {} : { 'reservation-1':
+          failure === 'unreviewed-source' ? { ...uploadOperation, studentSafeStatus: 'unreviewed', studentSafeDecision: undefined } : uploadOperation };
+        Object.assign(binding.sourceSet.sources[0]!, { sourceVersionId: failure === 'foreign-source' ? 'unassigned-v1' : 'source-v1' });
+        if (surface === 'projection') expect(await resolveTrustedBookDeliveryStudentDocument(environment, binding), failure).toBeNull();
+        else expect(await defaultRuntimeFactory(environment).readCurrentAuthority(binding), failure)
+          .toMatchObject({ publicationStatus: 'unpublished', sourceLocations: [] });
+      }
+    } finally { vi.unstubAllGlobals(); }
+  });
   it.each(['disabled', undefined] as const)('fails closed when the B2 provider state is %s', (state) => {
     const environment = { ...documentRuntimeEnvironment(), BOOK_SOURCE_B2_PROVIDER_STATE: state };
     expect(() => defaultRuntimeFactory(environment)).toThrow('book_source_b2_provider_unavailable');

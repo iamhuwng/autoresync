@@ -38,13 +38,63 @@ const legacyTestVersionReconciliation = (
 });
 
 describe('source upload reconciliation', () => {
+  it('discovers and retires a late verified canceled source with its identity and quota retained until provider proof', async () => {
+    const memory = await reservedState('submission-1');
+    const initial = (await memory.read())!;
+    const source = initial.operations['reservation-1']!;
+    const identity = { bookId: source.bookId, sourceVersionId: source.sourceVersionId,
+      storageLocationId: source.storageLocationId, providerKind: source.providerKind, privateBucketId: source.privateBucketId,
+      providerObjectKey: source.providerObjectKey, providerFileId: 'file-1', providerFileVersionId: 'version-1',
+      checksum: source.expectedChecksum, byteSize: source.byteSize };
+    await memory.repository.completeVerified({ accountId: 'account-1', expectedRevision: initial.revision,
+      reservationId: source.reservationId, verifiedStorage: identity, physicalPageCount: 4,
+      verifiedAt: '2026-07-23T00:01:00.000Z' });
+    let sweep = false;
+    const clock = sequenceClock('2026-07-23T00:06:00.000Z', '2026-07-23T00:06:00.200Z', '2026-07-23T00:06:00.300Z');
+    const versionReconciliation = { reconcileOperationVersions: vi.fn(async () => {
+      const pending = (await memory.read())!;
+      expect(pending.capacity.trackedAccountBytes).toBe(sweep ? 0 : 10);
+      if (!sweep) expect(pending.operations['reservation-1']?.verifiedStorage).toEqual(identity);
+      else expect(pending.operations['reservation-1']?.cleanupIdentity?.providerObjectKey).toBe(identity.providerObjectKey);
+      expect(pending.assemblyBooks?.['book-1']?.['source-1']).toBeUndefined();
+      return 'exact_versions_deleted' as const;
+    }) };
+    const reconciler = createSourceUploadReconciler({ accountId: 'account-1', readAccountState: memory.read,
+      authorizeOwner: () => true, repository: memory.repository, provider: { deleteExactVersion: vi.fn() },
+      resolveExactVersion: vi.fn(), versionReconciliation,
+      prepareCanceledRetirement: (state, operation) => memory.repository.fenceVerifiedSource({
+        accountId: 'account-1', expectedRevision: state.revision, reservationId: source.reservationId,
+        bookId: source.bookId, ownerId: source.ownerId, sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId,
+        verifiedStorage: operation.verifiedStorage!, deletionId: 'cancel-1',
+        retirementGuard: { kind: 'canceled-submission', bookId: source.bookId, sourceVersionId: source.sourceVersionId,
+          deletionId: 'cancel-1', ownerId: source.ownerId, submissionOperationId: 'submission-1', inputFingerprint: 'a'.repeat(64) },
+        fencedAt: '2026-07-23T00:06:00.100Z', currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+      }),
+      clock: () => sweep ? new Date('2026-07-23T01:07:00.000Z') : clock(),
+      leaseOwner: 'reconciler-1',
+    });
+    const result = await reconciler.reconcile({ actorId: source.ownerId, bookId: source.bookId, reservationId: source.reservationId });
+    expect(result.status).toBe('released');
+    expect(versionReconciliation.reconcileOperationVersions.mock.calls[0]?.[0]).not.toHaveProperty('preserveIdentity');
+    expect((await memory.read())?.capacity.trackedAccountBytes).toBe(0);
+    expect((await memory.read())?.operations['reservation-1']).not.toHaveProperty('verifiedStorage');
+    sweep = true;
+    await expect(reconciler.reconcile({ actorId: source.ownerId, bookId: source.bookId, reservationId: source.reservationId }))
+      .resolves.toMatchObject({ status: 'released' });
+    expect(versionReconciliation.reconcileOperationVersions).toHaveBeenCalledTimes(2);
+    expect(versionReconciliation.reconcileOperationVersions.mock.calls[1]?.[0]).toMatchObject({
+      operation: { providerObjectKey: identity.providerObjectKey, status: 'retired' },
+    });
+    expect((await memory.read())?.operations['reservation-1']?.cleanup?.nextRetryAt).toBe('2026-07-23T02:07:00.000Z');
+  });
   it('deletes only exact recorded identity and releases once', async () => {
     const memory = await reservedState();
     const provider = { deleteExactVersion: vi.fn(async () => undefined) };
+    const authorizeOwner = vi.fn(async ({ actorId }: { actorId: string }) => actorId === 'teacher-1');
     const reconciler = createSourceUploadReconciler({
       accountId: 'account-1',
       readAccountState: memory.read,
-      authorizeOwner: async ({ actorId }) => actorId === 'teacher-1',
+      authorizeOwner,
       repository: memory.repository,
       provider,
       resolveExactVersion: vi.fn(async (operation) => ({
@@ -101,6 +151,16 @@ describe('source upload reconciliation', () => {
         providerFileVersionId: 'version-1',
       }),
     }, { timeoutMs: 30_000 });
+    expect(authorizeOwner).toHaveBeenCalledWith(expect.objectContaining({
+      actorId: 'teacher-1',
+      bookId: 'book-1',
+      reservationId: 'reservation-1',
+      operation: expect.objectContaining({
+        ownerId: 'teacher-1',
+        bookId: 'book-1',
+        reservationId: 'reservation-1',
+      }),
+    }));
   });
 
   it('releases only after bounded multi-version reconciliation proves the exact key clean', async () => {
@@ -629,7 +689,7 @@ const sequenceClock = (...values: string[]) => {
   return () => new Date(values[Math.min(index++, values.length - 1)]!);
 };
 
-const reservedState = async () => {
+const reservedState = async (submissionOperationId?: string) => {
   let state: BookSourceUploadAccountState | null = {
     revision: 0,
     capacity: {
@@ -662,6 +722,7 @@ const reservedState = async () => {
     sourceVersionId: 'source-1',
     sourceKey: 'unit-1',
     ownerId: 'teacher-1',
+    ...(submissionOperationId === undefined ? {} : { submissionOperationId }),
     storageLocationId: 'location-1',
     providerKind: 'b2',
     privateBucketId: 'bucket-1',

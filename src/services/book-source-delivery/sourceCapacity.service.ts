@@ -48,7 +48,7 @@ export function calculateBookSourceCapacityUsage(input: {
   let pendingUploadBytes = 0;
   let replacementUploadBytes = 0;
   for (const operation of Object.values(input.operations)) {
-    if (operation.status !== 'reserved') continue;
+    if (operation.status !== 'reserved' && operation.status !== 'cleanup_pending') continue;
     assertBookSourcePdfByteSize(operation.byteSize, operation.purpose);
     if (operation.kind === 'initial') pendingUploadBytes += operation.byteSize;
     else if (operation.kind === 'replacement') replacementUploadBytes += operation.byteSize;

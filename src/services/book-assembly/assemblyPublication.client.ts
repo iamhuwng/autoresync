@@ -82,7 +82,9 @@ export class BookAssemblyPreviewClientError extends Error {
 const safeBaseUrl = (value: string): string => {
   let url: URL;
   try { url = new URL(value.trim()); } catch { throw new BookAssemblyPreviewClientError('unavailable', 0); }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+  const localHttp = import.meta.env.DEV && import.meta.env.VITE_FIREBASE_LOCAL_ONLY === 'true'
+    && url.origin === 'http://localhost:8787';
+  if ((url.protocol !== 'https:' && !localHttp) || url.username || url.password || url.search || url.hash) {
     throw new BookAssemblyPreviewClientError('unavailable', 0);
   }
   return url.href.replace(/\/$/u, '');

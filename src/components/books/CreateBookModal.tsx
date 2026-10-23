@@ -25,6 +25,14 @@ interface CreateBookModalProps {
   readonly initialValue?: Partial<CreateBookModalValue>;
   readonly title?: string;
   readonly pdfModeEnabled?: boolean;
+  readonly localDraftSummaries?: readonly {
+    readonly draftId: string;
+    readonly title: string;
+    readonly updatedAt: string;
+    readonly committedBookId?: string;
+    readonly cleanupPending?: boolean;
+  }[];
+  readonly onResumeLocalDraft?: (draftId: string) => void;
   readonly onClose: () => void;
   readonly onModeSelect?: (bookMode: MaterialBookMode) => void;
   readonly onSave: (value: CreateBookModalValue) => Promise<void> | void;
@@ -51,6 +59,8 @@ const CreateBookModal = ({
   title = 'Create Book',
   // The caller owns product availability; this reusable modal stays fail-closed by default.
   pdfModeEnabled = false,
+  localDraftSummaries,
+  onResumeLocalDraft,
   onClose,
   onModeSelect,
   onSave,
@@ -180,6 +190,30 @@ const CreateBookModal = ({
         </div>
 
         <div className="create-book-modal__body">
+          {localDraftSummaries?.length && onResumeLocalDraft && (
+            <section className="create-book-modal__fieldset" aria-label="Saved local Book drafts">
+              <p className="create-book-modal__hint" role="status">
+                {localDraftSummaries.length === 1
+                  ? `A local PDF Book draft is available: ${localDraftSummaries[0].title}`
+                  : `${localDraftSummaries.length} local PDF Book drafts are available.`}
+              </p>
+              <ul className="create-book-modal__draft-list">
+                {localDraftSummaries.map((summary) => (
+                  <li className="create-book-modal__draft-row" key={summary.draftId}>
+                    <div className="create-book-modal__draft-details">
+                      <strong>{summary.title}</strong>
+                      <time dateTime={summary.updatedAt}>{summary.updatedAt}</time>
+                      {summary.committedBookId && <span>Book created</span>}
+                      {summary.cleanupPending && <span>Cleanup pending</span>}
+                    </div>
+                    <button className="create-book-modal__button" type="button" onClick={() => onResumeLocalDraft(summary.draftId)}>
+                      Resume local draft
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <fieldset className="create-book-modal__fieldset">
             <legend className="create-book-modal__legend">How would you like to create this Book?</legend>
             <div className="create-book-modal__radio-row">
@@ -204,6 +238,7 @@ const CreateBookModal = ({
                   disabled={!pdfModeEnabled}
                   onChange={() => {
                     setBookMode('pdf');
+                    setVisibility('private');
                     onModeSelect?.('pdf');
                     setErrors((current) => ({ ...current, bookMode: '' }));
                   }}
@@ -217,7 +252,7 @@ const CreateBookModal = ({
             {errors.bookMode && <p className="create-book-modal__error">{errors.bookMode}</p>}
             {bookMode === 'pdf' && (
               <p className="create-book-modal__hint" role="status">
-                Complete the required Book details below, then choose Save Book to open PDF Assembly.
+                Choose Start draft to add PDFs and build your Book. The draft stays on this device until you choose Create Book after reviewing it.
               </p>
             )}
           </fieldset>
@@ -304,11 +339,13 @@ const CreateBookModal = ({
                   type="radio"
                   name="book-visibility"
                   checked={visibility === 'public'}
-                  onChange={() => setVisibility('public')}
+                    disabled={bookMode === 'pdf'}
+                    onChange={() => setVisibility('public')}
                 />
                 Public
               </label>
             </div>
+            {bookMode === 'pdf' && <p className="create-book-modal__hint">PDF Books are created privately first; publish or share them after the source and activity workflow is complete.</p>}
           </fieldset>
 
           <label className="create-book-modal__field">
@@ -330,7 +367,7 @@ const CreateBookModal = ({
           </button>
           {bookMode && (
             <button className="create-book-modal__button create-book-modal__button--primary" type="submit" disabled={saving}>
-              Save Book
+              {bookMode === 'pdf' ? 'Start draft' : 'Save Book'}
             </button>
           )}
         </div>

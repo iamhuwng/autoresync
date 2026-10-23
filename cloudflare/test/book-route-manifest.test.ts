@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import JSON5 from 'json5';
 import wranglerSource from '../wrangler.jsonc?raw';
+import bookSourceWranglerSource from '../wrangler.book-source.jsonc?raw';
 import {
   canonicalBookRouteManifest,
   normalizeBookRouteTemplate,
@@ -8,11 +9,12 @@ import {
 } from '../src/upload-worker/book-routes/manifest.ts';
 
 const wranglerConfig = () => JSON5.parse(wranglerSource) as { vars: Record<string, string> };
+const bookSourceWranglerConfig = () => JSON5.parse(bookSourceWranglerSource) as { vars: Record<string, string> };
 
 describe('canonical Book route contract catalog', () => {
   it('covers every contributor exactly once', () => {
     const contributorRoutes = canonicalBookRouteManifest.filter((route) => route.source === 'contributor');
-    expect(contributorRoutes).toHaveLength(71);
+    expect(contributorRoutes).toHaveLength(76);
     expect(contributorRoutes.filter((route) => route.contributorTicket === 'PRD0062-L')).toHaveLength(2);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#31')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#35')).toHaveLength(5);
@@ -32,7 +34,8 @@ describe('canonical Book route contract catalog', () => {
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#102')).toHaveLength(5);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#104')).toHaveLength(3);
     expect(contributorRoutes.filter((route) => route.contributorTicket === '#103')).toHaveLength(4);
-    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(71);
+    expect(contributorRoutes.filter((route) => route.contributorTicket === 'PRD0063')).toHaveLength(5);
+    expect(new Set(contributorRoutes.map((route) => route.id)).size).toBe(76);
   });
 
   it('registers all future boundaries as disabled seams', () => {
@@ -336,6 +339,19 @@ describe('canonical Book route contract catalog', () => {
         contributorTicket: '#49',
       }),
     ]));
+  });
+
+  it('registers book submission routes behind teacher auth and a disabled dedicated gate', () => {
+    const routes = canonicalBookRouteManifest.filter((route) => route.domain === 'submission');
+    expect(routes).toHaveLength(5);
+    expect(routes.every((route) => route.firebaseAuth === 'firebase-id-token-teacher'
+      && route.rateClass === (route.methods.includes('GET') ? 'book-read' : 'book-control')
+      && route.gateEnv === 'BOOK_SUBMISSION_ROUTES_ENABLED'
+      && route.gateDefault === 'disabled'
+      && route.identityEnv === 'BOOK_SUBMISSION_SERVICE_IDENTITY'
+      && route.credentialEnv === 'BOOK_SUBMISSION_GOOGLE_SA_KEY')).toBe(true);
+    expect(wranglerConfig().vars.BOOK_SUBMISSION_ROUTES_ENABLED).toBe('disabled');
+    expect(bookSourceWranglerConfig().vars.BOOK_SUBMISSION_ROUTES_ENABLED).toBe('disabled');
   });
 
   it('registers document routes with exact GET/HEAD methods and bounded document response limits', () => {

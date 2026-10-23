@@ -17,6 +17,7 @@ export const BOOK_SOURCE_UPLOAD_ROUTE = '/v1/book-source/books';
 
 export interface BeginSourceUploadCommand {
   readonly bookId: string;
+  readonly submissionOperationId?: string;
   readonly operationId: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
@@ -180,8 +181,10 @@ const controlBaseUrl = (value: string): string => {
   } catch {
     throw new SourceUploadClientError('unavailable', 0);
   }
+  const localHttp = import.meta.env.DEV && import.meta.env.VITE_FIREBASE_LOCAL_ONLY === 'true'
+    && url.protocol === 'http:' && url.hostname === 'localhost' && url.port === '8787';
   if (
-    url.protocol !== 'https:'
+    (url.protocol !== 'https:' && !localHttp)
     || url.username !== ''
     || url.password !== ''
     || url.search !== ''
@@ -602,6 +605,7 @@ export const createSourceUploadClient = (options: SourceUploadClientOptions) => 
       `${BOOK_SOURCE_UPLOAD_ROUTE}/${encodeURIComponent(command.bookId)}/upload/begin`,
       {
         operationId: command.operationId,
+        ...(command.submissionOperationId === undefined ? {} : { submissionOperationId: command.submissionOperationId }),
         sourceKey: command.sourceKey,
         kind: command.kind,
         purpose: command.purpose,

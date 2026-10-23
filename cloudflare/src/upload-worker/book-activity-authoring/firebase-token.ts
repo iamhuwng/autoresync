@@ -1,10 +1,12 @@
-import { SignJWT, importPKCS8 } from 'jose';
+import { SignJWT, UnsecuredJWT, importPKCS8 } from 'jose';
 import type { ClassBookCommandClaims } from '../class-book-placement/command-types.ts';
 
 const IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
+const LOCAL_IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL = 'http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
 const FIREBASE_TOKEN_EXCHANGE_REFERER = 'https://r2-upload-signer.iamhuwng.workers.dev/';
 const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
+const SAFE_BOOK_SUBMISSION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
 const SAFE_BOOK_HOMEWORK_ROOT_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 const SAFE_BOOK_RESULT_GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
 const SAFE_EVALUATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
@@ -53,6 +55,7 @@ export type BookFirebaseClaimTuple =
     readonly attemptId: string;
   }
   | { readonly service: 'book_activity_authoring'; readonly ownerId: string }
+  | { readonly service: 'book_submission'; readonly ownerId: string; readonly bookId: string; readonly operationId: string; readonly fingerprint: string; readonly leaseId: string }
   | {
     readonly service: 'book_assembly';
     readonly bookId: string;
@@ -249,6 +252,13 @@ const assertClaims = (claims: BookFirebaseClaimTuple): void => {
     if (keys !== 'ownerId\u0000service' || !SAFE_ID.test(claims.ownerId)) {
       throw new Error('invalid_book_firebase_claims');
     }
+    return;
+  }
+  if (claims.service === 'book_submission') {
+    if (keys !== 'bookId\u0000fingerprint\u0000leaseId\u0000operationId\u0000ownerId\u0000service'
+      || !SAFE_BOOK_SUBMISSION_ID.test(claims.ownerId) || !SAFE_BOOK_SUBMISSION_ID.test(claims.bookId)
+      || !SAFE_BOOK_SUBMISSION_ID.test(claims.operationId) || !SAFE_BOOK_SUBMISSION_ID.test(claims.leaseId)
+      || !/^[a-f0-9]{64}$/iu.test(claims.fingerprint)) throw new Error('invalid_book_firebase_claims');
     return;
   }
   if (claims.service === 'book_assembly') {
@@ -477,6 +487,16 @@ const customClaims = (claims: BookFirebaseClaimTuple): Record<string, unknown> =
       book_activity_authoring_ownerId: claims.ownerId,
     };
   }
+  if (claims.service === 'book_submission') {
+    return {
+      book_submission_service: true,
+      book_submission_ownerId: claims.ownerId,
+      book_submission_bookId: claims.bookId,
+      book_submission_operationId: claims.operationId,
+      book_submission_fingerprint: claims.fingerprint,
+      book_submission_leaseId: claims.leaseId,
+    };
+  }
   if (claims.service === 'book_assembly') {
     return {
       book_assembly_service: true,
@@ -620,12 +640,16 @@ export const createFirebaseClaimTokenProvider = (options: {
   readonly serviceIdentity: string;
   readonly firebaseProjectId: string;
   readonly firebaseWebApiKey: string;
+  readonly localEmulator?: boolean;
   readonly fetchImpl?: typeof fetch;
   readonly now?: () => number;
 }): ((claims: BookFirebaseClaimTuple) => Promise<string>) => {
   const serviceIdentity = options.serviceIdentity.trim();
   const projectId = options.firebaseProjectId.trim();
   const apiKey = options.firebaseWebApiKey.trim();
+  if (options.localEmulator && projectId !== 'demo-luyentap-local') {
+    throw new Error('book_firebase_local_emulator_project_invalid');
+  }
   let serviceAccount: ServiceAccountKey;
   try {
     serviceAccount = JSON.parse(options.serviceAccountJson) as ServiceAccountKey;
@@ -655,7 +679,7 @@ export const createFirebaseClaimTokenProvider = (options: {
     if (cached && now() < cached.expiresAt - 60_000) return cached.token;
 
     const issuedAt = Math.floor(now() / 1000);
-    const customToken = await new SignJWT({
+    const payload = {
       iss: serviceAccount.client_email,
       sub: serviceAccount.client_email,
       aud: FIREBASE_CUSTOM_TOKEN_AUDIENCE,
@@ -671,23 +695,26 @@ export const createFirebaseClaimTokenProvider = (options: {
           ? (claims.ownerId ?? claims.assignmentId)
         : claims.service === 'book_delivery'
             ? (claims.recipientId ?? serviceIdentity)
-          : claims.service === 'book_result_read' || claims.service === 'book_activity_evaluation' || claims.service === 'book_public_reader'
+          : claims.service === 'book_result_read' || claims.service === 'book_activity_evaluation' || claims.service === 'book_public_reader' || claims.service === 'book_submission'
             ? serviceIdentity
           : claims.ownerId,
       claims: customClaims(claims),
       iat: issuedAt,
       exp: issuedAt + 300,
-    }).setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-      .sign(await importPKCS8(serviceAccount.private_key, 'RS256'));
+    };
+    const customToken = options.localEmulator
+      ? new UnsecuredJWT(payload).encode()
+      : await new SignJWT(payload).setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+        .sign(await importPKCS8(serviceAccount.private_key, 'RS256'));
 
     let response: Response;
     try {
       response = await fetchImpl.call(globalThis,
-        `${IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, {
+        `${options.localEmulator ? LOCAL_IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL : IDENTITY_TOOLKIT_CUSTOM_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Referer: FIREBASE_TOKEN_EXCHANGE_REFERER,
+            ...(!options.localEmulator ? { Referer: FIREBASE_TOKEN_EXCHANGE_REFERER } : {}),
           },
           body: JSON.stringify({ token: customToken, returnSecureToken: true }),
         });

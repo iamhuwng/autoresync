@@ -16,6 +16,7 @@ import {
   type PageGroupMode,
   type SourceSetCandidate,
   type TrustedBookSourceVersionProjection,
+  type BookUnitCandidate,
 } from '../../types/bookAssembly.types';
 import { validateBookAssemblyManifestCandidate } from '../../services/book-assembly/manifestCandidate.service';
 import { analyzeBookAssemblyReconciliation, type BookAssemblyReconciliationChange } from '../../services/book-assembly/reconciliation.service';
@@ -23,7 +24,7 @@ import { fingerprintBookAssemblyOperation } from '../../services/book-assembly/p
 import type { CandidateUnitPreviewProjection } from '../../services/book-assembly/unitPreview.service';
 import { parsePhysicalPageList, reorderActivitySlot, upsertPageGroupMapping } from '../../services/book-assembly/pageGroup.service';
 import { missingRequiredSourceContext } from '../../services/book-assembly/sourceContextRequirement.service';
-import { bookScopedActivityTargetId, discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportConflictError, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
+import { discardStagedUnitActivities, parseUnitActivityImportBundle, stageUnitActivityImportBundle, UnitActivityImportConflictError, UnitActivityImportError } from '../../services/book-assembly/unitActivityImport.service';
 import { buildUnitActivityImportPrompt } from '../../services/book-assembly/unitPrompt.service';
 import type {
   BookAssemblyCandidateRecord,
@@ -48,6 +49,8 @@ import BookAssemblyReconciliationPanel from './assembly/BookAssemblyReconciliati
 import BookAssemblyStudentPreviewHost from './assembly/BookAssemblyStudentPreviewHost';
 import PageGroupMappingSummary from './assembly/PageGroupMappingSummary';
 import UnitActivityImportControls from './assembly/UnitActivityImportControls';
+import LocalBookConnectionEditor from './LocalBookConnectionEditor';
+import { buildLocalBookStructurePrompt } from './LocalBookAuthoringModel';
 import BookAssemblyStrategyMigrationPanel from './assembly/BookAssemblyStrategyMigrationPanel';
 import BookReplacementPlanPanel from './BookReplacementPlanPanel';
 import type {
@@ -89,9 +92,14 @@ export interface BookAssemblyWorkspaceProps {
   readonly previewGetIdToken?: (forceRefresh?: boolean) => Promise<string | null | undefined>;
   /** Trusted #63 output; route composition remains #59-owned. */
   readonly candidateRuntimePreview?: CandidateUnitPreviewProjection | null;
+  /** Read-only saved-content summary; it never qualifies replacement or preview actions. */
+  readonly savedActivitySummary?: CandidateUnitPreviewProjection | null;
+  readonly savedActivitySummaryStatus?: 'loading' | 'error';
+  readonly onRetrySavedActivitySummary?: () => void;
   readonly onAction?: (action: string, metadata?: Record<string, unknown>) => void;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly onCandidateChange?: (candidate: BookAssemblyCandidateRecord | null) => void;
+  readonly onActivitiesSaved?: () => void;
   /** When the guided PDF flow saves, immediately run the trusted candidate validation command. */
   readonly validateCandidateAfterSave?: boolean;
   /** Optional #115 composition input; planning stays absent until trusted facts are supplied. */
@@ -107,7 +115,14 @@ export interface BookAssemblyWorkspaceProps {
   readonly onStrategyChange?: (strategy: BookSourceStrategy) => void;
   readonly suppressGuidedChrome?: boolean;
   /** Selects a stable editing surface; omitted for the creation wizard. */
-  readonly editingPanel?: 'content-tree' | 'activity-json' | 'page-mapping' | 'preview';
+  readonly editingPanel?: 'content-tree' | 'activity-json' | 'preview';
+  /** Unit selected by the outer trusted student-preview flow. */
+  readonly previewUnitKey?: string | null;
+  /** Keeps the outer published Unit selection aligned with explicit authoring navigation. */
+  readonly onUnitSelect?: (unitKey: string) => void;
+  /** Returns to the Book plan when a preview blocker needs an author decision. */
+  readonly onOpenPlan?: () => void;
+  readonly onPreviewBlockedChange?: (blocked: boolean) => void;
   /** The outer PDF flow already collected the mode choice. */
   readonly suppressModeChoice?: boolean;
   /** Keeps the approved PDF Book mockup as the visible authoring surface. */
@@ -380,9 +395,13 @@ const BookAssemblyWorkspace = ({
   previewDocuments = [],
   previewGetIdToken,
   candidateRuntimePreview,
+  savedActivitySummary,
+  savedActivitySummaryStatus,
+  onRetrySavedActivitySummary,
   onAction,
   onDirtyChange,
   onCandidateChange,
+  onActivitiesSaved,
   validateCandidateAfterSave = false,
   replacementPlanClient,
   replacementPlanRequest,
@@ -394,6 +413,10 @@ const BookAssemblyWorkspace = ({
   onStrategyChange,
   suppressGuidedChrome = false,
   editingPanel,
+  previewUnitKey,
+  onUnitSelect,
+  onOpenPlan,
+  onPreviewBlockedChange,
   suppressModeChoice = false,
   guidedUiVariant = 'default',
 }: BookAssemblyWorkspaceProps) => {
@@ -434,6 +457,10 @@ const BookAssemblyWorkspace = ({
   const [unitImportConflict, setUnitImportConflict] = useState<UnitImportConflict | null>(null);
   const [manualCopyFallback, setManualCopyFallback] = useState(false);
   const [structurePromptManualFallback, setStructurePromptManualFallback] = useState(false);
+  const [structureImportText, setStructureImportText] = useState('');
+  const [focusedActivityImportOpen, setFocusedActivityImportOpen] = useState(false);
+  const [editingActivityKey, setEditingActivityKey] = useState<string | undefined>();
+  const [connectionActivity, setConnectionActivity] = useState<{ readonly unitKey: string; readonly activityKey: string } | null>(null);
   const [mockupUnitToolsOpen, setMockupUnitToolsOpen] = useState(false);
   const [mockupPageToolsOpen, setMockupPageToolsOpen] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -597,6 +624,9 @@ const BookAssemblyWorkspace = ({
     candidateRevision: candidate?.revision,
     resolvedChangeIds: resolvedReconciliationChoices,
   }), [bookRevision, candidate?.bookRevision, candidate?.revision, candidate?.sourceSetRevision, manifest, resolvedReconciliationChoices, sourceAuthority, sourceSetRevision]);
+  useEffect(() => {
+    onPreviewBlockedChange?.(reconciliationReport.releaseBlocking);
+  }, [onPreviewBlockedChange, reconciliationReport.releaseBlocking]);
   const unitPromptText = useMemo(() => {
     if (!selectedUnitKey) return '';
     try {
@@ -605,42 +635,43 @@ const BookAssemblyWorkspace = ({
         manifest: manifest as unknown as BookAssemblyManifestCandidate,
         unitKey: selectedUnitKey,
         sourceVersions,
+        selectedActivityKey: editingPanel === 'activity-json' ? editingActivityKey : undefined,
       });
     } catch {
       return '';
     }
-  }, [bookTitle, manifest, selectedUnitKey, sourceVersions]);
+  }, [bookTitle, editingActivityKey, editingPanel, manifest, selectedUnitKey, sourceVersions]);
   const structurePromptContext = useMemo(() => {
-    if (strategy !== 'full_pdf' || normalizedSources.length !== 1) return null;
-    const source = normalizedSources[0]!;
-    const trusted = sourceVersions.find((version) => version.sourceVersionId === source.sourceVersionId);
-    if (!trusted?.verifiedUsable) return null;
-    const example = {
-      nodes: [
-        { nodeKey: 'section-1', parentNodeKey: null, nodeType: 'section', order: 1 },
-        { nodeKey: 'unit-1', parentNodeKey: 'section-1', nodeType: 'unit', order: 1 },
-      ],
-      units: [{
-        unitKey: 'unit-1',
-        activitySlots: [{ activityKey: 'activity-unit-1-1', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-unit-1-1'] }],
-        pageGroups: [{ pageGroupKey: 'pages-unit-1-1', sourceKey: source.sourceKey, pages: [1], activityKeys: ['activity-unit-1-1'], mode: 'activity', defaultPhysicalPageNumber: 1 }],
-      }],
-    };
+    if (normalizedSources.length === 0) return null;
+    const trustedSources = normalizedSources.map((source) => ({
+      source,
+      trusted: sourceVersions.find((version) => version.sourceVersionId === source.sourceVersionId),
+    }));
+    if (trustedSources.some(({ trusted }) => !trusted?.verifiedUsable)) return null;
+    const pageCounts = Object.fromEntries(trustedSources.map(({ source, trusted }) => [source.sourceKey, trusted!.physicalPageCount]));
+    const first = trustedSources[0]!;
+    const existing = units.length > 0 ? {
+      unitKeys: units.map((unit) => unit.unitKey),
+      sourceOwnership: normalizedSources.map((source) => ({
+        sourceKey: source.sourceKey,
+        unitKeys: strategy === 'full_pdf'
+          ? units.map((unit) => unit.unitKey)
+          : units.filter((unit) => isOwnerInUnitBranch(nodes, source.ownerNodeKey, unit.unitKey)).map((unit) => unit.unitKey),
+      })),
+    } : undefined;
     return {
-      sourceKey: source.sourceKey,
-      physicalPageCount: trusted.physicalPageCount,
-      promptText: [
-        'Analyze the attached PDF and create its LuyenTap Book structure.',
-        JSON.stringify({ promptVersion: 'book-structure-json-v1', title: bookTitle, sourceKey: source.sourceKey, physicalPageCount: trusted.physicalPageCount }, null, 2),
-        `Return JSON only, with exactly the "nodes" and "units" shape shown here:\n${JSON.stringify(example, null, 2)}`,
-        `Allowed nodeType values: ${BOOK_CONTENT_NODE_TYPES.join(', ')}.`,
-        `Allowed contextRequirement values: ${ACTIVITY_CONTEXT_REQUIREMENTS.join(', ')}. Allowed Page Group modes: ${PAGE_GROUP_MODES.join(', ')}.`,
-        'Use unique readable logical keys, valid parent links, and positive sibling order. Every Unit node needs one matching units entry.',
-        'Map every Activity slot reciprocally to at least one Page Group. Use the exact sourceKey above and one-based physical pages no greater than physicalPageCount.',
-        'Do not include Activity content, answers, bookId, sourceSet, sourceVersionId, ownership, storage data, system IDs, Markdown, or commentary.',
-      ].join('\n\n'),
+      sourceKey: first.source.sourceKey,
+      physicalPageCount: first.trusted!.physicalPageCount,
+      promptText: buildLocalBookStructurePrompt({
+        metadata: { title: bookTitle },
+        strategy: strategy === 'component_pdfs' ? 'component' : 'full',
+        pdfs: trustedSources.map(({ source }) => ({
+          sourceKey: source.sourceKey,
+          name: source.sourceKey === 'full' ? 'Complete Book PDF' : `PDF ${normalizedSources.findIndex((value) => value.sourceKey === source.sourceKey) + 1}`,
+        })),
+      }, pageCounts, existing),
     };
-  }, [bookTitle, normalizedSources, sourceVersions, strategy]);
+  }, [bookTitle, nodes, normalizedSources, sourceVersions, strategy, units]);
 
   const emit = (action: string, metadata: Record<string, unknown> = {}) => {
     trackAction(action, { bookId, source: `book_assembly_${presentation}`, ...metadata });
@@ -671,11 +702,10 @@ const BookAssemblyWorkspace = ({
     });
   };
 
-  const importMockupStructure = async (file: File | undefined) => {
-    if (!file || persistenceBusyRef.current) return;
+  const importBookStructureText = (text: string) => {
+    if (!text.trim() || persistenceBusyRef.current) return;
     try {
-      const parsed: unknown = JSON.parse(await file.text());
-      if (persistenceBusyRef.current) return;
+      const parsed: unknown = JSON.parse(text);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
       const record = parsed as Record<string, unknown>;
       const rawNodes = Array.isArray(record.nodes) ? record.nodes : [];
@@ -689,16 +719,44 @@ const BookAssemblyWorkspace = ({
           && (BOOK_CONTENT_NODE_TYPES as readonly string[]).includes(node.nodeType)
           && Number.isSafeInteger(node.order);
       });
-      if (importedNodes.length === 0 || rawUnits.length === 0) throw new Error('empty');
-      setNodes(normalizeNodeOrders(importedNodes));
-      setUnits(rawUnits as BookAssemblyManifestCandidate['units']);
+      if (importedNodes.length === 0 || importedNodes.length !== rawNodes.length || rawUnits.length === 0) throw new Error('empty');
+      const nextManifest = {
+        ...manifest,
+        nodes: normalizeNodeOrders(importedNodes),
+        units: rawUnits as BookAssemblyManifestCandidate['units'],
+      } as unknown as BookAssemblyManifestCandidate;
+      const validation = validateBookAssemblyManifestCandidate(nextManifest, sourceAuthority);
+      if (!validation.valid) {
+        setValidationMessage(validation.errors.map((entry) => entry.message).join(' '));
+        toast.error('Book plan needs correction before it can be imported.');
+        return;
+      }
+      setNodes(nextManifest.nodes);
+      setUnits(nextManifest.units);
       requestNodeFocus(importedNodes.find((node) => node.nodeType === 'unit')?.nodeKey ?? importedNodes[0]?.nodeKey ?? null);
       setValidationMessage(null);
       setErrorMessage(null);
-      toast.success('Book structure imported. Save the draft when you are ready.');
+      setStructureImportText('');
+      toast.success('Book plan imported. Save changes when you are ready.');
+      emit('teacher_materials_book_assembly_structure_imported', { unitCount: nextManifest.units.length });
     } catch {
-      setValidationMessage('Choose a valid Book structure JSON file with nodes and units.');
-      toast.error('Book structure could not be imported.');
+      setValidationMessage('Paste a valid Book plan JSON with a structure and Units.');
+      toast.error('Book plan could not be imported.');
+    }
+  };
+
+  const importBookStructure = () => importBookStructureText(structureImportText);
+
+  const loadBookStructureFile = async (file: File | undefined, importImmediately = false) => {
+    if (!file || persistenceBusyRef.current) return;
+    try {
+      const text = await file.text();
+      setStructureImportText(text);
+      setValidationMessage(null);
+      if (importImmediately) importBookStructureText(text);
+    } catch {
+      setValidationMessage('Could not read that JSON file.');
+      toast.error('Book plan file could not be read.');
     }
   };
 
@@ -766,8 +824,25 @@ const BookAssemblyWorkspace = ({
   };
 
   useEffect(() => {
-    onDirtyChange?.(currentSnapshot !== savedSnapshot);
-  }, [currentSnapshot, onDirtyChange, savedSnapshot]);
+    onDirtyChange?.(currentSnapshot !== savedSnapshot || Boolean(structureImportText.trim() || unitImportText.trim()));
+  }, [currentSnapshot, onDirtyChange, savedSnapshot, structureImportText, unitImportText]);
+
+  useEffect(() => {
+    setConnectionActivity(null);
+  }, [previewUnitKey]);
+
+  useEffect(() => {
+    if (!editingPanel || editingPanel === 'content-tree' || unitImportText.trim() || unitImportBusy) return;
+    if (previewUnitKey && nodes.some((node) => node.nodeKey === previewUnitKey && node.nodeType === 'unit')) {
+      setSelectedNodeKey(previewUnitKey);
+    }
+  }, [editingPanel, nodes, previewUnitKey, unitImportBusy, unitImportText]);
+
+  useEffect(() => {
+    setValidationMessage(null);
+    setErrorMessage(null);
+    setUnitImportStatus(null);
+  }, [editingPanel]);
 
   useEffect(() => {
     onCandidateChange?.(candidate);
@@ -1092,10 +1167,39 @@ const BookAssemblyWorkspace = ({
       bookRevision: effectiveBookRevision,
       sourceSetRevision: effectiveSourceSetRevision,
     };
-    if (componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
+    // An active saved contract can evolve without replaying its initial activation receipt.
+    const currentComponentCandidate = validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+      && authority.bookRevision > 0 && authority.sourceSetRevision > 0
+      && candidate?.bookId === bookId && candidate.unitKey === unitKey && candidate.lifecycle === 'validated'
+      && candidate.bookRevision === authority.bookRevision && candidate.sourceSetRevision === authority.sourceSetRevision
+      && JSON.stringify(candidate.manifest?.sourceSet) === JSON.stringify(validManifest.sourceSet)
+      && JSON.stringify(attachedSourceSet) === JSON.stringify(validManifest.sourceSet)
+      ? candidate : null;
+    if (currentComponentCandidate?.unitKey === unitKey
+      && fingerprintComponentPdfActivationValue(currentComponentCandidate.manifest)
+        === fingerprintComponentPdfActivationValue(validManifest)) {
+      return { status: 'validated', candidate: currentComponentCandidate };
+    }
+    if (!currentComponentCandidate && componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
       throw new Error('component_pdf_activation_recovery_invalid');
     }
-    if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+    if (!currentComponentCandidate && matchingComponentPdfActivationRecovery && repository!.loadCurrent) {
+      const reference = matchingComponentPdfActivationRecovery.unitCandidates.find((entry) => entry.unitKey === unitKey);
+      const loaded = reference && await repository!.loadCurrent(bookId, unitKey);
+      if (!loaded || loaded.candidate.ownerId !== matchingComponentPdfActivationRecovery.ownerId
+        || loaded.candidate.bookId !== bookId || loaded.candidate.unitKey !== unitKey
+        || loaded.candidate.candidateId !== reference!.candidateId
+        || loaded.candidate.revision !== reference!.candidateRevision
+        || loaded.candidate.bookRevision !== authority.bookRevision
+        || loaded.candidate.sourceSetRevision !== authority.sourceSetRevision
+        || loaded.candidate.lifecycle !== 'validated'
+        || fingerprintComponentPdfActivationValue(loaded.candidate.manifest)
+          !== fingerprintComponentPdfActivationValue(validManifest)) {
+        throw new Error('component_pdf_activation_readback_mismatch');
+      }
+      return { status: 'validated', candidate: loaded.candidate };
+    }
+    if (!currentComponentCandidate && validManifest.sourceSet.sourceStrategy === 'component_pdfs'
       && componentPdfActivationClient
       && (componentPdfActivationRecovery
         || (attachedSourceSet && authority.sourceSetRevision > 0 && componentStudentDocumentSourceVersionId))) {
@@ -1306,7 +1410,7 @@ const BookAssemblyWorkspace = ({
       setStatus('error');
       return;
     }
-    const unitKey = strategy === 'full_pdf' ? FULL_PDF_PRIMARY_UNIT_KEY : selectedUnitKey;
+    const unitKey = strategy === 'full_pdf' && !editingPanel ? candidate?.unitKey ?? manifest.units[0]?.unitKey : selectedUnitKey;
     if (!unitKey) {
       setValidationMessage('Select or add a Unit before saving an Assembly candidate.');
       setStatus('error');
@@ -1337,7 +1441,7 @@ const BookAssemblyWorkspace = ({
       setSavedSnapshot(draftSnapshot(validManifest.sourceSet.sourceStrategy, validManifest.nodes, validManifest.sourceSet.sources, validManifest.units));
       onDirtyChange?.(false);
       setStatus('saved');
-      toast.success('Assembly draft saved.');
+      toast.success(editingPanel ? 'Changes saved.' : 'Assembly draft saved.');
       emit('teacher_materials_book_assembly_saved', { candidateId: result.candidate.candidateId, revision: result.candidate.revision });
     } catch (error) {
       setStatus('error');
@@ -1348,7 +1452,7 @@ const BookAssemblyWorkspace = ({
 
   const applyExactReconciliationRepair = async () => {
     const repairedManifest = reconciliationReport.repairedManifest;
-    const unitKey = strategy === 'full_pdf' ? FULL_PDF_PRIMARY_UNIT_KEY : selectedUnitKey;
+    const unitKey = strategy === 'full_pdf' ? candidate?.unitKey ?? repairedManifest?.units[0]?.unitKey : selectedUnitKey;
     if (!repairedManifest || !unitKey || !repository || reconciliationBusy) return;
     setReconciliationBusy(true);
     setStatus('saving');
@@ -1516,9 +1620,10 @@ const BookAssemblyWorkspace = ({
       const validManifest = manifest as unknown as BookAssemblyManifestCandidate;
       // Validate the bundle shape before mutating the Assembly contract. The
       // Worker performs the authoritative schema/context validation afterward.
-      parseUnitActivityImportBundle(unitImportText, validManifest, unitKey);
+      const selectedActivityKey = editingPanel === 'activity-json' ? editingActivityKey : undefined;
+      parseUnitActivityImportBundle(unitImportText, validManifest, unitKey, { selectedActivityKey });
       setUnitImportCancelable(false);
-      const candidateUnitKey = strategy === 'full_pdf' ? FULL_PDF_PRIMARY_UNIT_KEY : unitKey;
+      const candidateUnitKey = strategy === 'full_pdf' && !editingPanel ? candidate?.unitKey ?? validManifest.units[0]!.unitKey : unitKey;
       const assemblyResult = await persistAndValidateManifest(validManifest, candidateUnitKey);
       if (assemblyResult.status === 'conflict') {
         setStatus('conflict');
@@ -1549,12 +1654,7 @@ const BookAssemblyWorkspace = ({
         unitKey,
         activityAuthoring,
         expectedActivityRevisions,
-        resolveActivityTargetId: (slot) => {
-          const unit = validManifest.units.find((entry) => entry.unitKey === unitKey);
-          return unit?.activitySlots.some((entry) => entry.activityKey === slot.activityKey)
-            ? bookScopedActivityTargetId(validManifest.bookId, slot.activityKey)
-            : null;
-        },
+        selectedActivityKey,
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
@@ -1566,14 +1666,17 @@ const BookAssemblyWorkspace = ({
       }
       setImportedActivityKeysByUnit((current) => ({
         ...current,
-        [unitKey]: importResult.bundle.slots.map((slot) => slot.activityKey),
+        [unitKey]: [...new Set([...(current[unitKey] ?? []), ...importResult.bundle.slots.map((slot) => slot.activityKey)])],
       }));
       setUnitImportConflict(null);
       setUnitImportText('');
+      setFocusedActivityImportOpen(false);
+      setEditingActivityKey(undefined);
+      onActivitiesSaved?.();
       setUnitImportStatus(`Imported ${importResult.staged.length} Activity slot${importResult.staged.length === 1 ? '' : 's'}.`);
       onDirtyChange?.(false);
       setStatus('saved');
-      toast.success('Unit Activity JSON imported.');
+      toast.success(selectedActivityKey ? 'Activity saved. Preview and publish when you’re ready.' : 'Unit activities saved. Preview and publish when you’re ready.');
       emit('teacher_materials_book_assembly_unit_import_staged', {
         unitKey,
         candidateId: assemblyResult.candidate.candidateId,
@@ -1600,15 +1703,17 @@ const BookAssemblyWorkspace = ({
         });
         return;
       }
-      const message = error instanceof UnitActivityImportError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Unit Activity import failed.';
+      const safeParserMessage = error instanceof UnitActivityImportError
+        && ['invalid-json', 'invalid-prompt-version', 'invalid-schema-version', 'slot-mismatch', 'invalid-slots', 'invalid-slot-key', 'duplicate-slot', 'missing-field', 'unknown-field', 'invalid-evidence', 'forbidden-field', 'invalid-activity'].includes(error.code)
+        ? (selectedUnit?.activitySlots ?? []).reduce((message, slot) => message.replaceAll(slot.activityKey, 'Activity slot'), error.message)
+        : null;
+      const message = safeParserMessage ?? 'Check the Unit Activity JSON and retry.';
       setStatus('error');
       setUnitImportStatus(message);
-      setErrorMessage(message);
-      toast.error('Unit Activity import failed.');
+      setErrorMessage(null);
+      toast.error(safeParserMessage
+        ? 'Unit Activity JSON needs correction before it can be imported.'
+        : 'Unit Activity import failed. Check your connection and retry.');
       emit('teacher_materials_book_assembly_unit_import_failed', {
         unitKey,
         code: error instanceof UnitActivityImportError ? error.code : 'unknown',
@@ -1701,14 +1806,36 @@ const BookAssemblyWorkspace = ({
 
   const renderFocusedEditor = () => {
     if (!editingPanel) return null;
-    const rows = selectedUnit?.activitySlots ?? [];
-    const groupFor = (slot: typeof rows[number]) => selectedUnit?.pageGroups.find((pageGroup) =>
-      slot.pageGroupKeys.includes(pageGroup.pageGroupKey) && pageGroup.pages.length > 0);
-    const missingMappings = rows.filter((slot) => !groupFor(slot)).map((slot) => slot.activityKey);
+    const previewUnit = previewUnitKey ? units.find((unit) => unit.unitKey === previewUnitKey) : selectedUnit;
+    const previewSources = previewUnit
+      ? normalizedSources.filter((source) => strategy === 'full_pdf' || isOwnerInUnitBranch(nodes, source.ownerNodeKey, previewUnit.unitKey))
+        .map((source) => ({ sourceKey: source.sourceKey, name: mockupSourceLabel(source.sourceKey) }))
+      : [];
+    const previewPageCounts = Object.fromEntries(previewSources.map((source) => [
+      source.sourceKey,
+      sourceVersions.find((version) => normalizedSources.some((bound) => bound.sourceKey === source.sourceKey && bound.sourceVersionId === version.sourceVersionId))?.physicalPageCount ?? 0,
+    ]));
+    const previewActivityTitles = Object.fromEntries((previewUnit?.activitySlots ?? []).map((slot, index) => [slot.activityKey, `Activity ${index + 1}`]));
+    const savedUnitPreview = currentRuntimePreview?.preview.unitKey === selectedUnitKey
+      ? currentRuntimePreview.preview
+      : null;
+    const savedSummary = savedActivitySummary?.bookId === bookId
+      && savedActivitySummary.sourceSetRevision === sourceSetRevision
+      && savedActivitySummary.unitKey === selectedUnitKey
+        ? savedActivitySummary
+        : null;
+    const savedSummaryCoversUnit = Boolean(selectedUnit
+      && selectedUnit.activitySlots.length > 0
+      && savedSummary
+      && savedSummary.activities.length === selectedUnit.activitySlots.length
+      && new Set(savedSummary.activities.map(({ activityKey }) => activityKey)).size === selectedUnit.activitySlots.length
+      && selectedUnit.activitySlots.every(({ activityKey }) => savedSummary.activities.some((activity) => activity.activityKey === activityKey)));
+    const hasSavedUnitActivities = Boolean(selectedUnit && (hasExactActivityContent(selectedUnit) || savedSummaryCoversUnit));
+    const previewConnectionKey = previewUnit?.activitySlots[0]?.activityKey ?? 'references';
     const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
     const unitOptions = units.map((unit, index) => ({
       unit,
-      label: `Unit ${index + 1}`,
+      label: nodes.find((node) => node.nodeKey === unit.unitKey)?.title?.trim() || `Unit ${index + 1}`,
       selected: unit.unitKey === selectedUnitKey,
     }));
     const selectedNode = nodes.find((node) => node.nodeKey === selectedNodeKey);
@@ -1719,9 +1846,7 @@ const BookAssemblyWorkspace = ({
         : null;
     const saveBar = (
       <footer className="book-assembly-edit__savebar">
-        <span role="status" className={`pbf-status${hasUnsavedChanges ? ' is-warn' : status === 'saved' ? ' is-good' : ''}`}>
-          {status === 'saving' ? 'Saving…' : hasUnsavedChanges ? 'Unsaved changes' : status === 'saved' ? 'Saved' : 'No unsaved changes'}
-        </span>
+        {(status === 'saving' || hasUnsavedChanges) && <span role="status" className="pbf-status is-warn">{status === 'saving' ? 'Saving…' : 'Unsaved changes'}</span>}
         <button type="button" className="pbf-button pbf-button-primary" onClick={() => void save()} disabled={status === 'saving' || !repository || (!hasUnsavedChanges && !matchingComponentPdfActivationRecovery)}>
           {status === 'saving' ? 'Saving…' : 'Save changes'}
         </button>
@@ -1735,18 +1860,16 @@ const BookAssemblyWorkspace = ({
       <aside className="book-assembly-edit__sidebar" aria-label="Book Units">
         <div className="book-assembly-edit__sidebar-heading">
           <h3>Units</h3>
-          <span>{unitOptions.length}</span>
         </div>
         {unitOptions.length > 0 ? (
-          <div className="book-assembly-edit__unit-list">
-            {unitOptions.map(({ unit, label, selected }) => (
-              <button key={unit.unitKey} type="button" className={selected ? 'is-selected' : undefined} aria-pressed={selected} onClick={() => requestNodeFocus(unit.unitKey)}>
-                <strong>{label}</strong>
-                <small>{unit.activitySlots.length} {unit.activitySlots.length === 1 ? 'activity' : 'activities'}</small>
-              </button>
-            ))}
-          </div>
+          <label>Unit
+            <select value={selectedUnitKey ?? ''} disabled={Boolean(unitImportText.trim()) || unitImportBusy}
+              onChange={(event) => { const key = event.currentTarget.value; if (key === selectedUnitKey) return; requestNodeFocus(key); onUnitSelect?.(key); setFocusedActivityImportOpen(false); setEditingActivityKey(undefined); }}>
+              {unitOptions.map(({ unit, label }) => <option key={unit.unitKey} value={unit.unitKey}>{label}</option>)}
+            </select>
+          </label>
         ) : <p className="book-assembly-edit__empty">Add a Unit in Content tree first.</p>}
+        {Boolean(unitImportText.trim()) && <p>Save or clear this edit before changing Units.</p>}
       </aside>
     );
 
@@ -1754,55 +1877,50 @@ const BookAssemblyWorkspace = ({
       return (
         <section className="book-assembly-edit" aria-label="Book content tree editor">
           <div className="book-assembly-edit__layout">
-            <aside className="book-assembly-edit__sidebar" aria-label="PDF sections">
-              <div className="book-assembly-edit__sidebar-heading"><h3>PDF sections</h3><span>{normalizedSources.length}</span></div>
-              <div className="book-assembly-edit__source-list">
-                {normalizedSources.map((source, index) => {
-                  const ownerUnit = strategy === 'component_pdfs' ? componentUnitForSource(source) : units[0];
-                  if (strategy === 'full_pdf') {
-                    return (
-                      <div key={source.sourceVersionId} className="book-assembly-edit__source-summary is-selected">
-                        <strong>{mockupSourceLabel(source.sourceKey)}</strong>
-                        <small>{units.length > 0 ? `Used across ${units.length} ${units.length === 1 ? 'Unit' : 'Units'}` : 'Used for the whole Book'}</small>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={source.sourceVersionId} className={ownerUnit?.unitKey === selectedUnitKey ? 'is-selected' : undefined}>
-                      <button type="button" disabled={!ownerUnit} aria-pressed={ownerUnit?.unitKey === selectedUnitKey} onClick={() => ownerUnit && requestNodeFocus(ownerUnit.unitKey)}>
-                        <strong>{mockupSourceLabel(source.sourceKey)}</strong>
-                        <small>{ownerUnit ? `Assigned to Unit ${units.findIndex((unit) => unit.unitKey === ownerUnit.unitKey) + 1}` : 'Not assigned'}</small>
-                      </button>
-                      {strategy === 'component_pdfs' && !ownerUnit && <button type="button" className="pbf-button" onClick={() => addComponentStructure(source.sourceVersionId)}>Add structure</button>}
-                    </div>
-                  );
-                })}
-              </div>
-            </aside>
             <div className="book-assembly-edit__main pbf-surface">
-              <div className="pbf-row"><div><h3>Book hierarchy</h3><p className="pbf-muted">Select a node to add content beneath it.</p></div><span className="pbf-status">{visibleTreeItems.length} nodes</span></div>
-              {visibleTreeItems.length > 0 ? (
+              <div className="pbf-row"><h3>Book plan</h3></div>
+              <details className="book-assembly-edit__outline-tools">
+                <summary>Current outline</summary>
+                {visibleTreeItems.length > 0 ? (
                 <ul className="book-assembly-edit__tree" role="tree" aria-label="Book hierarchy">
                   {visibleTreeItems.map(({ node, level }, index) => {
                     const unitNumber = visibleTreeItems.slice(0, index + 1).filter(({ node: item }) => item.nodeType === 'unit').length;
                     const sectionNumber = visibleTreeItems.slice(0, index + 1).filter(({ node: item }) => item.nodeType === 'section').length;
-                    const label = node.nodeType === 'unit' ? `Unit ${unitNumber}` : node.nodeType === 'section' ? `Section ${sectionNumber}` : node.nodeType;
+                    const label = node.title?.trim() || (node.nodeType === 'unit' ? `Unit ${unitNumber}` : node.nodeType === 'section' ? `Section ${sectionNumber}` : node.nodeType);
                     return (
                       <li key={node.nodeKey} role="treeitem" aria-selected={selectedNodeKey === node.nodeKey} style={{ paddingInlineStart: `${Math.max(0, level - 1) * 1.25}rem` }}>
-                        <button type="button" onClick={() => requestNodeFocus(node.nodeKey)}><strong>{label}</strong><small translate="no">{node.nodeKey}</small></button>
+                        <button type="button" onClick={() => { requestNodeFocus(node.nodeKey); if (node.nodeType === 'unit') onUnitSelect?.(node.nodeKey); }}><strong>{label}</strong></button>
                       </li>
                     );
                   })}
                 </ul>
-              ) : <p className="book-assembly-edit__empty">No hierarchy yet. Import a structure or add the first section.</p>}
-              <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" aria-label="Book structure JSON file" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMockupStructure(file); }} />
-              <div className="pbf-actions book-assembly-edit__actions">
-                <button type="button" className="pbf-button" onClick={() => structureImportInputRef.current?.click()}>Import structure JSON</button>
-                <button type="button" className="pbf-button" onClick={() => addNode('section', null)}>Add section</button>
-                <button type="button" className="pbf-button" onClick={() => addNode('unit', unitParent)}>Add Unit</button>
-                <button type="button" className="pbf-button" disabled={!selectedNodeKey} onClick={() => moveNode(-1)}>Move up</button>
-                <button type="button" className="pbf-button" disabled={!selectedNodeKey} onClick={() => moveNode(1)}>Move down</button>
+                ) : <p className="book-assembly-edit__empty">No plan imported yet.</p>}
+              </details>
+              {selectedNode && <label className="book-assembly-workspace__import-editor">Selected outline title
+                <input value={selectedNode.title ?? ''} disabled={status === 'saving'}
+                  onChange={(event) => { const title = event.currentTarget.value; setNodes((current) => current.map((node) => node.nodeKey === selectedNode.nodeKey ? { ...node, title } : node)); }}
+                  onBlur={() => emit('teacher_materials_book_node_renamed', { nodeKey: selectedNode.nodeKey })} />
+              </label>}
+              <div className="book-assembly-edit__plan-import">
+                <button type="button" className="pbf-button" disabled={!structurePromptContext || status === 'saving'} onClick={() => void copyBookStructurePrompt()}>Copy plan prompt</button>
+                <label className="book-assembly-workspace__import-editor">
+                  Paste the returned Book plan
+                  <textarea aria-label="Book plan JSON" value={structureImportText} onChange={(event) => setStructureImportText(event.target.value)} disabled={status === 'saving'} rows={6} />
+                </label>
+                <button type="button" className="pbf-button pbf-button-primary" disabled={!structureImportText.trim() || status === 'saving'} onClick={importBookStructure}>Import plan</button>
+                <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" aria-label="Book plan JSON file" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void loadBookStructureFile(file); }} />
+                <details><summary>Choose a JSON file instead</summary><button type="button" className="pbf-button-link" disabled={status === 'saving'} onClick={() => structureImportInputRef.current?.click()}>Choose file</button></details>
+                {structurePromptManualFallback && structurePromptContext && <label className="book-assembly-workspace__manual-copy">Copy this prompt<textarea readOnly value={structurePromptContext.promptText} rows={6} /></label>}
               </div>
+              <details className="book-assembly-edit__outline-tools">
+                <summary>Edit outline</summary>
+                <div className="pbf-actions book-assembly-edit__actions">
+                  <button type="button" className="pbf-button" onClick={() => addNode('section', null)}>Add section</button>
+                  <button type="button" className="pbf-button" onClick={() => addNode('unit', unitParent)}>Add Unit</button>
+                  <button type="button" className="pbf-button" disabled={!selectedNodeKey} onClick={() => moveNode(-1)}>Move up</button>
+                  <button type="button" className="pbf-button" disabled={!selectedNodeKey} onClick={() => moveNode(1)}>Move down</button>
+                </div>
+              </details>
             </div>
           </div>
           {feedback}
@@ -1813,38 +1931,37 @@ const BookAssemblyWorkspace = ({
 
     if (editingPanel === 'activity-json') {
       return (
-        <section className="book-assembly-edit" aria-label="Activity JSON editor">
+        <section className="book-assembly-edit" aria-label="Unit activities">
           <div className="book-assembly-edit__layout">
             {unitNavigation}
             <div className="book-assembly-edit__main pbf-surface">
-              <div className="pbf-row"><div><h3>{selectedUnitKey ? `Activity JSON for Unit ${Math.max(1, units.findIndex((unit) => unit.unitKey === selectedUnitKey) + 1)}` : 'Activity JSON'}</h3><p className="pbf-muted">Import a complete Unit bundle. Validation happens before anything is saved.</p></div>{selectedUnit && <span className={`pbf-status${selectedUnit.activitySlots.length > 0 ? ' is-good' : ''}`}>{selectedUnit.activitySlots.length} {selectedUnit.activitySlots.length === 1 ? 'activity' : 'activities'}</span>}</div>
-              {selectedUnitKey ? (
-                <UnitActivityImportControls guided busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} />
-              ) : <p className="book-assembly-edit__empty">Select or add a Unit before importing Activity JSON.</p>}
-            </div>
-          </div>
-          {feedback}
-          {saveBar}
-        </section>
-      );
-    }
-
-    if (editingPanel === 'page-mapping') {
-      return (
-        <section className="book-assembly-edit" aria-label="Page mapping editor">
-          <div className="book-assembly-edit__layout">
-            {unitNavigation}
-            <div className="book-assembly-edit__main pbf-surface">
-              <div className="pbf-row"><div><h3>Activity page connections</h3><p className="pbf-muted">Edit the physical PDF pages shown with each activity.</p></div><span className={`pbf-status${rows.length > 0 && missingMappings.length === 0 ? ' is-good' : ' is-warn'}`}>{rows.length - missingMappings.length} of {rows.length} mapped</span></div>
-              {rows.length > 0 ? (
-                <div className="pbf-table-wrap"><table className="pbf-map"><thead><tr><th>Activity</th><th>PDF</th><th>Pages</th><th>Starts on</th><th>Action</th></tr></thead><tbody>{rows.map((slot) => {
-                  const group = groupFor(slot);
-                  const pages = group?.pages.join(', ') ?? '';
-                  return <tr key={slot.activityKey} className={!group ? 'is-error' : undefined}><td translate="no">{slot.activityKey}</td><td>{group ? mockupSourceLabel(group.sourceKey) : 'Choose a PDF'}</td><td>{pages || 'Not mapped'}</td><td>{group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? '—'}</td><td><button type="button" className="pbf-button" onClick={() => { setMappingMode('activity'); setMappingActivityKey(slot.activityKey); setMappingPages(pages); setMappingDefaultPage(String(group?.defaultPhysicalPageNumber ?? group?.pages[0] ?? 1)); setMappingSourceKey(group?.sourceKey ?? availableMappingSources[0]?.sourceKey ?? ''); setMockupPageToolsOpen(true); }}>{group ? 'Edit mapping' : 'Add mapping'}</button></td></tr>;
-                })}</tbody></table></div>
-              ) : <p className="book-assembly-edit__empty">This Unit has no activities to map.</p>}
-              <div className="pbf-actions book-assembly-edit__actions"><button type="button" className="pbf-button" onClick={() => { setMappingMode('reference_only'); setMappingActivityKey(''); setMappingPages(''); setMockupPageToolsOpen(true); }}>Add reference pages</button>{mockupPageToolsOpen && <button type="button" className="pbf-button pbf-button-primary" disabled={!mappingSourceKey || (mappingMode === 'activity' && !mappingActivityKey)} onClick={() => { addMapping(); setMockupPageToolsOpen(false); }}>Apply page change</button>}</div>
-              {mockupPageToolsOpen && <div className="book-assembly-edit__mapping-form"><label><span>PDF</span><select value={mappingSourceKey} onChange={(event) => setMappingSourceKey(event.target.value)}><option value="">Choose PDF</option>{availableMappingSources.map((source) => <option key={source.sourceKey} value={source.sourceKey}>{mockupSourceLabel(source.sourceKey)}</option>)}</select></label><label><span>Pages</span><input value={mappingPages} onChange={(event) => setMappingPages(event.target.value)} placeholder="Example: 1, 2" /></label><label><span>Starts on</span><input value={mappingDefaultPage} onChange={(event) => setMappingDefaultPage(event.target.value)} inputMode="numeric" /></label>{mappingMode === 'activity' && <div><span>Activity</span><strong translate="no">{mappingActivityKey}</strong></div>}</div>}
+              <div className="pbf-row"><h3>{selectedUnitKey ? `${unitOptions.find(({ unit }) => unit.unitKey === selectedUnitKey)?.label ?? 'Unit'} activities` : 'Unit activities'}</h3></div>
+              {selectedUnitKey && selectedUnit && hasSavedUnitActivities && !focusedActivityImportOpen && <button type="button" className="pbf-button" onClick={() => { setEditingActivityKey(undefined); setFocusedActivityImportOpen(true); }}>Replace activities</button>}
+              {selectedUnitKey && selectedUnit && !focusedActivityImportOpen
+                && (hasExactActivityContent(selectedUnit) || Boolean(savedSummary?.activities.length)) && (
+                <div className="book-assembly-edit__saved-activities" aria-label="Saved activities">
+                  {savedSummary && savedSummary.activities.length > 0 ? savedSummary.activities.map(({ activityKey, projection }) => {
+                    const detail = projection.instructions[0]?.text || projection.stimulus?.text;
+                    return <article key={activityKey}>
+                      <strong>{projection.title}</strong>
+                      {detail && <p>{detail.length > 220 ? `${detail.slice(0, 217).trimEnd()}…` : detail}</p>}
+                      <button type="button" className="pbf-button-link" aria-label={`Edit ${projection.title}`} onClick={() => { setEditingActivityKey(activityKey); setFocusedActivityImportOpen(true); emit('teacher_materials_book_assembly_activity_edit_opened', { unitKey: selectedUnitKey, activityKey }); }}>Edit</button>
+                    </article>;
+                  }) : hasExactActivityContent(selectedUnit) && savedActivitySummaryStatus === 'error'
+                    ? <p role="status">Saved activity details couldn’t be loaded. <button type="button" className="pbf-button-link" onClick={onRetrySavedActivitySummary}>Retry</button></p>
+                    : hasExactActivityContent(selectedUnit) && savedActivitySummaryStatus === 'loading'
+                      ? <p role="status" aria-busy="true">Loading saved activities…</p>
+                      : hasExactActivityContent(selectedUnit) && savedUnitPreview && savedUnitPreview.activities.length > 0
+                        ? savedUnitPreview.activities.map(({ activityKey, projection }) => <article key={activityKey}><strong>{projection.title}</strong>{(projection.instructions[0]?.text || projection.stimulus?.text) && <p>{projection.instructions[0]?.text || projection.stimulus?.text}</p>}</article>)
+                        : hasExactActivityContent(selectedUnit) ? <p>No saved Activity details are available for this Unit.</p> : null}
+                </div>
+              )}
+              {selectedUnitKey && selectedUnit && (!hasSavedUnitActivities || focusedActivityImportOpen) ? (
+                <div>
+                {editingActivityKey && <h4>{savedSummary?.activities.find((activity) => activity.activityKey === editingActivityKey)?.projection.title ?? 'Edit activity'}</h4>}
+                <UnitActivityImportControls guided focused singleActivity={Boolean(editingActivityKey)} busy={unitImportBusy} canCancel={unitImportCancelable} conflict={unitImportConflict?.unitKey === selectedUnitKey ? unitImportConflict : null} importText={unitImportText} manualCopyFallback={manualCopyFallback} onCancel={cancelUnitImport} onCopyPrompt={copyUnitPrompt} onFileReadError={handleUnitImportFileReadError} onImport={() => void importUnitJson()} onImportTextChange={updateUnitImportText} onReplaceExisting={replaceConflictingUnitActivity} promptText={unitPromptText} selectedUnitKey={selectedUnitKey} statusText={unitImportStatus} />
+                </div>
+              ) : !selectedUnitKey || !selectedUnit ? <p className="book-assembly-edit__empty">Add a Unit in Book plan first.</p> : null}
             </div>
           </div>
           {feedback}
@@ -1854,14 +1971,42 @@ const BookAssemblyWorkspace = ({
     }
 
     return (
-      <section className="book-assembly-edit" aria-label="Preview readiness">
-        {(reconciliationReport.issues.length > 0 || reconciliationReport.changes.length > 0) && <BookAssemblyReconciliationPanel busy={reconciliationBusy} report={reconciliationReport} onApplyExactRepair={() => void applyExactReconciliationRepair()} onRecordTeacherChoice={recordTeacherChoiceNeeded} onUseCurrent={useCurrentReconciliationValue} onUseProposed={useProposedReconciliationValue} />}
-        <div className="book-assembly-edit__readiness pbf-surface">
-          <div><span>PDF sources</span><strong>{normalizedSources.length}</strong></div>
-          <div><span>Units</span><strong>{units.length}</strong></div>
-          <div><span>Activities</span><strong>{units.reduce((count, unit) => count + unit.activitySlots.length, 0)}</strong></div>
-          <div><span>Draft status</span><strong>{candidate?.lifecycle ?? 'Not saved'}</strong></div>
-        </div>
+      <section className="book-assembly-edit" aria-label="Preview corrections">
+        {reconciliationReport.issues.length > 0 && <div className="book-assembly-guided__error" role="alert">
+          <p>{reconciliationReport.requiresTeacherChoice
+            ? 'A PDF connection needs a decision in the Book plan before Preview is ready.'
+            : 'Some PDF connections need attention before Preview is ready.'}</p>
+          {reconciliationReport.requiresTeacherChoice && onOpenPlan && <button type="button" className="pbf-button" onClick={onOpenPlan}>Open Book plan</button>}
+        </div>}
+        <button
+          type="button"
+          className="pbf-button"
+          disabled={!previewUnit || previewSources.length === 0}
+          onClick={() => previewUnit && setConnectionActivity({ unitKey: previewUnit.unitKey, activityKey: previewConnectionKey })}
+        >Change PDF connection</button>
+        {reconciliationReport.issues.length > 0 && <details className="book-assembly-edit__connection-corrections">
+          <summary>Advanced repair details</summary>
+          <BookAssemblyReconciliationPanel busy={reconciliationBusy} report={reconciliationReport} onApplyExactRepair={() => void applyExactReconciliationRepair()} onRecordTeacherChoice={recordTeacherChoiceNeeded} onUseCurrent={useCurrentReconciliationValue} onUseProposed={useProposedReconciliationValue} />
+        </details>}
+        {previewUnit && connectionActivity?.unitKey === previewUnit.unitKey && <LocalBookConnectionEditor
+          key={`${previewUnit.unitKey}:${connectionActivity.activityKey}`}
+          unit={previewUnit as BookUnitCandidate}
+          initialActivityKey={connectionActivity.activityKey}
+          titles={previewActivityTitles}
+          sources={previewSources}
+          pageCounts={previewPageCounts}
+          onSave={async (nextUnit) => {
+            setUnits((current) => current.map((unit) => unit.unitKey === nextUnit.unitKey ? nextUnit : unit));
+            setValidationMessage(null);
+            setErrorMessage(null);
+            toast.info('Page connections updated. Save changes to keep them.');
+          }}
+          onAction={(kind) => emit('teacher_materials_book_pdf_connection_changed', { unitKey: previewUnit.unitKey, kind })}
+          onClose={() => {
+            setConnectionActivity(null);
+            emit('teacher_materials_book_pdf_connection_closed', { unitKey: previewUnit.unitKey });
+          }}
+        />}
         {feedback}
         {saveBar}
       </section>
@@ -2041,7 +2186,7 @@ const BookAssemblyWorkspace = ({
                   })}
                 </ul>
               ) : <p className="pbf-muted" style={{ marginTop: 9 }}>Your outline will appear here after you import it.</p>}
-              <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void importMockupStructure(file); }} />
+              <input ref={structureImportInputRef} hidden type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void loadBookStructureFile(file, true); }} />
               <div className="pbf-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="pbf-button pbf-button-primary" onClick={() => structureImportInputRef.current?.click()}>Import Book structure</button>
                 <button type="button" className="pbf-button" disabled={!structurePromptContext} onClick={() => void copyBookStructurePrompt()}>Copy Prompt</button>

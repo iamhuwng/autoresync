@@ -67,3 +67,6 @@ See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-
 ## 2026-10-20 Reading V2 multiple-slot review
 
 Reading V2 saved-result review displays one prompt spanning multiple answer slots as one interaction with a number range (for example, `25-26`). Scoring remains represented by one `questionResults` row per answer slot inside the existing saved-result body. The shared shells, entry owners, and stored-result ownership boundaries are unchanged.
+## 2026-10-21 Book runtime terminal recovery candidate
+
+Domain: session/post-test, adjacent runtime receipt rather than a saved-result shell. The existing `/student/practice/:materialId` and `/student/solo-test/:materialId` hosts use `StudentPracticePage` -> `BookPlacementRuntimeHost` -> `BookRuntimeActivityCard`. Terminal recovery reads the existing Worker-owned `book_runtime/scopes` repository through the authenticated runtime endpoint and restores the recipient's committed response. It adds no result route, direct `test_results` read, or fourth saved-result shell. Historical multi-page Book result viewing remains outside this candidate's qualified scope.

@@ -10,6 +10,7 @@ import {
   resolveBookAttemptSourceContext,
 } from './attemptSourceContextProjection.service';
 import type { BookHistoricalSourceAvailability } from './attemptSourceContextProjection.types';
+import { createComponentStudentDocument } from '../book-assembly/componentStudentDocument.types';
 
 const attempt = (overrides: Partial<BookRuntimeAttemptRecord> = {}): BookRuntimeAttemptRecord => ({
   schemaVersion: 1,
@@ -91,13 +92,13 @@ const delivery = (
       entitlementBasis: 'assignment',
     },
     sourceSet: {
-      strategy: 'component_pdfs',
-      sources: [{
-        sourceKey: sourceAttempt.sourceProvenance[0]!.sourceKey,
-        sourceVersionId: sourceAttempt.sourceProvenance[0]!.sourceVersionId,
+      strategy: 'full_pdf',
+      sources: sourceAttempt.sourceProvenance.map((entry) => ({
+        sourceKey: entry.sourceKey,
+        sourceVersionId: entry.sourceVersionId,
         lifecycle: 'verified-usable',
-        localPageScope: { kind: 'pages', pages: sourceAttempt.sourceProvenance[0]!.pages },
-      }],
+        localPageScope: { kind: 'all', pages: [] },
+      })),
     },
     placements: [{
       placementId: sourceAttempt.placementId,
@@ -135,6 +136,121 @@ const source = (
 });
 
 describe('attempt source context projection', () => {
+  const componentInput = () => {
+    const terminal = attempt({
+      pageGroupKeys: ['page-group-1', 'page-group-2'],
+      sourceProvenance: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-version-4', pages: [7, 8] },
+        { sourceKey: 'component-b', sourceVersionId: 'source-version-9', pages: [2] },
+      ],
+    });
+    const historicalDelivery = delivery(terminal);
+    const descriptor = createComponentStudentDocument({
+      sourceVersionId: 'combined-version-1', descriptorRevision: 3, sha256Hex: 'a'.repeat(64),
+      byteSize: 1000, physicalPageCount: 30, compositionFingerprint: 'composition-1',
+      components: [
+        { sourceKey: 'component-a', sourceVersionId: 'source-version-4', sourceOrder: 1,
+          ownerNodeKey: 'unit-1', localPageCount: 10, combinedStartPage: 1, combinedEndPage: 10 },
+        { sourceKey: 'component-b', sourceVersionId: 'source-version-9', sourceOrder: 2,
+          ownerNodeKey: 'unit-2', localPageCount: 20, combinedStartPage: 11, combinedEndPage: 30 },
+      ],
+    });
+    return {
+      attempt: terminal, result: result(terminal),
+      historicalDelivery: { ...historicalDelivery, binding: { ...historicalDelivery.binding,
+        sourceSet: { ...historicalDelivery.binding.sourceSet, strategy: 'component_pdfs' as const } } },
+      sources: terminal.sourceProvenance.map((entry) => ({ ...entry, availability: 'available' as const })),
+      combinedDocument: { descriptor, opaqueRouteKey: 'historical-combined-route' },
+    };
+  };
+
+  it('maps every historical source/page/group into the pinned combined document', () => {
+    const input = componentInput();
+    const projection = projectBookAttemptSourceContext(input);
+    expect(projection).toMatchObject({
+      state: 'available',
+      metadata: {
+        physicalPageNumber: 7, combinedPhysicalPageNumber: 7,
+        pageGroupIds: ['page-group-1', 'page-group-2'],
+        pageContexts: [
+          { sourceKey: 'component-a', sourceVersionId: 'source-version-4', physicalPageNumber: 7, combinedPhysicalPageNumber: 7 },
+          { sourceKey: 'component-a', sourceVersionId: 'source-version-4', physicalPageNumber: 8, combinedPhysicalPageNumber: 8 },
+          { sourceKey: 'component-b', sourceVersionId: 'source-version-9', physicalPageNumber: 2, combinedPhysicalPageNumber: 12 },
+        ],
+      },
+      documentResource: {
+        sourceKey: 'student-document', sourceVersionId: 'combined-version-1',
+        localPageScope: { kind: 'all', pages: [] },
+        studentDocument: { descriptorRevision: 3, sha256Hex: 'a'.repeat(64),
+          expectedByteLength: 1000, physicalPageCount: 30 },
+      },
+    });
+    expect(isBookAttemptSourceContextProjection(projection)).toBe(true);
+    if (projection.state !== 'available') throw new Error('Expected combined projection');
+    for (const studentDocument of [
+      { ...projection.documentResource.studentDocument, sha256Hex: 'bad-hash' },
+      { ...projection.documentResource.studentDocument, expectedByteLength: 0 },
+      { ...projection.documentResource.studentDocument, physicalPageCount: 11 },
+      { ...projection.documentResource.studentDocument, descriptorFingerprint: 'untrusted' },
+    ]) {
+      expect(isBookAttemptSourceContextProjection({ ...projection,
+        documentResource: { ...projection.documentResource, studentDocument } })).toBe(false);
+    }
+  });
+
+  it('uses the combined offset when the first context is a later component', () => {
+    const input = componentInput();
+    const terminal = attempt({ sourceProvenance: [input.attempt.sourceProvenance[1]!] });
+    const historical = delivery(terminal);
+    expect(projectBookAttemptSourceContext({ ...input, attempt: terminal, result: result(terminal),
+      historicalDelivery: { binding: { ...historical.binding,
+        sourceSet: { ...historical.binding.sourceSet, strategy: 'component_pdfs' } } },
+    })).toMatchObject({ state: 'available', metadata: { physicalPageNumber: 2, combinedPhysicalPageNumber: 12 } });
+  });
+
+  it('returns false for malformed resource values without coercing or dereferencing them', () => {
+    const projection = projectBookAttemptSourceContext(componentInput());
+    if (projection.state !== 'available') throw new Error('Expected combined projection');
+    const pin = projection.documentResource.studentDocument!;
+    for (const documentResource of [
+      null,
+      Symbol('resource'),
+      { ...projection.documentResource, opaqueRouteKey: Symbol('route') },
+      { ...projection.documentResource, studentDocument: { ...pin, sha256Hex: Symbol('hash') } },
+      { ...projection.documentResource, studentDocument: { ...pin, unexpected: true } },
+      { ...projection.documentResource, localPageScope: null },
+    ]) {
+      expect(isBookAttemptSourceContextProjection({ ...projection, documentResource })).toBe(false);
+    }
+    expect(isBookAttemptSourceContextProjection({ ...projection,
+      metadata: { ...projection.metadata, pageContexts: [null] },
+    })).toBe(false);
+    expect(isBookAttemptSourceContextProjection({ ...projection,
+      state: 'historical_source_unavailable', reason: 'deleted', documentResource: null,
+      metadata: { ...projection.metadata, pageContexts: 'invalid' },
+    })).toBe(false);
+  });
+
+  it('denies private component resources when the pinned combined document is missing', () => {
+    const input = componentInput();
+    expect(projectBookAttemptSourceContext({ ...input, combinedDocument: undefined,
+      sources: [source(input.attempt), input.sources[1]!],
+    })).toMatchObject({ state: 'historical_source_unavailable', reason: 'authorization_unavailable', documentResource: null });
+  });
+
+  it('rejects a descriptor with a substituted component version or invalid page range', () => {
+    const input = componentInput();
+    for (const descriptor of [
+      { ...input.combinedDocument.descriptor, components: input.combinedDocument.descriptor.components.map(
+        (component, index) => index === 1 ? { ...component, sourceVersionId: 'current-version' } : component,
+      ) },
+      { ...input.combinedDocument.descriptor, physicalPageCount: 29 },
+    ]) {
+      expect(projectBookAttemptSourceContext({ ...input,
+        combinedDocument: { ...input.combinedDocument, descriptor },
+      })).toMatchObject({ state: 'historical_source_unavailable', reason: 'malformed_context', documentResource: null });
+    }
+  });
   it('preserves the exact historical component, version, page, group, placement, activity, and focus', () => {
     const terminalAttempt = attempt();
     const projection = projectBookAttemptSourceContext({
@@ -271,7 +387,7 @@ describe('attempt source context projection', () => {
     expect(projectBookAttemptSourceContext({
       attempt: malformed,
       result: result(malformed),
-      historicalDelivery: delivery(malformed),
+      historicalDelivery: delivery(terminalAttempt),
       sources: [source(malformed)],
     })).toMatchObject({ state: 'historical_source_unavailable', reason: 'malformed_context' });
     expect(projectBookAttemptSourceContext({

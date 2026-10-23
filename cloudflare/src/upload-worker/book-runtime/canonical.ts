@@ -7,7 +7,9 @@ import type {
 import {
   createFirebaseBookResultProjectionWriter,
   projectCommittedBookResult,
+  projectCommittedBookSourceContext,
 } from '../book-results/production-projection.ts';
+import { FirebaseRestBookAssemblyPublicationRepository } from '../book-assembly/publication-repository.ts';
 import type {
   BookHomeworkAuthorityScope,
 } from '../../../../src/services/book-homework/bookHomeworkAuthority.types.ts';
@@ -17,7 +19,9 @@ import {
 import {
   CANONICAL_ACTIVITY_VERSION_ROOT,
   hydrateCanonicalActivityVersionFromRtdb,
+  FirebaseRestExactPublishedActivityVersionReader,
 } from '../book-assembly/canonical-activity-version-repository.ts';
+import { canonicalActivityVersionReaderEnv } from '../book-runtime-launch/canonical.ts';
 import {
   FirebaseRestBookDeliveryRepository,
   type BookDeliveryRepositoryEnv,
@@ -130,7 +134,7 @@ export interface BookRuntimeCanonicalHandlersOptions {
 
 const CANONICAL_ACTIVITY_PATH_ID = '[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}';
 const CANONICAL_ACTIVITY_READ_PATH = new RegExp(
-  `^${CANONICAL_ACTIVITY_VERSION_ROOT}/(${CANONICAL_ACTIVITY_PATH_ID})/(${CANONICAL_ACTIVITY_PATH_ID})$`,
+  `^book_activity/(?:versions|student_safe_projections)/(${CANONICAL_ACTIVITY_PATH_ID})/(${CANONICAL_ACTIVITY_PATH_ID})$`,
   'u',
 );
 
@@ -173,9 +177,10 @@ export const createBookRuntimeProductionDependencies = (
       },
     });
   };
+  let homeworkDocumentStore: FirebaseRestBookHomeworkDocumentStore | undefined;
   const authorityStore = {
     read: (scope: BookHomeworkAuthorityScope) =>
-      new FirebaseRestBookHomeworkDocumentStore({ env }).read(scope),
+      (homeworkDocumentStore ??= new FirebaseRestBookHomeworkDocumentStore({ env })).read(scope),
   };
   const effectiveActivitySchedulePolicy = activitySchedulePolicy
     ?? createBookHomeworkActivitySchedulePolicyResolver({
@@ -230,14 +235,21 @@ export const createBookRuntimeProductionDependencies = (
     if (!result.attempt || !result.result || !result.completion || !result.index) {
       throw new Error('book_result_projection_terminal_reader_unavailable');
     }
+    const terminal = {
+      attempt: result.attempt,
+      result: result.result,
+      completion: result.completion,
+      index: result.index,
+    };
+    // Failed authority reads retry the committed terminal instead of persisting transient missing context.
+    const publicationScope = binding.sourceSet.strategy === 'component_pdfs'
+      ? await new FirebaseRestBookAssemblyPublicationRepository({
+          env: runtimeEnv, ownerId: binding.issuer.ownerId,
+        }).readScope(binding.book.bookId)
+      : undefined;
     await projectCommittedBookResult({
-      binding,
-      terminal: {
-        attempt: result.attempt,
-        result: result.result,
-        completion: result.completion,
-        index: result.index,
-      },
+      binding, terminal,
+      attemptSourceContext: projectCommittedBookSourceContext({ binding, terminal, publicationScope }),
       writer: createFirebaseBookResultProjectionWriter(runtimeEnv),
     });
   };
@@ -272,8 +284,43 @@ export const createBookRuntimeProductionDependencies = (
         if (record.activityId !== activityId
           || record.activityVersionId !== placement.activityVersionId
           || record.activityVersion !== activityVersion
-          || record.ownerId !== binding.issuer.ownerId
-          || !record.placementIds.includes(placementId)) return null;
+          || record.ownerId !== binding.issuer.ownerId) return null;
+        if (!record.placementIds.includes(placementId)) {
+          const publicationRoot = `book_assembly_publications/books/${binding.book.bookId}`;
+          const publicationToken = createFirebaseClaimTokenProvider({
+            serviceAccountJson: String(env.BOOK_ASSEMBLY_GOOGLE_SA_KEY ?? ''),
+            serviceIdentity: String(env.BOOK_ASSEMBLY_SERVICE_IDENTITY ?? ''),
+            firebaseProjectId: env.FIREBASE_PROJECT_ID ?? '', firebaseWebApiKey: env.FIREBASE_WEB_API_KEY ?? '',
+          });
+          const publicationReader = new FirebaseRtdbRestClient({ env, fetchImpl: globalThis.fetch, firebaseAuthToken: true,
+            getFirebaseAuthToken: () => publicationToken({ service: 'book_assembly_publication',
+              bookId: binding.book.bookId, ownerId: binding.issuer.ownerId }) });
+          // One bounded snapshot supplies immutable publication families and
+          // the existing visibility proof; schedule and recipient authority
+          // continue to be read live by their existing owners.
+          let publication: Promise<unknown> | undefined;
+          const published = await new FirebaseRestExactPublishedActivityVersionReader({
+            env: { ...canonicalActivityVersionReaderEnv(env), readDatabaseValue: async (path) => {
+              if (path === `${CANONICAL_ACTIVITY_VERSION_ROOT}/${activityId}/${placement.activityVersionId}`) return value;
+              if (path.startsWith(`${publicationRoot}/`)) {
+                const scope = await (publication ??= publicationReader.readValue(publicationRoot));
+                return path.slice(publicationRoot.length + 1).split('/').reduce<unknown>((node, key) => (
+                  node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined
+                ), scope) ?? null;
+              }
+              if (path === `book_activity/student_safe_projections/${activityId}/${placement.activityVersionId}`) {
+                return activityReaderFor(binding).readValue(path);
+              }
+              throw new Error('retained_activity_read_path_invalid');
+            } },
+          }).readExact({
+            bookId: binding.book.bookId, manifestVersionId: binding.book.manifestVersionId,
+            publicationId: binding.book.publicationId, ownerId: binding.issuer.ownerId,
+            activityId, activityVersionId: placement.activityVersionId, activityVersion,
+            payloadFingerprint: record.payloadFingerprint, placementId,
+          });
+          return published?.activity ?? null;
+        }
         return record.activity;
       } catch {
         return null;

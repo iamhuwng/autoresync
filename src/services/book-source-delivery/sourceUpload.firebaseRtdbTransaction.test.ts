@@ -13,6 +13,36 @@ const response = (
 });
 
 describe('trusted Firebase Source Upload transaction adapter', () => {
+  it('preserves the demo namespace and ETag when explicitly using the local emulator', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(response({ revision: 0 }, { etag: '"local"' }))
+      .mockResolvedValueOnce(response(null));
+    const transaction = createTrustedFirebaseSourceUploadRtdbTransaction({
+      databaseUrl: 'http://localhost:9000?ns=demo-luyentap-local', localEmulator: true,
+      accessTokenProvider: { getAccessToken: async () => 'owner' }, fetchImpl,
+    });
+    await expect(transaction({ path: 'book_source_upload_accounts/local_qa', expectedRevision: 0,
+      update: () => ({ revision: 1 }) })).resolves.toEqual({ committed: true, value: { revision: 1 } });
+    for (const [url] of fetchImpl.mock.calls) {
+      expect(url).toBe('http://localhost:9000/book_source_upload_accounts/local_qa.json?ns=demo-luyentap-local');
+    }
+    expect(fetchImpl.mock.calls[1][1].headers['If-Match']).toBe('"local"');
+  });
+
+  it.each([
+    ['http://localhost:9000?ns=demo-luyentap-local', false],
+    ['https://production.example', true],
+    ['http://localhost:9000?ns=production', true],
+    ['http://localhost:9000?ns=demo-luyentap-local&auth=owner', true],
+    ['http://localhost:9000/nested?ns=demo-luyentap-local', true],
+    ['http://127.0.0.1:9000?ns=demo-luyentap-local', true],
+  ])('rejects an invalid emulator target before I/O (%s, %s)', (databaseUrl, localEmulator) => {
+    const fetchImpl = vi.fn();
+    expect(() => createTrustedFirebaseSourceUploadRtdbTransaction({ databaseUrl, localEmulator,
+      accessTokenProvider: { getAccessToken: async () => 'owner' }, fetchImpl,
+    })).toThrow('trusted_source_upload_database_url_invalid');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('uses OAuth plus ETag If-Match and retries remote contention', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(response({ revision: 1 }, { etag: '"one"' }))

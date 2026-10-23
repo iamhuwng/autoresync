@@ -68,7 +68,7 @@ const verifyCustomToken = async (
       : expected.service === 'book_homework_authority' ? expected.ownerId
       : expected.service === 'book_homework' ? (expected.ownerId ?? expected.assignmentId)
         : expected.service === 'book_delivery' ? (expected.recipientId ?? identity)
-          : expected.service === 'book_activity_evaluation' ? identity
+          : expected.service === 'book_activity_evaluation' || expected.service === 'book_submission' ? identity
           : expected.ownerId,
   );
   expect(verified.payload.claims).toEqual(expected.service === 'class_book_authority'
@@ -86,6 +86,15 @@ const verifyCustomToken = async (
     ? {
       book_activity_authoring_service: true,
       book_activity_authoring_ownerId: expected.ownerId,
+    }
+    : expected.service === 'book_submission'
+    ? {
+      book_submission_service: true,
+      book_submission_ownerId: expected.ownerId,
+      book_submission_bookId: expected.bookId,
+      book_submission_operationId: expected.operationId,
+      book_submission_fingerprint: expected.fingerprint,
+      book_submission_leaseId: expected.leaseId,
     }
     : expected.service === 'book_assembly'
       ? {
@@ -211,6 +220,85 @@ describe('Book production Firebase claim tokens', () => {
         .rejects.toThrow('invalid_book_firebase_claims');
     }
     expect(tokens).toHaveLength(1);
+  });
+  it('binds submission claims to the owner, Book, operation, fingerprint and lease', async () => {
+    const tokens: string[] = [];
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: identity, private_key: privateKey }),
+      serviceIdentity: identity, firebaseProjectId: 'temp-a1437', firebaseWebApiKey: 'web-key',
+      fetchImpl: async (_input, init) => {
+        tokens.push(JSON.parse(String(init?.body)).token);
+        return Response.json({ idToken: 'submission-id-token', expiresIn: '3600' });
+      },
+      now: () => 1_700_000_000_000,
+    });
+    const claim = {
+      service: 'book_submission', ownerId: 'teacher-1', bookId: 'book-1',
+      operationId: 'submission-1', fingerprint: 'a'.repeat(64), leaseId: 'lease-1',
+    } as const;
+    await expect(provider(claim)).resolves.toBe('submission-id-token');
+    await verifyCustomToken(tokens[0], claim);
+    for (const mutation of [
+      { ownerId: 'teacher/other' }, { bookId: 'book/other' },
+      { operationId: 'operation/other' }, { leaseId: 'lease/other' },
+      { fingerprint: 'invalid' }, { unexpected: true },
+    ]) {
+      await expect(provider({ ...claim, ...mutation } as BookFirebaseClaimTuple))
+        .rejects.toThrow('invalid_book_firebase_claims');
+    }
+    expect(tokens).toHaveLength(1);
+  });
+  it('uses the local Auth emulator only for the demo project and preserves scoped submission claims', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      expect(JSON.parse(String(init?.body)).returnSecureToken).toBe(true);
+      return Response.json({ idToken: 'local-id-token', expiresIn: '3600' });
+    });
+    const localIdentity = 'book-source-worker-runtime@demo-luyentap-local.iam.gserviceaccount.com';
+    const provider = createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: localIdentity, private_key: 'unused-local-key' }),
+      serviceIdentity: localIdentity,
+      firebaseProjectId: 'demo-luyentap-local',
+      firebaseWebApiKey: 'local-web-key',
+      localEmulator: true,
+      fetchImpl,
+      now: () => 1_700_000_000_000,
+    });
+    const claim = {
+      service: 'book_submission', ownerId: 'teacher-1', bookId: 'book-1',
+      operationId: 'submission-1', fingerprint: 'a'.repeat(64), leaseId: 'lease-1',
+    } as const;
+
+    await expect(provider(claim)).resolves.toBe('local-id-token');
+
+    expect(String(fetchImpl.mock.calls[0]?.[0]))
+      .toBe('http://localhost:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=local-web-key');
+    expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).has('Referer')).toBe(false);
+    const customToken = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).token as string;
+    expect(decodeProtectedHeader(customToken)).toEqual({ alg: 'none' });
+    expect(decodeJwt(customToken)).toMatchObject({
+      iss: localIdentity,
+      sub: localIdentity,
+      aud: audience,
+      uid: localIdentity,
+      claims: {
+        book_submission_service: true,
+        book_submission_ownerId: 'teacher-1',
+        book_submission_bookId: 'book-1',
+        book_submission_operationId: 'submission-1',
+        book_submission_fingerprint: 'a'.repeat(64),
+        book_submission_leaseId: 'lease-1',
+      },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(() => createFirebaseClaimTokenProvider({
+      serviceAccountJson: JSON.stringify({ client_email: localIdentity, private_key: 'unused-local-key' }),
+      serviceIdentity: localIdentity,
+      firebaseProjectId: 'temp-a1437',
+      firebaseWebApiKey: 'local-web-key',
+      localEmulator: true,
+      fetchImpl,
+    })).toThrowError('book_firebase_local_emulator_project_invalid');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
   it('signs exact evaluator claims, isolates every target dimension, and rejects malformed tuples before exchange', async () => {
     const tokens: string[] = [];

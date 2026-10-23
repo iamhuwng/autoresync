@@ -41,7 +41,7 @@ export const CANONICAL_ACTIVITY_VERSION_READER_KEY_ENV =
 const MAX_RETRIES = 5;
 const PATH_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/u;
 
-export interface CanonicalActivityVersionWriterEnv extends RepositoryEnv {
+export interface CanonicalActivityVersionWriterEnv extends CanonicalActivityVersionReaderEnv {
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_SERVICE_IDENTITY?: string;
   BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_WRITER_GOOGLE_SA_KEY?: string;
   /** Existing Assembly credential fallback for initial full-PDF publication. */
@@ -192,7 +192,7 @@ const parseCanonicalFromRtdb = (
   }
 };
 
-const safeProjectionFor = (
+export const canonicalActivityVersionStudentSafeProjection = (
   record: CanonicalPublishedActivityVersionRecord,
 ): Record<string, unknown> => ({
   schemaVersion: 1,
@@ -535,8 +535,19 @@ implements CanonicalActivityVersionWriter {
       parsedRecord.activityId,
       parsedRecord.activityVersionId,
     );
-    const expectedProjection = safeProjectionFor(parsedRecord);
+    const expectedProjection = canonicalActivityVersionStudentSafeProjection(parsedRecord);
     const rtdb = this.rtdbForPrepare(parsedRecord);
+
+    if (!this.allowCompatibilityRead) {
+      try {
+        await rtdb.patchMultiLocation([{ path: versionPath, value: parsedRecord },
+          { path: projectionPath, value: expectedProjection }]);
+        this.prepared.set(versionPath, parsedRecord);
+        return { status: 'created' };
+      } catch {
+        // Create-only rules reject existing leaves; exact reads reconcile replay or a lost response.
+      }
+    }
 
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const currentVersion = await rtdb.readWithEtag<unknown>(versionPath);
@@ -578,10 +589,26 @@ implements CanonicalActivityVersionWriter {
 
   async readPrepared(
     reference: BookAssemblyActivityVersionReference,
+    publication?: ExactPublishedActivityVersionRequest,
   ): Promise<CanonicalPublishedActivityVersionRecord | null> {
     const path = canonicalPath(reference.activityId, reference.activityVersionId);
     const prepared = this.prepared.get(path);
     if (prepared) return sameReference(prepared, reference) ? structuredClone(prepared) : null;
+    if (publication) {
+      if (publication.activityId !== reference.activityId || publication.activityVersionId !== reference.activityVersionId
+        || publication.activityVersion !== reference.activityVersion || publication.payloadFingerprint !== reference.canonicalPayloadFingerprint) return null;
+      return new FirebaseRestExactPublishedActivityVersionReader({
+        // Publication reuses the Assembly identity with exact reader claims when no dedicated override is configured.
+        env: this.options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY
+          || this.options.env.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY
+          ? this.options.env : {
+            ...this.options.env,
+            BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY: this.options.env.BOOK_ASSEMBLY_SERVICE_IDENTITY,
+            BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY: this.options.env.BOOK_ASSEMBLY_GOOGLE_SA_KEY,
+          },
+        fetchImpl: this.options.fetchImpl, getAccessToken: this.options.getAccessToken,
+      }).readExact(publication);
+    }
     if (!this.allowCompatibilityRead) return null;
     const parsed = parseCanonicalFromRtdb(await this.rtdb.readValue(path));
     if (!parsed || !sameReference(parsed, reference)) return null;
@@ -698,19 +725,49 @@ implements ExactPublishedActivityVersionReader {
     const canonical = parseCanonicalFromRtdb(await rtdb.readValue(paths.canonical));
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
-    if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
+    if (request.placementId !== undefined && !placementIds.includes(request.placementId)) return null;
+    const retained = stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort());
+    const origins: Record<string, unknown>[] = [];
+    if (retained) {
+      // Retained Units receive new publication-local placements. The canonical
+      // version stays immutable; prove the new mapping against its original
+      // publication, without walking an ever-growing predecessor chain.
+      if (placementIds.length !== canonical.placementIds.length
+        || typeof bookActivity.canonicalOriginManifestVersionId !== 'string'
+        || !PATH_ID.test(bookActivity.canonicalOriginManifestVersionId)
+        || typeof bookActivity.canonicalOriginPublicationId !== 'string'
+        || !PATH_ID.test(bookActivity.canonicalOriginPublicationId)) return null;
+      for (const placementId of canonical.placementIds) {
+        const origin = await rtdb.readValue(bookPlacementPath(request.bookId, placementId));
+        if (!isRecord(origin) || origin.schemaVersion !== 1 || origin.placementId !== placementId
+          || origin.ownerId !== request.ownerId || origin.bookId !== request.bookId
+          || origin.manifestVersionId !== bookActivity.canonicalOriginManifestVersionId
+          || origin.publicationId !== bookActivity.canonicalOriginPublicationId
+          || origin.activityId !== request.activityId || origin.activityVersionId !== request.activityVersionId
+          || origin.unitKey !== bookActivity.unitKey || origin.activityKey !== bookActivity.activityKey
+          || stable(origin.sourcePages) !== stable(bookActivity.sourcePages)) return null;
+        origins.push(origin);
+      }
+    }
     for (const placementId of placementIds) {
-      if (!sameBookPlacement(
-        await rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
+      const placement = await rtdb.readValue(bookPlacementPath(request.bookId, placementId));
+      if (!isRecord(placement) || placement.placementId !== placementId || !sameBookPlacement(
+        placement,
         bookActivity,
         request,
         publicationRevision as number,
       )) return null;
+      if (retained && (typeof placement.predecessorPlacementId !== 'string'
+        || !PATH_ID.test(placement.predecessorPlacementId)
+        || !origins.some(origin => origin.unitKey === placement.unitKey
+          && origin.activityKey === placement.activityKey
+          && stable(origin.pageGroupKeys) === stable(placement.pageGroupKeys)
+          && stable(origin.sourcePages) === stable(placement.sourcePages)))) return null;
     }
     const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
       await rtdb.readValue(paths.studentSafeProjection),
     );
-    if (stable(studentSafeProjection) !== stable(safeProjectionFor(canonical))) return null;
+    if (stable(studentSafeProjection) !== stable(canonicalActivityVersionStudentSafeProjection(canonical))) return null;
     return canonical;
   }
 }

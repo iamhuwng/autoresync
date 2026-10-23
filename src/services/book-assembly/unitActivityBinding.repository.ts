@@ -1,8 +1,6 @@
 /**
- * Server-owned identity bridge between a logical Unit slot and its exact
- * Activity / Activity-candidate / published-version identities.  It stores
- * references only; Activity content remains in Activity Authoring and the
- * canonical Activity Version store.
+ * Server-owned authoring head for a logical Unit slot and its stable Activity
+ * identity. Activity content and published versions live in their own stores.
  */
 export interface UnitActivityBindingKey {
   readonly ownerId: string;
@@ -17,8 +15,6 @@ export interface UnitActivityBinding extends UnitActivityBindingKey {
   readonly candidateId: string;
   readonly candidateRevision: number;
   readonly candidateLifecycle: 'staged' | 'validated' | 'saved';
-  readonly activityVersionId?: string;
-  readonly activityVersion?: number;
 }
 
 export type UnitActivityBindingWriteStatus = 'created' | 'updated' | 'replayed' | 'conflict' | 'stale';
@@ -26,11 +22,4 @@ export type UnitActivityBindingWriteStatus = 'created' | 'updated' | 'replayed' 
 export interface UnitActivityBindingRepository {
   read(key: UnitActivityBindingKey): Promise<UnitActivityBinding | null>;
   bindCandidate(binding: UnitActivityBinding): Promise<UnitActivityBindingWriteStatus>;
-  recordPublication(input: UnitActivityBindingKey & {
-    readonly activityId: string;
-    readonly candidateId: string;
-    readonly candidateRevision: number;
-    readonly activityVersionId: string;
-    readonly activityVersion: number;
-  }): Promise<UnitActivityBindingWriteStatus>;
 }

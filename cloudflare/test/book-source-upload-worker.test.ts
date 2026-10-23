@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createBookSourceUploadWorkerHandlers,
+  createBookSourceUploadRuntime,
   listBookSourceProjections,
 } from '../src/upload-worker/book-source/worker.ts';
 import {
@@ -37,6 +38,15 @@ const env = {
 } as const;
 
 describe('canonical #49 source upload composition', () => {
+  it.each([
+    { LOCAL_EMULATOR_AUTH: 'true', FIREBASE_PROJECT_ID: 'production', FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local' },
+    { LOCAL_EMULATOR_AUTH: 'true', FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DB_URL: 'https://production.example' },
+    { LOCAL_EMULATOR_AUTH: 'false', FIREBASE_PROJECT_ID: 'demo-luyentap-local', FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local' },
+  ])('rejects a mismatched local runtime before using service credentials', async (target) => {
+    await expect(createBookSourceUploadRuntime({ ...env, BOOK_SOURCE_UPLOAD_ACCOUNT_ID: 'local_qa', ...target }))
+      .rejects.toMatchObject({ code: 'invalid_deployment' });
+  });
+
   it('keeps student delivery ready-only and bound to a complete decision', () => {
     const source = {
       purpose: 'book-source',

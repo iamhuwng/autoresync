@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActivityAuthoringService } from '../../services/book-activity/activityAuthoring.service';
 import { ActivityAuthoringHttpError } from '../../services/book-activity/activityStorage.service';
 import type { UnitAssemblyRepository } from '../../services/book-assembly/unitAssembly.repository';
@@ -190,8 +190,8 @@ const repository = (createResult: 'created' | 'conflict' | 'forbidden' = 'create
 const activityAuthoring = (): ActivityAuthoringService => ({
   stage: vi.fn(async (input) => ({
     status: 'staged',
-    candidateId: `candidate-${input.targetActivityId}`,
-    targetActivityId: input.targetActivityId ?? 'generated',
+    candidateId: `candidate-${input.unitActivityBinding?.activityKey}`,
+    targetActivityId: input.unitActivityBinding?.activityKey ?? 'generated',
     revision: 1,
     lifecycle: 'staged',
     validation: { valid: true, errors: [] },
@@ -270,15 +270,22 @@ const renderWorkspace = (overrides: Partial<React.ComponentProps<typeof BookAsse
   return { ...render(<BookAssemblyWorkspace {...props} />), props };
 };
 
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value(this: HTMLDialogElement) { this.setAttribute('open', ''); },
+  });
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe('BookAssemblyWorkspace', () => {
-  it('uses the single A0 activation command for a prepared Component-PDF document', async () => {
+  it('recovers a committed A0 activation by exact readback without replaying setup', async () => {
     const user = userEvent.setup();
     const current = componentReadyCandidate();
     const repo = repository();
     repo.loadCurrent = vi.fn(async (_bookId, unitKey) => ({
-      candidate: { ...current, candidateId: unitKey === 'unit-a' ? 'assembly-a' : 'assembly-b', unitKey },
+      candidate: { ...current, bookRevision: 3, sourceSetRevision: 4, candidateId: unitKey === 'unit-a' ? 'assembly-a' : 'assembly-b', unitKey },
       savedActivityKeysByUnit: { [unitKey]: unitKey === 'unit-a' ? ['activity-a'] : ['activity-b'] },
     }));
     const activateComponentPdf = vi.fn()
@@ -312,11 +319,106 @@ describe('BookAssemblyWorkspace', () => {
       sourceSetRevision={4}
       componentPdfActivationRecovery={receipt} />);
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    await waitFor(() => expect(activateComponentPdf).toHaveBeenCalledTimes(2));
-    expect(activateComponentPdf.mock.calls[1]![0].operationId).toBe(firstOperationId);
-    expect(activateComponentPdf.mock.calls[1]![0].activatedAt).toBe(firstActivatedAt);
+    await waitFor(() => expect(repo.loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a'));
+    expect(activateComponentPdf).toHaveBeenCalledTimes(1);
     expect(repo.replace).not.toHaveBeenCalled();
     expect(repo.loadCurrent).toHaveBeenCalledWith('book-1', 'unit-a');
+  });
+
+  it('saves existing Component-PDF Activity content against the active contract without replaying setup', async () => {
+    const user = userEvent.setup();
+    const current = { ...componentReadyCandidate(), unitKey: 'unit-a' };
+    const repo = repository();
+    repo.loadCurrent = vi.fn(async () => ({ candidate: current, savedActivityKeysByUnit: {} }));
+    const authoring = activityAuthoring();
+    const activateComponentPdf = vi.fn().mockRejectedValue(new Error('setup_must_not_replay'));
+    const recovery = createComponentPdfActivationReceipt({
+      operationId: 'initial-activation', ownerId: current.ownerId, bookId: current.bookId,
+      expectedBookRevision: current.bookRevision - 1, expectedSourceSetRevision: current.sourceSetRevision - 1,
+      sourceSet: current.manifest!.sourceSet,
+      unitCandidates: current.manifest!.units.map(({ unitKey }) => ({ unitKey,
+        candidateId: current.candidateId, candidateRevision: current.revision,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(current.manifest) })),
+      studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: current.sourceSetRevision, descriptorFingerprint: 'c'.repeat(64) },
+      activities: [], activatedAt: current.updatedAt,
+    });
+    renderWorkspace({ initialCandidate: current, repository: repo, activityAuthoring: authoring,
+      componentPdfActivationClient: { activateComponentPdf }, componentPdfActivationRecovery: recovery,
+      componentStudentDocumentSourceVersionId: 'student-v1' });
+    const bundle = JSON.parse(unitImportJson('activity-a'));
+    bundle.unitKey = 'unit-a';
+    bundle.slots[0].evidenceRefs = [];
+    bundle.slots[0].sourceEvidenceRefs = ['source:source-source-part-a:page:1'];
+    bundle.slots[0].answerEvidenceRefs = ['pageGroup:pages-a'];
+    fireEvent.change(screen.getByLabelText('Paste Unit Activity JSON'), { target: { value: JSON.stringify(bundle) } });
+    await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
+    await waitFor(() => expect(authoring.saveDraft).toHaveBeenCalledTimes(1));
+    expect(activateComponentPdf).not.toHaveBeenCalled();
+    expect(repo.replace).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['outline', 'connection', 'source order'] as const)('routes persisted Component-PDF %s edits without replaying activation', async (edit) => {
+    const user = userEvent.setup();
+    const current = { ...componentReadyCandidate(), unitKey: 'unit-a' };
+    const repo = repository();
+    repo.replace = vi.fn<UnitAssemblyRepository['replace']>(async (input) => ({
+      status: 'replaced', candidate: { ...current, manifest: input.manifest, revision: 2, lifecycle: 'draft' },
+      receipt: { operationId: input.operationId, fingerprint: 'replacement', status: 'replaced', createdAt: current.updatedAt },
+    }));
+    repo.validate = vi.fn<UnitAssemblyRepository['validate']>(async (input) => ({
+      status: 'validated', candidate: { ...current, manifest: vi.mocked(repo.replace).mock.calls[0]![0].manifest, revision: 3 },
+      receipt: { operationId: input.operationId, fingerprint: 'validation', status: 'validated', createdAt: current.updatedAt },
+    }));
+    const activateComponentPdf = vi.fn().mockRejectedValue(new Error('setup_must_not_replay'));
+    const recovery = createComponentPdfActivationReceipt({
+      operationId: 'initial-activation', ownerId: current.ownerId, bookId: current.bookId,
+      expectedBookRevision: current.bookRevision - 1, expectedSourceSetRevision: current.sourceSetRevision - 1,
+      sourceSet: current.manifest!.sourceSet,
+      unitCandidates: current.manifest!.units.map(({ unitKey }) => ({ unitKey,
+        candidateId: current.candidateId, candidateRevision: current.revision,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(current.manifest) })),
+      studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: current.sourceSetRevision, descriptorFingerprint: 'c'.repeat(64) },
+      activities: [], activatedAt: current.updatedAt,
+    });
+    renderWorkspace({ initialCandidate: current, initialSourceSet: current.manifest!.sourceSet,
+      repository: repo, validateCandidateAfterSave: true, guided: edit !== 'source order', guidedUiVariant: 'mockup',
+      editingPanel: edit === 'source order' ? undefined : edit === 'outline' ? 'content-tree' : 'preview', previewUnitKey: 'unit-a',
+      componentPdfActivationClient: { activateComponentPdf }, componentPdfActivationRecovery: recovery,
+      componentStudentDocumentSourceVersionId: 'student-v1' });
+    if (edit === 'source order') {
+      await user.click(screen.getByRole('button', { name: 'Move source-source-part-b up' }));
+      await user.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText('component_pdf_activation_recovery_invalid')).toBeInTheDocument();
+      expect(repo.replace).not.toHaveBeenCalled();
+      expect(repo.validate).not.toHaveBeenCalled();
+      expect(activateComponentPdf).not.toHaveBeenCalled();
+      return;
+    }
+    if (edit === 'outline') {
+      await user.click(screen.getByText('Current outline'));
+      await user.click(within(screen.getByRole('treeitem', { name: 'Unit 1' })).getByRole('button'));
+      fireEvent.change(screen.getByLabelText('Selected outline title'), { target: { value: 'Growing up — reviewed' } });
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Change PDF connection' }));
+      const dialog = screen.getByRole('dialog', { name: 'PDF connection' });
+      fireEvent.change(within(dialog).getByLabelText('PDF pages'), { target: { value: '2' } });
+      fireEvent.change(within(dialog).getByLabelText('Open on'), { target: { value: '2' } });
+      await user.click(within(dialog).getByRole('button', { name: 'Apply change' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
+    const savedManifest = vi.mocked(repo.replace).mock.calls[0]![0].manifest;
+    if (edit === 'outline') expect(savedManifest.nodes.find(({ nodeKey }) => nodeKey === 'unit-a')?.title).toBe('Growing up — reviewed');
+    else expect(savedManifest.units[0]!.pageGroups[0]).toMatchObject({ pages: [2], defaultPhysicalPageNumber: 2 });
+    expect(savedManifest.units[1]).toEqual(current.manifest!.units[1]);
+    expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
+      expectedBookRevision: 2, expectedSourceSetRevision: 3, unitKey: 'unit-a', expectedCandidateRevision: 1,
+    }));
+    expect(repo.validate).toHaveBeenCalledWith(expect.objectContaining({ expectedCandidateRevision: 2 }));
+    expect(activateComponentPdf).not.toHaveBeenCalled();
+    expect(mocks.success).toHaveBeenCalledWith('Changes saved.');
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_assembly_saved', expect.objectContaining({ revision: 3 }));
   });
 
   it.each([
@@ -420,6 +522,7 @@ describe('BookAssemblyWorkspace', () => {
     expect(fallback.value).toContain('"physicalPageCount": 40');
     expect(fallback.value).toContain('"nodes"');
     expect(fallback.value).toContain('"units"');
+    expect(fallback.value).toContain('For full strategy, the full source may serve multiple Units');
     expect(mocks.warning).toHaveBeenCalledWith('Clipboard was blocked. Copy the visible Book structure prompt manually.');
 
     await user.click(screen.getByRole('button', { name: 'Copy Prompt' }));
@@ -429,6 +532,232 @@ describe('BookAssemblyWorkspace', () => {
       'teacher_materials_book_assembly_structure_prompt_copied',
       expect.objectContaining({ sourceKey: 'full', physicalPageCount: 40 }),
     );
+  });
+
+  it('includes every component PDF and its page count in the shared Book plan prompt', async () => {
+    const user = userEvent.setup();
+    mocks.writeClipboardText.mockResolvedValue(true);
+    const current = componentReadyCandidate();
+    renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'content-tree',
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+      sourceVersions: [sourceVersions[1], sourceVersions[2]],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Copy plan prompt' }));
+    const prompt = mocks.writeClipboardText.mock.calls.at(-1)?.[0] as string;
+    expect(prompt).toContain('"name": "PDF 1"');
+    expect(prompt).toContain('"physicalPageCount": 20');
+    expect(prompt).toContain('"name": "PDF 2"');
+    expect(prompt).toContain('"physicalPageCount": 22');
+    expect(prompt).toContain('"sourceOwnership"');
+  });
+
+  it('imports a focused Book plan only after the full manifest passes validation', async () => {
+    const user = userEvent.setup();
+    const onUnitSelect = vi.fn();
+    const current = candidate();
+    const plan = JSON.stringify({
+      nodes: [
+        { nodeKey: 'section-new', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-new', parentNodeKey: 'section-new', nodeType: 'unit', order: 1 },
+      ],
+      units: [{
+        unitKey: 'unit-new',
+        activitySlots: [{ activityKey: 'activity-new', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-new'] }],
+        pageGroups: [{ pageGroupKey: 'pages-new', sourceKey: 'full', pages: [2], activityKeys: ['activity-new'], mode: 'activity', defaultPhysicalPageNumber: 2 }],
+      }],
+    });
+    const rendered = renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'content-tree',
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+      onUnitSelect,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Copy plan prompt' }));
+    const prompt = mocks.writeClipboardText.mock.calls.at(-1)?.[0] as string;
+    expect(prompt).toContain('For full strategy, the full source may serve multiple Units');
+    expect(prompt).toContain('current structure context');
+    expect(prompt).toContain('"unit-1"');
+    expect(prompt).toContain('"sourceOwnership"');
+
+    fireEvent.change(screen.getByLabelText('Book plan JSON'), { target: { value: plan } });
+    await user.click(screen.getByRole('button', { name: 'Import plan' }));
+
+    await user.click(screen.getByText('Current outline'));
+    expect(await screen.findByRole('treeitem', { name: 'Section 1' })).toBeInTheDocument();
+    const unitItem = screen.getByRole('treeitem', { name: 'Unit 1' });
+    expect(unitItem).toBeInTheDocument();
+    await user.click(within(unitItem).getByRole('button'));
+    expect(onUnitSelect).toHaveBeenCalledWith('unit-new');
+    fireEvent.change(screen.getByLabelText('Selected outline title'), { target: { value: 'Growing up' } });
+    rendered.rerender(<BookAssemblyWorkspace {...rendered.props} editingPanel="preview" />);
+    rendered.rerender(<BookAssemblyWorkspace {...rendered.props} editingPanel="content-tree" />);
+    expect(screen.getByLabelText('Selected outline title')).toHaveValue('Growing up');
+    expect(screen.getByRole('treeitem', { name: 'Growing up' })).toBeInTheDocument();
+    expect(screen.queryByText('section-new')).not.toBeInTheDocument();
+    expect(mocks.success).toHaveBeenCalledWith('Book plan imported. Save changes when you are ready.');
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'teacher_materials_book_assembly_structure_imported',
+      { bookId: 'book-1', source: 'book_assembly_modal', unitCount: 1 },
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(rendered.props.repository!.replace).toHaveBeenCalledWith(expect.objectContaining({
+      manifest: expect.objectContaining({ nodes: expect.arrayContaining([
+        expect.objectContaining({ nodeKey: 'unit-new', title: 'Growing up' }),
+      ]) }),
+    }));
+  });
+
+  it('keeps the current focused outline when a pasted Book plan is invalid', async () => {
+    const user = userEvent.setup();
+    const current = candidate();
+    const rendered = renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'content-tree',
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+    });
+
+    const invalidPlan = JSON.stringify({
+      nodes: [
+        { nodeKey: 'section-new', parentNodeKey: null, nodeType: 'section', order: 1 },
+        { nodeKey: 'unit-new', parentNodeKey: 'section-new', nodeType: 'unit', order: 1 },
+      ],
+      units: [{
+        unitKey: 'unit-new',
+        activitySlots: [{ activityKey: 'activity-new', order: 1, contextRequirement: 'required', pageGroupKeys: ['pages-new'] }],
+        pageGroups: [{ pageGroupKey: 'pages-new', sourceKey: 'full', pages: [99], activityKeys: ['activity-new'], mode: 'activity', defaultPhysicalPageNumber: 99 }],
+      }],
+    });
+    fireEvent.change(screen.getByLabelText('Book plan JSON'), { target: { value: invalidPlan } });
+    await user.click(screen.getByRole('button', { name: 'Import plan' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('outside the trusted Source Version range');
+    await user.click(screen.getByText('Current outline'));
+    expect(screen.getByRole('treeitem', { name: 'Section 1' })).toBeInTheDocument();
+    expect(screen.queryByText('Unit 2')).not.toBeInTheDocument();
+    rendered.rerender(<BookAssemblyWorkspace {...rendered.props} editingPanel="preview" />);
+    expect(screen.queryByText(/outside the trusted Source Version range/)).not.toBeInTheDocument();
+    rendered.rerender(<BookAssemblyWorkspace {...rendered.props} editingPanel="content-tree" />);
+    expect(screen.getByLabelText('Book plan JSON')).toHaveValue(invalidPlan);
+    expect(screen.queryByText(/outside the trusted Source Version range/)).not.toBeInTheDocument();
+  });
+
+  it('keeps imported Unit activities quiet until replacement is requested', async () => {
+    const user = userEvent.setup();
+    const current = candidate();
+    const manifest = {
+      ...current.manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [{ activityKey: 'activity-current', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-current'] }],
+        pageGroups: [{ pageGroupKey: 'pages-current', sourceKey: 'full', pages: [2], activityKeys: ['activity-current'], mode: 'activity' as const, defaultPhysicalPageNumber: 2 }],
+      }],
+    };
+    const withActivities = { ...current, manifest };
+    renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'activity-json',
+      initialCandidate: withActivities,
+      initialSourceSet: manifest.sourceSet,
+      initialSavedActivityKeysByUnit: { 'unit-1': ['activity-current'] },
+    });
+
+    expect(screen.queryByRole('button', { name: 'Copy prompt' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace activities' })).toBeInTheDocument();
+    expect(screen.getByText('No saved Activity details are available for this Unit.')).toBeInTheDocument();
+    expect(screen.queryByText('activity-current')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Replace activities' }));
+
+    expect(screen.getByRole('button', { name: 'Copy prompt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import activities' })).toBeDisabled();
+    expect(screen.queryByText('Drop Unit JSON here')).not.toBeInTheDocument();
+  });
+
+  it('keeps pasted edits on their Unit and follows Preview selection after the edit is cleared', async () => {
+    const user = userEvent.setup();
+    const current = componentReadyCandidate();
+    const onUnitSelect = vi.fn();
+    const { props, rerender } = renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'activity-json',
+      previewUnitKey: 'unit-b',
+      initialCandidate: current,
+      initialSourceSet: current.manifest!.sourceSet,
+      onUnitSelect,
+    });
+    expect(screen.getByRole('heading', { name: 'Unit 2 activities' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Paste returned JSON' }), { target: { value: '{"pending":true}' } });
+    const unitSelect = screen.getByRole('combobox', { name: 'Unit' });
+    expect(unitSelect).toBeDisabled();
+    await user.selectOptions(unitSelect, 'unit-a');
+    expect(onUnitSelect).not.toHaveBeenCalled();
+    rerender(<BookAssemblyWorkspace {...props} previewUnitKey="unit-a" />);
+    expect(screen.getByRole('heading', { name: 'Unit 2 activities' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Paste returned JSON' })).toHaveValue('{"pending":true}');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Paste returned JSON' }), { target: { value: '' } });
+    expect(screen.getByRole('heading', { name: 'Unit 1 activities' })).toBeInTheDocument();
+    await user.selectOptions(unitSelect, 'unit-b');
+    expect(onUnitSelect).toHaveBeenCalledWith('unit-b');
+    expect(screen.getByRole('heading', { name: 'Unit 2 activities' })).toBeInTheDocument();
+  });
+
+  it('opens page corrections on demand in Preview and preserves other Activity page groups', async () => {
+    const user = userEvent.setup();
+    const current = candidate();
+    const manifest = {
+      ...current.manifest!,
+      units: [{
+        unitKey: 'unit-1',
+        activitySlots: [{ activityKey: 'activity-current', order: 1, contextRequirement: 'required' as const, pageGroupKeys: ['pages-current', 'pages-second'] }],
+        pageGroups: [
+          { pageGroupKey: 'pages-current', sourceKey: 'full', pages: [2], activityKeys: ['activity-current'], mode: 'activity' as const, defaultPhysicalPageNumber: 2 },
+          { pageGroupKey: 'pages-second', sourceKey: 'full', pages: [3], activityKeys: ['activity-current'], mode: 'activity' as const, defaultPhysicalPageNumber: 3 },
+        ],
+      }],
+    };
+    const repo = repository();
+    const onDirtyChange = vi.fn();
+    renderWorkspace({
+      guided: true,
+      guidedUiVariant: 'mockup',
+      editingPanel: 'preview',
+      previewUnitKey: 'unit-1',
+      initialCandidate: { ...current, manifest },
+      initialSourceSet: manifest.sourceSet,
+      repository: repo,
+      onDirtyChange,
+    });
+
+    expect(screen.queryByText('Draft status')).not.toBeInTheDocument();
+    expect(screen.queryByText('activity-current')).not.toBeInTheDocument();
+    expect(screen.queryByText('Activity 1')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Change PDF connection' }));
+    let dialog = screen.getByRole('dialog', { name: 'PDF connection' });
+    expect(within(dialog).getAllByLabelText('PDF pages')).toHaveLength(2);
+
+    const pageInputs = within(dialog).getAllByLabelText('PDF pages');
+    const openingInputs = within(dialog).getAllByLabelText('Open on');
+    await user.clear(pageInputs[0]!);
+    await user.type(pageInputs[0]!, '4');
+    await user.clear(openingInputs[0]!);
+    await user.type(openingInputs[0]!, '4');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply change' }));
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+
+    await user.click(screen.getByRole('button', { name: 'Change PDF connection' }));
+    dialog = screen.getByRole('dialog', { name: 'PDF connection' });
+    expect(within(dialog).getAllByLabelText('PDF pages').map((input) => (input as HTMLInputElement).value)).toEqual(['4', '3']);
   });
 
   it('builds full-PDF hierarchy with native tree semantics and saves through 13A CAS', async () => {
@@ -459,19 +788,22 @@ describe('BookAssemblyWorkspace', () => {
     expect(mocks.success).toHaveBeenCalledWith('Assembly draft saved.');
   });
 
-  it('starts an existing candidate clean and returns clean after conflict reload', async () => {
+  it('preserves a nonstandard Full-PDF Unit scope through save conflict and reload', async () => {
     const user = userEvent.setup();
     const repo = repository('conflict');
     const onDirtyChange = vi.fn();
-    renderWorkspace({ repository: repo, initialCandidate: candidate(), onDirtyChange });
+    const existing = JSON.parse(JSON.stringify(candidate()).replaceAll('unit-1', 'qa-unit-a'));
+    repo.load = vi.fn(async () => ({ status: 'loaded', candidate: { ...existing, revision: 3 }, conflict: null }));
+    renderWorkspace({ repository: repo, initialCandidate: existing, onDirtyChange });
 
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
-    await user.click(screen.getByRole('button', { name: 'unit: unit-1' }));
+    await user.click(screen.getByRole('button', { name: 'unit: qa-unit-a' }));
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({ unitKey: 'qa-unit-a' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('This book changed; review again.');
 
     await user.click(screen.getByRole('button', { name: 'Reload current' }));
-    await waitFor(() => expect(repo.load).toHaveBeenCalledWith('book-1', 'unit-1', 'candidate-1'));
+    await waitFor(() => expect(repo.load).toHaveBeenCalledWith('book-1', 'qa-unit-a', 'candidate-1'));
     await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
     expect(mocks.info).toHaveBeenCalledWith('Assembly draft reloaded.');
   });
@@ -1135,11 +1467,12 @@ describe('BookAssemblyWorkspace', () => {
     await waitFor(() => expect(authoring.stage).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
     expect(authoring.stage).toHaveBeenCalledWith(expect.objectContaining({
-      targetActivityId: 'ba_626f6f6b2d31_61637469766974792d72656164696e672d31',
+      unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-reading-1' },
       clientValidationContext: { mappedBookPageRefs: ['source:full:page:2'] },
       sourceEvidenceRefs: ['source:full:page:2'],
       answerEvidenceRefs: ['pageGroup:pages-full-2-activity'],
     }));
+    expect(vi.mocked(authoring.stage).mock.calls[0]?.[0]).not.toHaveProperty('targetActivityId');
     expect(authoring.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-reading-1' },
     }));
@@ -1148,7 +1481,7 @@ describe('BookAssemblyWorkspace', () => {
       expectedCandidateRevision: 1,
     }));
     expect(repo.replace.mock.invocationCallOrder[0]).toBeLessThan(authoring.stage.mock.invocationCallOrder[0]);
-    expect(mocks.success).toHaveBeenCalledWith('Unit Activity JSON imported.');
+    expect(mocks.success).toHaveBeenCalledWith('Unit activities saved. Preview and publish when you’re ready.');
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'teacher_materials_book_assembly_unit_import_staged',
       expect.objectContaining({ slotCount: 1 }),
@@ -1200,7 +1533,7 @@ describe('BookAssemblyWorkspace', () => {
       expectedRevision: 1,
       unitActivityBinding: { unitKey: 'unit-1', activityKey: 'activity-reading-1' },
     }));
-    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Unit Activity JSON imported.'));
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Unit activities saved. Preview and publish when you’re ready.'));
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'teacher_materials_book_assembly_unit_import_replacement_selected',
       expect.objectContaining({ activityKey: 'activity-reading-1', currentRevision: 1 }),
@@ -1264,10 +1597,10 @@ describe('BookAssemblyWorkspace', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Stage Unit JSON' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('exactly match');
+    expect(await screen.findByText('Import bundle slots must exactly match the selected Unit Activity slots.')).toBeInTheDocument();
     expect(authoring.stage).not.toHaveBeenCalled();
     expect(repo.replace).not.toHaveBeenCalled();
-    expect(mocks.error).toHaveBeenCalledWith('Unit Activity import failed.');
+    expect(mocks.error).toHaveBeenCalledWith('Unit Activity JSON needs correction before it can be imported.');
   });
 
   it('applies only exact candidate reconciliation through one 13A CAS revision', async () => {

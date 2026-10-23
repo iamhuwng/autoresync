@@ -70,6 +70,7 @@ export const BOOK_METADATA_CANONICAL_ROOTS = Object.freeze([
   'book_runtime/homework_completion',
   'book_runtime/scopes',
   'book_source_upload_accounts',
+  'book_submission_operations',
   'book_update_action_recovery',
   'book_update_actions/by_book',
   'book_update_actions/by_idempotency',
@@ -90,6 +91,7 @@ export const BOOK_METADATA_CANONICAL_ROOTS = Object.freeze([
   'course_book_authority/operations',
   'course_book_authority/releases',
   'material_catalog/book_indexes',
+  'material_catalog/book_creation_fences',
   'material_catalog/book_nodes',
   'material_catalog/book_successor_operations',
   'material_catalog/books',
@@ -488,7 +490,7 @@ interface BookMetadataReference {
 }
 
 const declaredIdentifierFields = (rootPath: string): readonly string[] => {
-  if (rootPath === 'material_catalog/books' || rootPath === 'book_assembly/books') return ['bookId'];
+  if (rootPath === 'material_catalog/books' || rootPath === 'material_catalog/book_creation_fences' || rootPath === 'book_assembly/books') return ['bookId'];
   if (rootPath === 'book_activity/materials') return ['activityId'];
   if (rootPath === 'book_activity/versions') return ['activityId', 'activityVersionId', 'versionId'];
   if (rootPath === 'book_delivery/records' || rootPath === 'book_delivery/current') return ['bindingId'];

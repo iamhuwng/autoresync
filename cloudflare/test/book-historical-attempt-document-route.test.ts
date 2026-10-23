@@ -14,13 +14,22 @@ import type {
 } from '../../src/services/book-activity/activityRuntimeAttempt.types';
 import { createBookRouter } from '../src/upload-worker/book-router';
 import { canonicalBookRouteManifest } from '../src/upload-worker/book-routes/manifest';
+import { createComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service';
 
 const bindingId = `bd_${'a'.repeat(40)}`;
-const routeKey = `${bindingId}-4-component-a-source-version-4`;
+const routeKey = `${bindingId}-4-student-document`;
 const bytes = Uint8Array.from({ length: 16 }, (_, index) => index);
+const studentDocument = createComponentStudentDocument({
+  sourceVersionId: 'student-document-v4', descriptorRevision: 4, sha256Hex: 'a'.repeat(64), byteSize: bytes.length,
+  physicalPageCount: 13, compositionFingerprint: 'composition-4', components: [
+    { sourceKey: 'component-b', sourceVersionId: 'source-b-v4', sourceOrder: 1, ownerNodeKey: 'node-b', localPageCount: 3, combinedStartPage: 1, combinedEndPage: 3 },
+    { sourceKey: 'component-a', sourceVersionId: 'source-version-4', sourceOrder: 2, ownerNodeKey: 'node-1', localPageCount: 10, combinedStartPage: 4, combinedEndPage: 13 },
+  ],
+});
 const source = {
   bookId: 'book-1',
-  sourceVersionId: 'source-version-4',
+  sourceVersionId: 'student-document-v4',
   storageLocationId: 'location-historical',
   providerKind: 'backblaze-b2-s3' as const,
   privateBucketId: 'private-bucket',
@@ -64,7 +73,7 @@ const binding: BookDeliveryBinding = {
   },
   sourceSet: {
     strategy: 'component_pdfs',
-    sources: [{
+    sources: [{ sourceKey: 'component-b', sourceVersionId: 'source-b-v4', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] } }, {
       sourceKey: 'component-a',
       sourceVersionId: 'source-version-4',
       lifecycle: 'verified-usable',
@@ -108,6 +117,9 @@ const detail = {
       sourceKey: 'component-a',
       sourceVersionId: 'source-version-4',
       physicalPageNumber: 7,
+      combinedPhysicalPageNumber: 10,
+      pageGroupIds: ['page-group-1'],
+      pageContexts: [{ sourceKey: 'component-a', sourceVersionId: 'source-version-4', physicalPageNumber: 7, combinedPhysicalPageNumber: 10 }],
       pageGroupId: 'page-group-1',
       placementId: 'placement-1',
       activityId: 'activity-1',
@@ -117,10 +129,13 @@ const detail = {
       correspondence: 'source-assisted',
     },
     documentResource: {
-      sourceKey: 'component-a',
-      sourceVersionId: 'source-version-4',
+      sourceKey: 'student-document',
+      sourceVersionId: studentDocument.sourceVersionId,
       opaqueRouteKey: routeKey,
-      localPageScope: { kind: 'pages', pages: [7] },
+      localPageScope: { kind: 'all', pages: [] },
+      studentDocument: { descriptorRevision: studentDocument.descriptorRevision, sha256Hex: studentDocument.sha256Hex,
+        descriptorFingerprint: fingerprintComponentPdfActivationValue(studentDocument), expectedByteLength: studentDocument.byteSize,
+        physicalPageCount: studentDocument.physicalPageCount },
     },
   },
 } as unknown as BookResultDetail;
@@ -149,6 +164,7 @@ const runtime = (
   },
   readProfile: vi.fn(async () => ({ role: profile, status: 'active' })),
   readCurrentAuthority: vi.fn(),
+  readHistoricalStudentDocument: vi.fn(async () => studentDocument),
   readResultDetail: vi.fn(async () => detail),
   readHomeworkAuthority: vi.fn(async () => ({
     homeworkId: 'homework-1',
@@ -186,6 +202,29 @@ const invoke = async (
 }) as Promise<Response>;
 
 describe('historical attempt document byte route', () => {
+  it('denies component-private routes, changed mappings and storage checksums before reading bytes', async () => {
+    const component = runtime();
+    const { combinedPhysicalPageNumber: _combinedPage, pageContexts: _contexts, pageGroupIds: _groups, ...componentMetadata } = detail.attemptSourceContext.metadata!;
+    vi.mocked(component.readResultDetail!).mockResolvedValue({ ...detail, attemptSourceContext: {
+      ...detail.attemptSourceContext,
+      metadata: componentMetadata,
+      documentResource: { sourceKey: 'component-a', sourceVersionId: 'source-version-4',
+        opaqueRouteKey: `${bindingId}-4-component-a-source-version-4`, localPageScope: { kind: 'pages', pages: [7] } },
+    } } as BookResultDetail);
+    expect((await invoke(component, 'student-1', { opaqueRouteKey: `${bindingId}-4-component-a-source-version-4` })).status).toBe(403);
+    expect(component.provider.readBounded).not.toHaveBeenCalled();
+    const mapping = runtime();
+    vi.mocked(mapping.readHistoricalStudentDocument!).mockResolvedValue({ ...studentDocument,
+      components: studentDocument.components.map((value, index) => index === 1 ? { ...value, combinedStartPage: 5 } : value) });
+    expect((await invoke(mapping)).status).toBe(403);
+    expect(mapping.provider.readBounded).not.toHaveBeenCalled();
+    const checksum = runtime();
+    vi.mocked(checksum.readHistoricalSource!).mockResolvedValue({ availability: 'available', source: {
+      ...source, checksum: { algorithm: 'sha-256', value: 'b'.repeat(64) },
+    } });
+    expect((await invoke(checksum)).status).toBe(403);
+    expect(checksum.provider.readBounded).not.toHaveBeenCalled();
+  });
   it('carries real immutable projection through the canonical contributor to exact bytes only', async () => {
     const terminalAttempt: BookRuntimeAttemptRecord = {
       schemaVersion: 1,
@@ -235,6 +274,7 @@ describe('historical attempt document byte route', () => {
       createdAt: '2026-07-31T00:00:00.000Z',
     };
     const project = (sourceVersionId: string) => projectBookAttemptSourceContext({
+      combinedDocument: { descriptor: studentDocument, opaqueRouteKey: routeKey },
       attempt: terminalAttempt,
       result: terminalResult,
       historicalDelivery: {
@@ -317,7 +357,8 @@ describe('historical attempt document byte route', () => {
     expect(selectedRuntime.repository.resolveCurrent).not.toHaveBeenCalled();
     expect(selectedRuntime.readHistoricalSource).toHaveBeenCalledWith({
       binding,
-      sourceVersionId: 'source-version-4',
+      sourceVersionId: studentDocument.sourceVersionId,
+      studentDocument,
     });
   });
 
@@ -366,5 +407,12 @@ describe('historical attempt document byte route', () => {
     });
     expect((await invoke(crossScoped)).status).toBe(403);
     expect(crossScoped.provider.readBounded).not.toHaveBeenCalled();
+    const context = runtime();
+    vi.mocked(context.repository.readBinding).mockResolvedValue({
+      binding: { ...binding, context: { ...binding.context, contextId: 'other-homework' } },
+      recordRevision: 1, status: 'active', createdAt: binding.createdAt, updatedAt: binding.createdAt,
+    });
+    expect((await invoke(context)).status).toBe(403);
+    expect(context.provider.readBounded).not.toHaveBeenCalled();
   });
 });

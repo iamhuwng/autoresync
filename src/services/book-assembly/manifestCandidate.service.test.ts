@@ -40,6 +40,16 @@ const manifest = (): BookAssemblyManifestCandidate => ({
 });
 
 describe('validateBookAssemblyManifestCandidate', () => {
+  it('preserves optional titles while rejecting empty or oversized titles', () => {
+    const named = manifest();
+    named.nodes[0] = { ...named.nodes[0]!, title: 'Vocabulary Unit' };
+    expect(validateBookAssemblyManifestCandidate(named, authority()).valid).toBe(true);
+    for (const title of ['', '  ', 'x'.repeat(201)]) {
+      named.nodes[0] = { ...named.nodes[0]!, title };
+      expect(validateBookAssemblyManifestCandidate(named, authority()).errors)
+        .toEqual(expect.arrayContaining([expect.objectContaining({ path: '$.nodes[0].title', code: 'invalid-value' })]));
+    }
+  });
   it('accepts a normal full-PDF manifest with reciprocal bounded mappings', () => {
     expect(validateBookAssemblyManifestCandidate(manifest(), authority())).toMatchObject({ valid: true, errors: [] });
   });

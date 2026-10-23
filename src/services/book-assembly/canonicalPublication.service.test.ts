@@ -575,6 +575,34 @@ describe('canonical Book Assembly publication service', () => {
     await expect(canonical.readPrepared(referenceOf(record))).resolves.toEqual(record);
   });
 
+  it('keeps the original immutable publication authority through repeated reference publication', async () => {
+    const books = new InMemoryBookAssemblyPublicationRepository<BookAssemblyPublicationResult>();
+    const canonical = new InMemoryCanonicalActivityVersionRepository();
+    const contexts: unknown[] = [];
+    const service = createCanonicalBookAssemblyPublicationService(books, {
+      prepare: record => canonical.prepare(record),
+      readPrepared: (reference, publication) => {
+        contexts.push(publication);
+        return canonical.readPrepared(reference);
+      },
+    });
+    const initial = firstPublication();
+    const record = initial.canonicalActivityVersions[0]!;
+    await service.publish(initial);
+    for (const revision of [2, 3]) {
+      await expect(service.publish(referenceInput(record, {
+        operationId: op(String(revision)), publicationId: `publication-${revision}`, publicationRevision: revision,
+        expectedCurrentPublicationId: `publication-${revision - 1}`,
+      }))).resolves.toMatchObject({ status: 'published' });
+    }
+    expect(contexts).toEqual([2, 3].map(() => ({ bookId: 'book-1', ownerId: record.ownerId,
+      manifestVersionId: 'manifest-v1', publicationId: 'publication-1', activityId: record.activityId,
+      activityVersionId: record.activityVersionId, activityVersion: record.activityVersion, payloadFingerprint: record.payloadFingerprint })));
+    const scope = await books.readScope('book-1');
+    expect(scope.activityVersions?.[bookAssemblyActivityVersionScopeKey('manifest-v3', record.activityVersionId)])
+      .toMatchObject({ canonicalOriginManifestVersionId: 'manifest-v1', canonicalOriginPublicationId: 'publication-1' });
+  });
+
   it.each([
     'missing canonical record',
     'missing reference fingerprint',

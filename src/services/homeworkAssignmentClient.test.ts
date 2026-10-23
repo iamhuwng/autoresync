@@ -42,6 +42,7 @@ const bookCommand = {
   manifestVersionId: 'manifest-1',
   intent: {
     bookId: 'book-1',
+    presentation: { title: 'Book Homework' },
     target: { kind: 'book' as const, bookId: 'book-1', classId: 'class-1' },
     schedule: {
       finalDueAt: '2026-06-18T00:00:00.000Z',
@@ -110,7 +111,6 @@ const previewSourceResponse = () => ({
     createdAt: '2026-06-17T00:00:00.000Z', bindingRevision: 1,
   },
   initialTarget: { kind: 'unit', bookId: 'book-1', nodeKey: 'unit-1' },
-  studentDocument: { sourceVersionId: 'pdf-version-1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) },
   targetPreview: {
     fingerprint: 'preview-fingerprint',
     rows: [{ placementId: 'placement-1', activityId: 'activity-1', nodeKey: 'unit-1', state: 'included' }],
@@ -217,6 +217,17 @@ describe('homeworkAssignmentClient', () => {
     })).resolves.toEqual(pendingResponse);
   });
 
+  it('retains bounded notification progress and rejects a count outside the frozen recipients', async () => {
+    const response = { ...bookResponse, status: 'committed_notifications_pending', notifiedRecipientCount: 0 };
+    const fetchImpl = vi.fn().mockResolvedValueOnce(Response.json(response, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ ...response, notifiedRecipientCount: bookResponse.recipientCount + 1 }, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ ...response, notifiedRecipientCount: -1 }, { status: 202 }));
+    const options = { workerOrigin: 'https://book-worker.example.test', fetchImpl };
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).resolves.toEqual(response);
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).rejects.toMatchObject({ reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).rejects.toMatchObject({ reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+  });
+
   it('rejects a pending response whose state is not committed', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ...bookResponse,
@@ -305,10 +316,24 @@ describe('homeworkAssignmentClient', () => {
   it('accepts a valid preview source response', async () => {
     const fetchMock = vi.fn();
     const body = previewSourceResponse();
+    body.initialTarget = { nodeKey: 'unit-1', bookId: 'book-1', kind: 'unit' };
     fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
     const options = { workerOrigin: ['https:', '', 'book-worker.example.test'].join('/'), fetchImpl: fetchMock };
     const result = await createPreview(previewRequest, options);
-    expect(result).toBeDefined();
+    expect(result).not.toHaveProperty('studentDocument');
+  });
+
+  it('accepts a component preview with a real combined document pin', async () => {
+    const body = previewSourceResponse();
+    const component = { ...body, delivery: { ...body.delivery,
+      sourceSet: { strategy: 'component_pdfs', sources: [...body.delivery.sourceSet.sources,
+        { ...body.delivery.sourceSet.sources[0], sourceKey: 'pdf-2', sourceVersionId: 'pdf-version-2' }] } },
+      studentDocument: { sourceVersionId: 'combined-v1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64),
+        components: [{ sourceKey: 'pdf-1', combinedStartPage: 1, localPageCount: 1 },
+          { sourceKey: 'pdf-2', combinedStartPage: 2, localPageCount: 1 }] } };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(component), { status: 200 }));
+    await expect(createPreview(previewRequest, { workerOrigin: 'https://book-worker.example.test', fetchImpl }))
+      .resolves.toMatchObject({ studentDocument: component.studentDocument });
   });
 
   it('rejects mismatched and malformed preview source responses', async () => {
@@ -324,10 +349,18 @@ describe('homeworkAssignmentClient', () => {
     synthetic.delivery.sourceSet.sources.push({
       sourceKey: 'pdf-2', sourceVersionId: 'pdf-version-2', lifecycle: 'verified-usable', localPageScope: { kind: 'all', pages: [] },
     });
-    synthetic.studentDocument.descriptorRevision = 0;
-    synthetic.studentDocument.sha256Hex = '0'.repeat(64);
+    synthetic.studentDocument = { sourceVersionId: 'pdf-version-1', descriptorRevision: 0, sha256Hex: '0'.repeat(64) };
     fetchMock.mockResolvedValue(new Response(JSON.stringify(synthetic), { status: 200 }));
     await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+
+    for (const body of [
+      { ...previewSourceResponse(), studentDocument: { sha256Hex: 'invalid' } },
+      { ...previewSourceResponse(), initialTarget: { ...previewSourceResponse().initialTarget, extra: 'untrusted' } },
+      { ...synthetic, studentDocument: undefined },
+    ]) {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+      await expect(createPreview(previewRequest, options)).rejects.toMatchObject({ status: 502, reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+    }
 
     const malformed = previewSourceResponse();
     malformed.delivery.sourceSet.sources = {} as never;

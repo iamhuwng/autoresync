@@ -3,6 +3,7 @@ import type { MaterialBookSetupActivation } from '../../types/materialCatalog.ty
 import type { BookAssemblyBookAuthority, BookAssemblyCandidateRecord } from './unitAssembly.types';
 import type { ComponentStudentDocument } from './componentStudentDocument.types';
 import { canonicalActivityPayloadFingerprint } from './unitPreview.service';
+import { validateBookAssemblyManifestCandidate } from './manifestCandidate.service';
 import type { NormalizedActivity } from '../../types/bookActivity.types';
 
 export const COMPONENT_PDF_ACTIVATION_RECEIPT_LIMIT = 32;
@@ -190,17 +191,26 @@ export const resolveMaterialQualifiedAssemblyCandidate = (
   authority: BookAssemblyBookAuthority,
   unitKey: string,
   candidates: Readonly<Record<string, BookAssemblyCandidateRecord>> | undefined,
+  current?: { readonly candidateId: string; readonly candidateRevision: number; readonly bookRevision: number;
+    readonly sourceSetRevision: number; readonly updatedAt: string },
 ): BookAssemblyCandidateRecord | null => {
   const activation = activeComponentPdfActivation(authority);
   const reference = activation?.unitCandidates.find((item) => item.unitKey === unitKey);
-  const candidate = reference ? candidates?.[reference.candidateId] : undefined;
+  const candidate = current ? candidates?.[current.candidateId] : reference ? candidates?.[reference.candidateId] : undefined;
   if (!activation || !reference || !candidate || candidate.lifecycle !== 'validated' || !candidate.manifest
     || candidate.ownerId !== authority.ownerId || candidate.bookId !== authority.bookId
-    || candidate.unitKey !== unitKey || candidate.revision !== reference.candidateRevision
+    || candidate.unitKey !== unitKey
     || candidate.bookRevision !== authority.bookRevision
     || candidate.sourceSetRevision !== authority.sourceSetRevision
-    || fingerprint(candidate.manifest) !== reference.manifestFingerprint
     || stable(candidate.manifest.sourceSet) !== stable(authority.sourceSet)) return null;
+  if (current ? candidate.revision !== current.candidateRevision
+    || candidate.bookRevision !== current.bookRevision || candidate.sourceSetRevision !== current.sourceSetRevision
+    || candidate.updatedAt !== current.updatedAt
+    || JSON.stringify(candidate.manifest.units.map((unit) => unit.unitKey).sort())
+      !== JSON.stringify(activation.unitCandidates.map((unit) => unit.unitKey).sort())
+    || !validateBookAssemblyManifestCandidate(candidate.manifest, authority.sourceVersionAuthority).valid
+    : candidate.revision !== reference.candidateRevision
+      || fingerprint(candidate.manifest) !== reference.manifestFingerprint) return null;
   return structuredClone(candidate);
 };
 

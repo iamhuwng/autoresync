@@ -13,6 +13,7 @@ import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.
 import {
   createTrustedBookDeliveryPublication,
   resolveTrustedBookDeliveryStudentDocument,
+  resolveTrustedBookDeliveryFullPageDefaults,
 } from '../book-delivery/worker.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
 import {
@@ -199,6 +200,7 @@ export const createProductionCourseBookCommand = (env: WorkerEnv) => {
         return createBookDeliveryProjectionResolver({
           repository: deliveryRepository, allowedAdapterContexts: ['course'],
           resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
+          resolveFullPageDefaults: (binding) => resolveTrustedBookDeliveryFullPageDefaults(scopedEnv, binding, assemblies),
         }).resolve({
           recipientId: input.studentId, contextId: input.placement.courseMaterialId,
           actor: { uid: input.studentId },
@@ -231,6 +233,7 @@ export const resolveCurrentCourseBook = async (env: WorkerEnv, uid: string, cour
   return createBookDeliveryProjectionResolver({
     repository, allowedAdapterContexts: ['course'],
     resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(scopedEnv, binding),
+    resolveFullPageDefaults: (binding) => resolveTrustedBookDeliveryFullPageDefaults(scopedEnv, binding),
   }).resolve({
     recipientId: uid, contextId: courseMaterialId, actor: { uid },
   });

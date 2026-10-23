@@ -27,6 +27,7 @@ import { bookRuntimeLaunchRouteDescriptors } from '../book-runtime-launch/route.
 import { bookIntegrityReportRouteDescriptor } from '../book-activity-integrity/route.ts';
 import { bookResultReadRouteDescriptors } from '../book-results/route.ts';
 import { bookActivityEvaluationRouteDescriptors } from '../book-activity-grading/route.ts';
+import { bookSubmissionRouteDescriptors } from '../book-submission/route.ts';
 import type {
   BookRouteDomain,
   BookRouteManifest,
@@ -282,6 +283,23 @@ const sourceUploadRoutes = bookSourceRouteDescriptors.map((route) => contributor
   identityEnv: 'BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY',
   credentialEnv: 'BOOK_SOURCE_UPLOAD_GOOGLE_SA_KEY',
   contributorTicket: '#49',
+}));
+
+const bookSubmissionRoutes = bookSubmissionRouteDescriptors.map((route) => contributor({
+  id: `book.submission.${route.handler}`,
+  method: route.method,
+  path: route.path,
+  owner: 'PRD0063',
+  domain: 'submission',
+  handler: `bookSubmission.${route.handler}`,
+  firebaseAuth: 'firebase-id-token-teacher',
+  rateClass: route.method === 'GET' ? 'book-read' : 'book-control',
+  gateEnv: 'BOOK_SUBMISSION_ROUTES_ENABLED',
+  requestBodyBytes: route.method === 'GET' ? 0 : MAX_CONTROL_REQUEST_BYTES,
+  responseLimitBytes: MAX_CONTROL_RESPONSE_BYTES,
+  identityEnv: 'BOOK_SUBMISSION_SERVICE_IDENTITY',
+  credentialEnv: 'BOOK_SUBMISSION_GOOGLE_SA_KEY',
+  contributorTicket: 'PRD0063',
 }));
 
 const courseBookRoutes = courseBookPlacementRouteDescriptors.map((route) => contributor({
@@ -591,6 +609,7 @@ export const canonicalBookRouteManifest: BookRouteManifest = Object.freeze([
   ...assemblySuccessorRoutes,
   ...assemblyMappingRevisionRoutes,
   ...sourceUploadRoutes,
+  ...bookSubmissionRoutes,
   ...courseBookRoutes,
   ...classBookPlacementRoutes,
   ...bookRuntimeLaunchRoutes,

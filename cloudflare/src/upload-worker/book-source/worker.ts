@@ -3,10 +3,12 @@ import {
   SourceUploadControlError,
   type SourceUploadBeginResult,
   type BookSourceUploadControlDependencies,
+  type SourceUploadSubmissionAccess,
 } from '../../../../src/services/book-source-delivery/sourceUpload.service.ts';
 import {
   createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
   createTrustedFirebaseSourceUploadRtdbTransaction,
+  normalizeTrustedSourceUploadDatabaseUrl,
 } from '../../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
 import {
   SourceUploadRtdbRepository,
@@ -14,6 +16,8 @@ import {
   validateBookSourceUploadAccountState,
 } from '../../../../src/services/book-source-delivery/sourceUpload.rtdbRepository.ts';
 import { createMaterialBookSourceAttachmentService } from '../../../../src/services/book-source-delivery/materialBookSourceAttachment.service.ts';
+import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+import { fenceCanceledSubmissionBook } from './canceled-submission-retirement.ts';
 import type {
   BookSourceUploadAccountState,
   BookSourceUploadOperation,
@@ -67,19 +71,6 @@ const required = (value: unknown, code: string): string => {
   if (typeof value !== 'string' || !value.trim()) throw new SourceUploadControlError('invalid_deployment');
   if (value.length > 32 * 1024) throw new SourceUploadControlError('invalid_deployment');
   return value.trim();
-};
-
-const databaseUrl = (value: unknown): string => {
-  let parsed: URL;
-  try {
-    parsed = new URL(required(value, 'database_url'));
-  } catch {
-    throw new SourceUploadControlError('invalid_deployment');
-  }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new SourceUploadControlError('invalid_deployment');
-  }
-  return parsed.href.replace(/\/$/u, '');
 };
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -147,6 +138,11 @@ const parseServiceAccount = (env: BookSourceUploadWorkerEnv): {
 };
 
 const safeStatus = (operation: BookSourceUploadOperation) => {
+  if (operation.status === 'retired' && operation.retirementGuard && 'kind' in operation.retirementGuard
+    && operation.retirementGuard.kind === 'canceled-submission') {
+    return { reservationId: operation.reservationId, bookId: operation.bookId,
+      sourceVersionId: operation.sourceVersionId, status: 'released' as const, retryKind: 'none' as const };
+  }
   const checksum = readTrustedSourceChecksum(operation.expectedChecksum);
   const safety = readTrustedSourceSafety(operation, {
     sourceVersionId: operation.sourceVersionId,
@@ -159,8 +155,8 @@ const safeStatus = (operation: BookSourceUploadOperation) => {
     reservationId: operation.reservationId,
     bookId: operation.bookId,
     sourceVersionId: operation.sourceVersionId,
-    status: operation.status,
-    retryKind: operation.status === 'cleanup_pending'
+    status: operation.status === 'retirement_pending' ? 'cleanup_pending' as const : operation.status,
+    retryKind: operation.status === 'cleanup_pending' || operation.status === 'retirement_pending'
       || (operation.status === 'verified_completed' && operation.versionReconciliation !== undefined)
       ? 'cleanup' as const
       : operation.status === 'reserved'
@@ -215,24 +211,33 @@ export const listBookSourceProjections = (
   .sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)
     || left.sourceVersionId.localeCompare(right.sourceVersionId));
 
-const defaultRuntimeFactory = async (
+export const createBookSourceUploadRuntime = async (
   env: BookSourceUploadWorkerEnv,
 ): Promise<BookSourceUploadRuntime> => {
   const accountId = required(env.BOOK_SOURCE_UPLOAD_ACCOUNT_ID, 'account_id');
   if (!SAFE_ID.test(accountId)) throw new SourceUploadControlError('invalid_deployment');
-  const baseUrl = databaseUrl(env.FIREBASE_DB_URL);
+  const localEmulator = env.LOCAL_EMULATOR_AUTH === 'true';
+  let baseUrl: string;
+  try {
+    if (localEmulator && env.FIREBASE_PROJECT_ID !== 'demo-luyentap-local') throw new Error('wrong_local_project');
+    baseUrl = normalizeTrustedSourceUploadDatabaseUrl(required(env.FIREBASE_DB_URL, 'database_url'), localEmulator);
+  } catch { throw new SourceUploadControlError('invalid_deployment'); }
   const serviceAccount = parseServiceAccount(env);
-  const accessTokenProvider = createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
+  const accessTokenProvider = localEmulator ? { getAccessToken: async () => 'owner' } : createTrustedFirebaseRtdbServiceAccountAccessTokenProvider({
     serviceAccountEmail: serviceAccount.email,
     serviceAccountPrivateKey: serviceAccount.privateKey,
   });
   const repository = new SourceUploadRtdbRepository(
     createTrustedFirebaseSourceUploadRtdbTransaction({
       databaseUrl: baseUrl,
+      localEmulator,
       accessTokenProvider,
     }),
     {},
   );
+  const retirementAuthority = new FirebaseRtdbRestClient({
+    env: { FIREBASE_DB_URL: baseUrl }, fetchImpl: fetch, getAccessToken: () => accessTokenProvider.getAccessToken(),
+  });
   const materialBookSourceAttachmentRepository = createFirebaseMaterialBookSourceAttachmentRepository({
     env: { FIREBASE_DB_URL: baseUrl },
     accountId,
@@ -241,9 +246,14 @@ const defaultRuntimeFactory = async (
   const materialBookSourceAttachment = createMaterialBookSourceAttachmentService(
     materialBookSourceAttachmentRepository,
   );
+  const endpoint = (path: string): string => {
+    const url = new URL(baseUrl);
+    url.pathname = `${url.pathname.replace(/\/$/u, '')}/${path}.json`;
+    return url.href;
+  };
   const readAccountState = async (): Promise<BookSourceUploadAccountState> => {
     const response = await fetch(
-      `${baseUrl}/${sourceUploadAccountPath(accountId)}.json`,
+      endpoint(sourceUploadAccountPath(accountId)),
       { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
     );
     if (!response.ok) throw new SourceUploadControlError('account_state_unavailable');
@@ -251,16 +261,39 @@ const defaultRuntimeFactory = async (
   };
   const readTrustedValue = async (path: string): Promise<unknown> => {
     const response = await fetch(
-      `${baseUrl}/${path}.json`,
+      endpoint(path),
       { headers: { Authorization: `Bearer ${await accessTokenProvider.getAccessToken()}` } },
     );
     if (!response.ok) throw new SourceUploadControlError('authority_denied');
     return readBoundedJson(response);
   };
+  const submissionOperation = async (ownerId: string, submissionOperationId: string): Promise<Record<string, unknown> | null> => {
+    if (!SAFE_ID.test(ownerId) || !SAFE_ID.test(submissionOperationId)) return null;
+    return record(await readTrustedValue(`book_submission_operations/${ownerId}/operations/${submissionOperationId}`));
+  };
+  const authorizesPendingSubmission = async (
+    actorId: string,
+    bookId: string,
+    submissionOperationId: string | undefined,
+    access?: SourceUploadSubmissionAccess,
+  ): Promise<boolean> => {
+    if (!submissionOperationId) return false;
+    const operation = await submissionOperation(actorId, submissionOperationId);
+    return operation?.operationId === submissionOperationId
+      && operation.ownerId === actorId
+      && operation.finalBookId === bookId
+      && typeof operation.fingerprint === 'string'
+      && /^[a-f0-9]{64}$/iu.test(operation.fingerprint)
+      && (operation.state === 'preparing'
+        || (access === 'cleanup' && operation.state === 'canceled')
+        || (access === 'status' && (operation.state === 'canceled' || operation.state === 'committing')));
+  };
   const authorizeOwner = async ({
     actorId,
     bookId,
-  }: { readonly actorId: string; readonly bookId: string }): Promise<boolean> => {
+    submissionOperationId,
+    submissionAccess,
+  }: { readonly actorId: string; readonly bookId: string; readonly submissionOperationId?: string; readonly submissionAccess?: SourceUploadSubmissionAccess }): Promise<boolean> => {
     if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId)) return false;
     const [book, profile] = await Promise.all([
       readTrustedValue(`material_catalog/books/${bookId}`),
@@ -268,15 +301,17 @@ const defaultRuntimeFactory = async (
     ]);
     const bookRecord = record(book);
     const profileRecord = record(profile);
-    return bookRecord?.bookId === bookId
+    if (!isActiveBookSourceAuthorityProfile(profileRecord, 'teacher')) return false;
+    if (book !== null) return bookRecord !== null && bookRecord.bookId === bookId
       && bookRecord.ownerId === actorId
-      && bookRecord.status !== 'archived'
-      && isActiveBookSourceAuthorityProfile(profileRecord, 'teacher');
+      && bookRecord.status !== 'archived';
+    return authorizesPendingSubmission(actorId, bookId, submissionOperationId, submissionAccess);
   };
   const authorizeDecision = async ({
     actorId,
     bookId,
-  }: { readonly actorId: string; readonly bookId: string }): Promise<boolean> => {
+    submissionOperationId,
+  }: { readonly actorId: string; readonly bookId: string; readonly submissionOperationId?: string }): Promise<boolean> => {
     if (!SAFE_ID.test(actorId) || !SAFE_ID.test(bookId)) return false;
     const [book, profile] = await Promise.all([
       readTrustedValue(`material_catalog/books/${bookId}`),
@@ -287,9 +322,11 @@ const defaultRuntimeFactory = async (
     const activeAdmin = isActiveBookSourceAuthorityProfile(profileRecord, 'super_admin');
     const activeOwner = bookRecord?.ownerId === actorId
       && isActiveBookSourceAuthorityProfile(profileRecord, 'teacher');
-    return bookRecord?.bookId === bookId
+    if (book !== null) return bookRecord !== null && bookRecord.bookId === bookId
       && bookRecord.status !== 'archived'
       && (activeOwner || activeAdmin);
+    return isActiveBookSourceAuthorityProfile(profileRecord, 'teacher')
+      && authorizesPendingSubmission(actorId, bookId, submissionOperationId);
   };
   const providerWiring = resolveBackblazeB2ProviderWiring(env);
   if (!providerWiring.provider) throw new SourceUploadControlError('invalid_deployment');
@@ -402,14 +439,15 @@ const defaultRuntimeFactory = async (
       };
     },
     status: async ({ actorId, bookId, reservationId }) => {
-      if (!(await authorizeOwner({ actorId, bookId }))) {
-        throw new SourceUploadControlError('authority_denied');
-      }
       const state = await readAccountState();
       const operation = state.operations[reservationId];
       if (!operation || operation.bookId !== bookId || operation.ownerId !== actorId) {
         throw new SourceUploadControlError('reservation_not_found');
       }
+      if (!(await authorizeOwner({ actorId, bookId,
+        ...(operation.submissionOperationId === undefined ? {} : { submissionOperationId: operation.submissionOperationId }),
+        submissionAccess: 'status',
+      }))) throw new SourceUploadControlError('authority_denied');
       return safeStatus(operation);
     },
     sources: async ({ actorId, bookId }) => {
@@ -427,14 +465,33 @@ const defaultRuntimeFactory = async (
       providerFileId,
       providerFileVersionId,
     }) => {
-      if (!(await authorizeOwner({ actorId, bookId }))) {
-        throw new SourceUploadControlError('authority_denied');
-      }
       const state = await readAccountState();
       const operation = state.operations[reservationId];
       if (!operation || operation.bookId !== bookId || operation.ownerId !== actorId) {
         throw new SourceUploadControlError('reservation_not_found');
       }
+      if (operation.submissionOperationId !== undefined) {
+        const submission = await submissionOperation(actorId, operation.submissionOperationId);
+        if (!submission || submission.state === 'committed') throw new SourceUploadControlError('authority_denied');
+      }
+      if (!(await authorizeOwner({ actorId, bookId,
+        ...(operation.submissionOperationId === undefined ? {} : { submissionOperationId: operation.submissionOperationId }),
+        submissionAccess: 'cleanup',
+      }))) throw new SourceUploadControlError('authority_denied');
+      if (operation.status === 'verified_completed' || operation.status === 'retirement_pending') {
+        if (reason !== 'cancel_requested' || providerFileId !== undefined || providerFileVersionId !== undefined) {
+          throw new SourceUploadControlError('authority_denied');
+        }
+        const retirementGuard = await fenceCanceledSubmissionBook(retirementAuthority, operation);
+        const next = await repository.fenceVerifiedSource({
+          accountId, expectedRevision: state.revision, reservationId, ownerId: actorId, bookId,
+          sourceVersionId: operation.sourceVersionId, sourceKey: operation.sourceKey,
+          verifiedStorage: operation.verifiedStorage!, retirementGuard, deletionId: retirementGuard.deletionId,
+          fencedAt: new Date().toISOString(), currentSourceVersionIds: [], remainingActiveSourceVersionIds: [],
+        });
+        return safeStatus(next.operations[reservationId]!);
+      }
+      if (operation.status === 'retired') return safeStatus(operation);
       const next = await repository.requestCleanup({
         accountId,
         expectedRevision: state.revision,
@@ -466,7 +523,7 @@ const handlerFor = (
   const env = input.env as BookSourceUploadWorkerEnv;
   let runtime: BookSourceUploadRuntime;
   try {
-    runtime = await (options.runtimeFactory ?? defaultRuntimeFactory)(env);
+    runtime = await (options.runtimeFactory ?? createBookSourceUploadRuntime)(env);
   } catch (error) {
     console.error('book_source_runtime_unavailable', error instanceof Error ? error.message : String(error));
     const code = error instanceof SourceUploadControlError && error.code === 'invalid_deployment'

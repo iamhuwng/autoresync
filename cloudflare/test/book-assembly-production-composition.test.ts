@@ -4,6 +4,7 @@ import {
   isFullPdfPublicationSourceReady,
   readExactSavedActivityContent,
   readVerifiedDraftActivityKeys,
+  readVerifiedDraftActivities,
 } from '../src/upload-worker/book-assembly/production-composition.ts';
 import { normalizeActivity } from '../../src/services/book-activity/activityCanonical.service.ts';
 import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
@@ -63,6 +64,36 @@ describe('production source publication boundary', () => {
         { read: async () => bindingValue as never },
         { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: savedValue }, activities: { [binding.activityId]: activityValue } }) });
     await expect(read()).resolves.toEqual(['activity-1']);
+    const revised = { ...saved, revision: 4, content: { ...editable, title: 'Revised content' } };
+    const revisedActivity = { ...activity, editableDraft: revised.content,
+      draft: normalizeActivity(revised.content, undefined, undefined, { mappedBookPageRefs: ['source:part-a:page:1'] }) };
+    const revisedBinding = { ...binding, candidateRevision: 4 };
+    const snapshot = await readVerifiedDraftActivities(assembly as never,
+      { read: async () => revisedBinding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: revised }, activities: { [binding.activityId]: revisedActivity } }) });
+    expect(snapshot['activity-1']).toMatchObject({ activityId: binding.activityId,
+      activityCandidateRevision: 4, content: { title: 'Revised content' } });
+    expect(saved.content.title).toBe('Saved content');
+    const editedAssembly = { ...assembly, candidateId: 'edited-assembly', revision: 4, manifest: {
+      ...manifest, nodes: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1, title: 'Reviewed outline' }],
+      units: manifest.units.map((unit) => ({ ...unit, pageGroups: unit.pageGroups.map((group) => ({ ...group, defaultPhysicalPageNumber: 1 })) })),
+    } };
+    const requalify = (original = assembly, current = editedAssembly) => readVerifiedDraftActivities(current as never,
+      { read: async () => revisedBinding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: revised }, activities: { [binding.activityId]: revisedActivity } }) },
+      { [assembly.candidateId]: original as never });
+    expect(await requalify()).toMatchObject({ 'activity-1': { activityCandidateRevision: 4, content: { title: 'Revised content' } } });
+    expect(await requalify({ ...assembly, revision: 1 })).toEqual({});
+    expect(await requalify({ ...assembly, ownerId: 'teacher-2' })).toEqual({});
+    expect(await requalify(assembly, { ...editedAssembly, manifest: { ...editedAssembly.manifest,
+      units: editedAssembly.manifest.units.map((unit) => ({ ...unit,
+        pageGroups: unit.pageGroups.map((group) => ({ ...group, pages: [2], defaultPhysicalPageNumber: 2 })),
+      })),
+    } })).toEqual({});
+    expect(await requalify({ ...assembly, manifest: { ...manifest, sourceSet: { ...manifest.sourceSet,
+      sources: manifest.sourceSet.sources.map((source) => ({ ...source, sourceVersionId: 'replacement' })),
+    } } })).toEqual({});
+
     for (const changed of [
       { ...saved, ownerId: 'teacher-2' }, { ...saved, revision: 4 }, { ...saved, lifecycle: 'validated' },
       { ...saved, assemblyDraft: { ...saved.assemblyDraft, candidateRevision: 1 } },
@@ -121,8 +152,8 @@ describe('production source publication boundary', () => {
     expect(isFullPdfPublicationSourceReady(value as never)).toBe(expected);
   });
 
-  it('keeps component publication closed until a student-document descriptor exists', async () => {
+  it('creates component publication dependencies separately for each request', async () => {
     const options = createProductionBookAssemblyRouteOptions();
-    await expect(options.assemblyPublication!.componentPdf!.sourceIsPreviewReady({} as never)).resolves.toBe(false);
+    expect(typeof options.assemblyPublication!.componentPdf).toBe('function');
   });
 });

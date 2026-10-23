@@ -23,6 +23,7 @@ import {
   type SourceUploadRtdbRepository,
 } from './sourceUpload.rtdbRepository';
 import type { SourceUploadInspectionClaim } from './sourceUpload.protocol';
+import { sourceUploadIdentityDigest as stableDigest, sourceUploadReservationId as derivedReservationId } from './sourceUpload.protocol';
 import { createBookSourceVersionStorageIdentity } from './sourceVersion.service';
 import type { BookSourceRecoveryContext } from './sourceRecovery.adapter';
 import type {
@@ -112,6 +113,7 @@ const CLAIM_KEYS = [
   'readability',
 ] as const;
 const BEGIN_KEYS = ['actorId', 'bookId', 'idempotencyKey', 'sourceKey', 'kind', 'purpose', 'claim'] as const;
+const BEGIN_SUBMISSION_KEYS = [...BEGIN_KEYS, 'submissionOperationId'] as const;
 const COMPLETE_KEYS = ['actorId', 'bookId', 'reservationId', 'operationId'] as const;
 const DECIDE_KEYS = ['actorId', 'bookId', 'reservationId', 'operationId', 'studentSafeStatus', 'reasonCode'] as const;
 
@@ -145,9 +147,11 @@ export class SourceUploadControlError extends Error {
   }
 }
 
+export type SourceUploadSubmissionAccess = 'status' | 'cleanup';
+
 export interface SourceUploadBookManagementAuthority {
-  readonly canManageBookSource: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
-  readonly canDecideStudentSafeSource: (input: { readonly actorId: string; readonly bookId: string }) => boolean | Promise<boolean>;
+  readonly canManageBookSource: (input: { readonly actorId: string; readonly bookId: string; readonly submissionOperationId?: string; readonly submissionAccess?: SourceUploadSubmissionAccess }) => boolean | Promise<boolean>;
+  readonly canDecideStudentSafeSource: (input: { readonly actorId: string; readonly bookId: string; readonly submissionOperationId?: string }) => boolean | Promise<boolean>;
 }
 
 export interface BookSourceUploadReleaseAuthorization {
@@ -190,6 +194,7 @@ export interface BookSourceUploadControlDependencies {
 export interface BeginSourceUploadInput {
   readonly actorId: string;
   readonly bookId: string;
+  readonly submissionOperationId?: string;
   readonly idempotencyKey: string;
   readonly sourceKey: string;
   readonly kind: BookSourceUploadKind;
@@ -292,9 +297,13 @@ function assertExactRecord(value: unknown, keys: readonly string[], code: Source
 }
 
 const assertBeginInput = (value: BeginSourceUploadInput): void => {
-  assertExactRecord(value, BEGIN_KEYS, 'invalid_input');
+  if (!isPlainRecord(value)
+    || (!hasExactKeys(value, BEGIN_KEYS) && !hasExactKeys(value, BEGIN_SUBMISSION_KEYS))) {
+    throw new SourceUploadControlError('invalid_input');
+  }
   assertSafeIdentifier(value.actorId);
   assertSafeIdentifier(value.bookId);
+  if (value.submissionOperationId !== undefined) assertSafeIdentifier(value.submissionOperationId);
   if (typeof value.idempotencyKey !== 'string' || !UUID.test(value.idempotencyKey)) {
     throw new SourceUploadControlError('invalid_input');
   }
@@ -408,9 +417,13 @@ const readAccountState = async (reader: SourceUploadAccountStateReader, accountI
   }
 };
 
-const authorizeBook = async (authority: SourceUploadBookManagementAuthority, actorId: string, bookId: string): Promise<void> => {
+const authorizeBook = async (authority: SourceUploadBookManagementAuthority, actorId: string, bookId: string,
+  submissionOperationId?: string, submissionAccess?: SourceUploadSubmissionAccess): Promise<void> => {
   try {
-    const result = await authority.canManageBookSource({ actorId, bookId });
+    const result = await authority.canManageBookSource({ actorId, bookId,
+      ...(submissionOperationId === undefined ? {} : { submissionOperationId }),
+      ...(submissionAccess === undefined ? {} : { submissionAccess }),
+    });
     if (result !== true) throw new SourceUploadControlError('authority_denied');
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
@@ -422,9 +435,12 @@ const authorizeStudentSafeDecision = async (
   authority: SourceUploadBookManagementAuthority,
   actorId: string,
   bookId: string,
+  submissionOperationId?: string,
 ): Promise<void> => {
   try {
-    const result = await authority.canDecideStudentSafeSource({ actorId, bookId });
+    const result = await authority.canDecideStudentSafeSource({ actorId, bookId,
+      ...(submissionOperationId === undefined ? {} : { submissionOperationId }),
+    });
     if (result !== true) throw new SourceUploadControlError('authority_denied');
   } catch (error) {
     if (error instanceof SourceUploadControlError) throw error;
@@ -453,18 +469,6 @@ const nowIso = (clock: () => Date): Date => {
   }
 };
 
-/** Small deterministic digest; UUID entropy remains the trusted request identity. */
-const stableDigest = (value: string): string => {
-  let left = 0x811c9dc5;
-  let right = 0x9e3779b1;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    left = Math.imul(left ^ code, 0x01000193) >>> 0;
-    right = Math.imul(right ^ (code + index), 0x85ebca6b) >>> 0;
-  }
-  return `${left.toString(16).padStart(8, '0')}${right.toString(16).padStart(8, '0')}`;
-};
-
 const MAX_AUTHORIZATION_CACHE_ENTRIES = 256;
 
 const cacheAuthorization = (
@@ -486,11 +490,6 @@ const cacheAuthorization = (
   cache.set(reservationId, authorization);
 };
 
-const derivedReservationId = (actorId: string, bookId: string, operationId: string): string => {
-  const key = operationId.toLowerCase();
-  return `reservation-${stableDigest(`${actorId}\u0000${bookId}\u0000${key}`)}`;
-};
-
 const derivedIdentity = (input: BeginSourceUploadInput, objectKeyPrefix: string) => {
   const key = input.idempotencyKey.toLowerCase();
   const digest = stableDigest(`${input.actorId}\u0000${input.bookId}\u0000${key}`);
@@ -504,6 +503,7 @@ const derivedIdentity = (input: BeginSourceUploadInput, objectKeyPrefix: string)
 const sameRequest = (operation: BookSourceUploadOperation, input: BeginSourceUploadInput): boolean =>
   operation.bookId === input.bookId
   && operation.ownerId === input.actorId
+  && operation.submissionOperationId === input.submissionOperationId
   && operation.sourceKey === input.sourceKey
   && operation.kind === input.kind
   && operation.purpose === input.purpose
@@ -714,7 +714,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
   assertBeginInput(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
-  await authorizeBook(resolved.authority, input.actorId, input.bookId);
+  await authorizeBook(resolved.authority, input.actorId, input.bookId, input.submissionOperationId);
   await assertUploadAuthorized(resolved.releaseAuthorization);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
   const requestNow = nowIso(resolved.clock);
@@ -748,6 +748,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
       sourceVersionId: existing.sourceVersionId,
       sourceKey: existing.sourceKey,
       ownerId: existing.ownerId,
+      ...(existing.submissionOperationId === undefined ? {} : { submissionOperationId: existing.submissionOperationId }),
       storageLocationId: existing.storageLocationId,
       providerKind: existing.providerKind,
       privateBucketId: existing.privateBucketId,
@@ -807,6 +808,7 @@ const begin = async (input: BeginSourceUploadInput, dependencies: BookSourceUplo
     sourceVersionId: identity.sourceVersionId,
     sourceKey: input.sourceKey,
     ownerId: input.actorId,
+    ...(input.submissionOperationId === undefined ? {} : { submissionOperationId: input.submissionOperationId }),
     storageLocationId: resolved.deployment.storageLocationId,
     providerKind: resolved.deployment.providerKind,
     privateBucketId: resolved.deployment.privateBucketId,
@@ -846,12 +848,12 @@ const complete = async (
   assertCompleteInput(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
-  await authorizeBook(resolved.authority, input.actorId, input.bookId);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
   const operation = state.operations[input.reservationId];
   if (!operation || operation.bookId !== input.bookId || operation.ownerId !== input.actorId) {
     throw new SourceUploadControlError('reservation_not_found');
   }
+  await authorizeBook(resolved.authority, input.actorId, input.bookId, operation.submissionOperationId);
   if (operation.status === 'released') throw new SourceUploadControlError('reservation_released');
   if (operation.status === 'cleanup_pending') throw new SourceUploadControlError('cleanup_pending');
   if (operation.status === 'retired') throw new SourceUploadControlError('reservation_conflict');
@@ -967,12 +969,13 @@ const decideStudentSafeSource = async (
   assertDecisionRequest(input);
   const resolved = resolveDependencies(dependencies);
   if (dependencies.recoveryContext) throw new SourceUploadControlError('recovery_suppressed');
-  await authorizeStudentSafeDecision(resolved.authority, input.actorId, input.bookId);
   const state = await readAccountState(resolved.accountStateReader, resolved.deployment.accountId);
   const operation = state.operations[input.reservationId];
   if (!operation || operation.bookId !== input.bookId) {
     throw new SourceUploadControlError('reservation_not_found');
   }
+  if (operation.submissionOperationId && operation.ownerId !== input.actorId) throw new SourceUploadControlError('authority_denied');
+  await authorizeStudentSafeDecision(resolved.authority, input.actorId, input.bookId, operation.submissionOperationId);
   if (derivedReservationId(operation.ownerId, input.bookId, input.operationId) !== operation.reservationId) {
     throw new SourceUploadControlError('reservation_conflict');
   }

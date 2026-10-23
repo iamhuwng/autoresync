@@ -1,7 +1,7 @@
 import { createBookDeliveryBinding } from '../../src/services/book-delivery/bookDelivery.entitlementFactory';
 import { BOOK_DELIVERY_SCHEMA_VERSION } from '../../src/services/book-delivery/bookDelivery.types';
 import type { BookAssemblyPublicationScope } from '../../src/services/book-assembly/publicationRepository';
-import type { BookAssemblyPublicationResult } from '../../src/services/book-assembly/publicationTransaction.service';
+import { bookAssemblyActivityVersionScopeKey, type BookAssemblyPublicationResult } from '../../src/services/book-assembly/publicationTransaction.service';
 
 const publication = (): Record<string, unknown> => {
   const placement: Record<string, unknown> = {
@@ -161,7 +161,7 @@ export const makeBookAssemblyPublicationScope = (): BookAssemblyPublicationScope
     },
   },
   activityVersions: {
-    'activity-1-v1': {
+    [bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')]: {
       schemaVersion: 1,
       activityId: 'activity-1',
       activityVersionId: 'activity-1-v1',

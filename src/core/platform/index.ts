@@ -10,7 +10,7 @@
  */
 
 // Storage
-export { storage, sessionStore } from './storage';
+export { storage, sessionStore, indexedDbStore } from './storage';
 export { APP_DOCUMENT_TITLE, formatDocumentTitle } from './documentTitle';
 
 // Hooks

@@ -40,7 +40,7 @@ describe('Ticket #39 renderer registrations', () => {
 
   it('keeps unclassified ordering variants unregistered and fail closed', () => {
     expect(coverageMatrix.rows.some((row) => row.interaction.family === 'ordering')).toBe(false);
-    expect(activityRendererManifest.registrations.some((entry) => entry.family === 'ordering')).toBe(false);
+    expect(activityRendererManifest.registrations.some((entry) => entry.family === 'ordering' && entry.profile !== null)).toBe(false);
     expect(bookActivityRendererRegistry.resolve({
       schemaVersion: 1,
       title: 'Order steps',

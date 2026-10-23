@@ -288,7 +288,7 @@ const env = {
   BOOK_SOURCE_B2_READ_APPLICATION_KEY_ID: 'read-key', BOOK_SOURCE_B2_READ_APPLICATION_KEY: 'read-secret',
   BOOK_SOURCE_B2_METADATA_APPLICATION_KEY_ID: 'metadata-key', BOOK_SOURCE_B2_METADATA_APPLICATION_KEY: 'metadata-secret',
   BOOK_SOURCE_B2_PROVIDER_STATE: 'enabled',
-  BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION: 'activity-renderer-manifest-v1@sha256:649910eeb4ce46bc89e246ec4bcb7df883a0aae5da4fdbf2bc66d3bc3f9f1831',
+  BOOK_ASSEMBLY_PREVIEW_REGISTRY_VERSION: 'activity-renderer-manifest-v1@sha256:8024a3676ee93496c00ca1f958385e86a4ab78560153e856c18eb219ef34323f',
   BOOK_ASSEMBLY_SERVICE_IDENTITY: 'assembly@example.iam.gserviceaccount.com', BOOK_ASSEMBLY_GOOGLE_SA_KEY: service('assembly'),
   BOOK_ACTIVITY_AUTHORING_SERVICE_IDENTITY: 'authoring@example.iam.gserviceaccount.com', BOOK_ACTIVITY_AUTHORING_GOOGLE_SA_KEY: service('authoring'),
   BOOK_DELIVERY_SERVICE_IDENTITY: 'delivery@example.iam.gserviceaccount.com', BOOK_DELIVERY_GOOGLE_SA_KEY: service('delivery'),

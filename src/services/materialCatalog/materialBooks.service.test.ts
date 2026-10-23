@@ -273,12 +273,16 @@ describe('materialBooks.service', () => {
     expect(pdfBook).not.toHaveProperty('sourceSet');
   });
 
-  it('increments PDF Book revisions while preserving source authority', async () => {
+  it.each(['full_pdf', 'component_pdfs'] as const)('preserves ready PDF authority when editing details (%s)', async (strategy) => {
+    const pdfSources: SourceSetCandidate = strategy === 'full_pdf' ? sourceSet : {
+      sourceStrategy: 'component_pdfs', sources: [{ sourceKey: 'part-1', sourceVersionId: 'source-v1', sourceOrder: 1, ownerNodeKey: 'unit-1' }],
+    };
     const repo = createRepo([metadata({
       bookMode: 'pdf',
       bookRevision: 4,
       sourceSetRevision: 2,
-      sourceSet,
+      sourceSet: pdfSources,
+      status: 'ready',
     })]);
     const context = {
       actorId: 'teacher-1',
@@ -290,10 +294,12 @@ describe('materialBooks.service', () => {
     const first = await updateBookMetadata('book-1', { title: 'Renamed once' }, repo, context);
     const second = await updateBookMetadata('book-1', { title: 'Renamed twice' }, repo, context);
 
-    expect(first).toMatchObject({ bookRevision: 5, sourceSetRevision: 2, sourceSet });
-    expect(second).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet });
+    expect(first).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet: pdfSources, status: 'ready' });
+    expect(second).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet: pdfSources, status: 'ready' });
     const submitted = await updateBookMetadata('book-1', { visibility: 'public-library-pending-review' }, repo, context);
-    expect(submitted).toMatchObject({ bookRevision: 6, sourceSetRevision: 2, sourceSet, status: second.status });
+    expect(submitted).toMatchObject({ bookRevision: 4, sourceSetRevision: 2, sourceSet: pdfSources, status: 'ready' });
+    const archived = await updateBookMetadata('book-1', { status: 'archived' }, repo, context);
+    expect(archived).toMatchObject({ bookRevision: 5, sourceSetRevision: 2, status: 'archived' });
   });
 
   it('preserves setup activation receipts and rejects metadata replacement', async () => {

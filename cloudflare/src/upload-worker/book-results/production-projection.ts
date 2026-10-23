@@ -1,4 +1,10 @@
 import type { BookDeliveryBinding } from '../../../../src/services/book-delivery/bookDelivery.types.ts';
+import { bookDeliveryDocumentRouteKey } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
+import { historicalSourceUnavailableProjection, projectBookAttemptSourceContext } from '../../../../src/services/book-delivery/attemptSourceContextProjection.service.ts';
+import type { BookAttemptSourceContextProjection } from '../../../../src/services/book-delivery/attemptSourceContextProjection.types.ts';
+import type { BookAssemblyPublicationScope } from '../../../../src/services/book-assembly/publicationRepository.ts';
+import type { BookAssemblyPublicationResult } from '../../../../src/services/book-assembly/publicationTransaction.service.ts';
+import { resolveCombinedDocument } from '../book-homework/canonical-resolver.ts';
 import {
   projectBookResultAttempt,
 } from '../../../../src/services/book-activity/results/bookResultProjection.service.ts';
@@ -42,7 +48,41 @@ export interface BookResultProjectionWriter {
 export interface BookResultProjectionInput {
   readonly binding: BookDeliveryBinding;
   readonly terminal: BookRuntimeTerminalTuple;
+  readonly attemptSourceContext?: BookAttemptSourceContextProjection;
 }
+
+export const projectCommittedBookSourceContext = (
+  input: BookResultProjectionInput & { readonly publicationScope?: BookAssemblyPublicationScope<BookAssemblyPublicationResult> },
+): BookAttemptSourceContextProjection => {
+  const { binding, terminal } = input;
+  try {
+    let combinedDocument;
+    if (binding.sourceSet.strategy === 'component_pdfs') {
+      const scope = input.publicationScope;
+      const version = scope?.versions?.[binding.book.manifestVersionId];
+      if (!scope || !version || version.manifestVersionId !== binding.book.manifestVersionId || version.bookId !== binding.book.bookId
+        || version.ownerId !== binding.issuer.ownerId || version.lifecycle !== 'published'
+        || version.publicationId !== binding.book.publicationId
+        || version.publicationRevision !== binding.book.publicationRevision
+        || version.bookRevision !== binding.book.bookRevision) return historicalSourceUnavailableProjection();
+      combinedDocument = {
+        descriptor: resolveCombinedDocument(scope, binding.book.manifestVersionId),
+        opaqueRouteKey: bookDeliveryDocumentRouteKey(binding, 'student-document', 'student-document'),
+      };
+    }
+    return projectBookAttemptSourceContext({
+      attempt: terminal.attempt, result: terminal.result, historicalDelivery: { binding },
+      sources: binding.sourceSet.sources.map(source => ({
+        sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId,
+        availability: 'available' as const,
+        documentRequest: { ...source, opaqueRouteKey: bookDeliveryDocumentRouteKey(binding, source.sourceKey, source.sourceVersionId) },
+      })),
+      ...(combinedDocument ? { combinedDocument } : {}),
+    });
+  } catch {
+    return historicalSourceUnavailableProjection('malformed_context');
+  }
+};
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,159}$/u;
 const GROUP_KEY = /^g_[A-Za-z0-9_-]{4,638}$/u;
@@ -233,6 +273,7 @@ export const projectCommittedBookResult = async (
   };
   const projection = projectBookResultAttempt({
     ...projectable,
+    ...(input.attemptSourceContext ? { attemptSourceContext: input.attemptSourceContext } : {}),
     context: {
       kind,
       contextId: input.binding.context.contextId,

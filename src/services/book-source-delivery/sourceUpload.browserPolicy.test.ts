@@ -8,6 +8,7 @@ describe('Book Source production-preview browser policy', () => {
       VITE_BOOK_SOURCE_RECONCILIATION_WORKER_URL: 'https://book-source-reconciliation.example',
       VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN: 'https://s3.us-west-004.backblazeb2.com',
     });
+    expect(policy).toContain("connect-src 'self' blob:");
     expect(policy).toContain('https://book-source-control.example');
     expect(policy).toContain('https://book-source-reconciliation.example');
     expect(policy).toContain('https://s3.us-west-004.backblazeb2.com');

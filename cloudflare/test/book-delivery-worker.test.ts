@@ -8,6 +8,8 @@ import {
   BookDeliveryWorkerError,
   createBookDeliveryWorkerHandlers,
   createTrustedBookDeliveryPublication,
+  createTrustedBookDeliveryBindingPublication,
+  resolveTrustedBookDeliveryFullPageDefaults,
 } from '../src/upload-worker/book-delivery/worker';
 import {
   makeBookAssemblyPublicationScope,
@@ -63,7 +65,7 @@ const makeComponentPlacementScope = () => {
   scope.placements['placement-1'].sourcePages = [
     { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', physicalPageNumber: 1 },
   ];
-  scope.activityVersions['activity-1-v1'].sourcePages = [
+  scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].sourcePages = [
     { sourceKey: 'component-a', sourceVersionId: 'source-a-v1', physicalPageNumber: 1 },
   ];
   scope.activitySafeProjections['projection-1'].sourcePages = [
@@ -73,6 +75,15 @@ const makeComponentPlacementScope = () => {
 };
 
 describe('Book Delivery Worker contract', () => {
+  it('reads opening pages from the pinned manifest and rejects pages outside the binding', async () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    const binding = makeBookDeliveryTestBinding();
+    scope.current = { ...scope.current, manifestVersionId: 'newer-unrelated-manifest' };
+    const repository = { readScope: async () => scope };
+    await expect(resolveTrustedBookDeliveryFullPageDefaults(env, binding, repository)).resolves.toEqual({ 'placement-1': 1 });
+    scope.versions['manifest-1'].manifest.units[0].pageGroups[0].defaultPhysicalPageNumber = 99;
+    await expect(resolveTrustedBookDeliveryFullPageDefaults(env, binding, repository)).resolves.toBeNull();
+  });
   it('requires the strict active owner authority profile and permits an active owner super-admin', async () => {
     const deniedProfiles: readonly unknown[] = [
       undefined,
@@ -187,7 +198,7 @@ describe('Book Delivery Worker contract', () => {
         activities: [{
           placementId: 'placement-1',
           activityVersionId: 'activity-1-v1',
-          sourceContext: { pageGroupKeys: ['group-1'] },
+          sourceContext: { pageGroupKeys: ['placement-1'] },
         }],
       });
     }
@@ -225,8 +236,8 @@ describe('Book Delivery Worker contract', () => {
 
   it('accepts composite activity-version keys and semantically equivalent insertion order', () => {
     const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
-    const activityVersion = scope.activityVersions['activity-1-v1'];
-    delete scope.activityVersions['activity-1-v1'];
+    const activityVersion = scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')];
+    delete scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')];
     scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')] = {
       ...activityVersion,
       sourcePages: [{ physicalPageNumber: 1, sourceVersionId: 'source-v1', sourceKey: 'full' }],
@@ -261,10 +272,29 @@ describe('Book Delivery Worker contract', () => {
     });
   });
 
+  it('reads an assigned immutable publication after current advances while refusing new issuance from it', () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope());
+    scope.current = { ...scope.current!, publicationId: 'publication-new', manifestVersionId: 'manifest-new', publicationRevision: 5 };
+    const binding = makeBookDeliveryTestBinding();
+    expect(() => createTrustedBookDeliveryPublication(makeBookDeliveryIssuanceIntent(), scope, binding.schedulePolicy))
+      .toThrow('book_delivery_publication_stale');
+    expect(createTrustedBookDeliveryBindingPublication(binding, scope)).toMatchObject({
+      manifestVersionId: binding.book.manifestVersionId, publicationId: binding.book.publicationId,
+      placements: [{ activityVersionId: 'activity-1-v1' }],
+    });
+    for (const change of [{ ownerId: 'foreign-owner' }, { publicationRevision: 99 }, { bookRevision: 99 }, { lifecycle: 'draft' }]) {
+      const crossed = structuredClone(scope);
+      Object.assign(crossed.versions!['manifest-1'], change);
+      expect(() => createTrustedBookDeliveryBindingPublication(binding, crossed)).toThrow('book_delivery_publication_invalid');
+    }
+    delete scope.versions!['manifest-1'];
+    expect(() => createTrustedBookDeliveryBindingPublication(binding, scope)).toThrow('book_delivery_publication_invalid');
+  });
+
   it('accepts a preserved Activity Version stored under a composite key', () => {
     const scope = makeMappingRevisionPublicationScope() as any;
-    const activityVersion = scope.activityVersions['activity-1-v1'];
-    delete scope.activityVersions['activity-1-v1'];
+    const activityVersion = scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')];
+    delete scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')];
     scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')] = activityVersion;
 
     expect(createTrustedBookDeliveryPublication(
@@ -283,8 +313,8 @@ describe('Book Delivery Worker contract', () => {
   });
 
   it.each([
-    ['malformed activity version', (scope: any) => { scope.activityVersions['activity-1-v1'].activityVersionId = ''; }],
-    ['wrong manifest', (scope: any) => { scope.activityVersions['activity-1-v1'].manifestVersionId = 'manifest-other'; }],
+    ['malformed activity version', (scope: any) => { scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].activityVersionId = ''; }],
+    ['wrong manifest', (scope: any) => { scope.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].manifestVersionId = 'manifest-other'; }],
   ])('rejects %s activity-version state', (_label, corrupt) => {
     const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
     let error: unknown;
@@ -519,7 +549,7 @@ describe('Book Delivery Worker contract', () => {
     expect(groupRejected).toEqual(sourceRejected);
 
     const activityDrift = structuredClone(makeBookAssemblyPublicationScope()) as any;
-    activityDrift.activityVersions['activity-1-v1'].sourcePages[0].physicalPageNumber = 2;
+    activityDrift.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].sourcePages[0].physicalPageNumber = 2;
     const activityHandlers = setup(() => 'binding-activity-drift', activityDrift).handlers;
     const activityRejected = await activityHandlers.create({
       env,
@@ -558,9 +588,9 @@ describe('Book Delivery Worker contract', () => {
     });
 
     const unrelated = structuredClone(makeMappingRevisionPublicationScope()) as any;
-    unrelated.activityVersions['activity-1-v1'].manifestVersionId = 'manifest-unrelated';
-    unrelated.activityVersions['activity-1-v1'].publicationId = 'publication-unrelated';
-    unrelated.activityVersions['activity-1-v1'].publicationRevision = 1;
+    unrelated.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].manifestVersionId = 'manifest-unrelated';
+    unrelated.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].publicationId = 'publication-unrelated';
+    unrelated.activityVersions[bookAssemblyActivityVersionScopeKey('manifest-1', 'activity-1-v1')].publicationRevision = 1;
     const unrelatedHandlers = setup(() => 'binding-unrelated-history', unrelated).handlers;
     await expect(unrelatedHandlers.create({
       env,

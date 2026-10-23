@@ -10,28 +10,23 @@ import type { BookPdfEditorSection } from './BookPdfFlowWorkspace';
 import './BookPdfEditWorkspace.css';
 
 type BookPdfEditTab =
-  | 'metadata'
   | 'pdf-files'
   | 'content-tree'
   | 'activity-json'
-  | 'page-mapping'
   | 'preview'
-  | 'settings';
+  | 'details';
 
 const PDF_EDIT_TABS: readonly { readonly id: BookPdfEditTab; readonly label: string }[] = [
-  { id: 'metadata', label: 'Metadata' },
-  { id: 'pdf-files', label: 'PDF files' },
-  { id: 'content-tree', label: 'Content tree' },
-  { id: 'activity-json', label: 'Activity JSON' },
-  { id: 'page-mapping', label: 'Page mapping' },
+  { id: 'activity-json', label: 'Content' },
   { id: 'preview', label: 'Preview' },
-  { id: 'settings', label: 'Settings' },
 ];
+const PDF_EDIT_OPTIONS = [
+  { id: 'pdf-files', label: 'PDF files' },
+  { id: 'content-tree', label: 'Book plan' },
+  { id: 'details', label: 'Book details' },
+] as const;
 
-const isMetadataTab = (tab: BookPdfEditTab): tab is 'metadata' | 'settings' =>
-  tab === 'metadata' || tab === 'settings';
-
-const assemblySectionFor = (tab: Exclude<BookPdfEditTab, 'metadata' | 'settings'>): BookPdfEditorSection => tab;
+const assemblySectionFor = (tab: Exclude<BookPdfEditTab, 'details'>): BookPdfEditorSection => tab;
 
 interface BookPdfEditWorkspaceProps {
   readonly access: BookEditorAccess;
@@ -53,15 +48,17 @@ const BookPdfEditWorkspace = ({
   onDirtyChange,
 }: BookPdfEditWorkspaceProps) => {
   const { trackAction } = useFeatureTracking(FEATURE_IDS.bookAuthoring);
-  const [activeTab, setActiveTab] = useState<BookPdfEditTab>('metadata');
+  const [activeTab, setActiveTab] = useState<BookPdfEditTab>('activity-json');
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [metadataDirty, setMetadataDirty] = useState(false);
   const [assemblyDirty, setAssemblyDirty] = useState(false);
   const editorId = useId();
-  const metadataTab = isMetadataTab(activeTab);
-  const assemblySection = metadataTab ? 'pdf-files' : assemblySectionFor(activeTab);
+  const metadataTab = activeTab === 'details';
+  const keyboardTab = PDF_EDIT_TABS.some((tab) => tab.id === activeTab) ? activeTab : 'activity-json';
+  const assemblySection = metadataTab ? 'activity-json' : assemblySectionFor(activeTab);
 
   useEffect(() => {
-    setActiveTab('metadata');
+    setActiveTab('activity-json');
     setMetadataDirty(false);
     setAssemblyDirty(false);
   }, [book.bookId]);
@@ -72,6 +69,7 @@ const BookPdfEditWorkspace = ({
 
   const selectTab = (tab: BookPdfEditTab) => {
     setActiveTab(tab);
+    setOptionsOpen(false);
     trackAction('teacher_materials_book_pdf_workflow_step_changed', {
       bookId: book.bookId,
       editorSection: tab,
@@ -112,6 +110,7 @@ const BookPdfEditWorkspace = ({
           <h1>{book.title}</h1>
         </header>
       )}
+      <div className="book-pdf-edit-workspace__toolbar">
       <nav className="book-pdf-edit-workspace__tabs" aria-label="PDF Book edit sections" role="tablist">
         {PDF_EDIT_TABS.map((tab) => (
           <button
@@ -119,9 +118,9 @@ const BookPdfEditWorkspace = ({
             type="button"
             role="tab"
             id={`${editorId}-${tab.id}`}
-            aria-controls={`${editorId}-${isMetadataTab(tab.id) ? 'metadata-panel' : 'assembly-panel'}`}
+            aria-controls={`${editorId}-assembly-panel`}
             aria-selected={activeTab === tab.id}
-            tabIndex={activeTab === tab.id ? 0 : -1}
+            tabIndex={keyboardTab === tab.id ? 0 : -1}
             className={activeTab === tab.id ? 'is-active' : undefined}
             onClick={() => selectTab(tab.id)}
             onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
@@ -131,10 +130,18 @@ const BookPdfEditWorkspace = ({
         ))}
       </nav>
 
+      <button type="button" className="book-pdf-edit-workspace__details"
+        aria-expanded={optionsOpen} aria-controls={`${editorId}-options`}
+        onClick={() => { setOptionsOpen(!optionsOpen); trackAction('teacher_materials_book_pdf_options_opened', { bookId: book.bookId }); }}>Book options</button>
+      {optionsOpen && <div id={`${editorId}-options`} className="book-pdf-edit-workspace__options" role="group" aria-label="Book options">
+        {PDF_EDIT_OPTIONS.map((option) => <button key={option.id} type="button" onClick={() => selectTab(option.id)}>{option.label}</button>)}
+      </div>}
+      </div>
+
       <div
         id={`${editorId}-metadata-panel`}
-        role="tabpanel"
-        aria-labelledby={`${editorId}-${metadataTab ? activeTab : 'metadata'}`}
+        role="region"
+        aria-label="Book details"
         hidden={!metadataTab}
         className="book-pdf-edit-workspace__panel"
       >
@@ -143,7 +150,8 @@ const BookPdfEditWorkspace = ({
           initialBook={usePublicProjection ? undefined : book}
           repository={repository}
           presentation="modal"
-          activeTab={activeTab === 'settings' ? 'settings' : 'overview'}
+          activeTab="settings"
+          compactPdfDetails
           onSaved={onSaved}
           onDirtyChange={setMetadataDirty}
           showInlineSaveActions
@@ -152,8 +160,9 @@ const BookPdfEditWorkspace = ({
 
       <div
         id={`${editorId}-assembly-panel`}
-        role="tabpanel"
-        aria-labelledby={`${editorId}-${metadataTab ? 'pdf-files' : activeTab}`}
+        role={activeTab === 'activity-json' || activeTab === 'preview' ? 'tabpanel' : 'region'}
+        aria-labelledby={activeTab === 'activity-json' || activeTab === 'preview' ? `${editorId}-${activeTab}` : undefined}
+        aria-label={activeTab === 'pdf-files' ? 'PDF files' : activeTab === 'content-tree' ? 'Book plan' : undefined}
         hidden={metadataTab}
         className="book-pdf-edit-workspace__panel"
       >
@@ -163,6 +172,7 @@ const BookPdfEditWorkspace = ({
           presentation={presentation}
           experience="focused-editing"
           editingSection={assemblySection}
+          onOpenPlan={() => selectTab('content-tree')}
           onDirtyChange={setAssemblyDirty}
         />
       </div>

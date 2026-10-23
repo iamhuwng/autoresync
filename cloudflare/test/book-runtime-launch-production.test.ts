@@ -262,6 +262,7 @@ describe('Book Runtime launch production composition', () => {
       bookId: 'book-1', manifestVersionId: 'manifest-1', publicationId: 'publication-1', ownerId: 'teacher-1',
       activityId: 'activity-1', activityVersionId: 'activity-version-1', activityVersion: 7,
       payloadFingerprint: 'fnv1a64:1111111111111111',
+      placementId: 'placement-1',
     });
   });
 

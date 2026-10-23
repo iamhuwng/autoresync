@@ -8,6 +8,8 @@ import { FirebaseRestBookActivityEvaluationRepository } from './repository.ts';
 import { FirebaseRestBookRuntimeRepository } from '../book-runtime/repository.ts';
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+import { createFirebaseClaimTokenProvider } from '../book-activity-authoring/firebase-token.ts';
+import { canonicalActivityVersionReaderEnv } from '../book-runtime-launch/canonical.ts';
 import { CANONICAL_ACTIVITY_VERSION_ROOT, hydrateCanonicalActivityVersionFromRtdb } from '../book-assembly/canonical-activity-version-repository.ts';
 import { assertCanonicalPublishedActivityVersion } from '../../../../src/services/book-assembly/canonicalActivityVersion.service.ts';
 import { createBookResultReadProductionHandlers } from '../book-results/production-composition.ts';
@@ -197,7 +199,24 @@ export const createDefaultBookActivityEvaluationProductionHandlers = () => {
         const terminal = tuples.find((entry) => entry.attempt.attemptId === target.attemptId
           && entry.result.resultId === target.resultId);
         if (!terminal) return null;
-        const raw = await new FirebaseRtdbRestClient({ env, fetchImpl: globalThis.fetch }).readValue(
+        const readerEnv = canonicalActivityVersionReaderEnv(env);
+        const getFirebaseAuthToken = createFirebaseClaimTokenProvider({
+          serviceAccountJson: readerEnv.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_GOOGLE_SA_KEY ?? '',
+          serviceIdentity: readerEnv.BOOK_ASSEMBLY_CANONICAL_ACTIVITY_VERSION_READER_SERVICE_IDENTITY ?? '',
+          firebaseProjectId: String(env.FIREBASE_PROJECT_ID ?? ''),
+          firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY ?? ''),
+        });
+        const raw = await new FirebaseRtdbRestClient({
+          env, fetchImpl: globalThis.fetch, firebaseAuthToken: true,
+          getFirebaseAuthToken: () => getFirebaseAuthToken({
+            service: 'book_activity_runtime_reader',
+            ownerId: binding.issuer.ownerId,
+            bookId: binding.book.bookId,
+            manifestVersionId: binding.book.manifestVersionId,
+            activityId: target.activityId,
+            activityVersionId: target.activityVersionId,
+          }),
+        }).readValue(
           `${CANONICAL_ACTIVITY_VERSION_ROOT}/${target.activityId}/${target.activityVersionId}`,
         );
         try {

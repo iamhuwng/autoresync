@@ -4,7 +4,8 @@ import type { BookDeliveryRepository } from '../../../../src/services/book-deliv
 import type { BookHomeworkManifest } from '../../../../src/types/homework.types.ts';
 import { BookHomeworkAuthorityRepository } from './repository.ts';
 import {
-  ensureBookHomeworkCompatibilityProjection,
+  ensureCheckedBookHomeworkCompatibilityProjection,
+  validateBookHomeworkCompatibilityBatch,
   type BookHomeworkCompatibilityRepositoryPort,
 } from './bridge.ts';
 import {
@@ -63,10 +64,12 @@ export interface BookHomeworkSagaDependencies {
 }
 
 export interface BookHomeworkSagaResult {
-  readonly status: BookHomeworkSagaRecord['state'] | 'committed_projection_pending';
+  readonly status: BookHomeworkSagaRecord['state'] | 'committed_projection_pending' | 'committed_notifications_pending';
   readonly record: BookHomeworkSagaRecord;
   readonly projectionDiagnostic?: BookHomeworkProjectionDiagnostic;
 }
+
+type EmitAssignmentNotifications = (record: BookHomeworkSagaRecord, recipientIds: readonly string[]) => Promise<void>;
 
 export interface BookHomeworkStudentResolution {
   readonly authority: Awaited<ReturnType<BookHomeworkAuthorityRepository['readStudentProjection']>>;
@@ -473,9 +476,10 @@ export class BookHomeworkAssignmentSaga {
 
   private async readCommittedAuthorities(
     record: BookHomeworkSagaRecord,
+    start: number,
   ): Promise<readonly (BookHomeworkAuthorityRecord | null)[]> {
     try {
-      return await Promise.all(record.recipients.map((entry) => (
+      return await Promise.all(record.recipients.slice(start, start + 10).map((entry) => (
         this.dependencies.authorityRepository.read(authorityScope(record.assignmentId, record.ownerId, entry))
       )));
     } catch (error) {
@@ -489,25 +493,46 @@ export class BookHomeworkAssignmentSaga {
 
   private async projectCommitted(
     record: BookHomeworkSagaRecord,
+    emitNotifications?: EmitAssignmentNotifications,
   ): Promise<BookHomeworkSagaResult> {
-    if (!this.dependencies.compatibilityRepository) return { status: 'committed', record };
-    try {
-      await ensureBookHomeworkCompatibilityProjection(
-        this.dependencies.compatibilityRepository,
-        record,
-        await this.readCommittedAuthorities(record),
-      );
-      return { status: 'committed', record };
-    } catch (error) {
-      return {
-        status: 'committed_projection_pending',
-        record,
-        projectionDiagnostic: projectionDiagnosticFrom(error),
-      };
+    if (!record.postCommit?.compatibilityReady) {
+      try {
+        const start = record.postCommit?.checkedRecipientCount ?? 0;
+        const authorities = this.dependencies.compatibilityRepository ? await this.readCommittedAuthorities(record, start) : [];
+        const source = authorities.length ? validateBookHomeworkCompatibilityBatch(record, start, authorities, record.postCommit?.source) : undefined;
+        const checkedRecipientCount = this.dependencies.compatibilityRepository ? start + authorities.length : record.recipientCount;
+        const compatibilityReady = checkedRecipientCount === record.recipientCount;
+        if (compatibilityReady && source && this.dependencies.compatibilityRepository) await ensureCheckedBookHomeworkCompatibilityProjection(
+          this.dependencies.compatibilityRepository, record, source,
+        );
+        record = await this.transition(record, { postCommit: {
+          revision: (record.postCommit?.revision ?? 0) + 1,
+          compatibilityReady, checkedRecipientCount, ...(source ? { source } : {}),
+          notifiedRecipientCount: !emitNotifications && compatibilityReady ? record.recipientCount : 0,
+        } }, record.updatedAt);
+      } catch (error) {
+        return { status: 'committed_projection_pending', record, projectionDiagnostic: projectionDiagnosticFrom(error) };
+      }
+      return { status: !record.postCommit!.compatibilityReady ? 'committed_projection_pending'
+        : emitNotifications ? 'committed_notifications_pending' : 'committed', record };
     }
+    const start = record.postCommit.notifiedRecipientCount;
+    if (start === record.recipientCount) return { status: 'committed', record };
+    if (!emitNotifications) return { status: 'committed_notifications_pending', record };
+    const batch = record.recipients.slice(start, start + 10).map(entry => entry.recipientId);
+    try {
+      await emitNotifications(record, batch);
+      record = await this.transition(record, { postCommit: {
+        ...record.postCommit, revision: record.postCommit.revision + 1, notifiedRecipientCount: start + batch.length,
+      } }, record.updatedAt);
+    } catch {
+      return { status: 'committed_notifications_pending', record };
+    }
+    return { status: record.postCommit!.notifiedRecipientCount === record.recipientCount
+      ? 'committed' : 'committed_notifications_pending', record };
   }
 
-  async execute(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {
+  async execute(command: BookHomeworkSagaCommand, emitNotifications?: EmitAssignmentNotifications): Promise<BookHomeworkSagaResult> {
     const previous = this.queues.get(command.assignmentId) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -515,7 +540,7 @@ export class BookHomeworkAssignmentSaga {
     this.queues.set(command.assignmentId, tracked);
     try {
       await previous;
-      return await this.executeLocked(command);
+      return await this.executeLocked(command, emitNotifications);
     } finally {
       release();
       if (this.queues.get(command.assignmentId) === tracked) this.queues.delete(command.assignmentId);
@@ -631,7 +656,7 @@ export class BookHomeworkAssignmentSaga {
     return rows.every((row): row is BookHomeworkTeacherStudentResolution => row !== null) ? rows : null;
   }
 
-  private async executeLocked(command: BookHomeworkSagaCommand): Promise<BookHomeworkSagaResult> {
+  private async executeLocked(command: BookHomeworkSagaCommand, emitNotifications?: EmitAssignmentNotifications): Promise<BookHomeworkSagaResult> {
     const maxRecipients = this.dependencies.maxRecipients ?? MAX_RECIPIENTS;
     const requestedRecipients = assertCommandEnvelope(command, maxRecipients);
     let record = await this.dependencies.sagaRepository.read(command.assignmentId, command.ownerId);
@@ -649,7 +674,7 @@ export class BookHomeworkAssignmentSaga {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Terminal saga replay fingerprint differs.');
       }
       if (terminalReplay) {
-        return record.state === 'committed' ? this.projectCommitted(record) : { status: record.state, record };
+        return record.state === 'committed' ? this.projectCommitted(record, emitNotifications) : { status: record.state, record };
       }
       if (!sameIdentity) {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Assignment ID was reused for a different saga.');
@@ -657,6 +682,9 @@ export class BookHomeworkAssignmentSaga {
       if (record.requestFingerprint !== requestFingerprint(command)) {
         throw new BookHomeworkSagaError('idempotency-conflict', 'Saga request fingerprint differs.');
       }
+      // HTTP retries receive a new server clock; the frozen manifest must keep
+      // the timestamp established by the first identical assignment command.
+      command = { ...command, createdAt: record.createdAt };
     }
     if (record?.state === 'compensating') return this.compensate(record, command);
     const canonical = await this.dependencies.resolveCanonical(command);
@@ -707,8 +735,10 @@ export class BookHomeworkAssignmentSaga {
     }
 
     try {
-      for (let index = 0; index < record.recipients.length; index += 1) {
+      const index = record.recipients.findIndex(entry => !['committed', 'retained', 'compensated'].includes(entry.state));
+      if (index !== -1) {
         record = await this.processRecipient(record, index, canonical, command);
+        return { status: record.state, record };
       }
       const refreshedCanonical = await this.dependencies.resolveCanonical(command);
       assertCanonical(command, refreshedCanonical, maxRecipients);
@@ -729,12 +759,13 @@ export class BookHomeworkAssignmentSaga {
       const message = error instanceof Error ? error.message : 'Book Homework saga failed.';
       const latest = await this.dependencies.sagaRepository.read(command.assignmentId, command.ownerId);
       record = latest ?? record;
+      if (record.state === 'committed') return { status: 'committed_projection_pending', record };
       record = record.state === 'compensating'
         ? record
         : await this.transition(record, { state: 'compensating', lastError: message }, command.createdAt);
-      return this.compensate(record, command);
+      return { status: 'compensating', record };
     }
-    return this.projectCommitted(record);
+    return { status: 'committed_projection_pending', record };
   }
 
   private async processRecipient(
@@ -748,13 +779,15 @@ export class BookHomeworkAssignmentSaga {
     const manifest = manifestForRecipient(canonical.manifest, entry.recipientId);
     const extensions = canonical.studentExtensions[entry.recipientId] ?? [];
     const scope = authorityScope(command.assignmentId, command.ownerId, entry);
-    const authority = await this.ensureAuthority(entry, manifest, canonical, extensions, command, index);
-    entry = { ...entry, authorityRevision: authority.revision };
+    const prepared = await this.ensureAuthority(entry, manifest, canonical, extensions, command, index);
+    entry = { ...entry, authorityRevision: prepared.authority.revision };
     let next = await this.replaceEntry(record, index, entry, command.createdAt);
+    if (!prepared.extensionsReady) return next;
 
     const binding = this.createBinding(entry, canonical, command.createdAt);
     await this.step('delivery-prepare', entry.recipientId);
     const existingDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
+    let currentDelivery = existingDelivery;
     if (!existingDelivery) {
       const prepared = await this.dependencies.deliveryRepository.createDraft({
         binding,
@@ -764,6 +797,7 @@ export class BookHomeworkAssignmentSaga {
       if (!['created', 'replayed'].includes(prepared.status)) {
         throw new BookHomeworkSagaError('delivery-prepare-failed', `Delivery prepare failed: ${prepared.status}.`);
       }
+      currentDelivery = prepared.record ?? null;
     } else if (existingDelivery.binding.recipient.recipientId !== entry.recipientId
       || existingDelivery.binding.context.contextId !== record.contextId
       || !['draft', 'active'].includes(existingDelivery.status)
@@ -773,8 +807,13 @@ export class BookHomeworkAssignmentSaga {
     next = await this.replaceEntry(next, index, { ...entry, state: 'prepared' }, command.createdAt);
     entry = next.recipients[index];
 
-    const currentDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
     if (!currentDelivery) throw new BookHomeworkSagaError('delivery-missing', 'Prepared Delivery binding disappeared.');
+    if (currentDelivery.binding.recipient.recipientId !== entry.recipientId
+      || currentDelivery.binding.context.contextId !== record.contextId
+      || deliveryContract(currentDelivery.binding) !== deliveryContract(binding)) {
+      throw new BookHomeworkSagaError('delivery-conflict', 'Prepared Delivery binding crosses the recipient boundary.');
+    }
+    let activeDelivery = currentDelivery;
     if (currentDelivery.status === 'draft') {
       await this.step('delivery-activate', entry.recipientId);
       const activated = await this.dependencies.deliveryRepository.activate({
@@ -786,11 +825,17 @@ export class BookHomeworkAssignmentSaga {
       if (!['activated', 'replayed'].includes(activated.status)) {
         throw new BookHomeworkSagaError('delivery-activate-failed', `Delivery activation failed: ${activated.status}.`);
       }
+      if (!activated.record) throw new BookHomeworkSagaError('delivery-missing', 'Active Delivery mutation has no record.');
+      activeDelivery = activated.record;
     } else if (currentDelivery.status !== 'active') {
       throw new BookHomeworkSagaError('delivery-conflict', 'Delivery binding is no longer activatable.');
     }
-    const activeDelivery = await this.dependencies.deliveryRepository.readBinding(entry.bindingId);
     if (!activeDelivery || activeDelivery.status !== 'active') throw new BookHomeworkSagaError('delivery-missing', 'Active Delivery binding could not be read back.');
+    if (activeDelivery.binding.recipient.recipientId !== entry.recipientId
+      || activeDelivery.binding.context.contextId !== record.contextId
+      || deliveryContract(activeDelivery.binding) !== deliveryContract(binding)) {
+      throw new BookHomeworkSagaError('delivery-conflict', 'Active Delivery binding crosses the recipient boundary.');
+    }
     next = await this.replaceEntry(next, index, {
       ...entry,
       state: 'active',
@@ -895,8 +940,10 @@ export class BookHomeworkAssignmentSaga {
       if (!['updated', 'replayed'].includes(updated.status)) throw new BookHomeworkSagaError('authority-extension-failed', 'Authority extension did not persist.');
       authority = await this.dependencies.authorityRepository.read(scope);
       if (!authority) throw new BookHomeworkSagaError('authority-missing', 'Authority disappeared after extension.');
+      return { authority, extensionsReady: extensions.every(extension =>
+        authority!.studentExtensions[entry.recipientId]?.[extension.nodeKey]?.dueAt === extension.dueAt) };
     }
-    return authority;
+    return { authority, extensionsReady: true };
   }
 
   private createBinding(
@@ -963,6 +1010,7 @@ export class BookHomeworkAssignmentSaga {
         authorityRevision: authority?.revision,
         ...(delivery?.status === 'draft' ? { tombstonedAt: command.createdAt } : {}),
       }, command.createdAt);
+      return { status: 'compensating', record: current };
     }
     return this.transition(current, {
       state: 'compensated',
@@ -988,7 +1036,7 @@ export class BookHomeworkAssignmentSaga {
 
   private async transition(
     record: BookHomeworkSagaRecord,
-    change: Partial<Pick<BookHomeworkSagaRecord, 'state' | 'visibility' | 'recipients' | 'lastError'>>,
+    change: Partial<Pick<BookHomeworkSagaRecord, 'state' | 'visibility' | 'recipients' | 'lastError' | 'postCommit'>>,
     updatedAt: string,
   ): Promise<BookHomeworkSagaRecord> {
     if (change.state !== undefined) assertBookHomeworkSagaTransition(record.state, change.state);
@@ -998,7 +1046,7 @@ export class BookHomeworkAssignmentSaga {
       recipientCount: (change.recipients ?? record.recipients).length,
       committedRecipientCount: (change.recipients ?? record.recipients)
         .filter((entry) => entry.state === 'committed').length,
-      revision: record.revision + 1,
+      revision: change.postCommit ? record.revision : record.revision + 1,
       updatedAt,
     };
     assertValidBookHomeworkSagaRecord(next);

@@ -302,6 +302,51 @@ describe('Ticket #77 Book result read model', () => {
     expect(requestUrl.searchParams.get('limitToLast')).toBe('25');
   });
 
+  it('restores an omitted all-page array after a Firebase combined-result read without accepting malformed values', async () => {
+    const combined = detail({ attemptSourceContext: {
+      schemaVersion: 1, state: 'available',
+      metadata: {
+        attemptId: 'attempt-1', resultId: 'result-1', bookId: 'book-1', studentId: 'student-1',
+        surface: 'solo', contextId: 'context-1', ownerId: 'teacher-1', componentId: 'source-1',
+        sourceKey: 'source-1', sourceVersionId: 'source-version-1', physicalPageNumber: 1,
+        combinedPhysicalPageNumber: 3, pageGroupId: 'page-group-1', pageGroupIds: ['page-group-1'],
+        pageContexts: [{ sourceKey: 'source-1', sourceVersionId: 'source-version-1',
+          physicalPageNumber: 1, combinedPhysicalPageNumber: 3 }],
+        placementId: 'placement-1', activityId: 'activity-1', activityVersionId: 'activity-version-1',
+        activityVersion: 1, interactionFocusId: 'interaction-1', correspondence: 'source-assisted',
+      },
+      documentResource: {
+        sourceKey: 'student-document', sourceVersionId: 'combined-version-1', opaqueRouteKey: 'combined-route',
+        localPageScope: { kind: 'all', pages: [] },
+        studentDocument: { descriptorRevision: 1, sha256Hex: 'a'.repeat(64),
+          descriptorFingerprint: 'fnv1a64:1234567890abcdef', expectedByteLength: 1000, physicalPageCount: 3 },
+      },
+    } });
+    const stored = JSON.parse(JSON.stringify(combined, (_key, value: unknown) => (
+      Array.isArray(value) && value.length === 0 ? undefined : value
+    )));
+    const storedScope = stored.attemptSourceContext.documentResource.localPageScope;
+    expect(storedScope).not.toHaveProperty('pages');
+    const repository = new FirebaseBookResultReadRepository({ env: {
+      FIREBASE_DB_URL: 'https://database.example.test', readDatabaseValue: async () => stored,
+    } });
+    const query = { bookId: 'book-1', studentId: 'student-1', resultId: 'result-1' };
+    const normalized = await repository.readResultDetail(query);
+    expect(normalized?.attemptSourceContext).toMatchObject({ documentResource: { localPageScope: { kind: 'all', pages: [] } } });
+    const handlers = createBookResultReadWorkerHandlers({ repository, resolveViewerRole: () => 'student',
+      resolveHomeworkAuthorities: async () => ({}) });
+    const response = await handlers.resultDetail({ ...query, request: request(), env: {}, uid: 'student-1' });
+    expect(response.init?.status).toBe(200);
+    const validation = validateBookResultAttemptDetail((response.body as { detail: BookResultDetail }).detail);
+    expect(validation.valid, JSON.stringify(validation.errors)).toBe(true);
+    expect(storedScope).not.toHaveProperty('pages');
+    storedScope.pages = null;
+    const malformed = await handlers.resultDetail({ ...query, request: request(), env: {}, uid: 'student-1' });
+    const malformedDetail = (malformed.body as { detail: BookResultDetail }).detail;
+    expect(malformedDetail.attemptSourceContext).toMatchObject({ documentResource: { localPageScope: { kind: 'all', pages: null } } });
+    expect(validateBookResultAttemptDetail(malformedDetail).valid).toBe(false);
+  });
+
   it('encodes canonical result IDs exactly once at the Firebase transport boundary', () => {
     expect(bookResultDetailPath('attempt-1:result')).toBe('book_result_read_models/details/attempt-1:result');
   });

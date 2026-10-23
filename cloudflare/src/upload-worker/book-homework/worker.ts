@@ -13,14 +13,12 @@ import type {
 } from '../../../../src/services/book-homework/bookHomeworkSaga.types.ts';
 import {
   createBookHomeworkNotificationEmitter,
-  resolveBookHomeworkNotificationIdentity,
   type BookHomeworkNotificationEnvironment,
 } from './notification.ts';
 import type { NotificationCommandRepository } from '../notifications/repository.ts';
-import {
-  runBookMutationWithPostCommitNotification,
-} from '../notifications/post-commit.ts';
 import { reportBookNotificationFailure } from '../notifications/book-reporting.ts';
+import { BookNotificationEmissionError } from '../notifications/book-emitter.ts';
+import { FEATURE_IDS } from '../../../../src/config/featureRegistry.ts';
 import type {
   BookHomeworkTrustedSaga,
   BookHomeworkTrustedSagaFactory,
@@ -50,7 +48,7 @@ const ASSIGNMENT_ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9_:@-]{0,127}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PRESENTATION_TEXT_MAX_LENGTH = 512;
 
-export interface BookHomeworkWorkerEnv {
+export interface BookHomeworkWorkerEnv extends BookHomeworkNotificationEnvironment {
   readonly [key: string]: unknown;
   readonly readDatabaseValue?: (path: string) => Promise<unknown>;
 }
@@ -427,7 +425,7 @@ const teacherRole = (value: unknown): boolean => {
 export const createBookHomeworkOwnerReader = (
   env: BookHomeworkWorkerEnv,
   ownerId: string,
-): ((path: string) => Promise<unknown>) => {
+): ((path: string) => Promise<unknown>) & { readonly getAccessToken?: () => Promise<string> } => {
   const injected = env.readDatabaseValue;
   if (typeof injected === 'function') return injected;
   const serviceAccountJson = typeof env.BOOK_HOMEWORK_GOOGLE_SA_KEY === 'string'
@@ -455,13 +453,17 @@ export const createBookHomeworkOwnerReader = (
     firebaseAuthToken: true,
     getFirebaseAuthToken: () => tokenProvider({ service: 'book_homework', ownerId }),
   });
-  return (path) => client.readValue(path);
+  return Object.assign((path: string) => client.readValue(path), {
+    getAccessToken: () => tokenProvider({ service: 'book_homework', ownerId }),
+  });
 };
 
-const assertTeacher = async (env: BookHomeworkWorkerEnv, uid: string): Promise<void> => {
-  if (!teacherRole(await createBookHomeworkOwnerReader(env, uid)(`users/${uid}`))) {
+const assertTeacher = async (env: BookHomeworkWorkerEnv, uid: string) => {
+  const reader = createBookHomeworkOwnerReader(env, uid);
+  if (!teacherRole(await reader(`users/${uid}`))) {
     throw new BookHomeworkWorkerError('teacher_required', 403);
   }
+  return reader;
 };
 
 const statusFor = (status: BookHomeworkSagaResult['status']): number => {
@@ -479,7 +481,8 @@ const resultBody = (result: BookHomeworkSagaResult): Record<string, unknown> => 
   visibility: result.record.visibility,
   recipientCount: result.record.recipientCount,
   committedRecipientCount: result.record.committedRecipientCount,
-  revision: result.record.revision,
+  ...(result.record.postCommit ? { notifiedRecipientCount: result.record.postCommit.notifiedRecipientCount } : {}),
+  revision: result.record.revision + (result.record.postCommit?.revision ?? 0),
 });
 
 const sagaStatus = (code: string): number => {
@@ -499,8 +502,9 @@ export const createBookHomeworkWorkerHandlers = (
   }
   const resolveSaga = async (
     env: BookHomeworkWorkerEnv,
+    runtimeOptions?: Parameters<BookHomeworkTrustedSagaFactory>[1],
   ): Promise<BookHomeworkSagaPort | undefined> =>
-    options.saga ?? await options.sagaFactory?.(env);
+    options.saga ?? await options.sagaFactory?.(env, runtimeOptions);
   const resolveContextResolver = async (
     env: BookHomeworkWorkerEnv,
   ): Promise<BookHomeworkContextResolverPort | undefined> =>
@@ -605,61 +609,52 @@ export const createBookHomeworkWorkerHandlers = (
     readonly executionContext?: Pick<ExecutionContext, 'waitUntil'>;
   }): Promise<{ body: Record<string, unknown>; init: ResponseInit }> => {
     try {
-      await assertTeacher(input.env, input.uid);
+      const ownerReader = await assertTeacher(input.env, input.uid);
       const command = parseCommand(
         await readBody(input.request),
         assignmentRouteId(input.assignmentId),
         input.request.headers.get('idempotency-key'),
       );
-      const saga = await resolveSaga(input.env);
-      const notificationEmitter = saga?.readCommittedAssignment
-        ? createBookHomeworkNotificationEmitter({
-          ownerId: input.uid,
-          source: {
-            readCommittedAssignment: (assignmentId, ownerId) =>
-              saga.readCommittedAssignment!(assignmentId, ownerId),
-          },
+      const saga = await resolveSaga(input.env, ownerReader.getAccessToken
+        ? { getSagaAccessToken: ownerReader.getAccessToken } : undefined);
+      if (!saga) throw new BookHomeworkWorkerError('saga_unavailable', 503);
+      const result = await saga.execute({
+        ...command, ownerId: input.uid, createdAt: now(),
+      }, async (record, recipientIds) => {
+        const emitter = createBookHomeworkNotificationEmitter({
+          ownerId: input.uid, recipientIds,
+          source: { readCommittedAssignment: async () => record },
           repositoryFactory: options.notificationRepositoryFactory,
-        })
-        : undefined;
-      const executionContext = input.executionContext;
-      return await runBookMutationWithPostCommitNotification({
-        env: input.env,
-        waitUntil: executionContext ? (task) => executionContext.waitUntil(task) : undefined,
-        reportFailure: (report) => reportBookNotificationFailure({
-          env: input.env, actorId: input.uid,
-          token: input.request.headers.get('authorization')?.replace(/^Bearer\s+/iu, '') ?? '',
-          report,
-        }),
-        emitter: notificationEmitter,
-        resolveActionIdentity: ({ result }) =>
-          resolveBookHomeworkNotificationIdentity(result),
-        commit: async () => {
-          if (!saga) {
-            throw new BookHomeworkWorkerError('saga_unavailable', 503);
-          }
-          const result = await saga.execute({
-            ...command,
-            ownerId: input.uid,
-            createdAt: now(),
-          });
-          if (result.status === 'committed_projection_pending' && result.projectionDiagnostic) {
-            console.error('book_homework_committed_projection_pending', {
-              assignmentId: result.record.assignmentId,
-              operationId: result.record.operationId,
-              stage: result.projectionDiagnostic.stage,
-              errorClass: result.projectionDiagnostic.errorClass,
-              ...(result.projectionDiagnostic.provider
-                ? { provider: result.projectionDiagnostic.provider }
-                : {}),
-            });
-          }
-          return {
-            body: resultBody(result),
-            init: { status: statusFor(result.status) },
-          };
-        },
+        });
+        const identity = { actionId: record.operationId,
+          authority: { kind: 'book-homework-assignment' as const, recordId: record.assignmentId } };
+        try {
+            const delivery = await emitter.emit(identity, { env: input.env });
+            if (!['emitted', 'disabled'].includes(delivery.status)) throw new Error('book_homework_notifications_pending');
+        } catch (error) {
+          const attemptedAt = Date.now();
+          const delivery = error instanceof BookNotificationEmissionError ? error.delivery : undefined;
+          await reportBookNotificationFailure({
+            env: input.env, actorId: input.uid,
+            token: input.request.headers.get('authorization')?.replace(/^Bearer\s+/iu, '') ?? '',
+            report: { eventId: record.operationId, feature: FEATURE_IDS.homework, action: 'assignHomework', route: 'rtdb',
+              status: delivery?.status === 'failed' ? 'failed' : 'unknown',
+              code: error instanceof BookNotificationEmissionError ? error.code : 'book_notification_delivery_unknown',
+              occurredAt: attemptedAt, attemptedAt, recipientCount: recipientIds.length,
+              delivered: delivery?.delivered ?? 0, failed: delivery?.failed ?? 0,
+              unknown: delivery?.unknown ?? recipientIds.length, unattempted: delivery?.unattempted ?? 0 },
+          }).catch(() => {});
+          throw error;
+        }
       });
+      if (result.status === 'committed_projection_pending' && result.projectionDiagnostic) {
+        console.error('book_homework_committed_projection_pending', {
+          assignmentId: result.record.assignmentId, operationId: result.record.operationId,
+          stage: result.projectionDiagnostic.stage, errorClass: result.projectionDiagnostic.errorClass,
+          ...(result.projectionDiagnostic.provider ? { provider: result.projectionDiagnostic.provider } : {}),
+        });
+      }
+      return { body: resultBody(result), init: { status: statusFor(result.status) } };
     } catch (error) {
       if (error instanceof BookHomeworkWorkerError) {
         return { body: { code: error.code }, init: { status: error.status } };

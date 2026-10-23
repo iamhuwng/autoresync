@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { UnsecuredJWT } from 'jose';
+import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { ref, set } from 'firebase/database';
+import generatedRules from '../../database.rules.json?raw';
+import { FirebaseRtdbRestClient } from '../src/upload-worker/listening-authoring/rtdb.ts';
 import type {
   BookAssemblyActivitySafeProjectionRecord,
   BookAssemblyActivityVersionRecord,
@@ -40,6 +45,7 @@ type FetchHarnessOptions = {
   concurrentState?: unknown;
   failPutPath?: string;
   lossyFirebaseWire?: boolean;
+  losePatchResponse?: boolean;
 };
 
 /** Firebase RTDB omits object properties with null or empty-array values. */
@@ -139,6 +145,14 @@ const createFetchHarness = (
       writeAt(path, options.lossyFirebaseWire ? firebaseWireValue(submitted) : submitted);
       etags.set(relative, `"committed-${relative}"`);
       return new Response('', { status: 200 });
+    }
+    if (method === 'PATCH') {
+      const updates = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (relativePath(path) !== '') return new Response('', { status: 400 });
+      if (Object.keys(updates).some((key) => readAt(`${path}/${key}`) !== null)) return new Response('', { status: 403 });
+      for (const [key, value] of Object.entries(updates)) writeAt(`${path}/${key}`, value);
+      if (options.losePatchResponse) throw new Error('response lost after atomic commit');
+      return Response.json(null);
     }
     return new Response('', { status: 405 });
   };
@@ -413,6 +427,85 @@ const markerScope = (
 };
 
 describe('Book Assembly publication Firebase repository', () => {
+  it.runIf(Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST))('enforces atomic create-only publication patches with real native Rules', async () => {
+    const projectId = 'demo-book-publication-budget';
+    const [host, port] = process.env.FIREBASE_DATABASE_EMULATOR_HOST!.split(':');
+    const environment = await initializeTestEnvironment({ projectId,
+      database: { host, port: Number(port), rules: generatedRules } });
+    const scope = completeScope();
+    const wire = toWireScope(scope) as Record<string, Record<string, unknown>>;
+    for (const record of Object.values(wire.activity_versions)) {
+      (record as Record<string, unknown>).canonicalPayloadFingerprint = 'fnv1a64:activity';
+    }
+    const basePath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/book-1`;
+    const token = new UnsecuredJWT({ user_id: 'publication-service',
+      book_assembly_publication_service: true, book_assembly_publication_bookId: 'book-1',
+      book_assembly_publication_ownerId: 'teacher-1', auth_time: Math.floor(Date.now() / 1000),
+      firebase: { sign_in_provider: 'custom' } })
+      .setSubject('publication-service').setIssuer(`https://securetoken.google.com/${projectId}`)
+      .setAudience(projectId).setIssuedAt().setExpirationTime('1h').encode();
+    const client = new FirebaseRtdbRestClient({ env: { FIREBASE_DB_URL: `http://${host}:${port}?ns=${projectId}` },
+      fetchImpl: globalThis.fetch, firebaseAuthToken: true, getFirebaseAuthToken: async () => token });
+    try {
+      await environment.clearDatabase();
+      await environment.withSecurityRulesDisabled(async (context) => {
+        await set(ref(context.database(), 'material_catalog/books/book-1'), { ownerId: 'teacher-1' });
+      });
+      const additions = ['versions', 'activity_versions', 'activity_safe_projections', 'placements', 'unit_projections', 'delivery_plans']
+        .flatMap((family) => Object.entries(wire[family]).map(([key, value]) => ({ path: `${family}/${key}`, value })));
+      await client.patchMultiLocation(additions, basePath);
+      const before = await client.readValue(basePath);
+      const valid = { ...Object.values(wire.placements)[0] as Record<string, unknown>, placementId: 'fresh-placement' };
+      await expect(client.patchMultiLocation([
+        { path: 'placements/fresh-placement', value: valid },
+        { path: additions[0].path, value: { ...additions[0].value as Record<string, unknown>, ownerId: 'intruder' } },
+      ], basePath)).rejects.toThrow('firebase_rtdb_multi_location_patch_failed:401');
+      expect(await client.readValue(basePath)).toEqual(before);
+      await expect(client.patchMultiLocation([
+        { path: 'placements/fresh-placement', value: valid },
+        { path: 'placements/invalid-placement', value: { ...valid, placementId: 'invalid-placement', ownerId: 'intruder' } },
+      ], basePath)).rejects.toThrow('firebase_rtdb_multi_location_patch_failed:401');
+      expect(await client.readValue(basePath)).toEqual(before);
+    } finally { await environment.cleanup(); }
+  });
+
+  it.each([false, true])('atomically prepares native create-only leaves before pointer CAS (lost response: %s)', async (losePatchResponse) => {
+    const scope = completeScope();
+    const harness = createFetchHarness(null, { lossyFirebaseWire: true, losePatchResponse });
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env, ownerId: 'teacher-1', fetchImpl: harness.fetchImpl,
+      getFirebaseAuthToken: async (_bookId, _ownerId) => 'scoped-token',
+    });
+    await expect(repository.transaction('book-1', () => ({ outcome: 'published', next: structuredClone(scope), write: true })))
+      .resolves.toBe('published');
+    expect(await repository.readScope('book-1')).toEqual(scope);
+    const scopePath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/book-1`;
+    const writes = harness.calls.filter((call) => /^(PATCH|PUT) /u.test(call));
+    expect(writes).toEqual([`PATCH ${scopePath}`, `PUT ${scopePath}/current`, `PATCH ${scopePath}`]);
+    await expect(repository.transaction('book-1', () => ({ outcome: 'replayed', write: false }))).resolves.toBe('replayed');
+    expect(harness.calls.filter((call) => /^(PATCH|PUT) /u.test(call))).toEqual(writes);
+  });
+
+  it('keeps the previous pointer visible after a lost CAS while reusing prepared immutable leaves', async () => {
+    const previous = completeScope();
+    const next = { ...previous, current: { ...previous.current!, operationFingerprint: 'fnv1a64:next' } };
+    const initial = toWireScope(previous);
+    const harness = createFetchHarness(initial, { rejectFirstPointerPut: true, concurrentState: initial });
+    const repository = new FirebaseRestBookAssemblyPublicationRepository({
+      env, ownerId: 'teacher-1', fetchImpl: harness.fetchImpl,
+      getFirebaseAuthToken: async (_bookId, _ownerId) => 'scoped-token',
+    });
+    let calls = 0;
+    await expect(repository.transaction('book-1', (current) => {
+      if (calls++ === 1) {
+        expect(current.current).toEqual(previous.current);
+        return { outcome: 'conflict', write: false };
+      }
+      return { outcome: 'published', next, write: true };
+    })).resolves.toBe('conflict');
+    expect((await repository.readScope('book-1')).current).toEqual(previous.current);
+  });
+
   it('reads and immutably prepares one source-version-keyed student-document descriptor', async () => {
     const descriptor: ComponentStudentDocument = createComponentStudentDocument({
       sourceVersionId: 'student-version-1',
@@ -515,6 +608,17 @@ describe('Book Assembly publication Firebase repository', () => {
     });
     await expect(crossedRepository.readScope('book-1'))
       .rejects.toThrow('book_assembly_publication_owner_mismatch');
+  });
+
+  it('rejects malformed or full-PDF combined document pins at the storage boundary', async () => {
+    for (const pin of [null, { sourceVersionId: 'document-1', descriptorRevision: 1, sha256Hex: 'a'.repeat(64) }]) {
+      const wire = toWireScope(completeScope());
+      (wire.versions as Record<string, Record<string, unknown>>)['manifest-1']!.studentDocument = pin;
+      const repository = new FirebaseRestBookAssemblyPublicationRepository({
+        env, fetchImpl: createFetchHarness(wire).fetchImpl, getAccessToken: async () => 'test-token',
+      });
+      await expect(repository.readScope('book-1')).rejects.toThrow('invalid_book_assembly_publication_record');
+    }
   });
 
   it('prepares exact immutable child paths, retries the pointer CAS, and heals prepared children', async () => {
@@ -1062,6 +1166,15 @@ describe('Book Assembly publication Firebase repository', () => {
   });
 
   it('fails closed on malformed nested records and replay results', async () => {
+    for (const title of ['', '  ', 42, 'x'.repeat(201)]) {
+      const invalid = completeScope();
+      Object.assign(invalid.versions!['manifest-1']!.manifest.nodes[0]!, { title });
+      const repository = new FirebaseRestBookAssemblyPublicationRepository({
+        env, fetchImpl: createFetchHarness(toWireScope(invalid)).fetchImpl,
+        getAccessToken: async () => 'test-token',
+      });
+      await expect(repository.readScope('book-1')).rejects.toThrow('invalid_book_assembly_publication_record');
+    }
     const malformedNested = JSON.parse(JSON.stringify(completeScope())) as Record<string, unknown>;
     const versions = malformedNested.versions as Record<string, Record<string, unknown>>;
     const version = versions['manifest-1']!;

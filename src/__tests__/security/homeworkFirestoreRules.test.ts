@@ -15,7 +15,7 @@ import {
 } from '@firebase/rules-unit-testing';
 
 const firestoreRules = readFileSync(process.env.FIRESTORE_RULES_PATH || 'firestore.rules', 'utf8');
-const PROJECT_ID = 'demo-prd-0052-homework-rules';
+const PROJECT_ID = process.env.FIRESTORE_TEST_PROJECT_ID || 'demo-prd-0052-homework-rules';
 const hasFirestoreEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const describeEmulator = hasFirestoreEmulator ? describe : describe.skip;
 
@@ -622,6 +622,34 @@ describeEmulator('Homework Firestore rule emulator behavior', () => {
     await assertFails(authorityRef.delete());
     await assertFails(authorityRef.update({ ownerId: 'teacher-2' }));
     await assertFails(authorityRef.update({ revision: 6 }));
+  });
+
+  it('accepts the production frozen policy and preserves it through authority lifecycle updates', async () => {
+    const assignmentId = 'policy-assignment';
+    const authorityId = `${assignmentId}--student-1--authority`;
+    const authority = validBookHomeworkAuthority(authorityId);
+    authority.bookManifest.context.contextId = assignmentId;
+    authority.saga.sagaId = assignmentId;
+    // saga.ts projects these four fields from the canonical resolver policy.
+    const frozenPolicy = { intent: 'accountable', integrityDefault: true, integrityOverride: false, integrityEffective: true };
+    const service = makeBookHomeworkAuthorityServiceContext(authorityId, assignmentId);
+    const ref = service.firestore().doc(`book_homework_authorities/${authorityId}`);
+    for (const invalidPolicy of [
+      { ...frozenPolicy, intent: 'unknown' },
+      { ...frozenPolicy, integrityEffective: 'true' },
+      { intent: 'practice', integrityDefault: false, integrityOverride: false },
+      { ...frozenPolicy, policyId: 'not-an-authority-policy-field' },
+    ]) await assertFails(ref.set({ ...authority, frozenPolicy: invalidPolicy }));
+    await assertFails(ref.set({ ...authority, frozenPolicy, unexpectedField: true }));
+    await assertSucceeds(ref.set({ ...authority, frozenPolicy }));
+    await assertFails(ref.update({ revision: 2, frozenPolicy: { ...frozenPolicy, intent: 'practice' } }));
+    await assertFails(ref.set({ ...authority, revision: 2 }));
+    await assertSucceeds(ref.update({ revision: 2, updatedAt: '2026-07-28T00:01:00.000Z',
+      saga: { ...authority.saga, state: 'committed' },
+      visibility: { ...authority.visibility, status: 'committed', revision: 2 } }));
+    expect((await ref.get()).data()?.frozenPolicy).toEqual(frozenPolicy);
+    await assertFails(testEnv.authenticatedContext('teacher-1').firestore()
+      .doc(`book_homework_authorities/${authorityId}`).update({ revision: 3 }));
   });
 
   it('permits trusted manual release facts, preserves them on updates, and denies browser mutation', async () => {

@@ -221,7 +221,9 @@ export const createBookAssemblyClient = (options: AssemblyClientOptions) => {
     try { url = new URL(options.baseUrl.trim()); } catch {
       throw new BookAssemblyClientError('unavailable', 0);
     }
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    const localHttp = import.meta.env.DEV && import.meta.env.VITE_FIREBASE_LOCAL_ONLY === 'true'
+      && url.origin === 'http://localhost:8787';
+    if ((url.protocol !== 'https:' && !localHttp) || url.username || url.password || url.search || url.hash) {
       throw new BookAssemblyClientError('unavailable', 0);
     }
     return url.href.replace(/\/$/u, '');

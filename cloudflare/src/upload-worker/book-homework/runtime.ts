@@ -57,6 +57,7 @@ export type BookHomeworkTrustedSaga = Pick<BookHomeworkAssignmentSaga, 'execute'
 
 export type BookHomeworkTrustedSagaFactory = (
   env: BookHomeworkTrustedRuntimeEnv,
+  options?: Pick<BookHomeworkProductionRuntimeOptions, 'getSagaAccessToken'>,
 ) => BookHomeworkTrustedSaga | Promise<BookHomeworkTrustedSaga>;
 
 /**
@@ -150,7 +151,7 @@ const requireProductionCanonicalReadConfig = (env: BookHomeworkTrustedRuntimeEnv
 export const createBookHomeworkProductionCanonicalResolver = (
   env: BookHomeworkTrustedRuntimeEnv,
   ownerId: string,
-  options: Pick<BookHomeworkProductionRuntimeOptions, 'fetchImpl'> = {},
+  options: Pick<BookHomeworkProductionRuntimeOptions, 'fetchImpl' | 'getSagaAccessToken'> = {},
 ): BookHomeworkCanonicalResolver => {
   requireProductionCanonicalReadConfig(env);
   const fetchImpl = resolveBookHomeworkProductionFetch(options.fetchImpl);
@@ -165,9 +166,9 @@ export const createBookHomeworkProductionCanonicalResolver = (
     env,
     fetchImpl,
     firebaseAuthToken: true,
-    getFirebaseAuthToken: () => homeworkTokenProvider({
+    getFirebaseAuthToken: options.getSagaAccessToken ?? (() => homeworkTokenProvider({
       service: 'book_homework', ownerId,
-    }),
+    })),
   });
   const assemblyTokenProvider = createFirebaseClaimTokenProvider({
     serviceAccountJson: String(env.BOOK_ASSEMBLY_GOOGLE_SA_KEY),
@@ -259,53 +260,14 @@ export const createBookHomeworkProductionRuntime = (
     const fetchImpl = resolveBookHomeworkProductionFetch(options.fetchImpl);
     const runtimeOptions = { ...options, fetchImpl };
     const dependencies = createProductionDependencies(env, runtimeOptions);
-    const resolveCanonical = options.resolveCanonical ?? (async (command) => {
-      try {
-        const homeworkTokenProvider = createFirebaseClaimTokenProvider({
-          serviceAccountJson: String(env.BOOK_HOMEWORK_GOOGLE_SA_KEY),
-          serviceIdentity: String(env.BOOK_HOMEWORK_SERVICE_IDENTITY),
-          firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
-          firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
-          fetchImpl,
-        });
-        const authorityReader = new FirebaseRtdbRestClient({
-          env,
-          fetchImpl,
-          firebaseAuthToken: true,
-          getFirebaseAuthToken: () => homeworkTokenProvider({
-            service: 'book_homework', ownerId: command.ownerId,
-          }),
-        });
-        const assemblyTokenProvider = createFirebaseClaimTokenProvider({
-          serviceAccountJson: String(env.BOOK_ASSEMBLY_GOOGLE_SA_KEY),
-          serviceIdentity: String(env.BOOK_ASSEMBLY_SERVICE_IDENTITY),
-          firebaseProjectId: String(env.FIREBASE_PROJECT_ID),
-          firebaseWebApiKey: String(env.FIREBASE_WEB_API_KEY),
-          fetchImpl,
-        });
-        const publicationReader = new FirebaseRestBookAssemblyPublicationRepository({
-          env,
-          fetchImpl,
-          ownerId: command.ownerId,
-          getFirebaseAuthToken: (bookId, ownerId) => assemblyTokenProvider({
-            service: 'book_assembly_publication',
-            bookId,
-            ownerId,
-          }),
-        });
-        return await createBookHomeworkCanonicalResolver({
-          readPublicationScope: (bookId) => publicationReader.readScope(bookId),
-          classReader: async (classId) => {
-            const value = await authorityReader.readValue(`classes/${classId}`);
-            return value && typeof value === 'object' && !Array.isArray(value)
-              ? value as never
-              : null;
-          },
-        }).resolve(command);
-      } catch (error) {
-        if (error instanceof BookHomeworkRuntimeUnavailableError) throw error;
-        throw error;
+    const resolvers = new Map<string, BookHomeworkCanonicalResolver>();
+    const resolveCanonical = options.resolveCanonical ?? ((command) => {
+      let resolver = resolvers.get(command.ownerId);
+      if (!resolver) {
+        resolver = createBookHomeworkProductionCanonicalResolver(env, command.ownerId, runtimeOptions);
+        resolvers.set(command.ownerId, resolver);
       }
+      return resolver.resolve(command);
     });
     return new BookHomeworkAssignmentSaga({
       sagaRepository: dependencies.sagaRepository,

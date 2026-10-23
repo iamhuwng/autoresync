@@ -42,8 +42,10 @@ export const CANONICAL_VARIANTS_BY_FAMILY = Object.freeze({
 export const CANONICAL_GENERIC_VARIANTS_BY_FAMILY = Object.freeze({
   ...CANONICAL_VARIANTS_BY_FAMILY,
   choice: Object.freeze([...CANONICAL_VARIANTS_BY_FAMILY.choice, 'v1', 'single-select', 'multi-select']),
-  ordering: Object.freeze(['v1']),
-  'long-response': Object.freeze(['v1']),
+  'text-entry': Object.freeze([...CANONICAL_VARIANTS_BY_FAMILY['text-entry'], 'sentence-completion']),
+  matching: Object.freeze([...CANONICAL_VARIANTS_BY_FAMILY.matching, 'matching-pairs']),
+  ordering: Object.freeze(['v1', 'sequence']),
+  'long-response': Object.freeze(['draft-response', 'v1']),
 });
 
 export const CANONICAL_COVERAGE_ROW_KEYS = Object.freeze([
@@ -89,6 +91,7 @@ export const RESPONSE_CODECS = Object.freeze({
   'text-entry-v1': 'text-entry',
   'matching-pairs-v1': 'matching',
   'ordering-v1': 'ordering',
+  'ordering-items-v1': 'ordering',
   'long-response-v1': 'long-response',
 });
 

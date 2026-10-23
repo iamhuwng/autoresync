@@ -30,6 +30,7 @@ export interface TrustedFirebaseRtdbServiceAccountConfig {
 
 export interface TrustedFirebaseSourceUploadTransactionConfig {
   readonly databaseUrl: string;
+  readonly localEmulator?: boolean;
   readonly accessTokenProvider: TrustedFirebaseRtdbAccessTokenProvider;
   readonly fetchImpl?: typeof fetch;
   readonly maxRetries?: number;
@@ -243,14 +244,18 @@ export const createTrustedFirebaseRtdbServiceAccountAccessTokenProvider = (
   };
 };
 
-const normalizeDatabaseUrl = (value: string): string => {
+export const normalizeTrustedSourceUploadDatabaseUrl = (value: string, localEmulator = false): string => {
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
     return fail('trusted_source_upload_database_url_invalid');
   }
-  if (parsed.protocol !== 'https:' || parsed.search || parsed.hash || parsed.username || parsed.password) {
+  const validTarget = localEmulator
+    ? parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port === '9000'
+      && parsed.pathname === '/' && parsed.search === '?ns=demo-luyentap-local'
+    : parsed.protocol === 'https:' && !parsed.search;
+  if (!validTarget || parsed.hash || parsed.username || parsed.password) {
     return fail('trusted_source_upload_database_url_invalid');
   }
   return parsed.toString().replace(/\/$/u, '');
@@ -284,7 +289,7 @@ const parseSnapshot = async (response: Response, maxBytes: number): Promise<unkn
 export const createTrustedFirebaseSourceUploadRtdbTransaction = (
   config: TrustedFirebaseSourceUploadTransactionConfig,
 ): SourceUploadRtdbTransaction => {
-  const databaseUrl = normalizeDatabaseUrl(config.databaseUrl);
+  const databaseUrl = normalizeTrustedSourceUploadDatabaseUrl(config.databaseUrl, config.localEmulator);
   const fetchImpl = config.fetchImpl ?? fetch;
   const maxRetries = config.maxRetries ?? 5;
   const maxSnapshotBytes = config.maxSnapshotBytes ?? DEFAULT_MAX_SNAPSHOT_BYTES;
@@ -303,14 +308,15 @@ export const createTrustedFirebaseSourceUploadRtdbTransaction = (
     readonly update: (current: T | null) => T | undefined;
   }): Promise<SourceUploadRtdbTransactionResult<T>> => {
     const { path, expectedRevision, update } = input;
-    const endpoint = `${databaseUrl}/${assertTrustedPath(path)}.json`;
+    const endpoint = new URL(databaseUrl);
+    endpoint.pathname = `${endpoint.pathname.replace(/\/$/u, '')}/${assertTrustedPath(path)}.json`;
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
       fail('trusted_source_upload_expected_revision_invalid');
     }
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
       const token = await config.accessTokenProvider.getAccessToken();
       if (!token.trim()) fail('trusted_source_upload_token_unavailable');
-      const read = await fetchImpl(endpoint, {
+      const read = await fetchImpl(endpoint.href, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Firebase-ETag': 'true',
@@ -330,7 +336,7 @@ export const createTrustedFirebaseSourceUploadRtdbTransaction = (
       if (encoder.encode(body).byteLength > maxSnapshotBytes) {
         fail('trusted_source_upload_mutation_too_large');
       }
-      const write = await fetchImpl(endpoint, {
+      const write = await fetchImpl(endpoint.href, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,

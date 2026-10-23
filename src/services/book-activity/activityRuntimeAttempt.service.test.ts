@@ -4,6 +4,8 @@ import {
   assertBookRuntimeWindowForTarget,
   createBookRuntimeScheduleAuthority,
   activitySubmissionFromRuntimeResponses,
+  activityDraftFromRuntimeResponses,
+  runtimeResponsesFromActivityDraft,
   normalizeSavedActivityResponse,
   sameBookRuntimeScheduleAuthority,
 } from './activityRuntimeAttempt.service';
@@ -37,6 +39,17 @@ const windowDecision = (operation: 'state' | 'autosave' | 'submit' = 'autosave')
   });
 
 describe('Book runtime effective-window adapter', () => {
+  it('round-trips partial Activity drafts without turning untouched questions into blank answers', () => {
+    const ids = ['question-1', 'question-2'];
+    const draft = activityDraftFromRuntimeResponses(ids, { 'question-1': { text: '' } });
+    expect(draft).toEqual([{ interactionId: 'question-1', answer: '' }, { interactionId: 'question-2' }]);
+    const restored = runtimeResponsesFromActivityDraft(ids, draft)!;
+    expect(restored).toEqual({ 'question-1': [{ interactionId: 'question-1', answer: '' }] });
+    expect(() => activitySubmissionFromRuntimeResponses(ids, restored)).toThrow('runtime_activity_submission_incomplete');
+    expect(runtimeResponsesFromActivityDraft(ids, [...draft].reverse())).toBeNull();
+    expect(runtimeResponsesFromActivityDraft(ids, [{ interactionId: 'question-1', answer: 'old per-question draft' }])).toBeNull();
+  });
+
   it('accepts only the exact actor, binding, context, target, and operation', () => {
     const authority = createBookRuntimeScheduleAuthority(windowDecision());
     expect(assertBookRuntimeWindowForTarget({

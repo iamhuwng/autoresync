@@ -25,6 +25,7 @@ import {
   wholeActivationApprovalFingerprint,
 } from './unitPreview.service';
 import { createComponentStudentDocument } from './componentStudentDocument.types';
+import { fingerprintComponentPdfActivationValue } from './componentPdfActivation.service';
 
 const operationId = '00000000-0000-4000-8000-000000000166';
 const now = '2026-07-27T13:00:00.000Z';
@@ -308,6 +309,13 @@ describe('component-PDF publication command boundary', () => {
     });
 
     const receipt = await command(request());
+
+    expect(receipt.result.version?.studentDocument).toEqual({
+      sourceVersionId: studentDocument.sourceVersionId,
+      descriptorRevision: studentDocument.descriptorRevision,
+      sha256Hex: studentDocument.sha256Hex,
+      descriptorFingerprint: fingerprintComponentPdfActivationValue(studentDocument),
+    });
 
     expect(approvalPorts.readPreviewApproval).toHaveBeenCalledWith({
       bookId: 'book-1',

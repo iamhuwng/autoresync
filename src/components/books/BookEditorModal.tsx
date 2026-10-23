@@ -15,6 +15,8 @@ import BookEditorWorkspace, {
 } from './BookEditorWorkspace';
 import BookMode2EditorShell from './BookMode2EditorShell';
 import BookPdfEditWorkspace from './BookPdfEditWorkspace';
+import LocalBookAuthoringWorkspace from './LocalBookAuthoringWorkspace';
+import type { LocalBookAuthoringDraft } from '../../services/materialCatalog/localBookAuthoring.service';
 import { useBookEditorModeResolution } from './useBookEditorModeResolution';
 import './BookEditorModal.css';
 
@@ -22,12 +24,17 @@ interface BookEditorModalProps {
   readonly opened: boolean;
   readonly intent: 'create' | 'edit';
   readonly bookId: string | null;
+  readonly localDraft?: LocalBookAuthoringDraft | null;
   readonly initialBook?: MaterialBookMetadata | null;
   readonly initialNodes?: readonly MaterialBookNode[];
   readonly materialCandidates?: readonly BookMaterialSummary[];
   readonly repository?: MaterialBooksRepository;
   readonly onClose: () => void;
   readonly onSaved?: (bookId: string) => void;
+  readonly onLocalDraftChange?: (draft: LocalBookAuthoringDraft) => void;
+  readonly onLocalSubmit?: (draft: LocalBookAuthoringDraft) => Promise<void>;
+  readonly onLocalDraftDiscarded?: (draftId: string) => void;
+  readonly onResolveLocalDiscard?: () => Promise<boolean>;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly returnFocusTo?: HTMLElement | null;
 }
@@ -86,11 +93,16 @@ const BookEditorModal = ({
   opened,
   intent,
   bookId,
+  localDraft = null,
   initialNodes,
   materialCandidates,
   repository,
   onClose,
   onSaved,
+  onLocalDraftChange,
+  onLocalSubmit,
+  onLocalDraftDiscarded,
+  onResolveLocalDiscard,
   onDirtyChange,
   returnFocusTo,
 }: BookEditorModalProps) => {
@@ -104,7 +116,7 @@ const BookEditorModal = ({
   const resolution = useBookEditorModeResolution({
     actorId: user?.uid,
     actorRole: profile?.role,
-    bookId: opened ? bookId : null,
+    bookId: opened && !localDraft ? bookId : null,
     repository,
   });
 
@@ -139,7 +151,7 @@ const BookEditorModal = ({
     };
   }, [opened]);
 
-  if (!opened || !bookId) {
+  if (!opened || (!bookId && !localDraft)) {
     return null;
   }
 
@@ -223,13 +235,20 @@ const BookEditorModal = ({
     requestClose();
   };
 
-  const resolvedBook = resolution.status === 'resolved' ? resolution.book : null;
+  const resolvedBook = !localDraft && resolution.status === 'resolved' ? resolution.book : null;
+  const canOpenLocal = Boolean(localDraft && localDraft.ownerId === user?.uid
+    && (profile?.role === 'teacher' || profile?.role === 'super_admin')
+    && localDraft.schemaVersion === 2 && localDraft.metadata?.bookMode === 'pdf'
+    && typeof localDraft.metadata.title === 'string' && Array.isArray(localDraft.pdfs)
+    && localDraft.submission && typeof localDraft.structureJson === 'string'
+    && typeof localDraft.unitsJson === 'string' && typeof localDraft.pageMappingJson === 'string');
+  const displayBook = resolvedBook ?? (canOpenLocal ? { ...localDraft!.metadata, status: 'local' } : null);
   const isMaterialsEditor = resolvedBook?.bookMode === 'materials';
   const pdfRequiresSetup = resolvedBook?.bookMode === 'pdf'
     && !resolvedBook.sourceSet
     && resolution.status === 'resolved'
     && resolution.access !== 'public-readonly';
-  const title = resolvedBook?.title || 'Book Editor';
+  const title = displayBook?.title || 'Book Editor';
 
   return (
     <div
@@ -247,7 +266,7 @@ const BookEditorModal = ({
         aria-labelledby={titleId}
         tabIndex={-1}
         className="book-editor-modal__frame"
-        data-book-mode={resolvedBook?.bookMode ?? 'loading'}
+        data-book-mode={displayBook?.bookMode ?? 'loading'}
         data-editor-intent={intent}
         data-editor-experience={pdfRequiresSetup || intent === 'create' ? 'guided-creation' : 'focused-editing'}
         onKeyDown={handleKeyDown}
@@ -255,11 +274,11 @@ const BookEditorModal = ({
         <header className="book-editor-modal__header">
           <div className="book-editor-modal__title-group">
             <h2 id={titleId}>{title}</h2>
-            <div className="book-editor-modal__chips" aria-label="Book editor status">
-              <span>{formatStatus(resolvedBook?.status)}</span>
-              <span>{formatVisibility(resolvedBook?.visibility)}</span>
-              <span>{resolvedBook?.testTypeIds?.join(', ') || 'No Test Type'}</span>
-            </div>
+            {isMaterialsEditor && <div className="book-editor-modal__chips" aria-label="Book editor status">
+              <span>{formatStatus(displayBook?.status)}</span>
+              <span>{formatVisibility(displayBook?.visibility)}</span>
+              <span>{displayBook?.testTypeIds?.join(', ') || 'No Test Type'}</span>
+            </div>}
           </div>
           <div className="book-editor-modal__header-actions">
             {isMaterialsEditor && (
@@ -313,7 +332,20 @@ const BookEditorModal = ({
             })}
           </nav>
         )}
-        <div className="book-editor-modal__body">
+        <div className={`book-editor-modal__body${canOpenLocal ? ' book-editor-modal__body--local' : ''}`}>
+          {localDraft && !canOpenLocal && <section role="alert" className="book-editor-modal__load-state is-error">
+            Could not open this saved PDF Book draft for the signed-in account. The saved draft was kept.
+          </section>}
+          {canOpenLocal && localDraft && <LocalBookAuthoringWorkspace
+            key={`${localDraft.ownerId}:${localDraft.draftId}`}
+            draft={localDraft}
+            onChange={(next) => { setDirty(false); onLocalDraftChange?.(next); }}
+            onComplete={onLocalSubmit}
+            onClose={closeNow}
+            onDiscard={() => onLocalDraftDiscarded?.(localDraft.draftId)}
+            onResolveDiscard={onResolveLocalDiscard}
+          />}
+          {!localDraft && <>
           {(resolution.status === 'idle' || resolution.status === 'loading') && (
             <p className="book-editor-modal__load-state" aria-busy="true">Loading Book...</p>
           )}
@@ -346,7 +378,7 @@ const BookEditorModal = ({
           {resolution.status === 'resolved' && resolution.book.bookMode === 'materials' && (
             <BookEditorWorkspace
               ref={workspaceRef}
-              bookId={bookId}
+              bookId={bookId ?? resolution.book.bookId}
               initialBook={resolution.usePublicProjection ? undefined : resolution.book}
               initialNodes={resolution.usePublicProjection ? undefined : initialNodes}
               materialCandidates={materialCandidates}
@@ -358,6 +390,7 @@ const BookEditorModal = ({
               onDirtyChange={setDirty}
             />
           )}
+          </>}
         </div>
 
         {confirmClose && (

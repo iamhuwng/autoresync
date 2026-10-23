@@ -8,6 +8,7 @@ import {
   createFirebaseBookResultProjectionWriter,
   buildBookResultGroupSummary,
   projectCommittedBookResult,
+  projectCommittedBookSourceContext,
   type BookResultProjectionWriter,
 } from '../src/upload-worker/book-results/production-projection.ts';
 import { FirebaseBookResultReadRepository, InMemoryBookResultReadRepository } from '../src/upload-worker/book-results/repository.ts';
@@ -28,6 +29,9 @@ import type { BookDeliveryBinding } from '../../src/services/book-delivery/bookD
 import { classBookBindingContextId } from '../../src/services/book-delivery/classBookPlacement.types.ts';
 import { createBookRuntimeScheduleAuthority } from '../../src/services/book-activity/activityRuntimeAttempt.service.ts';
 import { resolveBookScheduleWindow } from '../../src/services/book-delivery/bookScheduleWindow.service.ts';
+import { componentArtifact } from './fixtures/book-submission-publication.ts';
+import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
+import type { BookAssemblyImmutableManifestVersion } from '../../src/types/bookAssembly.types.ts';
 
 const binding = (): BookDeliveryBinding => ({
   schemaVersion: 3,
@@ -155,6 +159,40 @@ class IdempotentWriter implements BookResultProjectionWriter {
 }
 
 describe('production Book result projection seam', () => {
+  it('projects the exact retained combined PDF and keeps result facts when its pin is unavailable', async () => {
+    const terminal = await acceptedTerminal();
+    const current = binding();
+    const descriptor = componentArtifact().descriptor;
+    const source = { ...current.sourceSet.sources[0]!, sourceKey: 'part-b', sourceVersionId: 'part-b-v1' };
+    const componentBinding: BookDeliveryBinding = { ...current,
+      sourceSet: { strategy: 'component_pdfs', sources: [source] },
+      placements: current.placements.map(placement => ({ ...placement, sourcePageScopes: [{ sourceKey: source.sourceKey, pages: [1] }] })),
+    };
+    for (const row of [terminal.attempt, terminal.result, terminal.completion]) {
+      (row as { sourceProvenance: unknown }).sourceProvenance = [{ sourceKey: source.sourceKey, sourceVersionId: source.sourceVersionId, pages: [1] }];
+    }
+    const version = { manifestVersionId: current.book.manifestVersionId, bookId: current.book.bookId,
+      ownerId: current.issuer.ownerId, lifecycle: 'published', publicationId: current.book.publicationId,
+      publicationRevision: current.book.publicationRevision, bookRevision: current.book.bookRevision,
+      strategy: 'component_pdfs', manifest: { sourceSet: componentArtifact().sourceSet },
+      studentDocument: { sourceVersionId: descriptor.sourceVersionId, descriptorRevision: descriptor.descriptorRevision,
+        sha256Hex: descriptor.sha256Hex, descriptorFingerprint: fingerprintComponentPdfActivationValue(descriptor) },
+    } as BookAssemblyImmutableManifestVersion;
+    const publicationScope = { versions: { [version.manifestVersionId]: version }, studentDocuments: { [descriptor.sourceVersionId]: descriptor } };
+    const context = projectCommittedBookSourceContext({ binding: componentBinding, terminal, publicationScope });
+    expect(context).toMatchObject({ state: 'available', metadata: { physicalPageNumber: 1, combinedPhysicalPageNumber: 2 },
+      documentResource: { sourceKey: 'student-document', sourceVersionId: descriptor.sourceVersionId } });
+    const projected = await projectCommittedBookResult({ binding: componentBinding, terminal,
+      attemptSourceContext: context, writer: new IdempotentWriter() });
+    expect(projected.detail.attemptSourceContext).toEqual(context);
+    const unavailable = projectCommittedBookSourceContext({ binding: componentBinding, terminal,
+      publicationScope: { ...publicationScope, versions: { [version.manifestVersionId]: { ...version, publicationId: 'foreign' } } } });
+    expect(unavailable.state).toBe('historical_source_unavailable');
+    const facts = await projectCommittedBookResult({ binding: componentBinding, terminal,
+      attemptSourceContext: unavailable, writer: new IdempotentWriter() });
+    expect(facts.detail.response).toEqual(projected.detail.response);
+    expect(projectCommittedBookSourceContext({ binding: componentBinding, terminal }).state).toBe('historical_source_unavailable');
+  });
   it.each(['course', 'class'] as const)('projects and reads %s only behind current exact delivery and owner authority', async (kind) => {
     const contextId = kind === 'class' ? classBookBindingContextId('class-1', 'copy-1', 'material-1', 'placement-1') : 'course-material-1';
     const original = binding();

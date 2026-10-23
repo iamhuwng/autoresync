@@ -83,7 +83,7 @@ const manifestEntriesOverlap = (
 ): boolean => {
   if (left.family !== right.family || left.variant !== right.variant ||
       left.presentationMode !== right.presentationMode) return false;
-  if (left.profile === null || right.profile === null) return true;
+  if (left.profile === null || right.profile === null) return left.profile === right.profile;
   return left.profile.taxonomyId === right.profile.taxonomyId &&
     left.profile.typeId === right.profile.typeId &&
     left.profile.taxonomyVersion === right.profile.taxonomyVersion;
