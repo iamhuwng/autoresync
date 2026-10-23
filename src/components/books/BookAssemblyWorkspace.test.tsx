@@ -358,6 +358,69 @@ describe('BookAssemblyWorkspace', () => {
     expect(repo.create).not.toHaveBeenCalled();
   });
 
+  it.each(['outline', 'connection', 'source order'] as const)('routes persisted Component-PDF %s edits without replaying activation', async (edit) => {
+    const user = userEvent.setup();
+    const current = { ...componentReadyCandidate(), unitKey: 'unit-a' };
+    const repo = repository();
+    repo.replace = vi.fn<UnitAssemblyRepository['replace']>(async (input) => ({
+      status: 'replaced', candidate: { ...current, manifest: input.manifest, revision: 2, lifecycle: 'draft' },
+      receipt: { operationId: input.operationId, fingerprint: 'replacement', status: 'replaced', createdAt: current.updatedAt },
+    }));
+    repo.validate = vi.fn<UnitAssemblyRepository['validate']>(async (input) => ({
+      status: 'validated', candidate: { ...current, manifest: vi.mocked(repo.replace).mock.calls[0]![0].manifest, revision: 3 },
+      receipt: { operationId: input.operationId, fingerprint: 'validation', status: 'validated', createdAt: current.updatedAt },
+    }));
+    const activateComponentPdf = vi.fn().mockRejectedValue(new Error('setup_must_not_replay'));
+    const recovery = createComponentPdfActivationReceipt({
+      operationId: 'initial-activation', ownerId: current.ownerId, bookId: current.bookId,
+      expectedBookRevision: current.bookRevision - 1, expectedSourceSetRevision: current.sourceSetRevision - 1,
+      sourceSet: current.manifest!.sourceSet,
+      unitCandidates: current.manifest!.units.map(({ unitKey }) => ({ unitKey,
+        candidateId: current.candidateId, candidateRevision: current.revision,
+        manifestFingerprint: fingerprintComponentPdfActivationValue(current.manifest) })),
+      studentDocument: { sourceVersionId: 'student-v1', descriptorRevision: current.sourceSetRevision, descriptorFingerprint: 'c'.repeat(64) },
+      activities: [], activatedAt: current.updatedAt,
+    });
+    renderWorkspace({ initialCandidate: current, initialSourceSet: current.manifest!.sourceSet,
+      repository: repo, validateCandidateAfterSave: true, guided: edit !== 'source order', guidedUiVariant: 'mockup',
+      editingPanel: edit === 'source order' ? undefined : edit === 'outline' ? 'content-tree' : 'preview', previewUnitKey: 'unit-a',
+      componentPdfActivationClient: { activateComponentPdf }, componentPdfActivationRecovery: recovery,
+      componentStudentDocumentSourceVersionId: 'student-v1' });
+    if (edit === 'source order') {
+      await user.click(screen.getByRole('button', { name: 'Move source-source-part-b up' }));
+      await user.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText('component_pdf_activation_recovery_invalid')).toBeInTheDocument();
+      expect(repo.replace).not.toHaveBeenCalled();
+      expect(repo.validate).not.toHaveBeenCalled();
+      expect(activateComponentPdf).not.toHaveBeenCalled();
+      return;
+    }
+    if (edit === 'outline') {
+      await user.click(screen.getByText('Current outline'));
+      await user.click(within(screen.getByRole('treeitem', { name: 'Unit 1' })).getByRole('button'));
+      fireEvent.change(screen.getByLabelText('Selected outline title'), { target: { value: 'Growing up — reviewed' } });
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Change PDF connection' }));
+      const dialog = screen.getByRole('dialog', { name: 'PDF connection' });
+      fireEvent.change(within(dialog).getByLabelText('PDF pages'), { target: { value: '2' } });
+      fireEvent.change(within(dialog).getByLabelText('Open on'), { target: { value: '2' } });
+      await user.click(within(dialog).getByRole('button', { name: 'Apply change' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(repo.replace).toHaveBeenCalledTimes(1));
+    const savedManifest = vi.mocked(repo.replace).mock.calls[0]![0].manifest;
+    if (edit === 'outline') expect(savedManifest.nodes.find(({ nodeKey }) => nodeKey === 'unit-a')?.title).toBe('Growing up — reviewed');
+    else expect(savedManifest.units[0]!.pageGroups[0]).toMatchObject({ pages: [2], defaultPhysicalPageNumber: 2 });
+    expect(savedManifest.units[1]).toEqual(current.manifest!.units[1]);
+    expect(repo.replace).toHaveBeenCalledWith(expect.objectContaining({
+      expectedBookRevision: 2, expectedSourceSetRevision: 3, unitKey: 'unit-a', expectedCandidateRevision: 1,
+    }));
+    expect(repo.validate).toHaveBeenCalledWith(expect.objectContaining({ expectedCandidateRevision: 2 }));
+    expect(activateComponentPdf).not.toHaveBeenCalled();
+    expect(mocks.success).toHaveBeenCalledWith('Changes saved.');
+    expect(mocks.trackAction).toHaveBeenCalledWith('teacher_materials_book_assembly_saved', expect.objectContaining({ revision: 3 }));
+  });
+
   it.each([
     ['stale revisions', { bookRevision: 2, sourceSetRevision: 3 }],
     ['another Book', { bookId: 'book-2' }],

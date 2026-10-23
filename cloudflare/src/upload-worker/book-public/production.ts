@@ -4,7 +4,7 @@ import { createBookDeliveryBinding } from '../../../../src/services/book-deliver
 import { createBookDeliveryProjectionResolver } from '../../../../src/services/book-delivery/bookDelivery.service.ts';
 import { FirebaseRestBookDeliveryRepository, type BookDeliveryRepositoryEnv } from '../book-delivery/repository.ts';
 import { FirebaseRestBookAssemblyPublicationRepository, type BookAssemblyPublicationRepositoryEnv } from '../book-assembly/publication-repository.ts';
-import { createTrustedBookDeliveryPublication, resolveTrustedBookDeliveryStudentDocument } from '../book-delivery/worker.ts';
+import { createTrustedBookDeliveryPublication, resolveTrustedBookDeliveryStudentDocument, resolveTrustedBookDeliveryFullPageDefaults } from '../book-delivery/worker.ts';
 import { createPublicBookAuthorityReader } from './authority-reader.ts';
 import { defaultRuntimeFactory } from '../book-source/document.ts';
 import type { LiveBookDocumentAuthority } from '../book-delivery/documentAuthorization.ts';
@@ -12,6 +12,7 @@ import type { LiveBookDocumentAuthority } from '../book-delivery/documentAuthori
 type PublicDependencies = {
   readonly publicationRepository?: Pick<FirebaseRestBookAssemblyPublicationRepository, 'readScope'>;
   readonly resolveStudentDocument?: typeof resolveTrustedBookDeliveryStudentDocument;
+  readonly resolveFullPageDefaults?: typeof resolveTrustedBookDeliveryFullPageDefaults;
   readonly readDocumentAuthority?: (env: PublicEnv, binding: BookDeliveryBinding) => Promise<LiveBookDocumentAuthority>;
 };
 type PublicEnv = BookDeliveryRepositoryEnv & BookAssemblyPublicationRepositoryEnv;
@@ -119,6 +120,7 @@ export const createPublicBookProductionHandlers = (options: PublicDependencies &
       }
       const projection = await createBookDeliveryProjectionResolver({ repository,
         resolveStudentDocument: (value) => (options.resolveStudentDocument ?? resolveTrustedBookDeliveryStudentDocument)(input.env, value),
+        resolveFullPageDefaults: (value) => (options.resolveFullPageDefaults ?? resolveTrustedBookDeliveryFullPageDefaults)(input.env, value, options.publicationRepository),
       }).resolve({ actor: { uid: input.uid }, recipientId: input.uid, contextId });
       return { body: { title: authority.title, projection }, init: { status: 200 } };
     } catch (error) {

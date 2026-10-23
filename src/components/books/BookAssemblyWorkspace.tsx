@@ -1167,10 +1167,23 @@ const BookAssemblyWorkspace = ({
       bookRevision: effectiveBookRevision,
       sourceSetRevision: effectiveSourceSetRevision,
     };
-    if (componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
+    // An active saved contract can evolve without replaying its initial activation receipt.
+    const currentComponentCandidate = validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+      && authority.bookRevision > 0 && authority.sourceSetRevision > 0
+      && candidate?.bookId === bookId && candidate.unitKey === unitKey && candidate.lifecycle === 'validated'
+      && candidate.bookRevision === authority.bookRevision && candidate.sourceSetRevision === authority.sourceSetRevision
+      && JSON.stringify(candidate.manifest?.sourceSet) === JSON.stringify(validManifest.sourceSet)
+      && JSON.stringify(attachedSourceSet) === JSON.stringify(validManifest.sourceSet)
+      ? candidate : null;
+    if (currentComponentCandidate?.unitKey === unitKey
+      && fingerprintComponentPdfActivationValue(currentComponentCandidate.manifest)
+        === fingerprintComponentPdfActivationValue(validManifest)) {
+      return { status: 'validated', candidate: currentComponentCandidate };
+    }
+    if (!currentComponentCandidate && componentPdfActivationRecovery && (!componentPdfActivationClient || !matchingComponentPdfActivationRecovery)) {
       throw new Error('component_pdf_activation_recovery_invalid');
     }
-    if (matchingComponentPdfActivationRecovery && repository!.loadCurrent) {
+    if (!currentComponentCandidate && matchingComponentPdfActivationRecovery && repository!.loadCurrent) {
       const reference = matchingComponentPdfActivationRecovery.unitCandidates.find((entry) => entry.unitKey === unitKey);
       const loaded = reference && await repository!.loadCurrent(bookId, unitKey);
       if (!loaded || loaded.candidate.ownerId !== matchingComponentPdfActivationRecovery.ownerId
@@ -1186,7 +1199,7 @@ const BookAssemblyWorkspace = ({
       }
       return { status: 'validated', candidate: loaded.candidate };
     }
-    if (validManifest.sourceSet.sourceStrategy === 'component_pdfs'
+    if (!currentComponentCandidate && validManifest.sourceSet.sourceStrategy === 'component_pdfs'
       && componentPdfActivationClient
       && (componentPdfActivationRecovery
         || (attachedSourceSet && authority.sourceSetRevision > 0 && componentStudentDocumentSourceVersionId))) {
@@ -1397,7 +1410,7 @@ const BookAssemblyWorkspace = ({
       setStatus('error');
       return;
     }
-    const unitKey = strategy === 'full_pdf' ? candidate?.unitKey ?? manifest.units[0]?.unitKey : selectedUnitKey;
+    const unitKey = strategy === 'full_pdf' && !editingPanel ? candidate?.unitKey ?? manifest.units[0]?.unitKey : selectedUnitKey;
     if (!unitKey) {
       setValidationMessage('Select or add a Unit before saving an Assembly candidate.');
       setStatus('error');
@@ -1610,7 +1623,7 @@ const BookAssemblyWorkspace = ({
       const selectedActivityKey = editingPanel === 'activity-json' ? editingActivityKey : undefined;
       parseUnitActivityImportBundle(unitImportText, validManifest, unitKey, { selectedActivityKey });
       setUnitImportCancelable(false);
-      const candidateUnitKey = strategy === 'full_pdf' ? candidate?.unitKey ?? validManifest.units[0]!.unitKey : unitKey;
+      const candidateUnitKey = strategy === 'full_pdf' && !editingPanel ? candidate?.unitKey ?? validManifest.units[0]!.unitKey : unitKey;
       const assemblyResult = await persistAndValidateManifest(validManifest, candidateUnitKey);
       if (assemblyResult.status === 'conflict') {
         setStatus('conflict');

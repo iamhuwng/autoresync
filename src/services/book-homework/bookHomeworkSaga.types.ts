@@ -38,6 +38,13 @@ export interface BookHomeworkSagaRecipient {
   readonly tombstonedAt?: string;
 }
 
+export interface BookHomeworkCompatibilitySource {
+  readonly bookId: string;
+  readonly finalDueAt: string;
+  readonly availableFrom?: string;
+  readonly committedRevision: number;
+}
+
 export interface BookHomeworkSagaRecord {
   readonly schemaVersion: typeof BOOK_HOMEWORK_SAGA_SCHEMA_VERSION;
   readonly assignmentId: string;
@@ -58,6 +65,13 @@ export interface BookHomeworkSagaRecord {
   readonly recipients: readonly BookHomeworkSagaRecipient[];
   readonly recipientCount: number;
   readonly committedRecipientCount: number;
+  readonly postCommit?: {
+    readonly revision: number;
+    readonly compatibilityReady: boolean;
+    readonly checkedRecipientCount: number;
+    readonly source?: BookHomeworkCompatibilitySource;
+    readonly notifiedRecipientCount: number;
+  };
   readonly revision: number;
   readonly createdAt: string;
   readonly updatedAt: string;

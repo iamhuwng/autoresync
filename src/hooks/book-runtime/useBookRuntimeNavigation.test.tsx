@@ -6,6 +6,17 @@ const activities = [{ runtimeKey: 'placement-1:activity-1:v1', activityId: 'acti
 const pageGroups = [{ pageGroupKey: 'group-1', combinedPhysicalPages: [2, 4] }, { pageGroupKey: 'group-2', combinedPhysicalPages: [7, 8] }];
 
 describe('useBookRuntimeNavigation', () => {
+  it('uses configured opening pages for new groups while preserving an explicit restored page', async () => {
+    const configured = [{ ...pageGroups[0]!, defaultCombinedPhysicalPage: 4 }, { ...pageGroups[1]!, defaultCombinedPhysicalPage: 8 }];
+    const { result } = renderHook(() => useBookRuntimeNavigation({ activities, pageGroups: configured }));
+    expect(result.current.state.combinedPhysicalPage).toBe(4);
+    act(() => result.current.selectActivity('placement-3:activity-3:v1'));
+    await waitFor(() => expect(result.current.state.combinedPhysicalPage).toBe(8));
+    act(() => result.current.previousActivity());
+    await waitFor(() => expect(result.current.state.combinedPhysicalPage).toBe(4));
+    const restored = renderHook(() => useBookRuntimeNavigation({ activities, pageGroups: configured, initialState: { combinedPhysicalPage: 2 } }));
+    expect(restored.result.current.state.combinedPhysicalPage).toBe(2);
+  });
   it('owns one combined page and flushes before Activity and Page Group transitions', async () => {
     const events: string[] = [];
     const { result } = renderHook(() => useBookRuntimeNavigation({ activities, pageGroups, initialState: { runtimeKey: 'placement-2:activity-2:v1', combinedPhysicalPage: 4 }, onFlushBeforeNavigate: async (reason) => { events.push(`flush:${reason}`); }, onNavigate: (state, reason) => { events.push(`navigate:${reason}:${state.combinedPhysicalPage}`); } }));

@@ -595,12 +595,23 @@ export const createComponentPdfMultiUnitPublicationOutput = (
   }
   assertPreviewApproval(input.previewApproval, input.units[0]!.now);
   const manifests = input.units.map((unit) => unit.candidate.manifest);
-  if (manifests.some((manifest) => manifest === null || stable(manifest) !== stable(manifests[0]))) {
+  const first = manifests[0];
+  if (!first || manifests.some((manifest) => !manifest
+    || manifest.bookId !== first.bookId || stable(manifest.sourceSet) !== stable(first.sourceSet)
+    || stable(manifest.units.map((unit) => unit.unitKey).sort()) !== stable(first.units.map((unit) => unit.unitKey).sort())
+    || stable(manifest.nodes.map((node) => node.nodeType === 'unit' ? { ...node, title: undefined } : node))
+      !== stable(first.nodes.map((node) => node.nodeType === 'unit' ? { ...node, title: undefined } : node)))) {
     throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
   }
-  const manifest = manifests[0];
-  if (!manifest) throw new ComponentPdfPublicationAdapterError('component_pdfs_manifest_mismatch');
   const outputs = input.units.map(createComponentPdfPublicationCommandOutput);
+  // Each approved candidate owns its Unit; its copies of sibling content can be older.
+  const manifest: BookAssemblyManifestCandidate = {
+    ...first,
+    nodes: first.nodes.map((node) => input.units.find((unit) => unit.unitKey === node.nodeKey)
+      ?.candidate.manifest?.nodes.find((entry) => entry.nodeKey === node.nodeKey) ?? node),
+    units: first.units.map((unit) => input.units.find((entry) => entry.unitKey === unit.unitKey)
+      ?.candidate.manifest?.units.find((entry) => entry.unitKey === unit.unitKey) ?? unit),
+  };
   const output = aggregateComponentPdfPublications({
     aggregateCandidateId: input.aggregateCandidateId,
     manifest,

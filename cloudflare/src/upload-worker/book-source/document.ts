@@ -515,7 +515,7 @@ export const defaultRuntimeFactory = (
         } : null,
         candidate: scope.candidates?.[candidateId] ?? null,
       };
-      const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates);
+      const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates, scope.current);
       return {
         current: candidate ? { candidateId: candidate.candidateId, candidateRevision: candidate.revision } : null,
         candidate: candidate?.candidateId === candidateId ? candidate : null,
@@ -529,7 +529,7 @@ export const defaultRuntimeFactory = (
         env: env as never, ownerId: uid,
       }).readScope(input.bookId, input.unitKey);
       const candidate = bookAuthority
-        ? resolveMaterialQualifiedAssemblyCandidate(bookAuthority, input.unitKey, candidateScope.candidates) : null;
+        ? resolveMaterialQualifiedAssemblyCandidate(bookAuthority, input.unitKey, candidateScope.candidates, candidateScope.current) : null;
       const accountState = await readAccountState();
       const operation = qualified ? findReadyStudentDocumentOperation(accountState.operations, {
         bookId: input.bookId, ownerId: uid, sourceVersionId: qualified.descriptor.sourceVersionId,
@@ -602,22 +602,21 @@ export const defaultRuntimeFactory = (
       const componentDocument = binding.sourceSet.strategy === 'component_pdfs'
         ? await (async () => {
           try {
-            const authority = await readProductionBookAssemblyAuthority(env, binding.issuer.ownerId, binding.book.bookId, 'current');
-            return authority ? resolveActiveComponentStudentDocument(authority, scope) : null;
+            return resolveCombinedDocument(scope, binding.book.manifestVersionId);
           } catch {
             return null;
           }
         })()
         : null;
       if (binding.sourceSet.strategy === 'component_pdfs') {
-        const descriptor = componentDocument?.activation.bookRevision === binding.book.bookRevision
-          ? componentDocument.descriptor
-          : undefined;
+        const descriptor = componentDocument ?? undefined;
         const operation = descriptor
           ? findReadyStudentDocumentOperation(accountState.operations, {
             bookId: binding.book.bookId, ownerId: binding.issuer.ownerId, sourceVersionId: descriptor.sourceVersionId,
           }) : null;
-        if (descriptor && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
+        if (descriptor && binding.sourceSet.sources.every(source => descriptor.components.some(component =>
+          component.sourceKey === source.sourceKey && component.sourceVersionId === source.sourceVersionId))
+          && studentDocumentOperationMatchesDescriptor(operation, descriptor)) {
           sourceLocations.push({ ...operation.verifiedStorage, provider: 'b2', bucket: privateBucketName, objectKey: operation.verifiedStorage.providerObjectKey });
           return {
             publicationStatus: 'published', scheduleOpen,
@@ -627,7 +626,7 @@ export const defaultRuntimeFactory = (
             studentDocument: {
               sourceVersionId: descriptor.sourceVersionId,
               descriptorRevision: descriptor.descriptorRevision,
-              descriptorFingerprint: componentDocument!.activation.studentDocument.descriptorFingerprint,
+              descriptorFingerprint: fingerprintComponentPdfActivationValue(descriptor),
             },
           };
         }

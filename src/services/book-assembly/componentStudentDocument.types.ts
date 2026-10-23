@@ -122,7 +122,7 @@ export const createComponentStudentDocument = (input: {
 
 export const projectCombinedPageContext = (
   descriptor: ComponentStudentDocument,
-  pageGroups: readonly Pick<BookPageGroupCandidate, 'pageGroupKey' | 'sourceKey' | 'pages'>[],
+  pageGroups: readonly Pick<BookPageGroupCandidate, 'pageGroupKey' | 'sourceKey' | 'pages' | 'defaultPhysicalPageNumber'>[],
 ): readonly BookRuntimePageGroupContext[] => {
   if (new Set(pageGroups.map((group) => group.pageGroupKey)).size !== pageGroups.length) {
     throw new ComponentStudentDocumentError('duplicate_page_group');
@@ -144,6 +144,12 @@ export const projectCombinedPageContext = (
     }
     return combined;
   });
-  return Object.freeze({ pageGroupKey: group.pageGroupKey, combinedPhysicalPages: Object.freeze(combinedPhysicalPages) });
+  if (group.defaultPhysicalPageNumber !== undefined && !group.pages.includes(group.defaultPhysicalPageNumber)) {
+    throw new ComponentStudentDocumentError('invalid_page_group_page');
+  }
+  return Object.freeze({ pageGroupKey: group.pageGroupKey, combinedPhysicalPages: Object.freeze(combinedPhysicalPages),
+    ...(group.defaultPhysicalPageNumber !== undefined && group.defaultPhysicalPageNumber !== group.pages[0]
+      ? { defaultCombinedPhysicalPage: component.combinedStartPage + group.defaultPhysicalPageNumber - 1 } : {}),
+  });
   }));
 };

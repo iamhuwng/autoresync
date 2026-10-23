@@ -80,13 +80,14 @@ const savedActivityMatchesFinalManifest = (
   unitKey: string,
   activityKey: string,
   content: NormalizedActivity,
+  sealedManifest: ComponentPdfActivationCommandInput['manifest'] = manifest,
 ): boolean => {
   const unit = manifest.units.find((entry) => entry.unitKey === unitKey);
   const slot = unit?.activitySlots.find((entry) => entry.activityKey === activityKey);
   const seal = record(record(saved)?.assemblyDraft);
   if (!unit || !slot || !seal || seal.bookId !== manifest.bookId
     || seal.unitKey !== unitKey || seal.activityKey !== activityKey
-    || seal.manifestFingerprint !== fingerprintComponentPdfActivationValue(manifest)
+    || seal.manifestFingerprint !== fingerprintComponentPdfActivationValue(sealedManifest)
     || !activityMatchesAssemblyContract(content, { activityKey, contextRequirement: slot.contextRequirement })) return false;
   const groups = new Map(unit.pageGroups.map((group) => [group.pageGroupKey, group]));
   const allowedRefs = new Set<string>([`import:${activityKey}`]);
@@ -115,6 +116,7 @@ export const readVerifiedDraftActivities = async (
   candidate: BookAssemblyCandidateRecord,
   bindingRepository: Pick<UnitActivityBindingRepository, 'read'>,
   activityRepository: Pick<FirebaseRestBookActivityAuthoringRepository, 'readOwnerRoot'>,
+  sealedCandidates?: Readonly<Record<string, BookAssemblyCandidateRecord>>,
 ) => {
   const { ownerId, bookId, unitKey, manifest } = candidate;
   const unit = manifest?.units.find((entry) => entry.unitKey === unitKey);
@@ -135,8 +137,13 @@ export const readVerifiedDraftActivities = async (
       ownerId, bookId, candidateId: binding.candidateId,
       activityId: binding.activityId, revision: binding.candidateRevision,
     }, root.activities?.[binding.activityId]);
-    if (seal?.candidateId === candidate.candidateId && seal.candidateRevision === candidate.revision
-      && content && savedActivityMatchesFinalManifest(saved, manifest, unitKey, activityKey, content)) {
+    const sealedCandidate = seal?.candidateId === candidate.candidateId ? candidate
+      : sealedCandidates?.[String(seal?.candidateId)];
+    if (sealedCandidate?.lifecycle === 'validated' && sealedCandidate.manifest
+      && sealedCandidate.ownerId === ownerId && sealedCandidate.bookId === bookId && sealedCandidate.unitKey === unitKey
+      && seal?.candidateRevision === sealedCandidate.revision
+      && fingerprintComponentPdfActivationValue(sealedCandidate.manifest.sourceSet) === fingerprintComponentPdfActivationValue(manifest.sourceSet)
+      && content && savedActivityMatchesFinalManifest(saved, manifest, unitKey, activityKey, content, sealedCandidate.manifest)) {
       savedActivities[activityKey] = {
         activityId: binding.activityId, activityCandidateId: binding.candidateId,
         activityCandidateRevision: binding.candidateRevision,
@@ -351,8 +358,8 @@ const materialQualified = async (env: Env, ownerId: string, bookId: string, unit
     || descriptor.descriptorRevision !== activation.studentDocument.descriptorRevision
     || fingerprintComponentPdfActivationValue(descriptor) !== activation.studentDocument.descriptorFingerprint) return null;
   const scope = await new FirebaseRestBookAssemblyRepository({ env: env as never, ownerId }).readScope(bookId, unitKey);
-  const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates);
-  return candidate ? { activation, candidate } : null;
+  const candidate = resolveMaterialQualifiedAssemblyCandidate(bookAuthority, unitKey, scope.candidates, scope.current);
+  return candidate ? { activation, candidate, candidates: scope.candidates } : null;
 };
 
 const activities = async (
@@ -365,13 +372,15 @@ const activities = async (
   suppliedCandidate?: Awaited<ReturnType<typeof authoringCandidate>>,
 ) => {
   const bookAuthority = suppliedAuthority ?? await authority(env, ownerId, bookId, unitKey);
+  const material = bookAuthority?.sourceSet.sourceStrategy === 'component_pdfs'
+    ? await materialQualified(env, ownerId, bookId, unitKey) : null;
   const qualified = bookAuthority?.sourceSet.sourceStrategy === 'full_pdf'
     ? suppliedCandidate ?? await authoringCandidate(env, ownerId, bookId, unitKey, bookAuthority)
-    : (await materialQualified(env, ownerId, bookId, unitKey))?.candidate;
+    : material?.candidate;
   if (!qualified) return {};
   if (bookAuthority?.sourceSet.sourceStrategy === 'component_pdfs') {
     const saved = await readVerifiedDraftActivities(qualified, bindings(env),
-      new FirebaseRestBookActivityAuthoringRepository({ env: env as never }));
+      new FirebaseRestBookActivityAuthoringRepository({ env: env as never }), material?.candidates);
     return Object.fromEntries(activityKeys.flatMap((activityKey) => {
       const entry = saved[activityKey];
       return entry ? [[activityKey, { activityKey, ownerId, revision: entry.activityCandidateRevision,
@@ -414,7 +423,7 @@ const lineage = async (env: Env, ownerId: string, bookId: string, unitKey: strin
   const qualified = await materialQualified(env, ownerId, bookId, unitKey);
   if (!qualified) return {};
   const saved = await readVerifiedDraftActivities(qualified.candidate, bindings(env),
-    new FirebaseRestBookActivityAuthoringRepository({ env: env as never }));
+    new FirebaseRestBookActivityAuthoringRepository({ env: env as never }), qualified.candidates);
   return Object.fromEntries(Object.entries(saved).map(([activityKey, entry]) => [activityKey, { activityId: entry.activityId }]));
 };
 
@@ -431,15 +440,15 @@ const readComponentApprovalInput = async (
   const activityReferences: WholeActivationApprovalInput['activities'][number][] = [];
   for (const reference of activation.unitCandidates) {
     const candidate = await readCandidate(reference.unitKey);
-    if (!candidate || candidate.candidateId !== reference.candidateId
-      || candidate.revision !== reference.candidateRevision) return null;
+    if (!candidate) return null;
     const saved = await readSaved(candidate);
     const unit = candidate.manifest!.units.find((entry) => entry.unitKey === reference.unitKey)!;
     if (unit.activitySlots.some(({ activityKey }) => !saved[activityKey])) return null;
     for (const [activityKey, { content: _content, ...activity }] of Object.entries(saved)) {
       activityReferences.push({ unitKey: reference.unitKey, activityKey, ...activity });
     }
-    units.push({ ...reference, manifest: candidate.manifest! });
+    units.push({ unitKey: reference.unitKey, candidateId: candidate.candidateId, candidateRevision: candidate.revision,
+      manifestFingerprint: fingerprintComponentPdfActivationValue(candidate.manifest), manifest: candidate.manifest! });
   }
   return {
     ownerId, bookId, bookRevision: bookAuthority.bookRevision,
@@ -695,18 +704,20 @@ const createComponentPublicationPorts = (rawEnv: BookRouterEnv, ownerId: string,
     const value = await readAuthority(bookId, fresh);
     document ??= readInitialScope(bookId).then(scope => resolveReadyActiveStudentDocument(env, ownerId, bookId, value, scope));
     const candidates = new Map<string, BookAssemblyCandidateRecord>();
+    const sealedCandidates = new Map<string, Readonly<Record<string, BookAssemblyCandidateRecord>>>();
     const saved = new Map<string, Awaited<ReturnType<typeof readVerifiedDraftActivities>>>();
     let root: ReturnType<typeof authoring.readOwnerRoot> | undefined;
     const whole = await readComponentApprovalInput(env, ownerId, bookId, value, await document,
       async (unitKey) => {
-        const candidate = value ? resolveMaterialQualifiedAssemblyCandidate(value, unitKey,
-          (await assembly.readScope(bookId, unitKey)).candidates) : null;
+        const unit = await assembly.readScope(bookId, unitKey);
+        sealedCandidates.set(unitKey, unit.candidates ?? {});
+        const candidate = value ? resolveMaterialQualifiedAssemblyCandidate(value, unitKey, unit.candidates, unit.current) : null;
         if (candidate) candidates.set(unitKey, candidate);
         return candidate;
       }, async (candidate) => {
         const content = await readVerifiedDraftActivities(candidate, bindingRepository, {
           readOwnerRoot: () => root ??= authoring.readOwnerRoot(ownerId),
-        });
+        }, sealedCandidates.get(candidate.unitKey));
         saved.set(candidate.unitKey, content);
         return content;
       });
@@ -808,16 +819,17 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
       };
       const qualifiedUnit = async (unitKey: string) => {
         const value = await bookAuthority;
-        return value ? resolveMaterialQualifiedAssemblyCandidate(value, unitKey, (await readUnit(unitKey)).candidates) : null;
+        const unit = await readUnit(unitKey);
+        return value ? resolveMaterialQualifiedAssemblyCandidate(value, unitKey, unit.candidates, unit.current) : null;
       };
       const activityRepository = new FirebaseRestBookActivityAuthoringRepository({ env: rawEnv as never });
       let savedRoot: ReturnType<typeof activityRepository.readOwnerRoot> | undefined;
       const savedByUnit = new Map<string, ReturnType<typeof readVerifiedDraftActivities>>();
       const readSaved = (candidate: BookAssemblyCandidateRecord) => {
         if (!savedByUnit.has(candidate.unitKey)) savedByUnit.set(candidate.unitKey,
-          readVerifiedDraftActivities(candidate, bindings(rawEnv as Env), {
+          readUnit(candidate.unitKey).then((unit) => readVerifiedDraftActivities(candidate, bindings(rawEnv as Env), {
             readOwnerRoot: () => savedRoot ??= activityRepository.readOwnerRoot(uid),
-          }));
+          }, unit.candidates)));
         return savedByUnit.get(candidate.unitKey)!;
       };
       return {
@@ -828,7 +840,7 @@ export const createProductionBookAssemblyRouteOptions = (): Pick<BookRouteHandle
         if (bookId !== scope.bookId || !value) return null;
         const unit = await readUnit(unitKey);
         if (value.sourceSet.sourceStrategy !== 'component_pdfs') return unit.candidates?.[candidateId] ?? null;
-        const candidate = resolveMaterialQualifiedAssemblyCandidate(value, unitKey, unit.candidates);
+        const candidate = resolveMaterialQualifiedAssemblyCandidate(value, unitKey, unit.candidates, unit.current);
         return candidate?.candidateId === candidateId ? candidate : null;
       },
       readActivities: async ({ ownerId, activityKeys }) => {

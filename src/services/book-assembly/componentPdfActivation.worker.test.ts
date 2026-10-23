@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBookAssemblyWorkerHandlers, type BookAssemblyRepositoryPort } from '../../../cloudflare/src/upload-worker/book-assembly/worker';
 import type { BookAssemblyBookAuthority, BookAssemblyCandidateRecord } from './unitAssembly.types';
 import type { BookAssemblyScope } from '../../../cloudflare/src/upload-worker/book-assembly/repository';
@@ -77,6 +77,51 @@ describe('A0 Material-qualified Assembly worker', () => {
     await expect(create(true).loadCurrent({ env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'unit-a' }))
       .resolves.toMatchObject({ body: { status: 'loaded', savedActivityKeysByUnit: { 'unit-a': ['activity-a'] } } });
   });
+
+  it.each(['valid', 'stale pointer', 'changed source', 'invalid activation', 'unavailable Activity verifier'] as const)(
+    'loads the persisted component plan through its current pointer (%s)', async (change) => {
+      const repository = new Repository();
+      let saved: BookAssemblyCandidateRecord = {
+        ...candidate, candidateId: 'edited-a', updatedAt: '2026-10-23T14:13:56.851Z',
+        manifest: { ...manifest, nodes: manifest.nodes.map((node) => node.nodeKey === 'unit-a'
+          ? { ...node, title: 'Growing up — component outline reviewed' } : node),
+          units: manifest.units.map((unit) => unit.unitKey === 'unit-a' ? { ...unit,
+            activitySlots: unit.activitySlots.map((slot) => ({ ...slot, pageGroupKeys: ['pages-a'] })),
+            pageGroups: [{ pageGroupKey: 'pages-a', sourceKey: 'a', pages: [1], activityKeys: ['activity-a'],
+              mode: 'activity' as const, defaultPhysicalPageNumber: 1 }],
+          } : unit) },
+      };
+      if (change === 'changed source') saved = { ...saved, manifest: { ...saved.manifest!, sourceSet: {
+        ...sourceSet, sources: [{ ...sourceSet.sources[0]!, sourceVersionId: 'replacement-v1' }, sourceSet.sources[1]!],
+      } } };
+      repository.scope = {
+        candidates: { [candidate.candidateId]: candidate, [saved.candidateId]: saved },
+        current: { candidateId: saved.candidateId, candidateRevision: change === 'stale pointer' ? 2 : saved.revision,
+          bookRevision: saved.bookRevision, sourceSetRevision: saved.sourceSetRevision, updatedAt: saved.updatedAt },
+      };
+      const verifyDraftActivities = vi.fn(async () => ['activity-a']);
+      const handlers = createBookAssemblyWorkerHandlers({ repository,
+        readBookAuthority: async () => ({ ...authority,
+          setupActivations: change === 'invalid activation' ? [] : authority.setupActivations,
+          sourceVersionAuthority: { getSourceVersion: (sourceVersionId) => {
+            const source = sourceSet.sources.find((entry) => entry.sourceVersionId === sourceVersionId);
+            return source ? { sourceKey: source.sourceKey, sourceVersionId, bookId: 'book-1', physicalPageCount: 10, verifiedUsable: true,
+              purpose: 'book-source' as const, studentSafeStatus: 'unreviewed' as const,
+              checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) } } : undefined;
+          } },
+        }),
+        verifyDraftActivities: change === 'unavailable Activity verifier' ? undefined : verifyDraftActivities, verifyActivatedActivities: async () => true,
+      });
+      const response = await handlers.loadCurrent({ env: {} as never, uid: 'teacher-1', bookId: 'book-1', unitKey: 'unit-a' });
+      if (change === 'valid') {
+        expect(response).toMatchObject({ body: { status: 'loaded', candidate: saved,
+          savedActivityKeysByUnit: { 'unit-a': ['activity-a'] } } });
+        expect(verifyDraftActivities).toHaveBeenCalledWith(expect.objectContaining({ candidate: saved }));
+      } else expect(response).toMatchObject({ body: { status: 'empty' } });
+      expect(repository.scope.candidates![candidate.candidateId]).toEqual(candidate);
+      expect(repository.scope.candidates![saved.candidateId]!.manifest!.units[1]).toEqual(manifest.units[1]);
+    },
+  );
 
   it('rejects in-place mutation of the exact activated Assembly candidate', async () => {
     const repository = new Repository();

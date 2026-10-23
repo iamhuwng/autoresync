@@ -74,6 +74,25 @@ describe('production source publication boundary', () => {
     expect(snapshot['activity-1']).toMatchObject({ activityId: binding.activityId,
       activityCandidateRevision: 4, content: { title: 'Revised content' } });
     expect(saved.content.title).toBe('Saved content');
+    const editedAssembly = { ...assembly, candidateId: 'edited-assembly', revision: 4, manifest: {
+      ...manifest, nodes: [{ nodeKey: 'unit-1', parentNodeKey: null, nodeType: 'unit', order: 1, title: 'Reviewed outline' }],
+      units: manifest.units.map((unit) => ({ ...unit, pageGroups: unit.pageGroups.map((group) => ({ ...group, defaultPhysicalPageNumber: 1 })) })),
+    } };
+    const requalify = (original = assembly, current = editedAssembly) => readVerifiedDraftActivities(current as never,
+      { read: async () => revisedBinding as never },
+      { readOwnerRoot: async () => ({ candidates: { [binding.candidateId]: revised }, activities: { [binding.activityId]: revisedActivity } }) },
+      { [assembly.candidateId]: original as never });
+    expect(await requalify()).toMatchObject({ 'activity-1': { activityCandidateRevision: 4, content: { title: 'Revised content' } } });
+    expect(await requalify({ ...assembly, revision: 1 })).toEqual({});
+    expect(await requalify({ ...assembly, ownerId: 'teacher-2' })).toEqual({});
+    expect(await requalify(assembly, { ...editedAssembly, manifest: { ...editedAssembly.manifest,
+      units: editedAssembly.manifest.units.map((unit) => ({ ...unit,
+        pageGroups: unit.pageGroups.map((group) => ({ ...group, pages: [2], defaultPhysicalPageNumber: 2 })),
+      })),
+    } })).toEqual({});
+    expect(await requalify({ ...assembly, manifest: { ...manifest, sourceSet: { ...manifest.sourceSet,
+      sources: manifest.sourceSet.sources.map((source) => ({ ...source, sourceVersionId: 'replacement' })),
+    } } })).toEqual({});
 
     for (const changed of [
       { ...saved, ownerId: 'teacher-2' }, { ...saved, revision: 4 }, { ...saved, lifecycle: 'validated' },

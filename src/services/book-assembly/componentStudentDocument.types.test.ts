@@ -10,6 +10,11 @@ const descriptor = () => createComponentStudentDocument({
 });
 
 describe('projectCombinedPageContext', () => {
+  it('converts configured component opening pages to authorized combined pages', () => {
+    expect(projectCombinedPageContext(descriptor(), [{ pageGroupKey: 'g', sourceKey: 'b', pages: [1, 3], defaultPhysicalPageNumber: 3 }]))
+      .toEqual([{ pageGroupKey: 'g', combinedPhysicalPages: [3, 5], defaultCombinedPhysicalPage: 5 }]);
+    expect(() => projectCombinedPageContext(descriptor(), [{ pageGroupKey: 'g', sourceKey: 'b', pages: [1, 3], defaultPhysicalPageNumber: 2 }])).toThrow();
+  });
   it('projects first, last, and cross-component pages without source identity', () => {
     const projected = projectCombinedPageContext(descriptor(), [
       { pageGroupKey: 'g1', sourceKey: 'a', pages: [1, 2] },
@@ -27,7 +32,7 @@ describe('projectCombinedPageContext', () => {
     [{ pageGroupKey: 'zero', sourceKey: 'a', pages: [0] }],
     [{ pageGroupKey: 'overflow', sourceKey: 'b', pages: [4] }],
     [{ pageGroupKey: 'duplicate', sourceKey: 'a', pages: [1] }, { pageGroupKey: 'duplicate', sourceKey: 'b', pages: [1] }],
-  ])('fails closed for invalid component/page facts', (groups) => {
+  ].map(groups => ({ groups })))('fails closed for invalid component/page facts', ({ groups }) => {
     expect(() => projectCombinedPageContext(descriptor(), groups)).toThrow();
   });
 });

@@ -17,6 +17,7 @@ import {
 } from '../src/upload-worker/book-runtime/canonical.ts';
 import { InMemoryBookRuntimeRepository, type BookRuntimeRepository } from '../src/upload-worker/book-runtime/repository.ts';
 import * as resultProjection from '../src/upload-worker/book-results/production-projection.ts';
+import { FirebaseRestExactPublishedActivityVersionReader } from '../src/upload-worker/book-assembly/canonical-activity-version-repository.ts';
 import { FirebaseRestBookAssemblyPublicationRepository } from '../src/upload-worker/book-assembly/publication-repository.ts';
 import { createComponentStudentDocument } from '../../src/services/book-assembly/componentStudentDocument.types.ts';
 import { fingerprintComponentPdfActivationValue } from '../../src/services/book-assembly/componentPdfActivation.service.ts';
@@ -224,6 +225,26 @@ const env = {
 };
 
 describe('Ticket #59 canonical Book Runtime composition', () => {
+  it('uses exact local publication proof for retained placements and denies a missing proof', async () => {
+    const canonical = canonicalActivityVersion();
+    const readExact = vi.spyOn(FirebaseRestExactPublishedActivityVersionReader.prototype, 'readExact')
+      .mockResolvedValueOnce(canonical as never).mockResolvedValueOnce(null);
+    const runtimeEnv = { ...env, BOOK_ASSEMBLY_SERVICE_IDENTITY: env.BOOK_RUNTIME_SERVICE_IDENTITY,
+      BOOK_ASSEMBLY_GOOGLE_SA_KEY: env.BOOK_RUNTIME_GOOGLE_SA_KEY,
+      readDatabaseValue: async () => canonical };
+    const delivery = binding();
+    const retained = { ...delivery, placements: delivery.placements.map(p => ({ ...p, placementId: 'placement-retained' })) };
+    const dependencies = createBookRuntimeProductionDependencies(runtimeEnv, schedulePolicy, undefined);
+    const input = { binding: retained, placementId: 'placement-retained', activityId: 'activity-1', activityVersion: 1,
+      interactionId: 'interaction-1', env: runtimeEnv };
+    try {
+      await expect(dependencies.resolveActivity!(input)).resolves.toEqual(canonical.activity);
+      expect(readExact).toHaveBeenCalledWith(expect.objectContaining({ placementId: 'placement-retained',
+        manifestVersionId: delivery.book.manifestVersionId, payloadFingerprint: canonical.payloadFingerprint }));
+      await expect(dependencies.resolveActivity!(input)).resolves.toBeNull();
+    } finally { readExact.mockRestore(); }
+  });
+
   it('reuses authority credentials within one command without caching live authority reads', async () => {
     const { privateKey } = await generateKeyPair('RS256', { extractable: true });
     const identity = 'homework@synthetic.test';

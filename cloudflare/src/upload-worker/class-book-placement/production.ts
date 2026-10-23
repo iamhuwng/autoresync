@@ -20,6 +20,7 @@ import {
 import {
   createTrustedBookDeliveryPublication,
   resolveTrustedBookDeliveryStudentDocument,
+  resolveTrustedBookDeliveryFullPageDefaults,
 } from '../book-delivery/worker.ts';
 import { FirebaseRestBookDeliveryRepository } from '../book-delivery/repository.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from '../listening-authoring/rtdb.ts';
@@ -112,6 +113,7 @@ export interface ClassBookDeliveryPorts {
   readonly deliveryRepository: BookDeliveryRepository;
   readonly loadPublication: (placement: ClassBookPlacement) => Promise<ReturnType<typeof createTrustedBookDeliveryPublication>>;
   readonly now: () => string;
+  readonly resolveFullPageDefaults?: (binding: BookDeliveryBinding) => Promise<Readonly<Record<string, number>> | null>;
   readonly resolveStudentDocument?: (binding: BookDeliveryBinding) => Promise<{
     readonly expectedByteLength: number;
     readonly expectedEtag: string;
@@ -217,6 +219,7 @@ const createPorts = (env: WorkerEnv): ClassBookDeliveryPorts => {
     deliveryRepository: new FirebaseRestBookDeliveryRepository({ env }),
     now: () => new Date().toISOString(),
     resolveStudentDocument: (binding) => resolveTrustedBookDeliveryStudentDocument(env, binding),
+    resolveFullPageDefaults: (binding) => resolveTrustedBookDeliveryFullPageDefaults(env, binding),
     async loadPublication(placement) {
       const scope = await assemblies.readScope(placement.pins.bookId);
       if (scope.current?.manifestVersionId !== placement.pins.manifestVersionId) {
@@ -298,6 +301,7 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
       repository: ports.deliveryRepository,
       allowedAdapterContexts: ['class'],
       resolveStudentDocument: ports.resolveStudentDocument,
+      resolveFullPageDefaults: ports.resolveFullPageDefaults,
     }).resolve({
       recipientId: input.studentId,
       contextId: deliveryContextId(input),
@@ -367,6 +371,7 @@ export const createClassBookDeliveryProductionAdapter = (ports: ClassBookDeliver
         repository: ports.deliveryRepository,
         allowedAdapterContexts: ['class'],
         resolveStudentDocument: ports.resolveStudentDocument,
+        resolveFullPageDefaults: ports.resolveFullPageDefaults,
       }).resolve({ recipientId: input.studentId, contextId, actor: { uid: input.studentId } });
     },
     resolve,

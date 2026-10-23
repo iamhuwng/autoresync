@@ -5,8 +5,11 @@ import {
   appendComponentPdfActivationReceipt,
   createComponentPdfActivationReceipt,
   fingerprintComponentPdfActivation,
+  fingerprintComponentPdfActivationValue,
+  resolveMaterialQualifiedAssemblyCandidate,
   type ComponentPdfActivationInput,
 } from './componentPdfActivation.service';
+import type { BookAssemblyCandidateRecord } from './unitAssembly.types';
 import type { BookAssemblyManifestCandidate } from '../../types/bookAssembly.types';
 import { createComponentStudentDocument } from './componentStudentDocument.types';
 
@@ -42,6 +45,46 @@ const manifest: BookAssemblyManifestCandidate = {
 };
 
 describe('component PDF activation', () => {
+  it('qualifies exact current authoring edits separately from initial activation recovery', () => {
+    const initial: BookAssemblyCandidateRecord = { candidateId: 'assembly-a', ownerId: 'teacher-1', bookId: 'book-1',
+      unitKey: 'unit-a', bookRevision: 4, sourceSetRevision: 6, revision: 1, lifecycle: 'validated', manifest,
+      validation: { valid: true, errors: [] }, updatedAt: '2026-09-20T00:00:00.000Z' };
+    const edited = { ...initial, candidateId: 'edited-a', revision: 2, updatedAt: '2026-10-23T14:13:56.851Z',
+      manifest: { ...manifest, nodes: manifest.nodes.map((node) => node.nodeKey === 'unit-a' ? { ...node, title: 'Reviewed' } : node) } };
+    const receipt = createComponentPdfActivationReceipt({ ...input(), unitCandidates: input().unitCandidates.map((reference) => ({
+      ...reference, manifestFingerprint: fingerprintComponentPdfActivationValue(manifest),
+    })) });
+    const authority = { ...receipt, bookMode: 'pdf' as const, setupActivations: [receipt], sourceVersionAuthority: {
+      getSourceVersion: (sourceVersionId: string) => {
+        const source = manifest.sourceSet.sources.find((entry) => entry.sourceVersionId === sourceVersionId);
+        return source ? { sourceKey: source.sourceKey, sourceVersionId, bookId: 'book-1', physicalPageCount: 10,
+          verifiedUsable: true, purpose: 'book-source' as const, studentSafeStatus: 'unreviewed' as const,
+          checksum: { algorithm: 'sha-256' as const, value: 'a'.repeat(64) } } : undefined;
+      },
+    } };
+    const candidates = { [initial.candidateId]: initial, [edited.candidateId]: edited };
+    const current = { candidateId: edited.candidateId, candidateRevision: edited.revision,
+      bookRevision: edited.bookRevision, sourceSetRevision: edited.sourceSetRevision, updatedAt: edited.updatedAt };
+    expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', candidates)).toEqual(initial);
+    expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', candidates, current)).toEqual(edited);
+    for (const changed of [{ ...current, candidateRevision: 3 }, { ...current, candidateId: 'missing' },
+      { ...current, bookRevision: 5 }, { ...current, updatedAt: initial.updatedAt }]) {
+      expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', candidates, changed)).toBeNull();
+    }
+    expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', {
+      ...candidates, [edited.candidateId]: { ...edited, ownerId: 'teacher-2' },
+    }, current)).toBeNull();
+    expect(resolveMaterialQualifiedAssemblyCandidate({ ...authority, setupActivations: [] }, 'unit-a', candidates, current)).toBeNull();
+    expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', { ...candidates, [edited.candidateId]: {
+      ...edited, manifest: { ...edited.manifest, units: edited.manifest.units.slice(0, 1) },
+    } }, current)).toBeNull();
+    expect(resolveMaterialQualifiedAssemblyCandidate(authority, 'unit-a', { ...candidates, [edited.candidateId]: {
+      ...edited, manifest: { ...edited.manifest, sourceSet: { sourceStrategy: 'full_pdf', sources: [{
+        sourceKey: 'replacement', sourceVersionId: 'replacement-v1', sourceOrder: 1,
+      }] } },
+    } }, current)).toBeNull();
+  });
+
   it('hydrates RTDB empty activities while preserving receipt fingerprint validation', () => {
     const receipt = createComponentPdfActivationReceipt({ ...input(), activities: [] });
     const { activities: _activities, ...wire } = receipt;

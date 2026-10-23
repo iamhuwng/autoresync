@@ -112,6 +112,7 @@ export const resolveBookHomeworkNotificationIdentity = (
 export const createBookHomeworkNotificationEmitter = (options: {
   readonly source: BookHomeworkCommittedNotificationSource;
   readonly ownerId: string;
+  readonly recipientIds?: readonly string[];
   readonly repositoryFactory?: (
     env: BookHomeworkNotificationEnvironment,
   ) => NotificationCommandRepository;
@@ -135,12 +136,19 @@ export const createBookHomeworkNotificationEmitter = (options: {
     return createBookNotificationEmitter({
       repository,
       enabled: true,
-      resolveCommittedAction: (actionIdentity) =>
-        resolveCommittedBookHomeworkNotificationAction(
+      resolveCommittedAction: async (actionIdentity) => {
+        const action = await resolveCommittedBookHomeworkNotificationAction(
           options.source,
           actionIdentity,
           options.ownerId,
-        ),
+        );
+        if (!action || !options.recipientIds) return action;
+        if (options.recipientIds.length > 10 || new Set(options.recipientIds).size !== options.recipientIds.length
+          || options.recipientIds.some(id => !action.affectedRecipientBoundary.recipientIds.includes(id))) {
+          throw new Error('book_homework_notification_recipient_invalid');
+        }
+        return { ...action, affectedRecipientBoundary: { ...action.affectedRecipientBoundary, recipientIds: options.recipientIds } };
+      },
       resolveDestination: ({ action }) => buildRoute(
         'STUDENT_HOMEWORK_DETAIL',
         { homeworkId: action.notification.metadata.contextId },

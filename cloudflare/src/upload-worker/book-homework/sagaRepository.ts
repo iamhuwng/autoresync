@@ -80,7 +80,7 @@ export function assertValidBookHomeworkSagaRecord(
     'publicationId', 'publicationRevision', 'contextId', 'presentation', 'fingerprint', 'requestFingerprint', 'state', 'visibility',
     'recipients', 'recipientCount', 'committedRecipientCount', 'revision', 'createdAt', 'updatedAt',
   ];
-  if (Object.keys(record).some((key) => !required.includes(key) && !['lastError', 'studentDocument', 'targetPreview'].includes(key))
+  if (Object.keys(record).some((key) => !required.includes(key) && !['lastError', 'studentDocument', 'targetPreview', 'postCommit'].includes(key))
     || required.some((key) => !Object.hasOwn(record, key))) {
     throw new Error('invalid_book_homework_saga_fields');
   }
@@ -145,6 +145,28 @@ export function assertValidBookHomeworkSagaRecord(
       throw new Error('invalid_book_homework_saga_tombstone');
     }
   });
+  if (record.postCommit !== undefined && (!isRecord(record.postCommit)
+    || Object.keys(record.postCommit).some(key => !['revision', 'compatibilityReady', 'notifiedRecipientCount', 'checkedRecipientCount', 'source'].includes(key))
+    || typeof record.postCommit.revision !== 'number' || !Number.isSafeInteger(record.postCommit.revision) || record.postCommit.revision < 1
+    || record.state !== 'committed' || typeof record.postCommit.compatibilityReady !== 'boolean'
+    || typeof record.postCommit.checkedRecipientCount !== 'number' || !Number.isSafeInteger(record.postCommit.checkedRecipientCount)
+    || record.postCommit.checkedRecipientCount < 0 || record.postCommit.checkedRecipientCount > record.recipientCount
+    || record.postCommit.compatibilityReady !== (record.postCommit.checkedRecipientCount === record.recipientCount)
+    || typeof record.postCommit.notifiedRecipientCount !== 'number' || !Number.isSafeInteger(record.postCommit.notifiedRecipientCount)
+    || record.postCommit.notifiedRecipientCount < 0 || record.postCommit.notifiedRecipientCount > record.recipientCount
+    || (!record.postCommit.compatibilityReady && record.postCommit.notifiedRecipientCount !== 0))) {
+    throw new Error('invalid_book_homework_saga_post_commit');
+  }
+  if (record.postCommit?.source !== undefined) {
+    const source = record.postCommit.source;
+    if (!isRecord(source) || Object.keys(source).some(key => !['bookId', 'finalDueAt', 'availableFrom', 'committedRevision'].includes(key))
+      || !Number.isSafeInteger(source.committedRevision) || source.committedRevision !== record.revision) {
+      throw new Error('invalid_book_homework_saga_projection_source');
+    }
+    assertId(source.bookId, 'projection_book');
+    assertIso(source.finalDueAt, 'projection_due_at');
+    if (source.availableFrom !== undefined) assertIso(source.availableFrom, 'projection_available_from');
+  }
   const committedCount = record.recipients.filter((entry) => entry.state === 'committed').length;
   if (record.committedRecipientCount !== committedCount) throw new Error('invalid_book_homework_saga_committed_count');
   if (record.state === 'committed' && (record.visibility !== 'committed' || record.committedRecipientCount !== record.recipientCount)) {
@@ -173,7 +195,10 @@ export class InMemoryBookHomeworkSagaRepository implements BookHomeworkSagaRepos
     assertValidBookHomeworkSagaRecord(record);
     const current = this.records.get(record.assignmentId);
     if (!current || current.revision !== expectedRevision) return false;
-    this.records.set(record.assignmentId, clone(record));
+    if (current.state === 'committed' && (record.revision !== current.revision
+      || record.postCommit?.revision !== (current.postCommit?.revision ?? 0) + 1)) return false;
+    this.records.set(record.assignmentId, clone(current.state === 'committed'
+      ? { ...current, postCommit: record.postCommit } : record));
     return true;
   }
 }
@@ -266,6 +291,13 @@ export class FirebaseRestBookHomeworkSagaRepository implements BookHomeworkSagaR
     if (data === null) return false;
     assertValidBookHomeworkSagaRecord(data);
     if (data.revision !== expectedRevision) return false;
+    if (data.state === 'committed') {
+      if (record.state !== 'committed' || record.revision !== data.revision || !record.postCommit) return false;
+      const progressPath = `${sagaPath(record.assignmentId)}/postCommit`;
+      const progress = await rtdb.readWithEtag<BookHomeworkSagaRecord['postCommit']>(progressPath);
+      if (record.postCommit.revision !== (progress.data?.revision ?? 0) + 1) return false;
+      return rtdb.writeIfMatch(progressPath, record.postCommit, progress.etag);
+    }
     return rtdb.writeIfMatch(sagaPath(record.assignmentId), toStored(record), response.etag);
   }
 }

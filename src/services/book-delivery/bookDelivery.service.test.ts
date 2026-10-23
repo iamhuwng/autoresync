@@ -189,6 +189,10 @@ describe('Book Delivery projection resolver', () => {
     expect(projection.activities.map(row => row.sourceContext.sourcePageScopes)).toEqual(binding.placements.map(row => row.sourcePageScopes));
     expect(await resolver.resolve(input)).toEqual(projection);
     expect(binding).toEqual(before);
+    const configured = createBookDeliveryProjectionResolver({ repository, resolveFullPageDefaults: async () => ({ 'placement-1': 3, 'placement-2': 2 }) });
+    expect((await configured.resolve(input)).pageGroups?.[0]).toEqual({ pageGroupKey: 'placement-1', combinedPhysicalPages: [1, 3], defaultCombinedPhysicalPage: 3 });
+    const unauthorized = createBookDeliveryProjectionResolver({ repository, resolveFullPageDefaults: async () => ({ 'placement-1': 99, 'placement-2': 2 }) });
+    await expect(unauthorized.resolve(input)).rejects.toMatchObject({ code: 'book-delivery-stale-binding' });
   });
 
   it.each(['missing', 'invalid', 'foreign', 'outside authorized scope'])(

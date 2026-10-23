@@ -28,8 +28,11 @@ import {
 import { InMemoryBookDeliveryRepository } from '../../src/services/book-delivery/bookDelivery.entitlementRepository';
 import type { BookDeliveryResolvedEntitlement } from '../../src/services/book-delivery/bookDelivery.entitlement';
 import type { BookDeliveryPublishedPublicationReference } from '../../src/services/book-delivery/bookDelivery.publication';
-import type { BookHomeworkSagaCanonicalState, BookHomeworkSagaCommand } from '../../src/services/book-homework/bookHomeworkSaga.types';
+import type { BookHomeworkSagaCanonicalState, BookHomeworkSagaCommand, BookHomeworkSagaRecord } from '../../src/services/book-homework/bookHomeworkSaga.types';
 import fragment from '../src/upload-worker/book-rules/fragments/33C.json';
+import { composeGeneratedBookRules } from '../src/upload-worker/book-rules/generated-fragment-composer';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { ref, set } from 'firebase/database';
 
 const createdAt = '2026-07-29T00:00:00.000Z';
 const operationId = '00000000-0000-4000-8000-000000000001';
@@ -301,11 +304,79 @@ const makeFirebase = () => {
   return { values, requests, fetchImpl };
 };
 
+// Existing lifecycle cases exercise completion; the bounded-call case below checks each HTTP-sized step.
+const completeAssignment = async (saga: Pick<BookHomeworkAssignmentSaga, 'execute'>, input: BookHomeworkSagaCommand) => {
+  for (let step = 0; step < 100; step += 1) {
+    const result = await saga.execute(input);
+    if (['committed', 'compensated', 'failed_terminal'].includes(result.status) || result.projectionDiagnostic) return result;
+  }
+  throw new Error('Assignment did not settle within the fixture bound.');
+};
+
 describe('Book Homework assignment saga', () => {
+  it.runIf(Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST))('enforces bounded post-commit progress and immutable assignment facts with native rules', async () => {
+    const { saga } = makeSaga();
+    const completed = await completeAssignment(saga, command());
+    const { postCommit: _postCommit, ...root } = completed.record;
+    const wire = JSON.parse(JSON.stringify({ ...root, recipients: Object.fromEntries(root.recipients.map(entry => [entry.recipientId, entry])) }));
+    const [host, port] = process.env.FIREBASE_DATABASE_EMULATOR_HOST!.split(':');
+    const composed = composeGeneratedBookRules([{ sourcePath: '33C.json', fragment }], {
+      baseRules: { '.read': false, '.write': false }, requiredFragmentIds: ['33C'],
+    });
+    const environment = await initializeTestEnvironment({ projectId: `demo-saga-continuation-${Date.now()}`,
+      database: { host, port: Number(port), rules: JSON.stringify({ rules: composed.rules }) } });
+    const path = 'book_homework/operations/assignment-1';
+    try {
+      await environment.withSecurityRulesDisabled(async context => { await set(ref(context.database(), path), wire); });
+      const service = environment.authenticatedContext('service', { book_homework_service: true, book_homework_ownerId: 'teacher-1' }).database();
+      const progress = { revision: 1, compatibilityReady: true, checkedRecipientCount: 2, notifiedRecipientCount: 0,
+        source: { bookId: 'book-1', finalDueAt: schedule.finalDueAt, committedRevision: root.revision } };
+      const next = { ...wire, revision: root.revision + 1, postCommit: progress };
+      await assertFails(set(ref(service, path), next));
+      const dualService = environment.authenticatedContext('dual-service', {
+        book_homework_service: true, book_homework_ownerId: 'teacher-1', book_submission_service: true,
+      }).database();
+      await assertFails(set(ref(dualService, `${path}/postCommit`), progress));
+      await assertSucceeds(set(ref(service, `${path}/postCommit`), progress));
+      await assertFails(set(ref(service, path), { ...next, revision: next.revision + 1,
+        presentation: { title: 'Changed committed assignment' } }));
+      await assertFails(set(ref(service, `${path}/postCommit`), { ...progress, revision: 2, checkedRecipientCount: 3 }));
+      await assertFails(set(ref(service, `${path}/postCommit`), { ...progress, revision: 2,
+        source: { ...progress.source, committedRevision: root.revision - 1 } }));
+      const notified = { ...progress, revision: 2, notifiedRecipientCount: 2 };
+      await assertSucceeds(set(ref(service, `${path}/postCommit`), notified));
+      await assertFails(set(ref(service, `${path}/postCommit`), { ...progress, revision: 3 }));
+      await assertFails(set(ref(service, `${path}/postCommit`), { ...notified, revision: 3, source: { ...progress.source, bookId: 'foreign-book' } }));
+      await assertFails(set(ref(service, `${path}/postCommit`), { ...notified, revision: 3, source: { ...progress.source, finalDueAt: '2026-09-01T00:00:00.000Z' } }));
+      await assertFails(set(ref(service, `${path}/postCommit`), null));
+      const browser = environment.authenticatedContext('teacher-1', { role: 'teacher' }).database();
+      await assertFails(set(ref(browser, 'book_homework'), { operations: { 'assignment-1': { ...wire, postCommit: notified } } }));
+      await assertFails(set(ref(browser, path), null));
+    } finally { await environment.cleanup(); }
+  });
+
+  it('bounds continuation to one recipient and keeps visibility fenced through post-commit work', async () => {
+    const { saga, repository } = makeSaga();
+    const emit = vi.fn(async (_record: BookHomeworkSagaRecord, _recipients: readonly string[]) => {});
+    const first = await saga.execute(command(), emit);
+    expect(first).toMatchObject({ status: 'fanout_pending', record: { visibility: 'hidden', committedRecipientCount: 1 } });
+    await expect(saga.resolveStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
+    const second = await saga.execute(command(), emit);
+    expect(second).toMatchObject({ status: 'fanout_pending', record: { visibility: 'hidden', committedRecipientCount: 2 } });
+    expect(emit).not.toHaveBeenCalled();
+    expect(await saga.execute(command(), emit)).toMatchObject({ status: 'committed_projection_pending', record: { visibility: 'committed' } });
+    expect(await saga.execute(command(), emit)).toMatchObject({ status: 'committed_notifications_pending', record: { postCommit: { notifiedRecipientCount: 0 } } });
+    expect(await saga.execute(command(), emit)).toMatchObject({ status: 'committed', record: { postCommit: { notifiedRecipientCount: 2 } } });
+    await saga.execute(command(), emit);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0]?.[1]).toEqual(['student-1', 'student-2']);
+    expect((await repository.read('assignment-1'))?.postCommit?.notifiedRecipientCount).toBe(2);
+  });
+
   it('fans out exact recipients, persists extensions, and commits one visibility gate', async () => {
     const { saga, authority, repository, delivery } = makeSaga();
     const deliveryReads = vi.spyOn(delivery, 'readBinding');
-    const result = await saga.execute(command());
+    const result = await completeAssignment(saga, command());
     expect(result.status).toBe('committed');
     expect(deliveryReads).toHaveBeenCalledTimes(2);
     expect(result.record.visibility).toBe('committed');
@@ -367,7 +438,7 @@ describe('Book Homework assignment saga', () => {
       deliveryRepository: delivery,
       resolveCanonical: async () => canonical(),
     });
-    const committed = await saga.execute(command());
+    const committed = await completeAssignment(saga, command());
     expect(committed.status).toBe('committed');
 
     events.length = 0;
@@ -471,7 +542,7 @@ describe('Book Homework assignment saga', () => {
       ...current,
       frozenPolicy: { ...current.frozenPolicy, activityPolicies: {} },
     });
-    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'stale-policy' });
+    await expect(completeAssignment(saga, command())).rejects.toMatchObject({ code: 'stale-policy' });
     await expect(repository.read('assignment-1')).resolves.toBeNull();
   });
 
@@ -487,7 +558,7 @@ describe('Book Homework assignment saga', () => {
         },
       },
     });
-    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'stale-publication' });
+    await expect(completeAssignment(saga, command())).rejects.toMatchObject({ code: 'stale-publication' });
     await expect(repository.read('assignment-1')).resolves.toBeNull();
   });
 
@@ -543,7 +614,7 @@ describe('Book Homework assignment saga', () => {
       ],
     };
     const { saga } = makeSaga(state);
-    const result = await saga.execute(command());
+    const result = await completeAssignment(saga, command());
     expect(result.record.lastError).toBeUndefined();
     expect(result.status).toBe('committed');
 
@@ -575,7 +646,7 @@ describe('Book Homework assignment saga', () => {
     };
     for (const drifted of [outOfRange, wrongMappedPage]) {
       const { saga: driftSaga, repository } = makeSaga(drifted);
-      await expect(driftSaga.execute(command())).rejects.toMatchObject({ code: 'stale-publication' });
+      await expect(completeAssignment(driftSaga, command())).rejects.toMatchObject({ code: 'stale-publication' });
       await expect(repository.read('assignment-1')).resolves.toBeNull();
     }
   });
@@ -589,7 +660,7 @@ describe('Book Homework assignment saga', () => {
         }
       },
     });
-    await expect(saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    await expect(completeAssignment(saga, command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
     expect((await repository.read('assignment-1'))?.state).toBe('fanout_pending');
     await expect(saga.resolveStudentProjection('assignment-1', 'student-1')).resolves.toBeNull();
     const preparedRoot = await repository.read('assignment-1');
@@ -601,14 +672,14 @@ describe('Book Homework assignment saga', () => {
       ownerId: 'teacher-1',
     }, 'student-1')).resolves.toBeNull();
     crashing = false;
-    const resumed = await saga.execute(command());
+    const resumed = await completeAssignment(saga, command());
     expect(resumed.status).toBe('committed');
     await expect(saga.resolveStudentProjection('assignment-1', 'student-2')).resolves.not.toBeNull();
   });
 
   it('serializes concurrent resumes and replays without duplicate records', async () => {
     const { saga, repository } = makeSaga();
-    const results = await Promise.all([saga.execute(command()), saga.execute(command())]);
+    const results = await Promise.all([completeAssignment(saga, command()), completeAssignment(saga, command())]);
     expect(results[0].status).toBe('committed');
     expect(results[1].status).toBe('committed');
     expect((await repository.read('assignment-1'))?.recipients).toHaveLength(2);
@@ -629,18 +700,40 @@ describe('Book Homework assignment saga', () => {
         }
       },
     }, resolveCanonical);
-    await expect(saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    await expect(completeAssignment(saga, command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
     const partial = await repository.read('assignment-1');
     expect(partial).toMatchObject({ state: 'fanout_pending', createdAt,
       recipients: [expect.objectContaining({ state: 'committed' }), expect.objectContaining({ state: 'pending' })] });
     const retry = command({ createdAt: '2026-07-29T00:05:00.000Z' });
-    await expect(saga.execute({ ...retry, intent: { ...retry.intent,
+    await expect(completeAssignment(saga, { ...retry, intent: { ...retry.intent,
       presentation: { title: 'Changed request' } } })).rejects.toMatchObject({ code: 'idempotency-conflict' });
-    expect(resolveCanonical).toHaveBeenCalledTimes(1);
+    expect(resolveCanonical).toHaveBeenCalledTimes(2);
     crashing = false;
-    await expect(saga.execute(retry)).resolves.toMatchObject({ status: 'committed',
+    await expect(completeAssignment(saga, retry)).resolves.toMatchObject({ status: 'committed',
       record: { createdAt, fingerprint: partial!.fingerprint } });
-    expect(seenTimestamps).toEqual([createdAt, createdAt, createdAt]);
+    expect(seenTimestamps).toHaveLength(5);
+    expect(new Set(seenTimestamps)).toEqual(new Set([createdAt]));
+  });
+
+  it('recovers a lost final visibility write acknowledgement without compensating a committed assignment', async () => {
+    const { saga, repository } = makeSaga();
+    const compareAndSet = repository.compareAndSet.bind(repository);
+    let responseLost = false;
+    vi.spyOn(repository, 'compareAndSet').mockImplementation(async (record, revision) => {
+      const written = await compareAndSet(record, revision);
+      if (written && record.state === 'committed' && !responseLost) {
+        responseLost = true;
+        throw new Error('lost-visibility-ack');
+      }
+      return written;
+    });
+    await saga.execute(command());
+    await saga.execute(command());
+    await expect(saga.execute(command())).resolves.toMatchObject({
+      status: 'committed_projection_pending', record: { state: 'committed', visibility: 'committed' },
+    });
+    expect(responseLost).toBe(true);
+    await expect(completeAssignment(saga, command())).resolves.toMatchObject({ status: 'committed' });
   });
 
   it('commits the root before projection, reports pending, and repairs terminal replay without canonical reads', async () => {
@@ -666,7 +759,7 @@ describe('Book Homework assignment saga', () => {
       compatibilityRepository,
     );
 
-    const pending = await saga.execute(command());
+    const pending = await completeAssignment(saga, command());
     expect(pending.status).toBe('committed_projection_pending');
     expect(pending.projectionDiagnostic).toEqual({
       stage: 'unknown',
@@ -678,9 +771,9 @@ describe('Book Homework assignment saga', () => {
     await expect(projectionRepository.read('assignment-1', 'teacher-1')).resolves.toBeNull();
 
     failProjection = false;
-    const replay = await saga.execute(command());
+    const replay = await completeAssignment(saga, command());
     expect(replay.status).toBe('committed');
-    expect(canonicalReads).toBe(2);
+    expect(canonicalReads).toBe(4);
     await expect(projectionRepository.read('assignment-1', 'teacher-1')).resolves.toMatchObject({
       assignmentKind: 'book_homework_compatibility',
       title: 'Book Homework',
@@ -715,7 +808,7 @@ describe('Book Homework assignment saga', () => {
       },
     }, async () => current);
 
-    await expect(saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    await expect(completeAssignment(saga, command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
     const prepared = await repository.read('assignment-1');
     expect(prepared?.fingerprint).toMatch(/^fnv1a64:[0-9a-f]{16}$/u);
     expect(prepared?.fingerprint.length).toBeLessThanOrEqual(8192);
@@ -736,16 +829,16 @@ describe('Book Homework assignment saga', () => {
         if (step === 'delivery-prepare') throw new BookHomeworkSagaCrash(step);
       },
     }, async () => current);
-    await expect(driftHarness.saga.execute(command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
+    await expect(completeAssignment(driftHarness.saga, command())).rejects.toBeInstanceOf(BookHomeworkSagaCrash);
     expect((await driftHarness.repository.read('assignment-1'))?.fingerprint)
       .not.toBe(prepared?.fingerprint);
 
     crash = false;
-    await expect(saga.execute(command())).rejects.toMatchObject({ code: 'idempotency-conflict' });
+    await expect(completeAssignment(saga, command())).rejects.toMatchObject({ code: 'idempotency-conflict' });
 
     current = oversized;
-    await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
-    await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
+    await expect(completeAssignment(saga, command())).resolves.toMatchObject({ status: 'committed' });
+    await expect(completeAssignment(saga, command())).resolves.toMatchObject({ status: 'committed' });
     expect((await repository.read('assignment-1'))?.fingerprint).toBe(prepared?.fingerprint);
   });
 
@@ -758,16 +851,16 @@ describe('Book Homework assignment saga', () => {
       return current;
     };
     const { saga, repository } = makeSaga(first, undefined, resolveCanonical);
-    const committed = await saga.execute(command());
+    const committed = await completeAssignment(saga, command());
     expect(committed.status).toBe('committed');
     current = {
       ...first,
       frozenPolicy: { ...first.frozenPolicy, fingerprint: 'policy-drifted' },
     };
-    await expect(saga.execute(command())).resolves.toMatchObject({ status: 'committed' });
-    await expect(saga.execute(command({ idempotencyKey: 'policy-conflict' })))
+    await expect(completeAssignment(saga, command())).resolves.toMatchObject({ status: 'committed' });
+    await expect(completeAssignment(saga, command({ idempotencyKey: 'policy-conflict' })))
       .rejects.toMatchObject({ code: 'idempotency-conflict' });
-    expect(calls).toBe(2);
+    expect(calls).toBe(4);
     expect((await repository.read('assignment-1'))?.state).toBe('committed');
 
     let changedCalls = 0;
@@ -780,7 +873,7 @@ describe('Book Homework assignment saga', () => {
     };
     const assignmentTwoResolver: BookHomeworkSagaDependencies['resolveCanonical'] = async () => {
       changedCalls += 1;
-      return changedCalls === 1 ? assignmentTwo : {
+      return changedCalls < 4 ? assignmentTwo : {
         ...assignmentTwo,
         frozenPolicy: {
           ...assignmentTwo.frozenPolicy,
@@ -789,7 +882,7 @@ describe('Book Homework assignment saga', () => {
       };
     };
     const blocked = makeSaga(assignmentTwo, undefined, assignmentTwoResolver);
-    const failed = await blocked.saga.execute(command({
+    const failed = await completeAssignment(blocked.saga, command({
       assignmentId: 'assignment-2',
     }));
     expect(failed.status).toBe('compensated');
@@ -863,14 +956,14 @@ describe('Book Homework assignment saga', () => {
 
   it('rejects zero, duplicate, stale, unapproved, and unavailable commands before writes', async () => {
     const { saga, repository } = makeSaga();
-    await expect(saga.execute(command({ selectedRecipientIds: [] }))).rejects.toMatchObject({ code: 'invalid-command' });
-    await expect(saga.execute(command({ selectedRecipientIds: ['student-1', 'student-1'] }))).rejects.toMatchObject({ code: 'invalid-command' });
+    await expect(completeAssignment(saga, command({ selectedRecipientIds: [] }))).rejects.toMatchObject({ code: 'invalid-command' });
+    await expect(completeAssignment(saga, command({ selectedRecipientIds: ['student-1', 'student-1'] }))).rejects.toMatchObject({ code: 'invalid-command' });
     const unapproved = {
       ...canonical(),
       exposureApproval: { approved: false, fingerprint: 'exposure-fingerprint-1' },
     };
     const blocked = makeSaga(unapproved);
-    await expect(blocked.saga.execute(command())).rejects.toMatchObject({ code: 'not-ready' });
+    await expect(completeAssignment(blocked.saga, command())).rejects.toMatchObject({ code: 'not-ready' });
     expect(await repository.read('assignment-1')).toBeNull();
   });
 
@@ -880,7 +973,7 @@ describe('Book Homework assignment saga', () => {
         if (step === 'delivery-activate' && recipientId === 'student-2') throw new Error('simulated delivery failure');
       },
     });
-    const result = await saga.execute(command());
+    const result = await completeAssignment(saga, command());
     expect(result.status).toBe('compensated');
     expect(result.record.visibility).toBe('hidden');
     expect(result.record.recipients.map((entry) => entry.state)).toEqual(['compensated', 'compensated']);

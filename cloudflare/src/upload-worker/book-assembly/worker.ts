@@ -727,7 +727,10 @@ export const createBookAssemblyWorkerHandlers = (options: {
         if (!authority || authority.ownerId !== input.uid || authority.bookMode !== 'pdf') {
           return { body: { status: 'not-found' }, init: { status: 404 } };
         }
-        if (authority.sourceSet.sourceStrategy === 'full_pdf') {
+        if (authority.sourceSet.sourceStrategy === 'full_pdf' || scope.current) {
+          if (authority.sourceSet.sourceStrategy === 'component_pdfs' && !activeComponentPdfActivation(authority)) {
+            return { body: { status: 'empty' }, init: { status: 200 } };
+          }
           const pointer = scope.current;
           const candidate = pointer && scope.candidates?.[pointer.candidateId];
           if (!pointer || !candidate || candidate.candidateId !== pointer.candidateId

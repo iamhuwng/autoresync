@@ -9,7 +9,12 @@
       "book_homework/.write",
       "book_homework/operations/$assignmentId/.read",
       "book_homework/operations/$assignmentId/.write",
-      "book_homework/operations/$assignmentId/recipients/$recipientId/.validate"
+      "book_homework/operations/$assignmentId/recipients/$recipientId/.validate",
+      "book_homework/operations/$assignmentId/postCommit/.validate",
+      "book_homework/operations/$assignmentId/postCommit/source/.validate",
+      "book_homework/operations/$assignmentId/postCommit/$field/.validate",
+      "book_homework/operations/$assignmentId/postCommit/source/$field/.validate",
+      "book_homework/operations/$assignmentId/postCommit/.write"
     ],
     "serviceIdentity": "book_homework_service",
     "leastPrivilegePaths": [
@@ -51,6 +56,41 @@
       "merge": "replace-exact-deny",
       "requiresExistingRule": false,
       "expression": "auth != null && auth.token.book_homework_service == true && newData.hasChildren(['recipientId', 'authorityId', 'bindingId', 'state']) && newData.child('recipientId').val() == $recipientId && newData.child('authorityId').val() == ($assignmentId + '--' + $recipientId + '--authority') && newData.child('bindingId').val() == ($assignmentId + '--' + $recipientId + '--delivery') && (newData.child('state').val() == 'pending' || newData.child('state').val() == 'prepared' || newData.child('state').val() == 'active' || newData.child('state').val() == 'committed' || newData.child('state').val() == 'compensating' || newData.child('state').val() == 'compensated' || newData.child('state').val() == 'retained') && (newData.parent().parent().child('state').val() != 'committed' || newData.child('state').val() == 'committed') && (!data.exists() || (newData.child('recipientId').val() == data.child('recipientId').val() && newData.child('authorityId').val() == data.child('authorityId').val() && newData.child('bindingId').val() == data.child('bindingId').val()))"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/postCommit",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "auth != null && auth.token.book_homework_service == true && auth.token.book_homework_ownerId == newData.parent().child('ownerId').val() && newData.parent().child('state').val() == 'committed' && newData.hasChildren(['revision', 'compatibilityReady', 'checkedRecipientCount', 'notifiedRecipientCount']) && newData.child('compatibilityReady').isBoolean() && newData.child('checkedRecipientCount').isNumber() && newData.child('checkedRecipientCount').val() % 1 == 0 && newData.child('checkedRecipientCount').val() >= 0 && newData.child('checkedRecipientCount').val() <= newData.parent().child('recipientCount').val() && newData.child('compatibilityReady').val() == (newData.child('checkedRecipientCount').val() == newData.parent().child('recipientCount').val()) && newData.child('notifiedRecipientCount').isNumber() && newData.child('notifiedRecipientCount').val() % 1 == 0 && newData.child('notifiedRecipientCount').val() >= 0 && newData.child('notifiedRecipientCount').val() <= newData.parent().child('recipientCount').val() && (newData.child('compatibilityReady').val() == true || newData.child('notifiedRecipientCount').val() == 0) && ((!data.exists() && newData.child('checkedRecipientCount').val() <= 10 && newData.child('notifiedRecipientCount').val() == 0) || (data.exists() && newData.child('checkedRecipientCount').val() >= data.child('checkedRecipientCount').val() && newData.child('checkedRecipientCount').val() <= data.child('checkedRecipientCount').val() + 10 && newData.child('notifiedRecipientCount').val() >= data.child('notifiedRecipientCount').val() && newData.child('notifiedRecipientCount').val() <= data.child('notifiedRecipientCount').val() + 10)) && (!data.child('source').exists() || (newData.child('source/bookId').val() == data.child('source/bookId').val() && newData.child('source/finalDueAt').val() == data.child('source/finalDueAt').val() && newData.child('source/availableFrom').val() == data.child('source/availableFrom').val() && newData.child('source/committedRevision').val() == data.child('source/committedRevision').val())) && newData.child('revision').isNumber() && newData.child('revision').val() % 1 == 0 && ((!data.exists() && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1))"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/postCommit/source",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "newData.hasChildren(['bookId', 'finalDueAt', 'committedRevision']) && newData.child('bookId').isString() && newData.child('finalDueAt').isString() && (!newData.child('availableFrom').exists() || newData.child('availableFrom').isString()) && newData.child('committedRevision').isNumber() && newData.child('committedRevision').val() % 1 == 0 && newData.child('committedRevision').val() >= 1 && newData.child('committedRevision').val() == newData.parent().parent().child('revision').val()"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/postCommit/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "$field == 'compatibilityReady' || $field == 'checkedRecipientCount' || $field == 'notifiedRecipientCount' || $field == 'source' || $field == 'revision'"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/postCommit/source/$field",
+      "rule": ".validate",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "$field == 'bookId' || $field == 'finalDueAt' || $field == 'availableFrom' || $field == 'committedRevision'"
+    },
+    {
+      "path": "book_homework/operations/$assignmentId/postCommit",
+      "rule": ".write",
+      "merge": "replace-exact-deny",
+      "requiresExistingRule": false,
+      "expression": "!(auth != null && auth.token.book_submission_service == true) && (auth != null && auth.token.book_homework_service == true && auth.token.book_homework_ownerId == data.parent().child('ownerId').val() && data.parent().child('state').val() == 'committed' && newData.exists())"
     }
   ]
 }

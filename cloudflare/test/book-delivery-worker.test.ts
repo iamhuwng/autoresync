@@ -9,6 +9,7 @@ import {
   createBookDeliveryWorkerHandlers,
   createTrustedBookDeliveryPublication,
   createTrustedBookDeliveryBindingPublication,
+  resolveTrustedBookDeliveryFullPageDefaults,
 } from '../src/upload-worker/book-delivery/worker';
 import {
   makeBookAssemblyPublicationScope,
@@ -74,6 +75,15 @@ const makeComponentPlacementScope = () => {
 };
 
 describe('Book Delivery Worker contract', () => {
+  it('reads opening pages from the pinned manifest and rejects pages outside the binding', async () => {
+    const scope = structuredClone(makeBookAssemblyPublicationScope()) as any;
+    const binding = makeBookDeliveryTestBinding();
+    scope.current = { ...scope.current, manifestVersionId: 'newer-unrelated-manifest' };
+    const repository = { readScope: async () => scope };
+    await expect(resolveTrustedBookDeliveryFullPageDefaults(env, binding, repository)).resolves.toEqual({ 'placement-1': 1 });
+    scope.versions['manifest-1'].manifest.units[0].pageGroups[0].defaultPhysicalPageNumber = 99;
+    await expect(resolveTrustedBookDeliveryFullPageDefaults(env, binding, repository)).resolves.toBeNull();
+  });
   it('requires the strict active owner authority profile and permits an active owner super-admin', async () => {
     const deniedProfiles: readonly unknown[] = [
       undefined,
@@ -188,7 +198,7 @@ describe('Book Delivery Worker contract', () => {
         activities: [{
           placementId: 'placement-1',
           activityVersionId: 'activity-1-v1',
-          sourceContext: { pageGroupKeys: ['group-1'] },
+          sourceContext: { pageGroupKeys: ['placement-1'] },
         }],
       });
     }

@@ -228,6 +228,7 @@ describe('Book Homework authoritative return-path resolver', () => {
       activityVersionId: 'activity-version-vocab-u1',
       activityVersion: 5,
       payloadFingerprint: 'fnv1a64:0123456789abcdef',
+      placementId: 'placement-vocab-u1',
     });
   });
 

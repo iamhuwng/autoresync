@@ -23,13 +23,13 @@ const BOOK_STATUSES = new Set([
     'failed_retryable',
     'failed_terminal',
 ]);
-type BookHomeworkWorkerCommandStatus = BookHomeworkSagaState | 'committed_projection_pending';
+type BookHomeworkWorkerCommandStatus = BookHomeworkSagaState | 'committed_projection_pending' | 'committed_notifications_pending';
 
 const isBookState = (value: unknown): value is BookHomeworkSagaState => (
     typeof value === 'string' && BOOK_STATUSES.has(value)
 );
 const isBookCommandStatus = (value: unknown): value is BookHomeworkWorkerCommandStatus => (
-    isBookState(value) || value === 'committed_projection_pending'
+    isBookState(value) || value === 'committed_projection_pending' || value === 'committed_notifications_pending'
 );
 
 const isSafeInteger = (value: unknown): value is number => Number.isSafeInteger(value);
@@ -72,6 +72,7 @@ export interface BookHomeworkWorkerCommandResult {
     readonly visibility: 'hidden' | 'committed';
     readonly recipientCount: number;
     readonly committedRecipientCount: number;
+    readonly notifiedRecipientCount?: number;
     readonly revision: number;
 }
 
@@ -243,8 +244,10 @@ const parseBookResponse = (
         || typeof result.operationId !== 'string'
         || !isBookCommandStatus(result.status)
         || !isBookState(result.state)
-        || (result.status === 'committed_projection_pending'
+        || (['committed_projection_pending', 'committed_notifications_pending'].includes(String(result.status))
             && (responseStatus !== 202 || result.state !== 'committed' || result.visibility !== 'committed'))
+        || (result.notifiedRecipientCount !== undefined && (!isSafeInteger(result.notifiedRecipientCount)
+            || result.notifiedRecipientCount < 0 || result.notifiedRecipientCount > Number(result.recipientCount)))
         || (result.visibility !== 'hidden' && result.visibility !== 'committed')
         || !isSafeInteger(result.recipientCount)
         || !isSafeInteger(result.committedRecipientCount)
@@ -263,6 +266,7 @@ const parseBookResponse = (
         visibility: result.visibility,
         recipientCount: result.recipientCount,
         committedRecipientCount: result.committedRecipientCount,
+        ...(result.notifiedRecipientCount === undefined ? {} : { notifiedRecipientCount: result.notifiedRecipientCount as number }),
         revision: result.revision,
     };
 };

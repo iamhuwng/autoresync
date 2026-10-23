@@ -209,6 +209,26 @@ const committedState = () => ({
   [paths.studentSafeProjection]: safeProjectionRecord(),
 });
 
+const retainedState = () => {
+  const local = { manifestVersionId: 'manifest-retained', publicationId: 'publication-retained' };
+  const versionPath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/activity_versions/${bookAssemblyActivityVersionScopeKey(local.manifestVersionId, request.activityVersionId)}`;
+  return {
+    request: { ...request, ...local, placementId: 'placement-retained' },
+    versionPath,
+    values: {
+      ...committedState(),
+      [`${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/versions/${local.manifestVersionId}`]: { ...manifestRecord(), ...local },
+      [versionPath]: { ...bookActivityVersionRecord(), ...local, canonicalOriginManifestVersionId: request.manifestVersionId,
+        canonicalOriginPublicationId: request.publicationId, canonicalOriginOperationId: 'operation-1' },
+      [paths.current]: local,
+      [paths.bookSafeProjection]: { ...bookSafeProjectionRecord(), ...local, placementIds: ['placement-retained'] },
+      [`${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-retained`]: {
+        ...bookPlacementRecord(), ...local, placementId: 'placement-retained', predecessorPlacementId: 'placement-intermediate',
+      },
+    } as Record<string, unknown>,
+  };
+};
+
 const pathFromInput = (input: RequestInfo | URL): string => {
   const url = new URL(String(input));
   return decodeURIComponent(url.pathname.replace(/^\/+|\.json$/gu, ''));
@@ -338,6 +358,37 @@ const productionCommittedState = (canonical: unknown = productionRawCanonical) =
 });
 
 describe('canonical Activity Version Firebase repositories', () => {
+  it('proves a retained publication placement directly against immutable original mapping without rewriting the canonical version', async () => {
+    const retained = retainedState();
+    const harness = createFetchHarness(retained.values);
+    const reader = new FirebaseRestExactPublishedActivityVersionReader({ env: readerEnv(), fetchImpl: harness.fetchImpl, getAccessToken: accessToken });
+    await expect(reader.readExact(retained.request)).resolves.toEqual(canonicalRecord());
+    expect(harness.calls).toContain(`GET ${paths.bookPlacement}`);
+    expect(harness.calls.some(call => call.includes('placement-intermediate'))).toBe(false);
+    expect(harness.values.get(paths.canonical)).toEqual(canonicalRecord());
+    await expect(reader.readExact({ ...retained.request, placementId: 'placement-foreign' })).resolves.toBeNull();
+  });
+
+  it.each(['origin', 'original-placement', 'unit', 'activity', 'source', 'page-groups', 'payload'])(
+    'denies a retained placement with crossed %s proof', async (crossed) => {
+      const retained = retainedState();
+      const localPath = `${BOOK_ASSEMBLY_PUBLICATION_ROOT}/${request.bookId}/placements/placement-retained`;
+      const original = retained.values[paths.bookPlacement] as Record<string, unknown>;
+      const local = retained.values[localPath] as Record<string, unknown>;
+      const version = retained.values[retained.versionPath] as Record<string, unknown>;
+      if (crossed === 'origin') version.canonicalOriginOperationId = 'operation-crossed';
+      if (crossed === 'original-placement') original.publicationId = 'publication-crossed';
+      if (crossed === 'unit') local.unitKey = 'unit-crossed';
+      if (crossed === 'activity') local.activityKey = 'activity-crossed';
+      if (crossed === 'source') original.sourcePages = [{ sourceKey: 'source-crossed', sourceVersionId: 'source-version-1', physicalPageNumber: 1 }];
+      if (crossed === 'page-groups') local.pageGroupKeys = ['group-crossed'];
+      if (crossed === 'payload') version.canonicalPayloadFingerprint = 'fnv1a64:0000000000000000';
+      const harness = createFetchHarness(retained.values);
+      const reader = new FirebaseRestExactPublishedActivityVersionReader({ env: readerEnv(), fetchImpl: harness.fetchImpl, getAccessToken: accessToken });
+      await expect(reader.readExact(retained.request)).resolves.toBeNull();
+    },
+  );
+
   it.runIf(Boolean(process.env.FIREBASE_DATABASE_EMULATOR_HOST))('atomically creates an exact canonical pair and denies a mixed overwrite under native Rules', async () => {
     const projectId = 'demo-canonical-pair-budget';
     const [host, port] = process.env.FIREBASE_DATABASE_EMULATOR_HOST!.split(':');

@@ -725,14 +725,44 @@ implements ExactPublishedActivityVersionReader {
     const canonical = parseCanonicalFromRtdb(await rtdb.readValue(paths.canonical));
     if (!canonical || !sameCanonicalIdentity(canonical, request, bookActivity)) return null;
     const placementIds = (bookSafeProjection as Record<string, unknown>).placementIds as string[];
-    if (stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort())) return null;
+    if (request.placementId !== undefined && !placementIds.includes(request.placementId)) return null;
+    const retained = stable([...placementIds].sort()) !== stable([...canonical.placementIds].sort());
+    const origins: Record<string, unknown>[] = [];
+    if (retained) {
+      // Retained Units receive new publication-local placements. The canonical
+      // version stays immutable; prove the new mapping against its original
+      // publication, without walking an ever-growing predecessor chain.
+      if (placementIds.length !== canonical.placementIds.length
+        || typeof bookActivity.canonicalOriginManifestVersionId !== 'string'
+        || !PATH_ID.test(bookActivity.canonicalOriginManifestVersionId)
+        || typeof bookActivity.canonicalOriginPublicationId !== 'string'
+        || !PATH_ID.test(bookActivity.canonicalOriginPublicationId)) return null;
+      for (const placementId of canonical.placementIds) {
+        const origin = await rtdb.readValue(bookPlacementPath(request.bookId, placementId));
+        if (!isRecord(origin) || origin.schemaVersion !== 1 || origin.placementId !== placementId
+          || origin.ownerId !== request.ownerId || origin.bookId !== request.bookId
+          || origin.manifestVersionId !== bookActivity.canonicalOriginManifestVersionId
+          || origin.publicationId !== bookActivity.canonicalOriginPublicationId
+          || origin.activityId !== request.activityId || origin.activityVersionId !== request.activityVersionId
+          || origin.unitKey !== bookActivity.unitKey || origin.activityKey !== bookActivity.activityKey
+          || stable(origin.sourcePages) !== stable(bookActivity.sourcePages)) return null;
+        origins.push(origin);
+      }
+    }
     for (const placementId of placementIds) {
-      if (!sameBookPlacement(
-        await rtdb.readValue(bookPlacementPath(request.bookId, placementId)),
+      const placement = await rtdb.readValue(bookPlacementPath(request.bookId, placementId));
+      if (!isRecord(placement) || placement.placementId !== placementId || !sameBookPlacement(
+        placement,
         bookActivity,
         request,
         publicationRevision as number,
       )) return null;
+      if (retained && (typeof placement.predecessorPlacementId !== 'string'
+        || !PATH_ID.test(placement.predecessorPlacementId)
+        || !origins.some(origin => origin.unitKey === placement.unitKey
+          && origin.activityKey === placement.activityKey
+          && stable(origin.pageGroupKeys) === stable(placement.pageGroupKeys)
+          && stable(origin.sourcePages) === stable(placement.sourcePages)))) return null;
     }
     const studentSafeProjection = hydrateStudentSafeProjectionFromRtdb(
       await rtdb.readValue(paths.studentSafeProjection),

@@ -231,6 +231,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       activityVersionId: activity.activityVersionId,
       activityVersion: activity.activityVersion,
       payloadFingerprint: activity.canonicalPayloadFingerprint,
+      placementId: storedPlacement.placementId,
     });
     if (!canonical
       || canonical.lifecycle !== 'published'
@@ -238,8 +239,7 @@ export class BookHomeworkAuthoritativeContextResolver implements BookHomeworkCon
       || canonical.activityId !== activity.activityId
       || canonical.activityVersionId !== activity.activityVersionId
       || canonical.activityVersion !== activity.activityVersion
-      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint
-      || !canonical.placementIds.includes(storedPlacement.placementId)) return null;
+      || canonical.payloadFingerprint !== activity.canonicalPayloadFingerprint) return null;
 
     return {
       assignmentId: root.assignmentId,

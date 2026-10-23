@@ -684,6 +684,27 @@ describe('HomeworkCreateModal', () => {
         expect(vi.mocked(createBookHomeworkAssignmentViaWorker).mock.calls[1]?.[0]).toEqual(firstCommand);
     });
 
+    it('continues exact pending commands and announces success only after notification completion', async () => {
+        let finish!: (result: Awaited<ReturnType<typeof createBookHomeworkAssignmentViaWorker>>) => void;
+        const progress = { assignmentId: 'bounded-assignment', operationId: '00000000-0000-4000-8000-000000000008',
+            recipientCount: 1, committedRecipientCount: 1, revision: 1 };
+        vi.mocked(createBookHomeworkAssignmentViaWorker)
+            .mockResolvedValueOnce({ ...progress, status: 'fanout_pending', state: 'fanout_pending', visibility: 'hidden' })
+            .mockResolvedValueOnce({ ...progress, status: 'committed_notifications_pending', state: 'committed', visibility: 'committed', revision: 2, notifiedRecipientCount: 0 })
+            .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const onSuccess = vi.fn();
+        render(<HomeworkCreateModal isOpen onClose={vi.fn()} onSuccess={onSuccess} preselectedBookHomework={bookPreviewWorkerSource} />);
+        fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: '2026-08-01T12:00' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm preview/i }));
+        await waitFor(() => expect(createBookHomeworkAssignmentViaWorker).toHaveBeenCalledTimes(3));
+        expect(onSuccess).not.toHaveBeenCalled();
+        const commands = vi.mocked(createBookHomeworkAssignmentViaWorker).mock.calls.map(([command]) => command);
+        expect(commands[1]).toEqual(commands[0]);
+        expect(commands[2]).toEqual(commands[0]);
+        finish({ ...progress, status: 'committed', state: 'committed', visibility: 'committed', revision: 3, notifiedRecipientCount: 1 });
+        await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    });
+
     it.each(['pending', 'ambiguous', 'committed_projection_pending'] as const)(
         'keeps %s Book Homework recovery across the parent conditional remount', async (outcome) => {
         if (outcome === 'pending') {
@@ -700,6 +721,11 @@ describe('HomeworkCreateModal', () => {
                 recipientCount: 1,
                 committedRecipientCount: 1,
                 revision: 1,
+            });
+            vi.mocked(createBookHomeworkAssignmentViaWorker).mockResolvedValueOnce({
+                status: 'committed_projection_pending', assignmentId: 'assignment-projection-pending',
+                operationId: '00000000-0000-4000-8000-000000000006', state: 'committed', visibility: 'committed',
+                recipientCount: 1, committedRecipientCount: 1, revision: 1,
             });
         }
         vi.mocked(createBookHomeworkAssignmentViaWorker).mockResolvedValueOnce({
@@ -758,8 +784,9 @@ describe('HomeworkCreateModal', () => {
         expect(retry).not.toBeDisabled();
         fireEvent.click(retry);
 
-        await waitFor(() => expect(createBookHomeworkAssignmentViaWorker).toHaveBeenCalledTimes(2));
-        expect(vi.mocked(createBookHomeworkAssignmentViaWorker).mock.calls[1]?.[0]).toEqual(firstCommand);
+        const retries = outcome === 'committed_projection_pending' ? 3 : 2;
+        await waitFor(() => expect(createBookHomeworkAssignmentViaWorker).toHaveBeenCalledTimes(retries));
+        expect(vi.mocked(createBookHomeworkAssignmentViaWorker).mock.calls[retries - 1]?.[0]).toEqual(firstCommand);
         await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
         },
     );

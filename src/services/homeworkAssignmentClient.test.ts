@@ -42,6 +42,7 @@ const bookCommand = {
   manifestVersionId: 'manifest-1',
   intent: {
     bookId: 'book-1',
+    presentation: { title: 'Book Homework' },
     target: { kind: 'book' as const, bookId: 'book-1', classId: 'class-1' },
     schedule: {
       finalDueAt: '2026-06-18T00:00:00.000Z',
@@ -214,6 +215,17 @@ describe('homeworkAssignmentClient', () => {
     await expect(createBookHomeworkAssignmentViaWorker(bookCommand, {
       workerOrigin: 'https://book-worker.example.test',
     })).resolves.toEqual(pendingResponse);
+  });
+
+  it('retains bounded notification progress and rejects a count outside the frozen recipients', async () => {
+    const response = { ...bookResponse, status: 'committed_notifications_pending', notifiedRecipientCount: 0 };
+    const fetchImpl = vi.fn().mockResolvedValueOnce(Response.json(response, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ ...response, notifiedRecipientCount: bookResponse.recipientCount + 1 }, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ ...response, notifiedRecipientCount: -1 }, { status: 202 }));
+    const options = { workerOrigin: 'https://book-worker.example.test', fetchImpl };
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).resolves.toEqual(response);
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).rejects.toMatchObject({ reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
+    await expect(createBookHomeworkAssignmentViaWorker(bookCommand, options)).rejects.toMatchObject({ reasonCode: 'INVALID_ASSIGNMENT_REQUEST' });
   });
 
   it('rejects a pending response whose state is not committed', async () => {

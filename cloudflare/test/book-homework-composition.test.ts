@@ -133,10 +133,10 @@ describe('canonical Book Homework composition', () => {
     const notifications = new InMemoryNotificationCommandRepository();
     const trustedRecord = record();
     const sagaFactory = vi.fn(async () => ({
-      execute: vi.fn(async () => ({
-        status: 'committed' as const,
-        record: trustedRecord,
-      })),
+      execute: vi.fn(async (_command, emit) => {
+        await emit?.(trustedRecord, trustedRecord.recipients.map(entry => entry.recipientId));
+        return { status: 'committed' as const, record: trustedRecord };
+      }),
       readCommittedAssignment: vi.fn(async () => trustedRecord),
     }));
     const handlers = createCanonicalBookHomeworkHandlers({
@@ -155,8 +155,7 @@ describe('canonical Book Homework composition', () => {
 
     expect(result.init.status).toBe(200);
     expect(sagaFactory).toHaveBeenCalledTimes(1);
-    expect(tasks).toHaveLength(1);
-    await tasks[0];
+    expect(tasks).toHaveLength(0);
     expect(Object.keys(notifications.snapshot())).toHaveLength(1);
   });
 
