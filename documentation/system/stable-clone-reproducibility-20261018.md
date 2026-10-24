@@ -11,7 +11,7 @@ the reviewed releases, not an automatically refreshed provider observation.
 | Hosting app | `stable-2026-10-20-reading-multiple-answer` | `1299617ed871cc0e4100f1c3b1c5b8346c295117` |
 | Homework/backup Worker | `deployed-reading-v2-worker-2026-10-20` | `10786002eb459a1b54025a23590cda8a6f610112` |
 | Notification command Worker | `deployed-notification-worker-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
-| Upload/Listening authoring Worker | `deployed-listening-worker-2026-10-24` | `f5b7448baaad8f7595a959561cfffdcaabf815bb` |
+| Upload/Listening authoring Worker | `deployed-listening-assignment-worker-2026-10-24` | `487f02faaefbf5f2889dc66da636d0787cedc418` |
 | RTDB rules | `deployed-rtdb-rules-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
 
 The Worker tag is published in the same Git repository. Preserve published
@@ -24,7 +24,9 @@ every live service runs that revision.
 
 The October 24 Upload/Listening Worker release fixes missing published-test
 runtime records and lobby summaries and removes temporary audio-upload logs.
-Its provider version is `a5fca24b-f1f3-41bf-ad4a-0a5e6097e737`; the deployed
+The follow-up adds the sanitized student delivery copy and readiness required
+for homework assignment. Its provider version is
+`c6bc690e-4636-4ea6-8098-35f5370cce9d`; the deployed
 module matched the audited build byte-for-byte. The same Listening correction
 is integrated into `main`, preserving its other qualified changes. The service
 tag identifies the exact deployed source; it does not authorize deploying
