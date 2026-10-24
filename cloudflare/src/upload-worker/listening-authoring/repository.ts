@@ -36,6 +36,11 @@ import {
 import { runPublishDraftMutation } from '../../../../functions/src/listening-authoring/repository.publishMutation.ts';
 import { runSaveDraftMutation } from '../../../../functions/src/listening-authoring/repository.saveDraftMutation.ts';
 import { FirebaseRtdbRestClient, type RepositoryEnv } from './rtdb.ts';
+import { buildListeningPublishedMaterialUpdates } from './published-material.ts';
+import {
+  getMaterialSummaryRecordPath,
+  type MaterialSummary,
+} from '../../../../src/services/materialCatalog/materialSummaryPort.service.ts';
 
 interface ListeningAuthoringRootState {
   drafts?: Record<string, ListeningAuthoringDraftRecord>;
@@ -185,7 +190,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   async publishDraftTransaction(
     input: PublishDraftTransactionInput,
   ): Promise<PublishDraftTransactionResult> {
-    return this.withRootTransaction((root) => {
+    const result = await this.withRootTransaction((root) => {
       const maps = rootMaps(root);
       const outcome = runPublishDraftMutation(
         {
@@ -207,6 +212,10 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         shouldWrite,
       };
     });
+    if (result.kind === 'published' || result.kind === 'replayed') {
+      await this.synchronizePublishedMaterial(result.result.versionId);
+    }
+    return result;
   }
   async legacyFirstEditTransaction(
     input: LegacyFirstEditTransactionInput,
@@ -257,7 +266,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     throw new Error('firebase_rtdb_authoring_legacy_transaction_retries_exhausted');
   }
   async lifecycleTransaction(input: LifecycleTransactionInput): Promise<LifecycleTransactionResult> {
-    return this.withRootTransaction((root) => {
+    const result = await this.withRootTransaction((root) => {
       const maps = rootMaps(root);
       const outcome = runLifecycleMutation(
         {
@@ -275,6 +284,10 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         shouldWrite,
       };
     });
+    if (result.kind === 'archived') {
+      await this.synchronizePublishedMaterial(result.result.versionId);
+    }
+    return result;
   }
   async createVersionTransaction(
     input: CreateListeningPublishedVersionInput,
@@ -317,6 +330,33 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       LISTENING_AUTHORING_ROOT,
     );
     return normalizeRoot(data);
+  }
+
+  private async synchronizePublishedMaterial(versionId: string): Promise<void> {
+    for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
+      const root = await this.readRoot();
+      const requested = root.versions?.[versionId];
+      if (!requested) throw new Error('listening_published_version_missing');
+      const latest = Object.values(root.versions ?? {})
+        .filter((version) => version.testId === requested.testId)
+        .reduce((current, version) => version.versionNumber > current.versionNumber ? version : current, requested);
+      const [previousSummary, previousRuntime] = await Promise.all([
+        this.rtdb.readValue(getMaterialSummaryRecordPath(latest.testId)),
+        this.rtdb.readValue(`tests/${latest.testId}`),
+      ]);
+      await this.rtdb.patchAdminMultiLocation(buildListeningPublishedMaterialUpdates(
+        latest, previousSummary as MaterialSummary | null, previousRuntime as Record<string, unknown> | null,
+      ));
+      // A concurrent publish/archive must not leave an older projection as the final write.
+      const current = await this.readRoot();
+      const currentLatest = Object.values(current.versions ?? {})
+        .filter((version) => version.testId === latest.testId)
+        .reduce((newest, version) => version.versionNumber > newest.versionNumber ? version : newest,
+          current.versions?.[latest.versionId] ?? latest);
+      if (currentLatest.versionId === latest.versionId
+        && currentLatest.archive.state === latest.archive.state) return;
+    }
+    throw new Error('listening_material_projection_retries_exhausted');
   }
 
   private async withRootTransaction<T>(

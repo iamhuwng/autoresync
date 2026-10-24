@@ -11,6 +11,7 @@ the reviewed releases, not an automatically refreshed provider observation.
 | Hosting app | `stable-2026-10-20-reading-multiple-answer` | `1299617ed871cc0e4100f1c3b1c5b8346c295117` |
 | Homework/backup Worker | `deployed-reading-v2-worker-2026-10-20` | `10786002eb459a1b54025a23590cda8a6f610112` |
 | Notification command Worker | `deployed-notification-worker-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
+| Upload/Listening authoring Worker | `deployed-listening-worker-2026-10-24` | `f5b7448baaad8f7595a959561cfffdcaabf815bb` |
 | RTDB rules | `deployed-rtdb-rules-2026-10-18` | `3b682ffa371fc549486d72c4d3125f3c8651a124` |
 
 The Worker tag is published in the same Git repository. Preserve published
@@ -20,6 +21,15 @@ the complete normalized CI rebuild hash are in the inventory and
 [release record](../release-audits/2026-10-20-reading-v2-multiple-answer-release.md).
 Hosting and Worker deployments are separate; one Git revision is not proof that
 every live service runs that revision.
+
+The October 24 Upload/Listening Worker release fixes missing published-test
+runtime records and lobby summaries and removes temporary audio-upload logs.
+Its provider version is `a5fca24b-f1f3-41bf-ad4a-0a5e6097e737`; the deployed
+module matched the audited build byte-for-byte. The same Listening correction
+is integrated into `main`, preserving its other qualified changes. The service
+tag identifies the exact deployed source; it does not authorize deploying
+other services or the whole current `main`. See the
+[release record](../release-audits/2026-10-24-listening-publish-lobby.md).
 
 The notification/rules tags pin the product source released after PR #157.
 The newer main contains its assessment runner and reviewed deployment template;

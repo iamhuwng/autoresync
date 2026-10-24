@@ -35,5 +35,13 @@
     "canonicalTreeSha256": "1fdd6321aad54e7a7bca84b51836601d5dacf8491587dca6274247bbc194a4cb",
     "resultReadSha256": "9dace28328fb666ad37f3966d68fa440dfd3952eff5f3f3b0ef885ba9db01c9c",
     "record": "2026-10-18-homework-qa-correction-release.md"
+  },
+  "uploadWorker": {
+    "script": "r2-upload-signer",
+    "sourceRevision": "f5b7448baaad8f7595a959561cfffdcaabf815bb",
+    "sourceTag": "deployed-listening-worker-2026-10-24",
+    "providerVersion": "a5fca24b-f1f3-41bf-ad4a-0a5e6097e737",
+    "moduleSha256": "901bbb99ee9a74be591649f733c3be3dbe8540ad8f6566b63f6ccf96215cce3e",
+    "record": "2026-10-24-listening-publish-lobby.md"
   }
 }
