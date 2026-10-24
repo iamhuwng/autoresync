@@ -326,7 +326,12 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
    acceptance can upload to the real restricted B2 prefix. Normal startup checks
    existing local Firebase services without changing their rules or accounts.
    Explicit `npm run firebase:bootstrap-local` creates/seeds a disposable setup;
-   use the owning checkout's recovery workflow for an existing rich dataset.
+   it requires all emulators stopped and no registered dataset. For an existing
+   verified export, explicitly adopt it with `npm run firebase:adopt-local --
+   <export-directory>` and restore with `npm run firebase:restore-local` while
+   all emulators are stopped. Run `npm run firebase:watch-local` separately to
+   keep checkpoints current; ordinary startup requires a saved checkpoint from
+   the last three minutes. See the guide for Windows task ownership.
    Reusing its running emulators is not isolated data. On a fresh machine, follow
    the tooling guide before provisioning missing runtimes or dependencies.
 
@@ -344,6 +349,9 @@ new feature branches; keep the separate PDF Book branch out of maintenance work.
 |--------|---------|
 | `npm run dev -- 5173` | Check prepared local Firebase, then start the app/Book Worker |
 | `npm run firebase:bootstrap-local` | Explicit emulator/rules/account setup for disposable local data |
+| `npm run firebase:adopt-local -- <export-directory>` | Register a verified populated export without replacing an existing dataset |
+| `npm run firebase:restore-local` | Restore the selected generation with all emulators stopped |
+| `npm run firebase:watch-local` | Save verified generations every minute under an exclusive writer lock |
 | `npm run build` | Direct Vite production build plus bundle-budget check |
 | `npm run build:production` | Checked production build; no remote mutation |
 | `npm run release:check` | Read-only assessment with an explicit reviewed base |

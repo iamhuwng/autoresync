@@ -12,10 +12,49 @@ import {
   findForbiddenBundleMarker,
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
-import { replaceSnapshot } from '../local-firebase.mjs';
+import { publishGeneration } from '../local-firebase-recovery.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
+
+test('Java emulator tasks verify checkout ownership before reuse or replacement', async () => {
+  const source = await readFile(path.join(repositoryRoot, 'scripts/start-local-java-emulator.ps1'), 'utf8');
+  const guard = source.slice(source.indexOf('function Assert-TaskOwner'), source.indexOf('if (!$Run)'));
+  assert.match(guard, /\$actions\.Count -ne 1/u);
+  assert.match(guard, /WorkingDirectory -ne \$repoRoot/u);
+  assert.match(guard, /Arguments\.Contains\('-File "' \+ \$PSCommandPath \+ '" -Run '\)/u);
+  assert.match(guard, /belongs to another checkout/u);
+  const ownerCheck = source.indexOf('Assert-TaskOwner $existingTask');
+  assert(ownerCheck >= 0 && ownerCheck < source.indexOf("if ($existingTask.State -eq 'Running')"));
+  assert(ownerCheck < source.indexOf('Register-ScheduledTask'));
+  if (process.platform === 'win32') {
+    const script = `
+$ErrorActionPreference = 'Stop'
+$repoRoot = 'C:\\fixture\\current'
+$taskName = 'fixture'
+${guard}
+$action = [pscustomobject]@{ WorkingDirectory = $repoRoot; Arguments = '-File "' + $PSCommandPath + '" -Run -Name firestore' }
+Assert-TaskOwner $null
+Assert-TaskOwner ([pscustomobject]@{ Actions = @($action) })
+foreach ($actions in @(@(), @($action, $action), @([pscustomobject]@{ WorkingDirectory = 'C:\\other'; Arguments = $action.Arguments }), @([pscustomobject]@{ WorkingDirectory = $repoRoot; Arguments = '-File "C:\\other\\launcher.ps1" -Run ' }))) {
+  $denied = $false
+  try { Assert-TaskOwner ([pscustomobject]@{ Actions = $actions }) } catch { $denied = $_.Exception.Message -like '*belongs to another checkout*' }
+  if (!$denied) { throw 'Foreign or ambiguous scheduled task was accepted' }
+}
+Write-Output 'ownership cases passed'
+`;
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'luyentap-task-owner-'));
+    try {
+      const file = path.join(directory, 'guard.ps1');
+      await writeFile(file, script);
+      const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', file], { encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /ownership cases passed/u);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+});
 
 test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'luyentap-startup-test-'));
@@ -344,20 +383,18 @@ test('Firestore import writes only to the local project and refuses redirects', 
   );
 });
 
-test('snapshot replacement preserves the previous snapshot on failure', async () => {
+test('invalid recovery publication preserves the selected generation', async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-snapshot-test-'));
-  const destinationDir = path.join(tempDir, 'snapshot');
+  const pointerPath = path.join(tempDir, 'latest.json');
   const stagingDir = path.join(tempDir, 'snapshot.next');
   try {
-    await mkdir(destinationDir);
-    await writeFile(path.join(destinationDir, 'data.json'), 'previous');
-    await assert.rejects(() => replaceSnapshot(stagingDir, destinationDir), { code: 'ENOENT' });
-    assert.equal(await readFile(path.join(destinationDir, 'data.json'), 'utf8'), 'previous');
+    await writeFile(pointerPath, 'previous-generation');
+    await assert.rejects(() => publishGeneration(stagingDir, { datasetId: 'dataset', root: tempDir }), { code: 'ENOENT' });
+    assert.equal(await readFile(pointerPath, 'utf8'), 'previous-generation');
     await mkdir(stagingDir);
-    await writeFile(path.join(stagingDir, 'data.json'), 'new');
-    await replaceSnapshot(stagingDir, destinationDir);
-    assert.equal(await readFile(path.join(destinationDir, 'data.json'), 'utf8'), 'new');
-    await assert.rejects(() => access(`${destinationDir}.previous`), { code: 'ENOENT' });
+    await writeFile(path.join(stagingDir, 'firebase-export-metadata.json'), '{}');
+    await assert.rejects(() => publishGeneration(stagingDir, { datasetId: 'dataset', root: tempDir }), /Incomplete three-store/);
+    assert.equal(await readFile(pointerPath, 'utf8'), 'previous-generation');
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

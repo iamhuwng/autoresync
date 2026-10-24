@@ -34,9 +34,10 @@ this order:
 6. `scripts/tooling-where.mjs` and
    [local-tooling-layout.md](local-tooling-layout.md) — executable/runtime
    ownership, especially Windows ARM64 versus x64 Worker tooling.
-7. Checked-in production configuration such as
-   `cloudflare/wrangler.book-source.jsonc` — production Worker configuration
-   only. Never use it as the localhost config.
+7. Checked-in online preview/release configuration such as
+   `cloudflare/wrangler.book-source.jsonc` — separate from generated local
+   configuration. Its existing staging rollout and origins still require release
+   qualification; do not treat it as a ready production configuration.
 
 Do not copy endpoint, object-count, capacity, deployment-version, or credential
 claims from old Codex logs. Re-read the current files and live runtime before
@@ -143,8 +144,8 @@ This command:
 Normal `firebase:local` / `npm run dev` does not start emulators, import data,
 install rules or seed accounts. Missing services fail the check. On a new,
 disposable local dataset only, explicit `npm run firebase:bootstrap-local`
-performs the old startup setup: starts missing emulators, imports the selected
-snapshot where applicable, installs local RTDB rules and seeds dev accounts.
+requires all emulators stopped and no registered dataset, then starts an empty
+stack, installs local RTDB rules, seeds dev accounts and registers a generation.
 For an existing rich dataset, use its owning checkout's recovery/checkpoint
 workflow instead; never bootstrap a fresh clone against it. Java emulator and
 checkpoint ownership is machine-wide even though snapshots are per checkout.
@@ -153,9 +154,9 @@ The configured-machine clone check on October 18 found existing shared DB and
 Firestore listeners, but no Auth or app/Worker listener. The clean clone lacked
 `.dev.vars`; startup was therefore not exercised against that existing dataset.
 The missing-file guard was verified with a disposable script fixture that
-proves no environment/Firebase setup runs first. A second regression test
-executes ordinary Firebase startup with mutating operations forbidden. These
-are prerequisite/negative startup proofs, not a complete signed-in browser pass.
+proves no environment/Firebase setup runs first. Recovery tests separately check
+writer exclusion, protected inventory and failed publication preserving the
+selected generation. These are prerequisite proofs, not a signed-in browser pass.
 
 Superseding October 18 check: after supplying the existing reviewed ignored
 secret file and restoring validated local Auth identities, the stable checkout
@@ -200,30 +201,33 @@ Useful commands:
 npm run firebase:local
 npm run firebase:check-local
 npm run firebase:bootstrap-local
+npm run firebase:restore-local
+npm run firebase:adopt-local -- <verified-export-directory>
+npm run firebase:watch-local
 npm run firebase:seed-local
 npm run firebase:save-local
 ```
 
 ### Read-only startup and explicit bootstrap
 
-`npm run firebase:local` verifies that all expected emulator services/project
-are reachable. It changes no data or rules. `npm run dev` performs this same
-read-only check and requires an already prepared local runtime.
+`npm run firebase:local` verifies emulator identity, the registered dataset's
+protected records, and a successful checkpoint from the last three minutes.
+It changes no data or rules. `npm run dev` performs this same read-only check.
+Previously recorded product issues are reported as degraded readiness; new
+issues fail startup. `firebase:check-local` rejects all readiness issues.
 
-Only explicit `npm run firebase:bootstrap-local` starts missing emulators,
-loads RTDB rules, imports this checkout's snapshot when a process starts, and
-seeds local Auth accounts. Use it for a deliberately disposable setup. An
-existing rich dataset must stay with its owning recovery/checkpoint workflow.
+Explicit `npm run firebase:bootstrap-local` requires all emulators stopped and
+no dataset registered in this checkout. It starts empty emulators, loads local
+RTDB rules, seeds dev accounts, and registers an initial three-store generation.
+An empty Firestore export is accepted only for this explicit fresh-dataset path;
+adoption of an existing export still requires populated protected inventory.
 
-A saved snapshot is a **boot-time import**, not a continuously mounted database.
-If ports 9000/9099/8080 are already owned by valid local emulator processes, the
-runner validates and reuses them instead of replacing their in-memory data. This
-mattered during PRD0063: a rich copied snapshot existed on disk while an older
-already-running emulator still contained only the seeded accounts. If expected
-copied data is missing but `tmp/local-firebase/` is populated, inspect the
-running emulator before concluding the database copy failed; stop/restart only
-the verified local emulator processes through the owning checkout's recovery
-workflow so the intended snapshot is imported.
+A generation is a **boot-time import**, not a continuously mounted database.
+Use `firebase:restore-local` with all emulators stopped to restore the selected
+validated generation. It refuses a running or partial stack. To preserve an
+existing rich export in a new checkout, explicitly run `firebase:adopt-local --
+<verified-export-directory>` first; adoption refuses an already registered
+dataset. The export source and earlier generation files remain unchanged.
 
 Do not run bootstrap or seed as an automatic prerequisite for opening a clone.
 
@@ -232,12 +236,25 @@ Do not run bootstrap or seed as an automatic prerequisite for opening a clone.
 The disposable but persistent local emulator snapshot is stored under:
 
 ```text
-tmp/local-firebase/
+tmp/local-firebase-recovery/
 ```
 
-`npm run firebase:save-local` saves Auth, RTDB, and Firestore state there.
-Explicit bootstrap can restore it when creating emulator processes; the normal
-read-only startup path does not import it.
+`npm run firebase:save-local` exports Auth, RTDB and Firestore under one writer
+lock, verifies protected inventory and export consistency, then atomically
+selects the completed generation. Failure preserves the previous selection.
+Protected initial/adopted generations and the latest three automatic generations
+are retained. Hashes detect export corruption; removed identities/documents,
+changed protected bindings and stale revisions reject checkpoint publication.
+Unsupported Firestore export value types fail closed rather than being converted
+to null. Authorized removal of protected fixture data requires a separately
+reviewed checkpoint transition; ordinary saves never waive preservation.
+
+Run `npm run firebase:watch-local` in a separate terminal for one checkpoint per
+minute. On Windows, `powershell -NoProfile -ExecutionPolicy Bypass -File
+scripts/start-local-checkpoint.ps1` explicitly registers/starts the independent
+checkpoint task. Its `-Stop` option stops only a task owned by this checkout;
+registration also refuses a task owned by another checkout. Task ownership is
+machine-wide. Do not transfer it merely to open another clone.
 
 This snapshot is **local development data**, not a migration and not a release
 artifact. Preserve it when it contains useful acceptance state; recreate it
@@ -255,9 +272,10 @@ assuming the account is invalid:
 npm run firebase:check-local
 ```
 
-`firebase:check-local` proves that the expected emulator services/project are
-reachable; it does **not** prove that the currently running processes loaded the
-snapshot you intended. Data provenance is a separate check.
+`firebase:check-local` checks registered inventory, persistence freshness and
+known cross-store readiness conditions. It is not browser acceptance proof or
+a transaction across three independently changing stores. Checkpointing retries
+after concurrent writes; quiesce writers before a deliberate data transition.
 
 The explicit seeder deliberately reconciles Auth identities with matching local
 RTDB user profiles so a live-data copy can keep useful profile UIDs while Auth
@@ -394,7 +412,7 @@ Diagnose environment/authority failures before editing product behavior.
 | App throws `[Firebase] Use npm run dev for local development...` | A direct/unisolated Vite process was started; stop it and use `npm run dev -- <port>` | Do not diagnose this as missing Firebase data or copy local env vars into a direct Vite command |
 | Vite works but Book Worker requests fail / port `8787` absent | Start through `npm run dev`; inspect local Worker process/config | Do not point localhost at the deployed Worker |
 | Dev quick login reports network failure | `npm run firebase:check-local`, then restart the orchestrated stack | Do not recreate accounts first |
-| Quick login works but copied application/user data appears absent | Check whether a rich `tmp/local-firebase` snapshot exists while old emulator processes are already running; restart verified local emulators so the snapshot imports | Do not rerun live sync or delete the saved snapshot before checking runtime provenance |
+| Quick login works but copied application/user data appears absent | Check the registered `tmp/local-firebase-recovery` generation and runtime provenance; explicitly restore with all local emulators stopped | Do not rerun live sync or delete the saved generation before checking runtime provenance |
 | trusted upload OAuth/exchange failure | required Firebase/trusted-service entries in `cloudflare/tmp/.dev.vars`, local service identity/project wiring | Do not rotate B2 credentials for a Firebase exchange error |
 | source upload account state unavailable / provider drift | local `book_b2_primary` ledger and fresh provider reconciliation | Do not change product validation or invent capacity totals |
 | upload reservation succeeds but browser says invalid authority | ensure control origin is local Worker while `VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN` is the configured Backblaze HTTPS origin | Do not send provider PUTs to port `8787` |
@@ -508,7 +526,7 @@ changing code:
 - [ ] `npm run env:check` identifies the expected shared development env.
 - [ ] The local Firebase namespace is exactly `demo-luyentap-local`.
 - [ ] If copied application data is expected, the running emulator state is
-      known to have loaded the intended `tmp/local-firebase` snapshot; an
+      known to have loaded the intended registered recovery generation; an
       already-running empty emulator has not merely been reused.
 - [ ] Browser development is started through `npm run dev -- <role-port>`, not
       direct Vite.
