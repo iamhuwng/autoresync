@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ListeningPublishedVersionRecord } from '../../functions/src/listening-authoring/repository.shared';
 import type { MaterialSummary } from '../../src/services/materialCatalog/materialSummaryPort.service';
 import { buildListeningPublishedMaterialUpdates } from '../src/upload-worker/listening-authoring/published-material';
+import { resolveTeacherLobbyAssignability } from '../../src/services/teacherLobbyAssignability';
+import { adaptMaterialSummaryToTeacherCard } from '../../src/services/materialCatalog/materialSummaryCardAdapter.service';
 
 const root = 'material_catalog/material_summary_indexes/v1';
 const version: ListeningPublishedVersionRecord = {
@@ -54,7 +56,13 @@ describe('Listening published material projection', () => {
     expect(summary).toMatchObject({
       producerId: 'listening', surfaceFamily: 'assessment', questionCount: 40,
       visibility: 'public', lifecycleState: 'active', sourceSnapshotVersionId: 'version-2',
+      deliveryProjectionReady: true, hasStudentSafeProjection: true,
     });
+    expect(resolveTeacherLobbyAssignability(adaptMaterialSummaryToTeacherCard(summary)).assignable).toBe(true);
+    expect(updates['tests/listening-1/deliveryProjectionReady']).toBe(true);
+    expect(updates['student_safe_tests/listening-1']).toMatchObject({ versionId: 'version-2', questionCount: 40 });
+    const safe = updates['student_safe_tests/listening-1'] as Record<string, any>;
+    expect(safe.questions[0]).not.toHaveProperty('answer');
     expect(updates[`${root}/by_owner_family/teacher-1/assessment/listening-1`]).toEqual(summary);
     expect(updates[`${root}/by_visibility_family/public/assessment/listening-1`]).toEqual(summary);
     expect(updates[`${root}/by_visibility_family_type/public/assessment/${summary.primaryTestTypeId}/listening-1`]).toEqual(summary);
@@ -93,12 +101,30 @@ describe('Listening published material projection', () => {
       .toThrow('Listening runtime owner does not match published version owner.');
   });
 
+  it('keeps answers and teacher review notes out of student delivery', () => {
+    const withTeacherNotes = { ...version, document: {
+      ...version.document,
+      metadata: { ...version.document.metadata, transcript: 'Teacher transcript' },
+      questions: [{ ...version.document.questions[0], acceptableAnswers: ['Alice'], explanation: 'Teacher explanation' }],
+    } };
+    const updates = buildListeningPublishedMaterialUpdates(withTeacherNotes);
+    const safe = updates['student_safe_tests/listening-1'] as Record<string, any>;
+    expect(safe.metadata).not.toHaveProperty('transcript');
+    for (const key of ['answer', 'correctAnswer', 'correctAns', 'acceptableAnswers', 'explanation']) {
+      expect(safe.questions[0]).not.toHaveProperty(key);
+    }
+    expect(updates['tests/listening-1/questions']).toEqual(withTeacherNotes.document.questions);
+    expect(withTeacherNotes.document.questions[0].answer).toBe('Alice');
+  });
+
   it('archives the runtime and removes all active discovery indexes', () => {
     const previous = buildListeningPublishedMaterialUpdates(version);
     const updates = buildListeningPublishedMaterialUpdates({
       ...version, archive: { state: 'archived', archivedAt: 1700000000100 },
     }, previous[`${root}/by_id/listening-1`] as MaterialSummary);
     expect(updates['tests/listening-1/isPublished']).toBe(false);
+    expect(updates['tests/listening-1/deliveryProjectionReady']).toBe(false);
+    expect(updates).not.toHaveProperty('student_safe_tests/listening-1');
     expect(updates['tests/listening-1/state']).toBe('archived');
     expect(updates['tests/listening-1/updatedAt']).toBe(1700000000100);
     expect(updates[`${root}/by_id/listening-1`]).toMatchObject({ lifecycleState: 'archived', sourceSnapshotVersionId: 'version-2' });

@@ -4,6 +4,7 @@ import {
   buildMaterialSummaryUpdatePayload,
   type MaterialSummary,
 } from '../../../../src/services/materialCatalog/materialSummaryPort.service';
+import { stripAnswerKeys } from '../../../../src/utils/answerKeyHelper';
 
 export const buildListeningPublishedMaterialUpdates = (
   version: ListeningPublishedVersionRecord,
@@ -26,12 +27,26 @@ export const buildListeningPublishedMaterialUpdates = (
     visibility: version.document.isPublic ? 'public' : 'private',
     versionId: version.versionId,
     publishedSnapshotVersionId: version.versionId,
+    deliveryProjectionReady: !archived,
+    hasStudentSafeProjection: !archived,
   };
-  const summary = createLegacyTestMaterialSummary(
+  const summary = { ...createLegacyTestMaterialSummary(
     version.testId,
     runtime,
     archived ? 'archived' : 'active',
-  );
+  ), deliveryProjectionReady: !archived, hasStudentSafeProjection: !archived };
+  const { transcript, ...studentMetadata } = version.document.metadata;
+  void transcript;
+  const studentSafe = {
+    ...runtime,
+    metadata: studentMetadata,
+    questions: stripAnswerKeys([...version.document.questions]).map((question) => {
+      const { acceptableAnswers, explanation, ...studentQuestion } = question as Record<string, unknown>;
+      void acceptableAnswers;
+      void explanation;
+      return studentQuestion;
+    }),
+  };
   const runtimePath = `tests/${version.testId}`;
   const runtimeUpdates = Object.fromEntries(Object.entries({
     // Legacy version pointers outrank versionId in delivery adapters.
@@ -47,6 +62,8 @@ export const buildListeningPublishedMaterialUpdates = (
     .map(([key, value]) => [`${runtimePath}/${key}`, value]));
   return {
     ...runtimeUpdates,
+    // Existing homework retains its delivery copy after the source is archived.
+    ...(archived ? {} : { [`student_safe_tests/${version.testId}`]: studentSafe }),
     ...buildMaterialSummaryUpdatePayload(summary, previousSummary),
   };
 };
