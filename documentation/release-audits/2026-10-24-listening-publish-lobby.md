@@ -57,3 +57,26 @@ Active Worker version: `a5fca24b-f1f3-41bf-ad4a-0a5e6097e737` at 100%.
 The remote bundle matches the final audited build byte-for-byte, and all
 temporary upload diagnostic marker families have zero occurrences.
 Live Public Library proof is saved in `live-lobby-fixed.png`.
+
+## Homework readiness correction
+
+The initial correction omitted `student_safe_tests/{testId}` and the readiness
+signals consumed by both the lobby and the assignment backend. Listening
+publication now writes its sanitized student payload and readiness flags in
+the same atomic update as the runtime and catalog. Answer keys, acceptable
+answers, explanations, and transcripts remain outside student delivery.
+Archive disables new assignment and preserves the delivery copy used by
+existing homework. This uses the existing standard Listening homework flow;
+assignment snapshot/version-pinning behavior is unchanged.
+
+Exact deployed source: `487f02faaefbf5f2889dc66da636d0787cedc418`, tagged
+`deployed-listening-assignment-worker-2026-10-24`. Active provider version:
+`c6bc690e-4636-4ea6-8098-35f5370cce9d` at 100%. The remote module matches the
+audited dry run byte-for-byte (SHA-256
+`5b652dbafb15e3c4b17d83ac23c0eb4e577e29f62ffbfbdc5e98d62a553e20d3`).
+
+Validation: 14 focused projection/repository/RTDB checks passed; the 10
+affected projection/repository checks passed again after archive preservation;
+37 assignment-route checks passed. The live test's 39 projection paths were
+verified, and Assign HW opens the real assignment dialog. No homework was
+sent to students during browser verification. No Hosting or rules deployment.

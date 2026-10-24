@@ -38,10 +38,10 @@
   },
   "uploadWorker": {
     "script": "r2-upload-signer",
-    "sourceRevision": "f5b7448baaad8f7595a959561cfffdcaabf815bb",
-    "sourceTag": "deployed-listening-worker-2026-10-24",
-    "providerVersion": "a5fca24b-f1f3-41bf-ad4a-0a5e6097e737",
-    "moduleSha256": "901bbb99ee9a74be591649f733c3be3dbe8540ad8f6566b63f6ccf96215cce3e",
+    "sourceRevision": "487f02faaefbf5f2889dc66da636d0787cedc418",
+    "sourceTag": "deployed-listening-assignment-worker-2026-10-24",
+    "providerVersion": "c6bc690e-4636-4ea6-8098-35f5370cce9d",
+    "moduleSha256": "5b652dbafb15e3c4b17d83ac23c0eb4e577e29f62ffbfbdc5e98d62a553e20d3",
     "record": "2026-10-24-listening-publish-lobby.md"
   }
 }
