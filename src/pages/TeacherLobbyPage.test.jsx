@@ -567,6 +567,20 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.openEditTest).not.toHaveBeenCalled();
   });
 
+  it.each([undefined, [null]])('keeps the Listening editor closed for malformed stored questions %j', async (questions) => {
+    const user = userEvent.setup();
+    const id = 'malformed-listening-record';
+    const test = { id, title: 'Malformed Listening test', testType: 'IELTS', skill: 'Listening', ownerId: 'teacher-1' };
+    mocks.tests = [test];
+    mocks.dbReads[`tests/${id}`] = { ...test, questions };
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId(`material-list-row-${id}`)).getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByText(/stored test has no editable questions/i)).toBeInTheDocument();
+    expect(mocks.openEditTest).not.toHaveBeenCalled();
+  });
+
   it('loads the full THCS test before opening its editor from a material summary', async () => {
     const user = userEvent.setup();
     const fullTest = {

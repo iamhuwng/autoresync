@@ -1406,7 +1406,8 @@ const TeacherLobbyPage = () => {
         if (!result.success || !result.data) {
           throw new Error('The stored test could not be loaded. Restore or republish the test before editing.');
         }
-        if (!Array.isArray(result.data.questions)) {
+        if (!Array.isArray(result.data.questions)
+          || result.data.questions.some((question) => !question || typeof question !== 'object' || Array.isArray(question))) {
           throw new Error('The stored test has no editable questions. Restore or republish the test before editing.');
         }
         modals.openEditTest(result.data);
