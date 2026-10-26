@@ -74,7 +74,10 @@ vi.mock('../config/bookActivityRolloutGates', async () => {
 
 vi.mock('firebase/database', () => ({
   ref: (_database, path = '') => path,
-  get: vi.fn(async (path) => ({ val: () => mocks.dbReads[path] ?? null })),
+  get: vi.fn(async (path) => ({
+    exists: () => mocks.dbReads[path] != null,
+    val: () => mocks.dbReads[path] ?? null,
+  })),
   set: vi.fn(async (path, value) => {
     mocks.dbWrites.push({ path, value });
   }),
@@ -517,6 +520,53 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
   });
 
+  it('loads complete Listening test data rather than passing its catalog summary into the editor', async () => {
+    const user = userEvent.setup();
+    const id = 'draft-150d4466b1609499fba6530ca7272506';
+    const fullTest = {
+      id,
+      title: 'IELTS Cambridge 21: Test 1 - Listening',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      questions: [{ number: 1, question: 'Question 1', answer: 'A' }],
+      audioSections: [],
+    };
+    mocks.tests = [{
+      id,
+      title: fullTest.title,
+      testType: fullTest.testType,
+      skill: fullTest.skill,
+      questionCount: 1,
+      ownerId: 'teacher-1',
+      deliveryProjectionReady: true,
+    }];
+    mocks.dbReads[`tests/${id}`] = fullTest;
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId(`material-list-row-${id}`)).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => expect(mocks.openEditTest).toHaveBeenCalledWith(fullTest));
+  });
+
+  it('does not open the Listening editor when only the catalog summary exists', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [{
+      id: 'missing-listening-record',
+      title: 'Missing Listening test',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      questionCount: 40,
+    }];
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId('material-list-row-missing-listening-record')).getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByText(/stored test.*could not be loaded/i)).toBeInTheDocument();
+    expect(mocks.openEditTest).not.toHaveBeenCalled();
+  });
+
   it('loads the full THCS test before opening its editor from a material summary', async () => {
     const user = userEvent.setup();
     const fullTest = {
@@ -562,6 +612,59 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await screen.findByText('This test has no editable sections in its stored record.');
     expect(mocks.openEditThcsTest).not.toHaveBeenCalled();
+  });
+
+  it('blocks Listening homework assignment when the summary outlives its published runtime', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [{
+      id: 'draft-orphan-listening',
+      title: 'Orphan IELTS Listening test',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      deliveryProjectionReady: true,
+    }];
+
+    renderTeacherLobbyWithToasts();
+    const row = await screen.findByTestId('material-list-row-draft-orphan-listening');
+    await user.click(within(row).getByRole('button', { name: 'Assign HW' }));
+
+    expect(await screen.findByText(/missing its published student content/i)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Create Homework Assignment/i })).not.toBeInTheDocument();
+  });
+
+  it('allows Listening homework assignment when both canonical and student-safe content are ready', async () => {
+    const user = userEvent.setup();
+    const id = 'listening-ready-1';
+    const validPayload = {
+      id,
+      testType: 'IELTS',
+      skill: 'Listening',
+      questions: [{ number: 1, question: 'What did you hear?' }],
+    };
+    mocks.tests = [{
+      id,
+      title: 'Ready Listening test',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      deliveryProjectionReady: true,
+    }];
+    mocks.dbReads[`tests/${id}`] = validPayload;
+    mocks.dbReads[`student_safe_tests/${id}`] = validPayload;
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId(`material-list-row-${id}`)).getByRole('button', { name: 'Assign HW' }));
+
+    expect(await screen.findByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
+    expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+      preselectedMaterialId: id,
+      preselectedContentRef: expect.objectContaining({ contentKind: 'ielts_listening', contentId: id }),
+    }));
   });
 
   it('opens standard homework modal for assignable IELTS materials with normalized contentRef', async () => {
@@ -1436,7 +1539,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.refreshTests).toHaveBeenCalled();
   });
 
-  it('keeps legacy Reading cards on the existing edit-modal path', async () => {
+  it('keeps legacy Reading cards on the existing edit-modal path with full stored test data', async () => {
     const user = userEvent.setup();
     const legacyReadingTest = {
       id: 'legacy-reading-1',
@@ -1444,14 +1547,16 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       skill: 'Reading',
       ownerId: 'teacher-1',
       title: 'Legacy Reading',
+      questions: [{ number: 1, question: 'Question 1' }],
     };
-    mocks.tests = [legacyReadingTest];
+    mocks.tests = [{ id: legacyReadingTest.id, testType: 'IELTS', skill: 'Reading', title: 'Legacy Reading' }];
+    mocks.dbReads[`tests/${legacyReadingTest.id}`] = legacyReadingTest;
 
     renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-legacy-reading-1')).getByRole('button', { name: 'Edit' }));
 
-    expect(mocks.openEditTest).toHaveBeenCalledWith(legacyReadingTest);
+    await waitFor(() => expect(mocks.openEditTest).toHaveBeenCalledWith(legacyReadingTest));
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
   });
 

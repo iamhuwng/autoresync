@@ -41,6 +41,7 @@ import {
 import { createBookSuccessorClient } from '../services/materialCatalog/bookSuccessor.service';
 import { database } from '../services/firebase';
 import { getThcsTestFromFirebase } from '../services/thcsTestStorage';
+import { getTestFromFirebase } from '../services/testStorage';
 import {
   archiveReadingV2PassageMaterial,
   listTeacherReadingPassagesPage,
@@ -1399,7 +1400,21 @@ const TeacherLobbyPage = () => {
       skill: String(test?.skill || '').toLowerCase() || null,
       testId: test.id,
     });
-    modals.openEditTest(test);
+    // Material-list cards contain summaries, not the questions required by TestEditor.
+    void getTestFromFirebase(test.id)
+      .then((result) => {
+        if (!result.success || !result.data) {
+          throw new Error('The stored test could not be loaded. Restore or republish the test before editing.');
+        }
+        if (!Array.isArray(result.data.questions)) {
+          throw new Error('The stored test has no editable questions. Restore or republish the test before editing.');
+        }
+        modals.openEditTest(result.data);
+      })
+      .catch((error) => {
+        console.error('[TeacherLobby] Failed to open IELTS editor:', error);
+        toast.error(error instanceof Error ? error.message : 'Could not load this test for editing.');
+      });
   }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, readingV2CompositionRepository, trackAction, user?.uid]);
 
   const handleDeleteTest = useCallback(async (test, options = {}) => {
@@ -2399,6 +2414,31 @@ const TeacherLobbyPage = () => {
       modals.openHwDialog({
         ...item,
         _assignmentContentRef: assignability.contentRef,
+      });
+      return;
+    }
+
+    if (assignability.contentRef.contentKind === 'ielts_listening') {
+      const materialId = assignability.contentRef.contentId;
+      // The catalog's readiness flag can be stale after a failed publish or removal.
+      // Confirm both student and library entry points still have complete content.
+      void Promise.all([
+        getTestFromFirebase(materialId),
+        get(ref(database, `student_safe_tests/${materialId}`)),
+      ]).then(([canonical, studentSafeSnap]) => {
+        const isListeningRuntime = (record) => record?.testType === 'IELTS'
+          && String(record?.skill || '').toLowerCase() === 'listening'
+          && Array.isArray(record?.questions)
+          && record.questions.length > 0;
+        if (!canonical.success || !isListeningRuntime(canonical.data)
+          || !studentSafeSnap.exists() || !isListeningRuntime(studentSafeSnap.val())) {
+          toast.error('This Listening test is missing its published student content. Restore or republish it before assigning homework.');
+          return;
+        }
+        setStandardHomeworkRequest({ material: item, contentRef: assignability.contentRef });
+      }).catch((error) => {
+        console.error('[TeacherLobby] Failed to verify Listening assignment content:', error);
+        toast.error('Could not verify the Listening test content. Please try again before assigning homework.');
       });
       return;
     }
