@@ -649,12 +649,12 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(screen.queryByRole('dialog', { name: /Create Homework Assignment/i })).not.toBeInTheDocument();
   });
 
-  it('allows Listening homework assignment when both canonical and student-safe content are ready', async () => {
+  it.each(['type', 'testType'])('allows ready Listening homework with the %s discriminator', async (discriminator) => {
     const user = userEvent.setup();
     const id = 'listening-ready-1';
     const validPayload = {
       id,
-      testType: 'IELTS',
+      [discriminator]: 'IELTS',
       skill: 'Listening',
       questions: [{ number: 1, question: 'What did you hear?' }],
     };

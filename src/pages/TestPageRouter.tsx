@@ -426,6 +426,10 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           console.log(`⏱ [TestPageRouter] Test type fetch: ${Math.round(t2 - t1)}ms`);
 
           testType = testTypeSnapshot.val();
+          if (!testTypeSnapshot.exists()) {
+            const nativeTypeSnapshot = await get(ref(database, `tests/${testId}/type`));
+            testType = nativeTypeSnapshot.val() === 'IELTS' ? 'IELTS' : null;
+          }
           const markerEntries = await Promise.all(
             READING_V2_ENGINE_FIELDS.map(async (field) => {
               const markerSnapshot = await get(ref(database, `tests/${testId}/${field}`));
@@ -462,7 +466,8 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           const rawSkill = skillSnapshot.exists() ? skillSnapshot.val() : null;
           const testSkill = normalizeIeltsSkill(rawSkill);
 
-          if (!testSkill || testSkill === 'Reading') {
+          if (!testSkill || testSkill === 'Reading'
+            || (!testTypeSnapshot.exists() && testSkill !== 'Listening')) {
             if (!testSkill && await routeFromLiveSessionPayload('skill-missing')) {
               return;
             }
@@ -515,7 +520,7 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           return;
         }
 
-        if (!testTypeSnapshot.exists()) {
+        if (!testTypeSnapshot.exists() && testType !== 'IELTS') {
           setError(MATERIAL_UNAVAILABLE_MESSAGE);
           setLoading(false);
           return;

@@ -255,6 +255,24 @@ describe('TestPageRouter', () => {
     expect(screen.queryByText('generic-page')).not.toBeInTheDocument();
   });
 
+  it.each(['Listening', 'Writing', 'Reading', null])('routes native type-only live metadata only for Listening: %s', async (skill) => {
+    mockGet.mockImplementation(async ({ path }: { path: string }) => {
+      if (path === 'game_sessions/FMQYME/testId') return createSnapshot('native-listening-1');
+      if (path === 'tests/native-listening-1/type') return createSnapshot('IELTS');
+      if (path === 'tests/native-listening-1/skill') return createSnapshot(skill, skill !== null);
+      return createSnapshot(null, false);
+    });
+
+    renderRouter();
+
+    if (skill === 'Listening') {
+      expect(await screen.findByText('listening-page')).toBeInTheDocument();
+    } else {
+      expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
+      expect(screen.queryByText('listening-page')).not.toBeInTheDocument();
+    }
+  });
+
   it('fails closed when the live session testId read is denied', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockGet.mockImplementation(async ({ path }: { path: string }) => {

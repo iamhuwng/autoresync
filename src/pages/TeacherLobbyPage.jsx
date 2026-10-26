@@ -2427,7 +2427,7 @@ const TeacherLobbyPage = () => {
         getTestFromFirebase(materialId),
         get(ref(database, `student_safe_tests/${materialId}`)),
       ]).then(([canonical, studentSafeSnap]) => {
-        const isListeningRuntime = (record) => record?.testType === 'IELTS'
+        const isListeningRuntime = (record) => (record?.testType ?? record?.type) === 'IELTS'
           && String(record?.skill || '').toLowerCase() === 'listening'
           && Array.isArray(record?.questions)
           && record.questions.length > 0;
