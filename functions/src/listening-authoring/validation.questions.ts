@@ -4,6 +4,7 @@ import {
   cloneJsonCompatibleValue,
   isPlainObject,
   optionalNonNegativeInteger,
+  optionalPositiveInteger,
   optionalText,
   parseStringArray,
   requireNonNegativeInteger,
@@ -110,6 +111,8 @@ export const parseQuestion = (
     'acceptableAnswers',
     'imageUrl',
     'context',
+    'timer',
+    'optionLabelFormat',
   ]);
 
   const parsed: ListeningAuthoringDocumentV1['questions'][number] = {
@@ -142,6 +145,18 @@ export const parseQuestion = (
   const context = parseQuestionContext(question.context, `${fieldName}.context`);
   if (context !== undefined) {
     parsed.context = context;
+  }
+  const timer = optionalPositiveInteger(question.timer, `${fieldName}.timer`);
+  if (timer !== undefined) {
+    parsed.timer = timer;
+  }
+  if (question.optionLabelFormat !== undefined) {
+    if (question.optionLabelFormat !== 'letter'
+      && question.optionLabelFormat !== 'roman'
+      && question.optionLabelFormat !== 'number') {
+      throw new Error(`${fieldName}.optionLabelFormat must be letter, roman, or number.`);
+    }
+    parsed.optionLabelFormat = question.optionLabelFormat;
   }
 
   return parsed;

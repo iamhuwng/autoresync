@@ -22,6 +22,8 @@ import {
   FirebaseRtdbRestClient,
   type RepositoryEnv,
 } from './listening-authoring/rtdb.ts';
+import { buildListeningStudentSafeDocument } from './listening-authoring/published-material.ts';
+import type { ListeningPublishedVersionRecord } from '../../../functions/src/listening-authoring/repository.shared';
 
 export interface ListeningDeliveryWorkerIssuer {
   issue(input: IssueListeningAssetDeliveryUrlInput): Promise<ListeningDeliveryIssuedUrl>;
@@ -948,8 +950,8 @@ const issueOrRefresh = async (
   });
 };
 
-const withDeliveryErrors = async (
-  action: () => Promise<ListeningDeliveryIssuedUrl | ListeningDeliveryRefreshedUrl>,
+const withDeliveryErrors = async <T>(
+  action: () => Promise<T>,
 ) => {
   try {
     return {
@@ -1187,10 +1189,61 @@ const withDeliveryContentErrors = async (
   }
 };
 
+const readAuthorizedHomeworkVersion = async (input: {
+  request: Request; env: WorkerEnv; uid: string; now: number;
+}): Promise<ListeningPublishedVersionRecord> => {
+  const body = await readJsonBody(input.request);
+  if (!isRecord(body)) throw new ListeningDeliveryWorkerError('invalid_request', 400);
+  assertNoBrowserAuthority(body);
+  const scope: ListeningDeliverySoloScope = {
+    testId: requireDatabaseKey(body, 'testId'), versionId: requireDatabaseKey(body, 'versionId'),
+    studentId: input.uid, mode: 'homework',
+    homeworkId: requireDatabaseKey(body, 'homeworkId'), submissionId: requireDatabaseKey(body, 'submissionId'),
+  };
+  const version = await readWorkerDatabaseValue(input.env, `listening_authoring/versions/${scope.versionId}`);
+  const document = isRecord(version) && isRecord(version.document) ? version.document : null;
+  const section = document && Array.isArray(document.audioSections) ? document.audioSections.find(isRecord) : null;
+  const assetId = isRecord(section) && typeof section.assetId === 'string' ? section.assetId : '';
+  const record = assetId ? await readWorkerDatabaseValue(input.env, `media_assets/${assetId}`) : null;
+  const graph = isRecord(record) ? normalizeAssetGraph(assetId, record) : null;
+  if (!document || document.skill !== 'Listening' || !graph || graph.state !== 'committed'
+    || graph.canonicalAssetId !== assetId) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+  await enrichSoloGraph(input.env, graph, scope, input.request.headers.get('Authorization'), input.now);
+  return version as unknown as ListeningPublishedVersionRecord;
+};
+
 export const createListeningDeliveryWorkerHandlers = (options: {
   deliveryIssuer?: ListeningDeliveryWorkerIssuer;
   now?: () => number;
 } = {}) => ({
+  async homeworkDocument(input: {
+    request: Request;
+    env: WorkerEnv;
+    uid: string;
+    now: () => number;
+  }) {
+    const result = await withDeliveryErrors(async () => {
+      const published = await readAuthorizedHomeworkVersion({ ...input, now: (options.now ?? input.now)() });
+      return {
+        ...buildListeningStudentSafeDocument(published.document), id: published.testId,
+        ownerId: published.ownerId, createdBy: published.publishedBy,
+        createdAt: published.publishedAt, updatedAt: published.publishedAt, isPublished: true,
+        versionId: published.versionId, publishedSnapshotVersionId: published.versionId,
+      };
+    });
+    return { ...result, init: { ...result.init, headers: { 'Cache-Control': 'private, no-store' } } };
+  },
+
+  async homeworkQuestions(input: {
+    request: Request; env: WorkerEnv; uid: string; now: () => number;
+  }) {
+    const result = await withDeliveryErrors(async () => {
+      const version = await readAuthorizedHomeworkVersion({ ...input, now: (options.now ?? input.now)() });
+      return { id: version.testId, versionId: version.versionId, questions: version.document.questions };
+    });
+    return { ...result, init: { ...result.init, headers: { 'Cache-Control': 'private, no-store' } } };
+  },
+
   async content(input: {
     request: Request;
     env: WorkerEnv;

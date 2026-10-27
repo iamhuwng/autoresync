@@ -21,9 +21,11 @@ import {
 } from '../../services/antiCheatReporting';
 import { studentResumeService } from '../../services/studentResume.service';
 import { buildListeningSoloAttemptIdentity } from '../../features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity';
+import { readListeningHomeworkQuestions } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
 
 interface TestData {
     id: string;
+    versionId?: string;
     duration: number;
     questions: Array<{ number: number; type: string; answer: any;[key: string]: any }>;
     questionCount: number;
@@ -213,7 +215,11 @@ export const useSoloSubmission = ({
             return testData?.questions ?? [];
         }
 
-        const result = await getTestQuestionsFromFirebase(testData.id);
+        const result: Awaited<ReturnType<typeof getTestQuestionsFromFirebase>> = isHomework && testData.skill === 'Listening' && testData.versionId
+            ? { success: true, data: await readListeningHomeworkQuestions({
+                testId: testData.id, versionId: testData.versionId, homeworkId: homeworkId!, submissionId: submissionId || '',
+            }) }
+            : await getTestQuestionsFromFirebase(testData.id);
         if (!result.success || !result.data) {
             throw new Error(result.error || 'Failed to load grading questions');
         }
@@ -388,6 +394,7 @@ export const useSoloSubmission = ({
                 {
                     stableResultId: submitIdentity.resultId,
                     submissionOperationId: submitIdentity.submissionOperationId,
+                    ...(isHomework ? { studentPrivateHomework: true } : {}),
                 }
             );
 

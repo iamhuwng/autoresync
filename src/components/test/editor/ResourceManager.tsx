@@ -6,6 +6,8 @@ import type { ContextResource, ResourceType } from '../../../services/testStorag
 import PassageEditorPanel from '../../PassageEditorPanel';
 import { AudioResourceEditor } from './AudioResourceEditor';
 import { ImageResourceEditor } from './ImageResourceEditor';
+import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../../config/featureRegistry';
 
 interface ResourceManagerProps {
     resources: ContextResource[];
@@ -13,8 +15,8 @@ interface ResourceManagerProps {
     skill: 'Reading' | 'Listening' | 'Writing' | 'Speaking';
     totalQuestions: number;
     readOnly?: boolean;
-    audioReadOnly?: boolean;
     audioPreviewUrls?: Record<string, string>;
+    uploadAudio?: (file: File, onProgress: (percent: number) => void) => Promise<Partial<ContextResource>>;
 }
 
 export const ResourceManager: React.FC<ResourceManagerProps> = ({
@@ -23,15 +25,17 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     skill,
     totalQuestions,
     readOnly = false,
-    audioReadOnly = false,
     audioPreviewUrls,
+    uploadAudio,
 }) => {
+    const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
     const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
         resources.length > 0 ? resources[0]?.id || null : null
     );
 
     const handleAddResource = (type: ResourceType) => {
-        if (readOnly || (type === 'audio' && audioReadOnly) || (type === 'text' && skill === 'Listening')) return;
+        if (readOnly || (type === 'text' && skill === 'Listening')) return;
+        trackAction('editTest', { source: 'resource_manager', field: 'addResource', resourceType: type });
         const newResource: ContextResource = {
             id: `resource_${Date.now()}`,
             type,
@@ -53,7 +57,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     };
 
     const handleUpdateResource = (id: string, updates: Partial<ContextResource>) => {
-        if (readOnly || (audioReadOnly && resources.find(resource => resource.id === id)?.type === 'audio')) return;
+        if (readOnly) return;
         // Validate question range if being updated
         if (updates.questionStart !== undefined || updates.questionEnd !== undefined) {
             const currentResource = resources.find(r => r.id === id);
@@ -88,8 +92,9 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     };
 
     const handleDeleteResource = (id: string) => {
-        if (readOnly || (audioReadOnly && resources.find(resource => resource.id === id)?.type === 'audio')) return;
+        if (readOnly) return;
         if (window.confirm('Delete this resource? associated questions will lose their context.')) {
+            trackAction('editTest', { source: 'resource_manager', field: 'deleteResource', resourceId: id });
             const updated = resources.filter(r => r.id !== id);
             onUpdateResources(updated);
             if (selectedResourceId === id) {
@@ -123,7 +128,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                                     size="xs"
                                     variant="glass"
                                     onClick={() => handleAddResource('audio')}
-                                    disabled={readOnly || audioReadOnly}
+                                    disabled={readOnly}
                                     style={{ flex: 1, opacity: readOnly ? 0.5 : 1, cursor: readOnly ? 'not-allowed' : undefined }}
                                 >
                                     + Audio
@@ -146,7 +151,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                     <div style={{ flex: 1, overflow: 'auto' }}>
                             {resources.map((resource) => {
                                 const isSelected = resource.id === selectedResourceId;
-                                const resourceReadOnly = readOnly || (audioReadOnly && resource.type === 'audio');
+                                const resourceReadOnly = readOnly;
                                 return (
                                     <div
                                         key={resource.id}
@@ -237,12 +242,12 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                             />
                         ) : selectedResource.type === 'audio' ? (
                             <AudioResourceEditor
-                                resource={audioPreviewUrls?.[selectedResource.id]
-                                    ? { ...selectedResource, audioUrl: audioPreviewUrls[selectedResource.id] }
-                                    : selectedResource}
+                                resource={selectedResource}
+                                previewUrl={selectedResource.assetId ? audioPreviewUrls?.[selectedResource.assetId] : undefined}
+                                uploadAudio={uploadAudio}
                                 onUpdate={(updated) => handleUpdateResource(selectedResource.id, updated)}
                                 totalQuestions={totalQuestions}
-                                readOnly={readOnly || audioReadOnly}
+                                readOnly={readOnly}
                             />
                         ) : (
                             <ImageResourceEditor

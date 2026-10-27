@@ -57,6 +57,7 @@ export interface ListeningAuthoringAudioSectionV1 {
   endQuestion: number;
   playLimit?: number;
   waitTimeBefore?: number;
+  duration?: number;
 }
 
 export interface ListeningAuthoringQuestionImageRangeV1 {
@@ -90,6 +91,8 @@ export interface ListeningAuthoringQuestionV1 {
   acceptableAnswers?: readonly string[];
   imageUrl?: string;
   context?: ListeningAuthoringQuestionContextV1;
+  timer?: number;
+  optionLabelFormat?: 'letter' | 'roman' | 'number';
 }
 
 export interface ListeningAuthoringAudioControlsV1 {

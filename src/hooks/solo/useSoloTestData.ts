@@ -6,6 +6,7 @@ import { getStudentSafeTestFromFirebase } from '../../services/testStorage';
 
 interface UseSoloTestDataOptions {
     materialId: string | undefined;
+    initialTestData?: TestData;
 }
 
 interface UseSoloTestDataReturn {
@@ -23,18 +24,17 @@ interface UseSoloTestDataReturn {
  * Unlike useTestData (which subscribes to game_sessions), this is a one-shot load.
  * Full grading questions are loaded later by the submission hook only when needed.
  */
-export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSoloTestDataReturn => {
-    const [testData, setTestData] = useState<TestData | null>(null);
-    const [loading, setLoading] = useState(true);
+export const useSoloTestData = ({ materialId, initialTestData }: UseSoloTestDataOptions): UseSoloTestDataReturn => {
+    const [testData, setTestData] = useState<TestData | null>(initialTestData ?? null);
+    const [loading, setLoading] = useState(!initialTestData);
     const [error, setError] = useState<string | null>(null);
     const [activePassageId, setActivePassageId] = useState<string | null>(null);
-    const loadedRef = useRef<string | null>(null);
     const questionsWithAnswersRef = useRef<TestData['questions'] | null>(null);
     const answerKeysRef = useRef<Record<string, string | string[]> | null>(null);
 
     useEffect(() => {
-        if (!materialId || loadedRef.current === materialId) return;
-        loadedRef.current = materialId;
+        if (!materialId) return;
+        let cancelled = false;
 
         const loadTest = async () => {
             setLoading(true);
@@ -43,7 +43,10 @@ export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSolo
             answerKeysRef.current = null;
 
             try {
-                const result = await getStudentSafeTestFromFirebase(materialId);
+                const result = initialTestData
+                    ? { success: true, data: initialTestData }
+                    : await getStudentSafeTestFromFirebase(materialId);
+                if (cancelled) return;
 
                 if (result.success && result.data) {
                     setTestData(result.data);
@@ -59,15 +62,17 @@ export const useSoloTestData = ({ materialId }: UseSoloTestDataOptions): UseSolo
                     console.error('❌ [SoloTestData] Load failed:', result.error);
                 }
             } catch (err) {
+                if (cancelled) return;
                 setError('Failed to load test');
                 console.error('❌ [SoloTestData] Exception:', err);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         loadTest();
-    }, [materialId]);
+        return () => { cancelled = true; };
+    }, [materialId, initialTestData]);
 
     return {
         testData,

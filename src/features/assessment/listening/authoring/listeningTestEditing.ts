@@ -5,6 +5,7 @@ import { WorkerListeningUploadSessionApi } from '../storage/listeningUploadSessi
 import type { ContextResource, TestData } from '../../../../services/testStorage';
 import type { ListeningAuthoringDocumentV1 } from '../types/listeningAuthoring.types';
 import { createListeningAuthoringWorkflow } from './listeningAuthoringWorkflow';
+import r2StorageService from '../../../../services/r2Storage';
 
 interface ListeningEdits {
   title: string;
@@ -20,10 +21,31 @@ interface EditSource {
   document: ListeningAuthoringDocumentV1;
 }
 
-type EditableTest = TestData & { listeningAudioPreviewUrls?: Record<string, string>; listeningEditSource?: EditSource; versionId?: string; publishedSnapshotVersionId?: string };
+type EditableTest = TestData & { listeningAudioPreviewUrls?: Record<string, string>; listeningAudioPreviewWarnings?: string[]; listeningEditSource?: EditSource };
 
 const read = async (path: string) => (await get(ref(database, path))).val();
 const changed = () => new Error('This Listening test has newer or unpublished changes. Reopen it before saving.');
+
+export function hasUnsupportedListeningStructure(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return true;
+  const question = value as Record<string, unknown>;
+  return ['items', 'answers', 'labels', 'wordBank', 'summaryAST', 'groupId', 'groupTaskType', 'blankId', 'anchorId', 'passage', 'reusableAnswers', 'labeledOptions', 'sectionReferences', 'wordLimit']
+    .some(field => question[field] !== undefined)
+    || (question.answer !== null && typeof question.answer === 'object' && !Array.isArray(question.answer))
+    || (Array.isArray(question.options) && question.options.some(option => typeof option !== 'string'));
+}
+
+export async function uploadListeningEditorAudio(test: TestData, file: File, onProgress: (percent: number) => void): Promise<{ resource: Partial<ContextResource>; previewUrl: string }> {
+  const source = (test as EditableTest).listeningEditSource;
+  if (!source || test.ownerId !== getAuth().currentUser?.uid) throw new Error('Reopen this Listening test before uploading audio.');
+  const key = crypto.randomUUID();
+  const uploaded = await r2StorageService.uploadListeningAuthoringAudio(file, {
+    draftId: source.draftId, sessionIdempotencyKey: `${key}-session`, assetIdempotencyKey: `${key}-asset`,
+  }, onProgress);
+  const preview = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: uploaded.assetId, uploadSessionId: uploaded.uploadSessionId });
+  if (preview.status !== 'ready' || preview.assetId !== uploaded.assetId) throw new Error('The uploaded audio is not ready. Retry the replacement before saving.');
+  return { resource: { audioUrl: uploaded.url, streamUrl: uploaded.streamUrl ?? uploaded.url, assetId: uploaded.assetId, uploadSessionId: uploaded.uploadSessionId, duration: 0 }, previewUrl: preview.previewUrl ?? uploaded.streamUrl ?? uploaded.url };
+}
 
 async function loadSource(test: TestData): Promise<EditSource> {
   const uid = getAuth().currentUser?.uid;
@@ -53,18 +75,24 @@ async function loadSource(test: TestData): Promise<EditSource> {
 
 export async function loadListeningTestForEditing(test: TestData): Promise<TestData> {
   if (test.skill !== 'Listening' || test.ownerId !== getAuth().currentUser?.uid) return test;
+  if (test.passages?.length || test.questions.some(question => hasUnsupportedListeningStructure(question))) {
+    throw new Error('Editing this Listening form structure is under construction. Its published content has been kept.');
+  }
   const source = await loadSource(test);
   if (source.document?.skill !== 'Listening' || !Array.isArray(source.document.questions) || !Array.isArray(source.document.audioSections)
     || source.document.questions.some(question => !question || typeof question.question !== 'string')
     || source.document.audioSections.some(section => !section || typeof section.audioUrl !== 'string')) throw changed();
-  const previews = await Promise.all(source.document.audioSections.filter(section => section.assetId).map(async section => {
+  const previewSections = source.document.audioSections.filter(section => section.assetId);
+  const previews = await Promise.allSettled(previewSections.map(async section => {
     const result = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: section.assetId!,
       ...(section.uploadSessionId ? { uploadSessionId: section.uploadSessionId } : {}) });
     if (!result.previewUrl) throw new Error('Audio preview is unavailable. Retry opening this Listening test.');
-    return [`audio-${section.number}`, result.previewUrl];
+    return [section.assetId!, result.previewUrl];
   }));
   return { ...test, ...source.document, listeningEditSource: source,
-    listeningAudioPreviewUrls: Object.fromEntries(previews) } as EditableTest;
+    listeningAudioPreviewUrls: Object.fromEntries(previews.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])),
+    listeningAudioPreviewWarnings: previews.flatMap((result, index) => result.status === 'rejected' ? [previewSections[index]!.name] : []),
+  } as EditableTest;
 }
 
 function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits): ListeningAuthoringDocumentV1 {
@@ -73,11 +101,16 @@ function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits)
   }
   const audioSections = edits.resources.filter(resource => resource.type === 'audio').map((resource, index) => {
     const original = source.audioSections.find(section => resource.id === `audio-${section.number}`);
-    if (!original || original.audioUrl !== resource.audioUrl) {
-      throw new Error('Audio replacement needs the Listening upload workflow. Existing audio references were kept.');
+    const unchanged = original && original.audioUrl === resource.audioUrl && original.assetId === resource.assetId;
+    if (!unchanged && resource.audioUrl && (!resource.assetId || !resource.uploadSessionId)) {
+      throw new Error('Upload replacement audio using the Listening upload workflow before saving.');
     }
     return {
-      ...original,
+      ...Object.fromEntries(Object.entries(original ?? {}).filter(([field]) => field !== 'assetId')),
+      audioUrl: resource.audioUrl ?? '',
+      ...(resource.assetId ? { assetId: resource.assetId } : {}),
+      streamUrl: resource.streamUrl ?? resource.audioUrl ?? '',
+      ...(resource.duration !== undefined ? { duration: resource.duration } : {}),
       number: index + 1,
       name: resource.title,
       startQuestion: resource.questionStart ?? 0,
@@ -85,6 +118,7 @@ function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits)
     };
   });
   const questions = edits.questions.map((question, index) => {
+    if (hasUnsupportedListeningStructure(question)) throw new Error('Editing this Listening form structure is under construction.');
     const number = index + 1;
     const section = audioSections.find(audio => number >= audio.startQuestion && number <= audio.endQuestion);
     if (!section) throw new Error(`Question ${number} must belong to a Listening section.`);
@@ -92,7 +126,7 @@ function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits)
       number, type: question.type, question: question.question, answer: question.answer,
       sectionNumber: section.number, points: question.points,
       ...Object.fromEntries(Object.entries(question).filter(([field]) =>
-        ['options', 'explanation', 'acceptableAnswers', 'imageUrl', 'context'].includes(field))),
+        ['options', 'explanation', 'acceptableAnswers', 'imageUrl', 'context', 'timer', 'optionLabelFormat'].includes(field))),
     };
   });
   const questionImages = edits.resources.filter(resource => resource.type === 'image').flatMap(resource => {

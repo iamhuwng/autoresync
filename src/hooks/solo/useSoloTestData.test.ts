@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSoloTestData } from './useSoloTestData';
 import { getStudentSafeTestFromFirebase } from '../../services/testStorage';
@@ -89,5 +89,35 @@ describe('useSoloTestData', () => {
     expect(result.current.questionsWithAnswersRef.current).toBeNull();
     expect(result.current.answerKeysRef.current).toBeNull();
     expect(result.current.activePassageId).toBe('passage-1');
+  });
+
+  it('uses the authorized immutable homework document again on reload without reading the current source', async () => {
+    const initialTestData = { ...mockStudentSafeTestData, skill: 'Listening', versionId: 'assigned-version',
+      audioSections: [{ number: 1, assetId: 'assigned-asset' }] };
+    for (let reload = 0; reload < 2; reload++) {
+      const { result, unmount } = renderHook(() => useSoloTestData({ materialId: 'test-1', initialTestData }));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.testData).toBe(initialTestData);
+      expect(result.current.questionsWithAnswersRef.current).toBeNull();
+      unmount();
+    }
+    expect(getStudentSafeTestFromFirebase).not.toHaveBeenCalled();
+  });
+
+  it('ignores an older mutable read that finishes after pinned homework content arrives', async () => {
+    let finishOld!: (value: any) => void;
+    const pending = new Promise<any>(resolve => { finishOld = resolve; });
+    vi.mocked(getStudentSafeTestFromFirebase).mockReturnValueOnce(pending);
+    const pinned = { ...mockStudentSafeTestData, title: 'Assigned content' };
+    const { result, rerender } = renderHook(({ initialTestData }: { initialTestData?: any }) =>
+      useSoloTestData({ materialId: 'test-1', initialTestData }), { initialProps: { initialTestData: undefined } });
+    rerender({ initialTestData: pinned });
+    await waitFor(() => expect(result.current.testData).toBe(pinned));
+    await act(async () => {
+      finishOld({ success: true, data: { ...mockStudentSafeTestData, title: 'Current replacement' } });
+      await pending;
+    });
+    expect(result.current.testData).toBe(pinned);
+    expect(getStudentSafeTestFromFirebase).toHaveBeenCalledTimes(1);
   });
 });

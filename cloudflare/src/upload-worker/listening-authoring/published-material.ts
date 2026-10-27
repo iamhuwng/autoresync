@@ -6,6 +6,17 @@ import {
 } from '../../../../src/services/materialCatalog/materialSummaryPort.service';
 import { stripAnswerKeys } from '../../../../src/utils/answerKeyHelper';
 
+export const buildListeningStudentSafeDocument = (document: ListeningPublishedVersionRecord['document']) => {
+  const { transcript, ...metadata } = document.metadata;
+  void transcript;
+  return { ...document, metadata, questions: stripAnswerKeys([...document.questions]).map(question => {
+    const { acceptableAnswers, explanation, ...studentQuestion } = question as Record<string, unknown>;
+    void acceptableAnswers;
+    void explanation;
+    return studentQuestion;
+  }) };
+};
+
 export const buildListeningPublishedMaterialUpdates = (
   version: ListeningPublishedVersionRecord,
   previousSummary?: MaterialSummary | null,
@@ -35,17 +46,9 @@ export const buildListeningPublishedMaterialUpdates = (
     runtime,
     archived ? 'archived' : 'active',
   ), deliveryProjectionReady: !archived, hasStudentSafeProjection: !archived };
-  const { transcript, ...studentMetadata } = version.document.metadata;
-  void transcript;
   const studentSafe = {
     ...runtime,
-    metadata: studentMetadata,
-    questions: stripAnswerKeys([...version.document.questions]).map((question) => {
-      const { acceptableAnswers, explanation, ...studentQuestion } = question as Record<string, unknown>;
-      void acceptableAnswers;
-      void explanation;
-      return studentQuestion;
-    }),
+    ...buildListeningStudentSafeDocument(version.document),
   };
   const runtimePath = `tests/${version.testId}`;
   const runtimeUpdates = Object.fromEntries(Object.entries({

@@ -100,6 +100,7 @@ const parseAudioSection = (
     'endQuestion',
     'playLimit',
     'waitTimeBefore',
+    'duration',
   ]);
 
   const parsed: ListeningAuthoringDocumentV1['audioSections'][number] = {
@@ -118,6 +119,8 @@ const parseAudioSection = (
     parsed.streamUrl = streamUrl;
   }
   const playLimit = optionalNonNegativeInteger(section.playLimit, `${fieldName}.playLimit`);
+  const duration = optionalNonNegativeInteger(section.duration, `${fieldName}.duration`);
+  if (duration !== undefined) parsed.duration = duration;
   if (playLimit !== undefined) {
     parsed.playLimit = playLimit;
   }

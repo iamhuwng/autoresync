@@ -27,6 +27,7 @@ export interface ListeningAuthoringAudioSection {
   readonly endQuestion: number;
   readonly playLimit?: number;
   readonly waitTimeBefore?: number;
+  readonly duration?: number;
 }
 
 export interface ListeningAuthoringQuestion {
@@ -37,7 +38,17 @@ export interface ListeningAuthoringQuestion {
   readonly answer: string | string[] | Record<string, string>;
   readonly sectionNumber: number;
   readonly points: number;
+  readonly explanation?: string;
+  readonly acceptableAnswers?: readonly string[];
   readonly imageUrl?: string;
+  readonly context?: {
+    readonly sectionHeading?: string;
+    readonly subsectionLabel?: string;
+    readonly contextLines?: readonly string[];
+    readonly currentLineIndex?: number;
+  };
+  readonly timer?: number;
+  readonly optionLabelFormat?: 'letter' | 'roman' | 'number';
 }
 
 export interface ListeningAuthoringQuestionImageRange {

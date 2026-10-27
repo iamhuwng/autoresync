@@ -79,6 +79,8 @@ import {
     type ValidBookPlacementLaunch,
 } from '../services/book-delivery/bookPlacementLaunch.browser';
 import { BookPlacementRuntimeHost } from '../components/book-runtime/BookPlacementRuntimeHost';
+import type { TestData } from '../services/testStorage';
+import { readListeningHomeworkDocument } from '../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -525,6 +527,7 @@ const StudentPracticePageContent: React.FC = () => {
     const [resolvedSettings, setResolvedSettings] = useState<ResolvedPracticeSettings | null>(null);
     const [testType, setTestType] = useState<'IELTS' | 'THCS' | 'ReadingV2' | null>(null);
     const [testSkill, setTestSkill] = useState<string | null>(null);
+    const [listeningTestData, setListeningTestData] = useState<TestData | undefined>(undefined);
     const [writingTestData, setWritingTestData] = useState<IELTSWritingTest | null>(null);
     const [writingHomeworkContext, setWritingHomeworkContext] = useState<HomeworkWritingContext | undefined>(undefined);
     const [readingV2Projection, setReadingV2Projection] = useState<ReadingV2DerivedProjection | null>(null);
@@ -551,6 +554,7 @@ const StudentPracticePageContent: React.FC = () => {
             setLoading(true);
             setError(null);
             setWritingHomeworkContext(undefined);
+            setListeningTestData(undefined);
             setReadingV2Projection(null);
             setReadingPassageHomeworkKind(null);
             setReadingV2AntiCheatConfig(null);
@@ -626,8 +630,15 @@ const StudentPracticePageContent: React.FC = () => {
                 const launchTestPath = studentSafeTestPayloadPath || (usesStudentSafeHomeworkProjection
                     ? `student_safe_tests/${materialId}`
                     : `tests/${materialId}`);
-                const launchTestSnap = await get(ref(database, launchTestPath));
-                const launchTestData = launchTestSnap.exists() ? launchTestSnap.val() : null;
+                const pinnedListening = normalizedHomeworkKind === 'ielts_listening' && homeworkForLaunch?.contentRef?.version
+                    ? await readListeningHomeworkDocument({
+                        testId: materialId, versionId: homeworkForLaunch.contentRef.version,
+                        homeworkId: locationState.homeworkId || '', submissionId: locationState.submissionId || '',
+                    })
+                    : null;
+                const launchTestSnap = pinnedListening ? null : await get(ref(database, launchTestPath));
+                const launchTestData = pinnedListening ?? (launchTestSnap?.exists() ? launchTestSnap.val() : null);
+                if (pinnedListening) setListeningTestData(pinnedListening);
 
                 if (usesStudentSafeHomeworkProjection && !launchTestData) {
                     throw new Error(`Student-safe homework projection not found for ${materialId}`);
@@ -774,7 +785,7 @@ const StudentPracticePageContent: React.FC = () => {
 
                 // 2. If Writing test, load full test data for WritingPracticeView
                 if (rawTestType === 'IELTS' && normalizedSkill === 'Writing') {
-                    if (launchTestSnap.exists()) {
+                    if (launchTestData) {
                         setWritingTestData(launchTestData as IELTSWritingTest);
                     } else {
                         setError('Writing test data not found');
@@ -1213,6 +1224,7 @@ const StudentPracticePageContent: React.FC = () => {
             }>
                 <ListeningPracticeView
                     materialId={materialId}
+                    initialTestData={listeningTestData}
                     resolvedSettings={resolvedSettings}
                     practiceContext={practiceContext}
                     autoResume={locationState.autoResume === true}

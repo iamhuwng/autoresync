@@ -508,6 +508,41 @@ describe('Listening authoring B2 backend contract', () => {
     })).toThrow();
   });
 
+  it('round-trips native question fields while rejecting invalid timer and label values', () => {
+    const question = {
+      ...document.questions[0],
+      options: ['Tour', 'Workshop'],
+      context: {
+        sectionHeading: 'Booking details',
+        subsectionLabel: 'Contact',
+        contextLines: ['Name: [1]', 'Telephone: 012345'],
+        currentLineIndex: 0,
+      },
+      imageUrl: 'https://example.com/question.png',
+      explanation: 'The speaker gives this name.',
+      acceptableAnswers: ['A', 'a'],
+      timer: 30,
+    };
+    const parse = (fields: Record<string, unknown>) => parseSaveDraftRequest({
+      idempotencyKey: 'save-native-fields',
+      document: { ...document, questions: [{ ...question, ...fields }] },
+    });
+
+    for (const optionLabelFormat of ['letter', 'roman', 'number'] as const) {
+      const parsed = parse({ optionLabelFormat });
+      const reloaded = parseSaveDraftRequest({
+        idempotencyKey: 'reload-native-fields',
+        document: JSON.parse(JSON.stringify(parsed.document)),
+      });
+      expect(reloaded.document.questions).toEqual([{ ...question, optionLabelFormat }]);
+    }
+    for (const timer of [0, -1, 1.5, '30', null]) {
+      expect(() => parse({ timer })).toThrow(/timer/);
+    }
+    expect(() => parse({ optionLabelFormat: 'alphabetic' })).toThrow(/optionLabelFormat/);
+    expect(() => parse({ items: [{ id: 'item-1', text: 'Tour' }] })).toThrow(/not an approved field/);
+  });
+
   it('detaches parsed document data from caller input', () => {
     const originalMetadata = {
       description: 'maps',

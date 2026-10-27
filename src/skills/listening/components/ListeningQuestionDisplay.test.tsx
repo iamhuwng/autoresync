@@ -1,8 +1,23 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ListeningQuestionDisplay } from './ListeningQuestionDisplay';
 
 describe('ListeningQuestionDisplay', () => {
+  it.each([
+    ['roman', ['Tokyo', 'Ottawa'], 'ii'],
+    ['number', ['Tokyo', 'Ottawa'], '2'],
+    ['letter', ['i. Tokyo', 'ii. Ottawa'], 'ii'],
+  ] as const)('keeps the %s matching bank labels consistent with answer values', (format, options, value) => {
+    const onAnswerChange = vi.fn();
+    render(<ListeningQuestionDisplay group={{ type: 'matching', startNumber: 1, endNumber: 1, instructions: '',
+      questions: [{ number: 1, type: 'matching', question: 'Choose the city.', options: [...options], optionLabelFormat: format, answer: value, points: 1 }] }}
+      answers={{}} currentQuestionNumber={1} onAnswerChange={onAnswerChange} />);
+    expect(screen.getByText(`${value}.`)).toBeTruthy();
+    expect(screen.getByRole('option', { name: `${value}. Ottawa` })).toHaveProperty('value', value);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value } });
+    expect(onAnswerChange).toHaveBeenCalledWith(1, value);
+  });
+
   it('disables inline completion inputs when disabled is true', () => {
     render(
       <ListeningQuestionDisplay

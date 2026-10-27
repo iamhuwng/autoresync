@@ -760,6 +760,32 @@ describe('ListeningTestBuilder', () => {
 
   it('saves current questions and visibility before publishing with the returned conflict token', async () => {
     const user = userEvent.setup();
+    const nativeFields = {
+      context: {
+        sectionHeading: 'Booking details',
+        contextLines: ['Name: [1]', 'Telephone: 012345'],
+        currentLineIndex: 0,
+      },
+      imageUrl: 'https://example.com/question.png',
+      explanation: 'The speaker gives this name.',
+      acceptableAnswers: ['Answer 1', 'answer 1'],
+      timer: 30,
+      optionLabelFormat: 'roman',
+    };
+    mocks.parseListening.mockResolvedValueOnce({
+      success: true,
+      data: {
+        questions: Array.from({ length: 10 }, (_, index) => ({
+          id: `q-${index + 1}`,
+          number: index + 1,
+          type: 'short-answer',
+          question: `Question ${index + 1}`,
+          answer: `Answer ${index + 1}`,
+          ...(index === 0 ? nativeFields : {}),
+        })),
+        parseConfidence: 100,
+      },
+    });
     render(<ListeningTestBuilder />);
 
     await goToQuestionsStep(user);
@@ -767,15 +793,12 @@ describe('ListeningTestBuilder', () => {
     await waitFor(() => {
       expect(mocks.saveDraft).toHaveBeenCalled();
     });
-    for (let index = 0; index < 10; index += 1) {
-      await user.click(screen.getByRole('button', { name: /Add Question/ }));
-      fireEvent.change(screen.getAllByPlaceholderText('Question text...')[index], {
-        target: { value: `Question ${index + 1}` },
-      });
-      fireEvent.change(screen.getAllByPlaceholderText('Answer...')[index], {
-        target: { value: `Answer ${index + 1}` },
-      });
-    }
+    await user.click(screen.getByRole('button', { name: '← Back' }));
+    fireEvent.change(screen.getByPlaceholderText(/Paste all 40 questions here/), {
+      target: { value: 'Questions 1-10\nName: [1]' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Parse with AI' }));
+    await screen.findByRole('heading', { name: 'Questions (10/10)' });
     await user.click(screen.getByRole('button', { name: 'Next →' }));
     await user.click(screen.getByRole('checkbox', { name: /Make Publicly Available/ }));
     mocks.saveDraft.mockResolvedValueOnce({
@@ -817,6 +840,7 @@ describe('ListeningTestBuilder', () => {
     expect(currentSaveRequest.document.questions).toEqual(Array.from({ length: 10 }, (_, index) =>
       expect.objectContaining({ question: `Question ${index + 1}`, answer: `Answer ${index + 1}` }),
     ));
+    expect(currentSaveRequest.document.questions[0]).toMatchObject(nativeFields);
     expect(mocks.saveDraft.mock.invocationCallOrder[1]).toBeLessThan(mocks.publishDraft.mock.invocationCallOrder[0]);
     expect(mocks.publishDraft).toHaveBeenCalledWith({
       draftId: 'draft-1',

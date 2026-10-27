@@ -1,12 +1,14 @@
 import '@testing-library/jest-dom';
 
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockUseAuth, mockListeningSave, mockMove } = vi.hoisted(() => ({
+const { mockUseAuth, mockListeningSave, mockMove, mockUploadAudio, mockResourceManagerProps } = vi.hoisted(() => ({
   mockListeningSave: vi.fn(),
   mockMove: vi.fn(),
+  mockUploadAudio: vi.fn(),
+  mockResourceManagerProps: vi.fn(),
   mockUseAuth: vi.fn(() => ({
     user: { uid: 'owner-1' },
     isAdmin: false,
@@ -18,7 +20,7 @@ vi.mock('@mantine/core', () => ({
 }));
 
 vi.mock('./QuestionEditorPanel', () => ({
-  default: () => <div data-testid="flat-question-editor">Flat Question Editor</div>,
+  default: ({ isImagePassage }: any) => <div data-testid="flat-question-editor">{isImagePassage ? 'Image question answer editor' : 'Flat Question Editor'}</div>,
 }));
 
 vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
@@ -31,13 +33,15 @@ vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
 }));
 
 vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
-  ListeningEditorLayout: ({ title, onTitleChange, onSave, readOnly, isSaving, questionList, questionEditor }: any) => (
+  ListeningEditorLayout: ({ title, onTitleChange, onSave, onCancel, readOnly, isSaving, questionList, questionEditor, resourceManager }: any) => (
     <div>
       <span>{title}</span>
       <button onClick={() => onTitleChange('Edited Listening')} disabled={readOnly}>Change title</button>
       <button onClick={onSave} disabled={readOnly || isSaving}>Save Listening</button>
+      <button onClick={onCancel}>Close Listening</button>
       <div>{questionList}</div>
       <div>{questionEditor}</div>
+      <div>{resourceManager}</div>
     </div>
   ),
 }));
@@ -59,7 +63,11 @@ vi.mock('./test/editor/QuestionList', () => ({
 }));
 
 vi.mock('./test/editor/ResourceManager', () => ({
-  ResourceManager: () => <div>Resource Manager</div>,
+  ResourceManager: (props: any) => {
+    mockResourceManagerProps(props);
+    return <button disabled={props.readOnly}
+      onClick={() => props.uploadAudio(new File(['audio'], 'part.wav', { type: 'audio/wav' }), vi.fn())}>Upload Listening audio</button>;
+  },
 }));
 
 vi.mock('./SingleQuestionCreator', () => ({ default: () => <div /> }));
@@ -94,11 +102,14 @@ vi.mock('../hooks/useAuth', () => ({
 vi.mock('../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: vi.fn() }) }));
 vi.mock('../features/assessment/listening/authoring/listeningTestEditing', () => ({
   createListeningTestEditSession: () => mockListeningSave,
+  uploadListeningEditorAudio: mockUploadAudio,
+  hasUnsupportedListeningStructure: (question: any) => Boolean(question?.items),
 }));
 vi.mock('./modern/ToastNotification', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -279,9 +290,75 @@ describe('TestEditor', () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it('keeps Save disabled until every overlapping audio upload finishes', async () => {
+    let finishFirst!: (value: any) => void;
+    let finishSecond!: (value: any) => void;
+    const first = new Promise(resolve => { finishFirst = resolve; });
+    const second = new Promise(resolve => { finishSecond = resolve; });
+    mockUploadAudio.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    render(<TestEditor test={listening as any} show handleClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Upload Listening audio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Upload Listening audio' }));
+    expect(screen.getByRole('button', { name: 'Save Listening' })).toBeDisabled();
+
+    await act(async () => {
+      finishFirst({ resource: { assetId: 'first' }, previewUrl: 'https://example.com/first' });
+      await first;
+    });
+    expect(screen.getByRole('button', { name: 'Save Listening' })).toBeDisabled();
+    await act(async () => {
+      finishSecond({ resource: { assetId: 'second' }, previewUrl: 'https://example.com/second' });
+      await second;
+    });
+    expect(screen.getByRole('button', { name: 'Save Listening' })).toBeEnabled();
+  });
+
+  it('blocks edits, replacement callbacks and closing until the captured save completes', async () => {
+    let finishSave!: (value: any) => void;
+    const pending = new Promise(resolve => { finishSave = resolve; });
+    mockListeningSave.mockReturnValueOnce(pending);
+    const close = vi.fn();
+    render(<TestEditor test={listening as any} show handleClose={close} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    expect(dialog).toHaveAttribute('aria-busy', 'true');
+    expect(dialog).toHaveAttribute('inert');
+    expect(screen.getByRole('button', { name: 'Upload Listening audio', hidden: true })).toBeDisabled();
+    const upload = mockResourceManagerProps.mock.lastCall![0].uploadAudio;
+    await expect(upload(new File(['audio'], 'part.wav', { type: 'audio/wav' }), vi.fn())).rejects.toThrow(/save to finish/);
+    expect(mockUploadAudio).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Listening', hidden: true }));
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(close).not.toHaveBeenCalled();
+    await act(async () => {
+      finishSave({ status: 'published', versionId: 'version-2' });
+      await pending;
+    });
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(dialog).not.toHaveAttribute('inert');
+  });
+
   it('does not offer another owner’s Listening save through the super-admin UI bypass', () => {
     mockUseAuth.mockReturnValue({ user: { uid: 'another-admin' }, isAdmin: true });
     render(<TestEditor test={listening as any} show handleClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Save Listening' })).toBeDisabled();
+  });
+
+  it('uses image-mode answer editing without pretending the image content is editable', () => {
+    render(<TestEditor test={{ ...listening, displayMode: 'image' } as any} show handleClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Select question 1' }));
+    expect(screen.getByText('Image question answer editor')).toBeInTheDocument();
+  });
+
+  it('retains the existing question editor for supported text-mode questions', () => {
+    render(<React.StrictMode><TestEditor test={{ ...listening, displayMode: 'text', listeningAudioPreviewWarnings: ['Section 1'],
+      questions: [{ ...listening.questions[0], resourceId: 'image-1-0' }],
+      questionImages: [{ sectionNumber: 1, imageUrl: 'https://images.example/diagram.png' }],
+    } as any} show handleClose={vi.fn()} /></React.StrictMode>);
+    fireEvent.click(screen.getByRole('button', { name: 'Select question 1' }));
+    expect(screen.getByTestId('flat-question-editor')).toBeInTheDocument();
+    expect(screen.queryByText('Image question answer editor')).not.toBeInTheDocument();
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('You can replace the audio'));
+    expect(toast.warning).toHaveBeenCalledTimes(1);
   });
 });

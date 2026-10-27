@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EditorTab } from './test/editor/EditTestFrame';
 import { ReadingEditorLayout } from './test/editor/layouts/ReadingEditorLayout';
 import { ListeningEditorLayout } from './test/editor/layouts/ListeningEditorLayout';
@@ -30,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
 import { createLegacyTestMaterialSummary } from '../services/materialCatalog/legacyTestMaterialSummary.service';
 import { buildMaterialSummaryUpdatePayload } from '../services/materialCatalog/materialSummaryPort.service';
-import { createListeningTestEditSession } from '../features/assessment/listening/authoring/listeningTestEditing';
+import { createListeningTestEditSession, uploadListeningEditorAudio, hasUnsupportedListeningStructure } from '../features/assessment/listening/authoring/listeningTestEditing';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { storage } from '../core/platform/storage';
@@ -53,6 +53,7 @@ const logTablePresentationDiag = (event: string, payload: Record<string, unknown
 
 interface NativeModalProps {
   opened: boolean;
+  busy?: boolean;
   onClose: () => void;
   title?: React.ReactNode;
   size?: 'auto' | 'md' | string;
@@ -69,6 +70,7 @@ interface NativeModalProps {
 
 const NativeModal: React.FC<NativeModalProps> = ({
   opened,
+  busy = false,
   onClose,
   title,
   size = 'auto',
@@ -99,7 +101,7 @@ const NativeModal: React.FC<NativeModalProps> = ({
         ...styles?.inner,
       }}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (!busy && event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -107,6 +109,8 @@ const NativeModal: React.FC<NativeModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
+        aria-busy={busy || undefined}
+        inert={busy}
         aria-label={typeof title === 'string' ? title : undefined}
         style={{
           ...modalWidth,
@@ -203,6 +207,9 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   const [showSingleCreator, setShowSingleCreator] = useState(false);
   const [showBulkCreator, setShowBulkCreator] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingAudioUploads, setPendingAudioUploads] = useState(0);
+  const [audioPreviewUrls, setAudioPreviewUrls] = useState<Record<string, string>>((test as any).listeningAudioPreviewUrls ?? {});
+  const previewWarningShown = useRef<string | undefined>(undefined);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedDuration, setEditedDuration] = useState(0);
   const [editedIsPublic, setEditedIsPublic] = useState(false);
@@ -221,7 +228,15 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   const getStorageKey = () => `test_edit_${test?.id}`;
 
   useEffect(() => {
+    if (!show) previewWarningShown.current = undefined;
     if (test && show) {
+      setAudioPreviewUrls((test as any).listeningAudioPreviewUrls ?? {});
+      const previewWarnings = (test as any).listeningAudioPreviewWarnings as string[] | undefined;
+      const warningKey = `${test.id}:${previewWarnings?.join(',')}`;
+      if (previewWarnings?.length && previewWarningShown.current !== warningKey) {
+        previewWarningShown.current = warningKey;
+        toast.warning(`Audio preview unavailable: ${previewWarnings.join(', ')}. You can replace the audio or reopen this test to retry.`);
+      }
       const storageKey = getStorageKey();
       const savedData = test.skill === 'Listening' ? null : localStorage.getItem(storageKey);
 
@@ -664,6 +679,10 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   };
 
   const handleSave = () => {
+    if (pendingAudioUploads > 0) {
+      toast.info('Wait for the audio upload to finish before saving.');
+      return;
+    }
     const errors = validateQuestions();
 
     if (errors.length > 0) {
@@ -883,6 +902,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   };
 
   const handleCancel = () => {
+    if (isSaving) return;
     if (modifiedQuestions.size > 0 || titleModified) {
       if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
         // Clear cached edits so stale modifications don't re-trigger the popup next open
@@ -920,7 +940,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     onTabChange: handleTabChange,
     onSave: handleSave,
     onCancel: handleCancel,
-    isSaving,
+    isSaving: isSaving || pendingAudioUploads > 0,
     questionCount: Object.keys(editedQuestions).length || test.questions.length,
     resourceCount: resources.length,
     duration: editedDuration,
@@ -972,23 +992,36 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       onUpdateResources={setResources}
       skill={(test as any).skill || 'Reading'}
       totalQuestions={test.questions.length}
-      readOnly={isReadOnly}
-      audioReadOnly={test.skill === 'Listening'}
-      audioPreviewUrls={(test as any).listeningAudioPreviewUrls}
+      readOnly={isReadOnly || isSaving}
+      audioPreviewUrls={audioPreviewUrls}
+      uploadAudio={test.skill === 'Listening' ? async (file, onProgress) => {
+        if (isSaving) throw new Error('Wait for the test save to finish before uploading audio.');
+        setPendingAudioUploads(current => current + 1);
+        try {
+          const uploaded = await uploadListeningEditorAudio(test, file, onProgress);
+          setAudioPreviewUrls(current => ({ ...current, [uploaded.resource.assetId!]: uploaded.previewUrl }));
+          return uploaded.resource;
+        }
+        finally { setPendingAudioUploads(current => current - 1); }
+      } : undefined}
     />
   );
 
   const questionEditorPanel = selectedQuestionIndex !== null ? (() => {
     const q = editedQuestions[selectedQuestionIndex] || test.questions[selectedQuestionIndex];
+    if (test.skill === 'Listening' && hasUnsupportedListeningStructure(q)) {
+      return <div role="status" style={{ padding: 24 }}>Editing this Listening form structure is under construction.</div>;
+    }
     const canonicalTableGroup =
       q?.groupTaskType === 'table-completion' && q.groupId
         ? canonicalTableGroupMap.get(q.groupId)
         : undefined;
     const resource = resources.find(r => r.id === q?.resourceId || r.id === q?.passageId);
-    const isImagePassage =
-      resource?.type === 'image' ||
-      (resource?.type === 'text' && !!(resource as any).imageUrl) ||
-      (resource?.type === 'audio' && (resource as any).images && (resource as any).images.length > 0);
+    const isImagePassage = test.skill === 'Listening'
+      ? test.displayMode === 'image'
+      : resource?.type === 'image' ||
+        (resource?.type === 'text' && !!(resource as any).imageUrl) ||
+        (resource?.type === 'audio' && (resource as any).images && (resource as any).images.length > 0);
 
     if (canonicalTableGroup) {
       return (
@@ -1123,6 +1156,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   return (
     <NativeModal
       opened={show}
+      busy={isSaving}
       onClose={handleCancel}
       size="auto"
       padding={0}

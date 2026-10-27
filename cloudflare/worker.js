@@ -261,6 +261,13 @@ export function createUploadWorker({
           }));
         }
 
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-document') {
+          return respond(await listeningDeliveryHandlers.homeworkDocument({ request, env, uid, now }));
+        }
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-questions') {
+          return respond(await listeningDeliveryHandlers.homeworkQuestions({ request, env, uid, now }));
+        }
+
         if (request.method === 'POST' && url.pathname === '/listening-delivery/solo') {
           return respond(await listeningDeliveryHandlers.solo({
             request,
