@@ -97,3 +97,16 @@ PR #176 records the earlier backend activation. This release preserves that
 state; it does not rerun its rules/homework rollout. Existing hotfix obligations
 remain checked against the current Hosting manifest and require explicit exact
 sorted-path successor review whenever this candidate changes their content.
+
+## Activation and live acceptance — 27 October 2026
+
+This append supersedes preparation-only status. Hosting now serves source
+`5090b7ef1e02562c4f0d873d2172a594df4ab29f`, tree
+`8b30b3ce703e89aa30a28d64da487494d798e38b`; native full-manifest readback
+verified all 454 listed files on `kahut1.web.app`; `hocthem.net` served the
+same source manifest. Current provider version is
+`91b45ecb32db1b58` (11:41 UTC readback). The subsequent probe correction
+changed only the Upload Worker; see `2026-10-27-listening-probe-release.md`.
+Three targeted production browser checks and the bounded Cambridge recovery
+are recorded in `2026-10-27-listening-live-acceptance.md`. Earlier local and
+prepared-recovery evidence remains historical; no rollback drill is claimed.

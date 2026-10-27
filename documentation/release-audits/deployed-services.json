@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "03089c913ecd81201759181328f991a78bea21d3",
-    "providerVersion": "d418b04bae169db6",
-    "record": "2026-10-27-listening-audio-release.md"
+    "sourceRevision": "5090b7ef1e02562c4f0d873d2172a594df4ab29f",
+    "providerVersion": "91b45ecb32db1b58",
+    "record": "2026-10-27-listening-live-acceptance.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
@@ -35,9 +35,9 @@
   },
   "uploadWorker": {
     "script": "r2-upload-signer",
-    "sourceRevision": "797f6284206f0fbc8eb45305f01997cc8831dec5",
-    "providerVersion": "674bf4a5-bcd1-4a91-b505-f05214182df5",
-    "moduleSha256": "21a423c4bf42320ed5411e493e1ef8c24bf7ccea4d0ee4da40f310f583d6fd3b",
-    "record": "2026-10-27-listening-audio-release.md"
+    "sourceRevision": "25861289735ff13b954b4ecb5bd64c1336a38151",
+    "providerVersion": "b2ae0aa6-53e2-4f6e-adf1-265fdcf7a3f1",
+    "moduleSha256": "a64f8889eec9256f4716b80d9ef6d5f870bc5d5881a2ceb8e1040be7375e5329",
+    "record": "2026-10-27-listening-live-acceptance.md"
   }
 }

@@ -57,3 +57,16 @@ The compatibility review must bind this candidate, observed Hosting source and
 fresh manifest fingerprint. Carried hotfix obligations are retained; changed
 historical tooling paths need their exact sorted-path successor rationale.
 No Hosting release is part of this correction, even after postupload PASS.
+
+## Worker activation — 27 October 2026
+
+Native postupload assessment returned PASS at 11:27:42 UTC for source
+`25861289735ff13b954b4ecb5bd64c1336a38151`, profile `probe-hotfix`, scope
+`upload-worker-only`, `hostingReady: false`. Active Upload Worker version is
+`b2ae0aa6-53e2-4f6e-adf1-265fdcf7a3f1`, exact module SHA-256
+`a64f8889eec9256f4716b80d9ef6d5f870bc5d5881a2ceb8e1040be7375e5329`.
+Other qualified Workers, rules, bindings and schedules remained unchanged.
+Receipt: `tmp/release-receipts/listening-probe-postupload-20261027.json` in
+the product checkout. Hosting remained source `5090b7ef`; no Hosting deployment
+was performed for this correction. Live feature acceptance is recorded in
+`2026-10-27-listening-live-acceptance.md`.
