@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
 
 if (!('DurableObject' in globalThis)) {
@@ -14,6 +15,33 @@ const {
 } = await import('../src/upload-worker/listening-upload-session.ts');
 
 const textEncoder = new TextEncoder();
+
+it('probes a new upload through the production committed-asset database reader', async () => {
+  const { repository, service } = createSessionService();
+  const session = await service.createSession({ uid: 'teacher-1', idempotencyKey: 'production-probe-session', body: {} });
+  const asset = await service.issueAsset({ uid: 'teacher-1', idempotencyKey: 'production-probe-asset', body: {
+    uploadSessionId: session.uploadSessionId, fileName: 'audio.mp3', declaredMimeType: 'audio/mpeg', sizeBytes: 4,
+  } });
+  await runtimeEnv.R2_BUCKET.put(asset.tempKey, new TextEncoder().encode('tone'));
+  const keys = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', keys.privateKey));
+  const privateKey = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...pkcs8))}\n-----END PRIVATE KEY-----`;
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+    if (String(input) === 'https://oauth2.googleapis.com/token') return Response.json({ access_token: 'test-token', expires_in: 3600 });
+    expect(String(input)).toBe(`https://database.example/media_assets/${asset.assetId}.json`);
+    return Response.json(null);
+  });
+  try {
+    const handlers = createListeningUploadSessionHandlers({ repository,
+      idempotencySecret: 'idempotency-secret-test-value', grantSecret: 'listening-upload-session-grant-test-secret' });
+    const result = await handlers.probeAsset({ request: new Request('https://upload.example/probeListeningUploadAsset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId: asset.assetId, uploadSessionId: session.uploadSessionId }),
+    }), uid: 'teacher-1', now: () => 1_700_000_000_000, env: { R2_BUCKET: runtimeEnv.R2_BUCKET,
+      FIREBASE_DB_URL: 'https://database.example', GOOGLE_SA_KEY: JSON.stringify({ client_email: 'probe@test.example', private_key: privateKey }) } });
+    expect(result.body).toMatchObject({ status: 'ready', assetId: asset.assetId });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  } finally { fetchSpy.mockRestore(); }
+});
 
 it('probes committed owner audio independently of its expired upload session', async () => {
   const assetId = 'asset-aaaaaaaaaaaaaaaa';
@@ -499,7 +527,6 @@ describe('PRD-0056A Worker bridge grant', () => {
 
   it('routes trusted authoring asset range probe through worker auth without browser R2 CORS', async () => {
     const { repository } = createSessionService();
-    const objects = new Map<string, Uint8Array>();
     const worker = createUploadWorker({
       now: () => 1_700_000_000_000,
       firebaseVerifier: {
@@ -532,22 +559,7 @@ describe('PRD-0056A Worker bridge grant', () => {
       PUBLIC_URL: 'https://public.example',
       UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
       UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
-      R2_BUCKET: {
-        async get(key: string, options?: { range?: { offset: number; length: number } }) {
-          const bytes = objects.get(key);
-          if (!bytes) return null;
-          const range = options?.range;
-          return {
-            size: bytes.byteLength,
-            body: range
-              ? bytes.slice(range.offset, range.offset + range.length)
-              : bytes,
-          };
-        },
-        async put(key: string, body: BodyInit) {
-          objects.set(key, new Uint8Array(await new Response(body).arrayBuffer()));
-        },
-      },
+      R2_BUCKET: runtimeEnv.R2_BUCKET,
     };
 
     const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {
@@ -577,7 +589,7 @@ describe('PRD-0056A Worker bridge grant', () => {
       }),
     }), env);
     const assetPayload = await assetResponse.json() as Record<string, string>;
-    objects.set(assetPayload.tempKey, new TextEncoder().encode('tone'));
+    await runtimeEnv.R2_BUCKET.put(assetPayload.tempKey, new TextEncoder().encode('tone'));
 
     const probeResponse = await worker.fetch(new Request('https://upload.example/probeListeningUploadAsset', {
       method: 'POST',
