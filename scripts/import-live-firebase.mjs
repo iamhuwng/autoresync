@@ -158,6 +158,7 @@ export const assertLocalEmulators = async (fetchImpl = fetch) => {
       url: `http://localhost:8080/v1/projects/${localProjectId}/databases/(default)/documents:listCollectionIds`,
       options: { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ pageSize: 1 }) },
       validateBody: (body) => Array.isArray(body?.collectionIds)
+        || (body !== null && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 0)
     },
   ];
   for (const { url, options, validate, validateBody } of checks) {

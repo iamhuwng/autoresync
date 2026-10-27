@@ -27,6 +27,7 @@ export interface ListeningUploadAssetProbeResponse {
   uploadSessionId: string;
   contentType: string;
   sizeBytes: number;
+  previewUrl?: string;
   range: {
     requestRange: 'bytes=0-0';
     status: 206;
@@ -51,7 +52,7 @@ export interface ListeningUploadSessionApi {
     sizeBytes: number;
   }): Promise<ListeningUploadAssetResponse>;
   probeAsset(input: {
-    uploadSessionId: string;
+    uploadSessionId?: string;
     assetId: string;
   }): Promise<ListeningUploadAssetProbeResponse>;
 }
@@ -114,7 +115,7 @@ export class WorkerListeningUploadSessionApi implements ListeningUploadSessionAp
   }
 
   probeAsset(input: {
-    uploadSessionId: string;
+    uploadSessionId?: string;
     assetId: string;
   }): Promise<ListeningUploadAssetProbeResponse> {
     return this.post('probeListeningUploadAsset', input);

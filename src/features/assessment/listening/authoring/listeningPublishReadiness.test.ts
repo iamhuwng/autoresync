@@ -63,6 +63,19 @@ const response = (
 }) as Response;
 
 describe('validateListeningPublishReadiness', () => {
+  it('resolves recovered committed identity without the expired upload session or dead saved URL', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('dead temporary URL'));
+    const probeListeningAuthoringAsset = vi.fn().mockResolvedValue({ status: 'ready', range: {
+      status: 206, acceptRanges: 'bytes', contentLength: 1, contentRange: 'bytes 0-0/2048',
+    } });
+    const result = await validateListeningPublishReadiness(createDocument({
+      audioUrl: 'https://cdn.example.com/temp/expired.mp3', streamUrl: undefined,
+    }), { fetchImpl, probeListeningAuthoringAsset });
+    expect(result.status).toBe('ready');
+    expect(probeListeningAuthoringAsset).toHaveBeenCalledWith({ assetId: 'asset-1' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('fails closed when a publishable audio section lacks canonical asset identity', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(response(206, {
       'accept-ranges': 'bytes',

@@ -121,7 +121,6 @@ describe('Listening asset authorized delivery service', () => {
   it('issues a URL for a solo student only when the retained graph matches test, version, and student scope', async () => {
     const dependencies = makeDependencies(graph({
       references: {
-        tests: { 'listening-material': true },
         versions: { 'version-1': true },
       },
       retainedSoloAccess: [{

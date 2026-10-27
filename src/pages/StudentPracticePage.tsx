@@ -713,9 +713,10 @@ const StudentPracticePageContent: React.FC = () => {
                 }
 
                 // 1. Detect test type + skill from Firebase
-                const rawTestType = launchTestData?.testType ?? null;
                 const rawSkill = launchTestData?.skill ?? null;
                 const normalizedSkill = normalizeIeltsSkill(rawSkill);
+                const rawTestType = launchTestData?.testType
+                    ?? (launchTestData?.type === 'IELTS' && normalizedSkill === 'Listening' ? 'IELTS' : null);
                 const normalizedTestType = rawTestType === 'THCS-THPT'
                     ? 'THCS'
                     : rawTestType === 'IELTS'

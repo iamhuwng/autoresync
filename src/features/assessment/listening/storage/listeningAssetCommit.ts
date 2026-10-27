@@ -102,6 +102,16 @@ export interface ListeningAssetCommitResult {
   readonly state: 'committed';
 }
 
+export interface ListeningAssetPreparedResult extends Omit<ListeningAssetCommitResult, 'state'> {
+  readonly state: 'prepared';
+}
+
+export interface ListeningAssetCommitDependencies {
+  readonly objectStore: ListeningAssetCommitObjectStore;
+  readonly registry: ListeningAssetCommitRegistry;
+  readonly reconciliationQueue?: ListeningAssetCommitReconciliationQueue;
+}
+
 export class ListeningAssetCommitError extends Error {
   constructor(public readonly code: string) {
     super(code);
@@ -163,18 +173,21 @@ const assertMagicBytes = (extension: keyof typeof AUDIO_EXTENSION_MIME, body: Ui
 const assertCommitContract = (
   input: ListeningAssetCommitInput,
   record: ListeningMediaAssetRecord,
-  tempObject: ListeningAssetObjectSnapshot,
 ): keyof typeof AUDIO_EXTENSION_MIME => {
   if (record.ownerId !== input.ownerId || record.createdBy !== input.ownerId) fail('asset_owner_mismatch');
   if (record.uploadSessionId !== input.uploadSessionId) fail('upload_session_mismatch');
   if (record.assetId !== input.assetId) fail('asset_id_mismatch');
+  const tempPrefix = `temp/listening/${input.ownerId}/${input.uploadSessionId}/${input.assetId}-`;
+  if (!record.tempKey.startsWith(tempPrefix) || record.tempKey.slice(tempPrefix.length).includes('/')) {
+    fail('temp_key_mismatch');
+  }
   if (input.activeAudioFileCount > 10) fail('active_audio_limit_exceeded');
   if (input.expectedDurationMs !== undefined && (!Number.isFinite(input.expectedDurationMs) || input.expectedDurationMs <= 0)) {
     fail('invalid_audio_duration');
   }
   if (input.decodable === false) fail('audio_not_decodable');
-  if (tempObject.sizeBytes > MAX_AUDIO_BYTES || record.sizeBytes > MAX_AUDIO_BYTES) fail('audio_too_large');
-  if (tempObject.checksum !== input.expectedChecksum || record.checksum !== input.expectedChecksum) {
+  if (record.sizeBytes > MAX_AUDIO_BYTES || record.sizeBytes <= 0) fail('audio_too_large');
+  if (record.checksum !== input.expectedChecksum) {
     fail('checksum_mismatch');
   }
 
@@ -182,8 +195,7 @@ const assertCommitContract = (
   const allowedMimes = AUDIO_EXTENSION_MIME[extension];
   const declaredMimeType = input.declaredMimeType.trim().toLowerCase();
   if (!allowedMimes.has(declaredMimeType as never)) fail('unsupported_audio_mime');
-  if (tempObject.contentType.trim().toLowerCase() !== declaredMimeType) fail('declared_mime_mismatch');
-  assertMagicBytes(extension, tempObject.body);
+  if (record.contentType.trim().toLowerCase() !== declaredMimeType) fail('declared_mime_mismatch');
   return extension;
 };
 
@@ -197,7 +209,7 @@ const durableFileName = (tempKey: string, assetId: string, fileName: string): st
 const buildDurableKey = (input: ListeningAssetCommitInput, record: ListeningMediaAssetRecord): string =>
   `assessment-assets/listening/${input.ownerId}/${input.assetId}/${durableFileName(record.tempKey, input.assetId, input.fileName)}`;
 
-const resultFor = (input: ListeningAssetCommitInput, durableKey: string): ListeningAssetCommitResult => {
+const resultFor = (input: ListeningAssetCommitInput, durableKey: string): ListeningAssetPreparedResult => {
   const publicBaseUrl = input.publicBaseUrl.replace(/\/+$/, '');
   const publicUrl = `${publicBaseUrl}/${durableKey}`;
   return {
@@ -205,36 +217,35 @@ const resultFor = (input: ListeningAssetCommitInput, durableKey: string): Listen
     durableKey,
     audioUrl: publicUrl,
     streamUrl: publicUrl,
-    state: 'committed',
+    state: 'prepared',
   };
 };
 
 const assertDurableObjectMatches = (
   durableObject: Omit<ListeningAssetObjectSnapshot, 'body'> | null,
   durableKey: string,
-  expected: Pick<ListeningAssetObjectSnapshot, 'sizeBytes' | 'checksum'>,
+  expected: Pick<ListeningAssetObjectSnapshot, 'sizeBytes' | 'checksum' | 'contentType'>,
 ): void => {
   if (
     !durableObject
     || durableObject.key !== durableKey
     || durableObject.sizeBytes !== expected.sizeBytes
     || durableObject.checksum !== expected.checksum
+    || durableObject.contentType.trim().toLowerCase() !== expected.contentType.trim().toLowerCase()
   ) {
     fail('durable_verification_failed');
   }
 };
 
-export async function commitListeningMediaAsset(
+export async function prepareListeningMediaAsset(
   input: ListeningAssetCommitInput,
-  dependencies: {
-    readonly objectStore: ListeningAssetCommitObjectStore;
-    readonly registry: ListeningAssetCommitRegistry;
-    readonly reconciliationQueue?: ListeningAssetCommitReconciliationQueue;
-  },
-): Promise<ListeningAssetCommitResult> {
+  dependencies: ListeningAssetCommitDependencies,
+): Promise<ListeningAssetPreparedResult> {
   const record = await dependencies.registry.getAsset(input.assetId);
   if (!record) fail('asset_not_found');
+  const extension = assertCommitContract(input, record);
   const durableKey = buildDurableKey(input, record);
+  if (!areListeningRegistryWritesEnabled(input.rollbackControls)) fail('registry_writes_disabled');
 
   if (record.state === 'committed') {
     const durableObject = await dependencies.objectStore.getDurableObject(durableKey);
@@ -242,11 +253,18 @@ export async function commitListeningMediaAsset(
     return resultFor(input, durableKey);
   }
   if (record.state !== 'temp' && record.state !== 'committing') fail('invalid_asset_state');
-  if (!areListeningRegistryWritesEnabled(input.rollbackControls)) fail('registry_writes_disabled');
-
+  if (record.state === 'committing') {
+    const durableObject = await dependencies.objectStore.getDurableObject(durableKey);
+    if (durableObject) {
+      assertDurableObjectMatches(durableObject, durableKey, record);
+      return resultFor(input, durableKey);
+    }
+  }
   const tempObject = await dependencies.objectStore.getTempObject(record.tempKey);
   if (!tempObject || tempObject.key !== record.tempKey) fail('temp_object_missing');
-  assertCommitContract(input, record, tempObject);
+  if (tempObject.sizeBytes !== record.sizeBytes || tempObject.checksum !== record.checksum) fail('checksum_mismatch');
+  if (tempObject.contentType.trim().toLowerCase() !== record.contentType.trim().toLowerCase()) fail('declared_mime_mismatch');
+  assertMagicBytes(extension, tempObject.body);
 
   await dependencies.registry.markCommitting({
     assetId: input.assetId,
@@ -262,6 +280,42 @@ export async function commitListeningMediaAsset(
 
   const durableObject = await dependencies.objectStore.getDurableObject(durableKey);
   assertDurableObjectMatches(durableObject, durableKey, tempObject);
+  return resultFor(input, durableKey);
+}
+
+const queueUnreferencedCopy = async (
+  input: ListeningAssetCommitInput,
+  durableKey: string,
+  dependencies: ListeningAssetCommitDependencies,
+): Promise<void> => {
+  await dependencies.reconciliationQueue?.queueUnreferencedDurableCopy({
+    assetId: input.assetId,
+    ownerId: input.ownerId,
+    uploadSessionId: input.uploadSessionId,
+    durableKey,
+    reference: input.reference,
+    idempotencyKey: input.idempotencyKey,
+    reasonCode: 'reference_write_failed',
+    queuedAt: input.now,
+  });
+};
+
+// Call only after the canonical draft/version and its references have persisted.
+export async function finalizeListeningMediaAsset(
+  input: ListeningAssetCommitInput,
+  prepared: ListeningAssetPreparedResult,
+  dependencies: ListeningAssetCommitDependencies,
+): Promise<ListeningAssetCommitResult> {
+  const record = await dependencies.registry.getAsset(input.assetId);
+  if (!record) fail('asset_not_found');
+  assertCommitContract(input, record);
+  const durableKey = buildDurableKey(input, record);
+  if (prepared.state !== 'prepared' || prepared.assetId !== input.assetId || prepared.durableKey !== durableKey) {
+    fail('prepared_asset_mismatch');
+  }
+  if (record.state !== 'temp' && record.state !== 'committing' && record.state !== 'committed') fail('invalid_asset_state');
+  if (!areListeningRegistryWritesEnabled(input.rollbackControls)) fail('registry_writes_disabled');
+  assertDurableObjectMatches(await dependencies.objectStore.getDurableObject(durableKey), durableKey, record);
 
   try {
     await dependencies.registry.writeReference({
@@ -271,19 +325,11 @@ export async function commitListeningMediaAsset(
       updatedAt: input.now,
     });
   } catch (error) {
-    await dependencies.reconciliationQueue?.queueUnreferencedDurableCopy({
-      assetId: input.assetId,
-      ownerId: input.ownerId,
-      uploadSessionId: input.uploadSessionId,
-      durableKey,
-      reference: input.reference,
-      idempotencyKey: input.idempotencyKey,
-      reasonCode: 'reference_write_failed',
-      queuedAt: input.now,
-    });
+    await queueUnreferencedCopy(input, durableKey, dependencies);
     throw error;
   }
-  const result = resultFor(input, durableKey);
+  const result: ListeningAssetCommitResult = { ...resultFor(input, durableKey), state: 'committed' };
+  if (record.state === 'committed') return result;
   await dependencies.registry.markCommitted({
     assetId: input.assetId,
     ownerId: input.ownerId,
@@ -293,4 +339,21 @@ export async function commitListeningMediaAsset(
   });
   await dependencies.objectStore.deleteTempObject(record.tempKey);
   return result;
+}
+
+export async function commitListeningMediaAsset(
+  input: ListeningAssetCommitInput,
+  dependencies: ListeningAssetCommitDependencies & {
+    readonly persistReference: (prepared: ListeningAssetPreparedResult) => Promise<void>;
+  },
+): Promise<ListeningAssetCommitResult> {
+  const prepared = await prepareListeningMediaAsset(input, dependencies);
+  if (typeof dependencies.persistReference !== 'function') fail('canonical_persistence_required');
+  try {
+    await dependencies.persistReference(prepared);
+  } catch (error) {
+    await queueUnreferencedCopy(input, prepared.durableKey, dependencies);
+    throw error;
+  }
+  return finalizeListeningMediaAsset(input, prepared, dependencies);
 }

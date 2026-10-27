@@ -5839,7 +5839,7 @@ approver-role: Task Scope Reviewer
 status: approved
 -->
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/features/assessment/listening/storage/listeningAssetDelivery.service.ts
 line-count: 438
 responsibilities: Listening asset delivery authorization, retained-result access checks, solo access validation, canonical asset reference validation, and signed delivery request shaping; protects R2 Listening delivery boundaries while retired Google Drive audio paths are removed
@@ -8342,7 +8342,7 @@ approver-role: Human Scope Reviewer
 status: approved
 -->
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 4610
 responsibilities: Listening authoring wizard state and parser-driven question editing; canonical audio upload metadata and trusted draft publish lifecycle coordination; per-section question image upload paste and pending-upload controls
@@ -8384,3 +8384,32 @@ approver: The Lord
 approver-role: Task Scope Reviewer
 status: approved
 -->
+
+
+## 2026-10-27 Listening durable audio CI architecture review
+
+PR #172 exposed stale exact-count records after bounded audio preview, save-before-publish and retained-homework corrections. Codex ci_budget_review, Independent Architecture Reviewer, explicitly approved the measured scopes below against 87adebb8 on 27 October. This is technical architecture review under File-Architecture Principles 4 and 5, not a claim of new human approval. Earlier approvals are preserved above as historical records. The guard itself is unchanged.
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4634
+responsibilities: Listening wizard composition and section question editing; authorized preview hydration and local preview state; trusted save publish conflict-token and recovery coordination
+split-alternatives: extract authorized preview hydration and section preview rendering into a Listening audio component; extract save publish discard restore and archive coordination into an authoring controller hook
+rejection-reason: extract authorized preview hydration and section preview rendering into a Listening audio component => moving section state ownership and asynchronous cancellation boundaries broadens the bounded durable audio correction; extract save publish discard restore and archive coordination into an authoring controller hook => moving fingerprints conflict tokens pending actions announcements and recovery across interfaces materially enlarges regression scope
+approver: Codex ci_budget_review
+approver-role: Independent Architecture Reviewer
+status: approved
+-->
+
+<!-- assessment-line-budget-exception
+path: src/features/assessment/listening/storage/listeningAssetDelivery.service.ts
+line-count: 446
+responsibilities: canonical asset graph validation and retained-access authorization; byte range proof and signed delivery issuance refresh; distinction between retained assignment versions and active catalog versions
+split-alternatives: extract retained result solo and live authorization into a Listening delivery authorization module; extract byte range response validation into a Listening delivery range probe module
+rejection-reason: extract retained result solo and live authorization into a Listening delivery authorization module => moving every authorization branch would obscure review of the small retained homework policy correction; extract byte range response validation into a Listening delivery range probe module => changes exports imports and focused tests without helping validate the changed retention boundary
+approver: Codex ci_budget_review
+approver-role: Independent Architecture Reviewer
+status: approved
+-->
+
+The preview dependency-direction correction calls the existing feature-local WorkerListeningUploadSessionApi instead of importing the cycle-prone services/r2Storage facade. Its endpoint, authentication and probe behavior remain the existing implementation. These scoped approvals cover the exact counts above only, not future growth.

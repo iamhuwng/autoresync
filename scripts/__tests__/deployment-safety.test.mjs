@@ -297,6 +297,24 @@ test('live sync stops before writing when a local emulator namespace rejects its
   );
 });
 
+test('live sync accepts omitted empty Firestore collection IDs but rejects malformed bodies', async () => {
+  for (const [firestoreBody, valid] of [[{}, true], [null, false], [[], false], ['', false], [{ collectionIds: null }, false], [{ unexpected: true }, false]]) {
+    const preflight = () => assertLocalEmulators(async (url) => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'demo-luyentap-local' },
+      text: async () => JSON.stringify(url.includes(':9099/')
+        ? { kind: 'identitytoolkit#DownloadAccountResponse' }
+        : firestoreBody),
+    }));
+    if (valid) {
+      await preflight();
+    } else {
+      await assert.rejects(preflight, /unexpected emulator response/u);
+    }
+  }
+});
+
 test('live sync rejects a redirected local emulator response', async () => {
   await assert.rejects(
     () => assertLocalEmulators(async () => ({

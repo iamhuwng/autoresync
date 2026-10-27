@@ -67,6 +67,7 @@ interface ContentResolution {
     materialTitle: string;
     materialType: 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     materialSkill: 'reading' | 'listening' | 'writing' | 'speaking';
+    listeningAssetIds?: string[];
     studentSafeAssignmentPayload?: Record<string, unknown>;
     readingPassageSnapshot?: Record<string, unknown>;
     readingPassageSet?: Record<string, unknown>;
@@ -678,6 +679,47 @@ async function resolveStandardTestContent(
         return assignmentError('CONTENT_NOT_FOUND', 'Content was not found.', 404);
     }
 
+    if (contentRef.contentKind === 'ielts_listening' && (record.versionId || record.publishedSnapshotVersionId ||
+        (Array.isArray(record.audioSections) && record.audioSections.some((section: any) => section?.assetId)))) {
+        const versionId = String(record.versionId ?? record.publishedSnapshotVersionId).trim();
+        const version = await readRtdb<Record<string, any>>(env, accessToken, 'listening_authoring/versions/' + versionId);
+        if (!version || version.recordType !== 'published-version' || version.versionId !== versionId ||
+            version.testId !== contentRef.contentId || !isRecord(version.document) || !version.ownerId ||
+            version.compatibility?.frozenLegacyVersion1 === true || version.archive?.state !== 'active' ||
+            (contentRef.version !== undefined && contentRef.version !== versionId)) {
+            return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening content has no matching active immutable version.');
+        }
+        const canonical = { ...version.document, ownerId: version.ownerId };
+        const accessError = assertContentAccess(canonical, uid, role);
+        if (accessError) return accessError;
+        if (assertPublishedAssignable(canonical) || !kindMatchesRecord('ielts_listening', canonical)) {
+            return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening version cannot be assigned.');
+        }
+        const sections = Array.isArray(version.document.audioSections) ? version.document.audioSections : [];
+        const assetIds = [...new Set<string>(sections.map((section: any) => section?.assetId))];
+        if (!assetIds.length || assetIds.some(assetId => typeof assetId !== 'string' || !assetId ||
+            version.assetIds?.[assetId] !== true)) {
+            return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening version is missing canonical audio references.');
+        }
+        const assets = await Promise.all(assetIds.map(assetId =>
+            readRtdb<Record<string, any>>(env, accessToken, 'media_assets/' + assetId)));
+        if (assets.some((asset, index) => !asset || asset.ownerId !== version.ownerId ||
+            asset.assetId !== assetIds[index] || asset.state !== 'committed' ||
+            asset.references?.versions?.[versionId] !== true ||
+            typeof asset.durableKey !== 'string' || !asset.durableKey.startsWith('assessment-assets/listening/'))) {
+            return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening audio is not committed to this version.');
+        }
+        const title = String(version.document.title ?? 'Untitled Listening Test');
+        return {
+            contentRef: { contentKind: 'ielts_listening', contentId: version.testId, version: versionId, title },
+            materialId: version.testId,
+            materialTitle: title,
+            materialType: 'test',
+            materialSkill: 'listening',
+            listeningAssetIds: assetIds,
+        };
+    }
+
     const assignableError = assertPublishedAssignable(record);
     if (assignableError) {
         return assignableError;
@@ -1134,22 +1176,40 @@ export async function handleCreateHomeworkAssignment(
             }
         }
 
-        const thcsGrantUpdates = Object.fromEntries(
-            (content.contentRef.contentKind === 'thcs_test' ? target.authorizedStudentIds : [])
-                .map(studentId => [studentId + '/' + assignmentId, true]),
+        const grantUpdates = Object.fromEntries(
+            (content.contentRef.contentKind === 'thcs_test' || content.listeningAssetIds ? target.authorizedStudentIds : [])
+                .map(studentId => [studentId + '/' + assignmentId, content.listeningAssetIds ? {
+                    contentKind: 'ielts_listening',
+                    versionId: content.contentRef.version,
+                    teacherId: auth.uid,
+                    assetIds: content.listeningAssetIds,
+                    createdAt: now,
+                } : true]),
         );
-        const thcsGrantPath = 'homework_test_access/' + content.materialId;
-        const hasThcsGrants = Object.keys(thcsGrantUpdates).length > 0;
-        if (hasThcsGrants) {
-            await writeRtdb(env, accessToken, thcsGrantPath, thcsGrantUpdates, 'PATCH');
+        const grantPath = 'homework_test_access/' + content.materialId;
+        const retentionUpdates = Object.fromEntries((content.listeningAssetIds ?? []).map(assetId =>
+            ['media_assets/' + assetId + '/references/assignments/' + assignmentId, true]));
+        const hasGrants = Object.keys(grantUpdates).length > 0;
+        if (content.listeningAssetIds) {
+            // Persist retention and its trusted recipient authority together before exposing homework.
+            await writeRtdb(env, accessToken, '', {
+                ...retentionUpdates,
+                ...Object.fromEntries(Object.entries(grantUpdates).map(([path, value]) => [grantPath + '/' + path, value])),
+            }, 'PATCH');
+        } else if (hasGrants) {
+            await writeRtdb(env, accessToken, grantPath, grantUpdates, 'PATCH');
         }
 
         try {
             await createFirestoreDoc(env, accessToken, 'homework_assignments', assignmentId, homework);
         } catch (error) {
-            if (hasThcsGrants) {
-                await writeRtdb(env, accessToken, thcsGrantPath,
-                    Object.fromEntries(Object.keys(thcsGrantUpdates).map(path => [path, null])), 'PATCH');
+            if (content.listeningAssetIds) {
+                // A lost Firestore response may have committed; retain bytes and require the saved assignment on delivery.
+                throw error;
+            }
+            if (hasGrants) {
+                await writeRtdb(env, accessToken, grantPath,
+                    Object.fromEntries(Object.keys(grantUpdates).map(path => [path, null])), 'PATCH');
             }
             throw error;
         }

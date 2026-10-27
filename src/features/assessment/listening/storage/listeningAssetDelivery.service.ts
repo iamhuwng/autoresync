@@ -261,16 +261,22 @@ const assertCanonicalGraph = (
   return graph;
 };
 
-const isActiveImmutableVersion = (
+const isRetainedImmutableVersion = (
   graph: ListeningDeliveryAssetGraph,
   versionId: string,
 ): boolean => graph.retainedVersions.some((version) =>
   version.versionId === versionId
   && version.ownerId === graph.ownerId
-  && version.active
   && version.immutable
   && hasReference(graph.references, 'versions', version.versionId),
 );
+
+const isActiveImmutableVersion = (
+  graph: ListeningDeliveryAssetGraph,
+  versionId: string,
+): boolean => isRetainedImmutableVersion(graph, versionId)
+  && graph.retainedVersions.some((version) => version.versionId === versionId
+    && version.ownerId === graph.ownerId && version.immutable && version.active);
 
 const isResultViewerAuthorized = (
   graph: ListeningDeliveryAssetGraph,
@@ -301,8 +307,10 @@ const isSoloStudentAuthorized = (
   if (!scope) return false;
   if (callerUserId !== scope.studentId) return false;
   if (!scope.testId || !scope.versionId || !scope.studentId) return false;
-  if (!isActiveImmutableVersion(graph, scope.versionId)) return false;
-  if (!hasReference(graph.references, 'tests', scope.testId)) return false;
+  if (scope.mode === 'homework') {
+    if (!isRetainedImmutableVersion(graph, scope.versionId)) return false;
+    if (!scope.homeworkId || !hasReference(graph.references, 'assignments', scope.homeworkId)) return false;
+  } else if (!isActiveImmutableVersion(graph, scope.versionId)) return false;
 
   return (graph.retainedSoloAccess ?? []).some((access) =>
     access.testId === scope.testId

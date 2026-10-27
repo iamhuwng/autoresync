@@ -2625,7 +2625,7 @@
       "$testId": {
         "$studentId": {
           "$homeworkId": {
-            ".validate": "newData.val() === true || !newData.exists()"
+            ".validate": "newData.val() === true || !newData.exists() || (newData.hasChildren(['contentKind', 'versionId', 'teacherId', 'assetIds', 'createdAt']) && newData.child('contentKind').val() === 'ielts_listening' && newData.child('versionId').isString() && newData.child('teacherId').isString() && newData.child('assetIds').hasChildren() && newData.child('createdAt').isNumber())"
           }
         }
       }

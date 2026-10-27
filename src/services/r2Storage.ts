@@ -88,7 +88,7 @@ class R2StorageService {
     }
 
     probeListeningAuthoringAudio(input: {
-        uploadSessionId: string;
+        uploadSessionId?: string;
         assetId: string;
     }): Promise<ListeningUploadAssetProbeResponse> {
         return this.listeningUploadSessionApi.probeAsset(input);

@@ -10,6 +10,8 @@ import {
   parseProbeAssetRequest,
 } from './listening-upload-session-contract.ts';
 import { FirebaseRestListeningUploadSessionRepository } from './listening-upload-session-repository.ts';
+import { FirebaseRtdbRestClient } from './listening-authoring/rtdb.ts';
+import { createOwnerListeningPreviewUrl } from './listening-delivery.ts';
 import type {
   ListeningUploadAssetRecord,
   ListeningUploadSessionRecord,
@@ -322,6 +324,7 @@ export const createListeningUploadSessionService = (dependencies: {
 
     async resolveAssetForProbe(input: { uid: string; body: unknown }) {
       const request = parseProbeAssetRequest(input.body);
+      if (!request.uploadSessionId) throw new ListeningUploadSessionError('upload_session_not_found', 404);
       let session: ListeningUploadSessionRecord | null;
       try {
         session = await dependencies.repository.get(input.uid, request.uploadSessionId);
@@ -401,6 +404,7 @@ export const createListeningUploadSessionHandlers = (options: {
   createOpaqueId?: () => string;
   idempotencySecret?: string;
   grantSecret?: string;
+  readCommittedAsset?: (assetId: string) => Promise<unknown>;
 } = {}) => ({
   async createSession(input: {
     request: Request;
@@ -478,6 +482,39 @@ export const createListeningUploadSessionHandlers = (options: {
     now: () => number;
   }) {
     try {
+      const body = await readJsonBody(input.request);
+      const request = parseProbeAssetRequest(body);
+      const record = await (options.readCommittedAsset
+        ? options.readCommittedAsset(request.assetId)
+        : new FirebaseRtdbRestClient({ env: input.env }).readValue(`media_assets/${request.assetId}`));
+      if (record && typeof record === 'object' && 'state' in record && record.state === 'committed') {
+        const asset = record as Record<string, unknown>;
+        if (asset.ownerId !== input.uid || asset.assetId !== request.assetId
+          || asset.canonicalAssetId !== request.assetId) {
+          throw new ListeningUploadSessionError('asset_not_found', 404);
+        }
+        const prefix = `temp/listening/${input.uid}/${asset.uploadSessionId}/${request.assetId}-`;
+        const tempKey = typeof asset.tempKey === 'string' ? asset.tempKey : '';
+        const fileName = tempKey.startsWith(prefix) ? tempKey.slice(prefix.length) : '';
+        const durableKey = `assessment-assets/listening/${input.uid}/${request.assetId}/${fileName}`;
+        if (!fileName || /[\\/]|\.\./.test(fileName) || asset.durableKey !== durableKey
+          || !Number.isSafeInteger(asset.sizeBytes) || Number(asset.sizeBytes) <= 0
+          || typeof asset.contentType !== 'string' || typeof asset.checksum !== 'string'
+          || !/^[a-f0-9]{64}$/.test(asset.checksum)) {
+          throw new ListeningUploadSessionError('asset_key_mismatch', 409);
+        }
+        const range = await probeUploadedAssetRange(input.env, {
+          tempKey: durableKey, sizeBytes: Number(asset.sizeBytes),
+        } as ListeningUploadAssetRecord);
+        return { body: {
+          status: 'ready', assetId: request.assetId, uploadSessionId: asset.uploadSessionId,
+          contentType: asset.contentType, sizeBytes: asset.sizeBytes, range,
+          previewUrl: await createOwnerListeningPreviewUrl(input.env, {
+            assetId: request.assetId, durableKey, contentType: asset.contentType,
+            expiresAt: (options.now ?? input.now)() + 10 * 60 * 1000,
+          }, input.request.url),
+        } };
+      }
       const service = createServiceFromEnv({
         env: input.env,
         repository: options.repository,
@@ -488,7 +525,7 @@ export const createListeningUploadSessionHandlers = (options: {
       });
       const probeTarget = await service.resolveAssetForProbe({
         uid: input.uid,
-        body: await readJsonBody(input.request),
+        body,
       });
       return {
         body: {

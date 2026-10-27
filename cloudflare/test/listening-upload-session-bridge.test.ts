@@ -14,6 +14,30 @@ const {
 } = await import('../src/upload-worker/listening-upload-session.ts');
 
 const textEncoder = new TextEncoder();
+
+it('probes committed owner audio independently of its expired upload session', async () => {
+  const assetId = 'asset-aaaaaaaaaaaaaaaa';
+  const durableKey = `assessment-assets/listening/owner-1/${assetId}/audio.mp3`;
+  const readCommittedAsset = vi.fn().mockResolvedValue({
+    assetId, canonicalAssetId: assetId, ownerId: 'owner-1', state: 'committed',
+    uploadSessionId: 'session-aaaaaaaaaaaa',
+    tempKey: `temp/listening/owner-1/session-aaaaaaaaaaaa/${assetId}-audio.mp3`,
+    durableKey, sizeBytes: 4, contentType: 'audio/mpeg', checksum: 'a'.repeat(64),
+  });
+  const get = vi.fn().mockResolvedValue({ size: 4, body: new Uint8Array([1]) });
+  const handlers = createListeningUploadSessionHandlers({ readCommittedAsset });
+  const input = { request: new Request('https://upload.example/probeListeningUploadAsset', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId }),
+  }), uid: 'owner-1', now: () => 1000,
+  env: { R2_BUCKET: { get }, LISTENING_DELIVERY_SECRET: 'delivery-preview-test-secret-32-bytes' } };
+  const result = await handlers.probeAsset({ ...input, request: input.request.clone() });
+  expect(result.body).toMatchObject({ status: 'ready', assetId, range: { status: 206 },
+    previewUrl: expect.stringContaining('https://upload.example/') });
+  expect(get).toHaveBeenCalledWith(durableKey, { range: { offset: 0, length: 1 } });
+  const foreign = await handlers.probeAsset({ ...input, uid: 'owner-2' });
+  expect(foreign.init?.status).toBe(404);
+  expect(get).toHaveBeenCalledTimes(1);
+});
 const toBase64Url = (value: string) => btoa(value).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 const decodeGrantPayload = (grant: string): Record<string, unknown> => {
   const encoded = grant.split('.')[0].replaceAll('-', '+').replaceAll('_', '/');
@@ -486,6 +510,7 @@ describe('PRD-0056A Worker bridge grant', () => {
         },
       },
       listeningUploadSessionHandlers: createListeningUploadSessionHandlers({
+        readCommittedAsset: async () => null,
         repository,
         idempotencySecret: 'idempotency-secret-test-value',
         grantSecret: 'listening-upload-session-grant-test-secret',

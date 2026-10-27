@@ -554,6 +554,36 @@ describe('StudentPracticePage', () => {
     });
   });
 
+  it.each(['library', 'homework'])('launches native type-only Listening from %s', async (surface) => {
+    const materialId = 'native-listening-1';
+    const isHomework = surface === 'homework';
+    const payloadPath = `${isHomework ? 'student_safe_tests' : 'tests'}/${materialId}`;
+    getMock.mockImplementation(async (target: { path: string }) => ({
+      exists: () => target.path === payloadPath,
+      val: () => target.path === payloadPath ? { id: materialId, type: 'IELTS', skill: 'Listening' } : null,
+    }));
+    if (isHomework) {
+      getHomeworkByIdMock.mockResolvedValue({
+        id: 'hw-native', createdBy: 'teacher-1', materialId,
+        contentRef: { contentKind: 'ielts_listening', contentId: materialId },
+        config: { timerMinutes: 30, maxAttempts: 1 },
+      });
+    }
+
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: `/student/practice/${materialId}`,
+        state: isHomework ? { isHomework: true, homeworkId: 'hw-native' } : {},
+      }]}>
+        <Routes><Route path="/student/practice/:materialId" element={<StudentPracticePage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId('listening-practice-view')).toBeInTheDocument();
+    expect(refMock).toHaveBeenCalledWith({}, payloadPath);
+    expect(refMock).not.toHaveBeenCalledWith({}, `${isHomework ? 'tests' : 'student_safe_tests'}/${materialId}`);
+  });
+
   it('preserves homework timer and attempt settings from the launch state', async () => {
     getMock.mockImplementation(async (target: { path: string }) => ({
       val: () => {

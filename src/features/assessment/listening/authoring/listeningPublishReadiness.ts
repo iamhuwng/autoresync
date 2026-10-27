@@ -38,7 +38,7 @@ interface ListeningPublishReadinessDependencies {
   readonly fetchImpl?: FetchLike;
   readonly authoritySections?: readonly ListeningPublishReadinessAuthoritySection[];
   readonly probeListeningAuthoringAsset?: (input: {
-    readonly uploadSessionId: string;
+    readonly uploadSessionId?: string;
     readonly assetId: string;
   }) => Promise<ListeningAuthoringAssetProbe>;
 }
@@ -82,13 +82,13 @@ const probeTrustedAuthoringAsset = async (
   dependencies: ListeningPublishReadinessDependencies,
 ): Promise<ListeningAuthoringIssue | null | undefined> => {
   const authority = trustedAuthorityForSection(section, dependencies.authoritySections);
-  if (!section.assetId || !authority?.uploadSessionId || !dependencies.probeListeningAuthoringAsset) {
+  if (!section.assetId || !dependencies.probeListeningAuthoringAsset) {
     return undefined;
   }
 
   try {
     const result = await dependencies.probeListeningAuthoringAsset({
-      uploadSessionId: authority.uploadSessionId,
+      ...(authority?.uploadSessionId ? { uploadSessionId: authority.uploadSessionId } : {}),
       assetId: section.assetId,
     });
     if (

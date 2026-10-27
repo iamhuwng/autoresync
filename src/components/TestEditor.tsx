@@ -30,6 +30,10 @@ import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
 import { createLegacyTestMaterialSummary } from '../services/materialCatalog/legacyTestMaterialSummary.service';
 import { buildMaterialSummaryUpdatePayload } from '../services/materialCatalog/materialSummaryPort.service';
+import { createListeningTestEditSession } from '../features/assessment/listening/authoring/listeningTestEditing';
+import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../config/featureRegistry';
+import { storage } from '../core/platform/storage';
 
 interface TestEditorProps {
   test: TestData;
@@ -175,11 +179,14 @@ const TestEditor: React.FC<TestEditorProps> = (props) => {
 
 const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }) => {
   const { user, isAdmin } = useAuth();
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testCreation);
+  const saveListeningEdits = useMemo(() => createListeningTestEditSession(test), [test]);
 
   // FR-OWN-02 / FR-77: Only the test owner or a super_admin may edit.
   // Public tests are viewable by all teachers but writable only by the owner.
   const isReadOnly = useMemo(() => {
     if (!test) return false;
+    if (test.skill === 'Listening') return !test.ownerId || test.ownerId !== user?.uid;
     if (isAdmin) return false;           // super_admin bypasses ownership check
     const ownerId = (test as any).ownerId as string | undefined;
     if (!ownerId) return false;          // legacy test without ownerId — allow for now
@@ -216,7 +223,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   useEffect(() => {
     if (test && show) {
       const storageKey = getStorageKey();
-      const savedData = localStorage.getItem(storageKey);
+      const savedData = test.skill === 'Listening' ? null : localStorage.getItem(storageKey);
 
       // DEBUG: Log what test data we receive
       console.log('📝 [TestEditor] Received test data:', {
@@ -324,7 +331,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   };
 
   useEffect(() => {
-    if (test && Object.keys(editedQuestions).length > 0) {
+    if (test && test.skill !== 'Listening' && Object.keys(editedQuestions).length > 0) {
       const storageKey = getStorageKey();
       const dataToSave = {
         timestamp: new Date().toISOString(),
@@ -684,6 +691,18 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       setIsSaving(true);
 
       try {
+        if (test.skill === 'Listening') {
+          trackAction('saveDraft', { source: 'listening_lobby_editor', testId: test.id });
+          const result = await saveListeningEdits({
+            title: editedTitle, duration: editedDuration, isPublic: editedIsPublic,
+            questions: Object.values(editedQuestions), resources,
+          });
+          trackAction('publishTest', {
+            source: 'listening_lobby_editor', testId: test.id, versionId: result.versionId,
+          });
+          await finishSave();
+          return;
+        }
         // 0. Process any temporary R2 files (move to permanent storage)
         let finalResources = [...resources];
         const tempFiles: { resourceIndex: number; key: 'audioUrl' | 'images'; subIndex?: number; url: string }[] = [];
@@ -842,25 +861,25 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
 
         await update(ref(database), updates);
 
-        // Clear localStorage
-        const storageKey = getStorageKey();
-        localStorage.removeItem(storageKey);
-
-        toast.success('Test saved successfully ✅');
-
-        // Fire-and-forget: propagate title change to homework assignments
-        if (titleModified && test.id) {
-          propagateTestMetadataToHomework(test.id, { materialTitle: editedTitle });
-        }
-
-        handleClose();
+        await finishSave();
       } catch (error) {
         console.error('Error saving test:', error);
-        toast.error('Failed to save test changes. Please try again.');
+        toast.error(test.skill === 'Listening' && error instanceof Error
+          ? error.message : 'Failed to save test changes. Please try again.');
       } finally {
         setIsSaving(false);
       }
     }
+  };
+
+  const finishSave = async () => {
+    await storage.remove(getStorageKey());
+    toast.success('Test saved successfully ✅');
+    // Assigned Listening work retains its publication; generic homework keeps its existing metadata propagation.
+    if (test.skill !== 'Listening' && titleModified && test.id) {
+      propagateTestMetadataToHomework(test.id, { materialTitle: editedTitle });
+    }
+    handleClose();
   };
 
   const handleCancel = () => {
@@ -954,6 +973,8 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       skill={(test as any).skill || 'Reading'}
       totalQuestions={test.questions.length}
       readOnly={isReadOnly}
+      audioReadOnly={test.skill === 'Listening'}
+      audioPreviewUrls={(test as any).listeningAudioPreviewUrls}
     />
   );
 

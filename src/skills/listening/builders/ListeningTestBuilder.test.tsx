@@ -758,14 +758,28 @@ describe('ListeningTestBuilder', () => {
     expect(mocks.navigateTo).not.toHaveBeenCalledWith('LOBBY', expect.anything(), expect.anything());
   });
 
-  it('sends canonical authoring audio fields without storage-only upload metadata', async () => {
+  it('saves current questions and visibility before publishing with the returned conflict token', async () => {
     const user = userEvent.setup();
     render(<ListeningTestBuilder />);
 
-    await goToReviewStep(user);
+    await goToQuestionsStep(user);
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => {
       expect(mocks.saveDraft).toHaveBeenCalled();
+    });
+    for (let index = 0; index < 10; index += 1) {
+      await user.click(screen.getByRole('button', { name: /Add Question/ }));
+      fireEvent.change(screen.getAllByPlaceholderText('Question text...')[index], {
+        target: { value: `Question ${index + 1}` },
+      });
+      fireEvent.change(screen.getAllByPlaceholderText('Answer...')[index], {
+        target: { value: `Answer ${index + 1}` },
+      });
+    }
+    await user.click(screen.getByRole('button', { name: 'Next →' }));
+    await user.click(screen.getByRole('checkbox', { name: /Make Publicly Available/ }));
+    mocks.saveDraft.mockResolvedValueOnce({
+      status: 'saved', draftId: 'draft-1', conflictToken: 7, warnings: [], blockers: [],
     });
     await user.click(screen.getByRole('button', { name: 'Publish' }));
 
@@ -793,9 +807,20 @@ describe('ListeningTestBuilder', () => {
     ]) {
       expect(audioSections[0]).not.toHaveProperty(storageOnlyField);
     }
-    expect(mocks.publishDraft).toHaveBeenCalledWith({
+    expect(mocks.saveDraft).toHaveBeenCalledTimes(2);
+    const currentSaveRequest = mocks.saveDraft.mock.calls[1][0];
+    expect(currentSaveRequest).toMatchObject({
       draftId: 'draft-1',
       expectedConflictToken: 1,
+      document: { questionCount: 10, isPublic: true, isComplete: true },
+    });
+    expect(currentSaveRequest.document.questions).toEqual(Array.from({ length: 10 }, (_, index) =>
+      expect.objectContaining({ question: `Question ${index + 1}`, answer: `Answer ${index + 1}` }),
+    ));
+    expect(mocks.saveDraft.mock.invocationCallOrder[1]).toBeLessThan(mocks.publishDraft.mock.invocationCallOrder[0]);
+    expect(mocks.publishDraft).toHaveBeenCalledWith({
+      draftId: 'draft-1',
+      expectedConflictToken: 7,
       idempotencyKey: expect.any(String),
     });
     expect(mocks.probeListeningAuthoringAudio).toHaveBeenCalledWith({
@@ -812,10 +837,28 @@ describe('ListeningTestBuilder', () => {
     expect(globalThis.alert).not.toHaveBeenCalled();
   });
 
+  it('does not publish when saving current edits conflicts with another session', async () => {
+    const user = userEvent.setup();
+    render(<ListeningTestBuilder />);
+    await goToReviewStep(user);
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await user.click(screen.getByRole('checkbox', { name: /Make Publicly Available/ }));
+    mocks.saveDraft.mockResolvedValueOnce({
+      status: 'conflict', draftId: 'draft-1', currentConflictToken: 2,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Publish' }));
+
+    expect(mocks.saveDraft).toHaveBeenCalledTimes(2);
+    expect(mocks.publishDraft).not.toHaveBeenCalled();
+    expect(mocks.toast.error).toHaveBeenCalled();
+    expect(mocks.navigateTo).not.toHaveBeenCalled();
+  });
+
   it('blocks publish before the backend when audio delivery is not byte-range capable', async () => {
     const user = userEvent.setup();
     vi.mocked(globalThis.fetch).mockRejectedValueOnce(new TypeError('R2 CORS preflight blocked'));
-    mocks.probeListeningAuthoringAudio.mockResolvedValueOnce({
+    mocks.probeListeningAuthoringAudio.mockResolvedValue({
       status: 'ready',
       assetId: 'asset-1',
       uploadSessionId: 'session-1',

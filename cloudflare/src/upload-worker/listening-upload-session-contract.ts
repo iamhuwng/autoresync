@@ -200,7 +200,7 @@ export const parseProbeAssetRequest = (body: unknown) => {
     BROWSER_AUTHORITY_FIELDS.filter((field) => field !== 'assetId'),
   );
   const uploadSessionId = optionalCorrelationId(input.uploadSessionId, 'upload_session_id');
-  if (!uploadSessionId || uploadSessionId.length < 16) fail('invalid_upload_session_id');
+  if (uploadSessionId && uploadSessionId.length < 16) fail('invalid_upload_session_id');
   const assetId = optionalCorrelationId(input.assetId, 'asset_id');
   if (!assetId || assetId.length < 16) fail('invalid_asset_id');
 
