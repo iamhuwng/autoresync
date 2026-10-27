@@ -663,6 +663,12 @@ async function assertLegacyStudentSafeProjection(
     if (!isRecord(projection)) {
         return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Content is missing a safe delivery projection.', 400);
     }
+    if (contentRef.contentKind === 'ielts_listening' && [record, projection].some(runtime =>
+        (runtime.testType ?? runtime.type) !== 'IELTS' ||
+        String(runtime.skill ?? '').toLowerCase() !== 'listening' ||
+        !Array.isArray(runtime.questions) || runtime.questions.length === 0)) {
+        return assignmentError('CONTENT_NOT_ASSIGNABLE', 'Listening content is missing a complete published runtime.', 400);
+    }
 
     return null;
 }

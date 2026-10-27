@@ -145,7 +145,7 @@ const okRecords = (contentRecord = makeTestRecord({ id: 'ielts-reading-1', skill
     ['users/teacher-1', { role: 'teacher', uid: 'teacher-1' }],
     ['classes/class-1', classRecord],
     ['tests/ielts-reading-1', contentRecord],
-    ['student_safe_tests/' + contentRecord.id, { id: contentRecord.id, title: contentRecord.title, questions: [{ id: 'q1' }] }],
+    ['student_safe_tests/' + contentRecord.id, { id: contentRecord.id, title: contentRecord.title, testType: contentRecord.testType, skill: contentRecord.skill, questions: [{ id: 'q1' }] }],
 ]);
 
 const recordsForTestContent = (contentRecord: ReturnType<typeof makeTestRecord>) => {
@@ -592,6 +592,40 @@ describe('homework assignment Worker route', () => {
 
         expect(response.status).toBe(400);
         expect(body.reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
+    });
+
+    it.each([
+        ['projection type', 'student_safe_tests', { testType: undefined }],
+        ['projection skill', 'student_safe_tests', { skill: 'Reading' }],
+        ['projection questions', 'student_safe_tests', { questions: [] }],
+        ['canonical questions', 'tests', { questions: [] }],
+    ])('rejects invalid legacy Listening %s before creating homework', async (_label, collection, updates) => {
+        const id = 'legacy-listening';
+        const records = recordsForTestContent(makeTestRecord({ id, skill: 'Listening' }));
+        records.set(`${collection}/${id}`, { ...records.get(`${collection}/${id}`) as object, ...updates });
+        const { firestoreWrites, rtdbWrites } = makeFetchMock(records);
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_listening', contentId: id },
+        })), env);
+        expect(response.status).toBe(400);
+        expect((await response.json()).reasonCode).toBe('CONTENT_NOT_ASSIGNABLE');
+        expect(firestoreWrites).toEqual([]);
+        expect(rtdbWrites).toEqual([]);
+    });
+
+    it('accepts the type discriminator for both legacy Listening runtime records', async () => {
+        const id = 'legacy-listening';
+        const records = recordsForTestContent(makeTestRecord({ id, skill: 'Listening' }));
+        for (const collection of ['tests', 'student_safe_tests']) {
+            const record = records.get(`${collection}/${id}`) as Record<string, unknown>;
+            delete record.testType;
+            record.type = 'IELTS';
+        }
+        makeFetchMock(records);
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody({
+            contentRef: { contentKind: 'ielts_listening', contentId: id },
+        })), env);
+        expect(response.status).toBe(201);
     });
 
     it('rejects whole-book content kind with a stable whole-book reason', async () => {
