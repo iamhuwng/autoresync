@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { canonical, workerInvariants, readListeningProvider } from './release-listening-evidence.mjs';
+import { reviewedListeningProbeRelease } from './release-listening-probe-pins.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const digest = value => hash(canonical(value));
@@ -76,6 +77,18 @@ export const reviewedListeningEditorRelease = freeze({
 
 export const isListeningEditorObserved = value => observations.has(value);
 
+// Native observation chooses only reviewed profiles, from Git HEAD, never options.
+export function selectListeningReleaseProfile(revision) {
+  assert.match(revision ?? '', /^[a-f0-9]{40}$/, 'Listening candidate revision is invalid');
+  if (revision === reviewedListeningEditorRelease.revision) {
+    return { name: 'editor-capability', scope: 'upload-worker-and-hosting', pins: reviewedListeningEditorRelease };
+  }
+  if (revision === reviewedListeningProbeRelease.revision) {
+    return { name: 'probe-hotfix', scope: 'upload-worker-only', pins: reviewedListeningProbeRelease };
+  }
+  throw new Error('Listening candidate has no reviewed fixed profile');
+}
+
 export function assertListeningEditorSource(source, pins = reviewedListeningEditorRelease) {
   for (const field of ['revision', 'tree', 'baseRevision']) {
     assert.match(pins[field] ?? '', /^[a-f0-9]{40}$/, `Editor ${field} is not reviewed`);
@@ -122,14 +135,16 @@ const git = (cwd, ...args) => {
 };
 
 async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
-  const pins = reviewedListeningEditorRelease;
+  const revision = git(cwd, 'rev-parse', 'HEAD');
+  const profile = selectListeningReleaseProfile(revision);
+  const pins = profile.pins;
   // Validate reviewed constants before using them in Git or accessing providers.
   assert.match(pins.baseRevision ?? '', /^[a-f0-9]{40}$/, 'Editor base is not reviewed');
-  const source = { revision: git(cwd, 'rev-parse', 'HEAD'), tree: git(cwd, 'rev-parse', 'HEAD^{tree}'),
+  const source = { revision, tree: git(cwd, 'rev-parse', 'HEAD^{tree}'),
     baseRevision: git(cwd, 'rev-parse', '--verify', `${pins.baseRevision}^{commit}`),
     dirty: Boolean(git(cwd, 'status', '--porcelain=v1', '--untracked-files=all')),
     files: git(cwd, 'diff', '--name-only', pins.baseRevision, 'HEAD').split(/\r?\n/).filter(Boolean).sort() };
-  assertListeningEditorSource(source);
+  assertListeningEditorSource(source, pins);
   assert(uploadBundle && uploadConfig, 'Editor upload bundle and config are required');
   const bundlePath = path.resolve(cwd, uploadBundle), configPath = path.resolve(cwd, uploadConfig);
   const configBytes = await readFile(configPath), config = JSON.parse(configBytes);
@@ -137,7 +152,7 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
   assert.equal(config.no_bundle, true, 'Editor deploy must retain exact reviewed bytes');
   assert.equal(path.resolve(path.dirname(configPath), config.main), bundlePath, 'Editor config selects another bundle');
   const envBytes = await readFile(path.join(os.homedir(), '.luyentap/env/.env.production'));
-  const local = { source, moduleName: path.basename(bundlePath), bundleSha256: hash(await readFile(bundlePath)),
+  const local = { source, profile: profile.name, scope: profile.scope, moduleName: path.basename(bundlePath), bundleSha256: hash(await readFile(bundlePath)),
     configSha256: hash(configBytes), sourceConfigSha256: hash(await readFile(path.join(cwd, 'cloudflare/wrangler.jsonc'))),
     envSha256: hash(envBytes), rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))),
     submitEndpoint: envBytes.toString('utf8').match(/^VITE_READING_V2_SUBMISSION_ENDPOINT\s*=\s*(.*?)\s*$/m)?.[1]?.replace(/^(['"])(.*)\1$/, '$2') };
@@ -150,10 +165,10 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
 
 export async function observeListeningEditor(options) {
   const local = await readCandidate(options), provider = await readListeningProvider(options.cwd);
-  validateListeningEditorEvidence(local, provider, options.phase);
+  validateListeningEditorEvidence(local, provider, options.phase, selectListeningReleaseProfile(local.source.revision).pins);
   assert.deepEqual(await readListeningProvider(options.cwd), provider, 'Editor provider changed during observation');
   assert.deepEqual(await readCandidate(options), local, 'Editor inputs changed during observation');
-  const observation = freeze({ service: 'listening-editor-release', source: local.source, phase: options.phase, local, provider,
+  const observation = freeze({ service: 'listening-editor-release', profile: local.profile, scope: local.scope, source: local.source, phase: options.phase, local, provider,
     observedAt: new Date().toISOString(), fingerprint: digest({ local, provider, phase: options.phase }),
     readOnly: true, sourceKnown: false,
     provenance: 'Exact reviewed upload artifact and native configuration readback; historical Worker Git provenance is unknown.' });
