@@ -1,7 +1,7 @@
 import { getAuth } from 'firebase/auth';
 import { get, ref } from 'firebase/database';
 import { database } from '../../../../services/firebase';
-import r2StorageService from '../../../../services/r2Storage';
+import { WorkerListeningUploadSessionApi } from '../storage/listeningUploadSessionApi';
 import type { ContextResource, TestData } from '../../../../services/testStorage';
 import type { ListeningAuthoringDocumentV1 } from '../types/listeningAuthoring.types';
 import { createListeningAuthoringWorkflow } from './listeningAuthoringWorkflow';
@@ -58,7 +58,7 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
     || source.document.questions.some(question => !question || typeof question.question !== 'string')
     || source.document.audioSections.some(section => !section || typeof section.audioUrl !== 'string')) throw changed();
   const previews = await Promise.all(source.document.audioSections.filter(section => section.assetId).map(async section => {
-    const result = await r2StorageService.probeListeningAuthoringAudio({ assetId: section.assetId!,
+    const result = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: section.assetId!,
       ...(section.uploadSessionId ? { uploadSessionId: section.uploadSessionId } : {}) });
     if (!result.previewUrl) throw new Error('Audio preview is unavailable. Retry opening this Listening test.');
     return [`audio-${section.number}`, result.previewUrl];

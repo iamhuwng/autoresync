@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('firebase/auth', () => ({ getAuth: () => ({ currentUser: { uid: mocks.uid } }) }));
 vi.mock('firebase/database', () => ({ ref: (_db: unknown, path: string) => path, get: mocks.get }));
 vi.mock('../../../../services/firebase', () => ({ database: {} }));
-vi.mock('../../../../services/r2Storage', () => ({ default: { probeListeningAuthoringAudio: mocks.probe } }));
+vi.mock('../storage/listeningUploadSessionApi', () => ({
+  WorkerListeningUploadSessionApi: class { probeAsset = mocks.probe; },
+}));
 vi.mock('./listeningAuthoringWorkflow', () => ({
   createListeningAuthoringWorkflow: () => ({ saveDraft: mocks.save, publishDraft: mocks.publish }),
 }));
