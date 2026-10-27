@@ -61,20 +61,23 @@ const fail = (message) => {
   throw new Error(`[Production deploy blocked] ${message}`);
 };
 
-export const selectReleaseSource = ({ sourceCwd, observeListening = false, listeningPhase, cwd = repoRoot } = {}) => {
-  if (sourceCwd && !observeListening) fail('external source cwd requires qualified Listening observation.');
+export const selectReleaseSource = ({ sourceCwd, observeListening = false, observeListeningEditorRelease = false, listeningPhase, cwd = repoRoot } = {}) => {
+  if (sourceCwd && !observeListening && !observeListeningEditorRelease) fail('external source cwd requires qualified Listening observation.');
+  if (observeListening && observeListeningEditorRelease) fail('Choose only one Listening release profile.');
+  if (observeListeningEditorRelease && listeningPhase !== 'postupload') fail('Editor Hosting deployment requires postupload phase.');
   if (observeListening && listeningPhase !== 'homework') fail('Listening Hosting deployment requires the homework phase.');
   return path.resolve(sourceCwd || cwd);
 };
 
-export const assertListeningHostingReady = (result, observeListening = false) => {
+export const assertListeningHostingReady = (result, observeListening = false, observeListeningEditorRelease = false) => {
+  if (observeListeningEditorRelease && (result.editorObservation?.phase !== 'postupload' || result.hostingReady !== true)) fail('Editor Hosting deployment requires verified postupload phase and hostingReady=true.');
   if (observeListening && (result.listeningObservation?.phase !== 'homework' || result.hostingReady !== true)) {
-    fail('Listening Hosting deployment requires verified homework phase and hostingReady=true.');
+    fail(`Listening Hosting deployment requires verified homework phase and hostingReady=true. ${result.findings?.find(finding => finding.status !== 'PASS')?.message ?? 'Native homework observation is missing.'}`);
   }
 };
 
-export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, cwd = repoRoot, observeListening = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
-  selectReleaseSource({ observeListening, listeningPhase, cwd });
+export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
+  selectReleaseSource({ observeListening, observeListeningEditorRelease, listeningPhase, cwd });
   if (mode === 'acceptance') fail('acceptance assessments cannot invoke the production deployment route.');
   if (!base) fail('missing LUYENTAP_RELEASE_BASE; deployment source must be explicitly compared with a reviewed revision.');
   if (!fingerprint) fail('missing LUYENTAP_RELEASE_FINGERPRINT; deployment approval must bind to the assessed source tree.');
@@ -82,8 +85,8 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!productionEnvFingerprint) fail('missing LUYENTAP_RELEASE_ENV_FINGERPRINT; deployment approval must bind to the exact production environment.');
   if (productionEnvFingerprint !== currentProductionEnvFingerprint) fail('production environment changed since release assessment.');
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
-  const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
-  assertListeningHostingReady(result, observeListening);
+  const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
+  assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
@@ -273,6 +276,7 @@ const main = async () => {
   try {
     const listeningOptions = {
       observeListening: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING === 'true',
+      observeListeningEditorRelease: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING_EDITOR === 'true',
       listeningPhase: process.env.LUYENTAP_LISTENING_PHASE,
       listeningUploadBundle: process.env.LUYENTAP_LISTENING_UPLOAD_BUNDLE,
       listeningUploadConfig: process.env.LUYENTAP_LISTENING_UPLOAD_CONFIG,
