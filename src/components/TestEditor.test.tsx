@@ -84,6 +84,7 @@ vi.mock('../services/r2Storage', () => ({
   default: {
     isTempFile: () => false,
     moveMultipleToPermanent: mockMove,
+    uploadListeningAuthoringAudio: vi.fn(),
   },
 }));
 vi.mock('../services/homeworkManager', () => ({
@@ -114,6 +115,7 @@ vi.mock('./modern/ToastNotification', () => ({
 }));
 
 import TestEditor from './TestEditor';
+import r2StorageService from '../services/r2Storage';
 import { update } from 'firebase/database';
 import { toast } from './modern/ToastNotification';
 
@@ -300,6 +302,10 @@ describe('TestEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Upload Listening audio' }));
     fireEvent.click(screen.getByRole('button', { name: 'Upload Listening audio' }));
     expect(screen.getByRole('button', { name: 'Save Listening' })).toBeDisabled();
+    const [, file, progress, upload] = mockUploadAudio.mock.calls[0];
+    const input = { draftId: 'draft-1', sessionIdempotencyKey: 'session-key', assetIdempotencyKey: 'asset-key' };
+    await upload(file, input, progress);
+    expect(r2StorageService.uploadListeningAuthoringAudio).toHaveBeenCalledWith(file, input, progress);
 
     await act(async () => {
       finishFirst({ resource: { assetId: 'first' }, previewUrl: 'https://example.com/first' });

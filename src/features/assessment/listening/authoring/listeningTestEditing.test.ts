@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('firebase/auth', () => ({ getAuth: () => ({ currentUser: { uid: mocks.uid } }) }));
 vi.mock('firebase/database', () => ({ ref: (_db: unknown, path: string) => path, get: mocks.get }));
 vi.mock('../../../../services/firebase', () => ({ database: {} }));
-vi.mock('../../../../services/r2Storage', () => ({ default: { uploadListeningAuthoringAudio: mocks.upload } }));
 vi.mock('../storage/listeningUploadSessionApi', () => ({
   WorkerListeningUploadSessionApi: class { probeAsset = mocks.probe; },
 }));
@@ -99,7 +98,7 @@ describe('Listening published-test editing', () => {
     mocks.upload.mockResolvedValue(uploaded);
     mocks.probe.mockResolvedValue({ status: 'ready', assetId: 'asset-new' });
     const file = new File(['audio'], 'replacement.wav', { type: 'audio/wav' });
-    const replacement = await uploadListeningEditorAudio(editable, file, vi.fn());
+    const replacement = await uploadListeningEditorAudio(editable, file, vi.fn(), mocks.upload);
     expect(mocks.upload).toHaveBeenCalledWith(file, expect.objectContaining({ draftId: 'draft-1' }), expect.any(Function));
     const input = edits(editable);
     input.resources[0] = { ...input.resources[0], ...replacement.resource };
@@ -129,7 +128,7 @@ describe('Listening published-test editing', () => {
     expect(editable.audioSections).toEqual(document.audioSections);
     mocks.upload.mockResolvedValue({ url: 'https://audio.example/temp/new.wav', assetId: 'new', uploadSessionId: 'session' });
     mocks.probe.mockResolvedValue({ status: 'ready', assetId: 'new' });
-    const replacement = await uploadListeningEditorAudio(editable, new File(['audio'], 'new.wav', { type: 'audio/wav' }), vi.fn());
+    const replacement = await uploadListeningEditorAudio(editable, new File(['audio'], 'new.wav', { type: 'audio/wav' }), vi.fn(), mocks.upload);
     const input = edits(editable);
     input.resources[0] = { ...input.resources[0], ...replacement.resource };
     await createListeningTestEditSession(editable)(input);
@@ -141,7 +140,7 @@ describe('Listening published-test editing', () => {
     const editable = await loadListeningTestForEditing(test);
     mocks.upload.mockResolvedValue({ url: 'https://audio.example/temp/new.wav', assetId: 'new', uploadSessionId: 'session' });
     mocks.probe.mockResolvedValue({});
-    await expect(uploadListeningEditorAudio(editable, new File(['audio'], 'new.wav', { type: 'audio/wav' }), vi.fn()))
+    await expect(uploadListeningEditorAudio(editable, new File(['audio'], 'new.wav', { type: 'audio/wav' }), vi.fn(), mocks.upload))
       .rejects.toThrow(/not ready/);
     expect(mocks.save).not.toHaveBeenCalled();
     expect(mocks.records['listening_authoring/versions/version-1'].document).toEqual(document);

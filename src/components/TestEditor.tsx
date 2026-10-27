@@ -998,7 +998,8 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         if (isSaving) throw new Error('Wait for the test save to finish before uploading audio.');
         setPendingAudioUploads(current => current + 1);
         try {
-          const uploaded = await uploadListeningEditorAudio(test, file, onProgress);
+          const uploaded = await uploadListeningEditorAudio(test, file, onProgress,
+            (audio, input, progress) => r2StorageService.uploadListeningAuthoringAudio(audio, input, progress));
           setAudioPreviewUrls(current => ({ ...current, [uploaded.resource.assetId!]: uploaded.previewUrl }));
           return uploaded.resource;
         }

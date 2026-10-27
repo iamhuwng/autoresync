@@ -5,7 +5,12 @@ import { WorkerListeningUploadSessionApi } from '../storage/listeningUploadSessi
 import type { ContextResource, TestData } from '../../../../services/testStorage';
 import type { ListeningAuthoringDocumentV1 } from '../types/listeningAuthoring.types';
 import { createListeningAuthoringWorkflow } from './listeningAuthoringWorkflow';
-import r2StorageService from '../../../../services/r2Storage';
+
+type ListeningEditorAudioUploader = (
+  file: File,
+  input: { draftId: string; sessionIdempotencyKey: string; assetIdempotencyKey: string },
+  onProgress: (percent: number) => void,
+) => Promise<{ url: string; streamUrl?: string; assetId: string; uploadSessionId: string }>;
 
 interface ListeningEdits {
   title: string;
@@ -35,11 +40,11 @@ export function hasUnsupportedListeningStructure(value: unknown): boolean {
     || (Array.isArray(question.options) && question.options.some(option => typeof option !== 'string'));
 }
 
-export async function uploadListeningEditorAudio(test: TestData, file: File, onProgress: (percent: number) => void): Promise<{ resource: Partial<ContextResource>; previewUrl: string }> {
+export async function uploadListeningEditorAudio(test: TestData, file: File, onProgress: (percent: number) => void, uploadAudio: ListeningEditorAudioUploader): Promise<{ resource: Partial<ContextResource>; previewUrl: string }> {
   const source = (test as EditableTest).listeningEditSource;
   if (!source || test.ownerId !== getAuth().currentUser?.uid) throw new Error('Reopen this Listening test before uploading audio.');
   const key = crypto.randomUUID();
-  const uploaded = await r2StorageService.uploadListeningAuthoringAudio(file, {
+  const uploaded = await uploadAudio(file, {
     draftId: source.draftId, sessionIdempotencyKey: `${key}-session`, assetIdempotencyKey: `${key}-asset`,
   }, onProgress);
   const preview = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: uploaded.assetId, uploadSessionId: uploaded.uploadSessionId });
