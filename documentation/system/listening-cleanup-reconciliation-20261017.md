@@ -1,6 +1,11 @@
-# Listening temporary cleanup: preserved pending reconciliation
+# Listening temporary cleanup: historical reconciliation and closure
 
-Status: **NOT MERGED INTO THE LIVE RECONSTRUCTION**. The seven origin/main-only commits establish a separate historical implementation; ancestry does not establish that its behavior belongs to the currently deployed app. No deployment proof tying this cleanup implementation to the October 6 live release was established during this review.
+Current decision, 2026-10-27: **RETIRE PR #151; do not port its immediate-delete,
+writer-reservation or scheduled-sweep implementation.** The historical review
+below is preserved. Its missing endpoints are not release gates for the current
+durable-audio architecture. See [the closure decision](#2026-10-27-closure-decision).
+
+Historical status: **NOT MERGED INTO THE LIVE RECONSTRUCTION**. The seven origin/main-only commits establish a separate historical implementation; ancestry does not establish that its behavior belongs to the currently deployed app. No deployment proof tying this cleanup implementation to the October 6 live release was established during this review.
 
 The reconstructed candidate at `7a44284efae29be0762f0bdc55692db90ff26475` preserves the October 6 source donors. Read-only inspection found that this candidate lacks the cleanup-specific cancel-session HTTP route/client, uploader AbortSignal propagation and builder cleanup lifecycle, leased bounded sweep module/checkpoints, and cleanup tombstone lifecycle from the main-only chain. That is a source comparison, not a production defect or evidence that these changes should be deployed.
 
@@ -60,3 +65,46 @@ Generated from `git diff --name-only db6845c5^ 69754098`; the merge adds no sepa
 - `tasks/0058-prd-r2-asset-lifecycle-registry-reconciliation-cleanup-delivery.md`
 - `tasks/findings-of-tasks-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
 - `tasks/traceability-0055-prd-ielts-reading-v2-listening-unified-assessment-platform.md`
+
+## 2026-10-27 closure decision
+
+The released repair separates temporary uploads from saved audio. Uploads use
+`temp/listening/`; save/publish copies and verifies bytes under
+`assessment-assets/listening/`, persists the canonical reference, then marks the
+asset committed before deleting the temporary source. Existing homework keeps
+its immutable published version and audio authorization.
+
+Native Wrangler 4.103.0 readback of `kahoot-media` on 2026-10-27 found the
+already-enabled `expire-temp-prefix-after-one-day` rule: prefix `temp/`, object
+age 86,400 seconds. The default seven-day incomplete-multipart abort rule also
+remains enabled. No bucket policy was added, narrowed or replaced; shared
+PDF/Book behavior is unchanged. Upload-session eligibility is eight hours and
+upload grants last ten minutes.
+
+Fresh native readback at 14:16:53 UTC confirmed Hosting source `5090b7ef`,
+Upload Worker version `b2ae0aa6-53e2-4f6e-adf1-265fdcf7a3f1` and Homework Worker
+version `e9cac4c7-430a-4398-ba1f-72034c0fd45e`. All four restored Cambridge
+recordings returned the expected durable-object sizes, audio MIME type and
+readable bytes. The complete lifecycle-result JSON SHA-256 was
+`c2bc77b791c881a3ef9107a8bae194415781340d37eee76878a41fead7b91fc4`.
+
+An abandoned or late-finishing PUT can create only a temporary object. It ages
+out under the existing provider rule without a writer reservation, tombstone,
+application sweep or restore lock. Expiry is asynchronous; one day is the
+eligibility threshold, not a guaranteed deletion deadline. A cancelled request
+does not prove server-side write revocation or immediate byte removal. This
+deliberately retires PR #151's immediate-deletion semantics rather than claiming
+its cancel endpoint or scheduled sweep was implemented.
+
+PR #151's ambiguous-writer recovery blocker belongs to that unreleased design.
+It is avoided by not introducing the writer reservations. The current repair
+does not enable durable-asset garbage collection or close the broader PRD-0058
+reconciliation work; retained published/homework audio must not be deleted.
+
+The [live acceptance record](../release-audits/2026-10-27-listening-live-acceptance.md)
+contains the completed Cambridge playback, private text-mode saved result and
+assignment-stability browser proof. This closure reuses those passed flows;
+there is no new application, Worker, rules or Hosting release to invalidate
+them. The recovery evidence location is recorded there. Provider readback is
+retained in `tmp/listening-live-release-20261027/cleanup-closure-observation.json`;
+it is metadata/stream-presence proof, not another full checksum or browser run.
