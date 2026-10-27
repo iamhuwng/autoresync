@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
-import dotenv from 'dotenv';
+import { createRequire } from 'node:module';
 import { assess } from './release-check.mjs';
 import { writeHostingManifest } from './release-evidence.mjs';
 
@@ -61,7 +61,20 @@ const fail = (message) => {
   throw new Error(`[Production deploy blocked] ${message}`);
 };
 
-export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, cwd = repoRoot }) => {
+export const selectReleaseSource = ({ sourceCwd, observeListening = false, listeningPhase, cwd = repoRoot } = {}) => {
+  if (sourceCwd && !observeListening) fail('external source cwd requires qualified Listening observation.');
+  if (observeListening && listeningPhase !== 'homework') fail('Listening Hosting deployment requires the homework phase.');
+  return path.resolve(sourceCwd || cwd);
+};
+
+export const assertListeningHostingReady = (result, observeListening = false) => {
+  if (observeListening && (result.listeningObservation?.phase !== 'homework' || result.hostingReady !== true)) {
+    fail('Listening Hosting deployment requires verified homework phase and hostingReady=true.');
+  }
+};
+
+export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, cwd = repoRoot, observeListening = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
+  selectReleaseSource({ observeListening, listeningPhase, cwd });
   if (mode === 'acceptance') fail('acceptance assessments cannot invoke the production deployment route.');
   if (!base) fail('missing LUYENTAP_RELEASE_BASE; deployment source must be explicitly compared with a reviewed revision.');
   if (!fingerprint) fail('missing LUYENTAP_RELEASE_FINGERPRINT; deployment approval must bind to the assessed source tree.');
@@ -69,7 +82,8 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!productionEnvFingerprint) fail('missing LUYENTAP_RELEASE_ENV_FINGERPRINT; deployment approval must bind to the exact production environment.');
   if (productionEnvFingerprint !== currentProductionEnvFingerprint) fail('production environment changed since release assessment.');
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
-  const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true });
+  const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
+  assertListeningHostingReady(result, observeListening);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
@@ -100,7 +114,7 @@ export const findForbiddenBundleMarker = (content) => {
   return forbiddenBundlePatterns.map((pattern) => content.match(pattern)?.[0]).find(Boolean);
 };
 
-const readProductionEnv = async () => {
+const readProductionEnv = async (cwd = repoRoot) => {
   const configuredPath = process.env.LUYENTAP_PRODUCTION_ENV_FILE
     || path.join(os.homedir(), '.luyentap', 'env', '.env.production');
   const envFile = path.resolve(configuredPath);
@@ -111,6 +125,7 @@ const readProductionEnv = async () => {
     fail(`missing ${envFile}. Create this machine-local file with the reviewed production VITE_* values; do not reuse .env.local.`);
   }
 
+  const dotenv = createRequire(path.join(cwd, 'package.json'))('dotenv');
   const values = dotenv.parse(raw);
   for (const [key, value] of Object.entries(values)) {
     if (!key.startsWith('VITE_')) fail(`${key} is not a VITE_* production setting.`);
@@ -171,7 +186,7 @@ const readProductionEnv = async () => {
 
   let firebaseRc;
   try {
-    firebaseRc = JSON.parse(await readFile(path.join(repoRoot, '.firebaserc'), 'utf8'));
+    firebaseRc = JSON.parse(await readFile(path.join(cwd, '.firebaserc'), 'utf8'));
   } catch {
     fail('cannot read .firebaserc to verify the Hosting target.');
   }
@@ -183,7 +198,7 @@ const readProductionEnv = async () => {
 
   let firebaseConfig;
   try {
-    firebaseConfig = JSON.parse(await readFile(path.join(repoRoot, 'firebase.json'), 'utf8'));
+    firebaseConfig = JSON.parse(await readFile(path.join(cwd, 'firebase.json'), 'utf8'));
   } catch {
     fail('cannot read firebase.json to verify the Hosting public directory.');
   }
@@ -215,9 +230,9 @@ const readProductionEnv = async () => {
   };
 };
 
-const run = (commandArgs, env) => {
+const run = (commandArgs, env, cwd = repoRoot) => {
   const result = spawnSync(process.execPath, commandArgs, {
-    cwd: repoRoot,
+    cwd,
     env,
     stdio: 'inherit',
     windowsHide: true,
@@ -228,8 +243,8 @@ const run = (commandArgs, env) => {
   }
 };
 
-const assertProductionBundle = async () => {
-  const distRoot = path.join(repoRoot, 'dist');
+const assertProductionBundle = async (cwd = repoRoot) => {
+  const distRoot = path.join(cwd, 'dist');
   const files = [];
   const visit = async (directory) => {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -246,7 +261,7 @@ const assertProductionBundle = async () => {
   for (const file of files) {
     const content = await readFile(file, 'utf8');
     const marker = findForbiddenBundleMarker(content);
-    if (marker) fail(`built file ${path.relative(repoRoot, file)} contains local marker ${marker}.`);
+    if (marker) fail(`built file ${path.relative(cwd, file)} contains local marker ${marker}.`);
   }
 };
 
@@ -256,9 +271,19 @@ const main = async () => {
   const buildOnly = args.has('--build-only');
   let tempEnvDir, releaseAssessment;
   try {
-    const loaded = await readProductionEnv();
+    const listeningOptions = {
+      observeListening: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING === 'true',
+      listeningPhase: process.env.LUYENTAP_LISTENING_PHASE,
+      listeningUploadBundle: process.env.LUYENTAP_LISTENING_UPLOAD_BUNDLE,
+      listeningUploadConfig: process.env.LUYENTAP_LISTENING_UPLOAD_CONFIG,
+      listeningHomeworkBundle: process.env.LUYENTAP_LISTENING_HOMEWORK_BUNDLE,
+      listeningHomeworkConfig: process.env.LUYENTAP_LISTENING_HOMEWORK_CONFIG,
+    };
+    const cwd = selectReleaseSource({ sourceCwd: process.env.LUYENTAP_RELEASE_SOURCE_CWD, ...listeningOptions });
+    const sourceScripts = path.join(cwd, 'scripts');
+    const loaded = await readProductionEnv(cwd);
     tempEnvDir = loaded.tempEnvDir;
-    const status = spawnSync('git', ['status', '--porcelain'], { cwd: repoRoot, encoding: 'utf8', windowsHide: true });
+    const status = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8', windowsHide: true });
     assertCleanWorkingTree(status);
     if (!buildOnly) {
       releaseAssessment = await assertReleaseAssessment({
@@ -271,13 +296,15 @@ const main = async () => {
         currentProductionEnvFingerprint: loaded.envFingerprint,
         observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
         compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
+        cwd,
+        ...listeningOptions,
       });
     }
     console.log(`[Production] ${buildOnly ? 'Building' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
-    run([path.join(scriptDir, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env);
-    run([path.join(scriptDir, 'check-bundle-budget.mjs')], loaded.env);
-    await assertProductionBundle();
-    await writeHostingManifest({ cwd: repoRoot, envFingerprint: loaded.envFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
+    run([path.join(sourceScripts, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env, cwd);
+    run([path.join(sourceScripts, 'check-bundle-budget.mjs')], loaded.env, cwd);
+    await assertProductionBundle(cwd);
+    await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
     if (buildOnly) {
       console.log('[Production] Build and local-value checks passed; no remote mutation was performed.');
       return;
@@ -293,14 +320,16 @@ const main = async () => {
       currentProductionEnvFingerprint: currentEnv,
       observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
       compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
+      cwd,
+      ...listeningOptions,
     });
     run([
-      path.join(scriptDir, 'tooling-where.mjs'),
+      path.join(sourceScripts, 'tooling-where.mjs'),
       '--exec', 'firebase', 'deploy',
       '--only', `hosting:${expectedHostingTarget}`,
       '--project', expectedProjectId,
       '--non-interactive',
-    ], loaded.env);
+    ], loaded.env, cwd);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

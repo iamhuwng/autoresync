@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import {
   assertCleanWorkingTree,
   assertReleaseAssessment,
+  assertListeningHostingReady,
+  selectReleaseSource,
   cleanParentEnv,
   findForbiddenBundleMarker,
 } from '../deploy-live.mjs';
@@ -379,4 +381,22 @@ test('snapshot replacement preserves the previous snapshot on failure', async ()
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('production source override requires qualified Listening observation', () => {
+  assert.equal(selectReleaseSource(), repositoryRoot);
+  assert.throws(() => selectReleaseSource({ sourceCwd: os.tmpdir() }), /external source cwd requires qualified Listening observation/u);
+  assert.equal(selectReleaseSource({ sourceCwd: os.tmpdir(), observeListening: true, listeningPhase: 'homework' }), path.resolve(os.tmpdir()));
+});
+
+test('Listening Hosting blocks early phases and incomplete homework qualification', async () => {
+  for (const listeningPhase of [undefined, 'prepare', 'upload']) {
+    assert.throws(() => selectReleaseSource({ observeListening: true, listeningPhase }), /requires the homework phase/u);
+    await assert.rejects(() => assertReleaseAssessment({ observeListening: true, listeningPhase }), /requires the homework phase/u);
+  }
+  for (const result of [{}, { hostingReady: true }, { listeningObservation: { phase: 'upload' }, hostingReady: true }, { listeningObservation: { phase: 'homework' }, hostingReady: false }]) {
+    assert.throws(() => assertListeningHostingReady(result, true), /requires verified homework phase and hostingReady=true/u);
+  }
+  assert.doesNotThrow(() => assertListeningHostingReady({ listeningObservation: { phase: 'homework' }, hostingReady: true }, true));
+  assert.doesNotThrow(() => assertListeningHostingReady({}));
 });
