@@ -295,8 +295,19 @@ Lifecycle expiration is a safety net for temp objects. It is not sufficient for 
 
 ### Required Cleanup Triggers
 
+**Released Listening policy, 2026-10-27:** temporary upload cleanup uses the
+existing provider `temp/` one-day object-age rule. Saved audio is verified under
+`assessment-assets/listening/` before its canonical reference is committed.
+Abandoned, cancelled or late-finishing uploads therefore expire asynchronously;
+immediate server-side cancellation/deletion is not a completion guarantee.
+Do not port PR #151's writer reservations, restore fencing or scheduled sweep
+to provide that optimization. This decision does not enable durable-asset
+garbage collection. See the
+[Listening cleanup closure](../system/listening-cleanup-reconciliation-20261017.md#2026-10-27-closure-decision).
+
 - upload abandoned without save -> temp lifecycle expiry;
-- upload cancelled -> best-effort immediate temp delete, then lifecycle fallback;
+- Listening upload cancelled -> temp lifecycle expiry; immediate deletion is not guaranteed;
+- other uploads cancelled -> best-effort immediate temp delete, then lifecycle fallback;
 - upload failed partway -> incomplete upload cleanup/lifecycle;
 - replacement cancelled or save failed -> new temp object expires; old committed asset stays;
 - draft deleted -> remove draft reference, then schedule deletion if reference count is zero;
