@@ -486,7 +486,7 @@ export const createListeningUploadSessionHandlers = (options: {
       const request = parseProbeAssetRequest(body);
       const record = await (options.readCommittedAsset
         ? options.readCommittedAsset(request.assetId)
-        : new FirebaseRtdbRestClient({ env: input.env }).readValue(`media_assets/${request.assetId}`));
+        : new FirebaseRtdbRestClient({ env: input.env, fetchImpl: globalThis.fetch }).readValue(`media_assets/${request.assetId}`));
       if (record && typeof record === 'object' && 'state' in record && record.state === 'committed') {
         const asset = record as Record<string, unknown>;
         if (asset.ownerId !== input.uid || asset.assetId !== request.assetId
