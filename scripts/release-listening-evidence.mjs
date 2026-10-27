@@ -102,7 +102,7 @@ export function validateListeningEvidence(local, provider, phase, pins = reviewe
 
 function command(executable, args, cwd) {
   const result = spawnSync(executable, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-  assert(!result.error && result.status === 0, `Listening command failed: ${executable} ${args.slice(0, 2).join(' ')}`);
+  assert(!result.error && result.status === 0, `Listening command failed: ${executable} ${args.slice(0, 2).join(' ')} (${result.error?.code ?? `exit ${result.status}`}; signal ${result.signal ?? 'none'})`);
   return result.stdout.trim();
 }
 
@@ -140,9 +140,13 @@ export async function readListeningProvider(cwd) {
   const credentials = await readFile(path.join(authRoot, '.wrangler/config/default.toml'), 'utf8');
   const token = credentials.match(/^oauth_token\s*=\s*"([^"\r\n]+)"/mu)?.[1];
   assert(token, 'Existing Cloudflare authentication unavailable');
-  const gcloud = args => process.platform === 'win32'
-    ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud ${args.map(arg => `'${arg}'`).join(' ')}`])
-    : command('gcloud', args);
+  const gcloud = args => {
+    try {
+      return process.platform === 'win32'
+        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud ${args.map(arg => `'${arg}'`).join(' ')}`])
+        : command('gcloud', args);
+    } catch (error) { throw new Error(`Google CLI ${args.slice(0, 2).join(' ')}: ${error.message}`); }
+  };
   const auth = JSON.parse(gcloud(['auth', 'list', '--format=json']));
   assert.deepEqual(auth.filter(item => item.status === 'ACTIVE').map(item => item.account), ['iamhuwng@gmail.com'], 'Listening Google account changed');
   assert.equal(gcloud(['config', 'get-value', 'project']), 'temp-a1437', 'Listening Google project changed');

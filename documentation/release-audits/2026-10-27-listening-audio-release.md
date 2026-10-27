@@ -172,3 +172,37 @@ Ambiguous assignment creation deliberately retains references. Rules reversal
 must account for object-shaped grants already written. Do not infer that a
 code deployment restores missing historical audio: that requires correctly
 mapped original files and separate authorized recovery.
+
+## Backend activation — 27 October 2026
+
+This append supersedes the preparation-only status above. The user's explicit
+conditional deployment authorization covers this ordered rollout. Fresh shared
+assessments returned PASS at predeploy, rules, upload and homework phases;
+the final homework receipt reports `hostingReady: true`.
+
+- Rules compiled and deployed successfully; native canonical readback is
+  `0310f19cc07a8970ce2b12672e60fe6389acaf255910319a4286058e39fbdbc3`.
+- Upload Worker: `674bf4a5-bcd1-4a91-b505-f05214182df5`, exact reviewed module
+  at 100%, original runtime/bindings/routes/hourly schedule preserved.
+- Homework Worker: `e9cac4c7-430a-4398-ba1f-72034c0fd45e`, exact reviewed
+  module at 100%, original runtime/bindings/routes/weekly schedule preserved.
+- Both notification Workers remain on the versions recorded above; Functions
+  inventory is empty. Authoring remains enabled and restoration inactive.
+- Hosting remains `03089c91` / `d418b04bae169db6` at this checkpoint. Its guarded
+  deployment has started; this checkpoint does not claim its success.
+
+Generated receipts are `tmp/release-receipts/listening-qualified-predeploy.json`,
+`listening-qualified-rules-retry.json`, `listening-qualified-upload.json` and
+`listening-qualified-homework-retry.json` in the selected product checkout.
+Original failed rules/homework receipts remain intact: a Google CLI subprocess
+failed, with its cause unestablished. Exact standalone Google CLI operations
+subsequently succeeded, and complete native reruns passed. Diagnostic messages
+now identify the operation/error code/signal without exposing token output.
+
+For Hosting recovery, the installed Firebase CLI supports the retained exact
+version selector: `firebase hosting:clone kahut1@d418b04bae169db6 kahut1:live
+--project temp-a1437`. This is a prepared recovery command, not a rehearsal.
+The Worker rebuild comparison adds only the exact canonical dependency-path
+prefix to existing normalization; normalized SHA-256 is
+`c3391019f0991098bda63f524acdaacc0402f2ce66432378086df8a5dc4bf684`.
+It retains complete executable-code comparison.
