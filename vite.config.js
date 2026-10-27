@@ -112,6 +112,7 @@ export default defineConfig(({ mode, command, isPreview }) => {
     // Minification options
     minify: 'terser',
     terserOptions: {
+      maxWorkers: 1,
       compress: {
         drop_console: false, // KEEP console.log for debugging (was: true)
         drop_debugger: true,
