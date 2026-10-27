@@ -8390,7 +8390,7 @@ status: approved
 
 PR #172 exposed stale exact-count records after bounded audio preview, save-before-publish and retained-homework corrections. Codex ci_budget_review, Independent Architecture Reviewer, explicitly approved the measured scopes below against 87adebb8 on 27 October. This is technical architecture review under File-Architecture Principles 4 and 5, not a claim of new human approval. Earlier approvals are preserved above as historical records. The guard itself is unchanged.
 
-<!-- assessment-line-budget-exception
+<!-- historical-assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
 line-count: 4634
 responsibilities: Listening wizard composition and section question editing; authorized preview hydration and local preview state; trusted save publish conflict-token and recovery coordination
@@ -8413,3 +8413,26 @@ status: approved
 -->
 
 The preview dependency-direction correction calls the existing feature-local WorkerListeningUploadSessionApi instead of importing the cycle-prone services/r2Storage facade. Its endpoint, authentication and probe behavior remain the existing implementation. These scoped approvals cover the exact counts above only, not future growth.
+
+## 2026-10-27 PR #177 Listening editor and native question preservation review
+
+Human decision: iamhuwng explicitly approved recording iamhuwng as the human architecture reviewer for the scoped `src/skills/listening/builders/ListeningTestBuilder.tsx` exception at 4,645 logical lines, an increase of 11 from the preceding 4,634-line record. This approval covers the existing native question-field preservation correction only. The builder source is unchanged by this CI repair. Its parser adapter carries image, explanation, acceptable answers, timer and option-label metadata, and its authoring serializer preserves those fields plus context through the strict native contract. No grouped Reading schema or new wizard responsibility is introduced.
+
+The earlier 4,634-line agent review is retained under a historical marker. It does not satisfy the named-human requirement recorded in Packet 3B Task 3.4 and reaffirmed by the October 18 review. This new human approval supersedes that record for this exact path and count only; it does not approve future growth, change the 400-line budget, or qualify a live release.
+
+<!-- assessment-line-budget-exception
+path: src/skills/listening/builders/ListeningTestBuilder.tsx
+line-count: 4645
+responsibilities: Listening wizard composition and section question editing; parser adaptation and strict native question serialization preserving context image explanation acceptable answers timer and option labels; authorized audio preview and upload coordination; trusted draft publish conflict-token discard restore archive and recovery orchestration
+split-alternatives: extract native question serialization and parser adaptation into a bounded Listening question adapter; extract audio preview and upload state into a bounded Listening audio controller; extract draft publish and recovery lifecycle into a Listening authoring controller
+rejection-reason: extract native question serialization and parser adaptation into a bounded Listening question adapter => this is a valid future seam but relocates parser fallbacks section assignment defaults and the preservation contract across another interface without bringing the inherited wizard near the soft budget or resolving the uploader dependency; extract audio preview and upload state into a bounded Listening audio controller => this would move section state ownership pending-upload counters and stale-completion cancellation boundaries while the CI correction only needs the existing uploader injected by its editor caller; extract draft publish and recovery lifecycle into a Listening authoring controller => this would relocate fingerprints conflict tokens idempotency announcements and recovery across callbacks and broaden the bounded native-field correction into a lifecycle refactor
+approver: iamhuwng
+approver-role: Human Architecture Reviewer
+status: approved
+-->
+
+The uploader dependency correction removes the feature's cycle-prone `services/r2Storage` import. `TestEditor` injects its existing uploader into the feature helper, which retains ownership and edit-source checks, draft-scoped idempotency, asset probing and canonical-reference/preview separation. Existing helper tests now inject the uploader directly. The existing overlapping-upload editor regression also checks delegation to the root uploader. No guardrail implementation, runtime route, upload authorization or persisted schema is changed.
+
+Before recording this approval, the two focused editor/helper suites passed 24 tests. The explicit builder/helper guardrail reproduced only the stale 4,645-line exception; the forbidden dependency was already eliminated. Logs: `tmp/listening-text-mode-proof/pr177-ci-upload-tests.log` and `tmp/listening-text-mode-proof/pr177-ci-guardrail.log`. Fresh post-approval checks remain required and are reported separately; these local checks are not live-site verification.
+
+Post-approval local verification: the explicit builder/helper guardrail passed, and the complete PR changed-file set passed with `GITHUB_BASE_REF=main` (37 paths). The two focused editor/helper suites passed all 24 tests, including uploader delegation and overlapping-upload/save protection. UTF-8 passed for the five touched text files and `git diff --check` was clean. Logs: `tmp/listening-text-mode-proof/pr177-ci-guardrail-approved.log`, `tmp/listening-text-mode-proof/pr177-ci-guardrail-full.log` and `tmp/listening-text-mode-proof/pr177-ci-upload-tests-final.log`. No build, dependency installation, Worker execution or deployment was performed in this CI repair.

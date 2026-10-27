@@ -53,6 +53,7 @@ import { ListeningImageModeDisplay } from '../../skills/listening/components/Lis
 
 // Types from listening storage
 import type { ListeningDisplayMode, QuestionImage } from '../../services/listeningTestStorage';
+import type { TestData } from '../../services/testStorage';
 
 // Solo hooks
 import { useAuth } from '../../hooks/useAuth';
@@ -177,6 +178,7 @@ const getTaskInstructions = (type: string, startNum: number, endNum: number): st
 
 export interface ListeningPracticeViewProps {
     materialId: string;
+    initialTestData?: TestData;
     resolvedSettings: ResolvedPracticeSettings;
     practiceContext: PracticeContext;
     autoResume?: boolean;
@@ -188,6 +190,7 @@ export interface ListeningPracticeViewProps {
 
 const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
   materialId,
+  initialTestData,
   resolvedSettings,
   practiceContext,
   autoResume = false,
@@ -249,6 +252,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         questionsWithAnswersRef,
     } = useSoloTestData({
         materialId,
+        initialTestData,
     });
 
     // ═══════════════════════════════════════════════════════════════

@@ -13,12 +13,14 @@
 import React from 'react';
 import { AuthenticAnswerInput } from '../../../components/test/AuthenticAnswerInput';
 import { InlineFormCompletion } from './InlineFormCompletion';
+import { getReadingOptionLabel, getReadingOptionText, type ReadingOptionDisplayFormat } from '../../../utils/readingOptionDisplay';
 
 interface Question {
   number: number;
   type: string;
   question: string;
   options?: string[];
+  optionLabelFormat?: ReadingOptionDisplayFormat;
   answer: string | string[] | Record<string, string>;
   passageId?: string;
   sectionId?: string;
@@ -70,7 +72,7 @@ const isCompletionType = (type: string): boolean => {
 /**
  * Options Box Component - Shows matching options in a styled box
  */
-const OptionsBox: React.FC<{ options: string[]; title?: string }> = ({ options, title = 'Options' }) => {
+const OptionsBox: React.FC<{ options: string[]; title?: string; labelFormat?: ReadingOptionDisplayFormat }> = ({ options, title = 'Options', labelFormat }) => {
   return (
     <div style={{
       background: '#f8fafc',
@@ -95,7 +97,7 @@ const OptionsBox: React.FC<{ options: string[]; title?: string }> = ({ options, 
         gap: '8px',
       }}>
         {options.map((option, index) => {
-          const letter = String.fromCharCode(65 + index); // A, B, C...
+          const label = getReadingOptionLabel(option, index, labelFormat);
           return (
             <div
               key={index}
@@ -114,14 +116,14 @@ const OptionsBox: React.FC<{ options: string[]; title?: string }> = ({ options, 
                 color: '#3b82f6',
                 minWidth: '24px',
               }}>
-                {letter}.
+                {label}.
               </span>
               <span style={{
                 color: '#334155',
                 fontSize: '14px',
                 lineHeight: 1.5,
               }}>
-                {option}
+                {getReadingOptionText(option)}
               </span>
             </div>
           );
@@ -384,7 +386,7 @@ export const ListeningQuestionDisplay: React.FC<ListeningQuestionDisplayProps> =
 
       {/* Options Box (for matching/labelling types) */}
       {groupOptions && groupOptions.length > 0 && (
-        <OptionsBox options={groupOptions} title={getOptionsBoxTitle()} />
+        <OptionsBox options={groupOptions} title={getOptionsBoxTitle()} labelFormat={group.questions[0]?.optionLabelFormat} />
       )}
 
       {/* Questions - Use inline format for completion types, card format for others */}

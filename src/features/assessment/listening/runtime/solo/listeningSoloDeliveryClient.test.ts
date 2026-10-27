@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createListeningSoloDeliveryIssuer,
+  readListeningHomeworkDocument,
+  readListeningHomeworkQuestions,
   resolveListeningSoloDeliveryEndpoint,
 } from './listeningSoloDeliveryClient';
 import { DEFAULT_R2_UPLOAD_WORKER_URL } from '../../../../../services/r2WorkerEndpoint';
@@ -31,6 +33,27 @@ const jsonResponse = (body: unknown, status = 200): Response =>
   });
 
 describe('listeningSoloDeliveryClient', () => {
+  it('reads the pinned homework document using caller authentication and exact assignment scope', async () => {
+    const payload = { id: 'test-1', versionId: 'version-1', skill: 'Listening', audioSections: [{ assetId: 'assigned-asset' }] };
+    const fetchImpl = vi.fn(async () => jsonResponse(payload));
+    const scope = { testId: 'test-1', versionId: 'version-1', homeworkId: 'hw-1', submissionId: 'sub-1' };
+    await expect(readListeningHomeworkDocument(scope, { endpoint: 'https://upload.example/', getIdToken: async () => 'id-token', fetchImpl })).resolves.toEqual(payload);
+    expect(fetchImpl).toHaveBeenCalledWith('https://upload.example/listening-delivery/homework-document', expect.objectContaining({
+      headers: { Authorization: 'Bearer id-token', 'Content-Type': 'application/json' }, body: JSON.stringify(scope),
+    }));
+  });
+
+  it('reads grading questions only from the requested homework version', async () => {
+    const questions = [{ number: 1, answer: 'Original answer' }];
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 'test-1', versionId: 'version-1', questions }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'test-1', versionId: 'version-2', questions: [{ answer: 'Replacement answer' }] }));
+    const scope = { testId: 'test-1', versionId: 'version-1', homeworkId: 'hw-1', submissionId: 'sub-1' };
+    const dependencies = { endpoint: 'https://upload.example', getIdToken: async () => 'id-token', fetchImpl };
+    await expect(readListeningHomeworkQuestions(scope, dependencies)).resolves.toEqual(questions);
+    expect(fetchImpl).toHaveBeenCalledWith('https://upload.example/listening-delivery/homework-questions', expect.objectContaining({ body: JSON.stringify(scope) }));
+    await expect(readListeningHomeworkQuestions(scope, dependencies)).rejects.toThrow('listening_homework_document_mismatch');
+  });
+
   it('resolves an explicit solo delivery endpoint before the shared upload Worker fallback', () => {
     expect(resolveListeningSoloDeliveryEndpoint({
       VITE_LISTENING_SOLO_DELIVERY_WORKER_URL: ' https://solo.example/// ',

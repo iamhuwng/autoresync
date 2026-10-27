@@ -116,6 +116,7 @@ export interface ParsedQuestion {
   // Metadata
   wordLimit?: number;
   acceptableAnswers?: string[];
+  explanation?: string;
   includesNumber?: boolean;
   sectionInstructionId?: string;
   groupId?: string;

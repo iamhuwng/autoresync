@@ -40,6 +40,8 @@ export const adaptTestToResources = (test: TestData): ContextResource[] => {
                 type: 'audio',
                 title: section.name || `Audio Section ${section.number}`,
                 audioUrl: section.audioUrl,
+                ...(section.assetId ? { assetId: section.assetId } : {}),
+                ...(section.streamUrl ? { streamUrl: section.streamUrl } : {}),
                 questionStart: section.startQuestion,
                 questionEnd: section.endQuestion,
                 duration: section.duration,

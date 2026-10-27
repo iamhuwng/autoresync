@@ -418,18 +418,21 @@ const DropdownMatchingInput: React.FC<AuthenticAnswerInputProps> = ({
 }) => {
   const matches = typeof answer === 'object' && !Array.isArray(answer) ? answer : {};
   const options = getQuestionOptions(question);
+  const hasItems = Boolean(question.items?.length);
+  const items = hasItems ? question.items! : [{ id: String(question.number), text: '' }];
 
   const handleMatch = (itemId: string, optId: string) => {
-    onChange({ ...matches, [itemId]: optId });
+    onChange(hasItems ? { ...matches, [itemId]: optId } : optId);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '0.5rem 0' }}>
-      {question.items?.map(item => (
+      {items.map(item => (
         <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
           <div style={{ flex: 1, fontSize: '16px', color: '#000000' }}>{item.text}</div>
           <select
-            value={matches[item.id] || ''}
+            aria-label={hasItems ? item.text : `Answer for question ${question.number}`}
+            value={hasItems ? matches[item.id] || '' : typeof answer === 'string' ? answer : ''}
             onChange={(e) => !disabled && handleMatch(item.id, e.target.value)}
             disabled={disabled}
             style={{

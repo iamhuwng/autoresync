@@ -81,6 +81,9 @@ export interface ContextResource {
   wordCount?: number;
   // Audio specific
   audioUrl?: string;
+  assetId?: string;
+  uploadSessionId?: string;
+  streamUrl?: string;
   // Image specific
   images?: string[];
   // Common
@@ -91,6 +94,8 @@ export interface ContextResource {
 
 export interface TestData {
   id: string;
+  versionId?: string;
+  publishedSnapshotVersionId?: string;
   title: string;
   type: 'IELTS' | 'TOEFL' | 'Custom' | 'College Entrance' | 'THCS-THPT';
   skill: 'Reading' | 'Listening' | 'Writing' | 'Speaking' | 'Mixed';

@@ -2,8 +2,9 @@ import '@testing-library/jest-dom';
 
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { IELTSQuestionsPanel } from './IELTSQuestionsPanel';
+import { AuthenticAnswerInput } from './AuthenticAnswerInput';
 import type { QuestionGroupsField } from '../../types/tableCompletion';
 
 const buildMatchingHeadingsQuestions = () => [
@@ -260,5 +261,37 @@ describe('IELTSQuestionsPanel matching headings', () => {
         expect(screen.getByText('Medicinal plants')).toBeInTheDocument();
         expect(screen.getByLabelText('Question 1: Ginkgo Biloba - Use')).toBeInTheDocument();
         expect(screen.getByLabelText('Question 2: Ginkgo Biloba - Use')).toBeInTheDocument();
+    });
+});
+
+describe('AuthenticAnswerInput matching compatibility', () => {
+    const question = {
+        number: 1, type: 'matching', question: 'Choose the matching city.',
+        options: ['A. Tokyo', 'B. Ottawa'], answer: 'B', passageId: 'listening', points: 1,
+    };
+
+    it.each([undefined, []])('renders individual matching with items=%j and emits scalar option labels', (items) => {
+        const onChange = vi.fn();
+        const { rerender } = render(<AuthenticAnswerInput question={{ ...question, items }} answer="A" onChange={onChange} />);
+        const select = screen.getByRole('combobox', { name: 'Answer for question 1' });
+        expect(select).toHaveValue('A');
+        fireEvent.change(select, { target: { value: 'B' } });
+        expect(onChange).toHaveBeenLastCalledWith('B');
+        rerender(<AuthenticAnswerInput question={{ ...question, items }} answer="B" onChange={onChange} disabled />);
+        expect(screen.getByRole('combobox')).toHaveValue('B');
+        expect(screen.getByRole('combobox')).toBeDisabled();
+        onChange.mockClear();
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'A' } });
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('keeps existing items-based matching on the drag-and-drop response path', () => {
+        const onChange = vi.fn();
+        render(<AuthenticAnswerInput question={{ ...question, items: [{ id: 'item-1', text: 'City' }] }}
+            answer="A" onChange={onChange} />);
+        expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Drop zone for question 1: Choose the matching city.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Remove answer' }));
+        expect(onChange).toHaveBeenCalledWith('');
     });
 });

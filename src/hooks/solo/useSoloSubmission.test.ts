@@ -8,6 +8,7 @@ import { clearSoloProgress } from './useSoloAutoSave';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import type { HomeworkIntegrity } from '../../types/integrity.types';
 import { submitHomework } from '../../services/homeworkSubmissionService';
+import { readListeningHomeworkQuestions } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
 
 const {
   mockNavigateTo,
@@ -28,6 +29,9 @@ vi.mock('../useNavigation', () => ({
 vi.mock('../../services/testStorage', () => ({
   getTestQuestionsFromFirebase: vi.fn(),
 }));
+vi.mock('../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient', () => ({
+  readListeningHomeworkQuestions: vi.fn(),
+}));
 
 vi.mock('../../services/autoMarking.service', () => ({
   scoreQuestion: vi.fn(),
@@ -39,6 +43,9 @@ vi.mock('../../services/testResults.service', () => ({
 
 vi.mock('./useSoloAutoSave', () => ({
   clearSoloProgress: vi.fn(),
+}));
+vi.mock('../../services/studentResume.service', () => ({
+  studentResumeService: { clearResume: vi.fn(async () => undefined) },
 }));
 
 vi.mock('../../services/homeworkSubmissionService', () => ({
@@ -177,6 +184,27 @@ describe('useSoloSubmission', () => {
         ]),
       }),
     );
+  });
+
+  it('grades retained Listening homework with its original version keys and reuses those cached keys', async () => {
+    const original = [{ number: 1, type: 'multiple-choice', question: 'Assigned Q1', options: ['A', 'B'], answer: 'A', points: 1 }];
+    vi.mocked(getTestQuestionsFromFirebase).mockResolvedValue({ success: true, data: [{ ...original[0], answer: 'B' }] as any });
+    vi.mocked(readListeningHomeworkQuestions).mockResolvedValue(original as any);
+    const questionsWithAnswersRef = { current: null } as any;
+    const { result } = renderHook(() => useSoloSubmission({
+      testData: { id: 'test-1', versionId: 'assigned-version', skill: 'Listening', type: 'IELTS', duration: 30,
+        questionCount: 1, questions: [{ ...original[0], answer: undefined }] } as any,
+      answers: { 1: 'A' }, materialId: 'test-1', studentId: 'student-1', studentName: 'Student One',
+      timeRemaining: 1200, resolvedSettings: null,
+      context: { type: 'homework', source: { type: 'homework', id: 'hw-1' } },
+      homeworkId: 'hw-1', submissionId: 'sub-1', questionsWithAnswersRef,
+    }));
+    await expect(result.current.markTest()).resolves.toMatchObject({ correctAnswers: 1 });
+    await expect(result.current.markTest()).resolves.toMatchObject({ correctAnswers: 1 });
+    expect(readListeningHomeworkQuestions).toHaveBeenCalledOnce();
+    expect(readListeningHomeworkQuestions).toHaveBeenCalledWith({ testId: 'test-1', versionId: 'assigned-version', homeworkId: 'hw-1', submissionId: 'sub-1' });
+    expect(getTestQuestionsFromFirebase).not.toHaveBeenCalled();
+    expect(questionsWithAnswersRef.current).toEqual(original);
   });
 
   it('replays option shuffling on lazy grading questions for homework or practice flows', async () => {
@@ -496,6 +524,7 @@ describe('useSoloSubmission', () => {
       }),
     );
 
+    expect(saveCall?.[14]).toMatchObject({ studentPrivateHomework: true });
     expect(mockTrackAntiCheatAction).toHaveBeenCalledWith(
       'persistHomeworkIntegrity',
       expect.objectContaining({

@@ -16,6 +16,7 @@ const {
   refMock,
   resolvePracticeSettingsMock,
   getHomeworkByIdMock,
+  readListeningHomeworkDocumentMock,
   getEffectiveHomeworkDueDateMock,
   getSubmissionByIdMock,
   submitHomeworkMock,
@@ -39,6 +40,7 @@ const {
   refMock: vi.fn(),
   resolvePracticeSettingsMock: vi.fn(),
   getHomeworkByIdMock: vi.fn(),
+  readListeningHomeworkDocumentMock: vi.fn(),
   getEffectiveHomeworkDueDateMock: vi.fn(),
   getSubmissionByIdMock: vi.fn(),
   submitHomeworkMock: vi.fn(),
@@ -63,6 +65,9 @@ vi.mock('../config/bookActivityRolloutGates', async () => ({
 vi.mock('firebase/database', () => ({
   get: (...args: unknown[]) => getMock(...args),
   ref: (...args: unknown[]) => refMock(...args),
+}));
+vi.mock('../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient', () => ({
+  readListeningHomeworkDocument: (...args: unknown[]) => readListeningHomeworkDocumentMock(...args),
 }));
 
 vi.mock('../services/firebase', () => ({
@@ -732,6 +737,21 @@ describe('StudentPracticePage', () => {
     expect(getHomeworkByIdMock).toHaveBeenCalledWith('hw-worker-1');
     expect(refMock).toHaveBeenCalledWith({}, `tests/${materialId}`);
     expect(refMock).not.toHaveBeenCalledWith({}, `student_safe_tests/${materialId}`);
+  });
+
+  it('launches existing Listening homework from the authorized immutable document after source replacement', async () => {
+    const pinned = { id: 'pinned-listening', type: 'IELTS', skill: 'Listening', versionId: 'assigned-version',
+      audioSections: [{ number: 1, assetId: 'assigned-asset' }], questions: [{ number: 1, question: 'Assigned question' }] };
+    readListeningHomeworkDocumentMock.mockResolvedValueOnce(pinned);
+    getHomeworkByIdMock.mockResolvedValue({ id: 'hw-pinned', contentRef: { contentKind: 'ielts_listening', contentId: 'pinned-listening', version: 'assigned-version' } });
+    render(<MemoryRouter initialEntries={[{ pathname: '/student/practice/pinned-listening', state: {
+      isHomework: true, homeworkId: 'hw-pinned', submissionId: 'sub-pinned',
+    } }]}><Routes><Route path="/student/practice/:materialId" element={<StudentPracticePage />} /></Routes></MemoryRouter>);
+    await screen.findByTestId('listening-practice-view');
+    expect(readListeningHomeworkDocumentMock).toHaveBeenCalledWith({ testId: 'pinned-listening', versionId: 'assigned-version', homeworkId: 'hw-pinned', submissionId: 'sub-pinned' });
+    expect(listeningPracticeViewPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ initialTestData: pinned }));
+    expect(refMock).not.toHaveBeenCalledWith({}, 'student_safe_tests/pinned-listening');
+    expect(refMock).not.toHaveBeenCalledWith({}, 'tests/pinned-listening');
   });
 
   it.each([

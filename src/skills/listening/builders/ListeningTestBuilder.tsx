@@ -467,6 +467,12 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           answer: question.answer || '',
           sectionNumber: getSectionNumberForQuestion(questionNumber, storageSections),
           points: question.points || 1,
+          ...(question.context !== undefined ? { context: question.context } : {}),
+          ...(question.imageUrl !== undefined ? { imageUrl: question.imageUrl } : {}),
+          ...(question.explanation !== undefined ? { explanation: question.explanation } : {}),
+          ...(question.acceptableAnswers !== undefined ? { acceptableAnswers: question.acceptableAnswers } : {}),
+          ...(question.timer !== undefined ? { timer: question.timer } : {}),
+          ...(question.optionLabelFormat !== undefined ? { optionLabelFormat: question.optionLabelFormat } : {}),
         };
       },
     );
@@ -1244,6 +1250,11 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           options: q.options,
           answer: q.answer || '',
           context: q.context,
+          imageUrl: q.imageUrl,
+          explanation: q.explanation,
+          acceptableAnswers: q.acceptableAnswers,
+          timer: q.timer,
+          optionLabelFormat: q.optionLabelFormat,
           answerSource: 'ai-suggestion' as const,
           confidence: result.data.parseConfidence,
         }));
