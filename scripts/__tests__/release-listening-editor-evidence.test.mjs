@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { canonical, workerInvariants } from '../release-listening-evidence.mjs';
-import { validateListeningEditorEvidence, assertListeningEditorSource, isListeningEditorObserved } from '../release-listening-editor-evidence.mjs';
+import { validateListeningEditorEvidence, assertListeningEditorSource, isListeningEditorObserved, selectListeningReleaseProfile, reviewedListeningEditorRelease } from '../release-listening-editor-evidence.mjs';
+import { reviewedListeningProbeRelease } from '../release-listening-probe-pins.mjs';
 import { assess } from '../release-check.mjs';
 import { selectReleaseSource, assertListeningHostingReady } from '../deploy-live.mjs';
 
@@ -69,7 +70,22 @@ test('editor checker and Hosting route cannot mix profiles or activate before po
   assert.throws(() => selectReleaseSource({ observeListeningEditorRelease: true, listeningPhase: 'predeploy' }), /postupload/);
   assert.throws(() => assertListeningHostingReady({ hostingReady: true }, false, true), /postupload/);
   assert.doesNotThrow(() => assertListeningHostingReady({ hostingReady: true, editorObservation: { phase: 'postupload' } }, false, true));
+  assert.throws(() => assertListeningHostingReady({ hostingReady: true, editorObservation: { phase: 'postupload', scope: 'upload-worker-only' } }, false, true), /Worker-only/);
   const foreign = fixture();
   foreign.local.source.revision = 'f'.repeat(40);
   assert.throws(() => assertListeningEditorSource(foreign.local.source, foreign.pins), /revision changed/);
+});
+
+test('native profile selection accepts only fixed revisions and preserves historical editor pins', () => {
+  const original = selectListeningReleaseProfile(reviewedListeningEditorRelease.revision);
+  assert.equal(original.pins, reviewedListeningEditorRelease);
+  assert.equal(original.scope, 'upload-worker-and-hosting');
+  assert.throws(() => selectListeningReleaseProfile('f'.repeat(40)), /no reviewed fixed profile/);
+  assert.throws(() => selectListeningReleaseProfile(null), /invalid/);
+  if (reviewedListeningProbeRelease.revision) {
+    const hotfix = selectListeningReleaseProfile(reviewedListeningProbeRelease.revision);
+    assert.equal(hotfix.pins, reviewedListeningProbeRelease);
+    assert.equal(hotfix.scope, 'upload-worker-only');
+    assert.equal(hotfix.name, 'probe-hotfix');
+  }
 });
