@@ -10,11 +10,12 @@ import {
 } from '../../../../functions/src/listening-authoring/service.ts';
 import {
   type ListeningAuthoringRepository,
-} from '../../../../../functions/src/listening-authoring/repository.shared.ts';
+} from '../../../../functions/src/listening-authoring/repository.shared.ts';
 import {
   FirebaseRestListeningAuthoringRepository,
   type RepositoryEnv,
 } from './repository.ts';
+import { ListeningAssetCommitError } from '../../../../src/features/assessment/listening/storage/listeningAssetCommit.ts';
 
 type AuthoringMutationName = 'save-draft' | 'publish' | 'lifecycle';
 
@@ -175,6 +176,9 @@ const statusForResult = (result: Record<string, unknown>): number => {
 };
 
 const statusForThrown = (error: unknown): number => {
+  if (error instanceof ListeningAssetCommitError) {
+    return error.code === 'asset_storage_unavailable' ? 503 : 422;
+  }
   if (error instanceof ListeningAuthoringError) return error.statusCode;
   const message = error instanceof Error ? error.message : String(error);
   if (
@@ -190,6 +194,9 @@ const statusForThrown = (error: unknown): number => {
 };
 
 const bodyForThrown = (error: unknown, status: number): Record<string, unknown> => {
+  if (error instanceof ListeningAssetCommitError) {
+    return { code: error.code, message: 'Audio could not be saved. Re-upload missing audio and retry.' };
+  }
   if (error instanceof ListeningAuthoringError) return error.body;
   if (status >= 500) return { message: 'Listening authoring mutation failed.' };
   return {

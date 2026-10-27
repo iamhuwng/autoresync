@@ -68,7 +68,7 @@ const makeAdapters = () => {
     })),
     deleteTempObject: vi.fn(async () => {}),
   };
-  return { objectStore, registry };
+  return { objectStore, registry, persistReference: vi.fn(async () => {}) };
 };
 
 const commitInput = {

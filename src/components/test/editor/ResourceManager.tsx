@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Text, Stack, ActionIcon, ScrollArea } from '@mantine/core';
 import { Button, Card } from '../../modern';
 import { IconFileText, IconVolume, IconPhoto, IconTrash, IconGripVertical } from '@tabler/icons-react';
 import type { ContextResource, ResourceType } from '../../../services/testStorage';
@@ -14,6 +13,8 @@ interface ResourceManagerProps {
     skill: 'Reading' | 'Listening' | 'Writing' | 'Speaking';
     totalQuestions: number;
     readOnly?: boolean;
+    audioReadOnly?: boolean;
+    audioPreviewUrls?: Record<string, string>;
 }
 
 export const ResourceManager: React.FC<ResourceManagerProps> = ({
@@ -21,13 +22,16 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     onUpdateResources,
     skill,
     totalQuestions,
-    readOnly = false
+    readOnly = false,
+    audioReadOnly = false,
+    audioPreviewUrls,
 }) => {
     const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
         resources.length > 0 ? resources[0]?.id || null : null
     );
 
     const handleAddResource = (type: ResourceType) => {
+        if (readOnly || (type === 'audio' && audioReadOnly) || (type === 'text' && skill === 'Listening')) return;
         const newResource: ContextResource = {
             id: `resource_${Date.now()}`,
             type,
@@ -49,6 +53,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     };
 
     const handleUpdateResource = (id: string, updates: Partial<ContextResource>) => {
+        if (readOnly || (audioReadOnly && resources.find(resource => resource.id === id)?.type === 'audio')) return;
         // Validate question range if being updated
         if (updates.questionStart !== undefined || updates.questionEnd !== undefined) {
             const currentResource = resources.find(r => r.id === id);
@@ -83,6 +88,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
     };
 
     const handleDeleteResource = (id: string) => {
+        if (readOnly || (audioReadOnly && resources.find(resource => resource.id === id)?.type === 'audio')) return;
         if (window.confirm('Delete this resource? associated questions will lose their context.')) {
             const updated = resources.filter(r => r.id !== id);
             onUpdateResources(updated);
@@ -101,9 +107,9 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
             <div style={{ width: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <Card variant="glass" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
                     <div style={{ padding: '1rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                        <Text size="sm" fw={700} c="dimmed" mb="xs">RESOURCES</Text>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#64748b', margin: '0 0 8px' }}>RESOURCES</p>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <Button
+                            {skill !== 'Listening' && <Button
                                 size="xs"
                                 variant="glass"
                                 onClick={() => !readOnly && handleAddResource('text')}
@@ -111,13 +117,13 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                                 style={{ flex: 1, opacity: readOnly ? 0.5 : 1, cursor: readOnly ? 'not-allowed' : undefined }}
                             >
                                 + Text
-                            </Button>
+                            </Button>}
                             {(skill === 'Listening' || skill === 'Speaking') && (
                                 <Button
                                     size="xs"
                                     variant="glass"
-                                    onClick={() => !readOnly && handleAddResource('audio')}
-                                    disabled={readOnly}
+                                    onClick={() => handleAddResource('audio')}
+                                    disabled={readOnly || audioReadOnly}
                                     style={{ flex: 1, opacity: readOnly ? 0.5 : 1, cursor: readOnly ? 'not-allowed' : undefined }}
                                 >
                                     + Audio
@@ -137,10 +143,10 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                         </div>
                     </div>
 
-                    <ScrollArea style={{ flex: 1 }}>
-                        <Stack gap={0}>
+                    <div style={{ flex: 1, overflow: 'auto' }}>
                             {resources.map((resource) => {
                                 const isSelected = resource.id === selectedResourceId;
+                                const resourceReadOnly = readOnly || (audioReadOnly && resource.type === 'audio');
                                 return (
                                     <div
                                         key={resource.id}
@@ -162,32 +168,31 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                                                 {resource.type === 'text' && <IconFileText size={14} color="#8b5cf6" />}
                                                 {resource.type === 'audio' && <IconVolume size={14} color="#06b6d4" />}
                                                 {resource.type === 'image' && <IconPhoto size={14} color="#10b981" />}
-                                                <Text size="sm" fw={600} truncate>{resource.title}</Text>
+                                                <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resource.title}</span>
                                             </div>
-                                            <Text size="xs" c="dimmed">Qs {resource.questionStart}-{resource.questionEnd}</Text>
+                                            <span style={{ fontSize: 12, color: '#64748b' }}>Qs {resource.questionStart}-{resource.questionEnd}</span>
                                         </div>
-                                        <ActionIcon
-                                            size="sm"
-                                            color="gray" // disabled state color
-                                            variant="subtle"
-                                            disabled={readOnly}
+                                        <button
+                                            type="button"
+                                            aria-label={`Delete ${resource.title}`}
+                                            disabled={resourceReadOnly}
                                             style={{
-                                                opacity: readOnly ? 0.3 : 1,
-                                                cursor: readOnly ? 'not-allowed' : 'pointer'
+                                                border: 0, background: 'transparent', padding: 4,
+                                                opacity: resourceReadOnly ? 0.3 : 1,
+                                                cursor: resourceReadOnly ? 'not-allowed' : 'pointer'
                                             }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (readOnly) return;
+                                                if (resourceReadOnly) return;
                                                 handleDeleteResource(resource.id);
                                             }}
                                         >
-                                            <IconTrash size={14} color={readOnly ? 'gray' : '#ef4444'} />
-                                        </ActionIcon>
+                                            <IconTrash size={14} color={resourceReadOnly ? 'gray' : '#ef4444'} />
+                                        </button>
                                     </div>
                                 );
                             })}
-                        </Stack>
-                    </ScrollArea>
+                    </div>
                 </Card>
             </div>
 
@@ -232,10 +237,12 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                             />
                         ) : selectedResource.type === 'audio' ? (
                             <AudioResourceEditor
-                                resource={selectedResource}
+                                resource={audioPreviewUrls?.[selectedResource.id]
+                                    ? { ...selectedResource, audioUrl: audioPreviewUrls[selectedResource.id] }
+                                    : selectedResource}
                                 onUpdate={(updated) => handleUpdateResource(selectedResource.id, updated)}
                                 totalQuestions={totalQuestions}
-                                readOnly={readOnly}
+                                readOnly={readOnly || audioReadOnly}
                             />
                         ) : (
                             <ImageResourceEditor
@@ -248,7 +255,7 @@ export const ResourceManager: React.FC<ResourceManagerProps> = ({
                     </Card>
                 ) : (
                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-                        <Text size="lg">Select a resource to edit context</Text>
+                        <p style={{ fontSize: 18 }}>Select a resource to edit context</p>
                     </div>
                 )}
             </div>

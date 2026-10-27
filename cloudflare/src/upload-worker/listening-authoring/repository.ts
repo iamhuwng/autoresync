@@ -35,7 +35,11 @@ import {
 } from '../../../../functions/src/listening-authoring/repository.legacyFirstEditMutation.ts';
 import { runPublishDraftMutation } from '../../../../functions/src/listening-authoring/repository.publishMutation.ts';
 import { runSaveDraftMutation } from '../../../../functions/src/listening-authoring/repository.saveDraftMutation.ts';
-import { FirebaseRtdbRestClient, type RepositoryEnv } from './rtdb.ts';
+import { FirebaseRtdbRestClient, type RepositoryEnv as RtdbRepositoryEnv } from './rtdb.ts';
+import { requestHash } from '../../../../functions/src/listening-authoring/canonical.ts';
+import { parseDocument } from '../../../../functions/src/listening-authoring/validation.document.ts';
+import { ListeningAssetCommitError } from '../../../../src/features/assessment/listening/storage/listeningAssetCommit.ts';
+import { ListeningAuthoringAssets, type ListeningAssetBucket, type PreparedListeningDocument } from './assets.ts';
 import { buildListeningPublishedMaterialUpdates } from './published-material.ts';
 import {
   getMaterialSummaryRecordPath,
@@ -48,11 +52,41 @@ interface ListeningAuthoringRootState {
   versions?: Record<string, ListeningPublishedVersionRecord>;
   operations?: Record<string, ListeningAuthoringOperationRecord>;
 }
+export interface RepositoryEnv extends RtdbRepositoryEnv {
+  readonly R2_BUCKET?: ListeningAssetBucket;
+  readonly PUBLIC_URL?: string;
+}
 const DEFAULT_MAX_RETRIES = 5;
 const normalizeRoot = (value: unknown): ListeningAuthoringRootState =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? cloneRecord(value as ListeningAuthoringRootState)
     : {};
+const normalizeStoredDocument = (
+  document: ListeningAuthoringDraftRecord['document'],
+): ListeningAuthoringDraftRecord['document'] => {
+  // RTDB removes empty arrays/maps; restore required collections before strict parsing.
+  const normalized = parseDocument({
+    ...document,
+    audioSections: document.audioSections === undefined ? [] : document.audioSections,
+    questions: document.questions === undefined ? [] : Array.isArray(document.questions) ? document.questions.map(question => ({
+      ...question,
+      answer: question.answer === undefined ? '' : question.answer,
+    })) : document.questions,
+    metadata: { ...document.metadata, tags: document.metadata?.tags === undefined ? [] : document.metadata.tags },
+  });
+  // Omit optional empty collections before publish hashing, matching their persisted form.
+  if (normalized.questionImages?.length === 0) delete normalized.questionImages;
+  for (const question of normalized.questions) {
+    if (question.options?.length === 0) delete question.options;
+    if (question.acceptableAnswers?.length === 0) delete question.acceptableAnswers;
+    if (question.context?.contextLines?.length === 0) delete question.context.contextLines;
+    if (question.context && Object.keys(question.context).length === 0) delete question.context;
+  }
+  for (const image of normalized.questionImages ?? []) {
+    if (image.questionRange && Object.keys(image.questionRange).length === 0) delete image.questionRange;
+  }
+  return normalized;
+};
 const operationLookup = (
   operations: Map<string, ListeningAuthoringOperationRecord>,
 ): Map<string, string> => {
@@ -102,6 +136,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
   private readonly fetchImpl: typeof fetch;
   private readonly maxRetries: number;
   private readonly rtdb: FirebaseRtdbRestClient;
+  private readonly assets: ListeningAuthoringAssets;
 
   constructor(
     private readonly options: {
@@ -119,13 +154,16 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       fetchImpl: this.fetchImpl,
       getAccessToken: options.getAccessToken,
     });
+    this.assets = new ListeningAuthoringAssets({ rtdb: this.rtdb, bucket: options.env.R2_BUCKET,
+      publicUrl: options.env.PUBLIC_URL, now: () => this.now() });
   }
   allocateId(prefix: RepositoryIdPrefix): string {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   async getDraft(draftId: string): Promise<ListeningAuthoringDraftRecord | null> {
     const root = await this.readRoot();
-    return root.drafts?.[draftId] ?? root.revision_drafts?.[draftId] ?? null;
+    const draft = root.drafts?.[draftId] ?? root.revision_drafts?.[draftId];
+    return draft ? { ...draft, document: normalizeStoredDocument(draft.document) } : null;
   }
   async writeDraft(record: ListeningAuthoringDraftRecord): Promise<void> {
     await this.withRootTransaction((root) => {
@@ -147,7 +185,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         return { outcome: { kind: 'conflict' as const, currentConflictToken: current.conflictToken } };
       }
       const next = normalizeDraftRecord({
-        ...updateFn(cloneDraftRecord(current)),
+        ...updateFn({ ...cloneDraftRecord(current), document: normalizeStoredDocument(current.document) }),
         updatedAt: this.now(),
       });
       maps.drafts.set(draftId, next);
@@ -168,7 +206,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     throw new Error('completeOperation is not used by Worker authoring mutations.');
   }
   async saveDraftTransaction(input: SaveDraftTransactionInput): Promise<SaveDraftTransactionResult> {
-    return this.withRootTransaction((root) => {
+    return this.withRootTransaction(async (root) => {
       const maps = rootMaps(root);
       const outcome = runSaveDraftMutation(
         {
@@ -180,18 +218,32 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         this.now(),
       );
       const shouldWrite = outcome.kind === 'saved' || outcome.kind === 'conflict';
+      let prepared: PreparedListeningDocument | undefined;
+      if (outcome.kind === 'saved' || outcome.kind === 'replayed') {
+        const draft = maps.drafts.get(outcome.result.draftId)!;
+        prepared = await this.assets.prepare(input.ownerId, normalizeStoredDocument(draft.document), {
+          kind: 'drafts', id: draft.draftId,
+          sourcePath: `${LISTENING_AUTHORING_ROOT}/${draft.recordType === 'draft' ? 'drafts' : 'revision_drafts'}/${draft.draftId}`,
+        });
+        if (outcome.kind === 'saved') maps.drafts.set(draft.draftId, { ...draft, document: prepared.document });
+      }
       return {
         outcome,
         nextRoot: shouldWrite ? persistRootMaps(root, maps) : root,
         shouldWrite,
+        afterWrite: prepared ? () => this.assets.finalize(prepared!) : undefined,
       };
     });
   }
   async publishDraftTransaction(
     input: PublishDraftTransactionInput,
   ): Promise<PublishDraftTransactionResult> {
-    const result = await this.withRootTransaction((root) => {
+    const result = await this.withRootTransaction(async (root) => {
       const maps = rootMaps(root);
+      const current = maps.drafts.get(input.draftId);
+      if (current?.ownerId === input.ownerId) {
+        maps.drafts.set(current.draftId, { ...current, document: normalizeStoredDocument(current.document) });
+      }
       const outcome = runPublishDraftMutation(
         {
           drafts: maps.drafts,
@@ -206,10 +258,33 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         outcome.kind === 'blocked' ||
         outcome.kind === 'conflict'
       );
+      let prepared: PreparedListeningDocument | undefined;
+      if (outcome.kind === 'published' || outcome.kind === 'replayed') {
+        const version = maps.versions.get(outcome.result.versionId)!;
+        try {
+          prepared = await this.assets.prepare(input.ownerId, normalizeStoredDocument(version.document), {
+            kind: 'versions', id: version.versionId, sourcePath: `${LISTENING_AUTHORING_ROOT}/versions/${version.versionId}`,
+          });
+        } catch (error) {
+          if (!(error instanceof ListeningAssetCommitError)) throw error;
+          const existing = root.drafts?.[input.draftId] ?? root.revision_drafts?.[input.draftId];
+          return { outcome: { kind: 'blocked' as const, draftId: input.draftId,
+            conflictToken: existing?.conflictToken ?? input.expectedConflictToken,
+            blockers: [{ field: 'audioSections', severity: 'blocker' as const,
+              guidance: `Audio could not be verified (${error.code}). Re-upload missing audio before publishing.` }] },
+            shouldWrite: false };
+        }
+        if (outcome.kind === 'published') {
+          maps.versions.set(version.versionId, { ...version, document: prepared.document, documentHash: requestHash(prepared.document) });
+          const draft = maps.drafts.get(input.draftId)!;
+          maps.drafts.set(draft.draftId, { ...draft, document: prepared.document });
+        }
+      }
       return {
         outcome,
         nextRoot: shouldWrite ? persistRootMaps(root, maps) : root,
         shouldWrite,
+        afterWrite: prepared ? () => this.assets.finalize(prepared!) : undefined,
       };
     });
     if (result.kind === 'published' || result.kind === 'replayed') {
@@ -337,9 +412,16 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       const root = await this.readRoot();
       const requested = root.versions?.[versionId];
       if (!requested) throw new Error('listening_published_version_missing');
-      const latest = Object.values(root.versions ?? {})
+      const latest = cloneVersionRecord(Object.values(root.versions ?? {})
         .filter((version) => version.testId === requested.testId)
-        .reduce((current, version) => version.versionNumber > current.versionNumber ? version : current, requested);
+        .reduce((current, version) => version.versionNumber > current.versionNumber ? version : current, requested));
+      latest.document = normalizeStoredDocument(latest.document);
+      if (latest.archive.state !== 'archived' && !latest.compatibility.frozenLegacyVersion1) {
+        const prepared = await this.assets.prepare(latest.ownerId, latest.document, {
+          kind: 'versions', id: latest.versionId, sourcePath: `${LISTENING_AUTHORING_ROOT}/versions/${latest.versionId}`,
+        });
+        await this.assets.finalize(prepared);
+      }
       const [previousSummary, previousRuntime] = await Promise.all([
         this.rtdb.readValue(getMaterialSummaryRecordPath(latest.testId)),
         this.rtdb.readValue(`tests/${latest.testId}`),
@@ -365,14 +447,17 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       nextRoot?: ListeningAuthoringRootState;
       shouldWrite?: boolean;
       afterWrite?: () => Promise<void>;
-    },
+    } | Promise<{ outcome: T; nextRoot?: ListeningAuthoringRootState; shouldWrite?: boolean; afterWrite?: () => Promise<void> }>,
   ): Promise<T> {
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const current = await this.rtdb.readWithEtag<ListeningAuthoringRootState | null>(
         LISTENING_AUTHORING_ROOT,
       );
-      const mutation = mutate(normalizeRoot(current.data));
-      if (!mutation.shouldWrite) return mutation.outcome;
+      const mutation = await mutate(normalizeRoot(current.data));
+      if (!mutation.shouldWrite) {
+        if (mutation.afterWrite) await mutation.afterWrite();
+        return mutation.outcome;
+      }
       const matched = await this.rtdb.writeIfMatch(
         LISTENING_AUTHORING_ROOT,
         mutation.nextRoot ?? {},

@@ -23,10 +23,27 @@ describe('private THCS homework access', () => {
       'tests/private-ielts': { testType: 'IELTS', ownerId: 'teacher-1', isPublic: false },
       'homework_test_access/private-thcs/student-1/homework-1': true,
       'homework_test_access/private-ielts/student-1/homework-1': true,
+      'homework_test_access/native-listening/student-1/homework-native': {
+        contentKind: 'ielts_listening', versionId: 'version-1', teacherId: 'teacher-1',
+        assetIds: ['asset-1'], createdAt: 1700000000000,
+      },
     }));
   });
 
   afterAll(async () => { await environment?.cleanup(); });
+
+  it('denies browser native grant create, change, delete, and ancestor-shaped writes', async () => {
+    const path = 'homework_test_access/native-listening/student-1/homework-native';
+    const forged = { contentKind: 'ielts_listening', versionId: 'forged-version', teacherId: 'teacher-1', assetIds: ['asset-1'], createdAt: 1700000000000 };
+    for (const uid of ['teacher-1', 'student-1', 'student-2']) {
+      const browser = environment.authenticatedContext(uid).database();
+      await assertFails(browser.ref(path + '-forged').set(forged));
+      await assertFails(browser.ref(path).set(forged));
+      await assertFails(browser.ref(path).remove());
+      await assertFails(browser.ref('homework_test_access/native-listening').update({ 'student-1/homework-native': forged }));
+      await assertFails(browser.ref().update({ [path]: forged }));
+    }
+  });
 
   it('allows only assigned THCS reads and denies browser-created grants', async () => {
     const assigned = environment.authenticatedContext('student-1').database();

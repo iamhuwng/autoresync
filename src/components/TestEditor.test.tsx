@@ -1,10 +1,12 @@
 import '@testing-library/jest-dom';
 
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockUseAuth } = vi.hoisted(() => ({
+const { mockUseAuth, mockListeningSave, mockMove } = vi.hoisted(() => ({
+  mockListeningSave: vi.fn(),
+  mockMove: vi.fn(),
   mockUseAuth: vi.fn(() => ({
     user: { uid: 'owner-1' },
     isAdmin: false,
@@ -29,8 +31,11 @@ vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
 }));
 
 vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
-  ListeningEditorLayout: ({ questionList, questionEditor }: any) => (
+  ListeningEditorLayout: ({ title, onTitleChange, onSave, readOnly, isSaving, questionList, questionEditor }: any) => (
     <div>
+      <span>{title}</span>
+      <button onClick={() => onTitleChange('Edited Listening')} disabled={readOnly}>Change title</button>
+      <button onClick={onSave} disabled={readOnly || isSaving}>Save Listening</button>
       <div>{questionList}</div>
       <div>{questionEditor}</div>
     </div>
@@ -70,6 +75,7 @@ vi.mock('./modern', () => ({
 vi.mock('../services/r2Storage', () => ({
   default: {
     isTempFile: () => false,
+    moveMultipleToPermanent: mockMove,
   },
 }));
 vi.mock('../services/homeworkManager', () => ({
@@ -85,6 +91,10 @@ vi.mock('firebase/database', () => ({
 vi.mock('../hooks/useAuth', () => ({
   useAuth: mockUseAuth,
 }));
+vi.mock('../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: vi.fn() }) }));
+vi.mock('../features/assessment/listening/authoring/listeningTestEditing', () => ({
+  createListeningTestEditSession: () => mockListeningSave,
+}));
 vi.mock('./modern/ToastNotification', () => ({
   toast: {
     success: vi.fn(),
@@ -93,6 +103,8 @@ vi.mock('./modern/ToastNotification', () => ({
 }));
 
 import TestEditor from './TestEditor';
+import { update } from 'firebase/database';
+import { toast } from './modern/ToastNotification';
 
 const TEST_FIXTURE = {
   id: 'test-1',
@@ -194,7 +206,10 @@ const TEST_FIXTURE = {
 
 describe('TestEditor', () => {
   beforeEach(() => {
-    mockUseAuth.mockClear();
+    vi.clearAllMocks();
+    localStorage.clear();
+    mockUseAuth.mockReturnValue({ user: { uid: 'owner-1' }, isAdmin: false });
+    mockListeningSave.mockResolvedValue({ status: 'published', versionId: 'version-2' });
   });
 
   it('blocks Reading V2 payloads before legacy editor hooks run', () => {
@@ -233,5 +248,40 @@ describe('TestEditor', () => {
       screen.getByText(/read-only after publish in Phase 1/i),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('flat-question-editor')).not.toBeInTheDocument();
+  });
+
+  const listening = {
+    ...TEST_FIXTURE, title: 'Native Listening', skill: 'Listening', versionId: 'version-1',
+    passages: [], questionGroups: [], questions: [TEST_FIXTURE.questions[1]],
+  };
+
+  it('ignores old cached edits and saves Listening through its trusted port without direct writes or media moves', async () => {
+    localStorage.setItem('test_edit_test-1', JSON.stringify({ title: 'Stale cached title', questions: { 0: { answer: 'stale' } }, resources: [] }));
+    const close = vi.fn();
+    render(<TestEditor test={listening as any} show handleClose={close} />);
+    expect(screen.getByText('Native Listening')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Change title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(mockListeningSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'Edited Listening', questions: [expect.objectContaining({ answer: 'A' })] }));
+    expect(update).not.toHaveBeenCalled();
+    expect(mockMove).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('keeps the editor open and announces publication failure', async () => {
+    mockListeningSave.mockRejectedValue(new Error('Saved draft; publication blocked.'));
+    const close = vi.fn();
+    render(<TestEditor test={listening as any} show handleClose={close} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Saved draft; publication blocked.'));
+    expect(close).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('does not offer another owner’s Listening save through the super-admin UI bypass', () => {
+    mockUseAuth.mockReturnValue({ user: { uid: 'another-admin' }, isAdmin: true });
+    render(<TestEditor test={listening as any} show handleClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Save Listening' })).toBeDisabled();
   });
 });

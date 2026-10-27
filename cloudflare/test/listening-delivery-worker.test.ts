@@ -125,6 +125,8 @@ const makeDefaultDeliveryWorker = () => {
   const verifyAuthorizationHeader = vi.fn(async (header: string | null) => (
     header === 'Bearer student-token'
       ? { valid: true, uid: 'student-1' }
+      : header === 'Bearer student-2-token'
+        ? { valid: true, uid: 'student-2' }
       : header === 'Bearer teacher-token'
         ? { valid: true, uid: 'teacher-1' }
         : { valid: false }
@@ -585,4 +587,152 @@ describe('PRD-0055 default private Listening delivery runtime', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ code: 'delivery_secret_unavailable' });
   });
+});
+
+
+describe('native Listening canonical solo authorization', () => {
+  const body = { assetId: 'asset-1', testId: 'test-1', versionId: 'version-1', mode: 'self_study' };
+  const nativeFixture = () => {
+    const fixture = makeDefaultDeliveryWorker();
+    const graph = { ...deliveryGraph, references: { versions: { 'version-1': true }, assignments: { 'hw-1': true } },
+      retainedVersions: [], retainedSoloAccess: [] };
+    const version = { recordType: 'published-version', versionId: 'version-1', testId: 'test-1', ownerId: 'teacher-1',
+      assetIds: { 'asset-1': true }, archive: { state: 'active' },
+      document: { isPublic: true, audioSections: [{ number: 1, assetId: 'asset-1', url: 'https://expired.example/temp/audio.mp3' }] } };
+    const grant = { contentKind: 'ielts_listening', versionId: 'version-1', teacherId: 'assigning-teacher', assetIds: ['asset-1'], createdAt: 1_700_000_000_000 };
+    const homework = { id: 'hw-1', createdBy: 'assigning-teacher', createdAt: grant.createdAt,
+      materialId: 'test-1', materialType: 'test', materialSkill: 'listening', archived: false, status: 'active',
+      contentRef: { contentKind: 'ielts_listening', contentId: 'test-1', version: 'version-1' },
+      target: { type: 'students', studentIds: ['student-1'] },
+      scheduling: { availableFrom: 1_699_999_000_000, dueDate: 1_700_010_000_000 }, config: {} };
+    const submission = { id: 'sub-1', homeworkId: 'hw-1', studentId: 'student-1', teacherId: 'assigning-teacher', status: 'in_progress' };
+    const values: Record<string, unknown> = {
+      'media_assets/asset-1': graph, 'listening_authoring/versions/version-1': version,
+      'homework_test_access/test-1/student-1/hw-1': grant,
+    };
+    const documents: Record<string, unknown> = { 'homework_assignments/hw-1': homework, 'homework_submissions/sub-1': submission };
+    fixture.env.readDatabaseValue.mockImplementation(async (path) => values[path] ?? null);
+    const env = { ...fixture.env, readListeningHomeworkDocument: vi.fn(async (path: string) => documents[path] ?? null) };
+    return { ...fixture, env, graph, version, grant, homework, submission, values, documents };
+  };
+  const homeworkBody = { ...body, mode: 'homework', homeworkId: 'hw-1', submissionId: 'sub-1' };
+
+  it('delivers committed native public audio to two authenticated students without legacy test refs or per-student grants', async () => {
+    const fixture = nativeFixture();
+    for (const token of ['student-token', 'student-2-token']) {
+      const response = await fixture.worker.fetch(post('/listening-delivery/solo', body, token), fixture.env);
+      expect(response.status).toBe(200);
+      const issued = await response.json() as typeof deliveryResponse;
+      const audio = await fixture.worker.fetch(new Request(issued.url, { headers: { Range: 'bytes=1-2' } }), fixture.env);
+      expect(audio.status).toBe(206);
+      expect([...new Uint8Array(await audio.arrayBuffer())]).toEqual([20, 30]);
+    }
+    expect(fixture.env.readDatabaseValue.mock.calls.some(([path]) => path.startsWith('student_safe_tests/'))).toBe(false);
+  });
+
+  it.each(['test', 'version', 'owner', 'asset', 'reference', 'private', 'archived'])(
+    'denies public delivery with mismatched or unavailable %s authority', async (failure) => {
+      const fixture = nativeFixture();
+      if (failure === 'test') fixture.version.testId = 'other-test';
+      if (failure === 'version') fixture.version.versionId = 'other-version';
+      if (failure === 'owner') fixture.version.ownerId = 'other-owner';
+      if (failure === 'asset') fixture.version.document.audioSections[0].assetId = 'other-asset';
+      if (failure === 'reference') delete (fixture.graph.references.versions as Record<string, true>)['version-1'];
+      if (failure === 'private') fixture.version.document.isPublic = false;
+      if (failure === 'archived') fixture.version.archive.state = 'archived';
+      const response = await fixture.worker.fetch(post('/listening-delivery/solo', body), fixture.env);
+      expect(response.status).toBe(403);
+      expect(fixture.get).not.toHaveBeenCalled();
+    },
+  );
+
+  it('reads current homework authority through Firestore REST with the verified caller token', async () => {
+    const fixture = nativeFixture();
+    const encode = (value: unknown): unknown => {
+      if (typeof value === 'string') return { stringValue: value };
+      if (typeof value === 'number') return { integerValue: String(value) };
+      if (typeof value === 'boolean') return { booleanValue: value };
+      if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
+      return { mapValue: { fields: Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, encode(entry)])) } };
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const prefix = 'https://firestore.googleapis.com/v1/projects/project-1/databases/(default)/documents/';
+      expect(String(url).startsWith(prefix)).toBe(true);
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer student-token');
+      const document = fixture.documents[String(url).slice(prefix.length)];
+      return Response.json({ fields: (encode(document) as { mapValue: { fields: unknown } }).mapValue.fields });
+    });
+    try {
+      const { readListeningHomeworkDocument: _reader, ...restEnv } = fixture.env;
+      const response = await fixture.worker.fetch(post('/listening-delivery/solo', homeworkBody), { ...restEnv, FIREBASE_PROJECT_ID: 'project-1' });
+      expect(response.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('rechecks public archive state on refresh', async () => {
+    const fixture = nativeFixture();
+    const response = await fixture.worker.fetch(post('/listening-delivery/solo', body), fixture.env);
+    expect(response.status).toBe(200);
+    const issued = await response.json() as typeof deliveryResponse;
+    fixture.advanceTo(issued.refreshAfter);
+    fixture.version.archive.state = 'archived';
+    fixture.get.mockClear();
+    const refreshed = await fixture.worker.fetch(post('/listening-delivery/solo', { ...body, previous: issued }), fixture.env);
+    expect(refreshed.status).toBe(403);
+    expect(fixture.get).not.toHaveBeenCalled();
+  });
+
+  it('rechecks current class membership for retained homework', async () => {
+    const fixture = nativeFixture();
+    Object.assign(fixture.homework.target, { type: 'class', classId: 'class-1' });
+    const classroom = { students: { 'student-record': { uid: 'student-1' } } };
+    fixture.values['classes/class-1'] = classroom;
+    const response = await fixture.worker.fetch(post('/listening-delivery/solo', homeworkBody), fixture.env);
+    expect(response.status).toBe(200);
+    const issued = await response.json() as typeof deliveryResponse;
+    fixture.advanceTo(issued.refreshAfter);
+    delete (classroom.students as Record<string, unknown>)['student-record'];
+    fixture.get.mockClear();
+    const revoked = await fixture.worker.fetch(post('/listening-delivery/solo', { ...homeworkBody, previous: issued }), fixture.env);
+    expect(revoked.status).toBe(403);
+    expect(fixture.get).not.toHaveBeenCalled();
+  });
+
+  it('retains exact homework delivery after source archive and rechecks revocation on refresh', async () => {
+    const fixture = nativeFixture();
+    fixture.version.archive.state = 'archived';
+    fixture.version.document.isPublic = false;
+    const response = await fixture.worker.fetch(post('/listening-delivery/solo', homeworkBody), fixture.env);
+    expect(response.status).toBe(200);
+    const issued = await response.json() as typeof deliveryResponse;
+    fixture.advanceTo(issued.refreshAfter);
+    const refreshed = await fixture.worker.fetch(post('/listening-delivery/solo', { ...homeworkBody, previous: issued }), fixture.env);
+    expect(refreshed.status).toBe(200);
+    fixture.homework.archived = true;
+    fixture.get.mockClear();
+    const revoked = await fixture.worker.fetch(post('/listening-delivery/solo', { ...homeworkBody, previous: issued }), fixture.env);
+    expect(revoked.status).toBe(403);
+    expect(fixture.get).not.toHaveBeenCalled();
+  });
+
+  it.each(['forged', 'version', 'teacher', 'student', 'submission', 'target', 'closed', 'future', 'reference'])(
+    'denies forged or mismatched homework %s context', async (failure) => {
+      const fixture = nativeFixture();
+      if (failure === 'forged') delete fixture.values['homework_test_access/test-1/student-1/hw-1'];
+      if (failure === 'version') fixture.homework.contentRef.version = 'other-version';
+      if (failure === 'teacher') fixture.homework.createdBy = 'other-teacher';
+      if (failure === 'student') fixture.submission.studentId = 'other-student';
+      if (failure === 'submission') fixture.submission.homeworkId = 'other-homework';
+      if (failure === 'target') fixture.homework.target.studentIds = ['other-student'];
+      if (failure === 'closed') fixture.homework.status = 'closed';
+      if (failure === 'future') fixture.homework.scheduling.availableFrom = 1_700_100_000_000;
+      if (failure === 'reference') delete (fixture.graph.references.assignments as Record<string, true>)['hw-1'];
+      const response = await fixture.worker.fetch(post('/listening-delivery/solo', homeworkBody), fixture.env);
+      expect(response.status).toBe(403);
+      expect(fixture.get).not.toHaveBeenCalled();
+    },
+  );
 });

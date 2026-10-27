@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   commitListeningMediaAsset,
+  prepareListeningMediaAsset,
+  finalizeListeningMediaAsset,
   type ListeningAssetCommitObjectStore,
   type ListeningAssetCommitReconciliationQueue,
   type ListeningAssetCommitRegistry,
@@ -63,11 +65,12 @@ const makeAdapters = (record: ListeningMediaAssetRecord = tempRecord()) => {
   const reconciliationQueue: ListeningAssetCommitReconciliationQueue = {
     queueUnreferencedDurableCopy: vi.fn(async () => { order.push('queue-reconciliation'); }),
   };
-  return { objectStore, order, reconciliationQueue, registry };
+  const persistReference = vi.fn(async () => { order.push('persist-canonical'); });
+  return { objectStore, order, reconciliationQueue, registry, persistReference };
 };
 
 const makeAdaptersWithBody = (body: Uint8Array) => {
-  const adapters = makeAdapters();
+  const adapters = makeAdapters(tempRecord({ sizeBytes: body.byteLength }));
   vi.mocked(adapters.objectStore.getTempObject).mockImplementation(async () => ({
     key: 'temp/listening/teacher-1/session-1/asset-1-audio.mp3',
     body,
@@ -99,6 +102,17 @@ const commitInput = {
 };
 
 describe('Listening asset commit service', () => {
+  it('resumes a verified durable copy after interrupted persistence and temporary expiry', async () => {
+    const adapters = makeAdapters(tempRecord({ state: 'committing' }));
+    vi.mocked(adapters.objectStore.getTempObject).mockResolvedValue(null);
+
+    await expect(prepareListeningMediaAsset(commitInput, adapters)).resolves.toMatchObject({
+      state: 'prepared', durableKey: 'assessment-assets/listening/teacher-1/asset-1/audio.mp3',
+    });
+    expect(adapters.objectStore.copyToDurable).not.toHaveBeenCalled();
+    expect(adapters.objectStore.deleteTempObject).not.toHaveBeenCalled();
+  });
+
   it('commits temp audio idempotently into immutable durable storage and public reader fields', async () => {
     const adapters = makeAdapters();
 
@@ -114,6 +128,8 @@ describe('Listening asset commit service', () => {
       'get-temp',
       'mark-committing',
       'copy-durable',
+      'verify-durable',
+      'persist-canonical',
       'verify-durable',
       'write-reference',
       'mark-committed',
@@ -147,7 +163,54 @@ describe('Listening asset commit service', () => {
     expect(adapters.objectStore.getDurableObject).toHaveBeenCalledWith(
       'assessment-assets/listening/teacher-1/asset-1/audio.mp3',
     );
-    expect(adapters.order).toEqual(['verify-durable']);
+    expect(adapters.order).toEqual(['verify-durable', 'persist-canonical', 'verify-durable', 'write-reference']);
+  });
+
+  it('rejects foreign-owner committed retries before reading bytes or writing a reference', async () => {
+    const adapters = makeAdapters(tempRecord({ state: 'committed', ownerId: 'another-teacher' }));
+
+    await expect(commitListeningMediaAsset(commitInput, adapters)).rejects.toThrow('asset_owner_mismatch');
+
+    expect(adapters.objectStore.getDurableObject).not.toHaveBeenCalled();
+    expect(adapters.objectStore.copyToDurable).not.toHaveBeenCalled();
+    expect(adapters.registry.writeReference).not.toHaveBeenCalled();
+    expect(adapters.persistReference).not.toHaveBeenCalled();
+  });
+
+  it('attaches each newly saved version reference when reusing committed audio', async () => {
+    const adapters = makeAdapters(tempRecord({ state: 'committed', references: { versions: { 'version-1': true } } }));
+    const reference = { kind: 'versions' as const, id: 'version-2', sourcePath: 'listening_authoring/versions/version-2' };
+
+    await commitListeningMediaAsset({ ...commitInput, reference }, adapters);
+
+    expect(adapters.registry.writeReference).toHaveBeenCalledWith(expect.objectContaining({ reference }));
+    expect(adapters.objectStore.copyToDurable).not.toHaveBeenCalled();
+  });
+
+  it('preserves temporary bytes and queues reconciliation when canonical persistence fails', async () => {
+    const adapters = makeAdapters();
+    adapters.persistReference.mockRejectedValueOnce(new Error('canonical save failed'));
+
+    await expect(commitListeningMediaAsset(commitInput, adapters)).rejects.toThrow('canonical save failed');
+
+    expect(adapters.objectStore.copyToDurable).toHaveBeenCalled();
+    expect(adapters.registry.writeReference).not.toHaveBeenCalled();
+    expect(adapters.registry.markCommitted).not.toHaveBeenCalled();
+    expect(adapters.objectStore.deleteTempObject).not.toHaveBeenCalled();
+    expect(adapters.reconciliationQueue.queueUnreferencedDurableCopy).toHaveBeenCalled();
+  });
+
+  it('prepares bytes without finalizing and rejects a mismatched prepared key', async () => {
+    const adapters = makeAdapters();
+    const prepared = await prepareListeningMediaAsset(commitInput, adapters);
+
+    expect(prepared.state).toBe('prepared');
+    expect(adapters.registry.writeReference).not.toHaveBeenCalled();
+    expect(adapters.registry.markCommitted).not.toHaveBeenCalled();
+    expect(adapters.objectStore.deleteTempObject).not.toHaveBeenCalled();
+    await expect(finalizeListeningMediaAsset(commitInput, { ...prepared, durableKey: 'other-key' }, adapters))
+      .rejects.toThrow('prepared_asset_mismatch');
+    expect(adapters.objectStore.deleteTempObject).not.toHaveBeenCalled();
   });
 
   it('fails committed retry closed when durable object no longer verifies', async () => {

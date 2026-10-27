@@ -158,6 +158,26 @@ const recordsForTestContent = (contentRecord: ReturnType<typeof makeTestRecord>)
 const firestoreFields = (write: unknown): Record<string, any> =>
     ((write as { fields?: Record<string, any> })?.fields ?? {});
 
+const nativeListeningRecords = () => new Map<string, any>([
+    ['users/teacher-1', { role: 'teacher' }],
+    ['classes/class-1', classRecord],
+    ['tests/native-listening', { versionId: 'version-1' }],
+    ['listening_authoring/versions/version-1', {
+        recordType: 'published-version', versionId: 'version-1', testId: 'native-listening', ownerId: 'teacher-1',
+        document: { title: 'Canonical Listening', skill: 'listening', isPublic: false, audioSections: [{ assetId: 'asset-1' }] },
+        archive: { state: 'active' }, compatibility: { frozenLegacyVersion1: false }, assetIds: { 'asset-1': true },
+    }],
+    ['media_assets/asset-1', {
+        assetId: 'asset-1', ownerId: 'teacher-1', state: 'committed',
+        durableKey: 'assessment-assets/listening/teacher-1/asset-1.mp3',
+        references: { versions: { 'version-1': true } },
+    }],
+]);
+
+const nativeListeningBody = (version?: string) => assignmentBody({
+    contentRef: { contentKind: 'ielts_listening', contentId: 'native-listening', ...(version ? { version } : {}) },
+});
+
 describe('homework assignment Worker route', () => {
     beforeEach(() => {
         vi.mocked(verifyFirebaseToken).mockResolvedValue({
@@ -167,6 +187,49 @@ describe('homework assignment Worker route', () => {
             email: 'teacher@example.test',
         });
         vi.mocked(getFirebaseAccessToken).mockResolvedValue('google-token');
+    });
+
+    it('pins canonical native Listening and atomically retains audio with server-only recipient grants', async () => {
+        const { rtdbWrites, firestoreWrites } = makeFetchMock(nativeListeningRecords());
+        const response = await handleCreateHomeworkAssignment(requestFor(nativeListeningBody()), env);
+        const body = await response.json() as any;
+        expect(response.status).toBe(201);
+        expect(body.contentRef).toEqual({ contentKind: 'ielts_listening', contentId: 'native-listening', version: 'version-1', title: 'Canonical Listening' });
+        const assignmentId = body.assignmentId;
+        expect(rtdbWrites).toEqual([{ path: '', body: {
+            ['media_assets/asset-1/references/assignments/' + assignmentId]: true,
+            ...Object.fromEntries(['student-1', 'student-2'].map(studentId => [
+                'homework_test_access/native-listening/' + studentId + '/' + assignmentId,
+                { contentKind: 'ielts_listening', versionId: 'version-1', teacherId: 'teacher-1', assetIds: ['asset-1'], createdAt: expect.any(Number) },
+            ])),
+        } }]);
+        expect(firestoreFields(firestoreWrites[0]).contentRef.mapValue.fields.version.stringValue).toBe('version-1');
+    });
+
+    it.each(['version-mismatch', 'archived', 'foreign-owner', 'uncommitted', 'missing-version-reference', 'missing-audio'])
+    ('rejects native Listening %s before writing authority', async (failure) => {
+        const records = nativeListeningRecords();
+        const version = records.get('listening_authoring/versions/version-1');
+        const asset = records.get('media_assets/asset-1');
+        if (failure === 'archived') version.archive.state = 'archived';
+        if (failure === 'foreign-owner') { version.ownerId = 'teacher-2'; asset.ownerId = 'teacher-2'; }
+        if (failure === 'uncommitted') asset.state = 'uploaded';
+        if (failure === 'missing-version-reference') asset.references.versions = {};
+        if (failure === 'missing-audio') version.document.audioSections = [{}];
+        const { rtdbWrites, firestoreWrites } = makeFetchMock(records);
+        const response = await handleCreateHomeworkAssignment(requestFor(nativeListeningBody(failure === 'version-mismatch' ? 'forged-version' : undefined)), env);
+        expect(response.status).toBe(failure === 'foreign-owner' ? 403 : 400);
+        expect(rtdbWrites).toEqual([]);
+        expect(firestoreWrites).toEqual([]);
+    });
+
+    it('preserves native retention when the Firestore create response fails', async () => {
+        const { rtdbWrites } = makeFetchMock(nativeListeningRecords(), { firestoreStatus: 500 });
+        const response = await handleCreateHomeworkAssignment(requestFor(nativeListeningBody()), env);
+        expect(response.status).toBe(500);
+        expect(rtdbWrites).toHaveLength(1);
+        expect(rtdbWrites[0].path).toBe('');
+        expect(Object.values(rtdbWrites[0].body as any)).not.toContain(null);
     });
 
     it('rejects missing auth with a stable reason code', async () => {

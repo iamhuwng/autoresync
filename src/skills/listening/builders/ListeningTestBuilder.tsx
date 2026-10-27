@@ -300,6 +300,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   // Form state - initialize with passed metadata if available
   const [metadata, setMetadata] = useState<ListeningTestMetadata>(() => buildInitialListeningMetadata(passedMetadata));
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   // Step flow: mode-select → audio → questions → review (metadata collected in Review step)
   const [currentStep, setCurrentStep] = useState<ListeningBuilderStep>(initialStep);
@@ -365,6 +366,21 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
   const createAuthoringWorkflow = () => createListeningAuthoringWorkflow({
     onObservabilityEvent: (actionName, metadata) => trackAction(actionName, metadata),
   });
+
+  const previewAssetIds = metadata.sections.map((section) => section.assetId ?? '').join('|');
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    let cancelled = false;
+    metadata.sections.filter((section) => section.assetId).forEach((section) => {
+      r2StorageService.probeListeningAuthoringAudio({ assetId: section.assetId,
+        ...(section.uploadSessionId ? { uploadSessionId: section.uploadSessionId } : {}) }).then((result) => {
+        if (!cancelled && result.previewUrl) {
+          setPreviewUrls((previous) => ({ ...previous, [section.assetId]: result.previewUrl }));
+        }
+      }).catch(() => { /* Publish readiness reports unavailable audio through the shared workflow. */ });
+    });
+    return () => { cancelled = true; };
+  }, [previewAssetIds, lastSavedAt]);
 
   // R2 Storage is always ready (no authentication needed)
   useEffect(() => {
@@ -1332,6 +1348,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         conflictToken: result.conflictToken,
         warningCount: warnings.length,
       });
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Draft could not be saved. Try again.';
       console.error('âŒ Failed to save draft:', error);
@@ -1573,6 +1590,13 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
       return;
     }
 
+    let publishConflictToken = draftConflictToken;
+    if (hasUnsavedChanges) {
+      const savedDraft = await handleSaveDraft();
+      if (!savedDraft) return;
+      publishConflictToken = savedDraft.conflictToken;
+    }
+
     beginAction('publish');
     setIsSaving(true);
     setDraftStatusMode('publishing');
@@ -1601,7 +1625,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           source: 'listening_builder',
           step: currentStep,
           draftId: publishDraftId,
-          conflictToken: draftConflictToken,
+          conflictToken: publishConflictToken,
           blockerCount: readiness.blockers.length,
         });
         announceListeningPublishBlocked(readiness.blockers.length);
@@ -1614,13 +1638,13 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         source: 'listening_builder',
         step: currentStep,
         draftId: publishDraftId,
-        conflictToken: draftConflictToken,
+        conflictToken: publishConflictToken,
         checkedSections: readiness.checkedSections,
       });
 
       const result = await createAuthoringWorkflow().publishDraft({
         draftId: publishDraftId,
-        expectedConflictToken: draftConflictToken,
+        expectedConflictToken: publishConflictToken,
         idempotencyKey: createListeningActionIdempotencyKey('publish'),
       });
 
@@ -1697,7 +1721,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           source: 'listening_builder',
           step: currentStep,
           draftId: result.draftId,
-          conflictToken: result.conflictToken ?? draftConflictToken,
+          conflictToken: result.conflictToken ?? publishConflictToken,
           outcome: 'blocked',
           blockerCount: visibleBlockers.length,
         });
@@ -1712,7 +1736,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
           source: 'listening_builder',
           step: currentStep,
           draftId: result.draftId,
-          conflictToken: draftConflictToken,
+          conflictToken: publishConflictToken,
           currentConflictToken: result.currentConflictToken,
           outcome: 'conflict',
         });
@@ -1730,7 +1754,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         source: 'listening_builder',
         step: currentStep,
         draftId: result.draftId ?? draftId,
-        conflictToken: draftConflictToken,
+        conflictToken: publishConflictToken,
         outcome: result.status,
       });
       announceListeningPublishFailed(message);
@@ -1744,7 +1768,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
         source: 'listening_builder',
         step: currentStep,
         draftId,
-        conflictToken: draftConflictToken,
+        conflictToken: publishConflictToken,
         outcome: 'error',
       });
       announceListeningPublishFailed(message);
@@ -2461,7 +2485,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                               <audio
                                 aria-label={`Section ${section.number} audio preview`}
                                 controls
-                                src={section.streamUrl || section.audioUrl}
+                                src={previewUrls[section.assetId] || (section.assetId && !section.uploadSessionId ? undefined : section.streamUrl || section.audioUrl)}
                                 style={{
                                   width: '10.75rem',
                                   maxWidth: '100%',
@@ -2773,7 +2797,7 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
                                     return (
                                       <audio
                                         controls
-                                        src={section.streamUrl || section.audioUrl}
+                                        src={previewUrls[section.assetId] || (section.assetId && !section.uploadSessionId ? undefined : section.streamUrl || section.audioUrl)}
                                         style={{ width: '100%', borderRadius: '8px' }}
                                       >
                                         Your browser does not support audio playback.

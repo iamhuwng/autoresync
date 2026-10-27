@@ -14,6 +14,7 @@ import {
   type ListeningDeliveryRetainedResult,
   type ListeningDeliveryRetainedSoloAccess,
   type ListeningDeliveryRetainedVersion,
+  type ListeningDeliverySoloScope,
   type RefreshListeningAssetDeliveryUrlInput,
 } from '../../../src/features/assessment/listening/storage/listeningAssetDelivery.service.ts';
 import type { ListeningMediaAssetReferences } from '../../../src/features/assessment/listening/storage/listeningAssetRegistry.ts';
@@ -36,6 +37,7 @@ type WorkerEnv = RepositoryEnv & Record<string, unknown> & {
   probeListeningDeliveryRange?: (
     input: ListeningDeliveryRangeProbeRequest,
   ) => Promise<ListeningDeliveryRangeProbeResult>;
+  readListeningHomeworkDocument?: (path: string) => Promise<unknown>;
   R2_BUCKET?: {
     get?: (key: string, options?: unknown) => Promise<unknown>;
     head?: (key: string) => Promise<unknown>;
@@ -136,6 +138,20 @@ const createDeliveryContentToken = async (
     textEncoder.encode(encodedPayload),
   );
   return `${encodedPayload}.${bytesToBase64Url(new Uint8Array(signature))}`;
+};
+
+export const createOwnerListeningPreviewUrl = async (
+  env: WorkerEnv,
+  input: { assetId: string; durableKey: string; contentType: string; expiresAt: number },
+  requestUrl: string,
+): Promise<string> => {
+  const token = await createDeliveryContentToken(env, {
+    version: DELIVERY_TOKEN_VERSION, tokenId: createOpaqueId(), ...input,
+  });
+  const url = new URL(DELIVERY_CONTENT_PATH, requestUrl);
+  url.search = '';
+  url.searchParams.set('token', token);
+  return url.toString();
 };
 
 const readDeliveryContentToken = async (
@@ -596,19 +612,148 @@ const resolveCurrentLiveAuthorization = async (
   };
 };
 
+const readHomeworkDocument = async (
+  env: WorkerEnv,
+  path: string,
+  authorization: string | null,
+): Promise<unknown> => {
+  if (env.readListeningHomeworkDocument) return env.readListeningHomeworkDocument(path);
+  if (!authorization || typeof env.FIREBASE_PROJECT_ID !== 'string') {
+    throw new ListeningDeliveryWorkerError('delivery_homework_reader_unavailable', 500);
+  }
+  const response = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`,
+    { headers: { Authorization: authorization } },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new ListeningDeliveryWorkerError('delivery_homework_read_failed', 403);
+  const document = await response.json() as { fields?: Record<string, unknown> };
+  const decode = (value: unknown): unknown => {
+    if (!isRecord(value)) return undefined;
+    if ('stringValue' in value) return value.stringValue;
+    if ('booleanValue' in value) return value.booleanValue;
+    if ('integerValue' in value) return Number(value.integerValue);
+    if ('doubleValue' in value) return Number(value.doubleValue);
+    if (isRecord(value.mapValue)) return decodeFields(value.mapValue.fields);
+    if (isRecord(value.arrayValue)) {
+      return Array.isArray(value.arrayValue.values) ? value.arrayValue.values.map(decode) : [];
+    }
+    return null;
+  };
+  const decodeFields = (fields: unknown): Record<string, unknown> => isRecord(fields)
+    ? Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, decode(value)]))
+    : {};
+  return decodeFields(document.fields);
+};
+
+const assertHomeworkId = (id: string | undefined): string => {
+  if (!id || id.length > 256 || /[.#$\[\]\/\u0000-\u001f\u007f]/.test(id)) {
+    throw new ListeningDeliveryWorkerError('delivery_homework_scope_invalid', 403);
+  }
+  return id;
+};
+
+const enrichSoloGraph = async (
+  env: WorkerEnv,
+  graph: ListeningDeliveryAssetGraph,
+  scope: ListeningDeliverySoloScope,
+  authorization: string | null,
+  now: number,
+): Promise<ListeningDeliveryAssetGraph> => {
+  const version = await readWorkerDatabaseValue(env, `listening_authoring/versions/${scope.versionId}`);
+  if (!isRecord(version)) {
+    if (scope.mode === 'homework' || graph.references.tests?.[scope.testId] !== true) {
+      throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+    }
+    return graph;
+  }
+  const document = isRecord(version.document) ? version.document : {};
+  const archive = isRecord(version.archive) ? version.archive : {};
+  const assets = isRecord(version.assetIds) ? version.assetIds : {};
+  const sections = Array.isArray(document.audioSections) ? document.audioSections : [];
+  if (
+    version.recordType !== 'published-version'
+    || version.versionId !== scope.versionId
+    || version.testId !== scope.testId
+    || version.ownerId !== graph.ownerId
+    || assets[graph.assetId] !== true
+    || !sections.some((section) => isRecord(section) && section.assetId === graph.assetId)
+    || graph.references.versions?.[scope.versionId] !== true
+    || (archive.state !== 'active' && archive.state !== 'archived')
+  ) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+
+  let access: ListeningDeliveryRetainedSoloAccess;
+  if (scope.mode === 'self_study') {
+    if (document.isPublic !== true || archive.state !== 'active'
+      || scope.courseId || scope.moduleId || scope.homeworkId || scope.submissionId) {
+      throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+    }
+    access = { testId: scope.testId, versionId: scope.versionId, active: true,
+      studentUserIds: [scope.studentId], modes: ['self_study'] };
+  } else if (scope.mode === 'homework') {
+    const homeworkId = assertHomeworkId(scope.homeworkId);
+    const submissionId = assertHomeworkId(scope.submissionId);
+    const [grant, homework, submission] = await Promise.all([
+      readWorkerDatabaseValue(env, `homework_test_access/${scope.testId}/${scope.studentId}/${homeworkId}`),
+      readHomeworkDocument(env, `homework_assignments/${homeworkId}`, authorization),
+      readHomeworkDocument(env, `homework_submissions/${submissionId}`, authorization),
+    ]);
+    const content = isRecord(homework) && isRecord(homework.contentRef) ? homework.contentRef : {};
+    const scheduling = isRecord(homework) && isRecord(homework.scheduling) ? homework.scheduling : {};
+    const config = isRecord(homework) && isRecord(homework.config) ? homework.config : {};
+    const overrides = isRecord(homework) && isRecord(homework.studentOverrides) ? homework.studentOverrides : {};
+    const override = isRecord(overrides[scope.studentId]) ? overrides[scope.studentId] : {};
+    const dueDate = Number(override.dueDate ?? scheduling.dueDate);
+    if (!isRecord(grant) || grant.contentKind !== 'ielts_listening'
+      || grant.versionId !== scope.versionId || !Array.isArray(grant.assetIds) || !grant.assetIds.includes(graph.assetId)
+      || !isRecord(homework) || homework.id !== homeworkId || homework.createdBy !== grant.teacherId
+      || homework.materialId !== scope.testId || homework.materialType !== 'test' || homework.materialSkill !== 'listening'
+      || !Number.isSafeInteger(grant.createdAt) || homework.createdAt !== grant.createdAt
+      || content.contentKind !== 'ielts_listening' || content.contentId !== scope.testId || content.version !== scope.versionId
+      || homework.archived !== false || !['active', 'past_due', 'scheduled'].includes(String(homework.status))
+      || !Number.isFinite(Number(scheduling.availableFrom)) || now < Number(scheduling.availableFrom)
+      || !Number.isFinite(dueDate) || (now > dueDate && config.lateSubmissionAllowed !== true)
+      || override.exempted === true || scope.courseId || scope.moduleId
+      || !isRecord(submission) || submission.id !== submissionId || submission.studentId !== scope.studentId
+      || submission.homeworkId !== homeworkId || submission.teacherId !== grant.teacherId || submission.status !== 'in_progress'
+      || graph.references.assignments?.[homeworkId] !== true) {
+      throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+    }
+    const target = isRecord(homework.target) ? homework.target : {};
+    let member = target.type === 'students' && Array.isArray(target.studentIds) && target.studentIds.includes(scope.studentId);
+    if (target.type === 'class') {
+      const classId = assertHomeworkId(typeof target.classId === 'string' ? target.classId : undefined);
+      const classroom = await readWorkerDatabaseValue(env, `classes/${classId}`);
+      const students = isRecord(classroom) && isRecord(classroom.students) ? classroom.students : {};
+      member = Object.entries(students).some(([id, student]) => id === scope.studentId
+        || (isRecord(student) && student.uid === scope.studentId));
+    }
+    if (!member) throw new ListeningDeliveryWorkerError('delivery_not_authorized', 403);
+    access = { testId: scope.testId, versionId: scope.versionId, active: true,
+      studentUserIds: [scope.studentId], modes: ['homework'], homeworkIds: [homeworkId], submissionIds: [submissionId] };
+  } else {
+    return graph;
+  }
+  return { ...graph, retainedVersions: [{ versionId: scope.versionId, ownerId: graph.ownerId,
+    immutable: true, active: archive.state === 'active' }], retainedSoloAccess: [access] };
+};
+
 const createDeliveryDependencies = (
   env: WorkerEnv,
   requestUrl?: string,
   liveAuthorization?: ListeningDeliveryRetainedLiveSession,
+  soloScope?: ListeningDeliverySoloScope,
+  authorization: string | null = null,
+  now = Date.now(),
 ): ListeningAssetDeliveryDependencies => ({
   referenceGraph: {
     async resolveCanonicalAssetGraph(assetId) {
-      if (typeof env.resolveListeningDeliveryAssetGraph === 'function') {
-        return env.resolveListeningDeliveryAssetGraph(assetId);
-      }
-      const record = await readWorkerDatabaseValue(env, `media_assets/${assetId}`);
+      const record = typeof env.resolveListeningDeliveryAssetGraph === 'function'
+        ? await env.resolveListeningDeliveryAssetGraph(assetId)
+        : await readWorkerDatabaseValue(env, `media_assets/${assetId}`);
       if (!isRecord(record)) return null;
-      const graph = normalizeAssetGraph(assetId, record);
+      let graph = normalizeAssetGraph(assetId, record);
+      if (graph && soloScope) graph = await enrichSoloGraph(env, graph, soloScope, authorization, now);
       return graph && liveAuthorization
         ? { ...graph, retainedLiveSessions: [liveAuthorization] }
         : graph;
@@ -694,6 +839,7 @@ const assertSignedPreviousDelivery = async (
 const createWorkerBoundIssuer = (
   env: WorkerEnv,
   requestUrl?: string,
+  authorization: string | null = null,
 ): ListeningDeliveryWorkerIssuer => ({
   async issue(input) {
     const liveAuthorization = input.liveScope
@@ -709,7 +855,7 @@ const createWorkerBoundIssuer = (
       : input;
     return issueListeningAssetDeliveryUrl(
       authorizedInput,
-      createDeliveryDependencies(env, requestUrl, liveAuthorization?.retainedSession),
+      createDeliveryDependencies(env, requestUrl, liveAuthorization?.retainedSession, input.soloScope, authorization, input.now),
     );
   },
   async refresh(input) {
@@ -727,7 +873,7 @@ const createWorkerBoundIssuer = (
       : input;
     return refreshListeningAssetDeliveryUrl(
       authorizedInput,
-      createDeliveryDependencies(env, requestUrl, liveAuthorization?.retainedSession),
+      createDeliveryDependencies(env, requestUrl, liveAuthorization?.retainedSession, input.soloScope, authorization, input.now),
     );
   },
 });
@@ -1072,7 +1218,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
       const assetId = requireDatabaseKey(rawBody, 'assetId');
       const resultId = requireString(rawBody, 'resultId');
       const versionId = requireDatabaseKey(rawBody, 'versionId');
-      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url);
+      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url, input.request.headers.get('Authorization'));
 
       return issueOrRefresh(issuer, {
         assetId,
@@ -1105,7 +1251,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
       const testId = requireDatabaseKey(rawBody, 'testId');
       const versionId = requireDatabaseKey(rawBody, 'versionId');
       const mode = requireSoloMode(rawBody);
-      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url);
+      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url, input.request.headers.get('Authorization'));
 
       return issueOrRefresh(issuer, {
         assetId,
@@ -1145,7 +1291,7 @@ export const createListeningDeliveryWorkerHandlers = (options: {
       const testId = requireDatabaseKey(rawBody, 'testId');
       const versionId = requireDatabaseKey(rawBody, 'versionId');
       const sectionNumber = requirePositiveNumber(rawBody, 'sectionNumber');
-      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url);
+      const issuer = options.deliveryIssuer ?? createWorkerBoundIssuer(input.env, input.request.url, input.request.headers.get('Authorization'));
 
       return issueOrRefresh(issuer, {
         assetId,

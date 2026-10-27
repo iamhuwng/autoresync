@@ -7,6 +7,10 @@ import { ToastContainer, toast } from '../components/modern/ToastNotification';
 import { createReadingV2CanonicalFixture } from '../services/reading-v2/fixtures/readingV2CanonicalFixtures';
 import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
 
+vi.mock('../features/assessment/listening/authoring/listeningTestEditing', () => ({
+  loadListeningTestForEditing: vi.fn(async test => test),
+}));
+
 const mocks = vi.hoisted(() => ({
   tests: [],
   drafts: [],
@@ -74,7 +78,10 @@ vi.mock('../config/bookActivityRolloutGates', async () => {
 
 vi.mock('firebase/database', () => ({
   ref: (_database, path = '') => path,
-  get: vi.fn(async (path) => ({ val: () => mocks.dbReads[path] ?? null })),
+  get: vi.fn(async (path) => ({
+    exists: () => mocks.dbReads[path] != null,
+    val: () => mocks.dbReads[path] ?? null,
+  })),
   set: vi.fn(async (path, value) => {
     mocks.dbWrites.push({ path, value });
   }),
@@ -515,6 +522,67 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.refreshDrafts.mockReset();
     mocks.confirm.mockReturnValue(true);
     vi.spyOn(window, 'confirm').mockImplementation(mocks.confirm);
+  });
+
+  it('loads complete Listening test data rather than passing its catalog summary into the editor', async () => {
+    const user = userEvent.setup();
+    const id = 'draft-150d4466b1609499fba6530ca7272506';
+    const fullTest = {
+      id,
+      title: 'IELTS Cambridge 21: Test 1 - Listening',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      questions: [{ number: 1, question: 'Question 1', answer: 'A' }],
+      audioSections: [],
+    };
+    mocks.tests = [{
+      id,
+      title: fullTest.title,
+      testType: fullTest.testType,
+      skill: fullTest.skill,
+      questionCount: 1,
+      ownerId: 'teacher-1',
+      deliveryProjectionReady: true,
+    }];
+    mocks.dbReads[`tests/${id}`] = fullTest;
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId(`material-list-row-${id}`)).getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() => expect(mocks.openEditTest).toHaveBeenCalledWith(fullTest));
+  });
+
+  it('does not open the Listening editor when only the catalog summary exists', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [{
+      id: 'missing-listening-record',
+      title: 'Missing Listening test',
+      testType: 'IELTS',
+      skill: 'Listening',
+      ownerId: 'teacher-1',
+      questionCount: 40,
+    }];
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId('material-list-row-missing-listening-record')).getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByText(/stored test.*could not be loaded/i)).toBeInTheDocument();
+    expect(mocks.openEditTest).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, [null]])('keeps the Listening editor closed for malformed stored questions %j', async (questions) => {
+    const user = userEvent.setup();
+    const id = 'malformed-listening-record';
+    const test = { id, title: 'Malformed Listening test', testType: 'IELTS', skill: 'Listening', ownerId: 'teacher-1' };
+    mocks.tests = [test];
+    mocks.dbReads[`tests/${id}`] = { ...test, questions };
+
+    renderTeacherLobbyWithToasts();
+    await user.click(within(await screen.findByTestId(`material-list-row-${id}`)).getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByText(/stored test has no editable questions/i)).toBeInTheDocument();
+    expect(mocks.openEditTest).not.toHaveBeenCalled();
   });
 
   it('loads the full THCS test before opening its editor from a material summary', async () => {
@@ -1436,7 +1504,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.refreshTests).toHaveBeenCalled();
   });
 
-  it('keeps legacy Reading cards on the existing edit-modal path', async () => {
+  it('keeps legacy Reading cards on the existing edit-modal path with full stored test data', async () => {
     const user = userEvent.setup();
     const legacyReadingTest = {
       id: 'legacy-reading-1',
@@ -1444,14 +1512,16 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       skill: 'Reading',
       ownerId: 'teacher-1',
       title: 'Legacy Reading',
+      questions: [{ number: 1, question: 'Question 1' }],
     };
-    mocks.tests = [legacyReadingTest];
+    mocks.tests = [{ id: legacyReadingTest.id, testType: 'IELTS', skill: 'Reading', title: 'Legacy Reading' }];
+    mocks.dbReads[`tests/${legacyReadingTest.id}`] = legacyReadingTest;
 
     renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-legacy-reading-1')).getByRole('button', { name: 'Edit' }));
 
-    expect(mocks.openEditTest).toHaveBeenCalledWith(legacyReadingTest);
+    await waitFor(() => expect(mocks.openEditTest).toHaveBeenCalledWith(legacyReadingTest));
     expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
   });
 
