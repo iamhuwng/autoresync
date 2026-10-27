@@ -2,19 +2,17 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "1299617ed871cc0e4100f1c3b1c5b8346c295117",
-    "sourceTag": "stable-2026-10-20-reading-multiple-answer",
-    "providerVersion": "be797fbc4160e904",
-    "record": "2026-10-20-reading-v2-multiple-answer-release.md"
+    "sourceRevision": "03089c913ecd81201759181328f991a78bea21d3",
+    "providerVersion": "d418b04bae169db6",
+    "record": "2026-10-27-listening-audio-release.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
-    "sourceRevision": "10786002eb459a1b54025a23590cda8a6f610112",
-    "sourceTag": "deployed-reading-v2-worker-2026-10-20",
-    "providerVersion": "bb4fc431-e84d-4b50-8c11-9f9c0ddecd4f",
-    "moduleSha256": "341d0bb25ffd992da94a9b67d086a8a1edce99a49ef4260b7c595d891e2fc4f8",
-    "normalizedBuildSha256": "c3e30ff1b8e7ea0c7ee63363cd5ce32dd9a7b7d15da2d3b30008a0c311fccedf",
-    "record": "2026-10-20-reading-v2-multiple-answer-release.md"
+    "sourceRevision": "797f6284206f0fbc8eb45305f01997cc8831dec5",
+    "providerVersion": "e9cac4c7-430a-4398-ba1f-72034c0fd45e",
+    "moduleSha256": "64e0e529f924805ec7983986206b51775ed5710837a370bfb45ae1f78206aec1",
+    "normalizedBuildSha256": "c3391019f0991098bda63f524acdaacc0402f2ce66432378086df8a5dc4bf684",
+    "record": "2026-10-27-listening-audio-release.md"
   },
   "notificationWorker": {
     "script": "luyentap-notification-command",
@@ -29,19 +27,17 @@
   "databaseRules": {
     "project": "temp-a1437",
     "database": "temp-a1437-default-rtdb",
-    "sourceRevision": "3b682ffa371fc549486d72c4d3125f3c8651a124",
-    "sourceTag": "deployed-rtdb-rules-2026-10-18",
-    "fileSha256": "29ca193601d36d8e99e714bd11c53fb31aea764338e87f4dd639c39b06b55e1f",
-    "canonicalTreeSha256": "1fdd6321aad54e7a7bca84b51836601d5dacf8491587dca6274247bbc194a4cb",
+    "sourceRevision": "797f6284206f0fbc8eb45305f01997cc8831dec5",
+    "fileSha256": "32e6254ace7939bc8bb62e52dc26ad4083965078497f85e2aa7c36c01020d47c",
+    "canonicalTreeSha256": "0310f19cc07a8970ce2b12672e60fe6389acaf255910319a4286058e39fbdbc3",
     "resultReadSha256": "9dace28328fb666ad37f3966d68fa440dfd3952eff5f3f3b0ef885ba9db01c9c",
-    "record": "2026-10-18-homework-qa-correction-release.md"
+    "record": "2026-10-27-listening-audio-release.md"
   },
   "uploadWorker": {
     "script": "r2-upload-signer",
-    "sourceRevision": "487f02faaefbf5f2889dc66da636d0787cedc418",
-    "sourceTag": "deployed-listening-assignment-worker-2026-10-24",
-    "providerVersion": "c6bc690e-4636-4ea6-8098-35f5370cce9d",
-    "moduleSha256": "5b652dbafb15e3c4b17d83ac23c0eb4e577e29f62ffbfbdc5e98d62a553e20d3",
-    "record": "2026-10-24-listening-publish-lobby.md"
+    "sourceRevision": "797f6284206f0fbc8eb45305f01997cc8831dec5",
+    "providerVersion": "674bf4a5-bcd1-4a91-b505-f05214182df5",
+    "moduleSha256": "21a423c4bf42320ed5411e493e1ef8c24bf7ccea4d0ee4da40f310f583d6fd3b",
+    "record": "2026-10-27-listening-audio-release.md"
   }
 }
