@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { canonical, workerInvariants, readListeningProvider } from './release-listening-evidence.mjs';
 import { reviewedListeningProbeRelease } from './release-listening-probe-pins.mjs';
+import { reviewedListeningFunctionalRelease } from './release-listening-functional-pins.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const digest = value => hash(canonical(value));
@@ -86,8 +87,15 @@ export function selectListeningReleaseProfile(revision) {
   if (revision === reviewedListeningProbeRelease.revision) {
     return { name: 'probe-hotfix', scope: 'upload-worker-only', pins: reviewedListeningProbeRelease };
   }
+  if (revision === reviewedListeningFunctionalRelease.revision) {
+    return { name: 'functional-completion', scope: 'upload-worker-rules-and-hosting', pins: reviewedListeningFunctionalRelease };
+  }
   throw new Error('Listening candidate has no reviewed fixed profile');
 }
+
+export const listeningEditorHostingReady = observation =>
+  (observation?.profile === 'editor-capability' && observation.scope === 'upload-worker-and-hosting' && observation.phase === 'postupload') ||
+  (observation?.profile === 'functional-completion' && observation.scope === 'upload-worker-rules-and-hosting' && observation.phase === 'postrules');
 
 export function assertListeningEditorSource(source, pins = reviewedListeningEditorRelease) {
   for (const field of ['revision', 'tree', 'baseRevision']) {
@@ -100,12 +108,17 @@ export function assertListeningEditorSource(source, pins = reviewedListeningEdit
 
 export function validateListeningEditorEvidence(local, provider, phase, pins = reviewedListeningEditorRelease) {
   assertListeningEditorSource(local.source, pins);
-  assert(['predeploy', 'postupload'].includes(phase), 'Editor phase is invalid');
-  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256']) {
+  const changesRules = Object.hasOwn(pins, 'priorFirestoreRulesSha256');
+  assert((changesRules ? ['predeploy', 'postupload', 'postrules'] : ['predeploy', 'postupload']).includes(phase), 'Editor phase is invalid');
+  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(changesRules ? ['firestoreRulesSha256'] : [])]) {
     assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
     assert.equal(local[key], pins[key], `Editor ${key} changed`);
   }
-  assert.equal(provider.rulesSha256, pins.rulesSha256, 'Editor live rules changed');
+  if (changesRules) {
+    for (const key of ['priorRulesSha256', 'priorFirestoreRulesSha256']) assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
+    assert.equal(provider.firestoreRules?.sourceSha256, phase === 'postrules' ? pins.firestoreRulesSha256 : pins.priorFirestoreRulesSha256, 'Editor live Firestore rules changed');
+  }
+  assert.equal(provider.rulesSha256, changesRules && phase !== 'postrules' ? pins.priorRulesSha256 : pins.rulesSha256, 'Editor live rules changed');
   assert.equal(digest(provider.common), pins.commonSha256, 'Editor routes or account changed');
   assert.equal(provider.writesEnabled, true, 'Editor authoring writes are disabled');
   assert(provider.restore === null || provider.restore === false || provider.restore?.active === false, 'Editor restore state is active or ambiguous');
@@ -118,7 +131,7 @@ export function validateListeningEditorEvidence(local, provider, phase, pins = r
     assert.equal(digest(workerInvariants(worker)), expected.invariantSha256, `Editor ${name} configuration changed`);
     assert.deepEqual(worker.deployment, worker.deploymentAfter, `Editor ${name} changed during observation`);
     assert.deepEqual(worker.deployment.versions, [{ version_id: worker.versionId, percentage: 100 }], `Editor ${name} traffic is split`);
-    if (name === 'r2-upload-signer' && phase === 'postupload') {
+    if (name === 'r2-upload-signer' && phase !== 'predeploy') {
       assert.notEqual(worker.versionId, expected.versionId, 'Editor candidate upload is not deployed');
       assert.deepEqual(worker.modules, [{ name: local.moduleName, sha256: pins.bundleSha256 }], 'Editor deployed upload bytes changed');
     } else {
@@ -156,7 +169,8 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
     configSha256: hash(configBytes), sourceConfigSha256: hash(await readFile(path.join(cwd, 'cloudflare/wrangler.jsonc'))),
     envSha256: hash(envBytes), rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))),
     submitEndpoint: envBytes.toString('utf8').match(/^VITE_READING_V2_SUBMISSION_ENDPOINT\s*=\s*(.*?)\s*$/m)?.[1]?.replace(/^(['"])(.*)\1$/, '$2') };
-  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256']) {
+  if (profile.name === 'functional-completion') local.firestoreRulesSha256 = hash(await readFile(path.join(cwd, 'firestore.rules')));
+  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(profile.name === 'functional-completion' ? ['firestoreRulesSha256'] : [])]) {
     assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
     assert.equal(local[key], pins[key], `Editor ${key} changed`);
   }
@@ -164,9 +178,11 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
 }
 
 export async function observeListeningEditor(options) {
-  const local = await readCandidate(options), provider = await readListeningProvider(options.cwd);
+  const local = await readCandidate(options);
+  const providerOptions = { firestore: local.profile === 'functional-completion' };
+  const provider = await readListeningProvider(options.cwd, providerOptions);
   validateListeningEditorEvidence(local, provider, options.phase, selectListeningReleaseProfile(local.source.revision).pins);
-  assert.deepEqual(await readListeningProvider(options.cwd), provider, 'Editor provider changed during observation');
+  assert.deepEqual(await readListeningProvider(options.cwd, providerOptions), provider, 'Editor provider changed during observation');
   assert.deepEqual(await readCandidate(options), local, 'Editor inputs changed during observation');
   const observation = freeze({ service: 'listening-editor-release', profile: local.profile, scope: local.scope, source: local.source, phase: options.phase, local, provider,
     observedAt: new Date().toISOString(), fingerprint: digest({ local, provider, phase: options.phase }),

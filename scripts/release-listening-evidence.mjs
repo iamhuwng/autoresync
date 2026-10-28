@@ -134,8 +134,21 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig, homeworkBundle, 
     priorRules: JSON.parse(command('git', ['show', `${reviewedListeningRelease.priorRulesRevision ?? reviewedListeningRelease.baseRevision}:database.rules.json`], cwd)) };
 }
 
+export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
+  assert.equal(release.name, 'projects/temp-a1437/releases/cloud.firestore', 'Listening Firestore release changed');
+  assert.match(release.rulesetName ?? '', /^projects\/temp-a1437\/rulesets\/[a-zA-Z0-9-]+$/, 'Listening Firestore ruleset is unavailable');
+  assert.deepEqual(releaseAfter, release, 'Listening Firestore release changed during observation');
+  assert.equal(ruleset.name, release.rulesetName, 'Listening Firestore ruleset changed');
+  assert.deepEqual(ruleset.metadata?.services, ['cloud.firestore'], 'Listening Firestore service changed');
+  assert.equal(ruleset.source?.files?.length, 1, 'Listening Firestore source inventory changed');
+  const [file] = ruleset.source.files;
+  assert.equal(file.name, 'firestore.rules', 'Listening Firestore source name changed');
+  assert.equal(typeof file.content, 'string', 'Listening Firestore source content is unavailable');
+  return { release, sourceName: file.name, sourceSha256: hash(file.content) };
+}
+
 // Fixed native provider GETs only; no caller transport or evidence injection.
-export async function readListeningProvider(cwd) {
+export async function readListeningProvider(cwd, { firestore = false } = {}) {
   const authRoot = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'xdg.config') : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   const credentials = await readFile(path.join(authRoot, '.wrangler/config/default.toml'), 'utf8');
   const token = credentials.match(/^oauth_token\s*=\s*"([^"\r\n]+)"/mu)?.[1];
@@ -152,7 +165,7 @@ export async function readListeningProvider(cwd) {
   assert.equal(gcloud(['config', 'get-value', 'project']), 'temp-a1437', 'Listening Google project changed');
   const googleToken = gcloud(['auth', 'print-access-token', '--account=iamhuwng@gmail.com', '--project=temp-a1437']);
   async function get(url, bearer, multipart = false) {
-    const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${bearer}` }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
+    const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${bearer}`, ...(url.startsWith('https://firebaserules.googleapis.com/') ? { 'x-goog-user-project': 'temp-a1437' } : {}) }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
     assert(response.ok && (!response.url || response.url === url), `Listening provider GET failed: ${response.status}`);
     if (multipart) return response.formData();
     return response.json();
@@ -194,10 +207,19 @@ export async function readListeningProvider(cwd) {
   assert(firebaseCli, 'Repository-owned Firebase CLI unavailable');
   const functions = JSON.parse(command(process.execPath, [firebaseCli, 'functions:list', '--project', 'temp-a1437', '--json', '--non-interactive'], cwd));
   assert.equal(functions.status, 'success', 'Listening Firebase Functions inventory unavailable');
+  let firestoreRules;
+  if (firestore) {
+    const releaseUrl = 'https://firebaserules.googleapis.com/v1/projects/temp-a1437/releases/cloud.firestore';
+    const release = await get(releaseUrl, googleToken);
+    assert.match(release.rulesetName ?? '', /^projects\/temp-a1437\/rulesets\/[a-zA-Z0-9-]+$/, 'Listening Firestore ruleset is unavailable');
+    const ruleset = await get(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`, googleToken);
+    firestoreRules = validateFirestoreRulesReadback(release, ruleset, await get(releaseUrl, googleToken));
+  }
   return { workers, common, functions: functions.result,
     rulesSha256: digest(await get(`${database}/.settings/rules.json`, googleToken)),
     writesEnabled: await get(`${database}/system_flags/listening_authoring_writes_enabled.json`, googleToken),
-    restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken) };
+    restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken),
+    ...(firestore ? { firestoreRules } : {}) };
 }
 
 export async function observeListeningRelease(options) {
