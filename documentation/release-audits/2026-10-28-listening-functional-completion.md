@@ -260,13 +260,12 @@ objects during recovery: a Worker rollback to public-bucket code or an isolated
 old Hosting/rules rollback is unsafe. Rolling back only to the preceding
 private Worker preserves saved playback but reintroduces the fresh-preview bug.
 
-Separate follow-ups: the submitted homework list's Continue action opens the
-last result; retakes are available from Homework Details. Private homework's
-question-count metadata can remain Loading while its authorized attempt loads
-correctly. The small recording-change note clips at the current desktop viewport;
-the player and form remain usable. Advanced Reading-style grouped/AST form editing remains explicitly
-under construction. These were not expanded in this release. PDF/Book source,
-provider settings and pre-existing primary-checkout work remain untouched.
+The submitted-card retake, private question-count metadata and clipped desktop
+recording note were subsequently corrected and verified in the
+[October 29 UI follow-up](2026-10-29-listening-homework-ui.md), including the
+intended phone workflow. Advanced Reading-style grouped/AST form editing remains
+explicitly under construction. PDF/Book source, provider settings and
+pre-existing primary-checkout work remain untouched.
 
 The evidence is also preserved outside the managed worktrees at
 `C:/Users/The Lord/repos/luyentap/tmp/listening-release-archive-20261029/listening-live-release-evidence.zip`.

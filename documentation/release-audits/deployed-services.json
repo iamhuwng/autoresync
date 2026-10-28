@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "529854b97343b51cfbdff98618411763d8b1a9a4",
-    "providerVersion": "31c9eafc2a7ce9be",
-    "record": "2026-10-28-listening-functional-completion.md"
+    "sourceRevision": "a45aa3921f5b60bc9f9c1abaa16588e1b45bcf0d",
+    "providerVersion": "e8078c4f8238311c",
+    "record": "2026-10-29-listening-homework-ui.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
