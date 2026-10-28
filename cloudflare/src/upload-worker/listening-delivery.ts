@@ -769,6 +769,7 @@ const enrichSoloGraph = async (
     const homeworkId = assertHomeworkId(scope.homeworkId);
     const submissionId = assertHomeworkId(scope.submissionId);
     await authorizeListeningHomework({ env, scope, authorization, now, graph });
+    graph = { ...graph, references: { ...graph.references, assignments: { ...graph.references.assignments, [homeworkId]: true } } };
     access = { testId: scope.testId, versionId: scope.versionId, active: true,
       studentUserIds: [scope.studentId], modes: ['homework'], homeworkIds: [homeworkId], submissionIds: [submissionId] };
   } else if (scope.mode === 'course_material') {

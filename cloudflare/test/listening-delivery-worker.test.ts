@@ -707,6 +707,12 @@ describe('native Listening canonical solo authorization', () => {
     }), fixture.env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ versionId: 'version-2', title: 'New text', questions: [{ question: 'New question' }] });
+    const issued = await fixture.worker.fetch(post('/listening-delivery/solo', { ...homeworkBody, versionId: 'version-2' }), fixture.env);
+    expect(issued.status).toBe(200);
+    const delivery = await issued.json() as typeof deliveryResponse;
+    const playback = await fixture.worker.fetch(new Request(delivery.url, { headers: { Range: 'bytes=1-2' } }), fixture.env);
+    expect(playback.status).toBe(206);
+    expect([...new Uint8Array(await playback.arrayBuffer())]).toEqual([20, 30]);
   });
 
   it('delivers committed native public audio to two authenticated students without legacy test refs or per-student grants', async () => {
