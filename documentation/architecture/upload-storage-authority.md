@@ -37,8 +37,9 @@ copies. Preserve version/asset IDs and retained text. Only `temp/listening/`
 expires after one day; durable audio has no bucket expiry. Preserve the provider's
 seven-day incomplete multipart-upload cleanup rule.
 
-This correction is in preparation, not deployed proof. The release audit records
-the final provider versions and acceptance. After public copies are removed,
+This correction is deployed; the October 28/29 Listening release audit records
+the provider versions and live acceptance. Fresh uploads and committed assets
+both receive the existing ten-minute authorized owner preview. After public copies are removed,
 rolling back the Worker alone cannot restore playback; recovery must preserve
 the private binding and its objects.
 
