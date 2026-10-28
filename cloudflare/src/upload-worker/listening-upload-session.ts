@@ -535,6 +535,11 @@ export const createListeningUploadSessionHandlers = (options: {
           contentType: probeTarget.asset.declaredMimeType,
           sizeBytes: probeTarget.asset.sizeBytes,
           range: await probeUploadedAssetRange(input.env, probeTarget.asset),
+          previewUrl: await createOwnerListeningPreviewUrl(input.env, {
+            assetId: probeTarget.asset.assetId, durableKey: probeTarget.asset.tempKey,
+            contentType: probeTarget.asset.declaredMimeType,
+            expiresAt: (options.now ?? input.now)() + 10 * 60 * 1000,
+          }, input.request.url),
         },
       };
     } catch (error) {

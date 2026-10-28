@@ -165,3 +165,27 @@ Final native qualification, CI and live feedback/playback/privacy acceptance
 remain release gates. A Worker-only rollback after public-copy removal is unsafe;
 keep the private binding and verified objects available for recovery. Native
 copy/readback receipts remain under `tmp/listening-live-release-20261027/`.
+
+## New-upload preview correction, October 29
+
+The private-storage cutover and result permission correction are deployed on
+Hosting source `529854b97343b51cfbdff98618411763d8b1a9a4`, provider version
+`31c9eafc2a7ce9be`, Upload Worker `30503e0b-fedd-4e61-a7fc-0b2b3b548493`
+and RTDB canonical hash `99b1f7ec32f8e94c0cf176e420aae8d2c1606056acc7404f69198baabbe7b520`.
+Native readback verified all 459 Hosting files and the matching custom domain.
+All 22 shared Listening objects were removed only after verified private copies
+and Worker cutover; all 22 old raw URLs returned 404. Anonymous private-bucket,
+unsigned content and unauthenticated issuer requests were denied.
+
+The focused browser pass found one remaining teacher workflow failure: a fresh
+private upload succeeded but its preview used the raw temporary R2 URL. The
+committed-asset probe already returned an authorized owner preview; the pending
+upload probe omitted it. The narrow repair reuses that same signer after the
+existing owner/session checks, with a ten-minute expiry and the verified temp
+key. The frontend already consumes this response. No editor UI or storage,
+publication, grading, version or permission policy changes are required.
+
+The extended existing Worker test checks preview GET and byte range, cross-owner
+probe denial, tampering, expiry and absence of shared-bucket reads. The affected
+upload/delivery suites pass 64/64. A Worker-only qualification/deployment and the
+existing-account browser acceptance remain required before release closure.
