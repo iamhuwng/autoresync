@@ -8,7 +8,7 @@ import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObse
 import { assertNotificationWorkerSource, observeNotificationWorker, isNotificationWorkerObserved } from './release-notification-worker-evidence.mjs';
 import { assertReadingV2WorkerSource, observeReadingV2Worker, isReadingV2WorkerObserved } from './release-reading-v2-worker-evidence.mjs';
 import { observeListeningRelease, isListeningReleaseObserved } from './release-listening-evidence.mjs';
-import { observeListeningEditor, isListeningEditorObserved } from './release-listening-editor-evidence.mjs';
+import { observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -305,7 +305,11 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   if (services.includes('backup-worker')) { requiredActions.push('Verify backup Worker version, R2 bindings, schedules and retention policy.'); recovery.push('Record the prior backup Worker version and R2 retention implications.'); }
   if (services.includes('hosting')) { deploymentOrder.push(services.includes('worker') ? 'Deploy and verify Worker before Hosting.' : 'Hosting-only deployment.'); recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.'); }
   if (editorObservation?.scope === 'upload-worker-only') deploymentOrder.splice(0, deploymentOrder.length, 'Upload Worker only; Hosting, rules, homework Worker and notifications are excluded.');
-  return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, listeningObservation, editorObservation, hostingReady: editorObservation ? editorObservation.scope === 'upload-worker-and-hosting' && listeningPhase === 'postupload' : listeningObservation ? listeningPhase === 'homework' : undefined, hotfixes, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
+  if (editorObservation?.profile === 'functional-completion') {
+    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
+    recovery.push('Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
+  }
+  return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, listeningObservation, editorObservation, hostingReady: editorObservation ? listeningEditorHostingReady(editorObservation) : listeningObservation ? listeningPhase === 'homework' : undefined, hotfixes, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
 }
 
 export const formatReport = result => [`Release assessment: ${result.decision}`, `Mode: ${result.mode}`, `Revision: ${result.source.revision}`, `Branch: ${result.source.branch || 'detached'}`, `Worktree: ${result.source.dirty ? 'DIRTY' : 'clean'}`, `Services: ${result.source.services.join(', ') || 'none identified'}`, ...result.findings.map(finding => `[${finding.status}] ${finding.message}`)].join('\n');

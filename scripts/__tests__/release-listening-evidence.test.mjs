@@ -2,9 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { assess } from '../release-check.mjs';
-import { canonical, workerInvariants, validateListeningEvidence, assertListeningSource, isListeningReleaseObserved } from '../release-listening-evidence.mjs';
+import { canonical, workerInvariants, validateListeningEvidence, assertListeningSource, isListeningReleaseObserved, validateFirestoreRulesReadback } from '../release-listening-evidence.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
+
+test('Firestore readback hashes exact source bytes and rejects changed release or source inventory', () => {
+  const release = { name: 'projects/temp-a1437/releases/cloud.firestore', rulesetName: 'projects/temp-a1437/rulesets/reviewed-id', updateTime: '2026-10-27T00:00:00Z' };
+  const ruleset = { name: release.rulesetName, metadata: { services: ['cloud.firestore'] }, source: { files: [{ name: 'firestore.rules', content: 'rules_version = "2";\r\nservice cloud.firestore {}\n' }] } };
+  const expectedHash = createHash('sha256').update(ruleset.source.files[0].content).digest('hex');
+  assert.equal(validateFirestoreRulesReadback(release, ruleset, structuredClone(release)).sourceSha256, expectedHash);
+  const alteredLineEndings = structuredClone(ruleset);
+  alteredLineEndings.source.files[0].content = alteredLineEndings.source.files[0].content.replace('\r\n', '\n');
+  assert.notEqual(validateFirestoreRulesReadback(release, alteredLineEndings, release).sourceSha256, expectedHash);
+  for (const mutate of [
+    value => { value.releaseAfter.updateTime = 'later'; },
+    value => { value.release.name = 'projects/other/releases/cloud.firestore'; },
+    value => { value.release.rulesetName = 'projects/other/rulesets/id'; },
+    value => { value.ruleset.name = 'projects/temp-a1437/rulesets/other'; },
+    value => { value.ruleset.metadata.services = ['firebase.storage']; },
+    value => { value.ruleset.source.files.push({ name: 'other.rules', content: '' }); },
+    value => { value.ruleset.source.files[0].name = 'other.rules'; },
+    value => { delete value.ruleset.source.files[0].content; },
+  ]) {
+    const value = structuredClone({ release, ruleset, releaseAfter: structuredClone(release) }); mutate(value);
+    assert.throws(() => validateFirestoreRulesReadback(value.release, value.ruleset, value.releaseAfter));
+  }
+});
+
 function fixture(phase = 'predeploy') {
   const source = { revision: 'a'.repeat(40), tree: 'b'.repeat(40), baseRevision: 'c'.repeat(40), dirty: false, files: ['database.rules.json'] };
   const ruleTree = value => ({ rules: { homework_test_access: { $testId: { $studentId: { $homeworkId: { '.validate': value } } } }, unrelated: { '.read': false } } });

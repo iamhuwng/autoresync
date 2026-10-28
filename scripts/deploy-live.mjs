@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { assess } from './release-check.mjs';
+import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest } from './release-evidence.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -64,14 +65,14 @@ const fail = (message) => {
 export const selectReleaseSource = ({ sourceCwd, observeListening = false, observeListeningEditorRelease = false, listeningPhase, cwd = repoRoot } = {}) => {
   if (sourceCwd && !observeListening && !observeListeningEditorRelease) fail('external source cwd requires qualified Listening observation.');
   if (observeListening && observeListeningEditorRelease) fail('Choose only one Listening release profile.');
-  if (observeListeningEditorRelease && listeningPhase !== 'postupload') fail('Editor Hosting deployment requires postupload phase.');
+  if (observeListeningEditorRelease && !['postupload', 'postrules'].includes(listeningPhase)) fail('Editor Hosting deployment requires postupload or postrules phase, as fixed by the reviewed profile.');
   if (observeListening && listeningPhase !== 'homework') fail('Listening Hosting deployment requires the homework phase.');
   return path.resolve(sourceCwd || cwd);
 };
 
 export const assertListeningHostingReady = (result, observeListening = false, observeListeningEditorRelease = false) => {
   if (observeListeningEditorRelease && result.editorObservation?.scope === 'upload-worker-only') fail('Worker-only qualification cannot deploy Hosting.');
-  if (observeListeningEditorRelease && (result.editorObservation?.phase !== 'postupload' || result.hostingReady !== true)) fail('Editor Hosting deployment requires verified postupload phase and hostingReady=true.');
+  if (observeListeningEditorRelease && (!listeningEditorHostingReady(result.editorObservation) || result.hostingReady !== true)) fail('Editor Hosting deployment requires its verified profile phase (postupload for editor; postrules for functional completion) and hostingReady=true.');
   if (observeListening && (result.listeningObservation?.phase !== 'homework' || result.hostingReady !== true)) {
     fail(`Listening Hosting deployment requires verified homework phase and hostingReady=true. ${result.findings?.find(finding => finding.status !== 'PASS')?.message ?? 'Native homework observation is missing.'}`);
   }
