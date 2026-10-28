@@ -41,7 +41,7 @@ const localConfig = `{
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
-  "r2_buckets": [{ "binding": "R2_BUCKET", "bucket_name": "local-book-covers" }],
+  "r2_buckets": [{ "binding": "R2_BUCKET", "bucket_name": "local-book-covers" }, { "binding": "LISTENING_AUDIO_BUCKET", "bucket_name": "local-listening-audio-private" }],
   "durable_objects": { "bindings": [{ "name": "UPLOAD_GRANT_REPLAY_LEDGER", "class_name": "UploadGrantReplayLedger" }] },
   "migrations": [{ "tag": "local-v1", "new_sqlite_classes": ["UploadGrantReplayLedger"] }],
   "ratelimits": [{ "name": "BOOK_ROUTE_RATE_LIMITER", "namespace_id": "205512", "simple": { "limit": 30, "period": 60 } }],

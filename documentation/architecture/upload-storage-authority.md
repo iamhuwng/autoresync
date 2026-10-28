@@ -21,6 +21,27 @@ Google Drive -> obsolete implementation residue
 
 ## Browser Endpoint Policy
 
+### Listening private storage correction, October 28, 2026
+
+Listening audio uses the dedicated `LISTENING_AUDIO_BUCKET` binding to
+`luyentap-listening-audio-private`. Its managed public domain is disabled and
+it has no custom domains. The Worker selects this binding once for Listening
+authoring, upload-session grants and authorized delivery; a missing binding
+fails closed. The shared `R2_BUCKET=kahoot-media` still owns other uploads.
+
+Stored audio URLs identify objects; they are not a public playback contract.
+Teacher preview and student playback use asset identity and authorized Worker
+delivery. Copy existing Listening objects under their unchanged keys, verify
+their bytes, then activate the private binding before removing shared public
+copies. Preserve version/asset IDs and retained text. Only `temp/listening/`
+expires after one day; durable audio has no bucket expiry. Preserve the provider's
+seven-day incomplete multipart-upload cleanup rule.
+
+This correction is in preparation, not deployed proof. The release audit records
+the final provider versions and acceptance. After public copies are removed,
+rolling back the Worker alone cannot restore playback; recovery must preserve
+the private binding and its objects.
+
 Decision date: 2026-07-07
 
 Firebase Hosting serves the static React application. It is not the upload backend and it does not proxy Listening/R2 upload traffic.

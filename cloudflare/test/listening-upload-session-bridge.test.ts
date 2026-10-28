@@ -111,7 +111,7 @@ const makeWorker = () => {
         return { consumed: true };
       },
     },
-    R2_BUCKET: {
+    LISTENING_AUDIO_BUCKET: {
       async get(key: string) { return objects.get(key) ?? null; },
       async put(key: string, body: unknown) { objects.set(key, { body }); },
     },
@@ -475,7 +475,7 @@ describe('PRD-0056A Worker bridge grant', () => {
       PUBLIC_URL: 'https://public.example',
       UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
       UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
-      R2_BUCKET: {
+      LISTENING_AUDIO_BUCKET: {
         async get() { return null; },
         async put() {},
       },
@@ -560,6 +560,7 @@ describe('PRD-0056A Worker bridge grant', () => {
       UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
       UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
       R2_BUCKET: runtimeEnv.R2_BUCKET,
+      LISTENING_AUDIO_BUCKET: runtimeEnv.R2_BUCKET,
     };
 
     const sessionResponse = await worker.fetch(new Request('https://upload.example/createListeningUploadSession', {

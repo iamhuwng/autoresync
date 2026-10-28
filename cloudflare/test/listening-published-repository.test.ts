@@ -192,7 +192,7 @@ describe('Listening published material discovery', () => {
         return header === 'Bearer independent-student-token' ? { valid: true, uid: 'student-2' } : { valid: false };
       } },
     });
-    const env = { ...db.env, LISTENING_DELIVERY_SECRET: 'local-listening-delivery-secret-32-bytes-minimum',
+    const env = { ...db.env, LISTENING_AUDIO_BUCKET: db.env.R2_BUCKET, LISTENING_DELIVERY_SECRET: 'local-listening-delivery-secret-32-bytes-minimum',
       UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
       readDatabaseValue: async (path: string) => db.read(path),
     };

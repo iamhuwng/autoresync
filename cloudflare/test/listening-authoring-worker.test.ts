@@ -71,6 +71,7 @@ const makeWorker = (overrides: {
   });
   const reads: string[] = [];
   const env = {
+    LISTENING_AUDIO_BUCKET: {},
     LISTENING_AUTHORING_IDEMPOTENCY_SECRET: 'authoring-secret-test-value',
     UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
     UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },

@@ -133,3 +133,35 @@ all eight notification/THCS emulator cases then executed and passed locally.
 The shortened recording note uses the existing player controls. This follow-up
 still requires final CI, native qualification, rules/Hosting deployment and
 live feedback/status acceptance; it is not a completion claim.
+
+## Private storage follow-up in preparation
+
+PR #185 merged as `29a264a08647ba512d3434afdfa93dd6f75d6eb7` after all eight
+CI checks passed. Its result permission and recording-note corrections are not
+deployed yet. A native anonymous range request then exposed a separate storage
+bypass: the private QA recording's shared raw R2 URL returned 206 without
+authentication. Signed Worker delivery cannot protect a separate public URL.
+
+The repair isolates Listening in `luyentap-listening-audio-private`, with public
+domain access disabled and no custom domain. A single Worker composition change
+selects its required binding for Listening routes and asset-grant upload;
+ordinary shared image uploads and Book routing retain their original binding.
+The regression reproduced four failures before the repair. All 162 Listening
+Worker cases pass after fixing the focused runner's missing R2 test binding.
+The lifecycle preserves default multipart cleanup and expires only Listening
+temporary uploads after one day. The added lifecycle assertion and shared upload
+regressions are separate final checks.
+
+The native source inventory contains 22 durable objects / 18,852,600 bytes and
+no Listening temporary objects. Copy and checksum verification precede Worker
+cutover; public copies must remain until the private path is verified. Recheck
+the inventory at cutover to prevent a concurrent upload/publication race.
+Deployment order is private bucket readiness, qualified Upload Worker, removal
+of verified public Listening copies, RTDB rules, then guarded Hosting. Firestore
+rules are already current and must remain unchanged. The fixed release profile
+must bind the new private bucket configuration and old/new Worker bindings.
+
+Final native qualification, CI and live feedback/playback/privacy acceptance
+remain release gates. A Worker-only rollback after public-copy removal is unsafe;
+keep the private binding and verified objects available for recovery. Native
+copy/readback receipts remain under `tmp/listening-live-release-20261027/`.

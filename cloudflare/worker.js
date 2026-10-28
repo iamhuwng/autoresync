@@ -150,6 +150,16 @@ export function createUploadWorker({
       const respond = ({ body, init = {} }) => json(body, init);
 
       try {
+        const isListeningRequest = url.pathname.startsWith('/listening-') ||
+          ['/createListeningUploadSession', '/issueListeningUploadAsset', '/probeListeningUploadAsset'].includes(url.pathname) ||
+          (url.pathname === '/upload' && url.searchParams.has('assetGrant'));
+        if (isListeningRequest) {
+          if (!env.LISTENING_AUDIO_BUCKET) {
+            return json({ error: 'listening_private_storage_unavailable' }, { status: 503 });
+          }
+          env = { ...env, R2_BUCKET: env.LISTENING_AUDIO_BUCKET };
+        }
+
         if (
           (request.method === 'GET' || request.method === 'HEAD') &&
           url.pathname === '/listening-delivery/content'
