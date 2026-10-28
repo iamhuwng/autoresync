@@ -1,5 +1,13 @@
 # Result View Visibility Policy
 
+## 2026-10-28 Listening acceptance permissions
+
+Listening browser writes cannot replace a result or change its grading, answers
+or pinned version. Existing authorized metadata and canonical teacher feedback
+remain writable; the result's student may save generated feedback and status.
+A homework grant exposes only the recording timestamp. Private source questions,
+result read authority, release timing and teacher ownership remain unchanged.
+
 ## 2026-10-28 Listening completion candidate
 
 Listening grades and completion are trusted Worker writes. RTDB rules deny

@@ -1,5 +1,13 @@
 # Result View Surface Map
 
+## 2026-10-28 Listening acceptance permissions
+
+The existing saved-result shells and mapped hosts remain unchanged. The shared
+recording note reads only `tests/{testId}/audioReplacedAt`, permitted for private
+Listening homework through its existing access grant. Generated feedback keeps
+its existing `test_results/{resultId}/formativeFeedback` and
+`feedbackGenerationMeta` paths and shared service. No new route or action.
+
 ## 2026-10-28 Listening completion candidate
 
 PR #183 keeps the three saved-result shells and their existing Academic Record,

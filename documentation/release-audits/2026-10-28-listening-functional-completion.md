@@ -1,4 +1,4 @@
-# Listening functional completion — release in preparation
+# Listening functional release and acceptance follow-up
 
 The candidate extends the released durable-audio design through native form
 editing and trusted submission. It preserves image-mode replacement and the
@@ -62,7 +62,7 @@ The receipt confirms all 11 readbacks. Recovery artifacts are retained under
 the full pre-write snapshot, reviewed plan and applied receipt. Snapshot SHA-256:
 `432a0793b34688498e62fae533e98a75ed182332798e50d76913cd7e2678400e`.
 
-## Outstanding release gates
+## Initial release gates (historical preparation)
 
 The implementation is not yet a deployed completion claim. Final clean-source
 build, CI, exact artifact qualification, native provider checks, ordered
@@ -72,3 +72,64 @@ then Hosting through the functional profile's postrules gate. Confirm no active
 Listening run before the rules cutover. Keep existing immutable versions and
 audio; a Hosting-only rollback cannot restore old client submission after the
 new rules are active.
+
+## Initial release deployed on October 28
+
+PR #183 merged as `bb4a74349482a874dae0cadc1a935ca93fcab785` with eight CI
+checks passing. PR #184 supplied the qualification tooling. Native predeploy,
+postupload and postrules receipts passed. Upload Worker version
+`4c8ade84-46a5-4b6b-98f3-42539972aab9` deployed before safe runtime projection
+reconciliation, RTDB/Firestore rules and guarded Hosting. Hosting version
+`43db33dc8cf7b167` serves that source; all 459 manifest files were hash-verified
+and `hocthem.net` matches `kahut1.web.app`.
+
+Private homework start exposed missing Firestore IAM access. The dedicated
+`r2-upload-signer-prd0056a@temp-a1437.iam.gserviceaccount.com` account received
+`roles/datastore.user` conditioned on the default database's resource name.
+Native policy readback confirmed all prior bindings unchanged. Start passed
+after propagation; no key, binding or Worker bytes changed.
+
+Live acceptance passed Cambridge question loading and playback/seeking through
+all four restored recordings. Private native form editing, publication,
+assignment and trusted submission passed. Homework
+`homework-5c0f66e6-d13c-49fc-9068-4d0aac01b356` kept its started version
+`version-e514e1698bd95afa4340ae40f6b7984e` after publication of
+`version-01406cf087f97452888f5345a854aac8`: BROWN remained the correct saved
+answer despite the later key GREEN. Result
+`listening_result_eef677fe81063d354380deb654351f523b6fbeddd831960b3c83a90cb3846f9b`
+shows 2/2 and 100% in Academic Record. Resumed playback uses the new four-second
+recording. The teacher received the submission notification; its link opened
+the correct Homework Detail with 100% completion.
+
+Five earlier superseded recordings were mapped to checksum-verified replacements
+before their ten durable/temporary keys were confirmed absent. The later private
+QA publication also replaced its twenty-second recording. Six text versions and
+the earlier 2/2 result were preserved. Two synthetic QA versions never had a
+committed asset record and were left untouched. Recovery snapshots, native
+receipts and screenshots remain under `tmp/listening-live-release-20261027/`;
+the earlier evidence ZIP remains in the canonical checkout's
+`tmp/listening-release-archive-20261027/`.
+
+## Result-permission follow-up in preparation
+
+Acceptance exposed blocked private recording-status reads and generated-feedback
+saves. A focused emulator probe showed that whole-object `.val()` equality
+rejects unchanged grading objects when unrelated metadata changes. The correction
+protects Listening results at their parent and field write boundaries, retaining
+the existing legacy validation and canonical teacher-feedback protocol. Browser
+score, answer, version and whole-result replacement attacks remain denied.
+Students may save their own generated feedback/status; existing homework grants
+expose only the recording timestamp, while private questions remain denied.
+
+All 13 Listening security cases pass, including student/teacher/admin attacks.
+The 36 player/result cases pass. Adjacent THCS rules pass; two old generic live
+session fixtures fail identically against the unchanged main rules because they
+create Listening sessions without the protected pin. They are not failures
+introduced by this correction. No PDF/Book implementation changes.
+
+CI's exact-rules THCS fixture was repinned to the reviewed parent write rule;
+all eight notification/THCS emulator cases then executed and passed locally.
+
+The shortened recording note uses the existing player controls. This follow-up
+still requires final CI, native qualification, rules/Hosting deployment and
+live feedback/status acceptance; it is not a completion claim.

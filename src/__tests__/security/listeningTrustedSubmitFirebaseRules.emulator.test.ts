@@ -16,7 +16,8 @@ const result = {
   testType: 'IELTS', testSkill: 'Listening', deliveryEngine: 'listening', materialVersionId: 'version-1',
   sessionCode: 'LIVE',
   totalScore: 1, maxScore: 1, percentage: 100, bandScore: 9, correct: 1, totalQuestions: 1,
-  createdAt: now, submittedAt: now, isGuest: false, questionResults: [{ questionNumber: 1, isCorrect: true }],
+  createdAt: now, submittedAt: now, isGuest: false,
+  questionResults: [{ questionId: 'q1', questionNumber: 1, questionType: 'completion', studentAnswer: 'A', correctAnswer: 'A', isCorrect: true, score: 1, maxScore: 1, feedback: 'Correct!' }],
 };
 const submission = {
   id: 'submission-1', studentId: 'student-1', teacherId: 'teacher-1', homeworkId: 'homework-1',
@@ -40,11 +41,12 @@ describe('Listening trusted scoring rules', () => {
       await context.database().ref().set({
         users: { 'student-1': { role: 'student' }, 'student-2': { role: 'student' }, 'teacher-1': { role: 'teacher' }, 'teacher-2': { role: 'teacher' }, 'admin-1': { role: 'super_admin' } },
         tests: {
-          listening: { id: 'listening', ownerId: 'teacher-1', skill: 'Listening', versionId: 'version-1' },
+          listening: { id: 'listening', ownerId: 'teacher-1', skill: 'Listening', versionId: 'version-1', audioReplacedAt: now + 1 },
           reading: { id: 'reading', ownerId: 'teacher-1', skill: 'Reading' },
         },
         listening_authoring: { versions: { 'version-1': { testId: 'listening' } } },
         student_safe_tests: { listening: { skill: 'Listening', questions: [{ number: 1 }] } },
+        homework_test_access: { listening: { 'student-1': { 'homework-1': true } } },
         game_sessions: { LIVE: session },
         session_test_payloads: { LIVE: { testId: 'listening', testData: { skill: 'Listening', questions: [{ number: 1 }] } } },
         test_results: { 'trusted-result': result },
@@ -65,6 +67,41 @@ describe('Listening trusted scoring rules', () => {
   });
 
   afterAll(async () => { await environment?.cleanup(); });
+
+  it('lets an assigned student read recording status without exposing private questions', async () => {
+    const assigned = environment.authenticatedContext('student-1').database();
+    const stranger = environment.authenticatedContext('student-2').database();
+    await assertSucceeds(assigned.ref('tests/listening/audioReplacedAt').once('value'));
+    await assertFails(assigned.ref('tests/listening').once('value'));
+    await assertFails(stranger.ref('tests/listening/audioReplacedAt').once('value'));
+    await assertFails(assigned.ref('tests/listening/audioReplacedAt').set(now + 2));
+  });
+
+  it('saves the student’s generated feedback while keeping trusted Listening grading immutable', async () => {
+    await environment.withSecurityRulesDisabled(context => context.database().ref('test_results/trusted-result').update({
+      teacherId: 'teacher-1', visibility: { ownershipResolved: true, contextType: 'class_session', sourceType: 'session',
+        sourceId: 'LIVE', sessionCode: 'LIVE', visibilityOwnerTeacherId: 'teacher-1' },
+    }));
+    const student = environment.authenticatedContext('student-1').database();
+    const feedback = { formativeFeedback: { summary: 'Review the recording.' },
+      feedbackGenerationMeta: { kind: 'ielts-listening', lastOutcome: 'saved-ai', lastAttemptAt: now } };
+    await assertSucceeds(student.ref('test_results/trusted-result').update(feedback));
+    await assertSucceeds(student.ref().update({ 'test_results/trusted-result/feedbackGenerationMeta': feedback.feedbackGenerationMeta }));
+    await assertSucceeds(environment.authenticatedContext('teacher-1').database().ref('test_results/trusted-result').update(feedback));
+    await assertFails(environment.authenticatedContext('student-2').database().ref('test_results/trusted-result').update(feedback));
+    await assertFails(student.ref('test_results/trusted-result').update({ ...feedback, percentage: 0 }));
+    await assertFails(student.ref('test_results').update({ 'trusted-result': { ...result, ...feedback, correct: 0 } }));
+    await assertFails(student.ref('test_results/forged-result').set({ ...result, ...feedback, resultId: 'forged-result' }));
+    for (const uid of ['student-1', 'teacher-1', 'admin-1']) {
+      const db = environment.authenticatedContext(uid).database();
+      for (const [field, value] of [['percentage', 0], ['materialVersionId', 'forged'], ['questionResults/0/score', 0],
+        ['questionResults/0/studentAnswer', 'forged'], ['listeningContext', { versionId: 'forged' }]] as const) {
+        try { await assertFails(db.ref(`test_results/trusted-result/${field}`).set(value)); }
+        catch (error) { throw new Error(`Unexpected Listening write: ${uid}/${field}`, { cause: error }); }
+      }
+      await assertFails(db.ref('test_results/trusted-result').set({ ...result, ...feedback, correct: 0 }));
+    }
+  });
 
   it('denies direct and ancestor Listening source/projection tampering while preserving Reading writes', async () => {
     for (const uid of ['student-1', 'teacher-1']) {

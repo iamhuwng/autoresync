@@ -345,7 +345,7 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     const audio = await screen.findByTestId('ssrc-listening-review-audio');
     expect(audio).toHaveAttribute('src', 'https://authorized.example/asset-1');
     expect(audio).toHaveAttribute('data-delivery-mode', 'authorized');
-    expect(screen.getByRole('note')).toHaveTextContent('Earlier answers or results may not match this recording.');
+    expect(screen.getByRole('note')).toHaveTextContent('Earlier answers/results may differ.');
     await waitFor(() => {
       expect(deliveryIssuer.issue).toHaveBeenCalledWith({
         assetId: 'asset-1',
@@ -365,7 +365,7 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
   it('warns on an earlier Listening result even when the old record has no audio-review metadata', async () => {
     mockRecordingStatus.mockReturnValue(Number.MAX_SAFE_INTEGER);
     render(<SharedSavedResultCore result={{ ...MOCK_RESULT, testId: 'test-1', testSkill: 'Listening' }} variant="modal" />);
-    expect(await screen.findByRole('note')).toHaveTextContent('The original recording was replaced.');
+    expect(await screen.findByRole('note')).toHaveTextContent('Recording replaced.');
     expect(screen.queryByTestId('ssrc-listening-review-audio')).not.toBeInTheDocument();
   });
 

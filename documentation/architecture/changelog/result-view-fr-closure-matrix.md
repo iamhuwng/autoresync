@@ -1,5 +1,12 @@
 # Result View FR Closure Matrix
 
+## 2026-10-28 Listening acceptance correction
+
+Recording-status and generated-feedback permission repairs do not change FR
+status or close parent milestones. Focused regressions cover the existing
+shared player/core and actual RTDB write boundaries. Final deployment and
+browser acceptance remain pending in the October 28 Listening release audit.
+
 ## 2026-10-28 Listening completion candidate
 
 PR #183 changes Listening result persistence and recording delivery while keeping

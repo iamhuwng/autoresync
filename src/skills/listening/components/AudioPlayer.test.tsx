@@ -150,7 +150,7 @@ describe('AudioPlayer', () => {
       isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={() => {}} onTimeUpdate={() => {}}
       onSectionComplete={() => {}} onError={() => {}} playerMode="solo" minimal mobileLayout
       authorizedDelivery={{ audioReplaced: true }} />);
-    expect(await screen.findByRole('note')).toHaveTextContent('The original recording was replaced.');
+    expect(await screen.findByRole('note')).toHaveTextContent('Recording replaced.');
     expect(screen.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
   });
 
