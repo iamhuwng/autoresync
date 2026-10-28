@@ -127,6 +127,9 @@ session fixtures fail identically against the unchanged main rules because they
 create Listening sessions without the protected pin. They are not failures
 introduced by this correction. No PDF/Book implementation changes.
 
+CI's exact-rules THCS fixture was repinned to the reviewed parent write rule;
+all eight notification/THCS emulator cases then executed and passed locally.
+
 The shortened recording note uses the existing player controls. This follow-up
 still requires final CI, native qualification, rules/Hosting deployment and
 live feedback/status acceptance; it is not a completion claim.

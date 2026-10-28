@@ -64,7 +64,7 @@ describe('student-private THCS homework result against the exact current RTDB ru
             .find(key => key.startsWith('$'))!;
         const sha256 = (source: string) => createHash('sha256').update(source).digest('hex');
         expect(sha256(ruleTree.test_results[resultRuleKey]['.write']))
-            .toBe('0f9396a0832257ce472c7cab10c6dd350f5adc819624d98150876dfc1b84b8ab');
+            .toBe('57b6ac6925ef5d905d787c59910c6cda1790f289773d826d4cf77f5259fbd5e8');
         expect(sha256(ruleTree.test_results_by_student[studentRuleKey][resultIndexRuleKey]['.write']))
             .toBe('d2f7137d03f68e12c0904c8f298e37f2ced12ac874063343e65910b68f9cfca2');
         environment = await initializeTestEnvironment({
