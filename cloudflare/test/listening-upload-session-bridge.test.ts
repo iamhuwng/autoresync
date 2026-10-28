@@ -37,6 +37,7 @@ it('probes a new upload through the production committed-asset database reader',
     const result = await handlers.probeAsset({ request: new Request('https://upload.example/probeListeningUploadAsset', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId: asset.assetId, uploadSessionId: session.uploadSessionId }),
     }), uid: 'teacher-1', now: () => 1_700_000_000_000, env: { R2_BUCKET: runtimeEnv.R2_BUCKET,
+      LISTENING_DELIVERY_SECRET: 'delivery-preview-test-secret-32-bytes',
       FIREBASE_DB_URL: 'https://database.example', GOOGLE_SA_KEY: JSON.stringify({ client_email: 'probe@test.example', private_key: privateKey }) } });
     expect(result.body).toMatchObject({ status: 'ready', assetId: asset.assetId });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -527,8 +528,9 @@ describe('PRD-0056A Worker bridge grant', () => {
 
   it('routes trusted authoring asset range probe through worker auth without browser R2 CORS', async () => {
     const { repository } = createSessionService();
+    let now = 1_700_000_000_000;
     const worker = createUploadWorker({
-      now: () => 1_700_000_000_000,
+      now: () => now,
       firebaseVerifier: {
         async verifyAuthorizationHeader(header: string | null) {
           if (header === 'Bearer owner-token') return { valid: true, uid: 'owner-1' };
@@ -541,7 +543,7 @@ describe('PRD-0056A Worker bridge grant', () => {
         repository,
         idempotencySecret: 'idempotency-secret-test-value',
         grantSecret: 'listening-upload-session-grant-test-secret',
-        now: () => 1_700_000_000_000,
+        now: () => now,
         createOpaqueId: (() => {
           const ids = [
             'session-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -553,13 +555,15 @@ describe('PRD-0056A Worker bridge grant', () => {
       }),
     });
     const env = {
+      LISTENING_DELIVERY_SECRET: 'delivery-preview-test-secret-32-bytes',
+      readDatabaseValue: async () => null,
       LISTENING_UPLOAD_SESSION_GRANT_SECRET: 'listening-upload-session-grant-test-secret',
       LISTENING_UPLOAD_SESSION_DEV_TRANSPORT_ENABLED: 'true',
       UPLOAD_GRANT_SECRET: 'legacy-upload-grant-test-secret',
       PUBLIC_URL: 'https://public.example',
       UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
       UPLOAD_GRANT_REPLAY_LEDGER: { async consume() { return { consumed: true }; } },
-      R2_BUCKET: runtimeEnv.R2_BUCKET,
+      R2_BUCKET: { get: vi.fn(), head: vi.fn() },
       LISTENING_AUDIO_BUCKET: runtimeEnv.R2_BUCKET,
     };
 
@@ -605,7 +609,8 @@ describe('PRD-0056A Worker bridge grant', () => {
       }),
     }), env);
     expect(probeResponse.status).toBe(200);
-    await expect(probeResponse.json()).resolves.toEqual(expect.objectContaining({
+    const probePayload = await probeResponse.json() as Record<string, string>;
+    expect(probePayload).toEqual(expect.objectContaining({
       status: 'ready',
       assetId: assetPayload.assetId,
       uploadSessionId: sessionPayload.uploadSessionId,
@@ -615,7 +620,21 @@ describe('PRD-0056A Worker bridge grant', () => {
         contentLength: 1,
         contentRange: 'bytes 0-0/4',
       }),
+      previewUrl: expect.stringMatching(/^https:\/\/upload\.example\/listening-delivery\/content\?token=/),
     }));
+
+    const previewResponse = await worker.fetch(new Request(probePayload.previewUrl), env);
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.headers.get('Content-Type')).toBe('audio/mpeg');
+    expect(await previewResponse.text()).toBe('tone');
+    const rangeResponse = await worker.fetch(new Request(probePayload.previewUrl, { headers: { Range: 'bytes=1-2' } }), env);
+    expect(rangeResponse.status).toBe(206);
+    expect(rangeResponse.headers.get('Content-Range')).toBe('bytes 1-2/4');
+    expect(rangeResponse.headers.get('Content-Length')).toBe('2');
+    expect(await rangeResponse.text()).toBe('on');
+    const tampered = new URL(probePayload.previewUrl);
+    tampered.searchParams.set('token', `${tampered.searchParams.get('token')}tampered`);
+    expect((await worker.fetch(new Request(tampered), env)).status).toBe(403);
 
     const crossOwnerResponse = await worker.fetch(new Request('https://upload.example/probeListeningUploadAsset', {
       method: 'POST',
@@ -630,6 +649,10 @@ describe('PRD-0056A Worker bridge grant', () => {
       }),
     }), env);
     expect(crossOwnerResponse.status).toBe(404);
+    now += 10 * 60 * 1000;
+    expect((await worker.fetch(new Request(probePayload.previewUrl), env)).status).toBe(403);
+    expect(env.R2_BUCKET.get).not.toHaveBeenCalled();
+    expect(env.R2_BUCKET.head).not.toHaveBeenCalled();
   });
 
   it('maps bridge dependency failures to sanitized non-secret response codes', async () => {
