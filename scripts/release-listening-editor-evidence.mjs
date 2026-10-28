@@ -8,6 +8,7 @@ import { canonical, workerInvariants, readListeningProvider } from './release-li
 import { reviewedListeningProbeRelease } from './release-listening-probe-pins.mjs';
 import { reviewedListeningFunctionalRelease } from './release-listening-functional-pins.mjs';
 import { reviewedListeningPrivateRelease } from './release-listening-private-pins.mjs';
+import { reviewedListeningPreviewRelease } from './release-listening-preview-pins.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const digest = value => hash(canonical(value));
@@ -94,6 +95,9 @@ export function selectListeningReleaseProfile(revision) {
   if (revision === reviewedListeningPrivateRelease.revision) {
     return { name: 'private-audio', scope: 'upload-worker-rules-and-hosting', pins: reviewedListeningPrivateRelease };
   }
+  if (revision === reviewedListeningPreviewRelease.revision) {
+    return { name: 'private-upload-preview', scope: 'upload-worker-only', pins: reviewedListeningPreviewRelease };
+  }
   throw new Error('Listening candidate has no reviewed fixed profile');
 }
 
@@ -122,17 +126,17 @@ export function assertListeningPrivateLocalBindingChange(before, after) {
 export function validateListeningEditorEvidence(local, provider, phase, pins = reviewedListeningEditorRelease) {
   assertListeningEditorSource(local.source, pins);
   const changesRules = Object.hasOwn(pins, 'priorFirestoreRulesSha256');
+  const observesFirestore = Object.hasOwn(pins, 'firestoreRulesSha256');
   assert((changesRules ? ['predeploy', 'postupload', 'postrules'] : ['predeploy', 'postupload']).includes(phase), 'Editor phase is invalid');
-  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(changesRules ? ['firestoreRulesSha256'] : [])]) {
+  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(observesFirestore ? ['firestoreRulesSha256'] : [])]) {
     assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
     assert.equal(local[key], pins[key], `Editor ${key} changed`);
   }
   if (changesRules) {
     for (const key of ['priorRulesSha256', 'priorFirestoreRulesSha256']) assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
-    assert.equal(provider.firestoreRules?.sourceSha256, phase === 'postrules' ? pins.firestoreRulesSha256 : pins.priorFirestoreRulesSha256, 'Editor live Firestore rules changed');
   }
+  if (observesFirestore) assert.equal(provider.firestoreRules?.sourceSha256, changesRules && phase !== 'postrules' ? pins.priorFirestoreRulesSha256 : pins.firestoreRulesSha256, 'Editor live Firestore rules changed');
   if (pins.privateAudio) {
-    assert.equal(local.localListeningBindingOnly, true, 'Editor local Listening binding correction is not verified');
     assert.equal(pins.privateAudio.bucketName, 'luyentap-listening-audio-private', 'Editor private audio bucket is not reviewed');
     assert.match(pins.privateAudio.lifecycleSha256 ?? '', /^[a-f0-9]{64}$/, 'Editor private audio lifecycle is not reviewed');
     assert.equal(local.lifecycleSha256, pins.privateAudio.lifecycleSha256, 'Editor private audio lifecycle source changed');
@@ -141,8 +145,11 @@ export function validateListeningEditorEvidence(local, provider, phase, pins = r
     assert.equal(bucket.managedDomain?.enabled, false, 'Editor private audio r2.dev access is enabled or unavailable');
     assert.deepEqual(bucket.customDomains?.domains, [], 'Editor private audio custom domains changed');
     assert.equal(digest(bucket.lifecycle), pins.privateAudio.lifecycleSha256, 'Editor private audio lifecycle changed');
-    assert.match(pins.postUploadInvariantSha256 ?? '', /^[a-f0-9]{64}$/, 'Editor deployed Upload configuration is not reviewed');
-    assert.notEqual(pins.postUploadInvariantSha256, pins.upload.invariantSha256, 'Editor private audio binding transition is missing');
+    if (changesRules) {
+      assert.equal(local.localListeningBindingOnly, true, 'Editor local Listening binding correction is not verified');
+      assert.match(pins.postUploadInvariantSha256 ?? '', /^[a-f0-9]{64}$/, 'Editor deployed Upload configuration is not reviewed');
+      assert.notEqual(pins.postUploadInvariantSha256, pins.upload.invariantSha256, 'Editor private audio binding transition is missing');
+    }
   }
   assert.equal(provider.rulesSha256, changesRules && phase !== 'postrules' ? pins.priorRulesSha256 : pins.rulesSha256, 'Editor live rules changed');
   assert.equal(digest(provider.common), pins.commonSha256, 'Editor routes or account changed');
@@ -154,7 +161,7 @@ export function validateListeningEditorEvidence(local, provider, phase, pins = r
   for (const [name, expected] of Object.entries({ 'r2-upload-signer': pins.upload, ...pins.unchangedWorkers })) {
     assert(expected?.versionId && expected.modules && expected.invariantSha256, `Editor ${name} is not reviewed`);
     const worker = provider.workers[name];
-    const invariantSha256 = name === 'r2-upload-signer' && phase !== 'predeploy' && pins.privateAudio
+    const invariantSha256 = name === 'r2-upload-signer' && phase !== 'predeploy' && pins.privateAudio && changesRules
       ? pins.postUploadInvariantSha256 : expected.invariantSha256;
     assert.equal(digest(workerInvariants(worker)), invariantSha256, `Editor ${name} configuration changed`);
     assert.deepEqual(worker.deployment, worker.deploymentAfter, `Editor ${name} changed during observation`);
@@ -197,15 +204,17 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
     configSha256: hash(configBytes), sourceConfigSha256: hash(await readFile(path.join(cwd, 'cloudflare/wrangler.jsonc'))),
     envSha256: hash(envBytes), rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))),
     submitEndpoint: envBytes.toString('utf8').match(/^VITE_READING_V2_SUBMISSION_ENDPOINT\s*=\s*(.*?)\s*$/m)?.[1]?.replace(/^(['"])(.*)\1$/, '$2') };
-  if (Object.hasOwn(pins, 'priorFirestoreRulesSha256')) local.firestoreRulesSha256 = hash(await readFile(path.join(cwd, 'firestore.rules')));
+  if (Object.hasOwn(pins, 'firestoreRulesSha256')) local.firestoreRulesSha256 = hash(await readFile(path.join(cwd, 'firestore.rules')));
   if (pins.privateAudio) {
     local.lifecycleSha256 = digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8')));
-    const localWorkerPath = 'scripts/local-book-source-worker.mjs';
-    assertListeningPrivateLocalBindingChange(git(cwd, 'show', `${pins.baseRevision}:${localWorkerPath}`),
-      (await readFile(path.join(cwd, localWorkerPath), 'utf8')).trim());
-    local.localListeningBindingOnly = true;
+    if (Object.hasOwn(pins, 'priorFirestoreRulesSha256')) {
+      const localWorkerPath = 'scripts/local-book-source-worker.mjs';
+      assertListeningPrivateLocalBindingChange(git(cwd, 'show', `${pins.baseRevision}:${localWorkerPath}`),
+        (await readFile(path.join(cwd, localWorkerPath), 'utf8')).trim());
+      local.localListeningBindingOnly = true;
+    }
   }
-  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(Object.hasOwn(pins, 'priorFirestoreRulesSha256') ? ['firestoreRulesSha256'] : [])]) {
+  for (const key of ['bundleSha256', 'configSha256', 'sourceConfigSha256', 'envSha256', 'rulesSha256', ...(Object.hasOwn(pins, 'firestoreRulesSha256') ? ['firestoreRulesSha256'] : [])]) {
     assert.match(pins[key] ?? '', /^[a-f0-9]{64}$/, `Editor ${key} is not reviewed`);
     assert.equal(local[key], pins[key], `Editor ${key} changed`);
   }
@@ -215,7 +224,7 @@ async function readCandidate({ cwd, uploadBundle, uploadConfig }) {
 export async function observeListeningEditor(options) {
   const local = await readCandidate(options);
   const pins = selectListeningReleaseProfile(local.source.revision).pins;
-  const providerOptions = { firestore: Object.hasOwn(pins, 'priorFirestoreRulesSha256'), privateAudio: Boolean(pins.privateAudio) };
+  const providerOptions = { firestore: Object.hasOwn(pins, 'firestoreRulesSha256'), privateAudio: Boolean(pins.privateAudio) };
   const provider = await readListeningProvider(options.cwd, providerOptions);
   validateListeningEditorEvidence(local, provider, options.phase, pins);
   assert.deepEqual(await readListeningProvider(options.cwd, providerOptions), provider, 'Editor provider changed during observation');

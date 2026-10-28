@@ -6,6 +6,7 @@ import { validateListeningEditorEvidence, assertListeningEditorSource, assertLis
 import { reviewedListeningProbeRelease } from '../release-listening-probe-pins.mjs';
 import { reviewedListeningFunctionalRelease } from '../release-listening-functional-pins.mjs';
 import { reviewedListeningPrivateRelease } from '../release-listening-private-pins.mjs';
+import { reviewedListeningPreviewRelease } from '../release-listening-preview-pins.mjs';
 import { assess } from '../release-check.mjs';
 import { selectReleaseSource, assertListeningHostingReady } from '../deploy-live.mjs';
 
@@ -67,6 +68,25 @@ function privateFixture(phase = 'predeploy') {
   if (phase !== 'predeploy') {
     worker.settings = next.settings;
     worker.bindings = next.bindings;
+  }
+  return value;
+}
+
+function previewFixture(phase = 'predeploy') {
+  const value = privateFixture('postupload');
+  const { local, provider, pins } = value;
+  delete pins.priorRulesSha256;
+  delete pins.priorFirestoreRulesSha256;
+  pins.upload.invariantSha256 = pins.postUploadInvariantSha256;
+  delete pins.postUploadInvariantSha256;
+  delete local.localListeningBindingOnly;
+  provider.rulesSha256 = pins.rulesSha256;
+  if (phase === 'predeploy') {
+    const worker = provider.workers['r2-upload-signer'];
+    worker.versionId = pins.upload.versionId;
+    worker.modules = structuredClone(pins.upload.modules);
+    worker.deployment = { versions: [{ version_id: worker.versionId, percentage: 100 }] };
+    worker.deploymentAfter = structuredClone(worker.deployment);
   }
   return value;
 }
@@ -236,5 +256,38 @@ test('private audio native source review permits only the exact local Listening 
     after.replace('local-listening-audio-private', 'luyentap-listening-audio-private'),
     after.replace('"disabled"', '"enabled"'), `${after}\nextra()`]) {
     assert.throws(() => assertListeningPrivateLocalBindingChange(before, changed));
+  }
+});
+
+test('private preview keeps private bindings and both rulesets unchanged through exactly two phases', () => {
+  assert.equal(Object.hasOwn(reviewedListeningPreviewRelease, 'priorRulesSha256'), false);
+  assert.equal(Object.hasOwn(reviewedListeningPreviewRelease, 'priorFirestoreRulesSha256'), false);
+  assert.equal(Object.hasOwn(reviewedListeningPreviewRelease, 'postUploadInvariantSha256'), false);
+  assert.equal(reviewedListeningPreviewRelease.baseRevision, reviewedListeningPrivateRelease.revision);
+  assert.equal(reviewedListeningPreviewRelease.upload.invariantSha256, reviewedListeningPrivateRelease.postUploadInvariantSha256);
+  const profile = selectListeningReleaseProfile(reviewedListeningPreviewRelease.revision);
+  assert.equal(profile.name, 'private-upload-preview');
+  assert.equal(profile.scope, 'upload-worker-only');
+  for (const phase of ['predeploy', 'postupload']) {
+    const { local, provider, pins } = previewFixture(phase);
+    validateListeningEditorEvidence(local, provider, phase, pins);
+    assert.throws(() => validateListeningEditorEvidence(local, provider, 'postrules', pins), /phase/);
+    assert.throws(() => validateListeningEditorEvidence(local, provider, phase === 'predeploy' ? 'postupload' : 'predeploy', pins));
+    assert.throws(() => assertListeningHostingReady({ hostingReady: true, editorObservation: {
+      profile: 'private-upload-preview', scope: 'upload-worker-only', phase,
+    } }, false, true), /Worker-only/);
+    for (const mutate of [
+      value => { value.local.firestoreRulesSha256 = 'e'.repeat(64); },
+      value => { delete value.provider.firestoreRules; },
+      value => { value.provider.firestoreRules.sourceSha256 = 'e'.repeat(64); },
+      value => { value.provider.rulesSha256 = 'e'.repeat(64); },
+      value => { value.provider.privateAudioBucket.managedDomain.enabled = true; },
+      value => { value.provider.privateAudioBucket.customDomains.domains.push({ domain: 'public.example' }); },
+      value => { value.provider.privateAudioBucket.lifecycle.rules.pop(); },
+      value => { value.provider.workers['r2-upload-signer'].bindings.pop(); },
+    ]) {
+      const value = previewFixture(phase); mutate(value);
+      assert.throws(() => validateListeningEditorEvidence(value.local, value.provider, phase, value.pins));
+    }
   }
 });

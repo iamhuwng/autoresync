@@ -8,7 +8,8 @@ import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObse
 import { assertNotificationWorkerSource, observeNotificationWorker, isNotificationWorkerObserved } from './release-notification-worker-evidence.mjs';
 import { assertReadingV2WorkerSource, observeReadingV2Worker, isReadingV2WorkerObserved } from './release-reading-v2-worker-evidence.mjs';
 import { observeListeningRelease, isListeningReleaseObserved } from './release-listening-evidence.mjs';
-import { observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
+import { assertListeningEditorSource, observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
+import { reviewedListeningPreviewRelease } from './release-listening-preview-pins.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -191,8 +192,9 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   const hasFixedWorker = fixedWorkerCount === 1;
   if (observeListening && observeListeningEditorRelease) throw new Error('Choose only one Listening release profile.');
   const qualifiedListening = observeListening || observeListeningEditorRelease;
+  const editorWorkerOnly = observeListeningEditorRelease && !observe;
   if (observeListeningEditorRelease && (listeningHomeworkBundle || listeningHomeworkConfig)) throw new Error('Editor release does not deploy the homework Worker.');
-  if (qualifiedListening && (hasFixedWorker || mode !== 'release' || !observe || observeProvider || hostingObservation || hostingOrigin || baselinePath)) throw new Error('Listening qualification requires release mode and native Hosting observation without other observers or caller baseline.');
+  if (qualifiedListening && (hasFixedWorker || mode !== 'release' || (!observe && !editorWorkerOnly) || observeProvider || hostingObservation || hostingOrigin || baselinePath || (editorWorkerOnly && compatibilityReviewPath))) throw new Error('Listening qualification requires release mode and native observation without other observers or caller baseline.');
   if (!qualifiedListening && [listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig].some(Boolean)) throw new Error('Listening options require --observe-listening-release.');
   if (hasFixedWorker && (mode !== 'release' || observe || observeProvider || hostingObservation || hostingOrigin || baselinePath || compatibilityReviewPath || productionEnvFingerprint)) throw new Error('Fixed Worker observation cannot be combined with other release modes or evidence.');
   if (observeNotification && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed notification observation requires --worker-bundle and --worker-config.');
@@ -211,6 +213,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   let listeningObservation = null;
   let editorObservation = null;
   if (observeListeningEditorRelease) try {
+    if (editorWorkerOnly) assertListeningEditorSource(source, reviewedListeningPreviewRelease);
     editorObservation = await observeListeningEditor({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig });
     if (!isListeningEditorObserved(editorObservation)) throw new Error('Untrusted editor observation rejected.');
     if (productionEnvFingerprint !== editorObservation.local.envSha256) throw new Error('Editor environment fingerprint differs from observed input.');
@@ -221,6 +224,16 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
     editorObservation = null;
     findings.push({ status: STATUS.UNVERIFIED, message: `Editor release readback: ${error.message}` });
   }
+  if (editorWorkerOnly) return {
+    schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: 'upload-worker-only',
+    source: { ...source, services: ['worker'], changedServices: services }, baseline: null, observed: null,
+    compatibilityReview: null, listeningObservation: null, editorObservation, hostingReady: false, hotfixes: [],
+    requiredActions: ['Require independent review, fresh native verification and separate Upload Worker authorization.'],
+    deploymentOrder: ['Upload Worker only; Hosting, rules, storage bindings, homework Worker and notifications are excluded.'],
+    recovery: [`Retain Upload Worker version ${reviewedListeningPreviewRelease.upload.versionId}; recovery does not reverse data writes.`],
+    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null,
+    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
+  };
   if (observeListening) try {
     listeningObservation = await observeListeningRelease({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig, homeworkBundle: listeningHomeworkBundle, homeworkConfig: listeningHomeworkConfig });
     if (!isListeningReleaseObserved(listeningObservation)) throw new Error('Untrusted Listening observation rejected.');
