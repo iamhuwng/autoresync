@@ -1,5 +1,16 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-10-29 Listening homework UI follow-up
+
+Domain: saved-result entry ownership. Hosts: StudentHomeworkListPage and
+StudentHomeworkDetailPage. Existing score/result actions retain the shared
+slide panel; an eligible retake uses the canonical submission service rather
+than reopening the last result. No new result reads, routes, permissions, or
+browser authority. Question-count metadata uses two bounded read-only leaves
+under student_safe_tests/{materialId}; no mount-time write or per-list-row
+enrichment is introduced. The recording notice requires only header sizing.
+See [the scoped release record](../../release-audits/2026-10-29-listening-homework-ui.md).
+
 ## 2026-10-28 Listening acceptance correction
 
 Domain: saved-result. Canonical surfaces remain `ResultSlidePanel`,

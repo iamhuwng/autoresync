@@ -293,6 +293,28 @@ describe('StudentHomeworkListPage', () => {
     });
   });
 
+  it('starts an allowed retake instead of opening the previous result', async () => {
+    const item = makeHomeworkItem({
+      latestSubmission: { id: 'previous-attempt', status: 'submitted', resultId: 'previous-result', percentage: 100 },
+      status: 'submitted',
+      attemptsUsed: 1,
+      attemptsRemaining: 1,
+    });
+    useResolvedStudentHomeworkListMock.mockReturnValue({
+      homeworkItems: [item], isLoading: false, error: null, refreshData: vi.fn(),
+      notStarted: [], inProgress: [], completed: [item], overdue: [],
+    });
+
+    render(<StudentHomeworkListPage />);
+    fireEvent.click(screen.getByText('Continue'));
+
+    await waitFor(() => expect(createSubmissionMock).toHaveBeenCalledWith('hw-1', 'student-1', 'Student One'));
+    expect(navigateMock).toHaveBeenCalledWith('STUDENT_PRACTICE', { materialId: 'material-1' }, expect.objectContaining({
+      state: expect.objectContaining({ submissionId: 'submission-1' }),
+    }));
+    expect(screen.queryByTestId('result-slide-panel')).not.toBeInTheDocument();
+  });
+
   it('shows pending-review copy for manual-review submissions without a score', () => {
     const pendingReviewItem = makeHomeworkItem({
       homework: {

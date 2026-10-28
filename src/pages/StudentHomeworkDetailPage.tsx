@@ -1016,6 +1016,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
     // Load material data
     useEffect(() => {
+        let cancelled = false;
         const loadMaterial = async () => {
             if (isBookHomework) {
                 setMaterialLoading(false);
@@ -1026,10 +1027,26 @@ export const StudentHomeworkDetailPage: React.FC = () => {
 
             try {
                 setMaterialLoading(true);
+                setMaterial(current => current?.id === homework.materialId ? current : null);
+                if (homework.materialSkill === 'listening' || homework.contentRef?.contentKind === 'ielts_listening') {
+                    const [countSnapshot, updatedSnapshot] = await Promise.all([
+                        get(ref(database, `student_safe_tests/${homework.materialId}/questionCount`)),
+                        get(ref(database, `student_safe_tests/${homework.materialId}/updatedAt`)),
+                    ]);
+                    const questionCount = countSnapshot.val();
+                    if (!cancelled && Number.isInteger(questionCount) && questionCount >= 0) {
+                        setMaterial({
+                            id: homework.materialId,
+                            questionCount,
+                            updatedAt: updatedSnapshot.val(),
+                        } as TestData);
+                    }
+                    return;
+                }
                 const readingPassageSummary = getReadingPassageHomeworkSummary(homework);
 
                 if (readingPassageSummary) {
-                    setMaterial({
+                    if (!cancelled) setMaterial({
                         id: homework.materialId,
                         title: readingPassageSummary.title,
                         duration: homework.config?.timerMinutes ?? 0,
@@ -1053,7 +1070,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                 const result = await getTestFromFirebase(homework.materialId);
                 if (result.success && result.data) {
                     if (!isReadingV2LaunchCandidate(result.data)) {
-                        setMaterial(result.data);
+                        if (!cancelled) setMaterial(result.data);
                         return;
                     }
 
@@ -1069,7 +1086,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         : null;
                     const summary = createReadingV2LaunchMaterialSummary({ metadata, projection });
 
-                    setMaterial({
+                    if (!cancelled) setMaterial({
                         id: summary.id,
                         title: summary.title,
                         duration: summary.durationMinutes,
@@ -1087,11 +1104,12 @@ export const StudentHomeworkDetailPage: React.FC = () => {
             } catch (err) {
                 console.error('Error loading material:', err);
             } finally {
-                setMaterialLoading(false);
+                if (!cancelled) setMaterialLoading(false);
             }
         };
 
         loadMaterial();
+        return () => { cancelled = true; };
     }, [homework, isBookHomework]);
 
     const navigateToTest = (submission?: any) => {
@@ -1251,7 +1269,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
     }
 
     // Loading state
-    if (isLoading || materialLoading) {
+    if (isLoading || (materialLoading && !material)) {
         return (
             <StudentLayout sidebar={sidebar} mobileTitle="Homework Details">
                 <Center style={{ minHeight: '60vh' }}>
@@ -1536,7 +1554,9 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                                                 <div>
                                                     <Text size="sm" c="dimmed">Questions</Text>
                                                     <Text fw={600}>
-                                                        {material?.questions?.length || 'Loading...'} questions
+                                                        {(material?.questionCount ?? material?.questions?.length) == null
+                                                            ? 'Question count unavailable'
+                                                            : `${material?.questionCount ?? material?.questions?.length} questions`}
                                                     </Text>
                                                 </div>
                                             </Group>
