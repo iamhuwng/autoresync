@@ -148,7 +148,7 @@ export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
 }
 
 // Fixed native provider GETs only; no caller transport or evidence injection.
-export async function readListeningProvider(cwd, { firestore = false } = {}) {
+export async function readListeningProvider(cwd, { firestore = false, privateAudio = false } = {}) {
   const authRoot = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'xdg.config') : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   const credentials = await readFile(path.join(authRoot, '.wrangler/config/default.toml'), 'utf8');
   const token = credentials.match(/^oauth_token\s*=\s*"([^"\r\n]+)"/mu)?.[1];
@@ -215,11 +215,21 @@ export async function readListeningProvider(cwd, { firestore = false } = {}) {
     const ruleset = await get(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`, googleToken);
     firestoreRules = validateFirestoreRulesReadback(release, ruleset, await get(releaseUrl, googleToken));
   }
+  let privateAudioBucket;
+  if (privateAudio) {
+    const bucketName = 'luyentap-listening-audio-private';
+    const bucket = `${account}/r2/buckets/${bucketName}`;
+    privateAudioBucket = { bucketName,
+      managedDomain: await cf(`${bucket}/domains/managed`),
+      customDomains: await cf(`${bucket}/domains/custom`),
+      lifecycle: await cf(`${bucket}/lifecycle`) };
+  }
   return { workers, common, functions: functions.result,
     rulesSha256: digest(await get(`${database}/.settings/rules.json`, googleToken)),
     writesEnabled: await get(`${database}/system_flags/listening_authoring_writes_enabled.json`, googleToken),
     restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken),
-    ...(firestore ? { firestoreRules } : {}) };
+    ...(firestore ? { firestoreRules } : {}),
+    ...(privateAudio ? { privateAudioBucket } : {}) };
 }
 
 export async function observeListeningRelease(options) {
