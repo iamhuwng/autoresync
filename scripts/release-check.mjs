@@ -234,7 +234,15 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   }
   if (services.includes('migrations')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Review additive migration prerequisites, deployment order and recovery; emulator state is never promoted.' });
   if (services.includes('backup-worker') && !listeningObservation && !editorObservation) findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
-  if (services.includes('backblaze')) findings.push({ status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
+  if (services.includes('backblaze')) {
+    const backblazePaths = source.files.filter(file => classifyPaths([file]).includes('backblaze'));
+    const privateLocalBindingOnly = isListeningEditorObserved(editorObservation) && editorObservation.profile === 'private-audio'
+      && editorObservation.local.localListeningBindingOnly === true
+      && backblazePaths.length === 1 && backblazePaths[0] === 'scripts/local-book-source-worker.mjs';
+    findings.push(privateLocalBindingOnly
+      ? { status: STATUS.PASS, message: 'The exact native private-audio profile verifies only the local Listening R2 binding correction; Book/B2 bytes are unchanged.' }
+      : { status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
+  }
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
   if (services.includes('worker') && !listeningObservation && !editorObservation) findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
@@ -305,9 +313,20 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   if (services.includes('backup-worker')) { requiredActions.push('Verify backup Worker version, R2 bindings, schedules and retention policy.'); recovery.push('Record the prior backup Worker version and R2 retention implications.'); }
   if (services.includes('hosting')) { deploymentOrder.push(services.includes('worker') ? 'Deploy and verify Worker before Hosting.' : 'Hosting-only deployment.'); recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.'); }
   if (editorObservation?.scope === 'upload-worker-only') deploymentOrder.splice(0, deploymentOrder.length, 'Upload Worker only; Hosting, rules, homework Worker and notifications are excluded.');
-  if (editorObservation?.profile === 'functional-completion') {
-    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
-    recovery.push('Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
+  if (['functional-completion', 'private-audio'].includes(editorObservation?.profile)) {
+    const privateAudio = editorObservation.profile === 'private-audio';
+    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', privateAudio
+      ? 'Deploy RTDB rules and verify their exact hash; verify Firestore remains unchanged before Hosting.'
+      : 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
+    recovery.push(privateAudio
+      ? 'RTDB tightening requires no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, RTDB, storage and Hosting recovery while preserving Firestore.'
+      : 'Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
+    if (privateAudio) {
+      deploymentOrder.unshift('Verify the fixed private audio bucket has r2.dev disabled, no custom domains and the exact reviewed lifecycle.',
+        'Verify private audio object-copy and ownership receipts before switching Upload bindings.');
+      deploymentOrder.splice(3, 0, 'After Upload verification, remove only verified shared Listening copies before RTDB rules or Hosting.');
+      recovery.push('Private audio bindings and object ownership require coordinated storage recovery; Hosting rollback does not restore copied or deleted objects.');
+    }
   }
   return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, listeningObservation, editorObservation, hostingReady: editorObservation ? listeningEditorHostingReady(editorObservation) : listeningObservation ? listeningPhase === 'homework' : undefined, hotfixes, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
 }

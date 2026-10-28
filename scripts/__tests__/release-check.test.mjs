@@ -47,6 +47,21 @@ test('CLI receipts follow the selected --cwd candidate', async () => {
 });
 test('classifies backup Worker and Backblaze surfaces conservatively', () => assert.deepEqual(classifyPaths(['r2-backup-worker/src/index.ts','cloudflare/wrangler.book-source.jsonc']), ['backblaze','backup-worker','worker']));
 
+test('a caller-shaped private audio claim cannot waive the local Book/Backblaze guard', async () => {
+  const cwd = await fixture();
+  try {
+    await mkdir(path.join(cwd, 'scripts'));
+    await writeFile(path.join(cwd, 'scripts/local-book-source-worker.mjs'), 'export default {};');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'local Worker change');
+    const result = await assess({ cwd, base: 'HEAD^', editorObservation: {
+      profile: 'private-audio', local: { localListeningBindingOnly: true }, phase: 'postrules',
+    } });
+    assert(result.source.services.includes('backblaze'));
+    assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Verify B2 bucket/u.test(finding.message)));
+    assert(!result.findings.some(finding => /verifies only the local Listening/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('isolates unchanged Book rollout gates while retaining them for a Book Worker change', async () => {
   const cwd = await fixture();
   try {

@@ -72,7 +72,7 @@ export const selectReleaseSource = ({ sourceCwd, observeListening = false, obser
 
 export const assertListeningHostingReady = (result, observeListening = false, observeListeningEditorRelease = false) => {
   if (observeListeningEditorRelease && result.editorObservation?.scope === 'upload-worker-only') fail('Worker-only qualification cannot deploy Hosting.');
-  if (observeListeningEditorRelease && (!listeningEditorHostingReady(result.editorObservation) || result.hostingReady !== true)) fail('Editor Hosting deployment requires its verified profile phase (postupload for editor; postrules for functional completion) and hostingReady=true.');
+  if (observeListeningEditorRelease && (!listeningEditorHostingReady(result.editorObservation) || result.hostingReady !== true)) fail('Editor Hosting deployment requires its verified profile phase (postupload for editor; postrules for functional completion/private audio) and hostingReady=true.');
   if (observeListening && (result.listeningObservation?.phase !== 'homework' || result.hostingReady !== true)) {
     fail(`Listening Hosting deployment requires verified homework phase and hostingReady=true. ${result.findings?.find(finding => finding.status !== 'PASS')?.message ?? 'Native homework observation is missing.'}`);
   }
