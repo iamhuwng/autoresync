@@ -564,6 +564,8 @@ export interface HomeworkStats {
  * The latest submission is used for grading.
  */
 export interface HomeworkSubmission {
+    /** Trusted text version fixed when a Listening attempt begins. */
+    listeningVersionId?: string;
     /** Unique submission ID */
     id: string;
 

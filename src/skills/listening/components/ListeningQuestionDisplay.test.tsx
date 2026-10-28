@@ -46,4 +46,15 @@ describe('ListeningQuestionDisplay', () => {
     const input = screen.getByPlaceholderText('1') as HTMLInputElement;
     expect(input.disabled).toBe(true);
   });
+
+  it('renders native list-summary blanks as choices with canonical labels', () => {
+    const change = vi.fn();
+    render(<ListeningQuestionDisplay group={{ type: 'summary-completion-list', startNumber: 1, endNumber: 1,
+      instructions: '', questions: [{ number: 1, type: 'summary-completion-list', question: 'Destination: [1]',
+        answer: 'B', options: ['Tokyo', 'Ottawa'], points: 1 }] }} answers={{}} currentQuestionNumber={1}
+      onAnswerChange={change} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Answer 1' }), { target: { value: 'B' } });
+    expect(change).toHaveBeenCalledWith(1, 'B');
+    expect(screen.getByRole('option', { name: 'B. Ottawa' })).toHaveProperty('value', 'B');
+  });
 });

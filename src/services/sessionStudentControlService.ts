@@ -1,6 +1,7 @@
-import { ref, update } from 'firebase/database';
+import { get, ref, update } from 'firebase/database';
 // @ts-ignore - firebase.js is a JS file
 import { database } from './firebase';
+import { submitListeningLiveTest } from '../features/assessment/listening/runtime/listeningSubmissionClient';
 import {
   deleteStudentSessionResults,
   deleteTestResult,
@@ -11,6 +12,11 @@ export async function requestTeacherForceSubmit(
   studentId: string
 ): Promise<number> {
   const requestedAt = Date.now();
+  const pin = (await get(ref(database, `game_sessions/${sessionCode}/listeningTestPin`))).val();
+  if (pin) {
+    await submitListeningLiveTest({ sessionCode, testId: pin.testId, studentId });
+    return requestedAt;
+  }
   const playerRef = ref(database, `game_sessions/${sessionCode}/players/${studentId}`);
 
   await update(playerRef, {
@@ -77,6 +83,7 @@ export async function resetStudentSessionSubmission(
     score: null,
     maxScore: null,
     latestResultId: null,
+    resultId: null,
     submissionResetAt: resetAt,
   });
 

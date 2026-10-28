@@ -4,6 +4,7 @@ import { storage } from '@/core/platform/storage';
 import type { SavedMobileState, SoloProgressScopeContext, SoloSessionProgress } from '../../types/practice.types';
 import type { AutoSaveStatus } from '../useTestAutoSave';
 import { buildSoloProgressStorageKey, removeSoloProgress } from '../../services/soloProgress.service';
+import { stripAnswerKeys } from '../../utils/answerKeyHelper';
 
 interface UseSoloAutoSaveOptions {
     materialId: string | undefined;
@@ -13,6 +14,7 @@ interface UseSoloAutoSaveOptions {
     submissionOperationId?: string;
     acceptedResultId?: string;
     submitPhase?: SoloSessionProgress['submitPhase'];
+    listeningDocument?: SoloSessionProgress['listeningDocument'];
     answers: Record<number, any>;
     currentQuestion: number;
     timeElapsed: number;
@@ -42,6 +44,7 @@ export const useSoloAutoSave = ({
     submissionOperationId,
     acceptedResultId,
     submitPhase,
+    listeningDocument,
     answers,
     currentQuestion,
     timeElapsed,
@@ -70,6 +73,7 @@ export const useSoloAutoSave = ({
     const submissionOperationIdRef = useRef(submissionOperationId);
     const acceptedResultIdRef = useRef(acceptedResultId);
     const submitPhaseRef = useRef(submitPhase);
+    const listeningDocumentRef = useRef(listeningDocument);
 
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
@@ -80,6 +84,7 @@ export const useSoloAutoSave = ({
     useEffect(() => { submissionOperationIdRef.current = submissionOperationId; }, [submissionOperationId]);
     useEffect(() => { acceptedResultIdRef.current = acceptedResultId; }, [acceptedResultId]);
     useEffect(() => { submitPhaseRef.current = submitPhase; }, [submitPhase]);
+    useEffect(() => { listeningDocumentRef.current = listeningDocument; }, [listeningDocument]);
 
     const clearStatusResetTimer = useCallback(() => {
         if (statusResetTimeoutRef.current) {
@@ -151,6 +156,9 @@ export const useSoloAutoSave = ({
                 if (submissionOperationIdRef.current) progress.submissionOperationId = submissionOperationIdRef.current;
                 if (acceptedResultIdRef.current) progress.acceptedResultId = acceptedResultIdRef.current;
                 if (submitPhaseRef.current) progress.submitPhase = submitPhaseRef.current;
+                if (listeningDocumentRef.current) progress.listeningDocument = {
+                    ...listeningDocumentRef.current, questions: stripAnswerKeys(listeningDocumentRef.current.questions),
+                };
 
                 await storage.set(key, progress);
                 lastSaveRef.current = now;

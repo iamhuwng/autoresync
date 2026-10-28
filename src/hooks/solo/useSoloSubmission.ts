@@ -21,11 +21,13 @@ import {
 } from '../../services/antiCheatReporting';
 import { studentResumeService } from '../../services/studentResume.service';
 import { buildListeningSoloAttemptIdentity } from '../../features/assessment/listening/runtime/solo/listeningSoloAttemptIdentity';
-import { readListeningHomeworkQuestions } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
+import { submitListeningTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+import { readListeningSoloVersionId } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter';
 
 interface TestData {
     id: string;
     versionId?: string;
+    publishedSnapshotVersionId?: string;
     duration: number;
     questions: Array<{ number: number; type: string; answer: any;[key: string]: any }>;
     questionCount: number;
@@ -215,11 +217,7 @@ export const useSoloSubmission = ({
             return testData?.questions ?? [];
         }
 
-        const result: Awaited<ReturnType<typeof getTestQuestionsFromFirebase>> = isHomework && testData.skill === 'Listening' && testData.versionId
-            ? { success: true, data: await readListeningHomeworkQuestions({
-                testId: testData.id, versionId: testData.versionId, homeworkId: homeworkId!, submissionId: submissionId || '',
-            }) }
-            : await getTestQuestionsFromFirebase(testData.id);
+        const result = await getTestQuestionsFromFirebase(testData.id);
         if (!result.success || !result.data) {
             throw new Error(result.error || 'Failed to load grading questions');
         }
@@ -243,6 +241,7 @@ export const useSoloSubmission = ({
 
     const markTest = async (): Promise<TestResults> => {
         if (!testData) return { correctAnswers: 0, totalQuestions: 0, questionResults: {} };
+        if (testData.skill === 'Listening') throw new Error('Listening results must be calculated by the submission service.');
         const gradingQuestions = await loadGradingQuestions();
 
         let correctAnswers = 0;
@@ -275,7 +274,7 @@ export const useSoloSubmission = ({
         if (!testData || testSubmittedRef.current || !materialId || !studentId) return;
 
         // M5: Server-side maxAttempts guard â€” check before allowing submission
-        if (resolvedSettings?.maxAttempts != null && resolvedSettings.maxAttempts > 0) {
+        if (testData.skill !== 'Listening' && resolvedSettings?.maxAttempts != null && resolvedSettings.maxAttempts > 0) {
             try {
                 const { getStudentResultCount } = await import('../../services/testResults.service');
                 const existingCount = await getStudentResultCount(studentId, materialId);
@@ -298,6 +297,26 @@ export const useSoloSubmission = ({
         setIsSubmitting(true);
 
         try {
+            const isListening = testData.skill === 'Listening';
+            const { results, resultId } = await (async () => {
+            if (isListening) {
+                const identity = buildListeningSoloAttemptIdentity({
+                    materialId, studentId, scopeContext: progressScopeContext,
+                    existingAttemptId: attemptId, existingSubmissionOperationId: submissionOperationId,
+                    generatedAttemptSeed: getGeneratedAttemptSeed(),
+                });
+                const result = await submitListeningTest({
+                    mode: isHomework ? 'homework' : courseContext ? 'course_material' : 'self_study',
+                    testId: materialId,
+                    versionId: readListeningSoloVersionId(testData) ?? '',
+                    operationId: identity.submissionOperationId, answers,
+                    ...(isHomework ? { homeworkId, submissionId } : {}),
+                    ...(courseContext ?? {}),
+                    timeElapsed: Math.max(0, testData.duration * 60 - (isFinite(timeRemaining) ? timeRemaining : 0)),
+                    ...(integrity ? { integrity } : {}), attemptsNullified,
+                });
+                return { results: result, resultId: result.resultId };
+            }
             const results = await markTest();
 
             // Build marking result for saveTestResult
@@ -397,9 +416,11 @@ export const useSoloSubmission = ({
                     ...(isHomework ? { studentPrivateHomework: true } : {}),
                 }
             );
+            return { results, resultId };
+            })();
 
             // Update course progress if passing score met
-            if (courseContext && resolvedSettings?.minPassingScore != null && results.percentage != null) {
+            if (!isListening && courseContext && resolvedSettings?.minPassingScore != null && results.percentage != null) {
                 if (results.percentage >= resolvedSettings.minPassingScore) {
                     try {
                         // Dynamic import to avoid circular deps
@@ -418,7 +439,7 @@ export const useSoloSubmission = ({
             }
 
             // If homework mode, update the homework submission record in Firestore
-            if (isHomework && submissionId) {
+            if (!isListening && isHomework && submissionId) {
                 try {
                     const { submitHomework } = await import('../../services/homeworkSubmissionService');
                     const timeSpent = (testData.duration * 60) - (isFinite(timeRemaining) ? timeRemaining : 0);

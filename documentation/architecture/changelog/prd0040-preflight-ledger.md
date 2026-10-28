@@ -1,5 +1,27 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-10-28 Listening completion change record
+
+PR #183 touches saved-result and session/post-test integration. Canonical body:
+`SharedSavedResultCore`, hosted by `ResultSlidePanel`, `ResultDetailModal` and
+`LegacyResultDetailView` through their current dashboard, homework, Academic
+Record and teacher-history owners. `ResultDetailPage` remains a route wrapper.
+The optional recording note reads `tests/{testId}/audioReplacedAt`; playback
+verifies the caller's canonical `test_results/{resultId}` read through Firebase
+before resolving the original authorized asset to its replacement. Result
+identity comes from the loaded canonical result, not a notification or query
+parameter. Session submission keeps the current waiting-room/result flow and
+persists its protected version/run result before participant completion.
+
+Dependencies: RTDB result/visibility/index/session rules and the trusted
+Listening homework pin in Firestore. Focused regression anchors are recorded in
+the surface map, visibility policy and FR matrix in this same change. No new
+shell, result route, release timing, Writing workflow, guest storage migration,
+or PDF/Book behavior is included. Independent review found a new-homework audio
+reference gap; it is corrected after authoritative attempt authorization and
+covered by document → issuance → range-playback regression. Existing PRD FR
+closure states are unchanged; deployment/live acceptance are not yet complete.
+
 Changelog ID: `CL-20260325-PRD0040-PREFLIGHT-LEDGER`
 Moved from: `documentation/architecture/prd0040-preflight-ledger.md`
 Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)

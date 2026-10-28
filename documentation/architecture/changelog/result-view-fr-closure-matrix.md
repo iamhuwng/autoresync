@@ -1,5 +1,17 @@
 # Result View FR Closure Matrix
 
+## 2026-10-28 Listening completion candidate
+
+PR #183 changes Listening result persistence and recording delivery while keeping
+all existing PRD-0040/0041 FR closure statuses unchanged. New anchors are
+`SharedSavedResultCore.test.tsx` (recording notes and retained result body),
+`useTestSubmission.test.ts` (trusted completion and attendance),
+`listening-delivery-worker.test.ts` (current result-view permission and range
+playback), and `listeningTrustedSubmitFirebaseRules.emulator.test.ts` (forged
+totals, owner discovery, ancestor writes and teacher reset). No new FR is marked
+verified by these local checks; ordered deployment and live result acceptance
+are still pending.
+
 Changelog ID: `CL-20260325-RESULT-VIEW-FR-CLOSURE-MATRIX`
 Moved from: `documentation/architecture/result-view-fr-closure-matrix.md`
 Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)

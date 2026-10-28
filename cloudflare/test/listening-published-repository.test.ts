@@ -85,8 +85,10 @@ const makeDatabase = (omitEmptyCollections = false) => {
   let conflictCanonical = false;
   const writes: string[] = [];
   let beforePatch: (() => void) | undefined;
+  const requests: string[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const path = new URL(String(input)).pathname.replace(/^\//, '').replace(/\.json$/, '');
+    requests.push(`${init?.method} ${path}`);
     if (init?.method === 'PATCH') {
       if (failPatch) return new Response('{}', { status: 503 });
       beforePatch?.();
@@ -117,7 +119,7 @@ const makeDatabase = (omitEmptyCollections = false) => {
   const save = { ownerId: 'teacher-1', draftId: 'draft-1', operationId: 'save-2', idempotencyKeyHash: 'save-key',
     requestHash: 'save-request', document: state.listening_authoring.drafts['draft-1'].document,
     allowCreate: false, expectedConflictToken: 1 };
-  return { state, read, repository, publish, save, objects, writes, env, createRepository, copies: () => copies,
+  return { state, read, repository, publish, save, objects, writes, requests, env, createRepository, copies: () => copies,
     durableReads: () => durableReads,
     failCanonical: () => { failCanonical = true; }, allowCanonical: () => { failCanonical = false; },
     failCommit: () => { failCommit = true; }, allowCommit: () => { failCommit = false; },
@@ -281,6 +283,55 @@ describe('Listening published material discovery', () => {
     expect((await db.createRepository().publishDraftTransaction({ ...db.publish, expectedConflictToken: 2 })).kind).toBe('published');
     expect(db.durableReads() - priorReads).toBe(1);
     expect(db.read('tests/test-1')).toMatchObject({ versionId: 'version-1', isPublished: true });
+  });
+
+  it('publishes four saved audio sections without repeating asset finalization before the student projection', async () => {
+    const db = makeDatabase();
+    await db.repository.saveDraftTransaction(db.save);
+    const draft = db.read('listening_authoring/drafts/draft-1');
+    const original = db.read('media_assets/asset-1');
+    for (let number = 2; number <= 4; number++) {
+      const assetId = `asset-${number}`;
+      const key = durableKey.replace('asset-1', assetId);
+      db.state.media_assets[assetId] = { ...structuredClone(original), assetId, canonicalAssetId: assetId,
+        durableKey: key, tempKey: tempKey.replace('asset-1', assetId), publicUrl: `${publicUrl}/${key}` };
+      db.objects.set(key, { bytes: audioBytes.slice(), contentType: 'audio/mpeg' });
+      draft.assetIds[assetId] = true;
+      draft.document.audioSections.push({ ...draft.document.audioSections[0], number, name: `Part ${number}`,
+        assetId, audioUrl: `${publicUrl}/${key}`, streamUrl: `${publicUrl}/${key}`, startQuestion: number, endQuestion: number });
+      draft.document.questions.push({ ...draft.document.questions[0], number, sectionNumber: number });
+    }
+    draft.document.questionCount = 4;
+    const before = db.requests.length;
+    expect((await db.createRepository().publishDraftTransaction({ ...db.publish, expectedConflictToken: 2 })).kind).toBe('published');
+    const requests = db.requests.slice(before);
+    expect(requests.length, requests.join('\n')).toBeLessThanOrEqual(40);
+    expect(db.read('student_safe_tests/test-1').audioSections.map((section: any) => section.assetId))
+      .toEqual(['asset-1', 'asset-2', 'asset-3', 'asset-4']);
+    for (let number = 1; number <= 4; number++) {
+      expect(requests.filter(request => request === `PUT media_assets/asset-${number}`)).toHaveLength(1);
+    }
+    const saved = db.read('listening_authoring/drafts/draft-1');
+    const oldKeys = saved.document.audioSections.map((audio: any) => db.read(`media_assets/${audio.assetId}`).durableKey);
+    saved.document.audioSections = saved.document.audioSections.map((audio: any, index: number) => {
+      const assetId = `replacement-${index + 1}`;
+      const key = durableKey.replace('asset-1', assetId);
+      db.state.media_assets[assetId] = { ...structuredClone(original), assetId, canonicalAssetId: assetId,
+        durableKey: key, tempKey: tempKey.replace('asset-1', assetId), publicUrl: `${publicUrl}/${key}`, references: {} };
+      db.objects.set(key, { bytes: audioBytes.slice(), contentType: 'audio/mpeg' });
+      return { ...audio, assetId, audioUrl: `${publicUrl}/${key}`, streamUrl: `${publicUrl}/${key}` };
+    });
+    saved.assetIds = Object.fromEntries(saved.document.audioSections.map((audio: any) => [audio.assetId, true]));
+    const beforeReplacement = db.requests.length;
+    expect((await db.createRepository().publishDraftTransaction({ ...db.publish, expectedConflictToken: saved.conflictToken,
+      versionId: 'version-2', operationId: 'publish-2', idempotencyKeyHash: 'publish-key-2', requestHash: 'publish-request-2' })).kind).toBe('published');
+    const replacementRequests = db.requests.slice(beforeReplacement);
+    expect(replacementRequests.length, replacementRequests.join('\n')).toBeLessThanOrEqual(45);
+    expect(db.read('student_safe_tests/test-1').versionId).toBe('version-2');
+    expect(oldKeys.every((key: string) => !db.objects.has(key))).toBe(true);
+    for (let number = 1; number <= 4; number++) {
+      expect(db.read(`media_assets/asset-${number}`).replacement).toMatchObject({ assetId: `replacement-${number}`, cleanupCompletedAt: 1000 });
+    }
   });
 
   it('rejects untrusted uploads and missing public URL configuration before publication', async () => {

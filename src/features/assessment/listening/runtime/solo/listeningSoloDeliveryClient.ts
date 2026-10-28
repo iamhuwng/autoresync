@@ -65,11 +65,11 @@ const stripUndefined = (value: Record<string, unknown>): Record<string, unknown>
   Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 
 interface ListeningHomeworkReadScope {
-  testId: string; versionId: string; homeworkId: string; submissionId: string;
+  testId: string; homeworkId: string; submissionId: string;
 }
 
 async function readListeningHomeworkVersion(
-  path: 'homework-document' | 'homework-questions',
+  path: 'homework-document',
   input: ListeningHomeworkReadScope,
   dependencies: ListeningSoloDeliveryClientDependencies = {},
 ): Promise<Record<string, unknown>> {
@@ -83,7 +83,7 @@ async function readListeningHomeworkVersion(
   });
   const body = await readJsonBody(response);
   if (!response.ok) throw new Error(readErrorMessage(body, 'Listening homework could not be loaded.'));
-  if (!isRecord(body) || body.id !== input.testId || body.versionId !== input.versionId) {
+  if (!isRecord(body) || body.id !== input.testId || typeof body.versionId !== 'string' || !body.versionId) {
     throw new Error('listening_homework_document_mismatch');
   }
   return body;
@@ -96,15 +96,6 @@ export async function readListeningHomeworkDocument(
   const document = await readListeningHomeworkVersion('homework-document', input, dependencies);
   if (document.skill !== 'Listening') throw new Error('listening_homework_document_mismatch');
   return document as TestData;
-}
-
-export async function readListeningHomeworkQuestions(
-  input: ListeningHomeworkReadScope,
-  dependencies: ListeningSoloDeliveryClientDependencies = {},
-): Promise<TestData['questions']> {
-  const result = await readListeningHomeworkVersion('homework-questions', input, dependencies);
-  if (!Array.isArray(result.questions)) throw new Error('listening_homework_questions_missing');
-  return result.questions as TestData['questions'];
 }
 
 export function createListeningSoloDeliveryIssuer(

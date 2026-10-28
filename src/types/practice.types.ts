@@ -140,6 +140,7 @@ export interface SoloProgressScopeContext {
  * Solo session progress saved to localStorage for resume functionality.
  */
 export interface SoloSessionProgress {
+    listeningDocument?: import('../services/testStorage').TestData;
     materialId: string;
     studentId: string;
     scopeContext?: SoloProgressScopeContext;

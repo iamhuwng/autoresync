@@ -25,18 +25,23 @@ const {
   mockGetHistoricalScores,
   mockGetClassTestScores,
   mockDefaultDeliveryIssue,
+  mockRecordingStatus,
 } = vi.hoisted(() => {
   const mockGetHistoricalScores = vi.fn();
   const mockGetClassTestScores = vi.fn();
   const mockDefaultDeliveryIssue = vi.fn();
-  return { mockGetHistoricalScores, mockGetClassTestScores, mockDefaultDeliveryIssue };
+  const mockRecordingStatus = vi.fn(() => 0);
+  return { mockGetHistoricalScores, mockGetClassTestScores, mockDefaultDeliveryIssue, mockRecordingStatus };
 });
 
 // ─── Mock firebase ──────────────────────────────────────────────────────────
 
 vi.mock('firebase/database', () => ({
   ref: vi.fn((_db: any, path: string) => ({ path })),
-  onValue: vi.fn(() => vi.fn()),
+  onValue: vi.fn((reference, callback) => {
+    if (reference.path.endsWith('/audioReplacedAt')) callback({ val: mockRecordingStatus });
+    return vi.fn();
+  }),
   get: vi.fn(),
 }));
 
@@ -204,6 +209,7 @@ const MOCK_READING_V2_RESULT: any = {
 
 describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
   beforeEach(() => {
+    mockRecordingStatus.mockReturnValue(0);
     vi.clearAllMocks();
     mockDefaultDeliveryIssue.mockReset();
     mockGetHistoricalScores.mockResolvedValue([]);
@@ -304,6 +310,7 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
         refreshAfter: input.now + 50 * 60 * 1000,
         ttlMs: 60 * 60 * 1000,
         deliveryReady: true as const,
+        audioReplaced: true as const,
         range: {
           requestRange: 'bytes=0-0',
           status: 206 as const,
@@ -338,6 +345,7 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
     const audio = await screen.findByTestId('ssrc-listening-review-audio');
     expect(audio).toHaveAttribute('src', 'https://authorized.example/asset-1');
     expect(audio).toHaveAttribute('data-delivery-mode', 'authorized');
+    expect(screen.getByRole('note')).toHaveTextContent('Earlier answers or results may not match this recording.');
     await waitFor(() => {
       expect(deliveryIssuer.issue).toHaveBeenCalledWith({
         assetId: 'asset-1',
@@ -352,6 +360,13 @@ describe('SharedSavedResultCore — PRD-0040 Task 2.2', () => {
         },
       });
     });
+  });
+
+  it('warns on an earlier Listening result even when the old record has no audio-review metadata', async () => {
+    mockRecordingStatus.mockReturnValue(Number.MAX_SAFE_INTEGER);
+    render(<SharedSavedResultCore result={{ ...MOCK_RESULT, testId: 'test-1', testSkill: 'Listening' }} variant="modal" />);
+    expect(await screen.findByRole('note')).toHaveTextContent('The original recording was replaced.');
+    expect(screen.queryByTestId('ssrc-listening-review-audio')).not.toBeInTheDocument();
   });
 
   it('uses the production result-review delivery issuer when shells do not inject one', async () => {

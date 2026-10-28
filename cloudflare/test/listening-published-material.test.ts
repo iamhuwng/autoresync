@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ListeningPublishedVersionRecord } from '../../functions/src/listening-authoring/repository.shared';
 import type { MaterialSummary } from '../../src/services/materialCatalog/materialSummaryPort.service';
-import { buildListeningPublishedMaterialUpdates } from '../src/upload-worker/listening-authoring/published-material';
+import { buildListeningPublishedMaterialUpdates, buildListeningStudentSafeDocument } from '../src/upload-worker/listening-authoring/published-material';
 import { resolveTeacherLobbyAssignability } from '../../src/services/teacherLobbyAssignability';
 import { adaptMaterialSummaryToTeacherCard } from '../../src/services/materialCatalog/materialSummaryCardAdapter.service';
 
@@ -48,7 +48,7 @@ describe('Listening published material projection', () => {
     const summary = updates[`${root}/by_id/listening-1`] as MaterialSummary;
     expect(updates['tests/listening-1']).toBeUndefined();
     for (const [key, value] of Object.entries({
-      ...version.document, id: 'listening-1', ownerId: 'teacher-1',
+      ...buildListeningStudentSafeDocument(version.document), id: 'listening-1', ownerId: 'teacher-1',
       versionId: 'version-2', publishedSnapshotVersionId: 'version-2',
       createdAt: version.publishedAt, isPublished: true,
     })) expect(updates[`tests/listening-1/${key}`]).toEqual(value);
@@ -86,7 +86,7 @@ describe('Listening published material projection', () => {
     }
     expect(updates['tests/listening-1/visibility']).toBe('private');
     expect(updates['tests/listening-1/versionId']).toBe('version-2');
-    expect(updates['tests/listening-1/questions']).toEqual(version.document.questions);
+    expect(updates['tests/listening-1/questions']).toEqual(buildListeningStudentSafeDocument(version.document).questions);
     for (const key of ['authoringVersioning', 'questionImages', 'missingAnswerCount', 'testType', 'primaryTestTypeId', 'testTypeIds']) {
       expect(updates[`tests/listening-1/${key}`]).toBeNull();
     }
@@ -113,7 +113,8 @@ describe('Listening published material projection', () => {
     for (const key of ['answer', 'correctAnswer', 'correctAns', 'acceptableAnswers', 'explanation']) {
       expect(safe.questions[0]).not.toHaveProperty(key);
     }
-    expect(updates['tests/listening-1/questions']).toEqual(withTeacherNotes.document.questions);
+    expect(updates['tests/listening-1/questions']).toEqual(safe.questions);
+    expect(updates['tests/listening-1/metadata']).not.toHaveProperty('transcript');
     expect(withTeacherNotes.document.questions[0].answer).toBe('Alice');
   });
 

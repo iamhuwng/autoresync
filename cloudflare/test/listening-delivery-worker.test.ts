@@ -617,6 +617,46 @@ describe('native Listening canonical solo authorization', () => {
   };
   const homeworkBody = { ...body, mode: 'homework', homeworkId: 'hw-1', submissionId: 'sub-1' };
 
+  it('authorizes saved-result playback through current Firebase viewer rules without stored viewer arrays', async () => {
+    const fixture = nativeFixture();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
+      const request = new URL(String(url));
+      expect(request.pathname).toBe('/test_results/saved-result.json');
+      return request.searchParams.get('auth') === 'student-token'
+        ? Response.json({ resultId: 'saved-result', studentId: 'student-1', testId: 'test-1', testSkill: 'Listening', materialVersionId: 'version-1' })
+        : Response.json({ error: 'Permission denied' }, { status: 403 });
+    });
+    try {
+      const env = { ...fixture.env, FIREBASE_DB_URL: 'https://database.example' };
+      const request = { assetId: 'asset-1', resultId: 'saved-result', versionId: 'version-1' };
+      expect((await fixture.worker.fetch(post('/listening-delivery/result-review', request), env)).status).toBe(200);
+      fixture.get.mockClear();
+      expect((await fixture.worker.fetch(post('/listening-delivery/result-review', request, 'student-2-token'), env)).status).toBe(403);
+      expect(fixture.get).not.toHaveBeenCalled();
+      expect((await fixture.worker.fetch(post('/listening-delivery/result-review', { ...request, versionId: 'forged-version' }), env)).status).toBe(403);
+    } finally { fetchSpy.mockRestore(); }
+  });
+
+  it('delivers retained course audio from current enrollment and material placement without stored access arrays', async () => {
+    const fixture = nativeFixture();
+    fixture.version.document.isPublic = false;
+    Object.assign(fixture.values, {
+      'tests/test-1': { ownerId: 'teacher-1', versionId: 'later-version' },
+      'courses/course-1': { ownerId: 'course-teacher' },
+      'modules/module-1': { courseId: 'course-1' },
+      course_enrollments: { enrolled: { studentId: 'student-1', courseId: 'course-1', status: 'active', expiresAt: 0 } },
+      course_materials: { linked: { courseId: 'course-1', moduleId: 'module-1', materialId: 'test-1' } },
+    });
+    const scope = { ...body, mode: 'course_material', courseId: 'course-1', moduleId: 'module-1' };
+    const allowed = await fixture.worker.fetch(post('/listening-delivery/solo', scope), fixture.env);
+    expect(allowed.status).toBe(200);
+    (fixture.values.course_enrollments as any).enrolled.status = 'expired';
+    fixture.get.mockClear();
+    const denied = await fixture.worker.fetch(post('/listening-delivery/solo', scope), fixture.env);
+    expect(denied.status).toBe(403);
+    expect(fixture.get).not.toHaveBeenCalled();
+  });
+
   it('reads the private homework document from its immutable pin after the source changes', async () => {
     const fixture = nativeFixture();
     Object.assign(fixture.version.document, { skill: 'Listening', title: 'Assigned content', isPublic: false,
@@ -634,29 +674,46 @@ describe('native Listening canonical solo authorization', () => {
     expect(payload.questions[0]).not.toHaveProperty('explanation');
     fixture.values['tests/test-1'] = { questions: [{ number: 1, answer: 'replacement key' }] };
     const keyResponse = await fixture.worker.fetch(post('/listening-delivery/homework-questions', homeworkBody), fixture.env);
-    expect(keyResponse.status).toBe(200);
-    expect(keyResponse.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(await keyResponse.json()).toEqual({ id: 'test-1', versionId: 'version-1', questions: fixture.version.document.questions });
+    expect(keyResponse.status).toBe(405);
     expect(fixture.get).not.toHaveBeenCalled();
   });
 
-  it.each(['stranger', 'test', 'version', 'submission', 'target', 'closed'])(
+  it.each(['stranger', 'test', 'submission', 'target', 'closed'])(
     'denies a pinned homework document for mismatched %s authority', async failure => {
       const fixture = nativeFixture();
       Object.assign(fixture.version.document, { skill: 'Listening' });
       const request = { ...homeworkBody };
       if (failure === 'test') request.testId = 'other-test';
-      if (failure === 'version') request.versionId = 'other-version';
       if (failure === 'submission') request.submissionId = 'other-submission';
       if (failure === 'target') fixture.homework.target.studentIds = ['other-student'];
       if (failure === 'closed') fixture.homework.archived = true;
-      for (const route of ['homework-document', 'homework-questions']) {
+      for (const route of ['homework-document']) {
         const response = await fixture.worker.fetch(post(`/listening-delivery/${route}`, request,
           failure === 'stranger' ? 'student-2-token' : 'student-token'), fixture.env);
         expect(response.status).toBe(403);
       }
     },
   );
+
+  it('reads a trusted attempt text pin instead of the assignment baseline or browser version hint', async () => {
+    const fixture = nativeFixture();
+    (fixture.submission as any).listeningVersionId = 'version-2';
+    fixture.values['listening_authoring/versions/version-2'] = { ...fixture.version, versionId: 'version-2',
+      document: { ...fixture.version.document, skill: 'Listening', title: 'New text', metadata: {}, questions: [{ number: 1, question: 'New question', answer: 'secret' }] } };
+    fixture.graph.references = { versions: { 'version-2': true }, assignments: {} };
+    fixture.grant.assetIds = [];
+    const response = await fixture.worker.fetch(post('/listening-delivery/homework-document', {
+      testId: 'test-1', homeworkId: 'hw-1', submissionId: 'sub-1', versionId: 'forged-browser-version',
+    }), fixture.env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ versionId: 'version-2', title: 'New text', questions: [{ question: 'New question' }] });
+    const issued = await fixture.worker.fetch(post('/listening-delivery/solo', { ...homeworkBody, versionId: 'version-2' }), fixture.env);
+    expect(issued.status).toBe(200);
+    const delivery = await issued.json() as typeof deliveryResponse;
+    const playback = await fixture.worker.fetch(new Request(delivery.url, { headers: { Range: 'bytes=1-2' } }), fixture.env);
+    expect(playback.status).toBe(206);
+    expect([...new Uint8Array(await playback.arrayBuffer())]).toEqual([20, 30]);
+  });
 
   it('delivers committed native public audio to two authenticated students without legacy test refs or per-student grants', async () => {
     const fixture = nativeFixture();

@@ -5,6 +5,7 @@ import { WorkerListeningUploadSessionApi } from '../storage/listeningUploadSessi
 import type { ContextResource, TestData } from '../../../../services/testStorage';
 import type { ListeningAuthoringDocumentV1 } from '../types/listeningAuthoring.types';
 import { createListeningAuthoringWorkflow } from './listeningAuthoringWorkflow';
+import { listeningContextKey, renumberListeningContextQuestions, syncListeningQuestionUpdate } from '../../../../skills/listening/utils/listeningQuestionContext';
 
 type ListeningEditorAudioUploader = (
   file: File,
@@ -87,6 +88,9 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
   if (source.document?.skill !== 'Listening' || !Array.isArray(source.document.questions) || !Array.isArray(source.document.audioSections)
     || source.document.questions.some(question => !question || typeof question.question !== 'string')
     || source.document.audioSections.some(section => !section || typeof section.audioUrl !== 'string')) throw changed();
+  if (source.document.questions.some(question => hasUnsupportedListeningStructure(question))) {
+    throw new Error('Editing this Listening form structure is under construction. Its published content has been kept.');
+  }
   const previewSections = source.document.audioSections.filter(section => section.assetId);
   const previews = await Promise.allSettled(previewSections.map(async section => {
     const result = await new WorkerListeningUploadSessionApi().probeAsset({ assetId: section.assetId!,
@@ -94,7 +98,7 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
     if (!result.previewUrl) throw new Error('Audio preview is unavailable. Retry opening this Listening test.');
     return [section.assetId!, result.previewUrl];
   }));
-  return { ...test, ...source.document, listeningEditSource: source,
+  return { ...test, ...structuredClone(source.document), listeningEditSource: source,
     listeningAudioPreviewUrls: Object.fromEntries(previews.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])),
     listeningAudioPreviewWarnings: previews.flatMap((result, index) => result.status === 'rejected' ? [previewSections[index]!.name] : []),
   } as EditableTest;
@@ -122,7 +126,15 @@ function applyEdits(source: ListeningAuthoringDocumentV1, edits: ListeningEdits)
       endQuestion: resource.questionEnd ?? 0,
     };
   });
-  const questions = edits.questions.map((question, index) => {
+  let editedQuestions = edits.questions;
+  for (const question of edits.questions) {
+    const original = source.questions.find(item => item.number === question.number);
+    if (original && original.question !== question.question && listeningContextKey(original) === listeningContextKey(question)) {
+      const currentContext = (editedQuestions.find(item => item.number === question.number) as typeof original | undefined)?.context;
+      editedQuestions = syncListeningQuestionUpdate(editedQuestions, { ...original, context: currentContext }, { ...question, context: currentContext });
+    }
+  }
+  const questions = renumberListeningContextQuestions(editedQuestions).map((question, index) => {
     if (hasUnsupportedListeningStructure(question)) throw new Error('Editing this Listening form structure is under construction.');
     const number = index + 1;
     const section = audioSections.find(audio => number >= audio.startQuestion && number <= audio.endQuestion);

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoSubmitDisconnectedStudents } from './autoSubmitDisconnected';
+import { submitListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+vi.mock('../../features/assessment/listening/runtime/listeningSubmissionClient', () => ({ submitListeningLiveTest: vi.fn() }));
 
 const { saveTestResultMock } = vi.hoisted(() => ({
   saveTestResultMock: vi.fn(),
@@ -19,6 +21,15 @@ vi.mock('../../services/testResults.service', () => ({
 }));
 
 describe('autoSubmitDisconnectedStudents', () => {
+  it('asks the trusted Listening service to grade the saved participant answers', async () => {
+    vi.mocked(submitListeningLiveTest).mockResolvedValue({ resultId: 'trusted-1' } as any);
+    const result = await autoSubmitDisconnectedStudents('SESSION-1', 'test-1', [{ studentId: 'student-1', name: 'Student',
+      answers: { 1: { answer: 'A' } }, lastActivity: 1 }], { title: 'Listening', type: 'IELTS', skill: 'Listening', duration: 30, questionCount: 1 });
+    expect(submitListeningLiveTest).toHaveBeenCalledWith({ sessionCode: 'SESSION-1', testId: 'test-1', studentId: 'student-1' });
+    expect(saveTestResultMock).not.toHaveBeenCalled();
+    expect(result[0]?.success).toBe(true);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     saveTestResultMock.mockResolvedValue('result-zero-1');

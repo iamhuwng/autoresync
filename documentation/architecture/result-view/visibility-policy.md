@@ -1,5 +1,20 @@
 # Result View Visibility Policy
 
+## 2026-10-28 Listening completion candidate
+
+Listening grades and completion are trusted Worker writes. RTDB rules deny
+browser creation or mutation of canonical Listening totals and score indexes,
+including writes through allowed ancestors. Homework teacher discovery uses
+the schema-4 trusted result authority; course/session ownership still resolves
+from the current canonical owner. Result audio reads the canonical result using
+the caller's Firebase ID token, so current Firebase read rules also gate playback;
+stale asset viewer arrays cannot grant access. Only after this check does the
+Worker authorize the original version/asset and resolve a replacement recording.
+Historical answers, keys and scores remain unchanged. A small replacement note
+does not grant result access or alter review/feedback release timing. Existing
+saved-result shells, Writing and guest-claim policies remain in force. These are
+candidate semantics; deployment and live verification remain release gates.
+
 This file is the canonical policy for who can see a result, who owns it, and when teacher actions are allowed.
 
 ## PRD0062 #104 Observability Note

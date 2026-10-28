@@ -15,6 +15,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { TestResultRecord } from '../../services/testResults.service';
 import type { FormativeFeedback } from '../../types/thcs-test.types';
 import { OverviewTab } from './OverviewTab';
+import { ListeningAudioReplacementNotice } from '../../features/assessment/listening/runtime/ListeningAudioReplacementNotice';
 import { ReviewTab } from './ReviewTab';
 import { FeedbackTab } from './FeedbackTab';
 import {
@@ -308,6 +309,8 @@ export const SharedSavedResultCore: React.FC<SharedSavedResultCoreProps> = ({
       }}
     >
       {/* ── Score Summary + Answer Map + Section Breakdown (Overview) ── */}
+      {isListeningSavedResult(result) && <ListeningAudioReplacementNotice testId={result.testId} recordedAt={result.submittedAt ?? result.createdAt}
+        replaced={listeningAudioResolution?.kind === 'authorized-asset-delivery' && listeningAudioResolution.delivery.audioReplaced} />}
       {sourceMaterialRemoved && (
         <div
           data-testid="ssrc-source-material-removed"

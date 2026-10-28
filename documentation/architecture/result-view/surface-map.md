@@ -1,5 +1,19 @@
 # Result View Surface Map
 
+## 2026-10-28 Listening completion candidate
+
+PR #183 keeps the three saved-result shells and their existing Academic Record,
+dashboard, homework and teacher-history entry owners. `SharedSavedResultCore`
+adds a small recording-replacement note; it subscribes only to
+`tests/{testId}/audioReplacedAt` through the shared Listening notice. Result
+ownership and release-state decisions stay in the shells and Firebase rules.
+New Listening result audio uses `/listening-delivery/result-review`, which
+checks the caller's canonical `test_results/{resultId}` read permission before
+issuing audio. The original result text, answers and scores remain intact.
+Session/post-test hosts keep their session lifecycle; trusted submission writes
+the canonical result before completion and reload reads that saved result.
+No route, fourth shell, Writing surface or guest-claim storage is added.
+
 This file answers one question: which surface owns which part of the result-view runtime.
 
 ## PRD0062 #104 Observability Note

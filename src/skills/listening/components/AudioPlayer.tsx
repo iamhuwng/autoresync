@@ -21,6 +21,7 @@ import { useAudioSync } from '../../../hooks/audio';
 import { SyncIndicator } from '../../../components/test/SyncIndicator';
 import type { MasterAudioState, AudioMode, AudioPlayerMode, HeadphoneRequest } from '../../../types/audio.types';
 import { listeningDiagnostics } from '../../../utils/listeningDiagnostics';
+import { ListeningAudioReplacementNotice } from '../../../features/assessment/listening/runtime/ListeningAudioReplacementNotice';
 
 /** Audio controls configuration from teacher settings */
 interface AudioControlsConfig {
@@ -40,11 +41,15 @@ export interface AuthorizedDeliveryRefreshContext {
 
 export interface AuthorizedDeliveryRefreshResult {
   url: string;
+  audioReplaced?: boolean;
   expiresAt?: number;
   refreshAfter?: number;
 }
 
 export interface AuthorizedDeliveryConfig {
+  testId?: string;
+  recordedAt?: number;
+  audioReplaced?: boolean;
   expiresAt?: number;
   refreshAfter?: number;
   refreshSource?: (context: AuthorizedDeliveryRefreshContext) => Promise<AuthorizedDeliveryRefreshResult | string>;
@@ -271,6 +276,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     refreshAfter?: number;
   } | null>(null);
   const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
+  const [audioReplaced, setAudioReplaced] = useState(false);
 
   // ============================================================
   // PRD-0018: Unified Audio Mode Logic
@@ -593,6 +599,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [audioUrl, onError]);
 
   useEffect(() => {
+    setAudioReplaced(authorizedDelivery?.audioReplaced === true);
     setAuthorizedSourceMeta(authorizedDelivery
       ? {
           url: audioUrl,
@@ -605,6 +612,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     clearRefreshRetry();
   }, [
     audioUrl,
+    authorizedDelivery?.audioReplaced,
     authorizedDelivery?.expiresAt,
     authorizedDelivery?.refreshAfter,
     authorizedDelivery?.onRefreshWarning,
@@ -667,6 +675,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           return;
         }
 
+        if (result.audioReplaced) setAudioReplaced(true);
         const audio = audioRef.current;
         const position = masterAudioState?.section === sectionNumber
           ? masterAudioState.position
@@ -1227,7 +1236,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   // Calculate progress percentage
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const renderRefreshWarning = () => refreshWarning ? (
+  const renderRefreshWarning = () => <>
+    <ListeningAudioReplacementNotice replaced={audioReplaced} testId={authorizedDelivery?.testId} recordedAt={authorizedDelivery?.recordedAt} />
+    {refreshWarning ? (
     <div
       role="alert"
       aria-live="assertive"
@@ -1247,7 +1258,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <span aria-hidden="true">!</span>
       <span>{refreshWarning}</span>
     </div>
-  ) : null;
+  ) : null}</>;
 
   if (loading) {
     return (

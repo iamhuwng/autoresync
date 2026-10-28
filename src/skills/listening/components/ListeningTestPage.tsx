@@ -736,6 +736,8 @@ const ListeningTestPageContent: React.FC = () => {
     }
 
     return {
+      testId: liveTestId, recordedAt: (testData as { updatedAt?: number } | null)?.updatedAt,
+      audioReplaced: Object.values(liveAudioResolutions).some(item => item.kind === 'authorized-asset-delivery' && item.delivery.audioReplaced),
       expiresAt: resolution.delivery.expiresAt,
       refreshAfter: resolution.delivery.refreshAfter,
       refreshSource: async () => {
@@ -757,6 +759,7 @@ const ListeningTestPageContent: React.FC = () => {
         };
         return {
           url: refreshed.url,
+          audioReplaced: refreshed.audioReplaced,
           expiresAt: refreshed.expiresAt,
           refreshAfter: refreshed.refreshAfter,
         };
@@ -770,6 +773,7 @@ const ListeningTestPageContent: React.FC = () => {
     resolvedLiveDeliveryIssuer,
     sessionCode,
     liveTestId,
+    (testData as { updatedAt?: number } | null)?.updatedAt,
   ]);
   const findSectionNumberForQuestion = useCallback((questionNumber?: number | null) => {
     if (typeof questionNumber !== 'number' || !Number.isFinite(questionNumber)) {

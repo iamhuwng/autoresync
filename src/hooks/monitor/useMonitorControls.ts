@@ -27,6 +27,9 @@ import { cacheSessionStudentSafeTestData } from '../../services/testStorage';
 import type { ReviewReleaseState } from '../../types/releaseState.types';
 import { buildRoute } from '../../constants/routes';
 import { createTrustedBulkNotifications } from '../../services/notificationProducerClient';
+import { pinListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+import { readListeningSoloVersionId } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter';
+import { toast } from '../../components/modern/ToastNotification';
 
 function resolveCanonicalSessionTeacherId(session: TestSession | null): string | undefined {
   const createdByUserId = typeof (session as any)?.createdByUserId === 'string'
@@ -239,6 +242,8 @@ export function useMonitorControls(
   fullTestData?: any | null // BUG-FIX: Full test data with questions for auto-submission marking
 ): MonitorControlsResult {
   const { navigateTo } = useNavigation('teacher');
+  const isListening = Boolean((session as any)?.listeningTestPin)
+    || String(fullTestData?.skill ?? testData?.skill ?? '').toLowerCase() === 'listening';
 
   const loadAutoSubmitTestData = async (): Promise<{
     questions: any[] | null;
@@ -360,7 +365,14 @@ export function useMonitorControls(
 
     try {
       const currentTestId = (session as any)?.testId;
-      if (currentTestId) {
+      let startTime = Date.now();
+      if (isListening && currentTestId) {
+        const snapshot = await get(ref(database, `tests/${currentTestId}`));
+        const current = snapshot.val();
+        const pin = await pinListeningLiveTest({ sessionCode, testId: currentTestId,
+          versionId: readListeningSoloVersionId(current) ?? '' });
+        startTime = pin.startTime;
+      } else if (currentTestId) {
         const payloadResult = await cacheSessionStudentSafeTestData(sessionCode, currentTestId);
         if (!payloadResult.success) {
           throw new Error(payloadResult.error || 'Failed to prepare student-safe test payload');
@@ -370,7 +382,7 @@ export function useMonitorControls(
       const sessionRef = ref(database, `game_sessions/${sessionCode}`);
       await update(sessionRef, {
         status: 'in-progress',
-        startTime: Date.now(),
+        startTime,
         isPaused: false,
         antiCheatConfig: antiCheatConfig || null,
         ...buildInitialLiveAudioState(),
@@ -405,7 +417,7 @@ export function useMonitorControls(
       }
     } catch (error) {
       console.error('❌ [Controls] Error starting test:', error);
-      alert('Failed to start test. Please try again.');
+      toast.error('Failed to start test. Please try again.');
     }
   };
 
@@ -498,6 +510,7 @@ export function useMonitorControls(
       // Auto-submit disconnected base students
       if (session?.testId && baseStudents.length > 0) {
         const disconnectedBaseStudents = baseStudents.filter(id => {
+          if (isListening) return true;
           const player = session.players?.[id];
           return player && identifyDisconnectedStudents({ [id]: player }).length > 0;
         });
@@ -568,7 +581,7 @@ export function useMonitorControls(
 
       // Mark all base students as completed
       const playerUpdates: Record<string, any> = {};
-      baseStudents.forEach(playerId => {
+      if (!isListening) baseStudents.forEach(playerId => {
         playerUpdates[`players/${playerId}/hasCompletedTest`] = true;
         playerUpdates[`players/${playerId}/completedAt`] = now;
         playerUpdates[`players/${playerId}/submittedBy`] = 'system-timeout';
@@ -700,7 +713,7 @@ export function useMonitorControls(
               (studentId) => !failedStudentIds.has(studentId)
             );
 
-            if (playersReadyForCompletion.length > 0) {
+            if (!isListening && playersReadyForCompletion.length > 0) {
               const playerUpdates: Record<string, any> = {};
               playersReadyForCompletion.forEach(playerId => {
                 playerUpdates[`players/${playerId}/hasCompletedTest`] = true;
@@ -772,7 +785,7 @@ export function useMonitorControls(
             (student) => !failedStudentIds.has(student.studentId)
           );
 
-          if (studentsReadyForCompletion.length > 0) {
+          if (!isListening && studentsReadyForCompletion.length > 0) {
             const playerCompletionUpdates: Record<string, any> = {};
             studentsReadyForCompletion.forEach(student => {
               playerCompletionUpdates[`players/${student.studentId}/hasCompletedTest`] = true;
@@ -814,6 +827,7 @@ export function useMonitorControls(
         status: 'waiting', // Reset to waiting status
         testId: null, // Clear test ID - makes URL invalid
         startTime: null, // Clear start time
+        listeningTestPin: null,
         isPaused: false, // Clear pause state
         pausedAt: null, // Clear pause timestamp
         pausedDuration: 0, // Clear accumulated pause time

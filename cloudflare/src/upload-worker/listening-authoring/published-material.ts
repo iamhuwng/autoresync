@@ -27,7 +27,7 @@ export const buildListeningPublishedMaterialUpdates = (
   }
   const archived = version.archive.state === 'archived';
   const runtime: Record<string, unknown> = {
-    ...version.document,
+    ...buildListeningStudentSafeDocument(version.document),
     id: version.testId,
     ownerId: version.ownerId,
     createdBy: previousRuntime?.createdBy ?? version.publishedBy,

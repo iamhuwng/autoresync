@@ -367,4 +367,21 @@ describe('TestEditor', () => {
     expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('You can replace the audio'));
     expect(toast.warning).toHaveBeenCalledTimes(1);
   });
+
+  it('saves native form-context edits through every linked question', async () => {
+    const contextLines = ['Name: [1]', 'Address: [2]'];
+    const questions = [1, 2].map((number, index) => ({ ...listening.questions[0], number,
+      type: 'completion', question: contextLines[index], answer: number === 1 ? 'Alice' : 'London',
+      context: { sectionHeading: 'Booking', contextLines, currentLineIndex: index } }));
+    render(<TestEditor test={{ ...listening, displayMode: 'text', questions } as any} show handleClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Select question 1' }));
+    fireEvent.change(screen.getByLabelText('Form heading'), { target: { value: 'Customer booking' } });
+    fireEvent.change(screen.getByLabelText('Form context'), { target: { value: 'Full name: [1]\nAddress: [2]\nTelephone: 012345' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
+    await waitFor(() => expect(mockListeningSave).toHaveBeenCalled());
+    expect(mockListeningSave.mock.lastCall![0].questions).toMatchObject([
+      { question: 'Full name: [1]', answer: 'Alice', context: { sectionHeading: 'Customer booking', contextLines: ['Full name: [1]', 'Address: [2]', 'Telephone: 012345'] } },
+      { question: 'Address: [2]', answer: 'London', context: { sectionHeading: 'Customer booking', contextLines: ['Full name: [1]', 'Address: [2]', 'Telephone: 012345'] } },
+    ]);
+  });
 });

@@ -586,6 +586,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function isListeningHomeworkSubmission(data) {
+      let assignment = get(/databases/$(database)/documents/homework_assignments/$(data.homeworkId)).data;
+      return assignment.get('materialType', '') == 'test'
+        && (assignment.get('materialSkill', '') == 'listening'
+          || assignment.get('contentRef', {}).get('contentKind', '') == 'ielts_listening');
+    }
+
     // Homework submissions — students create their own, teachers can reset
     // SECURITY FIX (2026-03-12): Previously `allow delete: if false` blocked the
     // teacher homework reset feature. Teachers (homework creators) need to delete
@@ -596,6 +603,7 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.id == submissionId
         && request.resource.data.teacherId == get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy
+        && !isListeningHomeworkSubmission(request.resource.data)
         && (request.resource.data.studentId == request.auth.uid
             && request.resource.data.status == 'in_progress'
             && !request.resource.data.keys().hasAny(['resultId', 'submittedAt', 'notificationIntent', 'notificationDelivery', 'administrativeImport'])
@@ -604,7 +612,9 @@ service cloud.firestore {
                 && request.resource.data.administrativeImport.importedByTeacherId == request.auth.uid
                 && get(/databases/$(database)/documents/homework_assignments/$(request.resource.data.homeworkId)).data.createdBy == request.auth.uid));
       allow update: if request.auth != null
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'studentId', 'teacherId', 'homeworkId', 'startedAt', 'administrativeImport'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'studentId', 'teacherId', 'homeworkId', 'startedAt', 'administrativeImport', 'listeningVersionId'])
+        && (!isListeningHomeworkSubmission(resource.data)
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'score', 'maxScore', 'percentage', 'bandScore', 'resultId', 'submittedAt', 'latePenaltyApplied']))
         && (!resource.data.keys().hasAny(['submittedAt'])
           || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['resultId', 'submittedAt']))
         && !request.resource.data.keys().hasAny(['notificationIntent', 'notificationDelivery'])
