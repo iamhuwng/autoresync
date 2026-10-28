@@ -1,5 +1,14 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-10-28 Listening acceptance correction
+
+Domain: saved-result. Canonical surfaces remain `ResultSlidePanel`,
+`ResultDetailModal` and `LegacyResultDetailView` through their mapped hosts.
+The correction changes existing recording-status and generated-feedback RTDB
+permissions, with shared-player/core and security regressions. No new shell,
+ownership decision, route, action, source-content read or PDF/Book change.
+The October 28 Listening audit records deployed evidence and pending gates.
+
 ## 2026-10-28 Listening completion change record
 
 PR #183 touches saved-result and session/post-test integration. Canonical body:

@@ -1791,7 +1791,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '0',
       }}>
         {/* Offline Mode Banner - Request Headphones */}
         {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (

@@ -12,7 +12,7 @@ export function ListeningAudioReplacementNotice({ replaced, testId, recordedAt }
       setChanged(typeof at === 'number' && at > recordedAt!);
     }, error => console.warn('Recording replacement status is unavailable:', error.code));
   }, [testId, recordedAt]);
-  return replaced || changed ? <small role="note" style={{ display: 'block', color: '#92400e', fontSize: 12, lineHeight: 1.4 }}>
-    The original recording was replaced. Earlier answers or results may not match this recording.
+  return replaced || changed ? <small role="note" style={{ display: 'block', color: '#92400e', fontSize: 12, lineHeight: 1.2 }}>
+    Recording replaced. Earlier answers/results may differ.
   </small> : null;
 }

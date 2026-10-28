@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "5090b7ef1e02562c4f0d873d2172a594df4ab29f",
-    "providerVersion": "91b45ecb32db1b58",
-    "record": "2026-10-27-listening-live-acceptance.md"
+    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
+    "providerVersion": "43db33dc8cf7b167",
+    "record": "2026-10-28-listening-functional-completion.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
@@ -27,17 +27,24 @@
   "databaseRules": {
     "project": "temp-a1437",
     "database": "temp-a1437-default-rtdb",
-    "sourceRevision": "797f6284206f0fbc8eb45305f01997cc8831dec5",
-    "fileSha256": "32e6254ace7939bc8bb62e52dc26ad4083965078497f85e2aa7c36c01020d47c",
-    "canonicalTreeSha256": "0310f19cc07a8970ce2b12672e60fe6389acaf255910319a4286058e39fbdbc3",
-    "resultReadSha256": "9dace28328fb666ad37f3966d68fa440dfd3952eff5f3f3b0ef885ba9db01c9c",
-    "record": "2026-10-27-listening-audio-release.md"
+    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
+    "fileSha256": "fd267b8552d5efb17788228eb12a38092e68b3b66957b1c53556a6f23d61c096",
+    "canonicalTreeSha256": "c2e1850860225e99ad095ec2ae1fe6ce717d0e3016b0ae57fd3eed6a21241a9a",
+    "resultReadSha256": "2d1c96a19cfc7c558820ce48516bda5d92eba662c472966ae1876fa4d28ff32c",
+    "record": "2026-10-28-listening-functional-completion.md"
   },
   "uploadWorker": {
     "script": "r2-upload-signer",
-    "sourceRevision": "25861289735ff13b954b4ecb5bd64c1336a38151",
-    "providerVersion": "b2ae0aa6-53e2-4f6e-adf1-265fdcf7a3f1",
-    "moduleSha256": "a64f8889eec9256f4716b80d9ef6d5f870bc5d5881a2ceb8e1040be7375e5329",
-    "record": "2026-10-27-listening-live-acceptance.md"
+    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
+    "providerVersion": "4c8ade84-46a5-4b6b-98f3-42539972aab9",
+    "moduleSha256": "4e0c1819a3a2aacf5745ff4fbef01081033f0ff63ff9b516c7ab0e079efaeff5",
+    "record": "2026-10-28-listening-functional-completion.md"
+  },
+  "firestoreRules": {
+    "project": "temp-a1437",
+    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
+    "rulesetName": "projects/temp-a1437/rulesets/fbd67e85-0ea9-4e86-a351-df53fb6ca796",
+    "sourceSha256": "654a30c61436c2f9f6e2716c9d9ca397cc5d662687de2bc914c3494f335901bc",
+    "record": "2026-10-28-listening-functional-completion.md"
   }
 }
