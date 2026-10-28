@@ -1,5 +1,13 @@
 # Result View Visibility Policy
 
+## 2026-10-29 Homework retake navigation
+
+Retake navigation uses the existing `canSubmit` eligibility and canonical
+submission creation. It does not change saved-result ownership, answer release,
+grading, or version pins. Listening detail counts read only the existing
+authenticated student-safe `questionCount` and `updatedAt` leaves; the teacher
+test record is not needed to display them. Result access rules are unchanged.
+
 ## 2026-10-28 Listening acceptance permissions
 
 Listening browser writes cannot replace a result or change its grading, answers
