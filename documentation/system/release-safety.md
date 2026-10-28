@@ -104,6 +104,28 @@ new reviewed source/provider/configuration pins and fresh evidence. Current
 service source tags and exact content hashes are in
 [the service inventory](../release-audits/deployed-services.json).
 
+## Fixed private Listening upload preview correction
+
+The `private-upload-preview` profile in
+`scripts/release-listening-preview-pins.mjs` qualifies only the exact reviewed
+fresh-upload preview correction. Unreviewed source or artifact pins fail closed.
+Run the checker from this tooling checkout against the clean product candidate:
+
+```powershell
+node scripts/release-check.mjs --cwd <candidate> --mode release --base 529854b97343b51cfbdff98618411763d8b1a9a4 --observe-listening-editor-release --listening-phase predeploy --listening-upload-bundle <worker.js> --listening-upload-config <upload-release.wrangler.json> --env-fingerprint <production-env-sha256> --json
+```
+
+Repeat with `--listening-phase postupload` after separately authorized Upload
+Worker execution. This fixed path needs no Hosting build or observation and
+always returns `hostingReady: false`. It retains the full source diff and its
+service classification while qualifying only Upload. Both phases independently
+observe unchanged RTDB and Firestore rules, all other Workers, private bindings,
+bucket privacy and lifecycle. Rules, bindings, Hosting and other services are
+excluded from execution. Existing Listening profiles retain their Hosting
+observation requirement and the original private-audio transition checks.
+Independent review, fresh native PASS and separate Worker authorization remain
+required; this checker deploys nothing.
+
 ## Acceptance rehearsal
 
 On 2026-10-11, the isolated release-safety branch built the actual application

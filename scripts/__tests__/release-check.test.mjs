@@ -33,6 +33,27 @@ test('fixed Homework Worker route cannot suppress services for an arbitrary cand
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
+test('Listening Worker-only route rejects foreign source and caller evidence without Hosting qualification', async () => {
+  const cwd = await fixture();
+  try {
+    const options = { cwd, base: 'HEAD^', observeListeningEditorRelease: true, listeningPhase: 'predeploy' };
+    const result = await assess(options);
+    assert.equal(result.decision, STATUS.UNVERIFIED);
+    assert.equal(result.editorObservation, null);
+    assert.equal(result.hostingReady, false);
+    assert.equal(result.observed, null);
+    assert(result.source.changedServices.includes('hosting'));
+    assert(result.source.files.includes('public/index.html'));
+    assert(result.findings.some(finding => /Editor release readback/u.test(finding.message)));
+    assert(!result.findings.some(finding => /Hosting|deployed baseline/u.test(finding.message)));
+    for (const extra of [{ baselinePath: 'assertion.json' }, { hostingObservation: {} }, { observeProvider: true },
+      { observeHomework: true }, { mode: 'hotfix' }, { compatibilityReviewPath: 'review.json' }]) {
+      await assert.rejects(assess({ ...options, ...extra }), /native observation/);
+    }
+    await assert.rejects(assess({ ...options, observeListeningEditorRelease: false, observeListening: true }), /native observation/);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('CLI receipts follow the selected --cwd candidate', async () => {
   const caller = await fixture(), selected = await fixture();
   const receipt = 'tmp/release-receipts/selected.json';
