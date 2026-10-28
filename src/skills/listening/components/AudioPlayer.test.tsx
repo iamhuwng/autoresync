@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAudioSync } from '../../../hooks/audio';
 import { AudioPlayer } from './AudioPlayer';
+vi.mock('../../../services/firebase', () => ({ database: {} }));
+vi.mock('firebase/database', () => ({ ref: vi.fn((_db, path) => ({ path })), onValue: vi.fn(() => vi.fn()) }));
 
 vi.mock('../../../hooks/audio', () => ({
   useAudioSync: vi.fn(() => ({
@@ -141,6 +143,15 @@ describe('AudioPlayer', () => {
     expect(screen.getByLabelText('Volume')).toBeTruthy();
     expect(screen.queryByLabelText('Decrease volume')).toBeNull();
     expect(screen.queryByLabelText('Increase volume')).toBeNull();
+  });
+
+  it('keeps a small replacement notice beside the playable recording', async () => {
+    render(<AudioPlayer audioUrl="https://cdn.example.com/replacement.mp3" sectionNumber={1}
+      isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={() => {}} onTimeUpdate={() => {}}
+      onSectionComplete={() => {}} onError={() => {}} playerMode="solo" minimal mobileLayout
+      authorizedDelivery={{ audioReplaced: true }} />);
+    expect(await screen.findByRole('note')).toHaveTextContent('The original recording was replaced.');
+    expect(screen.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
   });
 
   it('keeps the speed select in sync with external playbackSpeed changes', async () => {

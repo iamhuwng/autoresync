@@ -22,6 +22,7 @@ import { auth } from '../../services/firebase';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { toast } from '../../components/modern';
 import type { IntegrityReport } from '../../types/integrity.types'; // PRD-0036
+import { submitListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
 
 interface Question {
   number: number;
@@ -163,6 +164,21 @@ export const useTestSubmission = ({
 
           if (hasSubmitted) {
             console.log('✅ Student has already submitted this test at:', new Date(playerData.submittedAt));
+            if (testData.skill === 'Listening') {
+              if (!playerData.resultId) throw new Error('The submitted Listening result reference is missing.');
+              const resultSnapshot = await get(ref(database, `test_results/${playerData.resultId}`));
+              const saved = resultSnapshot.val();
+              if (!saved || saved.studentId !== playerId || saved.testId !== testData.id) throw new Error('The saved Listening result could not be loaded.');
+              setLoadedAnswers(transformAnswersFromFirebase(playerData.answers ?? {}));
+              setTestResults({
+                correctAnswers: saved.correct, totalQuestions: saved.totalQuestions,
+                totalScore: saved.totalScore, percentage: saved.percentage, bandScore: saved.bandScore,
+                questionResults: Object.fromEntries((saved.questionResults ?? []).map((question: { questionNumber: number; isCorrect: boolean }) => [question.questionNumber, question.isCorrect])),
+              });
+              setTestSubmitted(true);
+              hasCheckedExistingSubmission.current = true;
+              return;
+            }
             setTestSubmitted(true);
 
             // Load submitted answers and calculate results
@@ -212,6 +228,7 @@ export const useTestSubmission = ({
     if (!testData) {
       return { correctAnswers: 0, totalQuestions: 0, questionResults: {} };
     }
+    if (testData.skill === 'Listening') throw new Error('Listening results must be calculated by the submission service.');
 
     let correctAnswers = 0;
     const questionResults: Record<number, boolean> = {};
@@ -584,7 +601,13 @@ export const useTestSubmission = ({
       }
 
       // Mark the test first to get results
-      const results = markTest();
+      const trusted = testData.skill === 'Listening' ? await submitListeningLiveTest({
+        sessionCode, testId: testData.id, answers,
+        timeElapsed: Math.max(0, testData.duration * 60 - timeRemaining),
+        ...(classAssignmentState?.assignmentId ? { assignmentId: classAssignmentState.assignmentId } : {}),
+        ...(integrityReport ? { integrity: integrityReport } : {}),
+      }) : null;
+      const results = trusted ?? markTest();
 
       // Transform answers to include metadata (consistent with auto-save format)
       // This ensures teacher view sees proper answer data
@@ -598,16 +621,43 @@ export const useTestSubmission = ({
       });
 
       // NEW: Save permanent result record
-      const resultId = await savePermanentResult(playerId, playerName, results);
+      const resultId = trusted?.resultId ?? await savePermanentResult(playerId, playerName, results);
       if (!resultId) {
         throw new Error('Failed to persist test result. Submission was not finalized.');
+      }
+
+      if (trusted) {
+        let courseId: string | undefined;
+        let moduleId: string | undefined;
+        try {
+          const metadata = (await get(ref(database, `game_sessions/${sessionCode}`))).val();
+          courseId = metadata?.courseId;
+          moduleId = metadata?.moduleId;
+          const classId = metadata?.linkedClassId || metadata?.classId;
+          if (courseId && classId && moduleId) {
+            const { recordAttendance, linkTestResultToAttendance } = await import('../../services/attendanceService');
+            await recordAttendance(courseId, classId, moduleId, playerId, playerName, sessionCode);
+            await linkTestResultToAttendance(courseId, classId, moduleId, playerId, resultId);
+          }
+        } catch (error) {
+          console.warn('Listening result saved; attendance could not be linked:', error);
+        }
+        if (auth.currentUser) {
+          try {
+            const { checkAndAwardBadges } = await import('../../services/badgeService');
+            await checkAndAwardBadges({ studentId: playerId, resultId, score: trusted.percentage,
+              courseId, moduleId, testId: testData.id, submittedAt: Date.now() });
+          } catch (error) {
+            console.warn('Listening result saved; badge check failed:', error);
+          }
+        }
       }
 
       // Update player's answers and results in the session only after the
       // canonical result exists so the UI never advertises a result that failed to save.
       const playerRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}`);
       const now = Date.now();
-      await update(playerRef, {
+      if (!trusted) await update(playerRef, {
         answers: transformedAnswers, // Use transformed format for consistency
         submittedAt: now,
         timeSpent: (testData.duration * 60) - timeRemaining,
@@ -625,7 +675,7 @@ export const useTestSubmission = ({
       });
 
       // PRD-0036: Write integrity report to player's integrity sub-path
-      if (integrityReport) {
+      if (!trusted && integrityReport) {
         try {
           const integrityRef = ref(database, `game_sessions/${sessionCode}/players/${playerId}/integrity`);
           await update(integrityRef, integrityReport);

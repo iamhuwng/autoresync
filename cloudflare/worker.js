@@ -22,6 +22,7 @@ import { handleListeningUploadSessionGrant } from './src/upload-worker/listening
 import { createListeningAuthoringWorkerHandlers } from './src/upload-worker/listening-authoring.ts';
 import { createListeningUploadSessionHandlers } from './src/upload-worker/listening-upload-session.ts';
 import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/listening-delivery.ts';
+import { createListeningSubmitWorkerHandlers } from './src/upload-worker/listening-submit.ts';
 import { createBookRouter } from './src/upload-worker/book-router.ts';
 import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/book-assembly/production-composition.ts';
 
@@ -122,6 +123,7 @@ export function createUploadWorker({
   listeningAuthoringHandlers = createListeningAuthoringWorkerHandlers(),
   listeningUploadSessionHandlers = createListeningUploadSessionHandlers(),
   listeningDeliveryHandlers = createListeningDeliveryWorkerHandlers(),
+  listeningSubmitHandlers = createListeningSubmitWorkerHandlers(),
   bookRouter,
   bookRouteHandlers,
 } = {}) {
@@ -264,8 +266,14 @@ export function createUploadWorker({
         if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-document') {
           return respond(await listeningDeliveryHandlers.homeworkDocument({ request, env, uid, now }));
         }
-        if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-questions') {
-          return respond(await listeningDeliveryHandlers.homeworkQuestions({ request, env, uid, now }));
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/submit') {
+          return respond(await listeningSubmitHandlers.submit({ request, env, uid, now }));
+        }
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/homework-start') {
+          return respond(await listeningSubmitHandlers.homeworkStart({ request, env, uid, now }));
+        }
+        if (request.method === 'POST' && url.pathname === '/listening-delivery/live-pin') {
+          return respond(await listeningSubmitHandlers.livePin({ request, env, uid, now }));
         }
 
         if (request.method === 'POST' && url.pathname === '/listening-delivery/solo') {

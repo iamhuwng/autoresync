@@ -41,6 +41,7 @@ import { parseDocument } from '../../../../functions/src/listening-authoring/val
 import { ListeningAssetCommitError } from '../../../../src/features/assessment/listening/storage/listeningAssetCommit.ts';
 import { ListeningAuthoringAssets, type ListeningAssetBucket, type PreparedListeningDocument } from './assets.ts';
 import { buildListeningPublishedMaterialUpdates } from './published-material.ts';
+import { replaceListeningPublishedAudio } from './audio-replacement.ts';
 import {
   getMaterialSummaryRecordPath,
   type MaterialSummary,
@@ -288,7 +289,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
       };
     });
     if (result.kind === 'published' || result.kind === 'replayed') {
-      await this.synchronizePublishedMaterial(result.result.versionId);
+      await this.synchronizePublishedMaterial(result.result.versionId, true);
     }
     return result;
   }
@@ -407,7 +408,7 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
     return normalizeRoot(data);
   }
 
-  private async synchronizePublishedMaterial(versionId: string): Promise<void> {
+  private async synchronizePublishedMaterial(versionId: string, assetsFinalized = false): Promise<void> {
     for (let attempt = 0; attempt < this.maxRetries; attempt += 1) {
       const root = await this.readRoot();
       const requested = root.versions?.[versionId];
@@ -416,7 +417,9 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         .filter((version) => version.testId === requested.testId)
         .reduce((current, version) => version.versionNumber > current.versionNumber ? version : current, requested));
       latest.document = normalizeStoredDocument(latest.document);
-      if (latest.archive.state !== 'archived' && !latest.compatibility.frozenLegacyVersion1) {
+      // Publish already finalized this immutable version; a racing newer version still needs verification.
+      if ((!assetsFinalized || latest.versionId !== versionId)
+        && latest.archive.state !== 'archived' && !latest.compatibility.frozenLegacyVersion1) {
         const prepared = await this.assets.prepare(latest.ownerId, latest.document, {
           kind: 'versions', id: latest.versionId, sourcePath: `${LISTENING_AUTHORING_ROOT}/versions/${latest.versionId}`,
         });
@@ -436,7 +439,18 @@ export class FirebaseRestListeningAuthoringRepository implements ListeningAuthor
         .reduce((newest, version) => version.versionNumber > newest.versionNumber ? version : newest,
           current.versions?.[latest.versionId] ?? latest);
       if (currentLatest.versionId === latest.versionId
-        && currentLatest.archive.state === latest.archive.state) return;
+        && currentLatest.archive.state === latest.archive.state) {
+        if (latest.archive.state === 'active') {
+          const previousIds = new Set([requested.previousVersionId, latest.previousVersionId]);
+          for (const previousId of previousIds) {
+            const previous = previousId ? current.versions?.[previousId] : undefined;
+            if (previous) await replaceListeningPublishedAudio({ rtdb: this.rtdb, bucket: this.options.env.R2_BUCKET,
+              previous, current: latest, versions: current.versions ?? {}, now: this.now(),
+              verify: asset => this.assets.verifyCommittedAudio(asset) });
+          }
+        }
+        return;
+      }
     }
     throw new Error('listening_material_projection_retries_exhausted');
   }

@@ -8,7 +8,7 @@ import { clearSoloProgress } from './useSoloAutoSave';
 import { getIELTSQuestionsForStudent } from '../../utils/thcsShuffle';
 import type { HomeworkIntegrity } from '../../types/integrity.types';
 import { submitHomework } from '../../services/homeworkSubmissionService';
-import { readListeningHomeworkQuestions } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
+import { submitListeningTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
 
 const {
   mockNavigateTo,
@@ -29,8 +29,8 @@ vi.mock('../useNavigation', () => ({
 vi.mock('../../services/testStorage', () => ({
   getTestQuestionsFromFirebase: vi.fn(),
 }));
-vi.mock('../../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient', () => ({
-  readListeningHomeworkQuestions: vi.fn(),
+vi.mock('../../features/assessment/listening/runtime/listeningSubmissionClient', () => ({
+  submitListeningTest: vi.fn(),
 }));
 
 vi.mock('../../services/autoMarking.service', () => ({
@@ -97,6 +97,8 @@ describe('useSoloSubmission', () => {
     }) as any);
 
     vi.mocked(saveTestResult).mockResolvedValue('result-1');
+    vi.mocked(submitListeningTest).mockResolvedValue({ resultId: 'trusted-result', correctAnswers: 1, totalQuestions: 1,
+      totalScore: 1, maxScore: 1, percentage: 100, bandScore: 9, questionResults: { 1: true } });
   });
 
   it('lazy-loads grading questions at submit time and reuses them for result persistence', async () => {
@@ -186,10 +188,11 @@ describe('useSoloSubmission', () => {
     );
   });
 
-  it('grades retained Listening homework with its original version keys and reuses those cached keys', async () => {
+  it('submits Listening answers against the assigned version without loading keys or writing client grades', async () => {
     const original = [{ number: 1, type: 'multiple-choice', question: 'Assigned Q1', options: ['A', 'B'], answer: 'A', points: 1 }];
     vi.mocked(getTestQuestionsFromFirebase).mockResolvedValue({ success: true, data: [{ ...original[0], answer: 'B' }] as any });
-    vi.mocked(readListeningHomeworkQuestions).mockResolvedValue(original as any);
+    vi.mocked(submitListeningTest).mockResolvedValue({ resultId: 'trusted-result', correctAnswers: 1, totalQuestions: 1,
+      totalScore: 1, maxScore: 1, percentage: 100, bandScore: 9, questionResults: { 1: true } });
     const questionsWithAnswersRef = { current: null } as any;
     const { result } = renderHook(() => useSoloSubmission({
       testData: { id: 'test-1', versionId: 'assigned-version', skill: 'Listening', type: 'IELTS', duration: 30,
@@ -199,12 +202,15 @@ describe('useSoloSubmission', () => {
       context: { type: 'homework', source: { type: 'homework', id: 'hw-1' } },
       homeworkId: 'hw-1', submissionId: 'sub-1', questionsWithAnswersRef,
     }));
-    await expect(result.current.markTest()).resolves.toMatchObject({ correctAnswers: 1 });
-    await expect(result.current.markTest()).resolves.toMatchObject({ correctAnswers: 1 });
-    expect(readListeningHomeworkQuestions).toHaveBeenCalledOnce();
-    expect(readListeningHomeworkQuestions).toHaveBeenCalledWith({ testId: 'test-1', versionId: 'assigned-version', homeworkId: 'hw-1', submissionId: 'sub-1' });
+    await act(async () => { await result.current.handleSubmit(true); });
+    expect(submitListeningTest).toHaveBeenCalledWith(expect.objectContaining({ mode: 'homework', testId: 'test-1',
+      versionId: 'assigned-version', homeworkId: 'hw-1', submissionId: 'sub-1', answers: { 1: 'A' } }));
     expect(getTestQuestionsFromFirebase).not.toHaveBeenCalled();
-    expect(questionsWithAnswersRef.current).toEqual(original);
+    expect(scoreQuestion).not.toHaveBeenCalled();
+    expect(saveTestResult).not.toHaveBeenCalled();
+    expect(submitHomework).not.toHaveBeenCalled();
+    expect(result.current.testResults?.correctAnswers).toBe(1);
+    expect(questionsWithAnswersRef.current).toBeNull();
   });
 
   it('replays option shuffling on lazy grading questions for homework or practice flows', async () => {
@@ -599,9 +605,10 @@ describe('useSoloSubmission', () => {
 
   it('deduplicates rapid manual submit calls behind one pending operation', async () => {
     let releaseSave!: () => void;
-    vi.mocked(saveTestResult).mockReturnValueOnce(
-      new Promise<string>((resolve) => {
-        releaseSave = () => resolve('result-1');
+    vi.mocked(submitListeningTest).mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseSave = () => resolve({ resultId: 'trusted-result', correctAnswers: 1, totalQuestions: 1,
+          totalScore: 1, maxScore: 1, percentage: 100, bandScore: 9, questionResults: { 1: true } });
       }),
     );
 
@@ -652,14 +659,14 @@ describe('useSoloSubmission', () => {
 
     expect(result.current.isSubmitting).toBe(true);
     expect(result.current.isLocked).toBe(true);
-    expect(saveTestResult).toHaveBeenCalledTimes(1);
+    expect(submitListeningTest).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       releaseSave();
       await Promise.all([firstSubmit, secondSubmit]);
     });
 
-    expect(saveTestResult).toHaveBeenCalledTimes(1);
+    expect(submitListeningTest).toHaveBeenCalledTimes(1);
     expect(mockNavigateTo).toHaveBeenCalledTimes(1);
   });
 
@@ -705,12 +712,10 @@ describe('useSoloSubmission', () => {
       await result.current.handleSubmit(false);
     });
 
-    const saveCall = vi.mocked(saveTestResult).mock.calls[0];
-    expect(saveCall?.[0]).toBe('self_study__student-1__test-1__attempt-001__submit');
-    expect(saveCall?.[14]).toEqual({
-      stableResultId: 'listening_solo__self_study__student-1__test-1__attempt-001__submit',
-      submissionOperationId: 'self_study__student-1__test-1__attempt-001__submit',
-    });
+    expect(submitListeningTest).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: 'self_study__student-1__test-1__attempt-001__submit',
+    }));
+    expect(saveTestResult).not.toHaveBeenCalled();
   });
 
   it('announces unanswered questions without browser confirm when skipConfirm is false (default)', async () => {

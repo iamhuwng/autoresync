@@ -748,7 +748,7 @@ describe('StudentPracticePage', () => {
       isHomework: true, homeworkId: 'hw-pinned', submissionId: 'sub-pinned',
     } }]}><Routes><Route path="/student/practice/:materialId" element={<StudentPracticePage />} /></Routes></MemoryRouter>);
     await screen.findByTestId('listening-practice-view');
-    expect(readListeningHomeworkDocumentMock).toHaveBeenCalledWith({ testId: 'pinned-listening', versionId: 'assigned-version', homeworkId: 'hw-pinned', submissionId: 'sub-pinned' });
+    expect(readListeningHomeworkDocumentMock).toHaveBeenCalledWith({ testId: 'pinned-listening', homeworkId: 'hw-pinned', submissionId: 'sub-pinned' });
     expect(listeningPracticeViewPropsMock).toHaveBeenLastCalledWith(expect.objectContaining({ initialTestData: pinned }));
     expect(refMock).not.toHaveBeenCalledWith({}, 'student_safe_tests/pinned-listening');
     expect(refMock).not.toHaveBeenCalledWith({}, 'tests/pinned-listening');

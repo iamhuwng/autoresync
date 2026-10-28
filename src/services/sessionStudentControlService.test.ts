@@ -8,16 +8,20 @@ import {
   deleteStudentSessionResults,
   deleteTestResult,
 } from './testResults.service';
+import { submitListeningLiveTest } from '../features/assessment/listening/runtime/listeningSubmissionClient';
 
-const { refMock, updateMock } = vi.hoisted(() => ({
+const { refMock, updateMock, getMock } = vi.hoisted(() => ({
   refMock: vi.fn((_database, path: string) => path),
   updateMock: vi.fn(),
+  getMock: vi.fn(),
 }));
 
 vi.mock('firebase/database', () => ({
   ref: refMock,
   update: updateMock,
+  get: getMock,
 }));
+vi.mock('../features/assessment/listening/runtime/listeningSubmissionClient', () => ({ submitListeningLiveTest: vi.fn() }));
 
 vi.mock('./firebase', () => ({
   database: {},
@@ -31,6 +35,14 @@ vi.mock('./testResults.service', () => ({
 describe('sessionStudentControlService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getMock.mockResolvedValue({ val: () => null });
+  });
+
+  it('submits stored Listening answers through the trusted service before completing a player', async () => {
+    getMock.mockResolvedValue({ val: () => ({ testId: 'listening-1' }) });
+    await requestTeacherForceSubmit('ABC123', 'student-1');
+    expect(submitListeningLiveTest).toHaveBeenCalledWith({ sessionCode: 'ABC123', testId: 'listening-1', studentId: 'student-1' });
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

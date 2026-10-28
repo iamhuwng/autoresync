@@ -80,6 +80,29 @@ describe('Listening published-test editing', () => {
     expect(mocks.publish.mock.calls[0][0]).toEqual(mocks.publish.mock.calls[1][0]);
   });
 
+  it('synchronizes a native form prompt before strict save without changing another key', async () => {
+    const contextLines = ['Name: [1]', 'Address: [2]', 'Telephone: 012345'];
+    const draft = mocks.records['listening_authoring/drafts/draft-1'].document;
+    draft.displayMode = 'text';
+    draft.questions = draft.questions.map((question: any, index: number) => ({ ...question, type: 'completion',
+      question: contextLines[index], context: { sectionHeading: 'Booking', contextLines, currentLineIndex: index } }));
+    const editable = await loadListeningTestForEditing(test);
+    const input = edits(editable);
+    input.questions[0] = { ...input.questions[0], question: 'Full name: [1]', answer: 'Alice' };
+    await createListeningTestEditSession(editable)(input);
+    const savedDocument = parseSaveDraftRequest(mocks.save.mock.calls[0][0]).document;
+    expect(savedDocument.questions[1]).toMatchObject({ question: 'Address: [2]', answer: 'answer',
+      context: { contextLines: ['Full name: [1]', 'Address: [2]', 'Telephone: 012345'], currentLineIndex: 1 } });
+    expect(savedDocument.questions[0]).toMatchObject({ question: 'Full name: [1]', answer: 'Alice' });
+  });
+
+  it('rejects unsupported grouped structures in the working source before editing it', async () => {
+    mocks.records['listening_authoring/drafts/draft-1'].document.questions[0].items = [{ id: 'a', text: 'Grouped item' }];
+    await expect(loadListeningTestForEditing(test)).rejects.toThrow(/under construction/);
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
+  });
+
   it.each(['text', 'image'])('preserves %s mode and question context while saving audio metadata edits', async displayMode => {
     mocks.records['listening_authoring/drafts/draft-1'].document.displayMode = displayMode;
     const editable = await loadListeningTestForEditing(test);

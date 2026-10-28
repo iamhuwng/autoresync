@@ -178,4 +178,10 @@ export class ListeningAuthoringAssets {
   async finalize(prepared: PreparedListeningDocument) {
     for (const asset of prepared.assets) await finalizeListeningMediaAsset(asset.input, asset.prepared, this.adapters(asset.input.ownerId));
   }
+
+  async verifyCommittedAudio(record: Record<string, any>): Promise<void> {
+    const object = this.verifiedDurable.get(record.durableKey) ?? await this.snapshot(record.durableKey);
+    if (!object || object.checksum !== record.checksum || object.sizeBytes !== record.sizeBytes
+      || object.contentType !== record.contentType) fail('durable_verification_failed');
+  }
 }

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMonitorControls } from './useMonitorControls';
+import { pinListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+vi.mock('../../features/assessment/listening/runtime/listeningSubmissionClient', () => ({ pinListeningLiveTest: vi.fn() }));
 
 const {
   mockNavigateTo,
@@ -59,6 +61,36 @@ const TEST_DATA = {
 };
 
 describe('useMonitorControls', () => {
+  it('uses trusted Listening completion for connected base students and does not overwrite its timestamps on End', async () => {
+    const student = { studentId: 'student-1', name: 'Student One', answers: { 1: { answer: 'A' } }, isConnected: true, lastActivity: 1 };
+    identifyUnsubmittedStudentsMock.mockReturnValue([student]);
+    autoSubmitAllUnsubmittedStudentsMock.mockResolvedValue([{ success: true, studentId: 'student-1' }]);
+    const session = { testId: 'test-1', status: 'in-progress', startTime: 1234, createdByUserId: 'teacher-1',
+      listeningTestPin: { runId: 'run-1' }, players: { 'student-1': student } };
+    const { result } = renderHook(() => useMonitorControls('SESSION123', session as any,
+      { ...TEST_DATA, skill: 'Listening' } as any, { ...TEST_DATA, skill: 'Listening', questions: [{ number: 1 }] }));
+    await act(async () => { await result.current.completeBaseTest(); });
+    expect(autoSubmitAllUnsubmittedStudentsMock).toHaveBeenCalled();
+    await act(async () => { await result.current.endFullSession(false, true); });
+    const patches = updateMock.mock.calls.map((call: any[]) => call[1]);
+    expect(patches.some(patch => patch.status === 'waiting')).toBe(true);
+    expect(patches.some(patch => Object.entries(patch).some(([field, value]) =>
+      field.endsWith('/completedAt') && typeof value === 'number'))).toBe(false);
+  });
+
+  it('prepares a protected Listening version before starting and uses its start marker', async () => {
+    getMock.mockResolvedValue({ exists: () => true, val: () => ({ versionId: 'version-1' }) });
+    vi.mocked(pinListeningLiveTest).mockResolvedValue({ startTime: 123456, runId: 'run-1' });
+    const { result } = renderHook(() => useMonitorControls('SESSION123', { testId: 'test-1', status: 'waiting' } as any,
+      { ...TEST_DATA, skill: 'Listening' } as any));
+    await act(async () => { await result.current.startTest(); });
+    expect(pinListeningLiveTest).toHaveBeenCalledWith({ sessionCode: 'SESSION123', testId: 'test-1', versionId: 'version-1' });
+    expect(updateMock).toHaveBeenCalledWith({ path: 'game_sessions/SESSION123' }, expect.objectContaining({
+      status: 'in-progress', startTime: 123456,
+    }));
+    expect(vi.mocked(pinListeningLiveTest).mock.invocationCallOrder[0]).toBeLessThan(updateMock.mock.invocationCallOrder[0]);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     getMock.mockResolvedValue({

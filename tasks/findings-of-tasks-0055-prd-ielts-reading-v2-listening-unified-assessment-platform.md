@@ -8422,7 +8422,7 @@ The earlier 4,634-line agent review is retained under a historical marker. It do
 
 <!-- assessment-line-budget-exception
 path: src/skills/listening/builders/ListeningTestBuilder.tsx
-line-count: 4645
+line-count: 4651
 responsibilities: Listening wizard composition and section question editing; parser adaptation and strict native question serialization preserving context image explanation acceptable answers timer and option labels; authorized audio preview and upload coordination; trusted draft publish conflict-token discard restore archive and recovery orchestration
 split-alternatives: extract native question serialization and parser adaptation into a bounded Listening question adapter; extract audio preview and upload state into a bounded Listening audio controller; extract draft publish and recovery lifecycle into a Listening authoring controller
 rejection-reason: extract native question serialization and parser adaptation into a bounded Listening question adapter => this is a valid future seam but relocates parser fallbacks section assignment defaults and the preservation contract across another interface without bringing the inherited wizard near the soft budget or resolving the uploader dependency; extract audio preview and upload state into a bounded Listening audio controller => this would move section state ownership pending-upload counters and stale-completion cancellation boundaries while the CI correction only needs the existing uploader injected by its editor caller; extract draft publish and recovery lifecycle into a Listening authoring controller => this would relocate fingerprints conflict tokens idempotency announcements and recovery across callbacks and broaden the bounded native-field correction into a lifecycle refactor
@@ -8436,3 +8436,19 @@ The uploader dependency correction removes the feature's cycle-prone `services/r
 Before recording this approval, the two focused editor/helper suites passed 24 tests. The explicit builder/helper guardrail reproduced only the stale 4,645-line exception; the forbidden dependency was already eliminated. Logs: `tmp/listening-text-mode-proof/pr177-ci-upload-tests.log` and `tmp/listening-text-mode-proof/pr177-ci-guardrail.log`. Fresh post-approval checks remain required and are reported separately; these local checks are not live-site verification.
 
 Post-approval local verification: the explicit builder/helper guardrail passed, and the complete PR changed-file set passed with `GITHUB_BASE_REF=main` (37 paths). The two focused editor/helper suites passed all 24 tests, including uploader delegation and overlapping-upload/save protection. UTF-8 passed for the five touched text files and `git diff --check` was clean. Logs: `tmp/listening-text-mode-proof/pr177-ci-guardrail-approved.log`, `tmp/listening-text-mode-proof/pr177-ci-guardrail-full.log` and `tmp/listening-text-mode-proof/pr177-ci-upload-tests-final.log`. No build, dependency installation, Worker execution or deployment was performed in this CI repair.
+
+### 2026-10-27 functional completion — scoped maker approval
+
+The human user explicitly approved recording iamhuwng as reviewer for the maker
+at 4,651 logical lines, six more than the prior 4,645-line repair. The exception
+above is updated to that exact count. The earlier 4,645 approval remains the
+historical decision for native metadata preservation; it is not the authority
+for this new change.
+
+The additional maker responsibility is composition of the Listening-owned form
+context editor. Context synchronization and numbered-blank handling are in the
+small shared `listeningQuestionContext.ts` helper; field controls are in
+`ListeningQuestionContextEditor.tsx`. Maker and Materials Edit use the same
+helper. A general wizard split remains separate because moving audio/session
+lifecycle and parser state is unnecessary for this bounded native-form repair.
+This approval does not approve broader growth or establish live acceptance.

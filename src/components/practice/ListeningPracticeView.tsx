@@ -245,6 +245,10 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     // TEST DATA
     // ═══════════════════════════════════════════════════════════════
 
+    const progressScopeContext = useMemo(() => getSoloProgressScopeContext(practiceContext),
+        [practiceContext.courseId, practiceContext.homeworkId, practiceContext.moduleId, practiceContext.submissionId, practiceContext.type]);
+    const [resumeDecision, setResumeDecision] = useState<'pending' | 'resume' | 'fresh'>('pending');
+
     const {
         testData,
         loading: testLoading,
@@ -253,6 +257,9 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
     } = useSoloTestData({
         materialId,
         initialTestData,
+        studentId: user?.uid,
+        scopeContext: progressScopeContext,
+        resumeListeningProgress: resumeDecision !== 'fresh',
     });
 
     // ═══════════════════════════════════════════════════════════════
@@ -290,16 +297,6 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         }
         return undefined;
     }, [testData]);
-    const progressScopeContext = useMemo(
-        () => getSoloProgressScopeContext(practiceContext),
-        [
-            practiceContext.courseId,
-            practiceContext.homeworkId,
-            practiceContext.moduleId,
-            practiceContext.submissionId,
-            practiceContext.type,
-        ],
-    );
 
     // ═══════════════════════════════════════════════════════════════
     // RESUME CHECK
@@ -311,7 +308,6 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         scopeContext: progressScopeContext,
     });
 
-    const [resumeDecision, setResumeDecision] = useState<'pending' | 'resume' | 'fresh'>('pending');
     const showResumeModal = !checking && savedProgress !== null && resumeDecision === 'pending';
 
     // Homework resumes are restart-restricted: skip the generic solo resume modal
@@ -487,6 +483,8 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         }
 
         return {
+            testId: materialId, recordedAt: testData?.updatedAt,
+            audioReplaced: Object.values(soloAudioResolutions).some(item => item.kind === 'authorized-asset-delivery' && item.delivery.audioReplaced),
             expiresAt: resolution.delivery.expiresAt,
             refreshAfter: resolution.delivery.refreshAfter,
             now: getDeliveryNow,
@@ -507,6 +505,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
                 };
                 return {
                     url: refreshed.url,
+                    audioReplaced: refreshed.audioReplaced,
                     expiresAt: refreshed.expiresAt,
                     refreshAfter: refreshed.refreshAfter,
                 };
@@ -519,6 +518,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         progressScopeContext,
         resolvedSoloDeliveryIssuer,
         soloAudioResolutions,
+        testData?.updatedAt,
         user?.uid,
     ]);
 
@@ -821,6 +821,7 @@ const ListeningPracticeView: React.FC<ListeningPracticeViewProps> = ({
         attemptId: soloAttemptIdentity?.attemptId,
         submissionOperationId: soloAttemptIdentity?.submissionOperationId,
         answers,
+        listeningDocument: testData ?? undefined,
         currentQuestion: currentQuestionNumber,
         timeElapsed: timeElapsedRef.current,
         mobileState: autoSaveMobileState,

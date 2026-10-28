@@ -861,6 +861,30 @@ describe('ListeningTestBuilder', () => {
     expect(globalThis.alert).not.toHaveBeenCalled();
   });
 
+  it('keeps parsed form context synchronized with maker prompt and heading edits', async () => {
+    const user = userEvent.setup();
+    const contextLines = ['Name: [1]', 'Address: [2]', 'Telephone: 012345'];
+    mocks.parseListening.mockResolvedValueOnce({ success: true, data: { parseConfidence: 100,
+      questions: Array.from({ length: 10 }, (_, index) => ({ id: `q-${index + 1}`, number: index + 1,
+        type: 'completion', question: index < 2 ? contextLines[index] : `Question ${index + 1}`, answer: `Answer ${index + 1}`,
+        ...(index < 2 ? { context: { sectionHeading: 'Booking', contextLines, currentLineIndex: index } } : {}) })) } });
+    render(<ListeningTestBuilder />);
+    await goToQuestionsStep(user);
+    await user.click(screen.getByRole('button', { name: '← Back' }));
+    fireEvent.change(screen.getByPlaceholderText(/Paste all 40 questions here/), { target: { value: 'Questions 1-10\nName: [1]\nAddress: [2]' } });
+    await user.click(screen.getByRole('button', { name: 'Parse with AI' }));
+    await screen.findByRole('heading', { name: 'Questions (10/10)' });
+    fireEvent.change(screen.getAllByPlaceholderText('Question text...')[0]!, { target: { value: 'Full name: [1]' } });
+    fireEvent.change(screen.getAllByLabelText('Form heading')[0]!, { target: { value: 'Customer booking' } });
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalled());
+    expect(mocks.saveDraft.mock.lastCall![0].document.questions.slice(0, 2)).toMatchObject([
+      { question: 'Full name: [1]', context: { sectionHeading: 'Customer booking', contextLines: ['Full name: [1]', 'Address: [2]', 'Telephone: 012345'] } },
+      { question: 'Address: [2]', context: { sectionHeading: 'Customer booking', contextLines: ['Full name: [1]', 'Address: [2]', 'Telephone: 012345'] } },
+    ]);
+    expect(mocks.trackAction).toHaveBeenCalledWith('editListeningContext', expect.objectContaining({ source: 'listening_builder' }));
+  });
+
   it('does not publish when saving current edits conflicts with another session', async () => {
     const user = userEvent.setup();
     render(<ListeningTestBuilder />);

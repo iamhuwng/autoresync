@@ -31,6 +31,8 @@ import { PracticeSettingsModal } from './PracticeSettingsModal';
 import { createLegacyTestMaterialSummary } from '../services/materialCatalog/legacyTestMaterialSummary.service';
 import { buildMaterialSummaryUpdatePayload } from '../services/materialCatalog/materialSummaryPort.service';
 import { createListeningTestEditSession, uploadListeningEditorAudio, hasUnsupportedListeningStructure } from '../features/assessment/listening/authoring/listeningTestEditing';
+import { ListeningQuestionContextEditor } from '../features/assessment/listening/authoring/ListeningQuestionContextEditor';
+import { renumberListeningContextQuestions, syncListeningQuestionUpdate } from '../skills/listening/utils/listeningQuestionContext';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { storage } from '../core/platform/storage';
@@ -391,6 +393,16 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       return;
     }
 
+    if (test.skill === 'Listening') {
+      const entries = Object.entries(editedQuestions);
+      const questions = entries.map(([, question]) => question);
+      const updated = syncListeningQuestionUpdate(questions, currentQuestion, updatedQuestion);
+      setEditedQuestions(Object.fromEntries(entries.map(([key], position) => [key, updated[position]])));
+      setModifiedQuestions(previous => new Set([...previous,
+        ...entries.flatMap(([key, question], position) => updated[position] !== question ? [Number(key)] : [])]));
+      return;
+    }
+
     setEditedQuestions(prev => ({
       ...prev,
       [index]: updatedQuestion
@@ -450,6 +462,10 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
 
     if (window.confirm('Are you sure you want to reset this question to its original state?')) {
       const original = test.questions[index];
+      if (test.skill === 'Listening') {
+        handleQuestionUpdate(index, { ...original });
+        return;
+      }
       setEditedQuestions(prev => ({
         ...prev,
         [index]: { ...original }
@@ -486,6 +502,11 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       }
     }
 
+    if (test.skill === 'Listening') {
+      renumberListeningContextQuestions(Object.values(newEditedQuestions)).forEach((question, position) => {
+        reindexed[position] = question;
+      });
+    }
     setEditedQuestions(reindexed);
     setModifiedQuestions(new Set(Object.keys(reindexed).map(Number)));
 
@@ -1088,8 +1109,9 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     }
 
     // Compute group if this is a summary type
-    const isSummaryType =
-      q?.type === 'summary-completion-list' || q?.type === 'summary-completion-text';
+    const isSummaryType = test.skill !== 'Listening' && (
+      q?.type === 'summary-completion-list' || q?.type === 'summary-completion-text'
+    );
 
     let groupQuestions: any[] | null = null;
     if (isSummaryType) {
@@ -1099,7 +1121,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       groupQuestions = getGroupQuestions(allQsArray, selectedQuestionIndex);
     }
 
-    return (
+    const panel = (
       <QuestionEditorPanel
         isImagePassage={isImagePassage}
         question={q}
@@ -1119,6 +1141,16 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         readOnly={isReadOnly}
       />
     );
+    return test.skill === 'Listening' && q.context && !isImagePassage ? (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <ListeningQuestionContextEditor context={q.context} disabled={isReadOnly || isSaving}
+          onChange={context => {
+            trackAction('editListeningContext', { testId: test.id, questionNumber: q.number });
+            handleQuestionUpdate(selectedQuestionIndex, { ...q, context });
+          }} />
+        {panel}
+      </div>
+    ) : panel;
   })() : null;
 
   const answerKeySelector = (

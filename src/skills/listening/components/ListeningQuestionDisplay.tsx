@@ -64,6 +64,9 @@ const isCompletionType = (type: string): boolean => {
     'table-completion',
     'sentence-completion',
     'summary-completion',
+    'summary-completion-text',
+    'summary-completion-list',
+    'flowchart-completion',
     'short-answer',
   ];
   return completionTypes.includes(type);
@@ -354,7 +357,7 @@ export const ListeningQuestionDisplay: React.FC<ListeningQuestionDisplayProps> =
   // Check if this group type needs an options box
   const needsOptionsBox = [
     'matching', 'matching-features', 'matching-headings',
-    'matching-information', 'map-labelling', 'plan-labelling'
+    'matching-information', 'map-labelling', 'plan-labelling', 'summary-completion-list'
   ].includes(group.type);
 
   // Get unique options from all questions in the group (for matching/labelling)

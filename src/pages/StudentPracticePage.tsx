@@ -630,15 +630,15 @@ const StudentPracticePageContent: React.FC = () => {
                 const launchTestPath = studentSafeTestPayloadPath || (usesStudentSafeHomeworkProjection
                     ? `student_safe_tests/${materialId}`
                     : `tests/${materialId}`);
-                const pinnedListening = normalizedHomeworkKind === 'ielts_listening' && homeworkForLaunch?.contentRef?.version
+                const pinnedListening = normalizedHomeworkKind === 'ielts_listening'
                     ? await readListeningHomeworkDocument({
-                        testId: materialId, versionId: homeworkForLaunch.contentRef.version,
+                        testId: materialId,
                         homeworkId: locationState.homeworkId || '', submissionId: locationState.submissionId || '',
                     })
                     : null;
                 const launchTestSnap = pinnedListening ? null : await get(ref(database, launchTestPath));
                 const launchTestData = pinnedListening ?? (launchTestSnap?.exists() ? launchTestSnap.val() : null);
-                if (pinnedListening) setListeningTestData(pinnedListening);
+                if (launchTestData?.skill === 'Listening') setListeningTestData(launchTestData);
 
                 if (usesStudentSafeHomeworkProjection && !launchTestData) {
                     throw new Error(`Student-safe homework projection not found for ${materialId}`);

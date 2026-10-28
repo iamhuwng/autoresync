@@ -179,6 +179,17 @@ export function calculateIELTSReadingBandScore(
   return calculateIELTSReadingBandScore(scaledScore, 40);
 }
 
+/** IDP's approximate Listening conversion; short practice tests scale to 40.
+ * https://ielts.idp.com/vietnam/results/scores/listening/en-gb
+ */
+export function calculateIELTSListeningBandScore(correctCount: number, totalQuestions = 40): number {
+  if (!Number.isFinite(correctCount) || !Number.isFinite(totalQuestions) || totalQuestions <= 0) return 0;
+  const score = Math.round(Math.max(0, Math.min(correctCount, totalQuestions)) / totalQuestions * 40);
+  const bands = [[39, 9], [37, 8.5], [35, 8], [32, 7.5], [30, 7], [26, 6.5],
+    [23, 6], [20, 5.5], [16, 5], [13, 4.5], [10, 4], [8, 3.5], [6, 3], [4, 2.5], [2, 1.5], [1, 1]];
+  return bands.find(([minimum]) => score >= minimum!)?.[1] ?? 0.5;
+}
+
 /**
  * Calculate band score from percentage using configured thresholds
  * @deprecated Use calculateIELTSReadingBandScore for accurate IELTS scoring

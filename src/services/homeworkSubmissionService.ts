@@ -41,6 +41,7 @@ import type { BookHomeworkProgressProjection } from './book-homework/bookHomewor
 import { validateBookHomeworkProgressProjection } from './book-homework/bookHomeworkProgress.service';
 import { resolveBookHomeworkWorkerOrigin } from './homeworkAssignmentClient';
 import { notifyCommittedEvent } from './notificationProducerClient';
+import { startListeningHomework } from '../features/assessment/listening/runtime/listeningSubmissionClient';
 
 
 const SUBMISSION_COLLECTION = 'homework_submissions';
@@ -311,6 +312,10 @@ export async function createSubmission(
     const homework = await getHomeworkById(homeworkId);
     if (!homework) {
         throw new HomeworkSubmissionError('Homework not found', 'HOMEWORK_NOT_FOUND');
+    }
+
+    if (homework.materialType === 'test' && (homework.materialSkill === 'listening' || homework.contentRef?.contentKind === 'ielts_listening')) {
+        return startListeningHomework({ homeworkId, operationId: crypto.randomUUID() });
     }
 
     if (isStudentExempted(homework, studentId)) {

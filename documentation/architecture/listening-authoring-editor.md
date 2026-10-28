@@ -11,8 +11,10 @@ not Listening's document model. The shared boundary is defined in
   replace image files, adjust question ranges, and edit answer keys.
 - Text mode presents numbered questions with interactive answer controls.
   Teachers edit prompts, choices, and answer keys in the existing question
-  editor. Parser-created form headings and context lines survive editing and
-  publication.
+  editor. The same native context editor in the maker and Materials Edit edits
+  form headings, subheadings and context lines. Prompt edits synchronize their
+  numbered context line across the shared form. Student delivery renders that
+  form once, with each numbered blank bound to its own answer.
 - The generic `+ Text` resource is a Reading passage, not the Listening text
   publication mode. Listening does not publish that passage resource.
 
@@ -50,35 +52,73 @@ An unavailable original preview does not block the owner's editor. It produces
 a shared warning and permits replacement. Ownership, conflict checks and the
 backend asset-commit barrier still apply to save and publication.
 
-Published versions remain immutable. New source edits must not switch the
-content or audio used by an existing assignment.
+Published text and answer keys remain immutable. A new homework attempt selects
+the latest published text through trusted start and stores `listeningVersionId`;
+started attempts keep that version. Existing started rows without the pin keep
+their original assignment version. Solo/course resume stores a student-safe text
+snapshot beside its existing browser progress; a fresh attempt loads current text.
+Grading always reads the matching canonical server version.
+
+The owner's October 28 storage decision supersedes historical audio retention:
+replacement recordings apply everywhere, including older attempts and results.
+After verified new publication and projections commit, old asset records retain
+small replacement receipts. Delivery authorizes the original test/attempt first,
+then resolves its section to verified current physical bytes. Issue, refresh and
+already-issued content tokens use that resolver. Only then are the exact old
+temporary and durable objects deleted, with retryable cleanup receipts. Earlier
+attempts/results show a small recording-replacement note. No text hashes, grading
+keys or historical results are rewritten. Ambiguous cross-test/section shared
+assets fail closed rather than deleting another test's recording.
+
+Publication finalizes each asset once before synchronizing the runtime and
+catalog projections. Synchronization reuses that verification only for the
+same immutable version; a newer concurrent version is verified separately.
+An idempotent retry repairs projection failures after the version was committed.
 
 ## Private homework reads
 
-The student launch reads the assignment's `contentRef.version` through
+The student launch reads its trusted attempt text version through
 `POST /listening-delivery/homework-document`. The Worker reuses the existing
 homework delivery checks for membership, scheduling, the in-progress attempt,
 the exact test/version, and retained asset references. It returns the same
 student-safe projection used for publication. The runtime receives the whole
-pinned document and does not reload the mutable current test over it.
+pinned document and does not reload the mutable current text over it. Audio may
+resolve to a replacement under the owner's heavy-file policy.
 
 This reads existing immutable versions for existing and future assignments;
 it adds no snapshot database, migration or data backfill. Audio issuance
 continues through the existing authorized delivery route.
 
-Submission loads grading questions from the same authorized immutable version
-through the separate homework-questions route. The display-document route
-always strips answer keys. Existing client-side marking and result storage
-remain in use; this repair does not establish trusted server-side scoring.
-Homework saves use the existing student-private result-writer option. The
-student cannot claim resolved teacher ownership from a client-side assignment
-lookup; the existing trusted result authority owns that resolution.
+Submission sends typed answers to `POST /listening-delivery/submit`. The Worker
+loads the authorized immutable version, grades with the shared pure matcher
+and Listening band conversion, then persists the existing canonical result and
+indexes. Browser totals, teacher ownership and answer keys are never grading
+authority. The answer-key-bearing homework-questions route is removed.
+
+Homework submission validates its assignment, student, schedule and version;
+completion and statistics use Firestore update-time preconditions. Retrying the
+same attempt repairs missing side effects without grading a second result.
+Self-study requires a public active version; course delivery checks enrollment
+and the actual material placement. Trusted result ownership drives teacher
+discovery through the existing result authority and notification ports.
+
+Live start first calls `POST /listening-delivery/live-pin` as the session owner.
+The Worker binds a protected test/version/run marker and its safe session
+payload before the teacher starts the timer. Student submission and teacher End
+grade that pin; teacher End reads saved participant answers server-side. A
+delayed completion cannot update a different run. Reload reads the saved result
+instead of grading the student-safe payload. Browser rules reserve Listening
+result totals, completion, protected projections and score indexes for trusted
+writes while preserving answer autosave and teacher reset.
 
 ## Deployment order
 
-Deploy the Upload Worker with the strict question-field validation and both
-authorized homework-read routes before deploying the frontend. The new
-frontend depends on those routes. Deployment remains a separate release gate.
+Deploy the Upload Worker, reconcile existing Listening runtime projections to
+the safe document, deploy both RTDB and Firestore rules, then deploy Hosting.
+Use the functional release profile's postrules gate. Existing open clients must
+reload after cutover; the old client cannot submit under the tightened rules.
+A Hosting-only rollback to the old client does not restore submission. Release
+and live acceptance remain separate from this implementation contract.
 
 ## Existing UI residue
 

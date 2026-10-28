@@ -2,6 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSoloTestData } from './useSoloTestData';
 import { getStudentSafeTestFromFirebase } from '../../services/testStorage';
+import { readSoloProgress } from '../../services/soloProgress.service';
+vi.mock('../../services/soloProgress.service', () => ({ readSoloProgress: vi.fn() }));
 
 vi.mock('../../services/testStorage', () => ({
   getStudentSafeTestFromFirebase: vi.fn(),
@@ -67,6 +69,7 @@ const mockStudentSafeTestData = {
 
 describe('useSoloTestData', () => {
   beforeEach(() => {
+    vi.mocked(readSoloProgress).mockResolvedValue({ progress: null, matchedKey: null });
     vi.clearAllMocks();
     vi.mocked(getStudentSafeTestFromFirebase).mockResolvedValue({
       success: true,
@@ -102,6 +105,17 @@ describe('useSoloTestData', () => {
       unmount();
     }
     expect(getStudentSafeTestFromFirebase).not.toHaveBeenCalled();
+  });
+
+  it('resumes the saved Listening text version and uses the current version for a fresh attempt', async () => {
+    const current = { ...mockStudentSafeTestData, skill: 'Listening', versionId: 'new-version' } as any;
+    const saved = { ...current, versionId: 'old-version', questions: [{ number: 1, question: 'Original prompt' }] };
+    vi.mocked(readSoloProgress).mockResolvedValue({ progress: { materialId: 'test-1', studentId: 'student-1', listeningDocument: saved } as any, matchedKey: 'progress' });
+    const { result, rerender } = renderHook(({ resume }) => useSoloTestData({ materialId: 'test-1', initialTestData: current,
+      studentId: 'student-1', resumeListeningProgress: resume }), { initialProps: { resume: true } });
+    await waitFor(() => expect(result.current.testData?.versionId).toBe('old-version'));
+    rerender({ resume: false });
+    await waitFor(() => expect(result.current.testData?.versionId).toBe('new-version'));
   });
 
   it('ignores an older mutable read that finishes after pinned homework content arrives', async () => {

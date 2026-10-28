@@ -16,6 +16,7 @@ import { deriveIeltsPassageResults } from '../../services/ieltsPassageResults.se
 import { markTest } from '../../services/autoMarking.service';
 import type { StudentAnswer } from '../../services/autoMarking.service';
 import type { ResultContext } from '../../types/solo.types';
+import { submitListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
 
 // ============================================================
 // TYPES
@@ -112,6 +113,12 @@ export async function autoSubmitDisconnectedStudents(
 
     for (const student of disconnectedStudents) {
         try {
+            if (testMetadata.skill.toLowerCase() === 'listening') {
+                await submitListeningLiveTest({ sessionCode, testId, studentId: student.studentId });
+                results.push({ success: true, studentId: student.studentId, studentName: student.name,
+                    submittedCount: checkSubmissionCompleteness(student.answers, testMetadata.questionCount ?? 0).answeredCount });
+                continue;
+            }
             const totalQuestions = testMetadata.questionCount ?? Object.keys(student.answers || {}).length;
 
             // Check completeness (PRD-0019)
@@ -404,6 +411,12 @@ export async function autoSubmitAllUnsubmittedStudents(
 
     for (const student of unsubmittedStudents) {
         try {
+            if (testMetadata.skill.toLowerCase() === 'listening') {
+                const result = await submitListeningLiveTest({ sessionCode, testId, studentId: student.studentId });
+                results.push({ success: true, studentId: student.studentId, studentName: student.name,
+                    resultId: result.resultId, answeredCount: checkSubmissionCompleteness(student.answers, testQuestions.length).answeredCount });
+                continue;
+            }
             // 1. Extract student's answers from auto-saved format
             // Firebase auto-save format: { questionNum: { answer: value, timestamp: ... } }
             // We need to convert to StudentAnswer format for markTest

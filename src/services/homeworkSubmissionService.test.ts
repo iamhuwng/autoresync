@@ -23,6 +23,8 @@ const mockIsStudentExemptedFromHomework = vi.hoisted(() => vi.fn(() => false));
 const mockDeleteTestResult = vi.hoisted(() => vi.fn());
 const mockCreateTrustedNotification = vi.hoisted(() => vi.fn());
 const mockDispatchHomeworkResetNotification = vi.hoisted(() => vi.fn());
+const mockStartListeningHomework = vi.hoisted(() => vi.fn());
+vi.mock('../features/assessment/listening/runtime/listeningSubmissionClient', () => ({ startListeningHomework: mockStartListeningHomework }));
 
 vi.mock('firebase/firestore', () => {
     const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -142,6 +144,14 @@ import {
     submitHomework,
 } from './homeworkSubmissionService';
 
+it('creates Listening attempts through the trusted start service', async () => {
+    mockGetHomeworkById.mockResolvedValue(buildHomework({ materialSkill: 'listening' }));
+    const submission = buildSubmission({ listeningVersionId: 'version-latest' });
+    mockStartListeningHomework.mockResolvedValue(submission);
+    await expect(createSubmission('homework-1', 'student-1', 'Student One')).resolves.toBe(submission);
+    expect(mockStartListeningHomework).toHaveBeenCalledWith({ homeworkId: 'homework-1', operationId: expect.any(String) });
+});
+
 const mockHomeworkId = 'homework-1';
 const mockStudentId = 'student-1';
 
@@ -207,6 +217,7 @@ const buildSubmission = (overrides: Partial<HomeworkSubmission> = {}): HomeworkS
     studentAnswers: overrides.studentAnswers,
     attemptsNullified: overrides.attemptsNullified,
     integrity: overrides.integrity,
+    listeningVersionId: overrides.listeningVersionId,
 });
 
 const seedSubmission = (submission: HomeworkSubmission) => {

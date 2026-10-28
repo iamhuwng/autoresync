@@ -69,6 +69,8 @@ import {
   announceListeningPublishedArchive,
 } from '../../../features/assessment/listening/authoring/listeningAuthoringAnnouncements';
 import { listeningMakerStyles, listeningMakerTokens } from './listeningTestMakerTheme';
+import { ListeningQuestionContextEditor } from '../../../features/assessment/listening/authoring/ListeningQuestionContextEditor';
+import { renumberListeningContextQuestions, syncListeningQuestionUpdate } from '../utils/listeningQuestionContext';
 
 const isRetiredExternalAudioHost = (value: string): boolean => {
   try {
@@ -1809,14 +1811,16 @@ const ListeningTestBuilder: React.FC<ListeningTestBuilderProps> = ({
 
   // Update question
   const updateQuestion = (index: number, field: keyof ParsedQuestion, value: any) => {
-    setQuestions(questions.map((q, idx) =>
-      idx === index ? { ...q, [field]: value } : q
-    ));
+    if (field === 'context') trackAction('editListeningContext', { source: 'listening_builder', questionNumber: questions[index]?.number });
+    setQuestions(previous => {
+      const question = previous[index];
+      return question ? syncListeningQuestionUpdate(previous, question, { ...question, [field]: value }) : previous;
+    });
   };
 
   // Delete question
   const deleteQuestion = (index: number) => {
-    setQuestions(questions.filter((_, idx) => idx !== index));
+    setQuestions(renumberListeningContextQuestions(questions.filter((_, idx) => idx !== index)));
   };
 
   // Bulk parse answers for Image Mode
@@ -4380,6 +4384,8 @@ Write NO MORE THAN TWO WORDS for each answer.
                                   borderRadius: '0.375rem',
                                 }}
                               />
+                              {q.context && <ListeningQuestionContextEditor context={q.context} disabled={isSaving}
+                                onChange={context => updateQuestion(idx, 'context', context)} />}
                             </div>
                           )}
                         </div>

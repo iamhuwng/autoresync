@@ -3,10 +3,16 @@ import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { TestData } from '../../services/testStorage';
 import { getStudentSafeTestFromFirebase } from '../../services/testStorage';
+import type { SoloProgressScopeContext } from '../../types/practice.types';
+import { readSoloProgress } from '../../services/soloProgress.service';
+import { readListeningSoloVersionId } from '../../features/assessment/listening/runtime/solo/listeningSoloDeliveryAdapter';
 
 interface UseSoloTestDataOptions {
     materialId: string | undefined;
     initialTestData?: TestData;
+    studentId?: string;
+    scopeContext?: SoloProgressScopeContext;
+    resumeListeningProgress?: boolean;
 }
 
 interface UseSoloTestDataReturn {
@@ -24,7 +30,7 @@ interface UseSoloTestDataReturn {
  * Unlike useTestData (which subscribes to game_sessions), this is a one-shot load.
  * Full grading questions are loaded later by the submission hook only when needed.
  */
-export const useSoloTestData = ({ materialId, initialTestData }: UseSoloTestDataOptions): UseSoloTestDataReturn => {
+export const useSoloTestData = ({ materialId, initialTestData, studentId, scopeContext, resumeListeningProgress = true }: UseSoloTestDataOptions): UseSoloTestDataReturn => {
     const [testData, setTestData] = useState<TestData | null>(initialTestData ?? null);
     const [loading, setLoading] = useState(!initialTestData);
     const [error, setError] = useState<string | null>(null);
@@ -43,9 +49,16 @@ export const useSoloTestData = ({ materialId, initialTestData }: UseSoloTestData
             answerKeysRef.current = null;
 
             try {
-                const result = initialTestData
+                let result = initialTestData
                     ? { success: true, data: initialTestData }
                     : await getStudentSafeTestFromFirebase(materialId);
+                if (result.data?.skill === 'Listening' && studentId && resumeListeningProgress && scopeContext?.mode !== 'homework') {
+                    const { progress } = await readSoloProgress({ materialId, studentId, scopeContext });
+                    if (progress?.listeningDocument?.id === materialId && progress.listeningDocument.skill === 'Listening'
+                        && Array.isArray(progress.listeningDocument.questions) && readListeningSoloVersionId(progress.listeningDocument)) {
+                        result = { success: true, data: progress.listeningDocument };
+                    }
+                }
                 if (cancelled) return;
 
                 if (result.success && result.data) {
@@ -72,7 +85,7 @@ export const useSoloTestData = ({ materialId, initialTestData }: UseSoloTestData
 
         loadTest();
         return () => { cancelled = true; };
-    }, [materialId, initialTestData]);
+    }, [materialId, initialTestData, studentId, scopeContext, resumeListeningProgress]);
 
     return {
         testData,

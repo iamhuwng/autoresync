@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestSubmission } from './useTestSubmission';
 import { scoreQuestion } from '../../services/autoMarking.service';
 import { saveTestResult } from '../../services/testResults.service';
+import { submitListeningLiveTest } from '../../features/assessment/listening/runtime/listeningSubmissionClient';
+import { recordAttendance, linkTestResultToAttendance } from '../../services/attendanceService';
+
+vi.mock('../../features/assessment/listening/runtime/listeningSubmissionClient', () => ({ submitListeningLiveTest: vi.fn() }));
+vi.mock('../../services/attendanceService', () => ({ recordAttendance: vi.fn(), linkTestResultToAttendance: vi.fn() }));
 
 const {
   mockNavigate,
@@ -78,6 +83,31 @@ vi.mock('../../services/antiCheatReporting', () => ({
 }));
 
 describe('useTestSubmission', () => {
+  it('uses trusted Listening totals without reading answer keys or writing client scores', async () => {
+    mockUseLocation.mockReturnValue({ state: { assignmentId: 'assignment-1' } });
+    mockGet.mockImplementation(async (path: string) => ({ exists: () => path === 'game_sessions/SESSION123',
+      val: () => path === 'game_sessions/SESSION123' ? { courseId: 'course-1', linkedClassId: 'class-1', moduleId: 'module-1' } : null }));
+    vi.mocked(submitListeningLiveTest).mockResolvedValue({ resultId: 'trusted-1', correctAnswers: 1, totalQuestions: 1,
+      totalScore: 1, maxScore: 1, percentage: 100, bandScore: 9, questionResults: { 1: true } });
+    const { result } = renderHook(() => useTestSubmission({
+      testData: { id: 'test-1', skill: 'Listening', duration: 30, questionCount: 1,
+        questions: [{ number: 1, type: 'completion', answer: '' }] },
+      session: { testId: 'test-1', sessionCode: 'SESSION123', studentName: 'Student', startTime: 100,
+        answers: {}, isSubmitted: false }, sessionCode: 'SESSION123', answers: { 1: 'London' },
+      timeRemaining: 1200, skipConfirm: true,
+    }));
+    await act(async () => { await result.current.handleSubmit(); });
+    expect(submitListeningLiveTest).toHaveBeenCalledWith(expect.objectContaining({
+      sessionCode: 'SESSION123', testId: 'test-1', answers: { 1: 'London' }, assignmentId: 'assignment-1',
+    }));
+    expect(scoreQuestion).not.toHaveBeenCalled();
+    expect(saveTestResult).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(result.current.testResults?.percentage).toBe(100);
+    expect(recordAttendance).toHaveBeenCalledWith('course-1', 'class-1', 'module-1', 'guest_1', 'Guest Student', 'SESSION123');
+    expect(linkTestResultToAttendance).toHaveBeenCalledWith('course-1', 'class-1', 'module-1', 'guest_1', 'trusted-1');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseLocation.mockReturnValue({ state: null });

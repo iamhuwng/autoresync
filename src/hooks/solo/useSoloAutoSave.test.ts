@@ -79,6 +79,7 @@ describe('useSoloAutoSave', () => {
   });
 
   it('stores mobileState through the storage abstraction', async () => {
+    const listeningDocument = { id: 'material-1', skill: 'Listening', versionId: 'text-version-1', questions: [{ number: 1, question: 'Original question' }] } as any;
     const { result, unmount } = renderHook(() =>
       useSoloAutoSave({
         materialId: 'material-1',
@@ -87,6 +88,7 @@ describe('useSoloAutoSave', () => {
         currentQuestion: 4,
         timeElapsed: 125,
         mobileState: sampleMobileState,
+        listeningDocument,
         enabled: true,
       }),
     );
@@ -108,6 +110,7 @@ describe('useSoloAutoSave', () => {
         currentQuestion: 4,
         timeElapsed: 125,
         mobileState: sampleMobileState,
+        listeningDocument,
       }),
     );
 

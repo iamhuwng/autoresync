@@ -166,6 +166,14 @@ const getTokenCache = (saKeyJson: string, fetchImpl: typeof fetch): TokenCache =
   return cache;
 };
 
+export const getFirebaseServiceAccountAccessToken = (
+  env: RepositoryEnv,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<string> => {
+  if (!env.GOOGLE_SA_KEY?.trim()) throw new Error('missing_google_sa_key');
+  return getTokenCache(env.GOOGLE_SA_KEY, fetchImpl).getToken();
+};
+
 const stableCourseClaims = (claims: CourseBookAuthority102Claims): string => {
   switch (claims.operation) {
     case 'placement-transition':
