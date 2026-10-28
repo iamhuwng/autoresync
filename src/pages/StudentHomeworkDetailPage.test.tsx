@@ -319,7 +319,7 @@ describe('StudentHomeworkDetailPage', () => {
             taskGroups: [
               {
                 interactions: [
-                  { interactionId: 'q1' },
+                  { interactionId: 'q1', displayNumber: 1 },
                 ],
               },
             ],
@@ -340,6 +340,60 @@ describe('StudentHomeworkDetailPage', () => {
       expect(firebaseRefMock).not.toHaveBeenCalledWith({}, 'reading_v2/material_metadata/material-1');
     });
     expect(getTestFromFirebaseMock).toHaveBeenCalledWith('material-1');
+  });
+
+  it.each([0, 2])('loads a private Listening question count (%s) without reading the teacher record', async (count) => {
+    const state = useHomeworkSubmissionMock();
+    useHomeworkSubmissionMock.mockReturnValue({
+      ...state,
+      homework: { ...state.homework, materialSkill: 'listening', materialType: 'test' },
+    });
+    firebaseGetMock.mockImplementation(async (path: string) => ({
+      exists: () => true,
+      val: () => path.endsWith('/questionCount') ? count : '2026-10-29T00:00:00.000Z',
+    }));
+
+    renderPage();
+
+    expect(await screen.findByText(`${count} questions`)).toBeInTheDocument();
+    expect(firebaseRefMock).toHaveBeenCalledWith({}, 'student_safe_tests/material-1/questionCount');
+    expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
+    expect(startAttemptMock).not.toHaveBeenCalled();
+  });
+
+  it('finishes loading when Listening question metadata is unavailable', async () => {
+    const state = useHomeworkSubmissionMock();
+    useHomeworkSubmissionMock.mockReturnValue({
+      ...state,
+      homework: { ...state.homework, materialSkill: 'listening', materialType: 'test' },
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Question count unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Loading... questions')).not.toBeInTheDocument();
+    expect(getTestFromFirebaseMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the last Listening count visible during a failed metadata refresh', async () => {
+    const state = useHomeworkSubmissionMock();
+    const listeningState = { ...state, homework: { ...state.homework, materialSkill: 'listening', materialType: 'test' } };
+    useHomeworkSubmissionMock.mockReturnValue(listeningState);
+    firebaseGetMock.mockResolvedValue({ val: () => 2 });
+    const view = renderPage();
+    expect(await screen.findByText('2 questions')).toBeInTheDocument();
+
+    firebaseGetMock.mockRejectedValue(new Error('Temporarily offline'));
+    useHomeworkSubmissionMock.mockReturnValue({ ...listeningState, homework: { ...listeningState.homework } });
+    view.rerender(<MemoryRouter initialEntries={['/student/homework/hw-1']}><Routes>
+      <Route path="/student" element={<StudentShellRoute />}>
+        <Route path="homework/:homeworkId" element={<StudentHomeworkDetailPage />} />
+      </Route>
+    </Routes></MemoryRouter>);
+
+    expect(screen.getByText('2 questions')).toBeInTheDocument();
+    await waitFor(() => expect(firebaseGetMock).toHaveBeenCalledTimes(4));
+    expect(screen.queryByText('Loading homework...')).not.toBeInTheDocument();
   });
 
   it('shows Reading Passage set summary without legacy material lookup', async () => {

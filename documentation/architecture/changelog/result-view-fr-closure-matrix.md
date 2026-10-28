@@ -1,5 +1,12 @@
 # Result View FR Closure Matrix
 
+## 2026-10-29 Homework retake follow-up
+
+No PRD-0040 FR closure status changes. Focused homework regressions cover an
+eligible retake entering practice and an exhausted attempt opening the existing
+result panel. Private Listening metadata coverage includes zero questions,
+missing metadata, and retaining the last count after a failed refresh.
+
 ## 2026-10-28 Listening acceptance correction
 
 Recording-status and generated-feedback permission repairs do not change FR

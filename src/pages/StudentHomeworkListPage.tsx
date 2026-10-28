@@ -431,7 +431,7 @@ export const StudentHomeworkListPage: React.FC = () => {
             return;
         }
 
-        if ((status === 'submitted' || status === 'graded') && latestSubmission?.resultId) {
+        if (!canSubmit && (status === 'submitted' || status === 'graded') && latestSubmission?.resultId) {
             trackAction('viewHomeworkResult', {
                 homeworkId: homework.id,
                 resultId: latestSubmission.resultId,

@@ -1,5 +1,13 @@
 # Result View Surface Map
 
+## 2026-10-29 Homework retake navigation
+
+`StudentHomeworkListPage` opens the existing `DeferredResultSlidePanel` from
+the score panel, or from a completed assignment when another attempt is not
+allowed. An eligible Continue action creates an attempt through the existing
+submission service and enters `STUDENT_PRACTICE`. `StudentHomeworkDetailPage`
+keeps its existing result entry. No result shell or route is added.
+
 ## 2026-10-28 Listening acceptance permissions
 
 The existing saved-result shells and mapped hosts remain unchanged. The shared
