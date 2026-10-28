@@ -189,3 +189,88 @@ The extended existing Worker test checks preview GET and byte range, cross-owner
 probe denial, tampering, expiry and absence of shared-bucket reads. The affected
 upload/delivery suites pass 64/64. A Worker-only qualification/deployment and the
 existing-account browser acceptance remain required before release closure.
+
+## Release closure, October 29, 2026 (Asia/Bangkok)
+
+The focused Listening acceptance passed after the fresh-upload preview repair.
+PR #188 merged as `c77cdb7c229bead2ff0d027273586599c34cad45` with all six
+applicable CI checks passing; PR #189 merged as
+`564f33db266cd3d32a1526cce47eba61e9ce7fff` with all four checks passing. The
+64 affected upload/delivery cases and 92 release-tool/adjacent cases pass. Independent
+source review found no blocker. No additional Hosting build was needed for the
+Worker-only preview correction.
+
+Final deployed combination:
+
+| Surface | Verified version |
+| --- | --- |
+| Hosting | `31c9eafc2a7ce9be`, source `529854b97343b51cfbdff98618411763d8b1a9a4` |
+| Upload Worker | `bdb6df60-a44d-4063-a588-7af5706aebaa`, source `c77cdb7c229bead2ff0d027273586599c34cad45` |
+| Upload module SHA-256 | `a4c38392c8d8dd0970d2fc4c3cd8c6204842dd061ce94ec61c9f4bdff09b6a2c` |
+| RTDB canonical rules SHA-256 | `99b1f7ec32f8e94c0cf176e420aae8d2c1606056acc7404f69198baabbe7b520` |
+| Firestore rules | unchanged `654a30c61436c2f9f6e2716c9d9ca397cc5d662687de2bc914c3494f335901bc` |
+| Listening storage | `luyentap-listening-audio-private`, managed public access disabled, no custom domains |
+
+Native predeploy/postupload/postrules checks passed for the private-storage
+cutover. The subsequent preview-only predeploy and postupload checks passed with
+unchanged private bindings, rules and unrelated Workers. The first preview
+postupload observation returned provider HTTP 500 and remained UNVERIFIED; the
+fresh retry passed. The failed receipt is retained rather than rewritten.
+
+Live acceptance used the existing Teacher Test and Student Test accounts:
+
+- Cambridge public-library questions loaded. All four recordings played and
+  sought successfully: approximately 352.7, 415.3, 385.0 and 472.7 seconds.
+  Track transitions used the existing audio player; question navigation remains
+  independent of continuous playback.
+- Teacher replacement upload produced a six-second authorized preview, played
+  before saving, and Save Test returned the shared success announcement.
+- Student private homework loaded the updated interactive form and the same
+  six-second recording. Independent answers GREEN and QA submitted as 2/2,
+  100%, and the result remained visible after browser reload.
+- Generated feedback persisted on both the earlier result and the new result;
+  native `feedbackGenerationMeta.lastOutcome` is `saved-ai`. Reload showed the
+  saved feedback. The earlier BROWN-pinned 2/2 result stayed unchanged.
+- The new recording's 192,044 bytes match the teacher-upload SHA-256
+  `fe8c0372f7b2a8fc1bac7c997c7c566d641ffb97eb11046b80ef785f13306ff3`.
+  Its raw public URL returns 404; the superseded private recording is absent.
+  Existing private-bucket/unsigned-content/unauthenticated-issuer denial proofs
+  remain valid. Existing assignment-pin and teacher-notification proofs were
+  reused because this Worker response change does not invalidate them.
+
+Final QA version is `version-f198cd191755715855a186ffebddb1e9`, recording
+`kNIcLKTDWnzQtnc5E1V6Sg`, submission
+`listening_attempt_78b5bd81cec6233310853852d39e3b5b3ec9633d31896fbc7f1b81fa0a63a987`,
+and result
+`listening_result_7f970ca71af02f87e39a0e6b4311039cfcbc52e83079df19c14242263d931c07`.
+
+Evidence remains in `tmp/listening-live-release-20261027/`, including
+`live-cambridge-private-storage-acceptance.json`, `live-new-upload-preview.json`,
+`live-private-final-playback.json`, `live-final-audio-and-submit-proof.json`,
+`live-private-feedback-readback.json` and the matching screenshots. Native
+private-cutover receipts are in this checkout's `tmp/release-receipts/`; preview
+receipts and exact bundle/configuration are in the qualification checkout's
+`tmp/release-receipts/` and `cloudflare/tmp/listening-preview-release/`.
+
+Recovery references are Hosting `43db33dc8cf7b167` before the result correction,
+Upload `30503e0b-fedd-4e61-a7fc-0b2b3b548493` before the preview correction,
+and the verified copy/removal receipts `private-storage-copy.json` and
+`private-public-removal.json`. Prefer fix-forward. Keep the private binding and
+objects during recovery: a Worker rollback to public-bucket code or an isolated
+old Hosting/rules rollback is unsafe. Rolling back only to the preceding
+private Worker preserves saved playback but reintroduces the fresh-preview bug.
+
+Separate follow-ups: the submitted homework list's Continue action opens the
+last result; retakes are available from Homework Details. Private homework's
+question-count metadata can remain Loading while its authorized attempt loads
+correctly. The small recording-change note clips at the current desktop viewport;
+the player and form remain usable. Advanced Reading-style grouped/AST form editing remains explicitly
+under construction. These were not expanded in this release. PDF/Book source,
+provider settings and pre-existing primary-checkout work remain untouched.
+
+The evidence is also preserved outside the managed worktrees at
+`C:/Users/The Lord/repos/luyentap/tmp/listening-release-archive-20261029/listening-live-release-evidence.zip`.
+All 221 entries were read back and SHA-256 verified; archive SHA-256 is
+`e5b565f9c7a22a2976c570ddb7c5c1b40deb598959b28150b53b1b4504881396`.
+The adjacent `manifest.json` and `verified.json` record individual hashes and
+archive verification. The older October 27 archive is retained.

@@ -2,8 +2,8 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
-    "providerVersion": "43db33dc8cf7b167",
+    "sourceRevision": "529854b97343b51cfbdff98618411763d8b1a9a4",
+    "providerVersion": "31c9eafc2a7ce9be",
     "record": "2026-10-28-listening-functional-completion.md"
   },
   "homeworkWorker": {
@@ -27,17 +27,17 @@
   "databaseRules": {
     "project": "temp-a1437",
     "database": "temp-a1437-default-rtdb",
-    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
-    "fileSha256": "fd267b8552d5efb17788228eb12a38092e68b3b66957b1c53556a6f23d61c096",
-    "canonicalTreeSha256": "c2e1850860225e99ad095ec2ae1fe6ce717d0e3016b0ae57fd3eed6a21241a9a",
+    "sourceRevision": "29a264a08647ba512d3434afdfa93dd6f75d6eb7",
+    "fileSha256": "b90cdd2fa40700352ef9d951cc513660274fd6b6f9469dd778dd051b7ca7d926",
+    "canonicalTreeSha256": "99b1f7ec32f8e94c0cf176e420aae8d2c1606056acc7404f69198baabbe7b520",
     "resultReadSha256": "2d1c96a19cfc7c558820ce48516bda5d92eba662c472966ae1876fa4d28ff32c",
     "record": "2026-10-28-listening-functional-completion.md"
   },
   "uploadWorker": {
     "script": "r2-upload-signer",
-    "sourceRevision": "bb4a74349482a874dae0cadc1a935ca93fcab785",
-    "providerVersion": "4c8ade84-46a5-4b6b-98f3-42539972aab9",
-    "moduleSha256": "4e0c1819a3a2aacf5745ff4fbef01081033f0ff63ff9b516c7ab0e079efaeff5",
+    "sourceRevision": "c77cdb7c229bead2ff0d027273586599c34cad45",
+    "providerVersion": "bdb6df60-a44d-4063-a588-7af5706aebaa",
+    "moduleSha256": "a4c38392c8d8dd0970d2fc4c3cd8c6204842dd061ce94ec61c9f4bdff09b6a2c",
     "record": "2026-10-28-listening-functional-completion.md"
   },
   "firestoreRules": {
