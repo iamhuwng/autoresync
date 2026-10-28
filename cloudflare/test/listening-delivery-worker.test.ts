@@ -45,6 +45,7 @@ const makeWorker = () => {
     }),
   });
   const env = {
+    LISTENING_AUDIO_BUCKET: {},
     UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
   };
   return { deliveryIssuer, env, worker };
@@ -166,6 +167,7 @@ const makeDefaultDeliveryWorker = () => {
   const env = {
     LISTENING_DELIVERY_SECRET: 'local-listening-delivery-secret-32-bytes-minimum',
     R2_BUCKET: { get, head },
+    LISTENING_AUDIO_BUCKET: { get, head },
     UPLOAD_RATE_LIMITER: { limit: async () => ({ success: true }) },
     readDatabaseValue,
   };

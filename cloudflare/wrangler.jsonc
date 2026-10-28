@@ -15,6 +15,10 @@
     {
       "binding": "R2_BUCKET",
       "bucket_name": "kahoot-media"
+    },
+    {
+      "binding": "LISTENING_AUDIO_BUCKET",
+      "bucket_name": "luyentap-listening-audio-private"
     }
   ],
   "durable_objects": {
