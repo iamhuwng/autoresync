@@ -2,7 +2,7 @@
  * ListeningHeader Component - IELTS CBT Style
  * 
  * Header designed to properly accommodate the Listening audio player.
- * The player is given full minimum space, and our elements adapt around it.
+ * Identity and audio controls wrap on narrow desktop windows without changing exam mode.
  * 
  * Layout:
  * ┌───────────────────────────────────────────────────────────────────────┐
@@ -14,6 +14,7 @@ import React from 'react';
 import { AudioPlayer } from './AudioPlayer';
 import type { AuthorizedDeliveryConfig } from './AudioPlayer';
 import type { MasterAudioState, AudioMode, HeadphoneRequest, AudioPlayerMode } from '../../../types/audio.types';
+import './ListeningHeader.css';
 
 /** Audio controls configuration from teacher settings */
 interface AudioControlsConfig {
@@ -107,11 +108,10 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
 }) => {
     return (
         <header
+            className="listening-header"
             style={{
-                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0 24px',
                 minHeight: '60px',
                 flexShrink: 0,
                 backgroundColor: '#ffffff',
@@ -126,7 +126,7 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
             }}
         >
             {/* Left Section: Branding + User Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <div className="listening-header__identity" style={{ display: 'flex', alignItems: 'center' }}>
                 {/* Logo Area */}
                 <div style={{
                     fontSize: '20px',
@@ -141,9 +141,9 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
                 <div style={{ width: '1px', height: '24px', backgroundColor: '#e5e7eb' }} />
 
                 {/* User Info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="listening-header__student" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px', color: '#6b7280' }}>Test taker:</span>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+                    <span title={studentName} style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
                         {studentName}
                     </span>
                 </div>
@@ -201,8 +201,8 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
 
             {/* Right Section: Audio Player + Menu */}
             <div
+                className="listening-header__audio-menu"
                 style={{
-                    display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
                     flexShrink: 0,
@@ -210,7 +210,7 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
             >
                 {/* Audio Player Component (Proxy-enabled) */}
                 {hasAudio && audioUrl ? (
-                    <div style={{ minWidth: '400px', maxWidth: '600px', flex: 1 }}>
+                    <div className="listening-header__player">
                         <AudioPlayer
                             audioUrl={audioUrl}
                             sectionNumber={sectionNumber}
@@ -240,14 +240,13 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
                     </div>
                 ) : hasAudio ? (
                     <div
+                        className="listening-header__loading"
                         style={{
-                            width: '300px',
                             height: '45px',
                             backgroundColor: '#f3f4f6',
                             borderRadius: '8px',
                             fontSize: '12px',
                             color: '#6b7280',
-                            minWidth: '200px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -261,6 +260,7 @@ export const ListeningHeader: React.FC<ListeningHeaderProps> = ({
 
                 {/* Hamburger Menu */}
                 <button
+                    className="listening-header__menu"
                     onClick={onMenuClick}
                     style={{
                         width: '40px',
