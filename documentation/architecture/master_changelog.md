@@ -12,6 +12,12 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
 | 2026-07-08 | [`CL-20260708-CHANGELOG-SYSTEM-RESEARCH`](changelog/changelog-system-research.md) | Documentation | Research | Researched professional changelog and documentation maintenance patterns and adapted them to this repo. |
 
+## 2026-10-29 — Released
+
+| Date | ID | Area | Type | Summary |
+| --- | --- | --- | --- | --- |
+| 2026-10-29 | [`CL-20261029-LISTENING-HOMEWORK-UI-FIXES`](changelog/listening-homework-ui-fixes-2026-10-29.md) | Listening / Homework | Fixed | Restored eligible retakes, loaded private homework question counts, and prevented the recording notice from clipping; verified desktop and phone submission and saved-result access. |
+
 ## Historical Records
 
 | Date | ID | Area | Type | Summary |
