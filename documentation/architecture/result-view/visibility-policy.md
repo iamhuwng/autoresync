@@ -1,5 +1,13 @@
 # Result View Visibility Policy
 
+## 2026-10-30 Listening Classic observability
+
+Draft PR #196 adds playback control telemetry and presentation. It does not
+change result reads/writes, answer release, grading, private audio authority,
+assignment pins or Firebase rules. Existing replacement notices remain in the
+player; moving their presentation does not grant result or recording access.
+Actual private playback/submission/reloaded-result browser proof is pending.
+
 ## 2026-10-29 Homework retake navigation
 
 Retake navigation uses the existing `canSubmit` eligibility and canonical

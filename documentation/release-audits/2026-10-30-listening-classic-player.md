@@ -21,6 +21,10 @@ dirty work and was not staged, reset or switched.
 The implementation is saved in [draft PR #196](https://github.com/iamhuwng/autoresync/pull/196).
 Its exact-head CI results are available on the PR; they cannot clear the
 independent browser gate. It has not been merged or prepared as a release source.
+The first CI run required the shared-registry change to carry Result View
+Governance records. Those records were added to the existing surface map,
+visibility policy, FR matrix and preflight ledger, with no result behavior or
+FR-closure change. The governance check was preserved.
 
 The shared minimal player now has one responsive control tree with native
 ranges/disclosures and SVG controls. Source CSS specifies 64px wide and 88px

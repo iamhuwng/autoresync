@@ -1,5 +1,13 @@
 # Result View Surface Map
 
+## 2026-10-30 Listening Classic observability
+
+Draft PR #196 registers Listening playback/volume/options actions in the shared
+feature registry. The player remains hosted by `ListeningPracticeView` and
+`ListeningTestPage` through their existing header/mobile scaffold. No result
+surface, entry owner, route or saved-result data path changes. The existing
+saved-result shells and session/post-test map below retain their ownership.
+
 ## 2026-10-29 Homework retake navigation
 
 `StudentHomeworkListPage` opens the existing `DeferredResultSlidePanel` from
