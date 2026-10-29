@@ -51,3 +51,13 @@ Exact versions, evidence checksums, cache observations and recovery to
 [release audit](../../release-audits/2026-10-29-listening-narrow-desktop.md).
 The current layout contract is in
 [Listening desktop header layout](../listening-desktop-header-layout.md).
+
+## Unreleased Classic refinement — 2026-10-30
+
+The approved Classic control design is implemented on an isolated source
+branch. It consolidates the minimal player into one responsive control tree,
+with 64px wide/88px narrow bars, native seek controls, visible speed and compact
+volume/optional-action panels. This refinement has not been deployed: mandatory
+real-browser verification is blocked by the browser tool's URL-policy check.
+The [current audit](../../release-audits/2026-10-30-listening-classic-player.md)
+records source checks, unresolved qualification and the untouched live baseline.

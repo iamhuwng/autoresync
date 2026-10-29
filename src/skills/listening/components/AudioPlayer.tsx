@@ -22,6 +22,8 @@ import { SyncIndicator } from '../../../components/test/SyncIndicator';
 import type { MasterAudioState, AudioMode, AudioPlayerMode, HeadphoneRequest } from '../../../types/audio.types';
 import { listeningDiagnostics } from '../../../utils/listeningDiagnostics';
 import { ListeningAudioReplacementNotice } from '../../../features/assessment/listening/runtime/ListeningAudioReplacementNotice';
+import { useFeatureTracking } from '../../../hooks/useFeatureTracking';
+import { FEATURE_IDS } from '../../../config/featureRegistry';
 
 /** Audio controls configuration from teacher settings */
 interface AudioControlsConfig {
@@ -237,6 +239,19 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onRequestHeadphones,
   authorizedDelivery,
 }) => {
+  const { trackAction } = useFeatureTracking(FEATURE_IDS.testTaking);
+  const controlsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const dismissPanels = (event: PointerEvent) => {
+      controlsRef.current?.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(panel => {
+        if (!panel.contains(event.target as Node)) panel.open = false;
+      });
+    };
+    document.addEventListener('pointerdown', dismissPanels);
+    return () => document.removeEventListener('pointerdown', dismissPanels);
+  }, []);
+
   // Resolve settings: prefer audioControls if provided, fall back to legacy props
   const allowPause = audioControls?.showPlayPause ?? allowPauseLegacy;
   const allowRewind = audioControls?.showSeekControl ?? allowRewindLegacy;
@@ -1026,6 +1041,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   ]);
 
   const handlePlayPausePress = useCallback(() => {
+    trackAction('toggleListeningAudio', { sectionNumber, playing: !effectiveIsPlaying });
     const audio = audioRef.current;
     if (!audio) {
       onPlayPause();
@@ -1062,6 +1078,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     effectiveVolume,
     onPlayPause,
     playbackSpeed,
+    trackAction,
   ]);
 
   // Control playback
@@ -1223,8 +1240,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       const newTime = parseFloat(e.target.value);
       audio.currentTime = newTime;
       setCurrentTime(newTime);
+      trackAction('seekListeningAudio', { sectionNumber, position: newTime });
     }
-  }, [allowRewind, currentTime]);
+  }, [allowRewind, currentTime, sectionNumber, trackAction]);
 
   // Format time for display
   const formatTime = (seconds: number): string => {
@@ -1318,6 +1336,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }
 
   const handleSpeedChange = (newSpeed: number) => {
+    trackAction('changeListeningSpeed', { sectionNumber, speed: newSpeed });
     setLocalSpeed(newSpeed);
     const audio = audioRef.current;
     if (audio) {
@@ -1326,825 +1345,137 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     onSpeedChange?.(newSpeed);
   };
 
-  // IELTS-style Minimal Player
-  if (minimal && mobileLayout) {
-    const replayRemaining = maxReplays - replaysUsed;
-    const showReplayControl =
-      allowReplay &&
-      replaysUsed < maxReplays &&
-      currentTime >= duration &&
-      duration > 0;
-    const compactSecondaryButtonStyle: React.CSSProperties = {
-      minHeight: '44px',
-      padding: '0 8px',
-      fontSize: '11px',
-      fontWeight: 600,
-      borderRadius: '10px',
-      border: '1px solid #cbd5e1',
-      backgroundColor: 'white',
-      color: '#475569',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      whiteSpace: 'nowrap',
-      touchAction: 'manipulation',
-      WebkitTapHighlightColor: 'transparent',
-    };
-
-    return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        padding: '4px 0 6px',
-      }}>
-        {/* Offline Mode Banner - Request Headphones */}
-        {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              padding: '10px 12px',
-              backgroundColor: 'rgba(251, 191, 36, 0.1)',
-              border: '1px solid rgba(251, 191, 36, 0.3)',
-              borderRadius: '10px',
-              fontSize: '12px',
-            }}
-          >
-            <span style={{ color: '#92400e', fontWeight: 600 }}>
-              Audio is muted in classroom mode
-            </span>
-            <button
-              onClick={onRequestHeadphones}
-              disabled={isHeadphoneRequestPending}
-              type="button"
-              style={{
-                minHeight: '44px',
-                padding: '0 14px',
-                fontSize: '12px',
-                fontWeight: 700,
-                backgroundColor: isHeadphoneRequestPending ? '#e5e7eb' : '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: isHeadphoneRequestPending ? 'not-allowed' : 'pointer',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {isHeadphoneRequestPending ? 'Pending...' : 'Request Headphones'}
-            </button>
-          </div>
-        )}
-
-        {renderRefreshWarning()}
-
-        {/* Hidden Audio Element */}
-        <audio
-          ref={audioRef}
-          src={audioSource?.url}
-          preload="metadata"
-          style={{ display: 'none' }}
-        />
-
-        {/* Sync Indicator for Online Mode */}
-        {isOnlineMode && (isSyncing || isTeacherDisconnected) && (
-          <SyncIndicator
-            isSyncing={isSyncing}
-            isTeacherDisconnected={isTeacherDisconnected}
-          />
-        )}
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '44px minmax(0, 1fr)',
-          alignItems: 'start',
-          gap: '8px',
-        }}>
-          {effectiveAllowPause ? (
-            <button
-              onClick={handlePlayPausePress}
-              aria-label={effectiveIsPlaying ? 'Pause' : 'Play'}
-              type="button"
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#374151',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                flexShrink: 0,
-                transition: 'all 0.2s',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {effectiveIsPlaying ? '⏸' : '▶'}
-            </button>
-          ) : (
-            <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '50%',
-              backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#94a3b8',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '16px',
-              flexShrink: 0,
-            }}>
-              {effectiveIsPlaying ? '🎧' : '⏸'}
-            </div>
-          )}
-
-          <div style={{
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-          }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) auto',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <div style={{
-                minWidth: 0,
-                fontSize: '12px',
-                lineHeight: 1.15,
-                fontWeight: 700,
-                color: '#0f172a',
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                whiteSpace: 'nowrap',
-              }}>
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                gap: '6px',
-                flexWrap: 'wrap',
-              }}>
-                {effectiveAllowSpeedControl && (
-                  <select
-                    value={localSpeed}
-                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                    aria-label="Playback speed"
-                    style={{
-                      minHeight: '44px',
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      borderRadius: '10px',
-                      border: '1px solid #cbd5e1',
-                      backgroundColor: 'white',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      minWidth: '60px',
-                      touchAction: 'manipulation',
-                      WebkitTapHighlightColor: 'transparent',
-                    }}
-                  >
-                    {speedOptions.map(speed => (
-                      <option key={speed} value={speed}>{speed}x</option>
-                    ))}
-                  </select>
-                )}
-
-                {effectiveShowSkipSection && onSkipSection && (
-                  <button
-                    onClick={onSkipSection}
-                    title="Skip to next section"
-                    aria-label="Skip to next section"
-                    type="button"
-                    style={compactSecondaryButtonStyle}
-                  >
-                    <span aria-hidden="true">⏭</span>
-                    <span>Skip</span>
-                  </button>
-                )}
-
-                {showReplayControl && (
-                  <button
-                    onClick={() => {
-                      const audio = audioRef.current;
-                      if (audio) {
-                        audio.currentTime = 0;
-                        setCurrentTime(0);
-                        setReplaysUsed(prev => prev + 1);
-                        void audio.play();
-                      }
-                    }}
-                    title={`Replay (${replayRemaining} remaining)`}
-                    aria-label={`Replay section (${replayRemaining} remaining)`}
-                    type="button"
-                    style={{
-                      ...compactSecondaryButtonStyle,
-                      border: '1px solid #10b981',
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      color: '#047857',
-                    }}
-                  >
-                    <span aria-hidden="true">↻</span>
-                    <span>Replay</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: effectiveShowVolumeControl
-                  ? 'minmax(0, 1fr) minmax(92px, 0.42fr)'
-                  : '1fr',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <input
-                className="audio-player-range audio-player-range--progress"
-                type="range"
-                min="0"
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                disabled={!effectiveAllowRewind}
-                aria-label="Audio progress"
-                style={{
-                  width: '100%',
-                  minHeight: '44px',
-                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
-                  cursor: effectiveAllowRewind ? 'pointer' : 'default',
-                  touchAction: 'manipulation',
-                  accentColor: '#3b82f6',
-                }}
-              />
-
-              {effectiveShowVolumeControl && (
-                <div
-                  style={{
-                    minWidth: 0,
-                    display: 'grid',
-                    gridTemplateColumns: '16px minmax(0, 1fr)',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: volume === 0 ? '#94a3b8' : '#475569',
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                      <path
-                        d="M2.5 6.5H5L8.5 3.5V12.5L5 9.5H2.5V6.5Z"
-                        fill="currentColor"
-                      />
-                      {volume === 0 ? (
-                        <path
-                          d="M10.5 5L13 11"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      ) : (
-                        <>
-                          <path
-                            d="M10.75 6C11.35 6.45 11.75 7.17 11.75 8C11.75 8.83 11.35 9.55 10.75 10"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                          />
-                          <path
-                            d="M12.5 4.5C13.45 5.35 14.05 6.65 14.05 8C14.05 9.35 13.45 10.65 12.5 11.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                          />
-                        </>
-                      )}
-                    </svg>
-                  </span>
-
-                  <input
-                    className="audio-player-range audio-player-range--volume"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={volume}
-                    onChange={(e) => {
-                      const newVolume = parseFloat(e.target.value);
-                      const audio = audioRef.current;
-                      if (audio) audio.volume = newVolume;
-                      onVolumeChange?.(newVolume);
-                    }}
-                    aria-label="Volume"
-                    style={{
-                      width: '100%',
-                      minHeight: '44px',
-                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
-                      cursor: 'pointer',
-                      touchAction: 'manipulation',
-                      accentColor: '#3b82f6',
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {false && effectiveShowVolumeControl && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '44px minmax(0, 1fr) 44px',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <button
-              onClick={() => {
-                const newVolume = Math.max(0, volume - 0.1);
-                const audio = audioRef.current;
-                if (audio) audio.volume = newVolume;
-                onVolumeChange?.(newVolume);
-              }}
-              type="button"
-              aria-label="Decrease volume"
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                background: '#f8fafc',
-                color: '#475569',
-                fontSize: '18px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              −
-            </button>
-
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                display: 'none',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                marginBottom: '4px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#475569',
-              }}>
-                <span>
-                  Volume {volume === 0 ? '🔇' : volume < 0.3 ? '🔈' : volume < 0.7 ? '🔉' : '🔊'}
-                </span>
-                <span>{Math.round(volume * 100)}%</span>
-              </div>
-              <input
-                className="audio-player-range audio-player-range--volume"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={(e) => {
-                  const newVolume = parseFloat(e.target.value);
-                  const audio = audioRef.current;
-                  if (audio) audio.volume = newVolume;
-                  onVolumeChange?.(newVolume);
-                }}
-                aria-label="Volume"
-                style={{
-                  width: '100%',
-                  minHeight: '28px',
-                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
-                  cursor: 'pointer',
-                  touchAction: 'manipulation',
-                  accentColor: '#3b82f6',
-                }}
-              />
-            </div>
-
-            <button
-              onClick={() => {
-                const newVolume = Math.min(1, volume + 0.1);
-                const audio = audioRef.current;
-                if (audio) audio.volume = newVolume;
-                onVolumeChange?.(newVolume);
-              }}
-              type="button"
-              aria-label="Increase volume"
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                border: '1px solid #cbd5e1',
-                background: '#f8fafc',
-                color: '#475569',
-                fontSize: '18px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              +
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
+  // One media node and control tree across desktop, tablet and phone widths.
   if (minimal) {
+    const replayRemaining = maxReplays - replaysUsed;
+    const showReplayControl = !teacherControlledOnline && !hideControlsForOffline && allowReplay && replayRemaining > 0 && currentTime >= duration && duration > 0;
+    const showNextControl = effectiveShowSkipSection && onSkipSection;
+
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0',
-      }}>
-        {/* Offline Mode Banner - Request Headphones */}
-        {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '8px 12px',
-              backgroundColor: 'rgba(251, 191, 36, 0.1)',
-              border: '1px solid rgba(251, 191, 36, 0.3)',
-              borderRadius: '6px',
-              fontSize: '12px',
-            }}
-          >
-            <span style={{ color: '#92400e' }}>
-              🔇 Audio is muted in classroom mode
-            </span>
-            <button
-              onClick={onRequestHeadphones}
-              disabled={isHeadphoneRequestPending}
-              type="button"
-              style={{
-                padding: '4px 8px',
-                minHeight: '44px',
-                fontSize: '11px',
-                backgroundColor: isHeadphoneRequestPending ? '#e5e7eb' : '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: isHeadphoneRequestPending ? 'not-allowed' : 'pointer',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {isHeadphoneRequestPending ? '⏳ Pending...' : '🎧 Request Headphones'}
-            </button>
-          </div>
-        )}
-
-        {renderRefreshWarning()}
-
-        {/* Main Player Row */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 0',
-        }}>
-          {/* Hidden Audio Element */}
-          <audio
-            ref={audioRef}
-            src={audioSource?.url}
-            preload="metadata"
-            style={{ display: 'none' }}
-          />
-
-          {/* Sync Indicator for Online Mode */}
-          {isOnlineMode && (isSyncing || isTeacherDisconnected) && (
-            <SyncIndicator
-              isSyncing={isSyncing}
-              isTeacherDisconnected={isTeacherDisconnected}
-            />
-          )}
-
-          {/* Play/Pause Button - only show if allowed */}
+      <div className="audio-player" ref={controlsRef}
+        onKeyDown={event => {
+          if (event.key !== 'Escape') return;
+          const panel = (event.target as HTMLElement).closest('details');
+          if (panel?.open) {
+            panel.open = false;
+            panel.querySelector('summary')?.focus();
+            event.stopPropagation();
+          }
+        }}
+        onBlur={event => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            event.currentTarget.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(panel => { panel.open = false; });
+          }
+        }}
+      >
+        <audio ref={audioRef} src={audioSource?.url} preload="metadata" style={{ display: 'none' }} />
+        <div className="audio-player__bar" role="group" aria-label="Listening audio controls">
           {effectiveAllowPause ? (
-            <button
-              onClick={handlePlayPausePress}
-              aria-label={effectiveIsPlaying ? 'Pause' : 'Play'}
-              type="button"
-              style={{
-                width: '32px',
-                minWidth: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#374151',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                flexShrink: 0,
-                transition: 'all 0.2s',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {effectiveIsPlaying ? '⏸' : '▶'}
+            <button className="audio-player__play" onClick={handlePlayPausePress}
+              aria-label={effectiveIsPlaying ? 'Pause' : 'Play'} type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                {effectiveIsPlaying ? <path d="M8 5v14M16 5v14" strokeWidth="3" /> : <path d="m9 5 10 7-10 7V5Z" strokeLinejoin="round" />}
+              </svg>
             </button>
           ) : (
-            /* Show playing indicator when pause not allowed */
-            <div style={{
-              width: '32px',
-              minWidth: '44px',
-              height: '44px',
-              borderRadius: '50%',
-              backgroundColor: effectiveIsPlaying ? '#3b82f6' : '#94a3b8',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              flexShrink: 0,
-            }}
-              role="status"
-              aria-label={effectiveIsPlaying ? 'Audio playing under teacher control' : 'Audio paused under teacher control'}
-            >
-              {effectiveIsPlaying ? '🎧' : '⏸'}
+            <div className="audio-player__play audio-player__controlled" role="status" tabIndex={-1}
+              aria-label={effectiveIsPlaying ? 'Audio playing under teacher control' : 'Audio paused under teacher control'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M4 14v-3a8 8 0 0 1 16 0v3M4 12h3v8H4v-8Zm13 0h3v8h-3v-8Z" />
+              </svg>
             </div>
           )}
-
-          {/* Progress Bar */}
-          <div style={{ flex: 1, position: 'relative', minWidth: '120px' }}>
-            <input
-              type="range"
-              min="0"
-              max={duration || 100}
-              value={currentTime}
-              onChange={handleSeek}
-              disabled={!effectiveAllowRewind}
-              aria-label="Audio progress"
-              style={{
-                width: '100%',
-                minHeight: '44px',
-                borderRadius: '3px',
-                outline: 'none',
-                appearance: 'none',
-                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
-                cursor: effectiveAllowRewind ? 'pointer' : 'default',
-                touchAction: 'manipulation',
-              }}
-            />
+          <div className="audio-player__timeline">
+            <input className="audio-player-range audio-player__seek" type="range" min="0" max={duration || 100}
+              value={currentTime} onChange={handleSeek} disabled={!effectiveAllowRewind}
+              aria-label="Audio progress" aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+              style={{ '--audio-percent': `${progressPercent}%` } as React.CSSProperties} />
+            <div className="audio-player__times"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>
           </div>
-
-          {/* Time Display */}
-          <div style={{
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            color: '#64748b',
-            minWidth: '70px',
-            textAlign: 'right',
-          }}>
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </div>
-
-          {/* Speed Control Dropdown */}
           {effectiveAllowSpeedControl && (
-            <select
-              value={localSpeed}
-              onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-              aria-label="Playback speed"
-              style={{
-                minHeight: '44px',
-                padding: '4px 6px',
-                fontSize: '11px',
-                borderRadius: '4px',
-                border: '1px solid #e2e8f0',
-                backgroundColor: 'white',
-                color: '#374151',
-                cursor: 'pointer',
-                minWidth: '55px',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              {speedOptions.map(speed => (
-                <option key={speed} value={speed}>{speed}x</option>
-              ))}
-            </select>
+            <label className="audio-player__speed-wrap">
+              <select className="audio-player__speed" value={localSpeed} aria-label="Playback speed"
+                onChange={event => handleSpeedChange(parseFloat(event.target.value))}>
+                {speedOptions.map(speed => <option key={speed} value={speed}>{speed}x</option>)}
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </label>
           )}
-
-          {/* Skip Section Button */}
-          {effectiveShowSkipSection && onSkipSection && (
-            <button
-              onClick={onSkipSection}
-              title="Skip to next section"
-              aria-label="Skip to next section"
-              type="button"
-              style={{
-                minHeight: '44px',
-                padding: '4px 8px',
-                fontSize: '11px',
-                borderRadius: '4px',
-                border: '1px solid #e2e8f0',
-                backgroundColor: 'white',
-                color: '#64748b',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              ⏭️
-            </button>
-          )}
-
-          {/* Replay Button (when audio ended and replay allowed) */}
-          {allowReplay && replaysUsed < maxReplays && currentTime >= duration && duration > 0 && (
-            <button
-              onClick={() => {
-                const audio = audioRef.current;
-                if (audio) {
-                  audio.currentTime = 0;
-                  setCurrentTime(0);
-                  setReplaysUsed(prev => prev + 1);
-                  void audio.play();
-                }
-              }}
-              title={`Replay (${maxReplays - replaysUsed} remaining)`}
-              aria-label={`Replay section (${maxReplays - replaysUsed} remaining)`}
-              type="button"
-              style={{
-                minHeight: '44px',
-                padding: '4px 8px',
-                fontSize: '11px',
-                borderRadius: '4px',
-                border: '1px solid #10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                color: '#10b981',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              🔄 Replay ({maxReplays - replaysUsed})
-            </button>
-          )}
-
-          {/* Volume Control - Always visible for accessibility */}
           {effectiveShowVolumeControl && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
-              {/* Decrease Volume Button */}
-              <button
-                onClick={() => {
-                  const newVolume = Math.max(0, volume - 0.1);
-                  const audio = audioRef.current;
-                  if (audio) audio.volume = newVolume;
-                  onVolumeChange?.(newVolume);
-                }}
-                type="button"
-                aria-label="Decrease volume"
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '4px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.15s',
-                  touchAction: 'manipulation',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-                title="Decrease volume"
-              >
-                −
-              </button>
-
-              {/* Volume Icon */}
-              <span style={{ fontSize: '12px' }}>
-                {volume === 0 ? '🔇' : volume < 0.3 ? '🔈' : volume < 0.7 ? '🔉' : '🔊'}
-              </span>
-
-              {/* Volume Slider */}
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                aria-label="Volume"
-                onChange={(e) => {
-                  const newVolume = parseFloat(e.target.value);
-                  const audio = audioRef.current;
-                  if (audio) audio.volume = newVolume;
-                  onVolumeChange?.(newVolume);
-                }}
-                style={{
-                  width: '80px',
-                  minHeight: '44px',
-                  borderRadius: '3px',
-                  outline: 'none',
-                  appearance: 'none',
-                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #e2e8f0 ${volume * 100}%, #e2e8f0 100%)`,
-                  cursor: 'pointer',
-                  touchAction: 'manipulation',
-                }}
-              />
-
-              {/* Volume Percentage */}
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#3b82f6',
-                minWidth: '32px',
-                textAlign: 'center',
-              }}>
-                {Math.round(volume * 100)}%
-              </span>
-
-              {/* Increase Volume Button */}
-              <button
-                onClick={() => {
-                  const newVolume = Math.min(1, volume + 0.1);
-                  const audio = audioRef.current;
-                  if (audio) audio.volume = newVolume;
-                  onVolumeChange?.(newVolume);
-                }}
-                type="button"
-                aria-label="Increase volume"
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '4px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f1f5f9',
-                  color: '#475569',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.15s',
-                  touchAction: 'manipulation',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-                title="Increase volume"
-              >
-                +
-              </button>
-            </div>
+            <details className="audio-player__pop audio-player__volume" onToggle={event => {
+              if (event.currentTarget.open) trackAction('openListeningVolume', { sectionNumber, playerMode });
+            }}>
+              <summary aria-label={`Volume, ${Math.round(volume * 100)} percent`} title="Volume">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path d="M3 9h4l5-4v14l-5-4H3V9Z" strokeLinejoin="round" />
+                  {volume === 0 ? <path d="m16 9 5 6m0-6-5 6" /> : <path d="M16 9a5 5 0 0 1 0 6m3-9a9 9 0 0 1 0 12" strokeLinecap="round" />}
+                </svg>
+              </summary>
+              <div className="audio-player__panel">
+                <div className="audio-player__panel-label"><span>Volume</span><output>{Math.round(volume * 100)}%</output></div>
+                <input className="audio-player-range" type="range" min="0" max="1" step="0.01" value={volume}
+                  aria-label="Volume" style={{ '--audio-percent': `${volume * 100}%` } as React.CSSProperties}
+                  onChange={event => {
+                    const newVolume = parseFloat(event.target.value);
+                    if (audioRef.current) audioRef.current.volume = newVolume;
+                    onVolumeChange?.(newVolume);
+                    trackAction('changeListeningVolume', { sectionNumber, volume: newVolume });
+                  }} />
+                <p>On phones and tablets, use your device volume buttons if needed.</p>
+              </div>
+            </details>
+          )}
+          {(showNextControl || showReplayControl) && (
+            <details className="audio-player__pop audio-player__options" onToggle={event => {
+              if (event.currentTarget.open) trackAction('openListeningPlaybackOptions', { sectionNumber, playerMode });
+            }}>
+              <summary aria-label="Playback options" title="Playback options">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+              </summary>
+              <div className="audio-player__panel">
+                {showReplayControl && (
+                  <button type="button" aria-label={`Replay section (${replayRemaining} remaining)`} onClick={event => {
+                    const audio = audioRef.current;
+                    if (audio) {
+                      audio.currentTime = 0;
+                      setCurrentTime(0);
+                      setReplaysUsed(prev => prev + 1);
+                      void attemptPlay('tap', false);
+                    }
+                    controlsRef.current?.querySelector<HTMLElement>('.audio-player__play')?.focus();
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    trackAction('replayListeningAudio', { sectionNumber, remaining: replayRemaining - 1 });
+                  }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg>
+                    Replay · {replayRemaining} remaining
+                  </button>
+                )}
+                {showNextControl && (
+                  <button type="button" aria-label="Skip to next section" onClick={event => {
+                    controlsRef.current?.querySelector<HTMLElement>('.audio-player__play')?.focus();
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    trackAction('skipListeningSection', { sectionNumber });
+                    onSkipSection();
+                  }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 5 10 7-10 7V5ZM19 5v14" /></svg>
+                    Next section
+                  </button>
+                )}
+              </div>
+            </details>
           )}
         </div>
+        {isOnlineMode && (isSyncing || isTeacherDisconnected) && <SyncIndicator isSyncing={isSyncing} isTeacherDisconnected={isTeacherDisconnected} />}
+        {isOfflineMode && !hasHeadphonePermission && onRequestHeadphones && (
+          <div className="audio-player__classroom" role="status" aria-live="polite">
+            <span>Audio is muted in classroom mode</span>
+            <button type="button" onClick={() => {
+              trackAction('requestListeningHeadphones', { sectionNumber });
+              onRequestHeadphones();
+            }} disabled={isHeadphoneRequestPending}>{isHeadphoneRequestPending ? 'Pending...' : 'Request Headphones'}</button>
+          </div>
+        )}
+        {renderRefreshWarning()}
       </div>
     );
   }
