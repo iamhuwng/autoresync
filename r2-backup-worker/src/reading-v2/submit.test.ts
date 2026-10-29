@@ -25,6 +25,17 @@ const makeSnapshot = (input: {
     publishedAt: '2026-06-01T00:00:00.000Z',
     publishedBy: 'teacher-1',
     document: {
+        documentId: 'document-1',
+        deliveryEngine: READING_V2_ENGINE,
+        plane: 'canonical',
+        schemaVersion: 1,
+        sectionIds: ['section_1'],
+        sections: {
+            section_1: { sectionId: 'section_1', stimulusIds: [], taskGroupIds: ['task_group_1'] },
+        },
+        stimuli: {},
+        anchors: {},
+        optionSets: {},
         interactions: {
             interaction_1: {
                 interactionId: 'interaction_1',
@@ -34,14 +45,18 @@ const makeSnapshot = (input: {
                     maxScore: 1,
                     acceptableAnswers: [input.answer],
                 },
-                reviewLabel: { displayNumber: 1 },
+                // Firebase drops reviewLabel when its authoring value is {}.
             },
         },
         taskGroups: {
             task_group_1: {
                 taskGroupId: 'task_group_1',
+                sectionId: 'section_1',
                 officialTaskType: 'sentence-completion',
                 engineeringFamily: 'completion',
+                interactionIds: ['interaction_1'],
+                stimulusRefs: [],
+                optionSetRefs: [],
             },
         },
     },
@@ -203,11 +218,11 @@ describe('Reading V2 Worker submit route', () => {
         vi.mocked(getFirebaseAccessToken).mockResolvedValue('google-token');
     });
 
-    it('loads the assigned homework owner before saving a result from another teacher’s material', async () => {
+    it.each([false, true])('validates the loaded material before saving for the assigning teacher (broken reference: %s)', async (brokenReference) => {
+        const snapshot = makeSnapshot({ materialId: 'material-1', snapshotVersionId: 'snapshot-1', answer: 'Answer One' });
+        if (brokenReference) snapshot.document.taskGroups.task_group_1.interactionIds = ['missing-interaction'];
         const records = new Map<string, unknown>([
-            ['reading_v2/published_snapshots/material-1/snapshot-1', makeSnapshot({
-                materialId: 'material-1', snapshotVersionId: 'snapshot-1', answer: 'Answer One',
-            })],
+            ['reading_v2/published_snapshots/material-1/snapshot-1', snapshot],
             ['reading_v2/projections/review/material-1:snapshot-1', makeReviewProjection({
                 snapshotVersionId: 'snapshot-1', title: 'Assigned Reading',
             })],
@@ -238,6 +253,12 @@ describe('Reading V2 Worker submit route', () => {
         const response = await handleReadingV2Submit(request, {
             FIREBASE_PROJECT_ID: 'temp-a1437', FIREBASE_DB_URL: 'https://db.example.test', GOOGLE_SA_KEY: '{}',
         } as WorkerEnv);
+        if (brokenReference) {
+            expect(response.status).toBe(400);
+            expect(savedResult).toBeNull();
+            expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
+            return;
+        }
         expect(response.status).toBe(200);
         expect(savedResult?.teacherId).toBe('assigning-teacher');
         expect(savedResult?.visibility).toMatchObject({ visibilityOwnerTeacherId: 'assigning-teacher' });
