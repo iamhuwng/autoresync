@@ -18,6 +18,10 @@ in the existing `listening-durable-audio/luyentap` checkout, based on
 `35cb2591c70bc5782f2f734c1cf159e20a768836`. The canonical checkout has unrelated
 dirty work and was not staged, reset or switched.
 
+The implementation is saved in [draft PR #196](https://github.com/iamhuwng/autoresync/pull/196).
+Its exact-head CI results are available on the PR; they cannot clear the
+independent browser gate. It has not been merged or prepared as a release source.
+
 The shared minimal player now has one responsive control tree with native
 ranges/disclosures and SVG controls. Source CSS specifies 64px wide and 88px
 narrow bars, the approved 32px Play circle/44px target and 10px clearances.
@@ -84,8 +88,8 @@ Required before release: real desktop/tablet/narrow and phone layout, 44px
 targets, overflow and spacing; actual play/pause/seek/speed/volume, keyboard
 focus, policy/optional controls, all four Cambridge recordings, and private
 answer/submit/reloaded results. Physical phone/iPad audio remains untested.
-Final clean-source checks, PR/CI, exact live-based candidate comparison,
-compatibility receipt and guarded Hosting publication remain pending.
+Final clean-source release qualification, merge, exact live-based candidate
+comparison, compatibility receipt and guarded Hosting publication remain pending.
 
 ## Publication and recovery
 
