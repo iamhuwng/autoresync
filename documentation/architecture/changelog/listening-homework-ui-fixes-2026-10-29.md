@@ -46,3 +46,10 @@ Phone checks used browser emulation; physical phones were not tested.
 
 Detailed evidence, archived checksums and the preceding Hosting recovery
 version are in the [release audit](../../release-audits/2026-10-29-listening-homework-ui.md).
+
+## Subsequent release
+
+The later [narrow desktop header fix](listening-narrow-desktop-2026-10-29.md)
+resolves the standard-layout horizontal overflow recorded above. The original
+release evidence remains historical; the follow-up records its own remaining
+floating-arrow qualification and current Hosting version.
