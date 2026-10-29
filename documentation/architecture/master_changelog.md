@@ -16,6 +16,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-10-29 | [`CL-20261029-LISTENING-NARROW-DESKTOP`](changelog/listening-narrow-desktop-2026-10-29.md) | Listening | Fixed | Removed narrow desktop header overflow while preserving wide geometry, uninterrupted audio and the phone workflow; verified saved desktop/phone results and recorded the remaining floating-arrow overlap. |
 | 2026-10-29 | [`CL-20261029-LISTENING-HOMEWORK-UI-FIXES`](changelog/listening-homework-ui-fixes-2026-10-29.md) | Listening / Homework | Fixed | Restored eligible retakes, loaded private homework question counts, and prevented the recording notice from clipping; verified desktop and phone submission and saved-result access. |
 
 ## Historical Records

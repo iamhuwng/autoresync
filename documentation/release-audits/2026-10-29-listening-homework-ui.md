@@ -107,3 +107,11 @@ All 41 entries were read back and SHA-256 verified. Archive SHA-256:
 `42c560cbeeff4c521fdf08ee7d1f63a46016dab77e9a6b4fe274bc1ff803ad65`.
 The adjacent listening-homework-ui-manifest.json and
 listening-homework-ui-verified.json retain individual hashes and verification.
+
+## Subsequent narrow desktop release
+
+The later [narrow desktop release](2026-10-29-listening-narrow-desktop.md)
+resolves the standard-layout horizontal overflow recorded here and supersedes
+this Hosting version. Its audit preserves exact new provider/source evidence,
+desktop/phone acceptance, recovery and the remaining floating-arrow visual
+qualification. This record remains evidence of the preceding release.
