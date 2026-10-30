@@ -7,7 +7,9 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { assess } from './release-check.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
-import { writeHostingManifest } from './release-evidence.mjs';
+import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
+import { prepareDeploymentChangelog } from './release-changelog.mjs';
+import { executeRecordedOperation } from './release-operation.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -248,6 +250,33 @@ const run = (commandArgs, env, cwd = repoRoot) => {
   }
 };
 
+export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run, storeDir,
+  observeSource = observeHosting, observeProvider = observeHostingProvider }) => {
+  const changelog = prepareDeploymentChangelog(base, cwd, storeDir);
+  const before = observeProvider();
+  const expected = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
+  if (expected.revision !== changelog.targets[0].binding.sourceRevision) throw new Error('Hosting build source differs from the approved changelog source; rebuild before deployment.');
+  return executeRecordedOperation(changelog, {
+    storeDir,
+    execute: record => {
+      console.log(record.description);
+      runDeploy([path.join(cwd, 'scripts/tooling-where.mjs'), '--exec', 'firebase', 'deploy',
+        '--only', `hosting:${expectedHostingTarget}`, '--project', expectedProjectId,
+        '--non-interactive', '--message', record.targets[0].annotation ?? record.description], env, cwd);
+    },
+    observe: async record => {
+      const source = await observeSource();
+      const provider = observeProvider();
+      const expectedFingerprint = crypto.createHash('sha256').update(JSON.stringify(expected)).digest('hex');
+      const changed = provider.provider.version !== before.provider.version || provider.provider.releaseTime !== before.provider.releaseTime;
+      if (!changed || source.fingerprint !== expectedFingerprint) return null;
+      return { outcomes: [{ id: record.targets[0].id, publication: 'published',
+        providerIdentity: `${provider.provider.version}@${provider.provider.releaseTime}`,
+        verification: 'passed', evidenceRefs: [source.evidenceRef, provider.evidenceRef] }] };
+    },
+  });
+};
+
 const assertProductionBundle = async (cwd = repoRoot) => {
   const distRoot = path.join(cwd, 'dist');
   const files = [];
@@ -329,13 +358,7 @@ const main = async () => {
       cwd,
       ...listeningOptions,
     });
-    run([
-      path.join(sourceScripts, 'tooling-where.mjs'),
-      '--exec', 'firebase', 'deploy',
-      '--only', `hosting:${expectedHostingTarget}`,
-      '--project', expectedProjectId,
-      '--non-interactive',
-    ], loaded.env, cwd);
+    await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd });
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

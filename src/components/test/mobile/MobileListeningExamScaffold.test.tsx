@@ -62,6 +62,7 @@ describe('MobileListeningExamScaffold', () => {
     expect(getByTestId('mobile-listening-audio-row')).toBeTruthy();
     expect(getByTestId('mobile-listening-part-tabs')).toBeTruthy();
     expect(getByTestId('mobile-listening-main-content')).toBeTruthy();
+    expect(Number(getByTestId('mobile-listening-audio-row').style.zIndex)).toBeGreaterThan(Number(getByTestId('mobile-listening-part-tabs').style.zIndex));
   });
 
   it('renders host-provided audio row content', () => {

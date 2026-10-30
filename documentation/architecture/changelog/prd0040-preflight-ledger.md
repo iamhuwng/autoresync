@@ -1,5 +1,19 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-10-30 Listening Classic registry change record
+
+Draft PR #196 touches test-taking observability in `featureRegistry.ts`; saved
+results and session/post-test behavior are outside this change. `AudioPlayer`
+stays in `ListeningPracticeView`/`ListeningTestPage`, through the existing
+Listening header/mobile scaffold on practice, homework-test and student-test
+routes. Existing saved-result shells and their mapped entry owners are retained.
+There are no new result data paths, rules or ownership decisions. Playback
+metadata uses the existing reporting port; the recording notice keeps its
+existing timestamp read. Player/host/mode/sync/mobile regressions pass 106 tests;
+result-specific/security tests are N/A for this presentation/registry delta.
+Private playback, submission and reloaded-result browser acceptance are pending.
+See [the scoped audit](../../release-audits/2026-10-30-listening-classic-player.md).
+
 ## 2026-10-29 Listening homework UI follow-up
 
 Domain: saved-result entry ownership. Hosts: StudentHomeworkListPage and

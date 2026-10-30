@@ -26,6 +26,7 @@ import { MobileOverflowMenu } from './MobileOverflowMenu';
 import type { MobileOverflowMenuItem } from './MobileOverflowMenu';
 import { MobileTextSizeControl } from './MobileTextSizeControl';
 import { MobileInstructionsModal } from './MobileInstructionsModal';
+import { MOBILE_LISTENING_LAYER_Z_INDEX } from './mobileListeningLayering';
 import type { PracticeContext } from '../../practice/IELTSPracticeView';
 import type { ResolvedPracticeSettings } from '../../../types/practice.types';
 
@@ -128,6 +129,8 @@ const scaffoldRootStyle: React.CSSProperties = {
 };
 
 const audioRowStyle: React.CSSProperties = {
+  position: 'relative',
+  zIndex: MOBILE_LISTENING_LAYER_Z_INDEX.AUDIO_ROW,
   flexShrink: 0,
   background: '#ffffff',
   borderBottom: '1px solid #e2e8f0',

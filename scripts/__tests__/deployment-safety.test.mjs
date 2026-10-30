@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { access, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  deployHosting,
   assertCleanWorkingTree,
   assertReleaseAssessment,
   assertListeningHostingReady,
@@ -15,6 +17,7 @@ import {
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
 import { replaceSnapshot } from '../local-firebase.mjs';
+import { listReleases } from '../lib/releaseChangelog.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
@@ -399,4 +402,38 @@ test('Listening Hosting blocks early phases and incomplete homework qualificatio
   }
   assert.doesNotThrow(() => assertListeningHostingReady({ listeningObservation: { phase: 'homework' }, hostingReady: true }, true));
   assert.doesNotThrow(() => assertListeningHostingReady({}));
+});
+
+test('Hosting records publication only after new provider identity and matching built manifest', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'recorded-hosting-'));
+  const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
+  try {
+    git('init', '-q'); git('config', 'user.name', 'Changelog Test'); git('config', 'user.email', 'test@example.invalid');
+    await writeFile(path.join(cwd, 'index.html'), 'website'); git('add', '.'); git('commit', '-qm', 'Website');
+    const base = git('rev-parse', 'HEAD');
+    const manifest = { revision: base, files: [] };
+    await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+    const storeDir = path.join(cwd, '.git', 'journal');
+    let reads = 0;
+    const result = await deployHosting({ base, cwd, storeDir,
+      runDeploy: (args, env, selectedCwd) => {
+        assert.equal(selectedCwd, cwd);
+        assert.equal(args[0], path.join(cwd, 'scripts/tooling-where.mjs'));
+        assert.ok(args[args.indexOf('--message') + 1]);
+        assert.equal(listReleases(storeDir)[0].targets[0].publication, 'unconfirmed');
+      },
+      observeProvider: () => ({ provider: { version: reads++ ? 'new' : 'old', releaseTime: 'time' }, evidenceRef: 'fixture://provider' }),
+      observeSource: async () => ({ fingerprint: crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex'), evidenceRef: 'fixture://manifest' }) });
+    assert.equal(result.status, 'live');
+    assert.match(result.targets[0].providerIdentity, /new/u);
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify({ ...manifest, revision: 'f'.repeat(40) }));
+    await assert.rejects(() => deployHosting({ base, cwd, storeDir, runDeploy: () => assert.fail('stale build must not deploy'),
+      observeProvider: () => ({ provider: { version: 'old' } }) }), /build source differs/u);
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+    await assert.rejects(() => deployHosting({ base, cwd, storeDir, runDeploy: () => {},
+      observeProvider: () => ({ provider: { version: 'old', releaseTime: 'time' } }),
+      observeSource: async () => ({ fingerprint: crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex') }) }), /unconfirmed/u);
+    assert.equal(listReleases(storeDir).filter(release => release.targets[0].publication === 'unconfirmed').length, 1);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });
