@@ -19,23 +19,21 @@
 }
 
 .listening-header__player {
-    min-width: 400px;
-    max-width: 600px;
+    min-width: 0;
     flex: 1;
 }
 
 .listening-header__audio-menu {
     display: flex;
+    flex: 1;
+    min-width: 0;
+    max-width: 680px;
+    margin-left: 20px;
 }
 
 .listening-header__loading {
     width: 300px;
     min-width: 200px;
-}
-
-/* Keep the desktop media node mounted while its controls wrap. */
-.listening-header__player > div > div:has(> audio) {
-    flex-wrap: wrap;
 }
 
 @media (max-width: 1100px) {
@@ -53,6 +51,7 @@
 
     .listening-header__audio-menu {
         display: contents;
+        margin-left: 0;
     }
 
     .listening-header__player,

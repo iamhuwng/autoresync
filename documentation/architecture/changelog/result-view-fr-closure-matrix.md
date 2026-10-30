@@ -1,5 +1,13 @@
 # Result View FR Closure Matrix
 
+## 2026-10-30 Listening Classic observability
+
+Draft PR #196 changes shared-registry playback action names and the player UI.
+No PRD-0040/PRD-0041 FR is newly closed or reopened. Player/host/mobile regression
+tests pass; result-specific tests are N/A because no result implementation or
+policy changes. Required real-browser playback and saved-result acceptance
+remain blocked, as recorded in the [Classic audit](../../release-audits/2026-10-30-listening-classic-player.md).
+
 ## 2026-10-29 Homework retake follow-up
 
 No PRD-0040 FR closure status changes. Focused homework regressions cover an

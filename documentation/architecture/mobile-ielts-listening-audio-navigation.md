@@ -113,6 +113,12 @@ Manual live-test evidence from 2026-05-11:
 
 ## Related Docs
 
+The 2026-10-30 Classic source refinement shares the minimal AudioPlayer markup
+between standard and phone hosts. It uses available component width to choose
+64px/88px control bars and does not change this navigation or playback authority
+contract. Browser qualification and live publication are pending; see the
+[Classic audit](../release-audits/2026-10-30-listening-classic-player.md).
+
 - `documentation/tasks/tasks-0045-prd-mobile-ielts-listening-test-taking-interface.md`
 - `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md`
 - `documentation/architecture/student-test-delivery-projections.md`

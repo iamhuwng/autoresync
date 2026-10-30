@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAudioSync } from '../../../hooks/audio';
 import { AudioPlayer } from './AudioPlayer';
 vi.mock('../../../services/firebase', () => ({ database: {} }));
+const trackAction = vi.hoisted(() => vi.fn());
+vi.mock('../../../hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction }) }));
 vi.mock('firebase/database', () => ({ ref: vi.fn((_db, path) => ({ path })), onValue: vi.fn(() => vi.fn()) }));
 
 vi.mock('../../../hooks/audio', () => ({
@@ -40,6 +42,7 @@ describe('AudioPlayer', () => {
     playMock.mockReset();
     pauseMock.mockReset();
     loadMock.mockReset();
+    trackAction.mockClear();
     vi.mocked(useAudioSync).mockReturnValue({
       isSyncing: false,
       isTeacherDisconnected: false,
@@ -140,9 +143,77 @@ describe('AudioPlayer', () => {
     );
 
     expect(await screen.findByLabelText('Audio progress')).toBeTruthy();
-    expect(screen.getByLabelText('Volume')).toBeTruthy();
+    fireEvent.click(screen.getByTitle('Volume'));
+    expect(screen.getByRole('slider', { name: 'Volume', exact: true })).toBeTruthy();
     expect(screen.queryByLabelText('Decrease volume')).toBeNull();
     expect(screen.queryByLabelText('Increase volume')).toBeNull();
+  });
+
+  it('uses native controls and dismisses panels without replacing the media node', async () => {
+    const onVolumeChange = vi.fn();
+    const onSpeedChange = vi.fn();
+    const onSkipSection = vi.fn();
+    const props = {
+      audioUrl: 'https://cdn.example.com/audio.mp3', sectionNumber: 1, isPlaying: false,
+      volume: 0.6, playbackSpeed: 1, onPlayPause: vi.fn(), onTimeUpdate: vi.fn(),
+      onSectionComplete: vi.fn(), onError: vi.fn(), playerMode: 'solo' as const,
+      onVolumeChange, onSpeedChange, onSkipSection,
+    };
+    const { container, rerender } = render(<AudioPlayer {...props} />);
+    const seek = await screen.findByRole('slider', { name: 'Audio progress' });
+    const audio = container.querySelector('audio')!;
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 120 });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.change(seek, { target: { value: '30' } });
+    expect(audio.currentTime).toBe(30);
+    expect(seek).toHaveAttribute('aria-valuetext', '0:30 of 2:00');
+    fireEvent.change(screen.getByLabelText('Playback speed'), { target: { value: '1.25' } });
+    expect(audio.playbackRate).toBe(1.25);
+    expect(onSpeedChange).toHaveBeenCalledWith(1.25);
+
+    const volumeTrigger = screen.getByTitle('Volume');
+    fireEvent.click(volumeTrigger);
+    fireEvent.change(screen.getByRole('slider', { name: 'Volume', exact: true }), { target: { value: '0.4' } });
+    expect(audio.volume).toBe(0.4);
+    expect(onVolumeChange).toHaveBeenCalledWith(0.4);
+    fireEvent.keyDown(volumeTrigger, { key: 'Escape' });
+    expect(volumeTrigger.closest('details')).not.toHaveAttribute('open');
+    expect(volumeTrigger).toHaveFocus();
+    fireEvent.click(volumeTrigger);
+    fireEvent.pointerDown(document.body);
+    expect(volumeTrigger.closest('details')).not.toHaveAttribute('open');
+
+    fireEvent.click(screen.getByTitle('Playback options'));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip to next section' }));
+    expect(onSkipSection).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Play' })).toHaveFocus();
+    expect(trackAction).toHaveBeenCalledWith('skipListeningSection', { sectionNumber: 1 });
+    rerender(<AudioPlayer {...props} mobileLayout />);
+    expect(container.querySelector('audio')).toBe(audio);
+    expect(audio.currentTime).toBe(30);
+  });
+
+  it('preserves replay limits independently of pause permission', async () => {
+    const onPlayPause = vi.fn();
+    const { container } = render(<AudioPlayer audioUrl="https://cdn.example.com/audio.mp3" sectionNumber={1}
+      isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={onPlayPause} onTimeUpdate={() => {}}
+      onSectionComplete={() => {}} onError={() => {}} allowPause={false} allowReplay maxReplays={1} />);
+    await screen.findByRole('slider', { name: 'Audio progress' });
+    const audio = container.querySelector('audio')!;
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 6 });
+    fireEvent.loadedMetadata(audio);
+    audio.currentTime = 6;
+    fireEvent.timeUpdate(audio);
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    fireEvent.click(screen.getByTitle('Playback options'));
+    fireEvent.click(screen.getByRole('button', { name: 'Replay section (1 remaining)' }));
+    expect(audio.currentTime).toBe(0);
+    expect(playMock).toHaveBeenCalledOnce();
+    expect(onPlayPause).toHaveBeenCalledOnce();
+    expect(screen.getByRole('status', { name: 'Audio paused under teacher control' })).toHaveFocus();
+    audio.currentTime = 6;
+    fireEvent.timeUpdate(audio);
+    expect(screen.queryByTitle('Playback options')).toBeNull();
   });
 
   it('keeps a small replacement notice beside the playable recording', async () => {
@@ -584,9 +655,13 @@ describe('AudioPlayer', () => {
       />,
     );
 
-    expect(screen.getByRole('status').textContent).toMatch(/teacher connection lost/i);
+    expect(screen.getByText(/teacher connection lost/i)).toBeTruthy();
     expect(screen.getByLabelText('Audio progress')).toBeTruthy();
-    expect(screen.getByLabelText('Volume')).toBeTruthy();
+    expect(screen.getByTitle('Volume')).toBeTruthy();
+    expect(screen.getByLabelText('Audio progress')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull();
+    expect(screen.queryByLabelText('Playback speed')).toBeNull();
+    expect(screen.queryByTitle('Playback options')).toBeNull();
     expect(screen.getByText(/source expires soon/i)).toBeTruthy();
 
     rerender(
@@ -608,9 +683,8 @@ describe('AudioPlayer', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Play' }).tabIndex).not.toBe(-1);
+    fireEvent.click(screen.getByTitle('Playback options'));
     expect(screen.getByRole('button', { name: /skip to next section/i }).tabIndex).not.toBe(-1);
     expect(screen.getByLabelText('Playback speed')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /skip to next section/i }).style.minHeight).toBe('44px');
-    expect((screen.getByLabelText('Playback speed') as HTMLElement).style.minHeight).toBe('44px');
   });
 });
