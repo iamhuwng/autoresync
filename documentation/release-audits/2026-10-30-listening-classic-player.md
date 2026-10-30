@@ -1,6 +1,7 @@
 # Listening Classic player — 2026-10-30
 
-Status: source implemented; browser qualification blocked; not released.
+Status: source and local browser qualification complete; release preparation;
+not released.
 Scope: approved Classic presentation and required guarded Hosting recorder
 integration. No PDF/Book source, backend runtime, storage, authorization,
 assignment/version pins, grading or result schema changes.
@@ -92,8 +93,53 @@ Required before release: real desktop/tablet/narrow and phone layout, 44px
 targets, overflow and spacing; actual play/pause/seek/speed/volume, keyboard
 focus, policy/optional controls, all four Cambridge recordings, and private
 answer/submit/reloaded results. Physical phone/iPad audio remains untested.
-Final clean-source release qualification, merge, exact live-based candidate
-comparison, compatibility receipt and guarded Hosting publication remain pending.
+The initial blocker was resolved by using the explicitly requested in-app
+Browser on 2026-10-30, as recorded below. Final clean-source qualification,
+merge, exact live-based comparison, compatibility receipt, guarded Hosting
+publication and live private-delivery/result acceptance remain pending.
+
+## In-app browser qualification — 2026-10-30
+
+The actual local app was opened at `http://localhost:5174/login`; Student quick
+login succeeded. A bounded local fixture was necessary because this emulator
+dataset contained no Listening library material. Only two task-owned test/safe
+projection paths were seeded, with prior values saved. It uses a retained local
+WAV and real Library → Practice → player/form flow. It does not prove Cambridge
+or private delivery. No Book, Firestore, asset registry or live data was seeded.
+
+At desktop widths 1440/1024/768/375/320px, document width equals viewport width.
+Wide control bars measure 64px; narrow bars measure 88px. Across the full resize
+cycle the same audio backend node (48) remains playing, with currentTime
+advancing from 61.843 to 62.339 seconds. Mouse click and native ArrowRight seek,
+speed 1.25x, actual media volume 0.01, pause, Escape and focus were verified.
+
+Phone identity plus touch emulation selects the real mobile scaffold. At
+375/320px it measures 88px, 44×44px Play and 44px seek/speed regions, a 32px
+circle with 10px top inset, no overlap and no horizontal overflow. Actual play,
+seek, 1.5x speed and media volume 0.01 work. Volume-panel hit testing confirms
+it paints above tabs/content. Part 2 selects destination questions/audio and
+starts playback. Screenshots confirm the approved visible spacing.
+
+A real Header/AudioPlayer fixture supplies deterministic policy inputs: optional
+Next and Replay fit at 320px, replay consumes its limit, recording notice stays
+readable, teacher control removes Play/speed/Next and disables seek while keeping
+volume, classroom mode mutes/hides controls and requests headphones, and loading
+and retired-source error states remain readable. This is not live-class sync.
+
+Browser checks found and fixed two issues before release: the wide Play hover
+background needed its dark contrast preserved, and Replay needed to notify the
+host when restarting paused playback. Replay now shows Pause while real audio
+advances, retains focus, and cannot exceed its configured limit. The existing
+replay test asserts the host callback; all 106 UI regressions passed again.
+
+Evidence: canonical `tmp/listening-classic-20261030/browser-checks.json`,
+`local-desktop-*.jpg`, `local-phone-*.jpg`, `local-policy-*.jpg`; corrected test/build
+logs in candidate `tmp/listening-classic/`. Auth and the app/Worker now use
+Windows-owned `LuyenTap-Classic-auth`/`LuyenTap-Classic-student` tasks, with logs,
+launcher and recovery instructions outside the worktree in the canonical evidence
+directory. The in-app browser is Codex-managed and cannot be detached; its state
+is recoverable only through saved evidence and a fresh/reconnected tab. No
+physical phone, iPad, Safari audio or assistive-technology test is claimed.
 
 ## Publication and recovery
 

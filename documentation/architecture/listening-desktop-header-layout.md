@@ -38,8 +38,10 @@ Teacher control, classroom muting, source refresh, replacement notices and
 host-owned question/attempt state retain their existing ownership. Notices and
 sync status remain outside the fixed-height bar and may add readable height.
 
-This is a source implementation awaiting browser qualification, not a claim
-that the design is live. See the [current audit](../release-audits/2026-10-30-listening-classic-player.md).
+Local in-app browser qualification confirms desktop/tablet/phone geometry,
+native controls, media-node continuity and policy states. Live publication and
+private-delivery acceptance are recorded separately in the
+[current audit](../release-audits/2026-10-30-listening-classic-player.md).
 
 Verification includes 1440/1024/768/375/320px desktop widths, phone identity and
 touch emulation at 375/320px, and audio-node/position continuity across resize.

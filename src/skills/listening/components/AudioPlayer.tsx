@@ -1441,6 +1441,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                       setCurrentTime(0);
                       setReplaysUsed(prev => prev + 1);
                       void attemptPlay('tap', false);
+                      if (!effectiveIsPlaying) onPlayPause();
                     }
                     controlsRef.current?.querySelector<HTMLElement>('.audio-player__play')?.focus();
                     event.currentTarget.closest('details')?.removeAttribute('open');

@@ -44,8 +44,10 @@
 .audio-player :is(button, summary, input, select):focus-visible { outline: 2px solid var(--audio-accent); outline-offset: 2px; }
 .audio-player svg { width: 19px; height: 19px; stroke-width: 1.8; flex-shrink: 0; }
 .audio-player .audio-player__play { position: relative; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; background: var(--audio-ink); color: #fff; border-radius: 50%; }
+.audio-player .audio-player__play:hover { background: var(--audio-ink); }
 .audio-player__play svg { width: 20px; height: 20px; }
-.audio-player .audio-player__controlled { background: #f2f6fa; color: var(--audio-secondary); cursor: default; }
+.audio-player .audio-player__controlled,
+.audio-player .audio-player__controlled:hover { background: #f2f6fa; color: var(--audio-secondary); cursor: default; }
 .audio-player__timeline { flex: 1; min-width: 68px; height: 44px; position: relative; }
 .audio-player__times { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 5px; pointer-events: none; font-size: 12px; color: var(--audio-secondary); font-variant-numeric: tabular-nums; }
 .audio-player__times span:first-child { color: var(--audio-ink); }

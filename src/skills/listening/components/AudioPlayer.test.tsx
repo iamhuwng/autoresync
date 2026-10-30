@@ -194,8 +194,9 @@ describe('AudioPlayer', () => {
   });
 
   it('preserves replay limits independently of pause permission', async () => {
+    const onPlayPause = vi.fn();
     const { container } = render(<AudioPlayer audioUrl="https://cdn.example.com/audio.mp3" sectionNumber={1}
-      isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={() => {}} onTimeUpdate={() => {}}
+      isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={onPlayPause} onTimeUpdate={() => {}}
       onSectionComplete={() => {}} onError={() => {}} allowPause={false} allowReplay maxReplays={1} />);
     await screen.findByRole('slider', { name: 'Audio progress' });
     const audio = container.querySelector('audio')!;
@@ -208,6 +209,7 @@ describe('AudioPlayer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Replay section (1 remaining)' }));
     expect(audio.currentTime).toBe(0);
     expect(playMock).toHaveBeenCalledOnce();
+    expect(onPlayPause).toHaveBeenCalledOnce();
     expect(screen.getByRole('status', { name: 'Audio paused under teacher control' })).toHaveFocus();
     audio.currentTime = 6;
     fireEvent.timeUpdate(audio);
