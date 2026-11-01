@@ -248,6 +248,12 @@ export const assertValidReadingV2CanonicalDocument = (
       if (!anchor || anchor.stimulusId !== stimulus.stimulusId) {
         throw new Error(`Stimulus ${stimulus.stimulusId} references invalid anchor ${anchorId}.`);
       }
+
+      if (stimulus.kind === 'passage' && stimulus.content.kind === 'passage-content'
+        && anchor.kind === 'paragraph'
+        && !stimulus.content.paragraphs.some((paragraph) => paragraph.anchorId === anchorId)) {
+        throw new Error(`Stimulus ${stimulus.stimulusId} paragraph anchor ${anchorId} has no passage content.`);
+      }
     });
 
     const duplicateAnchorIssue = duplicateAnchorIssuesByStimulus.get(stimulus.stimulusId);

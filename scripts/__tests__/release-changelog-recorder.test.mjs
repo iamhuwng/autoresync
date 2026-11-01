@@ -17,6 +17,24 @@ const fixture = t => {
   return root;
 };
 
+test('existing reviewed change associations survive another release and settlement', t => {
+  const store = fixture(t);
+  const existing = beginRelease({ id: 'associated', description: 'Earlier release', targets: [releaseTarget(hosting)] }, store);
+  const stateFile = path.join(store, 'state.json');
+  const state = JSON.parse(readFileSync(stateFile, 'utf8'));
+  state.releases[existing.id].changeIds = ['CL-20261101-READING-V2-PASSAGE-STRUCTURE'];
+  writeFileSync(stateFile, JSON.stringify(state));
+
+  const next = beginRelease({ id: 'next-release', description: 'Next release', targets: [releaseTarget(hosting)] }, store);
+  settleRelease(next.id, { outcomes: [outcome(hosting)] }, store);
+
+  assert.deepEqual(readRelease(existing.id, store).changeIds, state.releases[existing.id].changeIds);
+  const invalid = JSON.parse(readFileSync(stateFile, 'utf8'));
+  invalid.releases[existing.id].changeIds = ['invalid'];
+  writeFileSync(stateFile, JSON.stringify(invalid));
+  assert.throws(() => listReleases(store), /changeIds/u);
+});
+
 test('manual selection is scoped to explicit target IDs and content, independently of source revision', t => {
   const store = fixture(t);
   const draft = saveDraft({ description: 'Keep the exact manual attempt', targets: [hosting, worker] }, store);

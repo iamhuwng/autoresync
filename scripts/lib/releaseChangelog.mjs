@@ -77,7 +77,11 @@ const validateDraft = value => {
   timestamp(value.createdAt);
 };
 const validateRelease = value => {
-  object(value, ['id', 'status', 'description', 'targets', 'evidenceRefs', 'origin', 'createdAt', 'updatedAt', 'pendingId', 'supersedesPendingId', 'appliedReceiptHashes'], 'release');
+  object(value, ['id', 'status', 'description', 'targets', 'evidenceRefs', 'origin', 'createdAt', 'updatedAt', 'pendingId', 'supersedesPendingId', 'appliedReceiptHashes', 'changeIds'], 'release');
+  if (value.changeIds !== undefined && (!Array.isArray(value.changeIds) || value.changeIds.length > 100
+    || value.changeIds.some(id => typeof id !== 'string' || !/^CL-\d{8}-[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(id)))) {
+    fail('changeIds must contain CL-YYYYMMDD-SLUG identifiers');
+  }
   identity(value.id);
   text(value.description, 'description');
   if (!['execution', 'retrospective'].includes(value.origin)) fail('release origin is malformed');

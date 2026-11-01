@@ -26,13 +26,13 @@ vi.mock('./ReadingV2PassageEditor', () => ({
   }: {
     readonly ariaLabel?: string;
     readonly onAction?: (action: string) => void;
-    readonly onChange: (value: string) => void;
-    readonly value: string;
+    readonly onChange: (value: any[]) => void;
+    readonly value: any[];
   }) => (
     <section aria-label="Mock TipTap passage editor" data-engine="tiptap">
-      <div aria-label={ariaLabel ?? 'Passage editor'} data-value={value} role="textbox" />
+      <div aria-label={ariaLabel ?? 'Passage editor'} data-value={value.map((paragraph) => paragraph.text).join('\n\n')} role="textbox" />
       <button type="button" onClick={() => onAction?.('bold')}>Bold</button>
-      <button type="button" onClick={() => onChange('Edited TipTap passage')}>Mock edit passage</button>
+      <button type="button" onClick={() => onChange([{ ...value[0], text: 'Edited TipTap passage' }])}>Mock edit passage</button>
     </section>
   ),
 }));
@@ -151,6 +151,7 @@ const renderWorkspace = (
       stimulusId: document.sections[document.sectionIds[0]!]?.stimulusIds[0],
       title: 'Passage 1',
       text: 'Passage body',
+      paragraphs: [{ text: 'Passage body' }],
       questionGroupCount: 1,
       questionCount: taskGroup.interactionIds.length,
       hasTitle: true,
@@ -160,6 +161,7 @@ const renderWorkspace = (
       passageNumber: 2,
       title: '',
       text: '',
+      paragraphs: [],
       questionGroupCount: 0,
       questionCount: 0,
       hasTitle: false,
@@ -169,6 +171,7 @@ const renderWorkspace = (
       passageNumber: 3,
       title: '',
       text: '',
+      paragraphs: [],
       questionGroupCount: 0,
       questionCount: 0,
       hasTitle: false,
@@ -515,7 +518,7 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock edit passage' }));
-    expect(onPassageTextChange).toHaveBeenCalledWith(1, 'Edited TipTap passage');
+    expect(onPassageTextChange).toHaveBeenCalledWith(1, [{ text: 'Edited TipTap passage' }]);
   });
 
   it('creates and edits durable passage image blocks without marker text', () => {

@@ -73,8 +73,10 @@ vi.mock('@tiptap/extension-placeholder', () => ({
 
 import {
   ReadingV2PassageEditor,
-  readingV2PassageJsonToText,
-  readingV2PassageTextToHtml,
+  ensurePassageBlockIds,
+  passageAttributes,
+  readingV2PassageFromJson,
+  readingV2PassageToJson,
 } from './ReadingV2PassageEditor';
 
 describe('ReadingV2PassageEditor', () => {
@@ -87,34 +89,43 @@ describe('ReadingV2PassageEditor', () => {
     });
   });
 
-  it('hydrates markdown-compatible passage text into TipTap HTML', () => {
-    expect(readingV2PassageTextToHtml('## Passage title\n\nA **bold** _italic_ __underlined__ line.')).toBe(
-      '<h2>Passage title</h2><p>A <strong>bold</strong> <em>italic</em> <u>underlined</u> line.</p>',
-    );
-    expect(readingV2PassageTextToHtml('- first\n- second')).toBe('<ul><li><p>first</p></li><li><p>second</p></li></ul>');
+  it('round trips structured blocks and inline marks without losing identity', () => {
+    const blocks = [
+      { anchorId: 'a' as any, label: 'A', blockKind: 'heading' as const, headingLevel: 2 as const, text: 'A **heading**' },
+      { anchorId: 'b' as any, label: 'B', blockKind: 'list-item' as const, listKind: 'bullet' as const, itemId: 'item-b', text: 'Second\n*italic* and `code`' },
+    ];
+    expect(readingV2PassageFromJson(readingV2PassageToJson(blocks))).toEqual([blocks[0], { ...blocks[1], text: 'Second\n_italic_ and `code`' }]);
   });
 
-  it('serializes TipTap JSON back to canonical passage text markers', () => {
-    expect(readingV2PassageJsonToText({
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'A heading' }] },
-        {
-          type: 'paragraph',
-          content: [
-            { type: 'text', text: 'Bold', marks: [{ type: 'bold' }] },
-            { type: 'text', text: ' and ' },
-            { type: 'text', text: 'underlined', marks: [{ type: 'underline' }] },
-          ],
-        },
-        {
-          type: 'orderedList',
-          content: [
-            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Step one' }] }] },
-          ],
-        },
-      ],
-    })).toBe('## A heading\n\n**Bold** and __underlined__\n\n1. Step one');
+  it('round trips combined bold, italic and underline marks', () => {
+    const json = { type: 'doc', content: [{ type: 'paragraph', attrs: { anchorId: 'a' }, content: [
+      { type: 'text', text: 'x < 3', marks: [{ type: 'bold' }, { type: 'italic' }, { type: 'underline' }] },
+    ] }] };
+    const paragraphs = readingV2PassageFromJson(json);
+    expect(paragraphs[0]?.text).toBe('<u>_**x < 3**_</u>');
+    expect(readingV2PassageToJson(paragraphs).content?.[0]?.content?.[0]?.marks).toEqual([
+      { type: 'underline' }, { type: 'italic' }, { type: 'bold' },
+    ]);
+  });
+
+  it('assigns a fresh identity to a split block', async () => {
+    const { Editor } = await vi.importActual<typeof import('@tiptap/core')>('@tiptap/core');
+    const { default: StarterKit } = await vi.importActual<typeof import('@tiptap/starter-kit')>('@tiptap/starter-kit');
+    const editor = new Editor({
+      extensions: [StarterKit, passageAttributes],
+      content: readingV2PassageToJson([{ anchorId: 'anchor-a' as any, label: 'A', text: 'First' }]),
+    });
+    editor.commands.setTextSelection(3);
+    editor.commands.splitBlock();
+    ensurePassageBlockIds(editor);
+    const blocks = readingV2PassageFromJson(editor.getJSON());
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]?.anchorId).toBe('anchor-a');
+    expect(blocks[1]?.anchorId).toBeTruthy();
+    expect(blocks[1]?.anchorId).not.toBe(blocks[0]?.anchorId);
+    ensurePassageBlockIds(editor, ['anchor-a']);
+    expect(readingV2PassageFromJson(editor.getJSON())[0]?.anchorId).not.toBe('anchor-a');
+    editor.destroy();
   });
 
   it('runs TipTap toolbar commands without dropping focus', () => {
@@ -124,7 +135,7 @@ describe('ReadingV2PassageEditor', () => {
         onAction={onAction}
         onChange={() => {}}
         passageNumber={1}
-        value="Passage body"
+        value={[{ text: 'Passage body' }]}
       />,
     );
 
@@ -150,23 +161,21 @@ describe('ReadingV2PassageEditor', () => {
       <ReadingV2PassageEditor
         onChange={onChange}
         passageNumber={1}
-        value="Passage body"
+        value={[{ text: 'Passage body' }]}
       />,
     );
 
-    tiptapMock.lastConfig?.onUpdate?.({ editor: tiptapMock.editor });
-    expect(onChange).toHaveBeenCalledWith('Edited passage');
 
     rerender(
       <ReadingV2PassageEditor
         focusRequestKey={1}
         onChange={onChange}
         passageNumber={2}
-        value="External passage"
+        value={[{ text: 'External passage' }]}
       />,
     );
 
-    expect(tiptapMock.editor.commands.setContent).toHaveBeenCalledWith('<p>External passage</p>', { emitUpdate: false });
+    expect(tiptapMock.editor.commands.setContent).toHaveBeenCalledWith(readingV2PassageToJson([{ text: 'External passage' }]), { emitUpdate: false });
     expect(tiptapMock.editor.commands.focus).toHaveBeenCalledWith('end', { scrollIntoView: false });
   });
 });
