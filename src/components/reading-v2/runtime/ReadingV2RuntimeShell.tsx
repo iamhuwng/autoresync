@@ -660,17 +660,38 @@ function StimulusView({
           '--reading-v2-passage-line-height': String(lineHeight),
         } as CSSProperties}
       >
-        <h2>{stimulus.title ?? 'Passage'}</h2>
-        {stimulus.content.paragraphs.map((paragraph, index) => {
-          const displayLabel = getParagraphDisplayLabel(paragraph.label);
-
-          return (
-            <p key={paragraph.anchorId ?? `${stimulus.stimulusId}-${index}`}>
-              {displayLabel ? <strong>{displayLabel} </strong> : null}
-              <ReadingV2FormattedText text={paragraph.text} highlights={highlights} />
-            </p>
-          );
-        })}
+        <h2 className="reading-v2-runtime__passage-title">{stimulus.title ?? 'Passage'}</h2>
+        {(() => {
+          const blocks: ReactNode[] = [];
+          const paragraphs = stimulus.content.paragraphs;
+          for (let index = 0; index < paragraphs.length; index += 1) {
+            const paragraph = paragraphs[index];
+            const key = paragraph.anchorId ?? paragraph.itemId ?? `${stimulus.stimulusId}-${index}`;
+            const content = (entry: typeof paragraph) => {
+              const displayLabel = getParagraphDisplayLabel(entry.label);
+              return <>{displayLabel ? <strong className="reading-v2-runtime__passage-label">{displayLabel} </strong> : null}<ReadingV2FormattedText text={entry.text} highlights={highlights} preserveLineBreaks /></>;
+            };
+            if (paragraph.blockKind === 'list-item') {
+              const listKind = paragraph.listKind ?? 'bullet';
+              const items: ReactNode[] = [];
+              while (index < paragraphs.length && paragraphs[index].blockKind === 'list-item'
+                && (paragraphs[index].listKind ?? 'bullet') === listKind) {
+                const item = paragraphs[index];
+                items.push(<li key={item.itemId ?? item.anchorId ?? index}>{content(item)}</li>);
+                index += 1;
+              }
+              index -= 1;
+              const List = listKind === 'ordered' ? 'ol' : 'ul';
+              blocks.push(<List key={key}>{items}</List>);
+            } else if (paragraph.blockKind === 'heading') {
+              const Heading = paragraph.headingLevel === 1 ? 'h1' : paragraph.headingLevel === 3 ? 'h3' : 'h2';
+              blocks.push(<Heading key={key}>{content(paragraph)}</Heading>);
+            } else {
+              blocks.push(<p key={key}>{content(paragraph)}</p>);
+            }
+          }
+          return blocks;
+        })()}
       </article>
     );
   }

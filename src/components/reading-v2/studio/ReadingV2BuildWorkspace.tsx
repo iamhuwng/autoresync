@@ -20,6 +20,7 @@ import {
   type ReadingV2Document,
   type ReadingV2Interaction,
   type ReadingV2OptionSet,
+  type ReadingV2PassageParagraph,
   type ReadingV2StimulusNode,
   type ReadingV2TaskGroup,
 } from '../../../types/readingV2.types';
@@ -41,6 +42,7 @@ export interface ReadingV2BuildPassageSlot {
   readonly stimulusId?: string;
   readonly title: string;
   readonly text: string;
+  readonly paragraphs: readonly ReadingV2PassageParagraph[];
   readonly questionGroupCount: number;
   readonly questionCount: number;
   readonly hasTitle: boolean;
@@ -96,7 +98,7 @@ export interface ReadingV2BuildWorkspaceProps {
   readonly onRemovePassage?: (passageNumber: number) => void;
   readonly onMetadataChange: (metadata: ReadingV2StudioMetadata) => void;
   readonly onPassageTitleChange: (passageNumber: number, title: string) => void;
-  readonly onPassageTextChange: (passageNumber: number, text: string) => void;
+  readonly onPassageTextChange: (passageNumber: number, paragraphs: readonly ReadingV2PassageParagraph[]) => boolean | void;
   readonly onAddQuestionGroup: (taskType: ReadingV2CanonicalTaskType) => void;
   readonly onSelectTaskGroup: (taskGroupId: string) => void;
   readonly onTaskGroupChange: (taskGroup: ReadingV2TaskGroup) => void;
@@ -5516,7 +5518,8 @@ export function ReadingV2BuildWorkspace({
             onAction={handlePassageEditorAction}
             onChange={(nextText) => onPassageTextChange(selectedPassageNumber, nextText)}
             passageNumber={selectedPassageNumber}
-            value={selectedPassage?.text ?? ''}
+            reservedAnchorIds={Object.keys(document.anchors).filter((id) => !selectedPassage?.paragraphs.some((paragraph) => paragraph.anchorId === id))}
+            value={selectedPassage?.paragraphs ?? []}
           />
           <section className="reading-v2-image-blocks" aria-label="Passage image blocks">
             <header className="reading-v2-image-blocks__header">

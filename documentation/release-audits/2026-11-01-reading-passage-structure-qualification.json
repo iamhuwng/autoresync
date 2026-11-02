@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "changeId": "CL-20261101-READING-V2-PASSAGE-STRUCTURE",
+  "reviewedBase": "943277ad6f8c1c89fed35fcced7afc2f720f46d2",
+  "observedHostingFingerprint": "49abad13f7336d397e048845bbc424c00b7bce8db157cb4b2fa5deca04832e65",
+  "productionEnvFingerprint": "8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57",
+  "checks": {
+    "readingV2": { "files": 88, "tests": 807, "passed": 807, "failed": 0 },
+    "releaseRecorder": { "tests": 14, "passed": 14, "failed": 0 },
+    "changedFileEslint": "passed",
+    "utf8": "passed",
+    "diffWhitespace": "passed",
+    "typescript": { "newDiagnostics": 0, "unchangedBaselineListeningDiagnostics": 4 },
+    "independentReview": "no actionable findings after corrections"
+  },
+  "browser": {
+    "kind": "offline static component fixture built from candidate source",
+    "widths": [1440, 375],
+    "actualModules": ["ReadingV2PassageEditor", "updateReadingV2PassageText", "ReadingV2Projection", "ReadingV2RuntimeShell"],
+    "passed": ["text edits preserve block identity", "splits retain original anchors and allocate a new ID", "question references remain intact", "semantic headings and lists", "combined bold italic underline with literal less-than", "no horizontal overflow"],
+    "authenticatedApplicationFlow": "unverified: occupied role port; temporary replacement rejected by execution policy",
+    "network": "HTTP requests aborted; expected Firebase Analytics request failed in dummy configuration"
+  },
+  "repairPlan": {
+    "materialId": "studio-material-mvxpapw8",
+    "oldVersion": "snapshot-studio-material-mvxpapw8-mvxpbp2j",
+    "newVersion": "snapshot-studio-material-mvxpapw8-repair-mvxt4vqj",
+    "paths": 35,
+    "updatesSha256": "28095873679a809b42a6dc2aab45c386d46e894b531b1b77656c8ea4571c266b",
+    "remoteMutationAtQualification": false,
+    "frozenHomeworkAndHistoricalAttempts": "preserved"
+  }
+}

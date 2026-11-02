@@ -221,6 +221,7 @@ export type ReadingV2AutoImportDiagnosticCode =
   | 'auto-v4-staged-parser-used'
   | 'auto-v4-source-authoritative-passage'
   | 'auto-v4-source-passage-drift'
+  | 'auto-v4-source-passage-structure-ambiguous'
   | 'group-quality-ready'
   | 'group-source-underrepresented'
   | 'note-heading-missing'
@@ -1816,6 +1817,27 @@ const autoV4PassageSourceDiagnostics = (
       passageNumber,
       verifierResult: 'passed',
     }];
+
+    const sourceLines = sourceContent.split('\n').filter((line) => !/^you should spend\b/i.test(line.trim()));
+    while (sourceLines.length > 0 && !sourceLines[0]?.trim()) sourceLines.shift();
+    if (compactWhitespace(sourceLines[0] ?? '') === compactWhitespace(passage.title ?? '')) {
+      sourceLines.shift();
+    }
+    const sourceBody = sourceLines.join('\n').trim();
+    const providerBody = passage.content?.trim() ?? '';
+    if (
+      /\n\s*\n/.test(providerBody)
+      && !/\n\s*\n/.test(sourceBody)
+      && !sourceBody.split('\n').some((line) => /^(?:#{1,6}\s|[-*]\s|\d+[.)]\s)/.test(line.trim()))
+      && compactWhitespace(sourceBody) === compactWhitespace(providerBody)
+    ) {
+      diagnostics.push({
+        code: 'auto-v4-source-passage-structure-ambiguous',
+        severity: 'warning',
+        message: `Passage ${passageNumber} may need paragraph breaks. Review its structure against the source in Studio.`,
+        passageNumber,
+      });
+    }
 
     if (missingHighRiskTokens.length > 0) {
       diagnostics.push({

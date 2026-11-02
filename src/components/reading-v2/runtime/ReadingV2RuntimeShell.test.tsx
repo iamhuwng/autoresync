@@ -228,6 +228,52 @@ describe('ReadingV2RuntimeShell', () => {
     vi.restoreAllMocks();
   });
 
+  it.each([1366, 375])('renders semantic passage blocks and inline formatting at width %i', async (width) => {
+    setViewport(width, 900);
+    const original = READING_V2_PROJECTION_FIXTURES.studentSafe;
+    const projection: ReadingV2DerivedProjection = {
+      ...original,
+      content: {
+        ...original.content,
+        stimuli: original.content.stimuli.map((stimulus) => stimulus.content.kind !== 'passage-content' ? stimulus : {
+          ...stimulus,
+          content: {
+            ...stimulus.content,
+            paragraphs: [
+              { text: 'Section **title**', blockKind: 'heading', headingLevel: 3 },
+              { text: 'First line\nSecond *line*', label: 'A', blockKind: 'paragraph' },
+              { text: 'Bullet **one**', blockKind: 'list-item', listKind: 'bullet', itemId: 'one' },
+              { text: 'Bullet two', blockKind: 'list-item', listKind: 'bullet', itemId: 'two' },
+              { text: 'Ordered item', blockKind: 'list-item', listKind: 'ordered', itemId: 'three' },
+              { text: 'Final paragraph', blockKind: 'paragraph' },
+            ],
+          },
+        }),
+      },
+    };
+    render(<ReadingV2RuntimeShell projection={projection} />);
+    expect(screen.getByLabelText(width > 768 ? 'Desktop and tablet two-column runtime' : 'Phone passage-first runtime')).toBeInTheDocument();
+    const passage = screen.getByRole('article', { name: 'Reading passage' });
+    expect(within(passage).getByRole('heading', { name: 'Section title', level: 3 }).querySelector('strong')).toHaveTextContent('title');
+    const paragraph = within(passage).getByText('Second', { exact: false }).closest('p');
+    expect(paragraph).toHaveTextContent('A First lineSecond line');
+    expect(paragraph?.querySelector('br')).toBeInTheDocument();
+    expect(paragraph?.querySelector('em')).toHaveTextContent('line');
+    const lists = within(passage).getAllByRole('list');
+    expect(lists.map((list) => list.tagName)).toEqual(['UL', 'OL']);
+    expect(within(lists[0]).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(lists[0]).getByText('one').tagName).toBe('STRONG');
+    expect(within(lists[1]).getByRole('listitem')).toHaveTextContent('Ordered item');
+
+    if (width > 768) {
+      await userEvent.click(screen.getByRole('button', { name: 'Highlighter OFF' }));
+      vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'one', removeAllRanges: vi.fn() } as unknown as Selection);
+      fireEvent.mouseUp(passage);
+      expect(within(lists[0]).getByText('one').tagName).toBe('MARK');
+      expect(within(lists[0]).getByText('one').parentElement?.tagName).toBe('STRONG');
+    }
+  });
+
   it('renders the desktop/tablet V1-like two-column runtime from a projection fixture', () => {
     setViewport(1366, 900);
 

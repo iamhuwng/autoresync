@@ -1503,6 +1503,31 @@ describe('readingV2AutoImport.service', () => {
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
+  it.each([
+    ['matching text with ambiguous source breaks', '\n', '', false, true],
+    ['matching text after source title and instructions', '\n', '', true, true],
+    ['source already has paragraph breaks', '\n\n', '', false, false],
+    ['provider text differs', '\n', ' changed', false, false],
+  ])('flags %s for Studio review only when needed', async (_case, separator, suffix, withTitle, expected) => {
+    const first = 'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.';
+    const second = 'It has a second sentence to avoid being too tiny for guardrails.';
+    const raw = rawSourceWithAnswerKey
+      .replace(`${first}\n${second}`, `${first}${separator}${second}`)
+      .replace('READING PASSAGE 1\n', withTitle ? 'READING PASSAGE 1\nYou should spend about 20 minutes on Questions 1-2.\nAuto passage\n\n' : 'READING PASSAGE 1\n');
+    const result = await generateReadingV2AutoImportCandidate(
+      { rawTestText: raw, sourceName: 'Paragraph ambiguity fixture' },
+      { v4Extractor: v4ExtractorFor({ passageContent: `${first}\n\n${second}${suffix}` }), waitBetweenChunksMs: 0, minInputChars: 10 },
+    );
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const warning = result.candidate.autoImportDiagnostics?.find((item) => item.code === 'auto-v4-source-passage-structure-ambiguous');
+    expect(Boolean(warning)).toBe(expected);
+    if (expected) {
+      expect(warning).toMatchObject({ severity: 'warning', passageNumber: 1 });
+      expect(result.candidate.uncertaintyMarkers).toEqual(expect.arrayContaining([expect.stringContaining('may need paragraph breaks')]));
+    }
+  });
+
   it('copies Auto V4 passage body from raw source when provider passage prose drifts', async () => {
     const raw = [
       'READING PASSAGE 1',

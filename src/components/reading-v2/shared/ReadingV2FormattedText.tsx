@@ -14,9 +14,10 @@ export interface ReadingV2InlineToken {
 interface ReadingV2FormattedTextProps {
   readonly text: string;
   readonly highlights?: readonly ReadingV2TextHighlight[];
+  readonly preserveLineBreaks?: boolean;
 }
 
-const INLINE_MARK_PATTERN = /(<u>[^<\n]+?<\/u>|<ins>[^<\n]+?<\/ins>|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_)/g;
+const INLINE_MARK_PATTERN = /(<u>[^\n]+?<\/u>|<ins>[^\n]+?<\/ins>|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_)/g;
 
 const inlineTokenFromMarkedText = (value: string): ReadingV2InlineToken => {
   if (value.startsWith('**') && value.endsWith('**')) {
@@ -113,8 +114,21 @@ const renderToken = (
   token: ReadingV2InlineToken,
   index: number,
   highlights: readonly ReadingV2TextHighlight[],
+  preserveLineBreaks: boolean,
 ): ReactNode => {
-  const content = renderPlainText(token.text, highlights, `formatted-${index}`);
+  const nestedTokens = token.kind === 'text' || token.kind === 'code'
+    ? null
+    : parseReadingV2InlineMarkdown(token.text);
+  const content = nestedTokens
+    ? nestedTokens.map((nestedToken, nestedIndex) => renderToken(nestedToken, nestedIndex, highlights, preserveLineBreaks))
+    : preserveLineBreaks
+    ? token.text.split('\n').map((line, lineIndex) => (
+      <Fragment key={lineIndex}>
+        {lineIndex > 0 ? <br /> : null}
+        {renderPlainText(line, highlights, `formatted-${index}-${lineIndex}`)}
+      </Fragment>
+    ))
+    : renderPlainText(token.text, highlights, `formatted-${index}`);
 
   if (token.kind === 'strong') {
     return <strong key={`strong-${index}`}>{content}</strong>;
@@ -135,10 +149,11 @@ const renderToken = (
 export function ReadingV2FormattedText({
   text,
   highlights = [],
+  preserveLineBreaks = false,
 }: ReadingV2FormattedTextProps) {
   return (
     <>
-      {parseReadingV2InlineMarkdown(text).map((token, index) => renderToken(token, index, highlights))}
+      {parseReadingV2InlineMarkdown(text).map((token, index) => renderToken(token, index, highlights, preserveLineBreaks))}
     </>
   );
 }

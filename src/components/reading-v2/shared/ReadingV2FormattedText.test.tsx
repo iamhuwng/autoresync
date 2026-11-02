@@ -35,4 +35,26 @@ describe('ReadingV2FormattedText', () => {
     expect(screen.getByText('important').tagName).toBe('MARK');
     expect(screen.getByText('important').closest('strong')).toBeInTheDocument();
   });
+
+  it('renders combined marks and highlights while leaving code contents literal', () => {
+    render(
+      <ReadingV2FormattedText
+        text={'<u>_**important text**_</u> and `_**literal**_`'}
+        highlights={[{ id: 'combined', text: 'important', color: '#fff59d' }]}
+      />,
+    );
+
+    const highlighted = screen.getByText('important');
+    expect(highlighted.closest('strong')).toBeInTheDocument();
+    expect(highlighted.closest('em')).toBeInTheDocument();
+    expect(highlighted.closest('u')).toBeInTheDocument();
+    expect(screen.getByText('_**literal**_').tagName).toBe('CODE');
+  });
+
+  it('underlines less-than text without interpreting embedded HTML', () => {
+    render(<ReadingV2FormattedText text={'<u>x < 3 and <img src=x onerror=alert(1) /></u>'} />);
+
+    expect(screen.getByText(/x < 3/).closest('u')).toBeInTheDocument();
+    expect(document.querySelector('img')).not.toBeInTheDocument();
+  });
 });

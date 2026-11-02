@@ -8,18 +8,18 @@ vi.mock('./ReadingV2PassageEditor', () => ({
     value,
   }: {
     readonly ariaLabel?: string;
-    readonly onChange: (value: string) => void;
-    readonly value: string;
+    readonly onChange: (value: any[]) => void;
+    readonly value: any[];
   }) => (
     <div
       aria-label={ariaLabel ?? 'Passage editor'}
       contentEditable
       data-engine="tiptap"
-      onInput={(event) => onChange(event.currentTarget.textContent ?? '')}
+      onInput={(event) => onChange([{ ...(value[0] ?? {}), text: event.currentTarget.textContent ?? '' }, ...value.slice(1)])}
       role="textbox"
       suppressContentEditableWarning
     >
-      {value}
+      {value.map((paragraph) => paragraph.text).join('\n\n')}
     </div>
   ),
 }));
@@ -28,6 +28,7 @@ import {
   ReadingV2StudioShell,
   createManualReadingV2TaskGroup,
   createReadingV2ManualPassage,
+  updateReadingV2PassageText,
 } from './ReadingV2StudioShell';
 import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fixtures/readingV2CanonicalFixtures';
 import {
@@ -43,7 +44,7 @@ import {
   deserializeReadingV2CanonicalToEditorDocument,
   validateReadingV2EditorDocument,
 } from '../../../services/reading-v2/readingV2EditorDocument.service';
-import type { ReadingV2Document, ReadingV2SectionId } from '../../../types/readingV2.types';
+import { readingV2Ids, type ReadingV2Document, type ReadingV2SectionId } from '../../../types/readingV2.types';
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
@@ -999,4 +1000,59 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Leave Workspace' }));
     expect(onExit).toHaveBeenCalledOnce();
   });
+});
+
+
+describe('structured passage edits', () => {
+  it('keeps linked blocks and rejects deleting a referenced block', () => {
+    const document = createReadingV2CanonicalFixture('matching-headings');
+    const section = document.sections[document.sectionIds[0]]!;
+    const stimulus = document.stimuli[section.stimulusIds[0]]!;
+    if (stimulus.content.kind !== 'passage-content') throw new Error('Expected passage');
+    const paragraphs = stimulus.content.paragraphs.map((paragraph, index) => index === 0
+      ? { ...paragraph, text: 'Edited **first** block' }
+      : { ...paragraph, blockKind: 'heading' as const, headingLevel: 2 as const });
+    const updated = updateReadingV2PassageText(document, 1, paragraphs);
+    expect(updated?.stimuli[stimulus.stimulusId]?.content).toEqual({ kind: 'passage-content', paragraphs });
+    expect(updated?.taskGroups).toEqual(document.taskGroups);
+    expect(updated?.anchors[paragraphs[1]!.anchorId!]).toEqual(document.anchors[paragraphs[1]!.anchorId!]);
+    expect(updateReadingV2PassageText(document, 1, paragraphs.slice(0, 1))).toBeNull();
+  });
+
+  it('allows passage edits while an unrelated flowchart is incomplete', () => {
+    const original = createReadingV2CanonicalFixture('matching-headings');
+    const section = original.sections[original.sectionIds[0]]!;
+    const stimulus = original.stimuli[section.stimulusIds[0]]!;
+    if (stimulus.content.kind !== 'passage-content') throw new Error('Expected passage');
+    const extraId = readingV2Ids.stimulusId('incomplete-flow');
+    const document = {
+      ...original,
+      sections: { ...original.sections, [section.sectionId]: { ...section, stimulusIds: [...section.stimulusIds, extraId] } },
+      stimuli: { ...original.stimuli, [extraId]: { stimulusId: extraId, kind: 'flowchart-shell' as const, content: { kind: 'flowchart-content' as const, steps: [] }, anchorIds: [] } },
+    };
+    expect(() => deserializeReadingV2CanonicalToEditorDocument(document)).toThrow();
+    const paragraphs = stimulus.content.paragraphs.map((paragraph, index) => index ? paragraph : { ...paragraph, text: 'Edited' });
+    expect(updateReadingV2PassageText(document, 1, paragraphs)?.stimuli[stimulus.stimulusId]?.content).toEqual({ kind: 'passage-content', paragraphs });
+  });
+
+  it('rejects deletion of a context anchor and duplicate or foreign anchors', () => {
+    const original = createReadingV2CanonicalFixture('matching-headings');
+    const section = original.sections[original.sectionIds[0]]!;
+    const stimulus = original.stimuli[section.stimulusIds[0]]!;
+    if (stimulus.content.kind !== 'passage-content') throw new Error('Expected passage');
+    const [first, second] = stimulus.content.paragraphs;
+    const groups = Object.fromEntries(Object.entries(original.taskGroups).map(([id, group]) => [id, {
+      ...group, stimulusRefs: group.stimulusRefs.map((ref) => ({ ...ref, anchorIds: [first!.anchorId!] })),
+    }]));
+    const interactions = Object.fromEntries(Object.entries(original.interactions).map(([id, interaction]) => [id, {
+      ...interaction, primaryAnchorId: first!.anchorId, contextAnchorIds: [second!.anchorId!],
+    }]));
+    const document = { ...original, taskGroups: groups, interactions };
+    expect(updateReadingV2PassageText(document, 1, [first!])).toBeNull();
+    expect(updateReadingV2PassageText(document, 1, [first!, { ...second!, anchorId: first!.anchorId }])).toBeNull();
+    const foreign = readingV2Ids.anchorId('foreign-anchor');
+    const withForeign = { ...document, anchors: { ...document.anchors, [foreign]: { anchorId: foreign, stimulusId: readingV2Ids.stimulusId('other'), kind: 'paragraph' as const } } };
+    expect(updateReadingV2PassageText(withForeign, 1, [first!, second!, { anchorId: foreign, text: 'Pasted' }])).toBeNull();
+  });
+
 });

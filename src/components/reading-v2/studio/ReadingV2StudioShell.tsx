@@ -11,6 +11,7 @@ import {
   type ReadingV2Document,
   type ReadingV2Interaction,
   type ReadingV2OptionSet,
+  type ReadingV2PassageParagraph,
   type ReadingV2SectionId,
   type ReadingV2StimulusId,
   type ReadingV2StimulusNode,
@@ -920,11 +921,6 @@ const ensurePassageDocument = (
   };
 };
 
-const normalizeThroughReadingV2EditorDocument = (document: ReadingV2Document): ReadingV2Document => {
-  const normalized = normalizeStructuredDocumentThroughEditorBlocks(document);
-  return normalized.document;
-};
-
 const normalizeStructuredDocumentThroughEditorBlocks = (
   document: ReadingV2Document,
 ): {
@@ -995,54 +991,55 @@ const updateReadingV2PassageTitle = (
   };
 };
 
-const updateReadingV2PassageText = (
+export const updateReadingV2PassageText = (
   document: ReadingV2Document,
   passageNumber: number,
-  text: string,
-): ReadingV2Document => {
+  paragraphs: readonly ReadingV2PassageParagraph[],
+): ReadingV2Document | null => {
   const ensured = ensurePassageDocument(document, passageNumber);
   const { stimulusId } = ensured;
   const stimulus = stimulusId ? ensured.document.stimuli[stimulusId] : undefined;
+  if (!stimulus || stimulus.content.kind !== 'passage-content') return null;
 
-  if (!stimulus) {
-    return ensured.document;
-  }
+  const oldIds = new Set(stimulus.content.paragraphs.map((paragraph) => paragraph.anchorId).filter(Boolean));
+  const paragraphIds = paragraphs.map((paragraph) => paragraph.anchorId);
+  const nextIds = new Set(paragraphIds.filter(Boolean));
+  if (nextIds.size !== paragraphIds.length || paragraphIds.some((id) =>
+    id && !oldIds.has(id) && ensured.document.anchors[id],
+  )) return null;
+  const removed = [...oldIds].filter((id) => !nextIds.has(id));
+  const referenced = Object.values(ensured.document.taskGroups).some((group) =>
+    group.stimulusRefs.some((ref) => ref.anchorIds?.some((id) => removed.includes(id))),
+  ) || Object.values(ensured.document.interactions).some((interaction) =>
+    (interaction.primaryAnchorId && removed.includes(interaction.primaryAnchorId))
+      || interaction.contextAnchorIds?.some((id) => removed.includes(id)),
+  );
+  if (referenced) return null;
 
-  const firstAnchorId = stimulus.anchorIds[0] ?? readingV2Ids.anchorId(`${stimulus.stimulusId}-paragraph-1`);
-  const passageStimulus: ReadingV2StimulusNode = {
-    ...stimulus,
-    kind: 'passage',
-    content: {
-      kind: 'passage-content',
-      paragraphs: [
-        {
-          anchorId: firstAnchorId,
-          label: 'Paragraph 1',
-          text,
-        },
-      ],
-    },
-    anchorIds: stimulus.anchorIds.includes(firstAnchorId)
-      ? stimulus.anchorIds
-      : [firstAnchorId, ...stimulus.anchorIds],
-  };
-
-  return normalizeThroughReadingV2EditorDocument({
+  const anchors = { ...ensured.document.anchors };
+  removed.forEach((id) => delete anchors[id]);
+  paragraphs.forEach((paragraph) => {
+    if (!paragraph.anchorId) return;
+    anchors[paragraph.anchorId] = anchors[paragraph.anchorId] ?? {
+      anchorId: paragraph.anchorId,
+      stimulusId: stimulus.stimulusId,
+      kind: 'paragraph',
+      ...(paragraph.label ? { label: paragraph.label } : {}),
+    };
+  });
+  const updated = {
     ...ensured.document,
+    anchors,
     stimuli: {
       ...ensured.document.stimuli,
-      [passageStimulus.stimulusId]: passageStimulus,
-    },
-    anchors: {
-      ...ensured.document.anchors,
-      [firstAnchorId]: ensured.document.anchors[firstAnchorId] ?? {
-        anchorId: firstAnchorId,
-        stimulusId: passageStimulus.stimulusId,
-        kind: 'paragraph',
-        label: 'Paragraph 1',
+      [stimulus.stimulusId]: {
+        ...stimulus,
+        content: { kind: 'passage-content', paragraphs },
+        anchorIds: [...stimulus.anchorIds.filter((id) => !oldIds.has(id)), ...nextIds],
       },
     },
-  });
+  };
+  return updated;
 };
 
 const removeReadingV2ManualPassage = (
@@ -2159,6 +2156,7 @@ export function ReadingV2StudioShell({
         stimulusId,
         title,
         text,
+        paragraphs: stimulus?.content.kind === 'passage-content' ? stimulus.content.paragraphs : [],
         hasTitle: title.trim().length > 0,
         hasText: text.trim().length > 0,
         questionGroupCount: questionGroups.length,
@@ -2968,8 +2966,14 @@ export function ReadingV2StudioShell({
     emitAction('metadataEdit', { outcome: `passage-${passageNumber}-title-updated` });
   };
 
-  const handlePassageTextChange = (passageNumber: number, text: string) => {
-    const nextDocument = updateReadingV2PassageText(draftDocument, passageNumber, text);
+  const handlePassageTextChange = (passageNumber: number, paragraphs: readonly ReadingV2PassageParagraph[]) => {
+    const nextDocument = updateReadingV2PassageText(draftDocument, passageNumber, paragraphs);
+    if (!nextDocument) {
+      toast.error('Could not edit this passage. Keep blocks linked to questions and try again.');
+      emitAction('metadataEdit', { outcome: `passage-${passageNumber}-text-blocked` });
+      return false;
+    }
+    const text = paragraphs.map((paragraph) => paragraph.text).join('\n\n');
     const ids = getPassageIdsByNumber(nextDocument, passageNumber);
     setDraftDocument(nextDocument);
     setSelectedPassageId(ids.stimulusId ?? selectedPassageId);
@@ -2981,6 +2985,7 @@ export function ReadingV2StudioShell({
       hasInlineFormattingMarkers: /\*\*[^*]+\*\*|__[^_]+__|_[^_\n]+_/.test(text),
     });
     emitAction('metadataEdit', { outcome: `passage-${passageNumber}-text-updated` });
+    return true;
   };
 
   const handleAddTaskGroup = (taskType: ReadingV2CanonicalTaskType) => {

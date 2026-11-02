@@ -7,10 +7,13 @@ import {
   IconListNumbers,
   IconUnderline,
 } from '@tabler/icons-react';
+import { Extension, type Editor, type JSONContent } from '@tiptap/core';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { parseReadingV2InlineMarkdown } from '../shared/ReadingV2FormattedText';
+import { readingV2Ids, type ReadingV2PassageParagraph } from '../../../types/readingV2.types';
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 type PassageEditorAction =
@@ -23,99 +26,62 @@ type PassageEditorAction =
   | 'undo'
   | 'redo';
 
-interface TipTapJsonMark {
-  readonly type?: string;
-}
-
-interface TipTapJsonNode {
-  readonly type?: string;
-  readonly text?: string;
-  readonly marks?: readonly TipTapJsonMark[];
-  readonly attrs?: Readonly<Record<string, unknown>>;
-  readonly content?: readonly TipTapJsonNode[];
-}
+type TipTapJsonNode = JSONContent;
 
 export interface ReadingV2PassageEditorProps {
-  readonly value: string;
+  readonly value: readonly ReadingV2PassageParagraph[];
   readonly passageNumber: number;
   readonly ariaLabel?: string;
   readonly focusRequestKey?: number;
+  readonly reservedAnchorIds?: readonly string[];
   readonly placeholder?: string;
-  readonly onChange: (value: string) => void;
+  readonly onChange: (value: readonly ReadingV2PassageParagraph[]) => boolean | void;
   readonly onAction?: (action: PassageEditorAction) => void;
 }
 
-const MARKDOWN_TOKEN_PATTERN = /(\*\*[^*]+\*\*|__[^_]+__|_[^_\n]+_)/g;
+export const passageAttributes = Extension.create({
+  name: 'passageAttributes',
+  addGlobalAttributes() {
+    return [{
+      types: ['paragraph', 'heading'],
+      attributes: Object.fromEntries(['anchorId', 'label', 'itemId'].map((name) => [name, {
+        default: null,
+        keepOnSplit: false,
+      }])),
+    }];
+  },
+});
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+const inlineToJson = (text: string, marks: JSONContent['marks'] = []): TipTapJsonNode[] =>
+  parseReadingV2InlineMarkdown(text).flatMap((token) => {
+    const mark = { text: undefined, strong: 'bold', em: 'italic', underline: 'underline', code: 'code' }[token.kind];
+    const nextMarks = mark ? [...marks, { type: mark }] : marks;
+    if (token.kind !== 'text' && token.kind !== 'code') return inlineToJson(token.text, nextMarks);
+    return token.text.split('\n').flatMap((part, index) => [
+      ...(index ? [{ type: 'hardBreak' }] : []),
+      ...(part ? [{ type: 'text', text: part, ...(nextMarks.length ? { marks: nextMarks } : {}) }] : []),
+    ]);
+  });
 
-const markdownInlineToHtml = (text: string): string => {
-  const nodes: string[] = [];
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = MARKDOWN_TOKEN_PATTERN.exec(text)) !== null) {
-    const token = match[0];
-    if (match.index > cursor) {
-      nodes.push(escapeHtml(text.slice(cursor, match.index)));
-    }
-
-    if (token.startsWith('**') && token.endsWith('**')) {
-      nodes.push(`<strong>${escapeHtml(token.slice(2, -2))}</strong>`);
-    } else if (token.startsWith('__') && token.endsWith('__')) {
-      nodes.push(`<u>${escapeHtml(token.slice(2, -2))}</u>`);
-    } else {
-      nodes.push(`<em>${escapeHtml(token.slice(1, -1))}</em>`);
-    }
-
-    cursor = match.index + token.length;
+export const readingV2PassageToJson = (paragraphs: readonly ReadingV2PassageParagraph[]): TipTapJsonNode => {
+  const content: TipTapJsonNode[] = [];
+  for (const paragraph of paragraphs) {
+    const attrs = { anchorId: paragraph.anchorId ?? null, label: paragraph.label ?? null, itemId: paragraph.itemId ?? null };
+    const node: TipTapJsonNode = {
+      type: paragraph.blockKind === 'heading' ? 'heading' : 'paragraph',
+      attrs: paragraph.blockKind === 'heading' ? { ...attrs, level: paragraph.headingLevel ?? 2 } : attrs,
+      content: inlineToJson(paragraph.text),
+    };
+    if (paragraph.blockKind === 'list-item') {
+      const type = paragraph.listKind === 'ordered' ? 'orderedList' : 'bulletList';
+      const item = { type: 'listItem', content: [node] };
+      const last = content[content.length - 1];
+      if (last?.type === type) {
+        content[content.length - 1] = { ...last, content: [...(last.content ?? []), item] };
+      } else content.push({ type, content: [item] });
+    } else content.push(node);
   }
-
-  if (cursor < text.length) {
-    nodes.push(escapeHtml(text.slice(cursor)));
-  }
-
-  return nodes.join('').replace(/\n/g, '<br>');
-};
-
-const listItemsForBlock = (block: string, marker: RegExp): readonly string[] | null => {
-  const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0 || !lines.every((line) => marker.test(line))) {
-    return null;
-  }
-
-  return lines.map((line) => line.replace(marker, '').trim());
-};
-
-export const readingV2PassageTextToHtml = (value: string): string => {
-  const blocks = value.trim().length > 0
-    ? value.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean)
-    : [''];
-
-  return blocks.map((block) => {
-    const headingMatch = /^(#{1,3})\s+(.+)$/.exec(block);
-    if (headingMatch) {
-      const level = headingMatch[1]!.length;
-      return `<h${level}>${markdownInlineToHtml(headingMatch[2]!)}</h${level}>`;
-    }
-
-    const bulletItems = listItemsForBlock(block, /^[-*]\s+/);
-    if (bulletItems) {
-      return `<ul>${bulletItems.map((item) => `<li><p>${markdownInlineToHtml(item)}</p></li>`).join('')}</ul>`;
-    }
-
-    const orderedItems = listItemsForBlock(block, /^\d+[.)]\s+/);
-    if (orderedItems) {
-      return `<ol>${orderedItems.map((item) => `<li><p>${markdownInlineToHtml(item)}</p></li>`).join('')}</ol>`;
-    }
-
-    return `<p>${markdownInlineToHtml(block)}</p>`;
-  }).join('');
+  return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
 };
 
 const serializeInlineNodes = (nodes: readonly TipTapJsonNode[] | undefined): string =>
@@ -131,6 +97,10 @@ const serializeInlineNodes = (nodes: readonly TipTapJsonNode[] | undefined): str
     let text = node.text ?? '';
     const marks = node.marks?.map((mark) => mark.type).filter(Boolean) ?? [];
 
+    if (marks.includes('code')) {
+      text = `\`${text}\``;
+    }
+
     if (marks.includes('bold')) {
       text = `**${text}**`;
     }
@@ -140,51 +110,65 @@ const serializeInlineNodes = (nodes: readonly TipTapJsonNode[] | undefined): str
     }
 
     if (marks.includes('underline')) {
-      text = `__${text}__`;
+      text = `<u>${text}</u>`;
     }
 
     return text;
   }).join('');
 
-const serializeBlockNode = (node: TipTapJsonNode, index: number): string => {
-  if (node.type === 'heading') {
-    const level = typeof node.attrs?.level === 'number' ? Math.min(Math.max(node.attrs.level, 1), 3) : 2;
-    return `${'#'.repeat(level)} ${serializeInlineNodes(node.content)}`.trimEnd();
-  }
-
-  if (node.type === 'bulletList') {
-    return (node.content ?? [])
-      .map((item) => `- ${serializeInlineNodes(item.content)}`.trimEnd())
-      .join('\n');
-  }
-
-  if (node.type === 'orderedList') {
-    return (node.content ?? [])
-      .map((item, itemIndex) => `${itemIndex + 1}. ${serializeInlineNodes(item.content)}`.trimEnd())
-      .join('\n');
-  }
-
-  if (node.type === 'paragraph') {
-    return serializeInlineNodes(node.content);
-  }
-
-  return serializeInlineNodes(node.content) || (index === 0 ? '' : '');
+export const readingV2PassageFromJson = (json: TipTapJsonNode): ReadingV2PassageParagraph[] => {
+  const result: ReadingV2PassageParagraph[] = [];
+  const visit = (node: TipTapJsonNode, listKind?: 'bullet' | 'ordered') => {
+    if (node.type === 'bulletList' || node.type === 'orderedList') {
+      node.content?.forEach((child) => visit(child, node.type === 'bulletList' ? 'bullet' : 'ordered'));
+    } else if (node.type === 'listItem') {
+      node.content?.forEach((child) => visit(child, listKind));
+    } else if (node.type === 'paragraph' || node.type === 'heading') {
+      result.push({
+        ...(node.attrs?.anchorId ? { anchorId: readingV2Ids.anchorId(String(node.attrs.anchorId)) } : {}),
+        ...(node.attrs?.label ? { label: String(node.attrs.label) } : {}),
+        ...(node.attrs?.itemId ? { itemId: String(node.attrs.itemId) } : {}),
+        text: serializeInlineNodes(node.content),
+        ...(listKind ? { blockKind: 'list-item' as const, listKind } : node.type === 'heading'
+          ? { blockKind: 'heading' as const, headingLevel: (node.attrs?.level ?? 2) as 1 | 2 | 3 }
+          : { blockKind: 'paragraph' as const }),
+      });
+    }
+  };
+  json.content?.forEach((node) => visit(node));
+  return result;
 };
 
-export const readingV2PassageJsonToText = (json: TipTapJsonNode): string =>
-  (json.content ?? [])
-    .map(serializeBlockNode)
-    .join('\n\n')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trimEnd();
+export const ensurePassageBlockIds = (editor: Editor, reservedAnchorIds: readonly string[] = []): void => {
+  const seenAnchors = new Set<string>(reservedAnchorIds);
+  const seenItems = new Set<string>();
+  const transaction = editor.state.tr;
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== 'paragraph' && node.type.name !== 'heading') return;
+    const existingAnchor = node.attrs.anchorId as string | null;
+    const duplicateAnchor = !existingAnchor || seenAnchors.has(existingAnchor);
+    const anchorId = duplicateAnchor ? `passage-${crypto.randomUUID()}` : existingAnchor;
+    seenAnchors.add(anchorId);
+    const inList = editor.state.doc.resolve(position).parent.type.name === 'listItem';
+    const existingItem = node.attrs.itemId as string | null;
+    const itemId = inList && (!existingItem || seenItems.has(existingItem))
+      ? `item-${crypto.randomUUID()}` : existingItem;
+    if (itemId) seenItems.add(itemId);
+    if (duplicateAnchor || itemId !== existingItem) {
+      transaction.setNodeMarkup(position, undefined, {
+        ...node.attrs, anchorId, itemId, ...(duplicateAnchor ? { label: null } : {}),
+      });
+    }
+  });
+  if (transaction.docChanged) editor.view.dispatch(transaction.setMeta('preventUpdate', true).setMeta('addToHistory', false));
+};
 
 export function ReadingV2PassageEditor({
   value,
   passageNumber,
   ariaLabel = 'Passage editor',
   focusRequestKey = 0,
+  reservedAnchorIds = [],
   placeholder = 'Start typing the passage...',
   onChange,
   onAction,
@@ -199,15 +183,15 @@ export function ReadingV2PassageEditor({
     extensions: [
       StarterKit.configure({
         blockquote: false,
-        code: false,
         codeBlock: false,
         horizontalRule: false,
         underline: false,
       }),
       Underline,
+      passageAttributes,
       Placeholder.configure({ placeholder }),
     ],
-    content: readingV2PassageTextToHtml(value),
+    content: readingV2PassageToJson(value),
     editorProps: {
       attributes: {
         class: 'reading-v2-build__passage-rich-editor',
@@ -219,9 +203,13 @@ export function ReadingV2PassageEditor({
       },
     },
     onUpdate: ({ editor: updatedEditor }) => {
-      const nextValue = readingV2PassageJsonToText(updatedEditor.getJSON() as TipTapJsonNode);
+      ensurePassageBlockIds(updatedEditor, reservedAnchorIds);
+      const nextValue = readingV2PassageFromJson(updatedEditor.getJSON() as TipTapJsonNode);
+      if (onChange(nextValue) === false) {
+        updatedEditor.commands.setContent(readingV2PassageToJson(currentValueRef.current), { emitUpdate: false });
+        return;
+      }
       currentValueRef.current = nextValue;
-      onChange(nextValue);
     },
     onSelectionUpdate: ({ editor: updatedEditor }) => {
       const activeFormats = [
@@ -242,12 +230,12 @@ export function ReadingV2PassageEditor({
   });
 
   useEffect(() => {
-    if (!editor || value === currentValueRef.current) {
+    if (!editor || JSON.stringify(value) === JSON.stringify(currentValueRef.current)) {
       return;
     }
 
     currentValueRef.current = value;
-    editor.commands.setContent(readingV2PassageTextToHtml(value), { emitUpdate: false });
+    editor.commands.setContent(readingV2PassageToJson(value), { emitUpdate: false });
   }, [editor, value]);
 
   useEffect(() => {

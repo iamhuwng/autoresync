@@ -14,6 +14,7 @@ import {
 } from './readingV2ContractGuards.service';
 import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixtures';
 import { assertReadingV2RuntimeProjection } from './readingV2RuntimeBoundary.service';
+import { validateReadingV2Draft } from './readingV2Validation.service';
 
 const cloneDocument = (document: ReadingV2Document): ReadingV2Document =>
   structuredClone(document) as ReadingV2Document;
@@ -89,6 +90,27 @@ describe('readingV2ContractGuards.service', () => {
     expect(() => assertValidReadingV2CanonicalDocument(invalidFixture)).toThrow(
       /invalid anchor/,
     );
+  });
+
+  it('rejects paragraph anchors without passage content and blocks publishing', () => {
+    const fixture = cloneDocument(READING_V2_CANONICAL_FIXTURES['true-false-not-given']);
+    const stimulus = Object.values(fixture.stimuli)[0]!;
+    if (stimulus.content.kind !== 'passage-content') throw new Error('Expected passage content');
+    const invalidFixture: ReadingV2Document = {
+      ...fixture,
+      stimuli: {
+        ...fixture.stimuli,
+        [stimulus.stimulusId]: {
+          ...stimulus,
+          content: { ...stimulus.content, paragraphs: stimulus.content.paragraphs.slice(0, 1) },
+        },
+      },
+    };
+
+    expect(() => assertValidReadingV2CanonicalDocument(fixture)).not.toThrow();
+    expect(validateReadingV2Draft(fixture).canPublish).toBe(true);
+    expect(() => assertValidReadingV2CanonicalDocument(invalidFixture)).toThrow(/paragraph anchor .* has no passage content/);
+    expect(validateReadingV2Draft(invalidFixture).canPublish).toBe(false);
   });
 
   it('rejects stimuli that repeat anchor ids in the canonical registry', () => {
