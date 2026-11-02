@@ -16,6 +16,21 @@ Runtime integrations must preserve these boundaries:
 - trusted submit validates against server-side or trusted projection data
 - result review uses review projection data under teacher/admin policy
 
+## Firebase Document Read Boundary
+
+Firebase RTDB omits empty containers, including an empty interaction
+`reviewLabel`. Canonical snapshot readers in Studio, teacher composition and
+the trusted submission Worker share
+`src/services/reading-v2/readingV2FirebaseDocument.service.ts` to restore the
+in-memory document shape before canonical validation. The Worker applies this
+to individual materials and every pinned passage in homework sets or full-test
+compositions, before composing or scoring them.
+
+This is read-time normalization, not a stored-snapshot repair. It preserves
+populated labels, answer-slot counts, scoring rules and version identities.
+Missing referenced objects and other canonical contract violations remain
+errors; readers must not invent answer keys, marks or multi-answer metadata.
+
 ## Scoring Authority
 
 Trusted submission and local scoring use the same pure answer matcher and

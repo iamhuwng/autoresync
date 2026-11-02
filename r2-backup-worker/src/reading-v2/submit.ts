@@ -1,6 +1,9 @@
 import type { WorkerEnv } from '../types';
 import { verifyFirebaseToken } from '../auth/firebase-auth';
 import { getFirebaseAccessToken } from '../auth/google-oauth';
+import type { ReadingV2Document } from '../../../src/types/readingV2.types';
+import { normalizeReadingV2FirebaseDocument } from '../../../src/services/reading-v2/readingV2FirebaseDocument.service';
+import { assertValidReadingV2CanonicalDocument } from '../../../src/services/reading-v2/readingV2ContractGuards.service';
 import {
     buildReadingV2TrustedSubmissionPlan,
     composeReadingPassageSetTrustedRecords,
@@ -173,6 +176,24 @@ const loadRtdb = async <T>(
         path,
     });
 
+const loadPublishedSnapshot = async (
+    env: WorkerEnv,
+    accessToken: string,
+    materialId: string,
+    snapshotVersionId: string,
+): Promise<Record<string, any> | null> => {
+    const snapshot = await loadRtdb<Record<string, any>>(
+        env, accessToken, `reading_v2/published_snapshots/${materialId}/${snapshotVersionId}`,
+    );
+    if (!snapshot) return null;
+    if (!isRecord(snapshot.document)) {
+        throw new Error('Reading V2 published snapshot requires a canonical document.');
+    }
+    const document = normalizeReadingV2FirebaseDocument(snapshot.document as ReadingV2Document);
+    assertValidReadingV2CanonicalDocument(document);
+    return { ...snapshot, document };
+};
+
 const loadFirestoreDoc = async <T>(
     env: WorkerEnv,
     accessToken: string,
@@ -313,10 +334,11 @@ const loadReadingPassageSetRecords = async (input: {
     const passageRecords: ReadingPassageSetTrustedPassageRecord[] = await Promise.all(
         items.map(async (item: Record<string, any>) => {
             const [snapshot, reviewProjection, metadata] = await Promise.all([
-                loadRtdb<Record<string, any>>(
+                loadPublishedSnapshot(
                     input.env,
                     input.accessToken,
-                    `reading_v2/published_snapshots/${item.passageMaterialId}/${item.snapshotVersionId}`
+                    item.passageMaterialId,
+                    item.snapshotVersionId,
                 ),
                 loadRtdb<Record<string, any>>(
                     input.env,
@@ -387,10 +409,11 @@ const loadCompositionFirstMasterRecords = async (input: {
     const passageRecords: ReadingPassageSetTrustedPassageRecord[] = await Promise.all(
         passageRefs.map(async (item: Record<string, any>) => {
             const [snapshot, reviewProjection, passageMetadata] = await Promise.all([
-                loadRtdb<Record<string, any>>(
+                loadPublishedSnapshot(
                     input.env,
                     input.accessToken,
-                    `reading_v2/published_snapshots/${item.passageMaterialId}/${item.snapshotVersionId}`
+                    item.passageMaterialId,
+                    item.snapshotVersionId,
                 ),
                 loadRtdb<Record<string, any>>(
                     input.env,
@@ -452,10 +475,11 @@ const loadStandardReadingV2Records = async (input: {
     }
 
     const [snapshot, reviewProjection] = await Promise.all([
-        loadRtdb<Record<string, any>>(
+        loadPublishedSnapshot(
             input.env,
             input.accessToken,
-            `reading_v2/published_snapshots/${input.materialId}/${input.snapshotVersionId}`
+            input.materialId,
+            input.snapshotVersionId,
         ),
         loadRtdb<Record<string, any>>(
             input.env,

@@ -28,6 +28,7 @@ import {
 } from '../../types/readingV2.types';
 import { createReadingV2FullTestCompositionFromRefs } from './readingV2FullTestComposition.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
+import { normalizeReadingV2FirebaseDocument } from './readingV2FirebaseDocument.service';
 import { buildReadingV2FirebasePublishUpdates } from './readingV2FirebasePublishAdapter.service';
 import { publishReadingV2Material } from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
@@ -137,60 +138,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getString = (record: Record<string, unknown>, key: string): string | undefined =>
   typeof record[key] === 'string' ? record[key] : undefined;
 
-const normalizeFirebaseDocumentRoundTrip = (document: ReadingV2Document): ReadingV2Document => ({
-  ...document,
-  sectionIds: Array.isArray(document.sectionIds) ? document.sectionIds : [],
-  sections: Object.fromEntries(
-    Object.entries(document.sections ?? {}).map(([sectionId, section]) => [
-      sectionId,
-      {
-        ...section,
-        stimulusIds: Array.isArray(section.stimulusIds) ? section.stimulusIds : [],
-        taskGroupIds: Array.isArray(section.taskGroupIds) ? section.taskGroupIds : [],
-      },
-    ]),
-  ),
-  stimuli: Object.fromEntries(
-    Object.entries(document.stimuli ?? {}).map(([stimulusId, stimulus]) => [
-      stimulusId,
-      {
-        ...stimulus,
-        anchorIds: Array.isArray(stimulus.anchorIds) ? stimulus.anchorIds : [],
-      },
-    ]),
-  ),
-  anchors: document.anchors ?? {},
-  taskGroups: Object.fromEntries(
-    Object.entries(document.taskGroups ?? {}).map(([taskGroupId, taskGroup]) => [
-      taskGroupId,
-      {
-        ...taskGroup,
-        instructionBlocks: Array.isArray(taskGroup.instructionBlocks) ? taskGroup.instructionBlocks : [],
-        stimulusRefs: Array.isArray(taskGroup.stimulusRefs) ? taskGroup.stimulusRefs : [],
-        optionSetRefs: Array.isArray(taskGroup.optionSetRefs) ? taskGroup.optionSetRefs : [],
-        interactionIds: Array.isArray(taskGroup.interactionIds) ? taskGroup.interactionIds : [],
-        validationState: {
-          ...taskGroup.validationState,
-          issues: Array.isArray(taskGroup.validationState?.issues) ? taskGroup.validationState.issues : [],
-        },
-      },
-    ]),
-  ),
-  interactions: Object.fromEntries(
-    Object.entries(document.interactions ?? {}).map(([interactionId, interaction]) => [
-      interactionId,
-      {
-        ...interaction,
-        reviewLabel: interaction.reviewLabel ?? {},
-      },
-    ]),
-  ),
-  optionSets: document.optionSets ?? {},
-  validationState: {
-    ...document.validationState,
-    issues: Array.isArray(document.validationState?.issues) ? document.validationState.issues : [],
-  },
-});
 
 const omitUndefinedForFirebase = (value: unknown): unknown => {
   if (Array.isArray(value)) {
@@ -906,7 +853,7 @@ const toPublishedSnapshot = (value: unknown): ReadingV2PublishedSnapshot | null 
   const rawSnapshot = clone(value as unknown as ReadingV2PublishedSnapshot);
   const snapshot: ReadingV2PublishedSnapshot = {
     ...rawSnapshot,
-    document: normalizeFirebaseDocumentRoundTrip(rawSnapshot.document),
+    document: normalizeReadingV2FirebaseDocument(rawSnapshot.document),
   };
   assertValidReadingV2CanonicalDocument(snapshot.document);
   return snapshot;
