@@ -692,58 +692,64 @@ export const extractReadingV2PassageMaterials = (
     ...(missingTestTypeIssue ? [missingTestTypeIssue] : []),
     ...candidates.flatMap((candidate) => candidate.validationIssues),
   ];
-  const passageRefs = candidates.map((candidate, index) => ({
-    refId: readingV2Ids.passageRefId(
-      `${sanitizeIdPart(source.testMaterialId)}-passage-ref-${index + 1}`,
-    ),
-    passageMaterialId: candidate.material.passageMaterialId,
-    materialId: candidate.material.passageMaterialId,
-    snapshotVersionId: candidate.material.currentSnapshotVersionId,
-    order: index + 1,
-    sourcePassageNumber:
-      candidate.material.sourceOrder.kind === 'numeric' &&
-      typeof candidate.material.sourceOrder.value === 'number'
-        ? candidate.material.sourceOrder.value
-        : null,
-    sourceOrderLabelSnapshot: candidate.material.sourceOrder.labelSnapshot,
-    sourceOrderDisplaySnapshot: candidate.material.sourceOrder.displaySnapshot,
-    titleSnapshot: candidate.material.title,
-    title: candidate.material.title,
-    source: {
-      sourceOrderLabel: candidate.material.sourceOrder.labelSnapshot,
-      sourceOrderDisplay: candidate.material.sourceOrder.displaySnapshot,
-      sourceFullTestId: candidate.material.sourceFullTestId,
-      sourceFullTestTitle: candidate.material.sourceTitleSnapshot,
-    },
-    questionRangeSnapshot: candidate.material.sourceQuestionRange,
-    questionCountSnapshot: candidate.material.interactionIds.reduce(
-      (total, interactionId) => total + readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
-      0,
-    ),
-    questionCount: candidate.material.interactionIds.reduce(
-      (total, interactionId) => total + readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
-      0,
-    ),
-    durationSnapshot: candidate.material.durationMinutes,
-    ownerId: source.ownerId,
-    visibility: materialVisibility,
-    currentVersionId: candidate.material.currentSnapshotVersionId,
-    testType: {
-      ...(candidate.material.primaryTestTypeId ? { primaryTestTypeId: candidate.material.primaryTestTypeId } : {}),
-      testTypeIds: candidate.material.testTypeIds,
-    },
-    testTypeIdsSnapshot: candidate.material.testTypeIds,
-  }));
-  const numbering = composeReadingV2CompositionNumbering({
-    passages: candidates.map((candidate, index) => ({
-      order: index + 1,
+  const passageRefs = candidates.map((candidate, index) => {
+    const interactionLookup = new Map(candidate.interactions.map((item) => [item.interactionId, item]));
+    return {
+      refId: readingV2Ids.passageRefId(
+        `${sanitizeIdPart(source.testMaterialId)}-passage-ref-${index + 1}`,
+      ),
       passageMaterialId: candidate.material.passageMaterialId,
+      materialId: candidate.material.passageMaterialId,
       snapshotVersionId: candidate.material.currentSnapshotVersionId,
-      interactions: candidate.material.interactionIds.map((interactionId) => ({
-        interactionId,
-        questionCount: readingV2InteractionQuestionCount(candidate.interactions[interactionId]),
-      })),
-    })),
+      order: index + 1,
+      sourcePassageNumber:
+        candidate.material.sourceOrder.kind === 'numeric' &&
+        typeof candidate.material.sourceOrder.value === 'number'
+          ? candidate.material.sourceOrder.value
+          : null,
+      sourceOrderLabelSnapshot: candidate.material.sourceOrder.labelSnapshot,
+      sourceOrderDisplaySnapshot: candidate.material.sourceOrder.displaySnapshot,
+      titleSnapshot: candidate.material.title,
+      title: candidate.material.title,
+      source: {
+        sourceOrderLabel: candidate.material.sourceOrder.labelSnapshot,
+        sourceOrderDisplay: candidate.material.sourceOrder.displaySnapshot,
+        sourceFullTestId: candidate.material.sourceFullTestId,
+        sourceFullTestTitle: candidate.material.sourceTitleSnapshot,
+      },
+      questionRangeSnapshot: candidate.material.sourceQuestionRange,
+      questionCountSnapshot: candidate.material.interactionIds.reduce(
+        (total, interactionId) => total + readingV2InteractionQuestionCount(interactionLookup.get(interactionId)),
+        0,
+      ),
+      questionCount: candidate.material.interactionIds.reduce(
+        (total, interactionId) => total + readingV2InteractionQuestionCount(interactionLookup.get(interactionId)),
+        0,
+      ),
+      durationSnapshot: candidate.material.durationMinutes,
+      ownerId: source.ownerId,
+      visibility: materialVisibility,
+      currentVersionId: candidate.material.currentSnapshotVersionId,
+      testType: {
+        ...(candidate.material.primaryTestTypeId ? { primaryTestTypeId: candidate.material.primaryTestTypeId } : {}),
+        testTypeIds: candidate.material.testTypeIds,
+      },
+      testTypeIdsSnapshot: candidate.material.testTypeIds,
+    };
+  });
+  const numbering = composeReadingV2CompositionNumbering({
+    passages: candidates.map((candidate, index) => {
+      const interactionLookup = new Map(candidate.interactions.map((item) => [item.interactionId, item]));
+      return {
+        order: index + 1,
+        passageMaterialId: candidate.material.passageMaterialId,
+        snapshotVersionId: candidate.material.currentSnapshotVersionId,
+        interactions: candidate.material.interactionIds.map((interactionId) => ({
+          interactionId,
+          questionCount: readingV2InteractionQuestionCount(interactionLookup.get(interactionId)),
+        })),
+      };
+    }),
   });
 
   return {
