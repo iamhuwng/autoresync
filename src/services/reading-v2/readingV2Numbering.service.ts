@@ -13,7 +13,7 @@ export interface ReadingV2DerivedNumber {
 
 export const readingV2InteractionQuestionCount = (
   interaction?: Pick<ReadingV2Interaction, 'reviewLabel'>,
-): number => Math.max(1, interaction?.reviewLabel.answerSlotCount ?? 1);
+): number => Math.max(1, interaction?.reviewLabel?.answerSlotCount ?? 1);
 
 export const countReadingV2QuestionSlots = (
   interactions: readonly Pick<ReadingV2Interaction, 'reviewLabel'>[],
