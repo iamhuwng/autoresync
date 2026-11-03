@@ -800,7 +800,7 @@ const appendPrefixedSnapshotDocument = (
     const questionNumberMap = new Map<number, number>();
 
     taskGroup.interactionIds.forEach((interactionId) => {
-      const sourceDisplayNumber = snapshot.document.interactions[interactionId]?.reviewLabel.displayNumber;
+      const sourceDisplayNumber = snapshot.document.interactions[interactionId]?.reviewLabel?.displayNumber;
       const nextDisplayNumber = displayNumbers.get(interactionId);
 
       if (

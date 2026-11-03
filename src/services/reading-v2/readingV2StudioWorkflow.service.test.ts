@@ -21,6 +21,10 @@ import {
 } from './readingV2ExternalAiPrompt.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
 
+vi.mock('../firebase', () => ({
+  database: { name: 'mock-database' },
+}));
+
 const withSectionTitleAndNumbers = (
   document: ReadingV2Document,
   sectionTitle: string,
@@ -986,6 +990,83 @@ describe('readingV2StudioWorkflow.service', () => {
         }),
       ),
     });
+  });
+
+  it('resolves import review when hydrated with create-from-auto mode', async () => {
+    const rawText = [
+      '### READING PASSAGE 1',
+      'You should spend about 20 minutes on Questions 1-3.',
+      '## Stepwells',
+      'A millennium ago, stepwells were fundamental to life in the driest parts of India.',
+      '#### Questions 1-3',
+      'Do the following statements agree with the information given in Reading Passage 1?',
+      '**TRUE** if the statement agrees',
+      '**FALSE** if the statement contradicts',
+      '**NOT GIVEN** if there is no information',
+      '**1** Examples of ancient stepwells can be found all over the world.',
+      '**2** Stepwells had a range of functions.',
+      '**3** The few existing stepwells in Delhi are more attractive.',
+    ].join('\n');
+
+    const answerKeyText = [
+      '1 FALSE',
+      '2 TRUE',
+      '3 NOT GIVEN',
+    ].join('\n');
+
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: 'cam10-auto-v4-publish',
+      materialId: 'cam10-auto-v4-material',
+      ownerId: 'teacher-repro',
+      initialMetadata: {
+        title: 'Practice Cam 10 Reading Test 01',
+        ownerId: 'teacher-repro',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      initialImportCandidate: {
+        sourceKind: 'auto-gemini',
+        rawText,
+        answerKeyText,
+        evidence: ['Detected source from Auto V4'],
+        uncertaintyMarkers: [],
+        publishBlockingPlaceholders: [],
+      },
+    });
+
+    const issues = validateReadingV2Draft(context.document).blockingIssues;
+    expect(issues.some((issue) => issue.code === 'unresolved-import-uncertainty')).toBe(false);
+    expect(Object.values(context.document.taskGroups).some((tg) => (tg.importEvidenceRefs?.length ?? 0) > 0)).toBe(false);
+
+    const commitAdapter = vi.fn(async (commitPlan) => ({
+      commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
+      operationKeys: commitPlan.operations.map((operation) => operation.operationKey),
+      updates: {},
+      status: 'committed' as const,
+    }));
+
+    const result = await publishReadingV2StudioDraft({
+      draftId: context.draftId,
+      materialId: context.materialId,
+      document: context.document,
+      metadata: {
+        ...context.metadata,
+        title: 'Practice Cam 10 Reading Test 01',
+        materialKind: 'reading-passage',
+        visibility: 'private',
+        primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+        testTypeIds: [materialCatalogIds.testTypeId('ielts')],
+        testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      },
+      revisionToken: context.revisionToken,
+      returnContext: 'teacher-lobby',
+    }, commitAdapter);
+
+    expect(result.firebaseCommitStatus).toBe('committed');
   });
 
   it('fails closed for missing resume-draft context and blocks create-from-import before normalization', () => {

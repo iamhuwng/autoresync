@@ -475,7 +475,7 @@ export function ReadingV2TaskGroupEditor({
                                     optionSetId: optionSetForInteraction(),
                                     selectionLimit,
                                   },
-                                  ...(interaction.reviewLabel.answerSlotCount !== undefined
+                                  ...(interaction.reviewLabel?.answerSlotCount !== undefined
                                     ? {
                                         reviewLabel: {
                                           ...interaction.reviewLabel,
