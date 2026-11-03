@@ -35,6 +35,7 @@ import {
   createReadingV2ImportCandidateFromText,
   normalizeReadingV2ImportCandidate,
 } from '../../../services/reading-v2/readingV2ImportNormalization.service';
+import { validateReadingV2Draft } from '../../../services/reading-v2/readingV2Validation.service';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
   READING_V2_STRUCTURED_MATERIALS_START,
@@ -387,8 +388,9 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(within(reviewIssues).queryByText(/Local repair rebuilt it from source/)).not.toBeInTheDocument();
   });
 
-  it('keeps imported review details collapsed by default and accepts import from the developer action row', () => {
+  it('keeps imported review details collapsed by default and accepts import from the developer action row', async () => {
     const onAction = vi.fn();
+    const onDraftChange = vi.fn();
     const candidate = createReadingV2ImportCandidateFromText({
       text: [
         '## Imported Reading passage',
@@ -410,6 +412,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
         importCandidate={candidate}
         metadata={{ title: 'Accept Import' }}
         onAction={onAction}
+        onDraftChange={onDraftChange}
       />,
     );
 
@@ -418,6 +421,13 @@ describe('ReadingV2StudioShell Build Workspace', () => {
 
     expect(screen.queryByRole('button', { name: 'Accept into Draft' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review import details' })).not.toBeInTheDocument();
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
+    const acceptedDocument = onDraftChange.mock.calls.at(-1)?.[0]?.document as ReadingV2Document;
+    expect(Object.values(acceptedDocument.taskGroups).every((taskGroup) => !taskGroup.importEvidenceRefs)).toBe(true);
+    expect(validateReadingV2Draft(acceptedDocument).issues).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'unresolved-import-uncertainty' })]),
+    );
+    expect(screen.getByRole('button', { name: 'Publish' })).not.toBeDisabled();
     expect(onAction).toHaveBeenCalledWith('importMaterial', expect.objectContaining({
       outcome: 'normalized-to-canonical-draft',
     }));
@@ -699,6 +709,36 @@ describe('ReadingV2StudioShell Build Workspace', () => {
 
     expect(tableStimulus).toEqual(expect.objectContaining({ title: 'Editor block normalized table' }));
     expect(validateReadingV2EditorDocument(deserializeReadingV2CanonicalToEditorDocument(savedDocument))).toEqual([]);
+  }, 30000);
+
+  it('builds preview from the edited table draft instead of the initial document', async () => {
+    const onPreview = vi.fn(async (snapshot) =>
+      generateReadingV2PreviewOnly({
+        draftId: snapshot.draftId,
+        ownerId: snapshot.metadata.ownerId,
+        document: snapshot.document,
+      }).projection);
+
+    render(
+      <ReadingV2StudioShell
+        mode="create-blank"
+        draftId="table-preview-draft"
+        metadata={{ title: 'Table preview draft' }}
+        onPreview={onPreview}
+      />,
+    );
+
+    openAddQuestionGroupModal();
+    chooseTaskType('Table Completion');
+    fireEvent.change(screen.getByLabelText('Table title'), {
+      target: { value: 'Edited table in preview' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+
+    await waitFor(() => expect(onPreview).toHaveBeenCalled());
+    const previewSnapshot = onPreview.mock.calls[0]?.[0];
+    expect(JSON.stringify(previewSnapshot.document)).toContain('Edited table in preview');
+    expect(await screen.findByRole('dialog', { name: 'Reading V2 teacher preview' })).toBeInTheDocument();
   }, 30000);
 
   it('saves incomplete drafts while publish remains blocked by teacher-readable validation', async () => {

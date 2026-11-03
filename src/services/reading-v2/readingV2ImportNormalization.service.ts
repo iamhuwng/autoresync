@@ -3501,6 +3501,31 @@ export const createReadingV2ImportCandidateFromText = (input: {
   };
 };
 
+export const resolveReadingV2ImportReview = (document: ReadingV2Document): ReadingV2Document => ({
+  ...document,
+  validationState: {
+    ...document.validationState,
+    issues: document.validationState.issues.filter((issue) => issue.code !== 'unresolved-import-uncertainty'),
+  },
+  taskGroups: Object.fromEntries(
+    Object.entries(document.taskGroups).map(([taskGroupId, taskGroup]) => {
+      const { importEvidenceRefs: _importEvidenceRefs, ...resolvedTaskGroup } = taskGroup;
+      return [
+        taskGroupId,
+        {
+          ...resolvedTaskGroup,
+          validationState: {
+            ...taskGroup.validationState,
+            issues: taskGroup.validationState.issues.filter(
+              (issue) => issue.code !== 'unresolved-import-uncertainty',
+            ),
+          },
+        },
+      ];
+    }),
+  ),
+});
+
 export const normalizeReadingV2ImportCandidate = (
   candidate: ReadingV2ImportCandidate,
 ): ReadingV2ImportNormalizationResult => {
