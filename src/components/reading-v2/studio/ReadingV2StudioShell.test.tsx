@@ -1,6 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../../services/firebase', () => ({
+  database: {},
+}));
+
 vi.mock('./ReadingV2PassageEditor', () => ({
   ReadingV2PassageEditor: ({
     ariaLabel,
