@@ -75,7 +75,7 @@ if (isLocalDevelopment && import.meta.env.VITE_LOCAL_DEV_BOOTSTRAP !== 'true') {
 }
 
 if (isLocalDevelopment) {
-  if (import.meta.env.VITE_THCS_GEMMA_WORKER_URL) {
+  if (import.meta.env.VITE_THCS_GEMMA_WORKER_URL && import.meta.env.VITE_THCS_GEMMA_WORKER_URL !== localWorkerOrigin) {
     throw new Error('[Firebase] Local AI requires an isolated gateway runtime; live gateway configuration is forbidden.');
   }
   if (import.meta.env.VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN !== 'https://s3.us-west-004.backblazeb2.com') {
