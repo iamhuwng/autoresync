@@ -353,7 +353,7 @@ const deriveQuestionRange = (
   interactions: readonly ReadingV2Interaction[],
 ): string | undefined => {
   const ranges = interactions.flatMap((interaction) => {
-    const start = interaction.reviewLabel.displayNumber;
+    const start = interaction.reviewLabel?.displayNumber;
     if (typeof start !== 'number' || !Number.isFinite(start)) return [];
     return [start, start + readingV2InteractionQuestionCount(interaction) - 1];
   });

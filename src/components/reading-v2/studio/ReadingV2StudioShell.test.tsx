@@ -34,6 +34,7 @@ import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fi
 import {
   createReadingV2ImportCandidateFromText,
   normalizeReadingV2ImportCandidate,
+  resolveReadingV2ImportReview,
 } from '../../../services/reading-v2/readingV2ImportNormalization.service';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
@@ -578,6 +579,34 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
+  });
+
+  it('does not display Accept into Draft and allows publishing when Auto V4 draft is valid', async () => {
+    const onPublish = vi.fn().mockResolvedValue({ publishOutcome: 'success', duplicateWarnings: [] });
+    const resolvedDoc = resolveReadingV2ImportReview(createReadingV2CanonicalFixture('sentence-completion'));
+
+    render(
+      <ReadingV2StudioShell
+        mode="create-from-auto"
+        document={resolvedDoc}
+        importCandidate={{
+          sourceKind: 'auto-gemini',
+          rawText: 'sample text',
+          evidence: ['auto-v4'],
+          uncertaintyMarkers: [],
+          publishBlockingPlaceholders: ['Draft validation: some old blocker'],
+        }}
+        metadata={{ title: 'Auto V4 Test Title' }}
+        onPublish={onPublish}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Accept into Draft' })).not.toBeInTheDocument();
+    const publishButton = screen.getByRole('button', { name: 'Publish' });
+    await act(async () => {
+      fireEvent.click(publishButton);
+    });
+    expect(onPublish).toHaveBeenCalledOnce();
   });
 
   it('keeps Passage 3 editable when selected directly from a blank test', () => {

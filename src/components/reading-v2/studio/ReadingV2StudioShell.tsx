@@ -689,11 +689,11 @@ export const createManualReadingV2TaskGroup = (
             ],
             [
               { cellId: `${taskGroupId}-table-cell-r2-c1`, text: 'Item 1', role: 'body', rowSpan: 1, colSpan: 1 },
-              { cellId: `${taskGroupId}-table-cell-r2-c2`, anchorId: structuredAnchorIds[0]!, anchorIds: [structuredAnchorIds[0]!], text: '', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
+              { cellId: `${taskGroupId}-table-cell-r2-c2`, anchorId: structuredAnchorIds[0]!, anchorIds: [structuredAnchorIds[0]!], text: '___', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
             ],
             [
               { cellId: `${taskGroupId}-table-cell-r3-c1`, text: 'Item 2', role: 'body', rowSpan: 1, colSpan: 1 },
-              { cellId: `${taskGroupId}-table-cell-r3-c2`, anchorId: structuredAnchorIds[1]!, anchorIds: [structuredAnchorIds[1]!], text: '', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
+              { cellId: `${taskGroupId}-table-cell-r3-c2`, anchorId: structuredAnchorIds[1]!, anchorIds: [structuredAnchorIds[1]!], text: '___', role: 'body', isBlank: true, rowSpan: 1, colSpan: 1 },
             ],
           ],
         },
@@ -1552,7 +1552,7 @@ const createQuestionForTaskGroup = (
   };
 };
 
-const removeTaskGroup = (
+export const removeTaskGroup = (
   document: ReadingV2Document,
   taskGroup: ReadingV2TaskGroup,
 ): ReadingV2Document => {
@@ -2278,9 +2278,11 @@ export function ReadingV2StudioShell({
           },
         ]
       : []),
-    ...(currentImportCandidate?.publishBlockingPlaceholders.map((message, index) =>
-      buildImportReviewValidationMessage(message, index, currentImportCandidate.autoImportDiagnostics),
-    ) ?? []),
+    ...(mode !== 'create-from-auto' && currentImportCandidate
+      ? currentImportCandidate.publishBlockingPlaceholders.map((message, index) =>
+          buildImportReviewValidationMessage(message, index, currentImportCandidate.autoImportDiagnostics),
+        )
+      : []),
     ...passageSlots.flatMap((passage) => [
       ...(passage.hasTitle
         ? []
@@ -2670,7 +2672,7 @@ export function ReadingV2StudioShell({
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       const permissionDenied = /permission|denied/i.test(message);
-      if (import.meta.env.DEV && !import.meta.env.VITEST) {
+      if (!import.meta.env.VITEST) {
         console.error('[Diag][ReadingV2Studio] publish_failed', {
           message,
           name: error instanceof Error ? error.name : typeof error,
@@ -3280,7 +3282,7 @@ export function ReadingV2StudioShell({
 
       <section className="reading-v2-studio__advanced" aria-label="Developer details">
         <div className="reading-v2-studio__advanced-actions">
-          {currentImportCandidate ? (
+          {currentImportCandidate && mode !== 'create-from-auto' ? (
             <button
               className="reading-v2-studio__button reading-v2-studio__button--secondary"
               type="button"

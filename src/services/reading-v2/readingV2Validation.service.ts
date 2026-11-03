@@ -393,7 +393,7 @@ const validateNoteCompletionTaskGroup = (
     .filter((interaction): interaction is ReadingV2Interaction => Boolean(interaction));
   const interactionNumbers = new Set(
     interactions
-      .map((interaction) => interaction.reviewLabel.displayNumber)
+      .map((interaction) => interaction.reviewLabel?.displayNumber)
       .filter((value): value is number => typeof value === 'number' && Number.isFinite(value)),
   );
   const layout = parseNoteCompletionLayout(taskGroup);
@@ -987,7 +987,7 @@ export const validateReadingV2Draft = (
 
     if (interaction.responseShape.kind === 'multi-select') {
       const answerCount = interaction.scoringRule.acceptableAnswers?.filter((answer) => answer.trim().length > 0).length ?? 0;
-      const answerSlotCount = interaction.reviewLabel.answerSlotCount;
+      const answerSlotCount = interaction.reviewLabel?.answerSlotCount;
       if (interaction.responseShape.selectionLimit < 1) {
         issues.push(
           issue(
@@ -1030,7 +1030,7 @@ export const validateReadingV2Draft = (
           ),
         );
       }
-    } else if (interaction.reviewLabel.answerSlotCount !== undefined) {
+    } else if (interaction.reviewLabel?.answerSlotCount !== undefined) {
       issues.push(
         issue(
           'missing-scoring-response-shape',
@@ -1209,7 +1209,7 @@ export const validateReadingV2Draft = (
   const explicitSeenNumbers = new Set<number>();
 
   Object.values(document.interactions).forEach((interaction) => {
-    const displayNumber = interaction.reviewLabel.displayNumber;
+    const displayNumber = interaction.reviewLabel?.displayNumber;
     if (typeof displayNumber !== 'number' || !Number.isFinite(displayNumber)) {
       return;
     }

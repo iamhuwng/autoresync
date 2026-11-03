@@ -60,7 +60,7 @@ export const scoreReadingV2Answer = (
   readonly answerSlotScores?: readonly number[];
   readonly answerSlotAnswers?: readonly string[];
 } => {
-  const slotCount = interaction.reviewLabel.answerSlotCount ?? 1;
+  const slotCount = interaction.reviewLabel?.answerSlotCount ?? 1;
   if (interaction.responseShape.kind !== 'multi-select' || slotCount <= 1) {
     return {
       score: answerMatches(studentAnswer, interaction, optionSet) ? interaction.scoringRule.maxScore : 0,

@@ -22,6 +22,7 @@ import type {
 import {
   createReadingV2DefaultImportCandidate,
   normalizeReadingV2ImportCandidate,
+  resolveReadingV2ImportReview,
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
@@ -343,9 +344,12 @@ const createDraftContext = (input: {
     ? input.initialImportCandidate
       ? (() => {
           const importedDocument = normalizeReadingV2ImportCandidate(input.initialImportCandidate).document;
+          const resolvedDocument = input.mode === 'create-from-auto'
+            ? resolveReadingV2ImportReview(importedDocument)
+            : importedDocument;
           return {
-            ...importedDocument,
-            title: initialMetadata?.title ?? importedDocument.title,
+            ...resolvedDocument,
+            title: initialMetadata?.title ?? resolvedDocument.title,
           };
         })()
       : createImportPendingDocument(initialMetadata?.title)
