@@ -27,6 +27,7 @@ import {
 } from '../../../types/readingV2Taxonomy';
 import {
   normalizeReadingV2ImportCandidate,
+  resolveReadingV2ImportReview,
   type ReadingV2AutoImportCandidateDiagnostic,
 } from '../../../services/reading-v2/readingV2ImportNormalization.service';
 import { getReadingV2InstructionText } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
@@ -2864,7 +2865,7 @@ export function ReadingV2StudioShell({
     try {
       const result = normalizeReadingV2ImportCandidate(candidate);
       const editorNormalization = normalizeStructuredDocumentThroughEditorBlocks(result.document);
-      const normalizedDocument = editorNormalization.document;
+      const normalizedDocument = resolveReadingV2ImportReview(editorNormalization.document);
       const normalizedTaskGroups = Object.values(normalizedDocument.taskGroups);
       const normalizedInteractions = Object.values(normalizedDocument.interactions);
       logStudioDiagnostic('import_normalized_to_draft', {
