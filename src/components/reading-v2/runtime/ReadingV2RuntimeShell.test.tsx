@@ -1420,6 +1420,40 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByRole('textbox', { name: 'Question 1 structured answer' })).toBeInTheDocument();
   });
 
+  it('keeps authored text around table blanks in the answer surface', () => {
+    setViewport(1024, 768);
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['table-completion'].studentSafe;
+    const projection = {
+      ...baseProjection,
+      content: {
+        ...baseProjection.content,
+        stimuli: baseProjection.content.stimuli.map((stimulus) => stimulus.content.kind === 'table-content'
+          ? {
+              ...stimulus,
+              content: {
+                ...stimulus.content,
+                rows: stimulus.content.rows.map((row, rowIndex) => rowIndex === 1
+                  ? row.map((cell, cellIndex) => cellIndex === 0 ? { ...cell, text: 'wide range of _____' } : cell)
+                  : row),
+              },
+            }
+          : stimulus),
+      },
+    };
+
+    render(<ReadingV2RuntimeShell projection={projection} />);
+
+    expect(screen.getByLabelText('Table completion answer table')).toHaveTextContent('wide range of');
+    const answer = screen.getByRole('textbox', { name: 'Question 1 structured answer' });
+    expect(answer).toBeInTheDocument();
+    expect(answer.tagName).toBe('TEXTAREA');
+    expect(answer).toHaveAttribute('rows', '1');
+    expect(answer).toHaveAttribute('wrap', 'soft');
+
+    fireEvent.change(answer, { target: { value: 'a longer answer' } });
+    expect(answer.closest('.reading-v2-runtime__cell-answer-stack')).toBeInTheDocument();
+  });
+
   it('preserves answer state while switching phone answer layers', () => {
     setViewport(390, 844);
     render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
