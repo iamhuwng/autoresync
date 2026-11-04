@@ -2526,8 +2526,9 @@ async function verifyHomeworkResultAuthority(input) {
   if (!sameCanonicalIdentity(result, authority2) || values.at(-3) !== "student" || values.at(-2) !== "teacher") return deny2();
   if (values.at(-1) === true) throw Error("authority_unavailable");
   const receiptPath = `result_notification_authority/${resultId}`;
-  if (await database.create(receiptPath, authority2)) return "created";
+  if (actorUid === studentId && await database.create(receiptPath, authority2)) return "created";
   const prior = verifiedProof(await database.read(receiptPath));
+  if (!prior && actorUid !== studentId) return deny2();
   if (!prior || keys.some((key) => prior[key] !== authority2[key])) throw Error("authority_conflict");
   return "replayed";
 }
@@ -3035,7 +3036,7 @@ var init_notification_firestore_bridge = __esm({
         if (url.pathname === "/homework-result-authority") {
           if (!input || Object.keys(input).join(",") !== "resultId" || typeof input.resultId !== "string" || !ID4.test(input.resultId))
             return json(request, 400, "invalid_result");
-          if (input.resultId !== env.HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID) return json(request, 403, "qa_result_denied");
+          if (env.HOMEWORK_RESULT_AUTHORITY_ENABLED !== "true") return json(request, 503, "authority_unavailable");
           if (!env.RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME || !env.RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF)
             return json(request, 503, "authority_unavailable");
           try {
@@ -3043,7 +3044,6 @@ var init_notification_firestore_bridge = __esm({
             const identity = await createFirebaseVerifier3().verifyAuthorizationHeader(auth, env);
             const actor = identity.uid;
             if (!identity.valid || typeof actor !== "string" || !ID4.test(actor)) return json(request, 401, "unauthenticated");
-            if (actor !== env.HOMEWORK_RESULT_AUTHORITY_QA_ACTOR) return json(request, 403, "qa_actor_denied");
             const project2 = encodeURIComponent(env.FIREBASE_PROJECT_ID);
             const status = await verifyHomeworkResultAuthority({
               resultId: input.resultId,

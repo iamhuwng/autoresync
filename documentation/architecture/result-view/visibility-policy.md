@@ -1,5 +1,29 @@
 # Result View Visibility Policy
 
+## Ordinary Writing homework sharing
+
+The submitting student's authenticated request can authorize sharing their own
+exact canonical homework result with the assignment creator. The Worker checks
+the Writing source, ordinary submitted homework attempt, assignment target and
+material, canonical result identity, roles, cutoff and restore state before a
+create-only protected receipt write. Mutable Writing fields alone never let a
+teacher mint access: teacher requests may replay only an exact existing receipt.
+
+RTDB `test_results/{resultId}` read rules remain the final data gate. A receipt
+does not bypass identity correspondence. Ownership normalization uses the shared
+authorizer and enables teacher actions only after the correct owner snapshot is
+established. Mid-view denial immediately clears data, and pending repairs cannot
+restore stale private state. Unrelated teacher and unauthenticated reads remain
+denied.
+
+The separately scoped operator repair for the two owner-reported records is an
+administrative permission correction, recorded with exact identities and an
+intent/outcome audit. It is not a general teacher issuance path, a historical
+authorship claim, or a Firebase rule relaxation. Its limitations are recorded in
+the [change record](../changelog/teacher-writing-homework-access-2026-11-04.md).
+
+The exact repair completed on 2026-11-04: live rule evaluation allowed both owner reads and denied both unrelated-user reads. The [release evidence](../../release-audits/2026-11-04-teacher-writing-homework-access.md) distinguishes this permission proof from the waived browser flow.
+
 ## 2026-10-30 Listening Classic observability
 
 Draft PR #196 adds playback control telemetry and presentation. It does not
