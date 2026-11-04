@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "89a139c28196abd9139bf9403e6066932cd7c5c3",
-    "providerVersion": "ce578e2ffde92f63",
-    "record": "2026-10-29-listening-narrow-desktop.md"
+    "sourceRevision": "7d9a6a8e47581a4e462ae9839d53b23977f44163",
+    "providerVersion": "7aa139d3a0dc6ee9",
+    "record": "2026-11-04-teacher-writing-homework-access.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
@@ -16,13 +16,13 @@
   },
   "notificationWorker": {
     "script": "luyentap-notification-command",
-    "sourceRevision": "3b682ffa371fc549486d72c4d3125f3c8651a124",
-    "sourceTag": "deployed-notification-worker-2026-10-18",
-    "providerVersion": "a184d75b-8823-485a-885d-e23354646f45",
-    "moduleSha256": "9734197c765b06de9d746e68fea9a4912780447e05ddb12057e1ac3c6e2f9ed7",
+    "sourceRevision": "9dc6bdb51469d19c983950994133275e5b46a24f",
+    "sourceTag": "deployed-notification-worker-2026-11-04",
+    "providerVersion": "7f4edb63-4727-4d0c-9e46-ade6dd51a602",
+    "moduleSha256": "ff2f130d7d33d1b32f2cde3e6c9bd9bee833a03d6484b2fa031bf95970cf709c",
     "entryModuleSha256": "72a358e0f7313fd37e89f7bf1d85cd1337c199192dc6c297881bf1b71258d270",
-    "deploymentConfigSha256": "bd4391b72d20c696b55f625888d0fadea100e1703cc14921cb7b0989f7aaaafa",
-    "record": "2026-10-18-homework-qa-correction-release.md"
+    "deploymentConfigSha256": "593146eabea52d672fbb74da446d16241f3ed58b9f66232a6479ab5d801b3591",
+    "record": "2026-11-04-teacher-writing-homework-access.md"
   },
   "databaseRules": {
     "project": "temp-a1437",

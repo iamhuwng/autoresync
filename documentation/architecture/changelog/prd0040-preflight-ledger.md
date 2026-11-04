@@ -25,8 +25,8 @@ provenance verification.
 
 Focused modal, submission, shared-authorizer and client tests pass; the actual
 retained Worker and exact-current RTDB rule regression pass. Browser verification
-is explicitly waived. Deployment, exact operator repair and authenticated remote
-readback remain separate gates in the
+is explicitly waived. Hosting/Worker deployment, the exact operator repair and
+live owner/unrelated-UID rule readback passed, as recorded in the
 [release record](../../release-audits/2026-11-04-teacher-writing-homework-access.md).
 
 ## 2026-10-30 Listening Classic registry change record
