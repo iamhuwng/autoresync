@@ -3,7 +3,7 @@
 Changelog ID: `CL-20261104-TEACHER-WRITING-HOMEWORK-ACCESS`
 Master entry: [Master Changelog](../master_changelog.md)
 
-Status: prepared client and notification Worker correction; **not deployed**. The user explicitly waived browser verification on 2026-11-04; runtime, permission and provider checks remain required.
+Status: notification Worker deployed and verified as version `7f4edb63-4727-4d0c-9e46-ade6dd51a602`; client Hosting publication and the exact-record permission repair remain pending. The user explicitly waived browser verification on 2026-11-04; runtime, permission and provider checks remain required.
 
 ## Incident and live evidence
 
@@ -11,7 +11,7 @@ The assigning teacher opening a submitted IELTS Writing homework sees `Access Re
 
 Read-only production inspection on 2026-11-04 confirmed both reported result IDs (`-P5XSYK6Yo54qRPhEC8_`, `-P5XAvrl9IVAEjYRMGXo`) exist with `visibility.ownershipResolved: false` and no `result_notification_authority` receipt. Their canonical homework IDs and explicit Writing submission IDs agree. The assignment targets those students and identifies the reported teacher account as creator. No live data was changed.
 
-The previous completion report based on frontend tests was premature. The existing `/homework-result-authority` route is QA-pinned, its checked-in QA values are `disabled`, and its source-rules seal configuration is absent. Calling it from a new client does not activate it. The live Firestore ruleset observed was `projects/temp-a1437/rulesets/fbd67e85-0ea9-4e86-a351-df53fb6ca796`; its Writing submission create/read rules remain permissive. Do not treat that ruleset as a verified immutable Writing-source seal.
+The initial completion report based on frontend tests was premature. At initial inspection, `/homework-result-authority` was QA-pinned, its QA values were `disabled`, and source-context configuration was absent. The qualified Worker rollout has since replaced that disabled gate with student-only issuance. The live Firestore ruleset observed was `projects/temp-a1437/rulesets/fbd67e85-0ea9-4e86-a351-df53fb6ca796`; its Writing submission create/read rules remain permissive. Do not treat that ruleset as a verified immutable Writing-source seal.
 
 ## Client correction
 
