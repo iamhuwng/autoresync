@@ -11,6 +11,9 @@ import { geminiProvider } from '../ai/gemini.provider';
 import { normalizeReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 import { generateReadingV2StudentSafeProjection } from './readingV2Projection.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
+import { publishReadingV2StudioDraft, resolveReadingV2StudioWorkflowContext } from './readingV2StudioWorkflow.service';
+
+vi.mock('../firebase', () => ({ database: {} }));
 
 const autoPayload = (overrides: Record<string, unknown> = {}) => ({
   sourceFile: 'auto-fixture.txt',
@@ -1214,7 +1217,10 @@ describe('readingV2AutoImport.service', () => {
       '2 homes/ housing',
     ]);
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
-    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('looks like note-completion') }),
+      expect.objectContaining({ message: expect.stringContaining('requires a 2-word limit') }),
+    ]);
   });
 
   it.each([false, true])('keeps Auto V4 ranged multiple-choice groups and paired multiple-select semantics (Markdown: %s)', async (markdown) => {
@@ -1368,7 +1374,9 @@ describe('readingV2AutoImport.service', () => {
       expect.objectContaining({ code: 'auto-v4-provider-stage', stage: 'auto-v4-passages' }),
       expect.objectContaining({ code: 'auto-v4-provider-stage', stage: 'auto-v4-questions' }),
     ]));
-    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual(markdown
+      ? [expect.objectContaining({ message: expect.stringContaining('Passage 1 looks too short') })]
+      : []);
   });
 
   it('preserves Auto V4 diagram source images from the raw question block', async () => {
@@ -2174,7 +2182,7 @@ describe('readingV2AutoImport.service', () => {
     expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
   });
 
-  it('opens an Auto V4 Studio candidate for review when source answer-key rows cannot bind cleanly', async () => {
+  it.each([true, false])('keeps missing Auto V4 source questions blocked through Studio hydration (complete key: %s)', async (completeKey) => {
     const raw = [
       'READING PASSAGE 1',
       'This raw teacher source contains enough passage text for Auto Gemini import and Studio review.',
@@ -2193,8 +2201,7 @@ describe('readingV2AutoImport.service', () => {
       'Answers',
       '1 TRUE',
       '2 FALSE',
-      '3 TRUE',
-      '4 FALSE',
+      ...(completeKey ? ['3 TRUE', '4 FALSE'] : []),
     ].join('\n');
     const v4Extractor = v4ExtractorFor();
 
@@ -2209,20 +2216,42 @@ describe('readingV2AutoImport.service', () => {
     expect(result.questionCount).toBe(2);
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'source-question-missing', severity: 'warning' }),
-      expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'warning' }),
+      ...(completeKey ? [expect.objectContaining({ code: 'source-answer-row-unbound', severity: 'warning' })] : []),
     ]));
     expect(result.diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ severity: 'error' }),
     ]));
     expect(result.candidate.publishBlockingPlaceholders).toEqual(expect.arrayContaining([
       expect.stringContaining('Source ledger detected questions 3-4'),
-      expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4'),
+      ...(completeKey ? [expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4')] : []),
     ]));
     expect(result.candidate.uncertaintyMarkers).toEqual(expect.arrayContaining([
-      expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4'),
+      ...(completeKey ? [expect.stringContaining('Source answer-key rows cannot bind to generated questions: 3-4')] : []),
     ]));
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
     assertValidReadingV2CanonicalDocument(normalized.document);
+    const context = resolveReadingV2StudioWorkflowContext({
+      mode: 'create-from-auto',
+      draftId: `missing-source-questions-${completeKey}`,
+      materialId: `missing-source-material-${completeKey}`,
+      ownerId: 'teacher-1',
+      initialImportCandidate: result.candidate,
+    });
+    const commitAdapter = vi.fn();
+    await expect(publishReadingV2StudioDraft({
+      draftId: context.draftId,
+      materialId: context.materialId,
+      document: context.document,
+      metadata: context.metadata,
+      revisionToken: context.revisionToken,
+    }, commitAdapter)).rejects.toThrow();
+    expect(commitAdapter).not.toHaveBeenCalled();
+    const resumed = resolveReadingV2StudioWorkflowContext({
+      mode: 'resume-draft', draftId: context.draftId, ownerId: 'teacher-1',
+    });
+    expect(validateReadingV2Draft(resumed.document).blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('Source ledger detected questions 3-4') }),
+    ]));
   });
 
   it('extracts escaped markdown answer-key rows from pasted source', async () => {

@@ -27,6 +27,7 @@ import {
 } from '../../../types/readingV2Taxonomy';
 import {
   normalizeReadingV2ImportCandidate,
+  getReadingV2ImportSourceBlockers,
   resolveReadingV2ImportReview,
   type ReadingV2AutoImportCandidateDiagnostic,
 } from '../../../services/reading-v2/readingV2ImportNormalization.service';
@@ -2278,8 +2279,10 @@ export function ReadingV2StudioShell({
           },
         ]
       : []),
-    ...(mode !== 'create-from-auto' && currentImportCandidate
-      ? currentImportCandidate.publishBlockingPlaceholders.map((message, index) =>
+    ...(currentImportCandidate
+      ? (mode === 'create-from-auto'
+          ? getReadingV2ImportSourceBlockers(currentImportCandidate)
+          : currentImportCandidate.publishBlockingPlaceholders).map((message, index) =>
           buildImportReviewValidationMessage(message, index, currentImportCandidate.autoImportDiagnostics),
         )
       : []),

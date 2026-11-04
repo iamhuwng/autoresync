@@ -3501,11 +3501,22 @@ export const createReadingV2ImportCandidateFromText = (input: {
   };
 };
 
+export const getReadingV2ImportSourceBlockers = (candidate: ReadingV2ImportCandidate): readonly string[] =>
+  candidate.publishBlockingPlaceholders.filter((message) =>
+    message.startsWith('Auto import needs teacher review before publish:'),
+  );
+
+const isImportAcceptanceIssue = (issue: ReadingV2ValidationIssue): boolean =>
+  issue.code === 'unresolved-import-uncertainty' && (
+    issue.message === 'Imported Reading material requires teacher review before publish.'
+    || /^Imported questions .+ require teacher confirmation before publish\.$/.test(issue.message)
+  );
+
 export const resolveReadingV2ImportReview = (document: ReadingV2Document): ReadingV2Document => ({
   ...document,
   validationState: {
     ...document.validationState,
-    issues: document.validationState.issues.filter((issue) => issue.code !== 'unresolved-import-uncertainty'),
+    issues: document.validationState.issues.filter((issue) => !isImportAcceptanceIssue(issue)),
   },
   taskGroups: Object.fromEntries(
     Object.entries(document.taskGroups).map(([taskGroupId, taskGroup]) => {
@@ -3517,7 +3528,7 @@ export const resolveReadingV2ImportReview = (document: ReadingV2Document): Readi
           validationState: {
             ...taskGroup.validationState,
             issues: taskGroup.validationState.issues.filter(
-              (issue) => issue.code !== 'unresolved-import-uncertainty',
+              (issue) => !isImportAcceptanceIssue(issue),
             ),
           },
         },
@@ -3534,10 +3545,24 @@ export const normalizeReadingV2ImportCandidate = (
   }
 
   const rawText = candidate.rawText ?? createReadingV2DefaultImportCandidate().rawText ?? '';
+  // shortcut: source findings require a corrected import; revalidate them when Studio supports source-fidelity repair.
+  const sourceIssues: ReadingV2ValidationIssue[] = getReadingV2ImportSourceBlockers(candidate).map((message) => ({
+    code: 'unresolved-import-uncertainty',
+    severity: 'error',
+    message,
+  }));
   const structuredResult = normalizeStructuredReadingPayload(candidate, rawText);
 
   if (structuredResult) {
-    return structuredResult;
+    return {
+      ...structuredResult,
+      document: {
+        ...structuredResult.document,
+        validationState: {
+          issues: [...structuredResult.document.validationState.issues, ...sourceIssues],
+        },
+      },
+    };
   }
 
   const sourceTitle = frontmatterValue(rawText, 'title') ?? 'Imported Reading V2 material';
@@ -3744,6 +3769,7 @@ export const normalizeReadingV2ImportCandidate = (
 
   const validationIssues = [
     unresolvedIssue('Imported Reading material requires teacher review before publish.', `${idStem}-document`),
+    ...sourceIssues,
     ...answerKeyDiagnosticsAsIssues(teacherAnswerKey),
     ...unboundAnswerKeyRowsAsIssues(teacherAnswerKey, answeredQuestionNumbers(interactions)),
   ];

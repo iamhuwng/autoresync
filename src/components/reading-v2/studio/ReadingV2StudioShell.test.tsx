@@ -585,7 +585,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
   });
 
-  it('does not display Accept into Draft and allows publishing when Auto V4 draft is valid', async () => {
+  it.each([false, true])('preserves Auto V4 edits and blocks only source issues, not stale validation (source issue: %s)', async (hasSourceIssue) => {
     const onPublish = vi.fn().mockResolvedValue({ publishOutcome: 'success', duplicateWarnings: [] });
     const resolvedDoc = resolveReadingV2ImportReview(createReadingV2CanonicalFixture('sentence-completion'));
 
@@ -598,7 +598,10 @@ describe('ReadingV2StudioShell Build Workspace', () => {
           rawText: 'sample text',
           evidence: ['auto-v4'],
           uncertaintyMarkers: [],
-          publishBlockingPlaceholders: ['Draft validation: some old blocker'],
+          publishBlockingPlaceholders: [
+            'Draft validation: some old blocker',
+            ...(hasSourceIssue ? ['Auto import needs teacher review before publish: Source ledger detected questions 3-4 missing.'] : []),
+          ],
         }}
         metadata={{ title: 'Auto V4 Test Title' }}
         onPublish={onPublish}
@@ -610,7 +613,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     await act(async () => {
       fireEvent.click(publishButton);
     });
-    expect(onPublish).toHaveBeenCalledOnce();
+    expect(onPublish).toHaveBeenCalledTimes(hasSourceIssue ? 0 : 1);
   });
 
   it('keeps Passage 3 editable when selected directly from a blank test', () => {
