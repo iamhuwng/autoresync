@@ -1,5 +1,35 @@
 # PRD-0040 Preflight Ledger
 
+## 2026-11-04 Writing homework access change record
+
+Domain: saved-result and Writing `result`. Canonical surface:
+`ResultDetailModal`, opened by `TeacherHomeworkDetailPage` on
+`/teacher/homework/:homeworkId`; its parent entry and existing teacher shell stay
+intact. The student submission producer remains `WritingPracticeView`.
+
+The modal directly subscribes to `test_results/{resultId}`; backend RTDB
+permission remains authoritative. The shared authorizer can normalize its
+`visibility` only after a protected `result_notification_authority/{resultId}`
+matches. The Worker checks Firestore `writing_submissions`,
+`homework_submissions` and `homework_assignments` plus canonical RTDB identity.
+Only the authenticated submitting student can create new sharing authority;
+teacher recovery cannot self-grant. Receipt/source correspondence, role,
+restore and collision checks are retained. Route IDs and mutable Writing
+metadata alone cannot grant a teacher access.
+
+No draft/autosave, monitor, queue/editor, THCS inline-writing, session/post-test,
+guest-claim, demo/public result or other result-shell behavior changes. There is
+no new result shell, route, storage path or Firebase rule relaxation. The exact
+two-record operator grant has its own audited scope and is not general source
+provenance verification.
+
+Focused modal, submission, shared-authorizer and client tests pass; the actual
+retained Worker and exact-current RTDB rule regression pass. Browser verification
+is explicitly waived. Deployment, exact operator repair and authenticated remote
+readback remain separate gates in the
+[release record](../../release-audits/2026-11-04-teacher-writing-homework-access.md).
+
+
 ## 2026-10-30 Listening Classic registry change record
 
 Draft PR #196 touches test-taking observability in `featureRegistry.ts`; saved

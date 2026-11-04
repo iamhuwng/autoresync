@@ -11,6 +11,7 @@ const {
     mockMaterializeSubmissionResult,
     mockSubmitHomework,
     mockGetHomeworkSubmissionById,
+    mockVerifyHomeworkResultAuthority,
     mockCreateTrustedNotification,
     mockPush,
     mockGetStudentClasses,
@@ -29,6 +30,7 @@ const {
     mockMaterializeSubmissionResult: vi.fn(),
     mockSubmitHomework: vi.fn(),
     mockGetHomeworkSubmissionById: vi.fn(),
+    mockVerifyHomeworkResultAuthority: vi.fn(),
     mockCreateTrustedNotification: vi.fn(() => Promise.resolve({ success: true })),
     mockPush: vi.fn(() => ({ key: 'result-1' })),
     mockGetStudentClasses: vi.fn(),
@@ -80,6 +82,10 @@ vi.mock('../../services/writingSubmissionService', () => ({
 vi.mock('../../services/homeworkSubmissionService', () => ({
     submitHomework: (...args: unknown[]) => mockSubmitHomework(...args),
     getSubmissionById: (...args: unknown[]) => mockGetHomeworkSubmissionById(...args),
+}));
+
+vi.mock('../../services/homeworkResultAuthorityClient', () => ({
+    verifyHomeworkResultAuthority: (...args: unknown[]) => mockVerifyHomeworkResultAuthority(...args),
 }));
 
 vi.mock('../../services/notificationProducerClient', () => ({
@@ -152,6 +158,7 @@ describe('WritingPracticeView', () => {
         mockMaterializeSubmissionResult.mockResolvedValue({ success: true, sharingStatus: 'shared' });
         mockNotifyCommittedEvent.mockResolvedValue({ status: 'written' });
         mockSubmitHomework.mockResolvedValue(undefined);
+        mockVerifyHomeworkResultAuthority.mockResolvedValue({ status: 'created' });
         mockGetHomeworkSubmissionById.mockImplementation(async (id: string) => {
             const source = mockCreateSubmission.mock.calls.at(-1)?.[0];
             return { id, homeworkId: source?.context.homeworkId, studentId: 'student-1', status: 'in_progress' };
@@ -443,6 +450,7 @@ describe('WritingPracticeView', () => {
             undefined,
             expect.any(Number),
         );
+        expect(mockVerifyHomeworkResultAuthority).toHaveBeenCalledWith('result-1');
         expect(mockCreateTrustedNotification).not.toHaveBeenCalled();
         expect(mockNavigate).toHaveBeenCalledWith('/student/homework', { replace: true });
     });
