@@ -100,6 +100,7 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
 
         let hasReceivedSnapshot = false;
         let authorityRecoveryAttempted = false;
+        let ownershipRepairAttempted = false;
         let cancelled = false;
         setLoading(true);
         setError(null);
@@ -113,7 +114,15 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                 if (cancelled) return;
                 hasReceivedSnapshot = true;
                 if (snapshot.exists()) {
-                    setResult(snapshot.val() as TestResultRecord);
+                    const data = snapshot.val() as TestResultRecord;
+                    setResult(data);
+                    if (!ownershipRepairAttempted && data.testSkill === 'writing' && data.context?.type === 'homework'
+                        && !data.visibility?.ownershipResolved) {
+                        ownershipRepairAttempted = true;
+                        void getAuthorizedTeacherResult(resultId).then(({ result: authorizedResult }) => {
+                            if (!cancelled) setResult(authorizedResult as TestResultRecord);
+                        }).catch(error => console.warn('[ResultDetailModal] Writing ownership repair unavailable:', error));
+                    }
                     setError(null);
                     setAccessLost(ACCESS_LOST_INITIAL);
                 } else {

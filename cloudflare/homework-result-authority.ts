@@ -153,8 +153,9 @@ export async function verifyHomeworkResultAuthority(input: {
   if (!sameCanonicalIdentity(result, authority) || values.at(-3) !== 'student' || values.at(-2) !== 'teacher') return deny();
   if (values.at(-1) === true) throw Error('authority_unavailable');
   const receiptPath = `result_notification_authority/${resultId}`;
-  if (await database.create(receiptPath, authority)) return 'created';
+  if (actorUid === studentId && await database.create(receiptPath, authority)) return 'created';
   const prior = verifiedProof(await database.read(receiptPath));
+  if (!prior && actorUid !== studentId) return deny();
   if (!prior || keys.some(key => prior[key as keyof HomeworkResultAuthority] !== authority[key as keyof HomeworkResultAuthority])) throw Error('authority_conflict');
   return 'replayed';
 }

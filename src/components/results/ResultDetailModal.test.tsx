@@ -43,6 +43,14 @@ vi.mock('../../services/feedbackService', () => ({
   getAuthorizedTeacherResult: mockGetAuthorizedTeacherResult,
 }));
 
+vi.mock('../../services/writingSubmissionService', () => ({
+  getSubmission: async () => ({ success: false }),
+}));
+
+vi.mock('../writing-results/WritingTeacherResultSurface', () => ({
+  default: ({ data }: { data: { viewerMode: string } }) => <div data-testid="writing-viewer-mode">{data.viewerMode}</div>,
+}));
+
 vi.mock('../../services/resultFeedbackGeneration.service', () => ({
   generateFormativeFeedbackForSavedResult: (...args: unknown[]) =>
     mockGenerateFormativeFeedbackForSavedResult(...args),
@@ -196,6 +204,17 @@ describe('ResultDetailModal', () => {
     expect(await screen.findByText('Access Revoked')).toBeInTheDocument();
     expect(mockOnValue).toHaveBeenCalledOnce();
     expect(mockGetTestResult).not.toHaveBeenCalled();
+  });
+
+  it('resolves the owner snapshot after a protected receipt makes a Writing result readable', async () => {
+    const writing = { ...IELTS_RESULT, testSkill: 'writing', context: { type: 'homework' },
+      writingData: { submissionId: 'res-1' }, visibility: { contextType: 'homework', ownershipResolved: false } };
+    mockGetAuthorizedTeacherResult.mockResolvedValue({ result: { ...writing,
+      visibility: { ...writing.visibility, ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1' } } });
+    render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    simulateOnValueSuccess(writing);
+    await waitFor(() => expect(screen.getByTestId('writing-viewer-mode')).toHaveTextContent('teacher-actionable'));
+    expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledExactlyOnceWith('res-1');
   });
 
   it('ignores recovery from a result that has been closed or replaced', async () => {

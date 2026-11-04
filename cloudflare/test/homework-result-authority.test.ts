@@ -43,13 +43,15 @@ describe('narrow homework result authority', () => {
   it('requires verified Firebase identity before candidate-source I/O, and holds a missing release gate', async () => {
     const f = fixture();
     const env = { ...f.env, FIREBASE_DB_URL: 'https://example.firebaseio.com', NOTIFICATION_COMMAND_SERVICE_IDENTITY: '',
-      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: '', HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID: 'result1', HOMEWORK_RESULT_AUTHORITY_QA_ACTOR: 'student1' };
+      NOTIFICATION_COMMAND_GOOGLE_SA_KEY: '', HOMEWORK_RESULT_AUTHORITY_ENABLED: 'true' };
     const fetcher = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => Response.json({}, { status: 403 }));
     const bridge = createNotificationFirestoreBridge(fetcher as typeof fetch);
     const bearer = `e30.${btoa(JSON.stringify({ sub: 'student1' }))}.signature`;
     const request = (token = bearer) => new Request('https://authority.example/homework-result-authority', { method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{"resultId":"result1"}' });
     expect((await bridge.fetch(request('invalid'), env)).status).toBe(401);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect((await bridge.fetch(request(), { ...env, HOMEWORK_RESULT_AUTHORITY_ENABLED: 'false' })).status).toBe(503);
     expect(fetcher).not.toHaveBeenCalled();
     expect((await bridge.fetch(request(), { ...env, RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF: '' })).status).toBe(503);
     expect(fetcher).not.toHaveBeenCalled();
@@ -63,21 +65,18 @@ describe('narrow homework result authority', () => {
     expect((await bridge.fetch(request(), env)).status).toBe(429);
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it('creates the minimum receipt for either source student or exact assignment teacher; replay still checks current correspondence', async () => {
-    for (const actor of ['student1', 'teacher1']) {
-      const f = fixture();
-      expect(await f.verify(actor)).toBe('created');
-      expect(f.database.read).toHaveBeenCalledTimes(26);
-      expect(f.peak()).toBe(3);
-      const receipt = verifiedProof(f.leaves['result_notification_authority/result1']);
-      expect(receipt).toMatchObject({ schemaVersion: 2, studentId: 'student1', ownerTeacherId: 'teacher1', homeworkSubmittedAt: f.homeworkSubmittedAt, submittedAt: f.submittedAt });
-      expect(Object.keys(receipt!)).toHaveLength(13);
-      expect(f.env.NOTIFICATION_RATE_LIMITER.limit).toHaveBeenCalledWith({ key: `homework-result-authority:${actor}` });
-      expect(await f.verify(actor)).toBe('replayed');
-      expect(f.readSource).toHaveBeenCalledTimes(6);
-      f.documents.homework_assignments.materialId = 'changed';
-      await expect(f.verify(actor)).rejects.toThrow('authority_denied');
-    }
+  it('allows only the student to create a receipt, then lets the exact teacher replay it', async () => {
+    const f = fixture();
+    await expect(f.verify('teacher1')).rejects.toThrow('authority_denied');
+    expect(f.database.create).not.toHaveBeenCalled();
+    expect(await f.verify('student1')).toBe('created');
+    expect(f.peak()).toBe(3);
+    const receipt = verifiedProof(f.leaves['result_notification_authority/result1']);
+    expect(receipt).toMatchObject({ schemaVersion: 2, studentId: 'student1', ownerTeacherId: 'teacher1', homeworkSubmittedAt: f.homeworkSubmittedAt, submittedAt: f.submittedAt });
+    expect(Object.keys(receipt!)).toHaveLength(13);
+    expect(await f.verify('teacher1')).toBe('replayed');
+    f.documents.homework_assignments.materialId = 'changed';
+    await expect(f.verify('teacher1')).rejects.toThrow('authority_denied');
   });
 
   it('denies actor/source/recipient/occurrence/target/material/import and canonical mismatches without receipt writes', async () => {
@@ -127,6 +126,17 @@ describe('narrow homework result authority', () => {
     await expect(f.verify()).rejects.toThrow('authority_conflict');
     expect(verifiedProof({ ...f.leaves['result_notification_authority/result1'] as object, schemaVersion: 1 })).toBeNull();
     expect(f.leaves['result_notification_authority/result1']).toMatchObject({ ownerTeacherId: 'other' });
+  });
+
+  it('does not replay an existing receipt for a different teacher', async () => {
+    const f = fixture();
+    await f.verify();
+    (f.documents.writing_submissions.context as Record<string, unknown>).assigningTeacherId = 'other';
+    f.documents.homework_assignments.createdBy = 'other';
+    f.documents.homework_submissions.teacherId = 'other';
+    f.leaves['users/other/role'] = 'teacher';
+    await expect(f.verify('other')).rejects.toThrow('authority_conflict');
+    expect(f.database.create).toHaveBeenCalledTimes(1);
   });
 
   it('meters missing/unrelated candidates before their first source GET and denies exhausted actors without a read', async () => {
