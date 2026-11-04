@@ -9,6 +9,7 @@ import {
 import {
   createReadingV2ImportCandidateFromText,
   normalizeReadingV2ImportCandidate,
+  resolveReadingV2ImportReview,
   parseReadingV2TeacherAnswerKey,
 } from './readingV2ImportNormalization.service';
 import {
@@ -1059,6 +1060,8 @@ describe('readingV2ImportNormalization.service', () => {
       severity: 'error',
     });
     expect(taskGroup?.validationState.issues[0]?.message).toContain('Use your imagination');
+    expect(Object.values(resolveReadingV2ImportReview(result.document).taskGroups)[0]?.validationState.issues)
+      .toEqual(taskGroup?.validationState.issues);
   });
 
   it('keeps source-copied non-standard instruction wording as review warning, not publish blocker', () => {
@@ -1106,6 +1109,8 @@ describe('readingV2ImportNormalization.service', () => {
       code: 'unresolved-import-uncertainty',
       severity: 'warning',
     });
+    expect(Object.values(resolveReadingV2ImportReview(result.document).taskGroups)[0]?.validationState.issues)
+      .toEqual(taskGroup?.validationState.issues);
   });
 
   it('consumes the stronger external-AI schema with multi-material passages, options, references, and word limits', () => {

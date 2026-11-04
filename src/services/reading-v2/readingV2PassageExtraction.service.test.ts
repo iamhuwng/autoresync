@@ -88,12 +88,23 @@ const buildFullTestDocument = (
 };
 
 describe('readingV2PassageExtraction.service', () => {
-  it('extracts a 3-passage IELTS full test into passage materials and one composition', () => {
-    const document = buildFullTestDocument('IELTS Academic Reading Test 1', [
+  it.each([1, 2])('extracts a 3-passage IELTS full test with %s slots per choice interaction', (choiceSlots) => {
+    const baseDocument = buildFullTestDocument('IELTS Academic Reading Test 1', [
       { taskType: 'sentence-completion', sectionTitle: 'Reading Passage 1', reviewNumbers: [1, 13] },
       { taskType: 'true-false-not-given', sectionTitle: 'Reading Passage 2', reviewNumbers: [14, 26] },
-      { taskType: 'multiple-choice', sectionTitle: 'Reading Passage 3', reviewNumbers: [27, 40] },
+      { taskType: choiceSlots === 2 ? 'multiple-select' : 'multiple-choice', sectionTitle: 'Reading Passage 3', reviewNumbers: [27, 40] },
     ]);
+    const document: ReadingV2Document = {
+      ...baseDocument,
+      interactions: Object.fromEntries(Object.entries(baseDocument.interactions).map(([id, interaction]) => [
+        id,
+        interaction.responseShape.kind === 'multi-select' ? {
+          ...interaction,
+          scoringRule: { ...interaction.scoringRule, maxScore: choiceSlots },
+          reviewLabel: { ...interaction.reviewLabel, answerSlotCount: choiceSlots },
+        } : interaction,
+      ])),
+    };
 
     const result = extractReadingV2PassageMaterials({
       document,
@@ -112,7 +123,8 @@ describe('readingV2PassageExtraction.service', () => {
     expect(result.validationIssues).toEqual([]);
     expect(result.passages).toHaveLength(3);
     expect(result.composition.passageRefs).toHaveLength(3);
-    expect(result.composition.questionCount).toBe(6);
+    expect(result.composition.questionCount).toBe(4 + 2 * choiceSlots);
+    expect(result.composition.passageRefs.map((ref) => ref.questionCountSnapshot)).toEqual([2, 2, 2 * choiceSlots]);
     expect(result.composition.testMaterialId).toBe('material-full-test-ielts-1');
     expect(result.passages.map((candidate) => candidate.material.title)).toEqual([
       'IELTS Academic Reading Test 1: Passage 1',
@@ -142,7 +154,7 @@ describe('readingV2PassageExtraction.service', () => {
     expect(result.passages.map((candidate) => candidate.material.sourceQuestionRange)).toEqual([
       '1-13',
       '14-26',
-      '27-40',
+      `27-${39 + choiceSlots}`,
     ]);
     expect(result.passages[0]?.stimulus.kind).toBe('passage');
     expect(result.passages[0]?.taskGroups).toHaveLength(1);

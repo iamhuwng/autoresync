@@ -14,6 +14,8 @@ They guide edit/publish decisions but are not student runtime payload.
 - Blocking issues must stop publish until resolved or explicitly allowed by the
   owning publish contract.
 - Non-blocking issues may warn without blocking publish.
+- Auto V4 source-review blockers remain in the canonical draft validation state across save/resume and stop publication. Clearing generic import-acceptance markers must preserve source findings and custom-instruction warnings.
+- Derived `Draft validation:` messages are recalculated from the edited document. Source-fidelity findings currently require a corrected import; normal edits do not acknowledge or clear them.
 - Issue payloads must not expose hidden provenance or raw source evidence to
   student-safe projections.
 
