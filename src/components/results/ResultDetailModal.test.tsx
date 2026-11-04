@@ -8,17 +8,20 @@ const {
   mockGetTestResult,
   mockGenerateFormativeFeedbackForSavedResult,
   mockNeedsAiFeedbackUpgrade,
+  mockGetAuthorizedTeacherResult,
 } = vi.hoisted(() => {
   const mockOnValue = vi.fn();
   const mockGetTestResult = vi.fn();
   const mockGenerateFormativeFeedbackForSavedResult = vi.fn();
   const mockNeedsAiFeedbackUpgrade = vi.fn((_feedback?: unknown, _questionResults?: unknown) => false);
+  const mockGetAuthorizedTeacherResult = vi.fn();
 
   return {
     mockOnValue,
     mockGetTestResult,
     mockGenerateFormativeFeedbackForSavedResult,
     mockNeedsAiFeedbackUpgrade,
+    mockGetAuthorizedTeacherResult,
   };
 });
 
@@ -34,6 +37,10 @@ vi.mock('../../services/firebase', () => ({
 vi.mock('../../services/testResults.service', () => ({
   getTestResult: mockGetTestResult,
   TestResultRecord: {},
+}));
+
+vi.mock('../../services/feedbackService', () => ({
+  getAuthorizedTeacherResult: mockGetAuthorizedTeacherResult,
 }));
 
 vi.mock('../../services/resultFeedbackGeneration.service', () => ({
@@ -157,11 +164,49 @@ describe('ResultDetailModal', () => {
     vi.clearAllMocks();
     mockOnValue.mockReturnValue(vi.fn());
     mockGetTestResult.mockResolvedValue(IELTS_RESULT);
+    mockGetAuthorizedTeacherResult.mockRejectedValue(new Error('authority_denied'));
     mockGenerateFormativeFeedbackForSavedResult.mockResolvedValue({
       saved: true,
       aiApplied: true,
       mode: 'ai',
     });
+  });
+
+  it('restarts the realtime subscription after trusted homework authority recovery and still handles revocation', async () => {
+    mockGetAuthorizedTeacherResult.mockResolvedValue({ result: IELTS_RESULT });
+    const unsubscribe = vi.fn();
+    mockOnValue.mockReturnValue(unsubscribe);
+    const view = render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    act(() => mockOnValue.mock.calls[0][2](new Error('permission_denied')));
+    await waitFor(() => expect(mockOnValue).toHaveBeenCalledTimes(2));
+    expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledExactlyOnceWith('res-1');
+    act(() => mockOnValue.mock.calls[1][1]({ exists: () => true, val: () => IELTS_RESULT }));
+    expect(screen.getByText('IELTS Reading Practice 1')).toBeInTheDocument();
+    act(() => mockOnValue.mock.calls[1][2](new Error('permission_denied')));
+    expect(screen.getByText('Access Revoked')).toBeInTheDocument();
+    expect(screen.queryByText('IELTS Reading Practice 1')).not.toBeInTheDocument();
+    expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalled();
+  });
+
+  it('keeps denied results inaccessible when trusted recovery fails', async () => {
+    render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    act(() => mockOnValue.mock.calls[0][2](new Error('permission_denied')));
+    expect(await screen.findByText('Access Revoked')).toBeInTheDocument();
+    expect(mockOnValue).toHaveBeenCalledOnce();
+    expect(mockGetTestResult).not.toHaveBeenCalled();
+  });
+
+  it('ignores recovery from a result that has been closed or replaced', async () => {
+    let complete!: () => void;
+    mockGetAuthorizedTeacherResult.mockImplementationOnce(() => new Promise<void>(resolve => { complete = resolve; }));
+    const view = render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    act(() => mockOnValue.mock.calls[0][2](new Error('permission_denied')));
+    view.rerender(<ResultDetailModal opened onClose={vi.fn()} resultId="res-2" />);
+    await act(async () => complete());
+    expect(mockOnValue).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Access Revoked')).not.toBeInTheDocument();
   });
 
   it('auto-triggers feedback generation for missing IELTS results in the modal', async () => {

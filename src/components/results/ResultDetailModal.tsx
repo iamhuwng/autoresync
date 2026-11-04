@@ -13,6 +13,7 @@ import type { WritingSubmission } from '../../types/ielts-writing.types';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
 import { classifyTeacherResultVisibility } from '../../services/resultVisibility.service';
+import { getAuthorizedTeacherResult } from '../../services/feedbackService';
 import WritingTeacherResultSurface from '../writing-results/WritingTeacherResultSurface';
 import {
     buildWritingResultSurfaceData,
@@ -98,13 +99,18 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
         }
 
         let hasReceivedSnapshot = false;
+        let authorityRecoveryAttempted = false;
+        let cancelled = false;
         setLoading(true);
         setError(null);
+        setResult(null);
+        setAccessLost(ACCESS_LOST_INITIAL);
 
         const resultRef = ref(database, `test_results/${resultId}`);
-        const unsubscribe = onValue(
+        const subscribe = () => onValue(
             resultRef,
             (snapshot) => {
+                if (cancelled) return;
                 hasReceivedSnapshot = true;
                 if (snapshot.exists()) {
                     setResult(snapshot.val() as TestResultRecord);
@@ -117,12 +123,28 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                 setLoading(false);
             },
             (err) => {
+                if (cancelled) return;
                 console.error('[ResultDetailModal] Realtime subscription failed:', err);
 
                 // FR-035 (Task 3.3): Check for PERMISSION_DENIED
                 if (isPermissionDeniedError(err)) {
                     console.warn('[ResultDetailModal] Access revoked (PERMISSION_DENIED). Clearing data.', err);
                     setResult(null);
+                    if (!hasReceivedSnapshot && !authorityRecoveryAttempted) {
+                        authorityRecoveryAttempted = true;
+                        void getAuthorizedTeacherResult(resultId).then(() => {
+                            if (!cancelled) {
+                                unsubscribe();
+                                unsubscribe = subscribe();
+                            }
+                        }).catch(() => {
+                            if (cancelled) return;
+                            setLoading(false);
+                            setError(null);
+                            setAccessLost({ isAccessLost: true, reason: 'permission_denied' });
+                        });
+                        return;
+                    }
                     setLoading(false);
                     setError(null);
                     setAccessLost({ isAccessLost: true, reason: 'permission_denied' });
@@ -135,7 +157,11 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
             }
         );
 
-        return () => unsubscribe();
+        let unsubscribe = subscribe();
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
     }, [opened, inline, resultId, loadResult]);
 
     const isWritingResult = Boolean(
