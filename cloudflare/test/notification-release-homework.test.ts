@@ -55,13 +55,17 @@ it('delivers assignment proofs and THCS receipts through the frozen release with
   vi.stubGlobal('fetch', fetcher);
   try {
     const { NotificationBridgeObject } = await import('../notification-release/notification-command-public.js');
-    const bridge = new NotificationBridgeObject({}, {
+    const bindings = {
       FIREBASE_PROJECT_ID: 'project1', FIREBASE_DB_URL: 'https://project1.firebaseio.com',
       HOMEWORK_NOTIFICATION_RULES_CUTOFF: new Date(occurredAt - 1000).toISOString(),
+      HOMEWORK_RESULT_AUTHORITY_ENABLED: 'true',
+      RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME: 'projects/project1/rulesets/sealed',
+      RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF: new Date(occurredAt - 1000).toISOString(),
       NOTIFICATION_COMMAND_SERVICE_IDENTITY: 'sa@example.test',
       NOTIFICATION_COMMAND_GOOGLE_SA_KEY: JSON.stringify({ client_email: 'sa@example.test', private_key: await exportPKCS8(privateKey) }),
       NOTIFICATION_RATE_LIMITER: { limit: async () => ({ success: true }) },
-    });
+    };
+    const bridge = new NotificationBridgeObject({}, bindings);
     const deliver = (studentId: string) => bridge.fetch(new Request('https://worker.test/events', {
       method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind: 'thcs-homework-assigned', eventId: 'homework', studentId }),
@@ -134,6 +138,48 @@ it('delivers assignment proofs and THCS receipts through the frozen release with
     expect(await replay.json()).toEqual({ status: 'replayed' });
     expect(values[noticePath]).toMatchObject({ read: true, link: '/teacher/homework/homework' });
     expect(writes.slice(2)).toEqual(['result_notification_authority/result', noticePath]);
+
+    documents['homework_assignments/writing-homework'] = {
+      id: 'writing-homework', createdBy: 'teacher', materialId: 'writing-test', materialSkill: 'writing',
+      contentRef: { contentKind: 'ielts_writing', contentId: 'writing-test' },
+      target: { type: 'students', studentIds: ['student'] },
+    };
+    documents['homework_submissions/writing-attempt'] = {
+      id: 'writing-attempt', homeworkId: 'writing-homework', studentId: 'student', teacherId: 'teacher',
+      submittedAt: occurredAt, resultId: 'writing-result', status: 'submitted',
+    };
+    documents['writing_submissions/writing-result'] = {
+      id: 'writing-result', studentId: 'student', submittedAt: occurredAt - 500,
+      context: { type: 'homework', homeworkId: 'writing-homework', homeworkSubmissionId: 'writing-attempt', assigningTeacherId: 'teacher' },
+      testMeta: { testId: 'writing-test' },
+    };
+    const writingResult = {
+      resultId: 'writing-result', studentId: 'student', testId: 'writing-test', testType: 'homework',
+      testSkill: 'writing', isGuest: false, submittedAt: occurredAt - 500, createdAt: occurredAt - 500,
+      'writingData/submissionId': 'writing-result', 'context/type': 'homework', 'context/source/type': 'homework',
+      'context/source/id': 'writing-homework', 'context/source/submissionId': 'writing-result',
+      'context/assignment/homeworkId': 'writing-homework',
+    };
+    for (const [leaf, value] of Object.entries(writingResult)) values[`test_results/writing-result/${leaf}`] = value;
+    const verify = (bearer: string) => bridge.fetch(new Request('https://worker.test/homework-result-authority', {
+      method: 'POST', headers: { Authorization: bearer, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resultId: 'writing-result' }),
+    }));
+    bindings.HOMEWORK_RESULT_AUTHORITY_ENABLED = 'false';
+    expect((await verify(studentAuthorization)).status).toBe(503);
+    bindings.HOMEWORK_RESULT_AUTHORITY_ENABLED = 'true';
+    const teacherDenied = await verify(authorization);
+    expect(teacherDenied.status).toBe(403);
+    expect(values['result_notification_authority/writing-result']).toBeUndefined();
+    const created = await verify(studentAuthorization);
+    expect(created.status).toBe(200);
+    expect(await created.json()).toEqual({ status: 'created' });
+    const teacherReplay = await verify(authorization);
+    expect(teacherReplay.status).toBe(200);
+    expect(await teacherReplay.json()).toEqual({ status: 'replayed' });
+    values['test_results/writing-result/testId'] = 'other-test';
+    expect((await verify(authorization)).status).toBe(403);
+    expect(writes.filter(path => path === 'result_notification_authority/writing-result')).toHaveLength(1);
   } finally {
     vi.unstubAllGlobals();
   }

@@ -128,6 +128,19 @@ required; this checker deploys nothing.
 
 ## Acceptance rehearsal
 
+### Fixed Writing Homework authority correction
+
+The November 4 correction has a separate fixed native observer:
+`--observe-writing-homework-worker --worker-phase predeploy|postdeploy`.
+Follow [its release record](../release-audits/2026-11-04-teacher-writing-homework-access.md).
+The observer pins the clean product source, exact two-module artifact and
+deployment configuration, then independently verifies Cloudflare and both
+Firebase rulesets twice. It qualifies only the notification command Worker;
+`hostingReady` remains false. Browser verification was explicitly waived for
+this task; source, permission, artifact and native remote proof remain required.
+The historical notification observer and generic Worker gates are unchanged.
+
+
 On 2026-10-11, the isolated release-safety branch built the actual application
 with explicit `demo-luyentap-local`/localhost configuration, generated a
 446-file manifest, and deployed it to the temporary Hosting channel

@@ -32,6 +32,7 @@ import { getHomeworkById } from '../../services/homeworkManager';
 import { getUserById } from '../../services/userService';
 import { createSubmission, materializeSubmissionResult, readCommittedWritingSubmission } from '../../services/writingSubmissionService';
 import { getSubmissionById as getHomeworkSubmissionById, submitHomework } from '../../services/homeworkSubmissionService';
+import { verifyHomeworkResultAuthority } from '../../services/homeworkResultAuthorityClient';
 import { toast } from '../modern/ToastNotification';
 import { useFeatureTracking } from '../../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../../config/featureRegistry';
@@ -701,6 +702,8 @@ export default function WritingPracticeView({
                         if (savedAttempt.status !== 'submitted' && savedAttempt.status !== 'graded') throw error;
                     }
                 }
+                const authority = await verifyHomeworkResultAuthority(resultId);
+                sharingHeld = authority.status !== 'created' && authority.status !== 'replayed';
                 void notifyCommittedEvent({ eventKind: 'homework-submitted', submissionId: homeworkSubmissionId })
                     .catch(error => console.warn('[WritingPracticeView] Homework notification failed:', error));
             } else {

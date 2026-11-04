@@ -1,6 +1,6 @@
 // Reading V2 runtime boundary: renders derived V2 projections only.
 // V1 Reading runtime files are visual references; legacy flat-question payloads are rejected before rendering.
-import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
 import { useScreenSize } from '../../../core/platform/hooks/useScreenSize';
 import { storage } from '../../../core/platform/storage';
@@ -14,6 +14,7 @@ import type {
   ReadingV2ProjectedStimulus,
   ReadingV2ProjectedTaskGroup,
 } from '../../../services/reading-v2/readingV2Projection.service';
+import type { ReadingV2TableCellContent } from '../../../types/readingV2.types';
 import {
   getReadingV2InstructionText,
   readingV2InstructionLooksStandard,
@@ -1193,6 +1194,60 @@ function TableCompletionRuntime({
     return null;
   }
 
+  const renderCellTextWithAnswers = (
+    cell: ReadingV2TableCellContent,
+    linkedInteractions: readonly ReadingV2ProjectedInteraction[],
+  ): ReactNode => {
+    if (linkedInteractions.length === 0) {
+      return <span className="reading-v2-runtime__blank-marker">Blank</span>;
+    }
+
+    const parts = cell.text.split(/_{3,}|\[\s*blank\s*\]|\{\{\s*blank\s*\}\}|\{\s*blank\s*\}/gi);
+    return (
+      <>
+        {parts.map((part, index) => (
+          <Fragment key={`${cell.cellId ?? 'cell'}-part-${index}`}>
+            {part ? <ReadingV2FormattedText text={part} /> : null}
+            {index < linkedInteractions.length ? (() => {
+              const interaction = linkedInteractions[index];
+              const answerValue = typeof answers[interaction.interactionId] === 'string'
+                ? answers[interaction.interactionId]
+                : '';
+              return (
+                <span
+                  className="reading-v2-runtime__cell-answer-line"
+                  id={getQuestionAnchorId(interaction.displayNumber)}
+                  key={interaction.interactionId}
+                  ref={(element) => registerQuestionAnchor?.(interaction, element)}
+                >
+                  <span className="reading-v2-runtime__cell-answer-field">
+                    <ReadingV2QuestionBadge
+                      number={interaction.displayNumber}
+                      state={isAnswered(answers[interaction.interactionId]) ? 'answered' : 'empty'}
+                    />
+                    <textarea
+                      className="reading-v2-runtime__text-input"
+                      aria-label={`Question ${interaction.displayNumber} structured answer`}
+                      disabled={disabled}
+                      rows={1}
+                      wrap="soft"
+                      value={answerValue}
+                      onFocus={() => onFocusInteraction(interaction)}
+                      onChange={(event) => {
+                        onFocusInteraction(interaction);
+                        onAnswer(interaction, event.currentTarget.value);
+                      }}
+                    />
+                  </span>
+                </span>
+              );
+            })() : null}
+          </Fragment>
+        ))}
+      </>
+    );
+  };
+
   return (
     <section className="reading-v2-runtime__structured-answer" aria-label="Table completion answer table">
       <div className="reading-v2-runtime__table-scroll">
@@ -1219,34 +1274,7 @@ function TableCompletionRuntime({
                     >
                       {cell.isBlank ? (
                         <span className="reading-v2-runtime__cell-answer-stack">
-                          {linkedInteractions.length > 0
-                            ? linkedInteractions.map((interaction) => (
-                                <span
-                                  className="reading-v2-runtime__cell-answer-line"
-                                  id={getQuestionAnchorId(interaction.displayNumber)}
-                                  key={interaction.interactionId}
-                                  ref={(element) => registerQuestionAnchor?.(interaction, element)}
-                                >
-                                  <span className="reading-v2-runtime__cell-answer-field">
-                                    <ReadingV2QuestionBadge
-                                      number={interaction.displayNumber}
-                                      state={isAnswered(answers[interaction.interactionId]) ? 'answered' : 'empty'}
-                                    />
-                                    <input
-                                      className="reading-v2-runtime__text-input"
-                                      aria-label={`Question ${interaction.displayNumber} structured answer`}
-                                      disabled={disabled}
-                                      value={typeof answers[interaction.interactionId] === 'string' ? answers[interaction.interactionId] : ''}
-                                      onFocus={() => onFocusInteraction(interaction)}
-                                      onChange={(event) => {
-                                        onFocusInteraction(interaction);
-                                        onAnswer(interaction, event.currentTarget.value);
-                                      }}
-                                    />
-                                  </span>
-                                </span>
-                              ))
-                            : <span className="reading-v2-runtime__blank-marker">Blank</span>}
+                          {renderCellTextWithAnswers(cell, linkedInteractions)}
                         </span>
                       ) : <ReadingV2FormattedText text={cell.text} />}
                     </CellTag>

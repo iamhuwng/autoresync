@@ -17,8 +17,7 @@ export type Env = {
   NOTIFICATION_BRIDGE_QA_EVENT_ID?: string;
   RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME?: string;
   RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF?: string;
-  HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID?: string;
-  HOMEWORK_RESULT_AUTHORITY_QA_ACTOR?: string;
+  HOMEWORK_RESULT_AUTHORITY_ENABLED?: string;
   COURSE_ENROLLMENT_APPROVAL_ENABLED?: string;
   WRITING_PRODUCT_SOURCE_CUTOFF?: string;
   WRITING_PRODUCT_QA_ACTOR?: string;
@@ -102,7 +101,7 @@ export const createNotificationFirestoreBridge = (fetcher: typeof fetch = fetch)
     if (url.pathname === '/homework-result-authority') {
       if (!input || Object.keys(input).join(',') !== 'resultId' || typeof input.resultId !== 'string' || !ID.test(input.resultId))
         return json(request, 400, 'invalid_result');
-      if (input.resultId !== env.HOMEWORK_RESULT_AUTHORITY_QA_RESULT_ID) return json(request, 403, 'qa_result_denied');
+      if (env.HOMEWORK_RESULT_AUTHORITY_ENABLED !== 'true') return json(request, 503, 'authority_unavailable');
       if (!env.RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME || !env.RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF)
         return json(request, 503, 'authority_unavailable');
       try {
@@ -112,7 +111,6 @@ export const createNotificationFirestoreBridge = (fetcher: typeof fetch = fetch)
         const identity = await createFirebaseVerifier().verifyAuthorizationHeader(auth, env);
         const actor = identity.uid;
         if (!identity.valid || typeof actor !== 'string' || !ID.test(actor)) return json(request, 401, 'unauthenticated');
-        if (actor !== env.HOMEWORK_RESULT_AUTHORITY_QA_ACTOR) return json(request, 403, 'qa_actor_denied');
         const project = encodeURIComponent(env.FIREBASE_PROJECT_ID);
         const status = await verifyHomeworkResultAuthority({ resultId: input.resultId, actorUid: actor, env,
           readSource: async (collection, id, mask) => {

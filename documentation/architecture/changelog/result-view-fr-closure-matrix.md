@@ -1,5 +1,22 @@
 # Result View FR Closure Matrix
 
+## 2026-11-04 Writing homework access correction
+
+No parent PRD-0040/0041 milestone or FR closure status changes. The existing
+teacher homework shell now recovers an initial missing-authority read through
+the shared authorizer and resumes realtime updates; FR-035 mid-view revocation
+continues clearing private data immediately. Deferred repair tests verify that
+closing, switching results or revoking access cannot restore stale state.
+
+`ResultDetailModal.test.tsx`, `WritingPracticeView.test.tsx`, the shared feedback
+authorizer/client tests, the retained notification Worker regression and
+`teacher-writing-homework-access.emulator.test.ts` cover the correction. The
+exact-current RTDB emulator test executed and passed with no skipped branch.
+Production deployment/readback remains tracked in the
+[release record](../../release-audits/2026-11-04-teacher-writing-homework-access.md).
+The user explicitly waived browser verification; local green tests do not imply
+production publication or a verified browser flow.
+
 ## 2026-10-30 Listening Classic observability
 
 Draft PR #196 changes shared-registry playback action names and the player UI.
