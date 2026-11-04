@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "7d9a6a8e47581a4e462ae9839d53b23977f44163",
-    "providerVersion": "7aa139d3a0dc6ee9",
-    "record": "2026-11-04-teacher-writing-homework-access.md"
+    "sourceRevision": "f294ec80abc1cb94d33a29aa3d11a5df0c0a7d48",
+    "providerVersion": "5a72ee8a355cd518",
+    "record": "2026-11-04-reading-v2-auto-v4-publish.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",

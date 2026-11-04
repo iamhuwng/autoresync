@@ -18,6 +18,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-04 | [`CL-20261104-READING-V2-AUTO-V4-PUBLISH`](changelog/reading-v2-auto-v4-publish-2026-11-04.md) | Reading V2 | Fixed | Deployed Auto V4 publication and multi-answer passage counting fixes; preserve Studio edits and genuine source blockers across save/resume. Native publication verified; browser verification waived. |
 | 2026-11-04 | [`CL-20261104-TEACHER-WRITING-HOMEWORK-ACCESS`](changelog/teacher-writing-homework-access-2026-11-04.md) | Homework / Writing Results | Fixed | Deployed student-authorized sharing and teacher realtime recovery; repaired the two reported submissions and verified owner access plus unrelated-user denial. Browser verification was waived. |
 
 ## 2026-10-29 — Released
