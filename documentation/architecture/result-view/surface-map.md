@@ -1,5 +1,25 @@
 # Result View Surface Map
 
+## Homework Writing authority recovery
+
+`TeacherHomeworkDetailPage` opens the existing `ResultDetailModal` on
+`/teacher/homework/:homeworkId`. Its primary data remains
+`test_results/{resultId}`. On an initial denied subscription, the modal may
+invoke `getAuthorizedTeacherResult` once and restart the subscription after
+trusted authority succeeds. A denied subscription after a received snapshot
+clears data immediately. Async ownership repair never replaces result state;
+realtime snapshots remain its owner, including after close, result switch or
+revocation.
+
+After a student commits ordinary Writing homework, `WritingPracticeView` asks
+the notification Worker to create a protected schema-2 authority receipt.
+Only that authenticated student may create it; teachers may replay an exact
+existing receipt. When the receipt makes an unresolved Writing result readable,
+the shared authorizer can normalize its visibility snapshot. There is no
+Firestore essay fallback around RTDB read permission and no additional result
+shell, route or entry owner. See the
+[change record](../changelog/teacher-writing-homework-access-2026-11-04.md).
+
 ## 2026-10-30 Listening Classic observability
 
 Draft PR #196 registers Listening playback/volume/options actions in the shared

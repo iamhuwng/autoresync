@@ -1,5 +1,12 @@
 // Exact product source and provider snapshot reviewed for this isolated release.
-export const reviewedWritingHomeworkRelease = Object.freeze({
+const freeze = value => {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(freeze);
+    Object.freeze(value);
+  }
+  return value;
+};
+export const reviewedWritingHomeworkRelease = freeze({
   "revision": "9dc6bdb51469d19c983950994133275e5b46a24f",
   "tree": "52efc93bee4498a8b966f58c7f2854666ba78216",
   "baseRevision": "2feb29e558aefdc8ee09440c272e1a3b0685c6a6",
