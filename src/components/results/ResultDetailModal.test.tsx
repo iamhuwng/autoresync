@@ -9,12 +9,14 @@ const {
   mockGenerateFormativeFeedbackForSavedResult,
   mockNeedsAiFeedbackUpgrade,
   mockGetAuthorizedTeacherResult,
+  mockGetWritingSubmission,
 } = vi.hoisted(() => {
   const mockOnValue = vi.fn();
   const mockGetTestResult = vi.fn();
   const mockGenerateFormativeFeedbackForSavedResult = vi.fn();
   const mockNeedsAiFeedbackUpgrade = vi.fn((_feedback?: unknown, _questionResults?: unknown) => false);
   const mockGetAuthorizedTeacherResult = vi.fn();
+  const mockGetWritingSubmission = vi.fn();
 
   return {
     mockOnValue,
@@ -22,6 +24,7 @@ const {
     mockGenerateFormativeFeedbackForSavedResult,
     mockNeedsAiFeedbackUpgrade,
     mockGetAuthorizedTeacherResult,
+    mockGetWritingSubmission,
   };
 });
 
@@ -44,7 +47,7 @@ vi.mock('../../services/feedbackService', () => ({
 }));
 
 vi.mock('../../services/writingSubmissionService', () => ({
-  getSubmission: async () => ({ success: false }),
+  getSubmission: mockGetWritingSubmission,
 }));
 
 vi.mock('../writing-results/WritingTeacherResultSurface', () => ({
@@ -173,6 +176,7 @@ describe('ResultDetailModal', () => {
     mockOnValue.mockReturnValue(vi.fn());
     mockGetTestResult.mockResolvedValue(IELTS_RESULT);
     mockGetAuthorizedTeacherResult.mockRejectedValue(new Error('authority_denied'));
+    mockGetWritingSubmission.mockResolvedValue({ success: false });
     mockGenerateFormativeFeedbackForSavedResult.mockResolvedValue({
       saved: true,
       aiApplied: true,
@@ -213,8 +217,25 @@ describe('ResultDetailModal', () => {
       visibility: { ...writing.visibility, ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1' } } });
     render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
     simulateOnValueSuccess(writing);
+    await waitFor(() => expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledOnce());
+    simulateOnValueSuccess({ ...writing,
+      visibility: { ...writing.visibility, ownershipResolved: true, visibilityOwnerTeacherId: 'teacher-1' } });
     await waitFor(() => expect(screen.getByTestId('writing-viewer-mode')).toHaveTextContent('teacher-actionable'));
     expect(mockGetAuthorizedTeacherResult).toHaveBeenCalledExactlyOnceWith('res-1');
+  });
+
+  it('cannot restore stale Writing data after a pending ownership repair is revoked', async () => {
+    let complete!: (value: unknown) => void;
+    mockGetAuthorizedTeacherResult.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    const writing = { ...IELTS_RESULT, testSkill: 'writing', context: { type: 'homework' },
+      writingData: { submissionId: 'res-1' }, visibility: { ownershipResolved: false } };
+    render(<ResultDetailModal opened onClose={vi.fn()} resultId="res-1" />);
+    simulateOnValueSuccess(writing);
+    await waitFor(() => expect(mockGetWritingSubmission).toHaveBeenCalledOnce());
+    act(() => mockOnValue.mock.calls[0][2](new Error('permission_denied')));
+    await act(async () => complete({ result: writing }));
+    expect(screen.getByText('Access Revoked')).toBeInTheDocument();
+    expect(mockGetWritingSubmission).toHaveBeenCalledOnce();
   });
 
   it('ignores recovery from a result that has been closed or replaced', async () => {

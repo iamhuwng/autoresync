@@ -119,9 +119,8 @@ export const ResultDetailModal: React.FC<ResultDetailModalProps> = ({
                     if (!ownershipRepairAttempted && data.testSkill === 'writing' && data.context?.type === 'homework'
                         && !data.visibility?.ownershipResolved) {
                         ownershipRepairAttempted = true;
-                        void getAuthorizedTeacherResult(resultId).then(({ result: authorizedResult }) => {
-                            if (!cancelled) setResult(authorizedResult as TestResultRecord);
-                        }).catch(error => console.warn('[ResultDetailModal] Writing ownership repair unavailable:', error));
+                        void getAuthorizedTeacherResult(resultId)
+                            .catch(error => console.warn('[ResultDetailModal] Writing ownership repair unavailable:', error));
                     }
                     setError(null);
                     setAccessLost(ACCESS_LOST_INITIAL);
