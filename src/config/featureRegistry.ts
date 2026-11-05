@@ -622,6 +622,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     ],
     actions: [
       'assignHomework',
+      'configureHomework',
+      'confirmHomeworkTarget',
       'submitHomework',
       'reviewHomework',
       'viewIntegrityDetails',

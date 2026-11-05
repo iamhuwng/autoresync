@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { HomeworkConfigPanel } from './HomeworkConfigPanel';
 import { HomeworkTagChips } from './HomeworkTagChips';
@@ -53,11 +53,17 @@ import './HomeworkCreateModal.css';
 interface HomeworkCreateModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: () => void | boolean | Promise<void | boolean>;
     preselectedMaterialId?: string;
     preselectedMaterial?: Material;
     preselectedMaterialFilter?: 'all' | 'test' | 'thcs-test' | 'reading-passage' | 'reading-passage-set';
     preselectedTarget?: HomeworkTarget;
+    onTargetConfirmed?: (target: HomeworkTarget) => void;
+    skipTargetSelection?: boolean;
+    nextButtonLabel?: string;
+    onConfigureNext?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) =>
+        boolean | void | Promise<boolean | void>;
+    onSubmitHomework?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<void>;
     preselectedReadingPassage?: ReadingPassageHomeworkCandidate;
     preselectedReadingPassageSet?: {
         title: string;
@@ -214,6 +220,11 @@ export function HomeworkCreateModal({
     preselectedMaterial,
     preselectedMaterialFilter,
     preselectedTarget,
+    onTargetConfirmed,
+    skipTargetSelection = false,
+    nextButtonLabel = 'Next →',
+    onConfigureNext,
+    onSubmitHomework,
     preselectedReadingPassage,
     preselectedReadingPassageSet,
     preselectedContentRef,
@@ -278,6 +289,8 @@ export function HomeworkCreateModal({
     // UI state
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [configuredThcsInput, setConfiguredThcsInput] = useState<CreateHomeworkInput | null>(null);
+    const [thcsConfigValid, setThcsConfigValid] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
     const [templateSubmitting, setTemplateSubmitting] = useState(false);
@@ -385,10 +398,15 @@ export function HomeworkCreateModal({
             const material = materials.find(m => m.id === effectivePreselectedMaterialId);
             if (material) {
                 setSelectedMaterial(material);
-                setCurrentStep('target');
+                if (material.type === 'thcs-test' && !onConfigureNext) {
+                    setThcsDialogTest(material);
+                    setShowThcsDialog(true);
+                    return;
+                }
+                setCurrentStep(skipTargetSelection ? 'config' : 'target');
             }
         }
-    }, [effectivePreselectedMaterialId, materials]);
+    }, [effectivePreselectedMaterialId, materials, skipTargetSelection, onConfigureNext]);
 
     // Handle preselected target
     useEffect(() => {
@@ -402,6 +420,14 @@ export function HomeworkCreateModal({
                 id: preselectedTarget.classId,
                 name: preselectedTarget.className || 'Unknown Class',
             });
+            setSelectedStudents([]);
+            return;
+        }
+
+        if (preselectedTarget.type === 'students') {
+            setTargetType('students');
+            setSelectedClass(null);
+            setSelectedStudents([...preselectedTarget.studentIds]);
         }
     }, [isOpen, preselectedTarget]);
 
@@ -527,19 +553,107 @@ export function HomeworkCreateModal({
         }
     };
 
-    const handleNext = () => {
+    const getSelectedTarget = (): HomeworkTarget | null => {
+        if (targetType === 'class' && selectedClass) {
+            return {
+                type: 'class',
+                classId: selectedClass.id,
+                className: selectedClass.name,
+            };
+        }
+
+        if (targetType === 'students' && selectedStudents.length > 0) {
+            const preselectedStudentNames = preselectedTarget?.type === 'students'
+                ? preselectedTarget.studentNames || []
+                : [];
+            return {
+                type: 'students',
+                studentIds: selectedStudents,
+                studentNames: selectedStudents.map((id, index) => {
+                    const student = students.find(s => s.id === id);
+                    return student?.name || preselectedStudentNames[index] || id;
+                }),
+            };
+        }
+
+        return null;
+    };
+
+    const buildHomeworkInput = (): CreateHomeworkInput | null => {
+        if (selectedMaterial?.type === 'thcs-test' && configuredThcsInput) {
+            return configuredThcsInput;
+        }
+        if (!selectedMaterial || !isTargetValid() || !isConfigValid()) {
+            return null;
+        }
+
+        const target = getSelectedTarget();
+        if (!target || !user?.uid) {
+            return null;
+        }
+
+        return {
+            materialId: selectedMaterial.id,
+            materialTitle: selectedMaterial.title,
+            materialType: selectedMaterial.type,
+            materialSkill: selectedMaterial.skill,
+            teacherId: user.uid,
+            target,
+            config,
+            availableFrom: availableFrom ? new Date(availableFrom) : new Date(),
+            dueDate: new Date(dueDate),
+            instructions,
+            tags: selectedTags,
+            antiCheatConfig,
+            readingPassageSnapshot: selectedMaterial.readingPassageSnapshot,
+            readingPassageSet: selectedMaterial.readingPassageSet,
+        };
+    };
+
+    const buildAssignmentInput = (): (CreateHomeworkInput & { contentRef?: HomeworkContentRef }) | null => {
+        const homeworkInput = buildHomeworkInput();
+        if (!homeworkInput) {
+            return null;
+        }
+
+        return {
+            ...homeworkInput,
+            contentRef: normalizeHomeworkContentRef(selectedMaterial!, preselectedContentRef),
+        };
+    };
+
+    const handleNext = async () => {
         if (currentStep === 'material' && selectedMaterial) {
             // Phase 3: If THCS material selected, redirect to THCS dialog
-            if (selectedMaterial.type === 'thcs-test') {
+            if (selectedMaterial.type === 'thcs-test' && !onConfigureNext) {
                 setThcsDialogTest(selectedMaterial);
                 setShowThcsDialog(true);
                 return;
             }
             setCurrentStep('target');
         } else if (currentStep === 'target' && isTargetValid()) {
+            const target = getSelectedTarget();
+            if (target) {
+                trackAction('confirmHomeworkTarget', { targetType: target.type });
+                onTargetConfirmed?.(target);
+            }
             setCurrentStep('config');
         } else if (currentStep === 'config' && isConfigValid()) {
-            setCurrentStep('review');
+            try {
+                trackAction('configureHomework', { materialType: selectedMaterial?.type });
+                const assignmentInput = buildAssignmentInput();
+                if (onConfigureNext && assignmentInput) {
+                    const handled = await onConfigureNext(assignmentInput);
+                    if (handled) {
+                        return;
+                    }
+                }
+                setCurrentStep('review');
+            } catch (err) {
+                setError(err instanceof Error && err.message
+                    ? err.message
+                    : 'Could not save these homework settings. Please try again.');
+            }
         }
     };
 
@@ -547,6 +661,18 @@ export function HomeworkCreateModal({
         if (currentStep === 'review') setCurrentStep('config');
         else if (currentStep === 'config') setCurrentStep('target');
         else if (currentStep === 'target') setCurrentStep('material');
+    };
+
+    const handleThcsConfigure = async (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => {
+        trackAction('configureHomework', { materialType: 'thcs-test' });
+        if (await onConfigureNext?.(input)) return true;
+        setConfiguredThcsInput(input);
+        setAvailableFrom(input.availableFrom?.toISOString() || '');
+        setDueDate(input.dueDate.toISOString());
+        setConfig(input.config);
+        setInstructions(input.instructions || '');
+        setCurrentStep('review');
+        return true;
     };
 
     const isTargetValid = () => {
@@ -569,54 +695,26 @@ export function HomeworkCreateModal({
         setError(null);
 
         try {
-            const target: HomeworkTarget = targetType === 'class' && selectedClass
-                ? {
-                    type: 'class',
-                    classId: selectedClass.id,
-                    className: selectedClass.name,
-                }
-                : {
-                    type: 'students',
-                    studentIds: selectedStudents,
-                    // Denormalize student names at creation time so the UI
-                    // never needs to re-fetch them (PRD denormalization pattern)
-                    studentNames: selectedStudents.map(id => {
-                        const student = students.find(s => s.id === id);
-                        return student?.name || id;
-                    }),
-                };
+            const homeworkInput = buildHomeworkInput();
+            const assignmentInput = buildAssignmentInput();
+            if (!homeworkInput || !assignmentInput) {
+                setError('Please select a class or at least one student');
+                setSubmitting(false);
+                return;
+            }
 
-            const homeworkInput: CreateHomeworkInput = {
-                materialId: selectedMaterial.id,
-                materialTitle: selectedMaterial.title,
-                materialType: selectedMaterial.type,
-                materialSkill: selectedMaterial.skill,
-                teacherId: user!.uid,
-                target,
-                config,
-                availableFrom: availableFrom ? new Date(availableFrom) : new Date(),
-                dueDate: new Date(dueDate),
-                instructions,
-                tags: selectedTags,
-                antiCheatConfig,
-                readingPassageSnapshot: selectedMaterial.readingPassageSnapshot,
-                readingPassageSet: selectedMaterial.readingPassageSet,
-            };
-
-            if (createHomeworkAssignment) {
-                await createHomeworkAssignment({
-                    ...homeworkInput,
-                    contentRef: normalizeHomeworkContentRef(
-                        selectedMaterial,
-                        preselectedContentRef,
-                    ),
-                });
+            if (onSubmitHomework) {
+                await onSubmitHomework(assignmentInput);
+            } else if (createHomeworkAssignment) {
+                await createHomeworkAssignment(assignmentInput);
             } else {
                 await createHomework(homeworkInput);
             }
 
-            onSuccess();
-            handleClose();
+            const shouldClose = (await onSuccess()) !== false;
+            if (shouldClose) {
+                handleClose(true);
+            }
         } catch (err) {
             console.error('Error creating homework:', err);
             setError(err instanceof Error && err.message
@@ -919,6 +1017,8 @@ export function HomeworkCreateModal({
         setInstructions('');
         setSelectedTags([]);
         setShowThcsDialog(false);
+        setConfiguredThcsInput(null);
+        setThcsConfigValid(false);
         setThcsDialogTest(null);
         setShowTemplateSaveModal(false);
         setTemplateSubmitting(false);
@@ -929,10 +1029,13 @@ export function HomeworkCreateModal({
     };
 
     const handleClose = (force = false) => {
-        if (!force && bookHomeworkSubmitInFlight.current) return;
+        if (!force && (submitting || bookHomeworkSubmitInFlight.current)) return;
         resetFormState();
         onClose();
     };
+
+    const embeddedThcsTarget = useMemo(() => getSelectedTarget(),
+        [targetType, selectedClass, selectedStudents, students, preselectedTarget]);
 
     if (!isOpen) return null;
 
@@ -943,9 +1046,17 @@ export function HomeworkCreateModal({
     });
     const activeBookHomeworkSource = preselectedBookHomework || bookHomeworkSource || activeBookHomeworkRecovery?.source;
     const isBookHomeworkFlow = Boolean(activeBookHomeworkSource || bookHomeworkHandoff);
+    const isEmbeddedThcsFlow = selectedMaterial?.type === 'thcs-test' && Boolean(onConfigureNext);
 
     return (
-        <div className="homework-create-modal-overlay" onClick={() => handleClose()}>
+        <div
+            className="homework-create-modal-overlay"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    handleClose();
+                }
+            }}
+        >
             <div className="homework-create-modal" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="modal-header">
@@ -1208,9 +1319,30 @@ export function HomeworkCreateModal({
                     )}
 
                     {/* Step 3: Configuration */}
-                    {currentStep === 'config' && (
+                    {isEmbeddedThcsFlow && ['config', 'review'].includes(currentStep) && (
+                        <div className="step-content" hidden={currentStep !== 'config'}>
+                            <h3 className="step-title">⚙️ Configure Settings — {selectedMaterial.title}</h3>
+                            <THCSHomeworkAssignDialog
+                                isOpen
+                                embedded
+                                onClose={() => handleClose()}
+                                testId={selectedMaterial.id}
+                                testTitle={selectedMaterial.title}
+                                testMetadata={{ duration: selectedMaterial.duration, gradeLevel: selectedMaterial.gradeLevel }}
+                                versionKey={preselectedContentRef?.version}
+                                contentRef={preselectedContentRef}
+                                preselectedTarget={embeddedThcsTarget || undefined}
+                                skipTargetSelection
+                                onValidityChange={setThcsConfigValid}
+                                onConfigureNext={handleThcsConfigure}
+                            />
+                        </div>
+                    )}
+                    {currentStep === 'config' && !isEmbeddedThcsFlow && (
                         <div className="step-content">
-                            <h3 className="step-title">⚙️ Configure Settings</h3>
+                            <h3 className="step-title">
+                                ⚙️ Configure Settings{selectedMaterial?.title ? ` — ${selectedMaterial.title}` : ''}
+                            </h3>
 
                             {/* ── Scheduling (all materials) ─────────────── */}
                             {renderLegacyScheduleEditor({
@@ -1482,7 +1614,7 @@ export function HomeworkCreateModal({
                     </button>
 
                     <div className="footer-actions">
-                        {currentStep !== 'material' && (
+                        {currentStep !== 'material' && !(currentStep === 'config' && skipTargetSelection) && (
                             <button
                                 className="back-btn"
                                 onClick={handleBack}
@@ -1495,14 +1627,16 @@ export function HomeworkCreateModal({
                         {currentStep !== 'review' ? (
                             <button
                                 className="next-btn"
-                                onClick={handleNext}
+                                type={currentStep === 'config' && isEmbeddedThcsFlow ? 'submit' : 'button'}
+                                form={currentStep === 'config' && isEmbeddedThcsFlow ? 'thcs-homework-config' : undefined}
+                                onClick={currentStep === 'config' && isEmbeddedThcsFlow ? undefined : handleNext}
                                 disabled={
                                     (currentStep === 'material' && !selectedMaterial) ||
                                     (currentStep === 'target' && !isTargetValid()) ||
-                                    (currentStep === 'config' && !isConfigValid())
+                                    (currentStep === 'config' && (isEmbeddedThcsFlow ? !thcsConfigValid : !isConfigValid()))
                                 }
                             >
-                                Next →
+                                {currentStep === 'config' ? nextButtonLabel : 'Next →'}
                             </button>
                         ) : (
                             <button
@@ -1535,6 +1669,9 @@ export function HomeworkCreateModal({
                     onClose={() => {
                         setShowThcsDialog(false);
                         setThcsDialogTest(null);
+                        if (preselectedContentRef?.contentKind === 'thcs_test') {
+                            handleClose();
+                        }
                     }}
                     testId={thcsDialogTest.id}
                     testTitle={thcsDialogTest.title}
@@ -1542,11 +1679,21 @@ export function HomeworkCreateModal({
                         duration: thcsDialogTest.duration,
                         gradeLevel: thcsDialogTest.gradeLevel,
                     }}
-                    onSuccess={() => {
+                    contentRef={preselectedContentRef}
+                    createHomeworkAssignment={createHomeworkAssignment}
+                    preselectedTarget={preselectedTarget}
+                    onTargetConfirmed={onTargetConfirmed}
+                    skipTargetSelection={skipTargetSelection}
+                    nextButtonLabel={nextButtonLabel}
+                    onConfigureNext={onConfigureNext}
+                    onSubmitHomework={onSubmitHomework}
+                    onSuccess={async () => {
                         setShowThcsDialog(false);
                         setThcsDialogTest(null);
-                        onSuccess();
-                        handleClose();
+                        const shouldClose = (await onSuccess()) !== false;
+                        if (shouldClose) {
+                            handleClose();
+                        }
                     }}
                 />
             )}

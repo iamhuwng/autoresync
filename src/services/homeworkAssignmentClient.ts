@@ -10,6 +10,7 @@ import type { BookHomeworkSelectionTarget } from '../types/homework.types';
 
 const WORKER_BASE_URL = import.meta.env.VITE_BACKUP_WORKER_URL || '';
 const HOMEWORK_ASSIGNMENTS_PATH = '/api/homework/assignments';
+const HOMEWORK_ASSIGNMENT_TIMEOUT_MS = 30_000;
 const BOOK_HOMEWORK_ASSIGNMENTS_PATH = '/book-homework/assignments';
 const BOOK_HOMEWORK_PREVIEW_SOURCE_PATH = '/book-homework/preview-source';
 const BOOK_ROUTE_ID = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/u;
@@ -147,39 +148,58 @@ export async function createHomeworkAssignmentViaWorker(
 ): Promise<string> {
     const endpoint = getHomeworkAssignmentEndpoint();
     const token = await getCurrentIdToken();
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify(serializeAssignment(input)),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HOMEWORK_ASSIGNMENT_TIMEOUT_MS);
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + token,
+            },
+            body: JSON.stringify(serializeAssignment(input)),
+            signal: controller.signal,
+        });
 
-    const responseBody = await response.json().catch(() => ({})) as {
-        assignmentId?: string;
-        error?: string;
-        message?: string;
-        reasonCode?: string;
-    };
+        const responseBody = await response.json().catch((error) => {
+            if (controller.signal.aborted) throw error;
+            return {};
+        }) as {
+            assignmentId?: string;
+            error?: string;
+            message?: string;
+            reasonCode?: string;
+        };
 
-    if (!response.ok) {
-        throw new HomeworkAssignmentWorkerError(
-            responseBody.message || responseBody.error || 'Failed to create homework assignment.',
-            response.status,
-            responseBody.reasonCode
-        );
+        if (!response.ok) {
+            throw new HomeworkAssignmentWorkerError(
+                responseBody.message || responseBody.error || 'Failed to create homework assignment.',
+                response.status,
+                responseBody.reasonCode
+            );
+        }
+
+        if (!responseBody.assignmentId) {
+            throw new HomeworkAssignmentWorkerError(
+                'Homework assignment response did not include an assignment id. Check Homework before assigning again.',
+                502,
+                'INVALID_ASSIGNMENT_REQUEST'
+            );
+        }
+
+        return responseBody.assignmentId;
+    } catch (error) {
+        if (controller.signal.aborted) {
+            throw new HomeworkAssignmentWorkerError(
+                'Homework assignment request timed out. Check Homework before assigning again.',
+                504,
+                'INVALID_ASSIGNMENT_REQUEST',
+            );
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
     }
-
-    if (!responseBody.assignmentId) {
-        throw new HomeworkAssignmentWorkerError(
-            'Homework assignment response did not include an assignment id.',
-            response.status,
-            'INVALID_ASSIGNMENT_REQUEST'
-        );
-    }
-
-    return responseBody.assignmentId;
 }
 
 const exactBookOrigin = (value: string): string => {

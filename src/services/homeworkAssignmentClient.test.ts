@@ -177,6 +177,42 @@ describe('homeworkAssignmentClient', () => {
     await expect(createHomeworkAssignmentViaWorker(input)).rejects.toBeInstanceOf(HomeworkAssignmentWorkerError);
   });
 
+  it.each(['headers', 'body'])('times out when the homework Worker stalls at %s', async (stage) => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+        const stalled = () => new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        });
+        return stage === 'headers' ? stalled() : Promise.resolve({ ok: true, status: 201, json: stalled });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const pending = createHomeworkAssignmentViaWorker(input).then(
+        () => null,
+        (error) => error,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await expect(pending).resolves.toMatchObject({
+        status: 504,
+        reasonCode: 'INVALID_ASSIGNMENT_REQUEST',
+        message: 'Homework assignment request timed out. Check Homework before assigning again.',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('treats a successful response without an id as an uncertain outcome', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 201 })));
+    await expect(createHomeworkAssignmentViaWorker(input)).rejects.toMatchObject({ status: 502 });
+  });
+
   it('routes Book commands to canonical Worker origin with matching idempotency header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(bookResponse), {
       status: 200,

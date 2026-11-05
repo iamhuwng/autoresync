@@ -62,6 +62,7 @@ security-test-results.json
 # Local recovery/runtime artifacts (not portable source)
 cloudflare/.wrangler/
 cloudflare/tmp/
+r2-backup-worker/tmp/
 tmp/*
 !tmp/prd0062-bridge-m1-committed-state-fixture.json
 !tmp/prd0062-converged-publication.json

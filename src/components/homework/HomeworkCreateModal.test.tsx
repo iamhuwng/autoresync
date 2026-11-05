@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,7 @@ const mockGetAllTests = vi.fn();
 const mockGetClasses = vi.fn();
 const mockGetClass = vi.fn();
 const mockLoadBookHomeworkPreviewSource = vi.fn();
+const mockTrackAction = vi.fn();
 
 const bookPreviewSource: BookHomeworkPreviewSource = {
     delivery: {
@@ -103,7 +104,7 @@ vi.mock('../../hooks/useHomeworkTags', () => ({
 }));
 
 vi.mock('../../hooks/useFeatureTracking', () => ({
-    useFeatureTracking: () => ({ trackAction: vi.fn() }),
+    useFeatureTracking: () => ({ trackAction: mockTrackAction }),
 }));
 
 vi.mock('../../services/homeworkManager', () => ({
@@ -151,9 +152,8 @@ vi.mock('./TemplateSaveModal', () => ({
     default: () => null,
 }));
 
-vi.mock('../thcs-editor/THCSHomeworkAssignDialog', () => ({
-    THCSHomeworkAssignDialog: () => null,
-}));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { uid: 'teacher-1' } }) }));
+vi.mock('../../services/notificationProducerClient', () => ({ notifyCommittedEvent: vi.fn() }));
 
 vi.mock('../modern/ToastNotification', () => ({
     default: () => null,
@@ -256,10 +256,12 @@ describe('HomeworkCreateModal', () => {
         });
 
         fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        expect(mockTrackAction).toHaveBeenCalledWith('confirmHomeworkTarget', { targetType: 'class' });
         fireEvent.change(screen.getByLabelText(/Due Date/i), {
             target: { value: '2026-06-15T10:00' },
         });
         fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        expect(mockTrackAction).toHaveBeenCalledWith('configureHomework', { materialType: 'test' });
         fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
 
         await waitFor(() => {
@@ -277,6 +279,192 @@ describe('HomeworkCreateModal', () => {
             }));
         });
         expect(createHomework).not.toHaveBeenCalled();
+    });
+
+    it('uses a preselected target without reopening target selection', async () => {
+        let finishAssignment: (id: string) => void = () => undefined;
+        const createHomeworkAssignment = vi.fn(() => new Promise<string>((resolve) => { finishAssignment = resolve; }));
+        const onClose = vi.fn();
+
+        const { container } = render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={onClose}
+                onSuccess={vi.fn()}
+                preselectedTarget={{
+                    type: 'class',
+                    classId: 'class-1',
+                    className: 'IELTS Class',
+                }}
+                skipTargetSelection
+                preselectedMaterial={{
+                    id: 'batch-writing-1',
+                    title: 'Batch Writing',
+                    type: 'test',
+                    skill: 'writing',
+                    questionCount: 2,
+                }}
+                preselectedContentRef={{
+                    contentKind: 'ielts_writing',
+                    contentId: 'batch-writing-1',
+                    source: 'ielts',
+                }}
+                createHomeworkAssignment={createHomeworkAssignment}
+            />
+        );
+
+        expect(screen.queryByText(/Select Target/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Back/ })).not.toBeInTheDocument();
+        fireEvent.change(await screen.findByLabelText('Due Date'), {
+            target: { value: '2026-06-15T10:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
+        fireEvent.click(container.querySelector('.homework-create-modal-overlay')!);
+        expect(onClose).not.toHaveBeenCalled();
+
+        await waitFor(() => {
+            expect(createHomeworkAssignment).toHaveBeenCalledWith(expect.objectContaining({
+                target: {
+                    type: 'class',
+                    classId: 'class-1',
+                    className: 'IELTS Class',
+                },
+            }));
+        });
+        finishAssignment('homework-worker-batch');
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    });
+
+    it('reviews embedded THCS settings before creating and preserves them when going back', async () => {
+        const onClose = vi.fn();
+        const onConfigureNext = vi.fn(async () => false);
+        const onSubmitHomework = vi.fn(async () => undefined);
+
+        render(
+            <HomeworkCreateModal
+                isOpen
+                onClose={onClose}
+                onSuccess={vi.fn()}
+                preselectedTarget={{ type: 'class', classId: 'class-1', className: 'Class' }}
+                skipTargetSelection
+                preselectedMaterial={{ id: 'thcs-1', title: 'THCS Batch', type: 'thcs-test', skill: 'reading', questionCount: 1 }}
+                preselectedContentRef={{ contentKind: 'thcs_test', contentId: 'thcs-1', source: 'thcs' }}
+                onConfigureNext={onConfigureNext}
+                onSubmitHomework={onSubmitHomework}
+            />
+        );
+
+        const next = screen.getByRole('button', { name: /Next/ });
+        expect(next).toBeDisabled();
+        const dueCalendar = screen.getByText('Due Date').parentElement!;
+        fireEvent.click(within(dueCalendar).getByText('Select date & time...'));
+        fireEvent.click(within(dueCalendar).getByRole('button', { name: '›' }));
+        fireEvent.click(within(dueCalendar).getByRole('button', { name: '1', exact: true }));
+        fireEvent.click(within(dueCalendar).getByRole('button', { name: 'Done' }));
+        expect(next).toBeEnabled();
+        expect(onConfigureNext).not.toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+        fireEvent.change(screen.getByPlaceholderText('Special instructions or notes for this assignment...'), { target: { value: 'Read carefully' } });
+        fireEvent.click(next);
+        expect(await screen.findByText('Review Assignment', { exact: false })).toBeInTheDocument();
+        expect(mockTrackAction).toHaveBeenCalledWith('configureHomework', { materialType: 'thcs-test' });
+        expect(onSubmitHomework).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+        expect(screen.getByPlaceholderText('Special instructions or notes for this assignment...')).toHaveValue('Read carefully');
+        expect(screen.queryByRole('button', { name: /Back/ })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+        fireEvent.click(await screen.findByRole('button', { name: /Create Homework/ }));
+        await waitFor(() => expect(onSubmitHomework).toHaveBeenCalledWith(expect.objectContaining({
+            materialId: 'thcs-1', instructions: 'Read carefully',
+            thcsConfig: expect.objectContaining({ instructions: 'Read carefully' }),
+        })));
+    });
+
+    it('preserves a preselected student target for the next material', async () => {
+        const createHomeworkAssignment = vi.fn(async () => 'homework-worker-students');
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedTarget={{
+                    type: 'students',
+                    studentIds: ['student-1'],
+                    studentNames: ['Student One'],
+                }}
+                skipTargetSelection
+                preselectedMaterial={{
+                    id: 'batch-writing-students-1',
+                    title: 'Batch Writing for Student',
+                    type: 'test',
+                    skill: 'writing',
+                    questionCount: 1,
+                }}
+                preselectedContentRef={{
+                    contentKind: 'ielts_writing',
+                    contentId: 'batch-writing-students-1',
+                    source: 'ielts',
+                }}
+                createHomeworkAssignment={createHomeworkAssignment}
+            />
+        );
+
+        fireEvent.change(await screen.findByLabelText('Due Date'), {
+            target: { value: '2026-06-15T10:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Create Homework/i }));
+
+        await waitFor(() => expect(createHomeworkAssignment).toHaveBeenCalledWith(expect.objectContaining({
+            target: {
+                type: 'students',
+                studentIds: ['student-1'],
+                studentNames: ['Student One'],
+            },
+        })));
+    });
+
+    it('advances from configured material settings without submitting the first homework', async () => {
+        const onConfigureNext = vi.fn(async () => true);
+
+        render(
+            <HomeworkCreateModal
+                isOpen={true}
+                onClose={vi.fn()}
+                onSuccess={vi.fn()}
+                preselectedTarget={{ type: 'class', classId: 'class-1', className: 'IELTS Class' }}
+                skipTargetSelection
+                nextButtonLabel="Next material →"
+                onConfigureNext={onConfigureNext}
+                preselectedMaterial={{
+                    id: 'batch-reading-1',
+                    title: 'Batch Reading',
+                    type: 'test',
+                    skill: 'reading',
+                    questionCount: 13,
+                }}
+                preselectedContentRef={{
+                    contentKind: 'ielts_reading',
+                    contentId: 'batch-reading-1',
+                    source: 'ielts',
+                }}
+            />
+        );
+
+        fireEvent.change(await screen.findByLabelText('Due Date'), {
+            target: { value: '2026-06-16T10:00' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Next material →' }));
+
+        await waitFor(() => {
+            expect(onConfigureNext).toHaveBeenCalledWith(expect.objectContaining({
+                materialId: 'batch-reading-1',
+                materialTitle: 'Batch Reading',
+                target: expect.objectContaining({ classId: 'class-1' }),
+            }));
+        });
     });
 
     it('shows Worker rejection details when normalized homework assignment fails', async () => {
