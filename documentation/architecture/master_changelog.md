@@ -14,6 +14,12 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
 | 2026-07-08 | [`CL-20260708-CHANGELOG-SYSTEM-RESEARCH`](changelog/changelog-system-research.md) | Documentation | Research | Researched professional changelog and documentation maintenance patterns and adapted them to this repo. |
 
+## 2026-11-06 — Released
+
+| Date | ID | Area | Type | Summary |
+| --- | --- | --- | --- | --- |
+| 2026-11-06 | [`CL-20261106-HOMEWORK-RESULT-ACCESS-ALL-MATERIALS`](changelog/homework-result-access-all-materials-2026-11-06.md) | Homework Results | Fixed | Deployed the shared RTDB read authorization for resolved non-Writing homework results; preserved unresolved and unrelated-teacher denial and verified the reported Reading V2 result live. |
+
 ## 2026-11-05 — Released
 
 | Date | ID | Area | Type | Summary |
