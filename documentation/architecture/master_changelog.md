@@ -8,6 +8,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-05 | [`CL-20261105-MULTI-MATERIAL-HOMEWORK`](changelog/multi-material-homework-2026-11-05.md) | Teacher Materials / Homework | Fixed | Assign mixed material types as separate homework with shared recipients and individual settings; keep THCS in the shared modal and prevent duplicate partial-batch retries. Merged; deployment remains gated. |
 | 2026-11-04 | [`CL-20261104-READING-V2-TABLE-CELL-WRAP`](changelog/reading-v2-table-cell-wrap-2026-11-04.md) | Reading V2 | Fixed | Keep table-completion answers inline with authored cell text, wrap long answers inside the cell, and keep the question badge on the first answer line. |
 | 2026-11-01 | [`CL-20261101-READING-V2-PASSAGE-STRUCTURE`](changelog/reading-v2-passage-structure-2026-11-01.md) | Reading V2 | Fixed | Preserve structured passage blocks and question anchors through rich editing, validation, publication and runtime. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
