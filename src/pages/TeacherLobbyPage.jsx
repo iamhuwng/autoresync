@@ -519,7 +519,8 @@ const TeacherLobbyPage = () => {
   const [readingPassageHomeworkRequest, setReadingPassageHomeworkRequest] = useState(null);
   const [standardHomeworkRequest, setStandardHomeworkRequest] = useState(null);
   const [bulkHomeworkRequest, setBulkHomeworkRequest] = useState(null);
-  const bulkHomeworkSubmission = useRef({ items: null, completedCount: 0, uncertain: false });
+  const bulkHomeworkSubmission = useRef({ items: null, completedCount: 0, uncertain: false, noticeWarningShown: false });
+  const bulkHomeworkNoticeChain = useRef(Promise.resolve());
   const [readingPassageArchiveRequest, setReadingPassageArchiveRequest] = useState(null);
   const [readingPassageArchiveAcknowledged, setReadingPassageArchiveAcknowledged] = useState(false);
   const [readingPassageRestoreRequest, setReadingPassageRestoreRequest] = useState(null);
@@ -3010,13 +3011,40 @@ const TeacherLobbyPage = () => {
     return true;
   }, [bulkHomeworkRequest]);
 
+  const enqueueBulkHomeworkNotice = useCallback((homeworkId, submission) => {
+    bulkHomeworkNoticeChain.current = bulkHomeworkNoticeChain.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const result = await notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId });
+          const incomplete = result?.status === 'failed' || result?.status === 'unknown'
+            || Number(result?.failed) > 0 || Number(result?.unknown) > 0 || Number(result?.unattempted) > 0;
+          if (incomplete && !submission.noticeWarningShown) {
+            submission.noticeWarningShown = true;
+            toast.warning('Some student homework notices could not be delivered.');
+          }
+        } catch (error) {
+          if (!submission.noticeWarningShown) {
+            submission.noticeWarningShown = true;
+            toast.warning('Some student homework notices could not be delivered.');
+          }
+          console.warn('[Homework] Assignment notification failed:', error);
+        }
+      });
+  }, []);
+
   const handleBulkHomeworkSubmit = useCallback(async (finalInput) => {
     if (!bulkHomeworkRequest) {
       return;
     }
 
     if (bulkHomeworkSubmission.current.items !== bulkHomeworkRequest.items) {
-      bulkHomeworkSubmission.current = { items: bulkHomeworkRequest.items, completedCount: 0, uncertain: false };
+      bulkHomeworkSubmission.current = {
+        items: bulkHomeworkRequest.items,
+        completedCount: 0,
+        uncertain: false,
+        noticeWarningShown: false,
+      };
     }
     const submission = bulkHomeworkSubmission.current;
     if (submission.uncertain) {
@@ -3037,11 +3065,10 @@ const TeacherLobbyPage = () => {
       }
       submission.completedCount = index + 1;
       if (input.materialType === 'thcs-test') {
-        void notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId })
-          .catch((error) => console.warn('[Homework] Assignment notification failed:', error));
+        enqueueBulkHomeworkNotice(homeworkId, submission);
       }
     }
-  }, [bulkHomeworkRequest, createTeacherLobbyHomeworkAssignment]);
+  }, [bulkHomeworkRequest, createTeacherLobbyHomeworkAssignment, enqueueBulkHomeworkNotice]);
 
   const handleBulkHomeworkSuccess = useCallback(() => {
     if (!bulkHomeworkRequest) {

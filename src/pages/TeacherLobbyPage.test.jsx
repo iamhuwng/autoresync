@@ -866,6 +866,82 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     }
   });
 
+  it('keeps batch assignment success independent while serializing THCS notices', async () => {
+    const user = userEvent.setup();
+    let releaseFirstNotice;
+    const firstNotice = new Promise((resolve) => {
+      releaseFirstNotice = resolve;
+    });
+    mocks.tests = ['a', 'b'].map((suffix) => ({
+      id: `queued-thcs-${suffix}`,
+      testType: 'THCS-THPT',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      metadata: { title: `Queued THCS ${suffix}`, gradeLevel: 10 },
+      questions: [{ id: 'q1' }],
+    }));
+    mocks.createHomework.mockResolvedValueOnce('homework-a').mockResolvedValueOnce('homework-b');
+    mocks.notifyCommitted.mockImplementationOnce(() => firstNotice)
+      .mockResolvedValueOnce({ status: 'written', delivered: 1, failed: 0, unknown: 0, unattempted: 0 });
+    renderTeacherLobbyWithToasts();
+    for (const suffix of ['a', 'b']) {
+      await user.click(await screen.findByTestId(`material-list-row-queued-thcs-${suffix}`));
+    }
+    await user.click(screen.getByRole('button', { name: 'Assign homework' }));
+    const first = { materialId: 'queued-thcs-a', materialType: 'thcs-test' };
+    const second = { materialId: 'queued-thcs-b', materialType: 'thcs-test' };
+    act(() => mocks.homeworkModalProps.at(-1).onConfigureNext(first));
+    await waitFor(() => expect(mocks.homeworkModalProps.at(-1).preselectedMaterialId).toBe('queued-thcs-b'));
+
+    await act(async () => {
+      await mocks.homeworkModalProps.at(-1).onSubmitHomework(second);
+    });
+    await waitFor(() => expect(mocks.createHomework).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.notifyCommitted).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await mocks.homeworkModalProps.at(-1).onSuccess();
+    });
+    expect(screen.getByText('Created 2 homework assignments.')).toBeInTheDocument();
+
+    releaseFirstNotice({ status: 'written', delivered: 1, failed: 0, unknown: 0, unattempted: 0 });
+    await waitFor(() => expect(mocks.notifyCommitted).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Some student homework notices could not be delivered.')).not.toBeInTheDocument();
+  });
+
+  it('warns once when serialized THCS notice delivery reports incomplete results', async () => {
+    const user = userEvent.setup();
+    mocks.tests = ['a', 'b'].map((suffix) => ({
+      id: `warning-thcs-${suffix}`,
+      testType: 'THCS-THPT',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      metadata: { title: `Warning THCS ${suffix}`, gradeLevel: 10 },
+      questions: [{ id: 'q1' }],
+    }));
+    mocks.createHomework.mockResolvedValueOnce('homework-a').mockResolvedValueOnce('homework-b');
+    mocks.notifyCommitted.mockResolvedValue({
+      status: 'failed', delivered: 0, failed: 0, unknown: 0, unattempted: 1, code: 'notification_delivery_busy',
+    });
+    renderTeacherLobbyWithToasts();
+    for (const suffix of ['a', 'b']) {
+      await user.click(await screen.findByTestId(`material-list-row-warning-thcs-${suffix}`));
+    }
+    await user.click(screen.getByRole('button', { name: 'Assign homework' }));
+    act(() => mocks.homeworkModalProps.at(-1).onConfigureNext({
+      materialId: 'warning-thcs-a', materialType: 'thcs-test',
+    }));
+    await waitFor(() => expect(mocks.homeworkModalProps.at(-1).preselectedMaterialId).toBe('warning-thcs-b'));
+    await act(async () => {
+      await mocks.homeworkModalProps.at(-1).onSubmitHomework({
+        materialId: 'warning-thcs-b', materialType: 'thcs-test',
+      });
+    });
+    await waitFor(() => expect(mocks.notifyCommitted).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText('Some student homework notices could not be delivered.')).toHaveLength(1);
+  });
+
   it('enables mixed Listening and THCS batch assignment and advances into THCS settings', async () => {
     const user = userEvent.setup();
     mocks.tests = [
