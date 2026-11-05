@@ -375,6 +375,8 @@ export interface WorkerEnv {
     // Environment variables (from wrangler.toml [vars])
     FIREBASE_PROJECT_ID: string;
     FIREBASE_DB_URL: string;
+    FIRESTORE_EMULATOR_HOST?: string;
+    LOCAL_EMULATOR_AUTH?: string;
     BACKUP_RETENTION_COUNT: string;
     MEDIA_CHECKPOINT_INTERVAL: string;
     ADMIN_UID: string;

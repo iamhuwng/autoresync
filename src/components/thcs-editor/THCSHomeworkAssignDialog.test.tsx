@@ -24,3 +24,37 @@ it('closes after the committed assignment even when its notice never resolves', 
   expect(f.success).toHaveBeenCalledWith('Homework assigned.');
   expect(f.track).toHaveBeenCalledWith('assignHomework', { homeworkId: 'homework', materialType: 'thcs-test' });
 });
+
+it('collects THCS settings for the next material without creating homework', async () => {
+  const configureNext = vi.fn(async () => true);
+  const submitHomework = vi.fn(async () => undefined);
+  const close = vi.fn();
+
+  render(
+    <THCSHomeworkAssignDialog
+      isOpen
+      onClose={close}
+      testId="thcs-batch"
+      testTitle="THCS Batch"
+      contentRef={{ contentKind: 'thcs_test', contentId: 'thcs-batch', source: 'thcs' }}
+      preselectedTarget={{ type: 'class', classId: 'class', className: 'Class' }}
+      skipTargetSelection
+      nextButtonLabel="Next material →"
+      onConfigureNext={configureNext}
+      onSubmitHomework={submitHomework}
+    />,
+  );
+
+  expect(screen.getByText('Target Students (shared)')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Due Date' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next material →' }));
+
+  await waitFor(() => expect(configureNext).toHaveBeenCalledWith(expect.objectContaining({
+    materialId: 'thcs-batch',
+    target: { type: 'class', classId: 'class', className: 'Class' },
+    contentRef: { contentKind: 'thcs_test', contentId: 'thcs-batch', source: 'thcs' },
+  })));
+  expect(submitHomework).not.toHaveBeenCalled();
+  expect(f.create).not.toHaveBeenCalledWith(expect.objectContaining({ materialId: 'thcs-batch' }));
+  expect(close).not.toHaveBeenCalled();
+});

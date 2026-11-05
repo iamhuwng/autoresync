@@ -1,5 +1,5 @@
 import type { WorkerEnv } from '../types';
-import { verifyFirebaseToken } from '../auth/firebase-auth';
+import { isLocalHomeworkEmulator, verifyFirebaseToken } from '../auth/firebase-auth';
 import { getFirebaseAccessToken } from '../auth/google-oauth';
 
 type HomeworkContentKind =
@@ -136,13 +136,20 @@ function encodeRtdbPath(path: string): string {
 }
 
 function rtdbUrl(env: WorkerEnv, path: string): string {
-    const baseUrl = env.FIREBASE_DB_URL.replace(/\/$/, '');
+    const baseUrl = new URL(env.FIREBASE_DB_URL);
     const encodedPath = encodeRtdbPath(path);
-    return encodedPath ? baseUrl + '/' + encodedPath + '.json' : baseUrl + '/.json';
+    baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, '')}/${encodedPath || ''}.json`;
+    if (isLocalHomeworkEmulator(env)) {
+        baseUrl.searchParams.set('access_token', 'owner');
+    }
+    return baseUrl.toString();
 }
 
 function firestoreCollectionUrl(env: WorkerEnv, collectionId: string, documentId: string): string {
-    return 'https://firestore.googleapis.com/v1/projects/' +
+    const baseUrl = isLocalHomeworkEmulator(env)
+        ? `http://${env.FIRESTORE_EMULATOR_HOST}/v1`
+        : 'https://firestore.googleapis.com/v1';
+    return baseUrl + '/projects/' +
         encodeURIComponent(env.FIREBASE_PROJECT_ID) +
         '/databases/(default)/documents/' +
         encodeURIComponent(collectionId) +
@@ -1114,7 +1121,9 @@ export async function handleCreateHomeworkAssignment(
                 400,
             ));
         }
-        const accessToken = await getFirebaseAccessToken(env.GOOGLE_SA_KEY);
+        const accessToken = isLocalHomeworkEmulator(env)
+            ? 'owner'
+            : await getFirebaseAccessToken(env.GOOGLE_SA_KEY);
         const user = await readRtdb<Record<string, any>>(env, accessToken, 'users/' + auth.uid);
         const role = String(user?.role ?? '').trim();
 

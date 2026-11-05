@@ -4,7 +4,8 @@ import { verifyFirebaseToken } from '../auth/firebase-auth';
 import { getFirebaseAccessToken } from '../auth/google-oauth';
 import { handleCreateHomeworkAssignment } from './assignments';
 
-vi.mock('../auth/firebase-auth', () => ({
+vi.mock('../auth/firebase-auth', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../auth/firebase-auth')>(),
     verifyFirebaseToken: vi.fn(),
 }));
 
@@ -266,6 +267,33 @@ describe('homework assignment Worker route', () => {
 
         expect(response.status).toBe(403);
         expect(body.reasonCode).toBe('TEACHER_NOT_ALLOWED');
+    });
+
+    it.each([
+        [{ role: 'student' }, classRecord, 'TEACHER_NOT_ALLOWED'],
+        [{ role: 'teacher' }, { ...classRecord, teacherId: 'another-teacher' }, 'TARGET_NOT_ALLOWED'],
+    ])('uses local RTDB role and ownership rather than promoting the caller', async (user, assignedClass, reasonCode) => {
+        const localEnv = {
+            ...env,
+            LOCAL_EMULATOR_AUTH: 'true',
+            FIREBASE_PROJECT_ID: 'demo-luyentap-local',
+            FIREBASE_DB_URL: 'http://localhost:9000?ns=demo-luyentap-local',
+            FIRESTORE_EMULATOR_HOST: 'localhost:8080',
+        };
+        const records = okRecords();
+        records.set('users/teacher-1', user);
+        records.set('classes/class-1', assignedClass);
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = new URL(String(input));
+            expect(url.origin).toBe('http://localhost:9000');
+            expect(url.searchParams.get('access_token')).toBe('owner');
+            const path = decodeURIComponent(url.pathname.replace(/^\//, '').replace(/\.json$/, ''));
+            return json(records.get(path) ?? null);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await handleCreateHomeworkAssignment(requestFor(assignmentBody()), localEnv);
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({ reasonCode });
     });
 
     it('rejects a teacher assigning to an unauthorized class', async () => {

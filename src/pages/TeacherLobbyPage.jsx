@@ -59,6 +59,7 @@ import {
 import { buildReadingV2ExtractedFullTestCompositionId } from '../services/reading-v2/readingV2PassageExtraction.service';
 import { readingV2StoragePaths } from '../services/reading-v2/readingV2StoragePaths.service';
 import { createHomeworkAssignmentViaWorker } from '../services/homeworkAssignmentClient';
+import { notifyCommittedEvent } from '../services/notificationProducerClient';
 import {
   homeworkAssignmentReasonMessage,
   resolveTeacherLobbyAssignability,
@@ -517,6 +518,8 @@ const TeacherLobbyPage = () => {
   });
   const [readingPassageHomeworkRequest, setReadingPassageHomeworkRequest] = useState(null);
   const [standardHomeworkRequest, setStandardHomeworkRequest] = useState(null);
+  const [bulkHomeworkRequest, setBulkHomeworkRequest] = useState(null);
+  const bulkHomeworkSubmission = useRef({ items: null, completedCount: 0, uncertain: false });
   const [readingPassageArchiveRequest, setReadingPassageArchiveRequest] = useState(null);
   const [readingPassageArchiveAcknowledged, setReadingPassageArchiveAcknowledged] = useState(false);
   const [readingPassageRestoreRequest, setReadingPassageRestoreRequest] = useState(null);
@@ -2427,17 +2430,32 @@ const TeacherLobbyPage = () => {
   }, [modals, trackAction]);
 
   const handleAssignSelectedTests = useCallback(() => {
-    if (selectedTests.length !== 1 || assignableSelectedTests.length !== 1) {
-      toast.error('Select one assignable test to assign homework.');
+    if (selectedTests.length === 0 || assignableSelectedTests.length !== selectedTests.length) {
+      toast.error('Only assignable materials can be selected for homework.');
+      return;
+    }
+
+    trackAction('assignSelectedMaterials', {
+      count: selectedTests.length,
+      materialKind: 'test',
+      source: 'teacher_materials_selection_toolbar',
+    });
+
+    if (selectedTests.length > 1) {
+      setBulkHomeworkRequest({
+        index: 0,
+        target: null,
+        configuredInputs: [],
+        items: assignableSelectedTests.map(({ item, assignability }) => ({
+          kind: 'test',
+          item,
+          contentRef: assignability.contentRef,
+        })),
+      });
       return;
     }
 
     const { item, assignability } = assignableSelectedTests[0];
-    trackAction('assignSelectedMaterials', {
-      count: 1,
-      materialKind: 'test',
-      source: 'teacher_materials_selection_toolbar',
-    });
     handleAssignHomework(item, assignability);
   }, [assignableSelectedTests, handleAssignHomework, selectedTests.length, trackAction]);
 
@@ -2561,11 +2579,25 @@ const TeacherLobbyPage = () => {
         source: 'teacher_materials_reading_passage_selection_toolbar',
       },
     );
-    setReadingPassageHomeworkRequest({
-      mode: selectedReadingPassages.length === 1 ? 'single' : 'set',
-      passages: selectedReadingPassages,
+    if (selectedReadingPassages.length === 1) {
+      setReadingPassageHomeworkRequest({
+        passages: selectedReadingPassages,
+        contentRef: assignableSelectedReadingPassages[0]?.assignability.contentRef,
+      });
+      return;
+    }
+
+    setBulkHomeworkRequest({
+      index: 0,
+      target: null,
+      configuredInputs: [],
+      items: assignableSelectedReadingPassages.map(({ item, assignability }) => ({
+        kind: 'reading-passage',
+        item,
+        contentRef: assignability.contentRef,
+      })),
     });
-  }, [assignableSelectedReadingPassages.length, getReadingPassageId, selectedReadingPassages, trackAction]);
+  }, [assignableSelectedReadingPassages, getReadingPassageId, selectedReadingPassages, trackAction]);
 
   const handleArchiveSelectedReadingPassages = useCallback(async () => {
     const ownedPassages = selectedReadingPassages.filter((passage) => passage?.isOwner);
@@ -2828,13 +2860,14 @@ const TeacherLobbyPage = () => {
       ];
     }
 
-    const canAssignSingleTest = selectedTests.length === 1 && assignableSelectedTests.length === 1;
+    const canAssignSelectedTests = selectedTests.length > 0
+      && assignableSelectedTests.length === selectedTests.length;
     const selectedSingleTestAssignment = selectedTestAssignments.length === 1
       ? selectedTestAssignments[0]
       : null;
     const assignSelectedTestsDisabledReason = selectedSingleTestAssignment && !selectedSingleTestAssignment.assignability.assignable
-      ? homeworkAssignmentReasonMessage(selectedSingleTestAssignment.assignability.reasonCode)
-      : 'Select one assignable test to assign homework.';
+        ? homeworkAssignmentReasonMessage(selectedSingleTestAssignment.assignability.reasonCode)
+        : 'Select one or more assignable materials to assign homework.';
     const hasReadingV2MasterTests = selectedReadingV2MasterTests.length > 0;
     const hasSimpleDeletableTests = selectedSimpleDeletableTests.length > 0;
     const hasNonDeletableTests = selectedNonDeletableTests.length > 0;
@@ -2845,7 +2878,7 @@ const TeacherLobbyPage = () => {
         label: 'Assign homework',
         variant: 'primary',
         iconKind: 'assign',
-        disabled: !canAssignSingleTest,
+        disabled: !canAssignSelectedTests,
         disabledReason: assignSelectedTestsDisabledReason,
         onClick: handleAssignSelectedTests,
       },
@@ -2925,15 +2958,6 @@ const TeacherLobbyPage = () => {
       return null;
     }
 
-    if (readingPassageHomeworkRequest.mode === 'set') {
-      return {
-        preselectedReadingPassageSet: {
-          title: 'Selected Reading Passages',
-          passages: readingPassageHomeworkRequest.passages.map(toReadingPassageHomeworkCandidate),
-        },
-      };
-    }
-
     return {
       preselectedReadingPassage: toReadingPassageHomeworkCandidate(
         readingPassageHomeworkRequest.passages[0],
@@ -2963,6 +2987,118 @@ const TeacherLobbyPage = () => {
       createHomeworkAssignment: createTeacherLobbyHomeworkAssignment,
     };
   }, [createTeacherLobbyHomeworkAssignment, standardHomeworkRequest]);
+
+  const handleBulkHomeworkTargetConfirmed = useCallback((target) => {
+    setBulkHomeworkRequest((current) => current ? { ...current, target } : current);
+  }, []);
+
+  const handleBulkHomeworkConfigureNext = useCallback((input) => {
+    if (!bulkHomeworkRequest) {
+      return false;
+    }
+
+    const nextIndex = bulkHomeworkRequest.index + 1;
+    if (nextIndex >= bulkHomeworkRequest.items.length) {
+      return false;
+    }
+
+    setBulkHomeworkRequest((current) => current ? {
+      ...current,
+      index: nextIndex,
+      configuredInputs: [...current.configuredInputs, input],
+    } : current);
+    return true;
+  }, [bulkHomeworkRequest]);
+
+  const handleBulkHomeworkSubmit = useCallback(async (finalInput) => {
+    if (!bulkHomeworkRequest) {
+      return;
+    }
+
+    if (bulkHomeworkSubmission.current.items !== bulkHomeworkRequest.items) {
+      bulkHomeworkSubmission.current = { items: bulkHomeworkRequest.items, completedCount: 0, uncertain: false };
+    }
+    const submission = bulkHomeworkSubmission.current;
+    if (submission.uncertain) {
+      throw new Error('An assignment could not be confirmed. Check Homework before assigning these materials again.');
+    }
+    const inputs = [...bulkHomeworkRequest.configuredInputs, finalInput];
+    for (let index = submission.completedCount; index < inputs.length; index += 1) {
+      const input = inputs[index];
+      let homeworkId;
+      try {
+        homeworkId = await createTeacherLobbyHomeworkAssignment(input);
+      } catch (error) {
+        if (!error?.status || error.status >= 500) {
+          submission.uncertain = true;
+          throw new Error(`Created ${submission.completedCount} of ${inputs.length} homework assignments. The next assignment could not be confirmed. Check Homework before assigning again.`);
+        }
+        throw error;
+      }
+      submission.completedCount = index + 1;
+      if (input.materialType === 'thcs-test') {
+        void notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId })
+          .catch((error) => console.warn('[Homework] Assignment notification failed:', error));
+      }
+    }
+  }, [bulkHomeworkRequest, createTeacherLobbyHomeworkAssignment]);
+
+  const handleBulkHomeworkSuccess = useCallback(() => {
+    if (!bulkHomeworkRequest) {
+      return true;
+    }
+
+    toast.success(`Created ${bulkHomeworkRequest.items.length} homework assignments.`);
+    setSelectedMaterialIds([]);
+    setBulkHomeworkRequest(null);
+    return true;
+  }, [bulkHomeworkRequest]);
+
+  const bulkHomeworkModalProps = useMemo(() => {
+    if (!bulkHomeworkRequest) {
+      return null;
+    }
+
+    const currentItem = bulkHomeworkRequest.items[bulkHomeworkRequest.index];
+    if (!currentItem?.contentRef) {
+      return null;
+    }
+
+    const targetProps = bulkHomeworkRequest.target
+      ? {
+        preselectedTarget: bulkHomeworkRequest.target,
+        skipTargetSelection: true,
+      }
+      : {};
+    const batchStepProps = {
+      nextButtonLabel: bulkHomeworkRequest.index < bulkHomeworkRequest.items.length - 1
+        ? 'Next material →'
+        : 'Review assignments →',
+      onConfigureNext: handleBulkHomeworkConfigureNext,
+      onSubmitHomework: handleBulkHomeworkSubmit,
+    };
+
+    if (currentItem.kind === 'reading-passage') {
+      return {
+        ...targetProps,
+        ...batchStepProps,
+        preselectedReadingPassage: toReadingPassageHomeworkCandidate(currentItem.item),
+        preselectedContentRef: currentItem.contentRef,
+        preselectedMaterialFilter: 'reading-passage',
+      };
+    }
+
+    return {
+      ...targetProps,
+      ...batchStepProps,
+      preselectedMaterialId: currentItem.contentRef.contentId,
+      preselectedMaterial: toTeacherLobbyHomeworkMaterial(currentItem.item, currentItem.contentRef),
+      preselectedMaterialFilter: currentItem.contentRef.contentKind === 'thcs_test'
+        ? 'thcs-test'
+        : 'test',
+      preselectedContentRef: currentItem.contentRef,
+    };
+  }, [bulkHomeworkRequest, handleBulkHomeworkConfigureNext, handleBulkHomeworkSubmit, toReadingPassageHomeworkCandidate]);
 
   // ---------- Helpers ----------
   const isOwner = useCallback((item) => {
@@ -3753,6 +3889,17 @@ const TeacherLobbyPage = () => {
               setStandardHomeworkRequest(null);
             }}
             {...standardHomeworkModalProps}
+          />
+        )}
+
+        {bulkHomeworkModalProps && bulkHomeworkRequest && (
+          <HomeworkCreateModal
+            key={`bulk-homework-${bulkHomeworkRequest.index}`}
+            isOpen
+            onClose={() => setBulkHomeworkRequest(null)}
+            onSuccess={handleBulkHomeworkSuccess}
+            onTargetConfirmed={handleBulkHomeworkTargetConfirmed}
+            {...bulkHomeworkModalProps}
           />
         )}
 

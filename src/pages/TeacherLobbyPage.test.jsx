@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   updateBookMetadata: vi.fn(),
   confirm: vi.fn(),
   homeworkModalProps: [],
+  createHomework: vi.fn(),
+  notifyCommitted: vi.fn(),
   useAsIsTest: null,
   closeUseAsIs: vi.fn(),
   logDiagnostic: vi.fn(),
@@ -104,7 +106,11 @@ vi.mock('../services/thcsTestStorage', () => ({
 }));
 
 vi.mock('../services/homeworkAssignmentClient', () => ({
-  createHomeworkAssignmentViaWorker: vi.fn(async () => 'homework-worker-1'),
+  createHomeworkAssignmentViaWorker: (...args) => mocks.createHomework(...args),
+}));
+
+vi.mock('../services/notificationProducerClient', () => ({
+  notifyCommittedEvent: (...args) => mocks.notifyCommitted(...args),
 }));
 
 vi.mock('../services/book-assembly/assemblyClient.browser', async () => ({
@@ -507,6 +513,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       canUseMaterialBookEditor: true,
     };
     mocks.homeworkModalProps = [];
+    mocks.createHomework.mockReset().mockResolvedValue('homework-worker-1');
+    mocks.notifyCommitted.mockReset().mockResolvedValue({});
     mocks.masterModalProps = [];
     mocks.closeUseAsIs.mockReset();
     mocks.listReadingPassages.mockResolvedValue([]);
@@ -738,6 +746,190 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'assignSelectedMaterials',
       expect.objectContaining({ count: 1, materialKind: 'test' }),
     );
+  });
+
+  it('assigns multiple selected My Content materials one homework at a time', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'bulk-reading',
+        title: 'Bulk Reading',
+        testType: 'IELTS',
+        skill: 'Reading',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+        questions: [{ id: 'q1' }],
+      },
+      {
+        id: 'bulk-writing',
+        title: 'Bulk Writing',
+        testType: 'IELTS',
+        skill: 'Writing',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    await user.click(await screen.findByTestId('material-list-row-bulk-reading'));
+    await user.click(await screen.findByTestId('material-list-row-bulk-writing'));
+
+    const assignButton = screen.getByRole('button', { name: 'Assign homework' });
+    expect(assignButton).toBeEnabled();
+    await user.click(assignButton);
+
+    const firstProps = mocks.homeworkModalProps.at(-1);
+    expect(firstProps).toEqual(expect.objectContaining({
+      preselectedMaterialId: 'bulk-reading',
+      onTargetConfirmed: expect.any(Function),
+    }));
+    firstProps.onTargetConfirmed({
+      type: 'class',
+      classId: 'class-1',
+      className: 'IELTS Class',
+    });
+    firstProps.onConfigureNext({ materialId: 'bulk-reading', materialTitle: 'Bulk Reading' });
+
+    await waitFor(() => {
+      expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+        preselectedMaterialId: 'bulk-writing',
+        preselectedTarget: expect.objectContaining({ classId: 'class-1' }),
+        skipTargetSelection: true,
+      }));
+    });
+
+    await mocks.homeworkModalProps.at(-1).onSubmitHomework({
+      materialId: 'bulk-writing',
+      materialTitle: 'Bulk Writing',
+    });
+    await user.click(screen.getByRole('button', { name: 'Homework success' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Create Homework Assignment/i })).not.toBeInTheDocument();
+    });
+    expect(mocks.trackAction).toHaveBeenCalledWith(
+      'testCreation',
+      'assignSelectedMaterials',
+      expect.objectContaining({ count: 2, materialKind: 'test' }),
+    );
+  });
+
+  it.each([
+    ['definite rejection', Object.assign(new Error('Rejected'), { status: 400 }), true],
+    ['server failure', Object.assign(new Error('Unavailable'), { status: 500 }), false],
+    ['network failure', new Error('Network error'), false],
+  ])('handles %s without duplicating committed assignments or notices', async (_label, failure, retryable) => {
+    const user = userEvent.setup();
+    mocks.tests = ['a', 'b'].map((suffix) => ({
+      id: `retry-thcs-${suffix}`,
+      testType: 'THCS-THPT',
+      ownerId: 'teacher-1',
+      status: 'published',
+      isComplete: true,
+      metadata: { title: `Retry THCS ${suffix}`, gradeLevel: 10 },
+      questions: [{ id: 'q1' }],
+    }));
+    mocks.createHomework.mockResolvedValueOnce('homework-a').mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce('homework-b');
+    renderTeacherLobbyWithToasts();
+    for (const suffix of ['a', 'b']) {
+      await user.click(await screen.findByTestId(`material-list-row-retry-thcs-${suffix}`));
+    }
+    await user.click(screen.getByRole('button', { name: 'Assign homework' }));
+    const first = { materialId: 'retry-thcs-a', materialType: 'thcs-test' };
+    const second = { materialId: 'retry-thcs-b', materialType: 'thcs-test' };
+    act(() => mocks.homeworkModalProps.at(-1).onConfigureNext(first));
+    await waitFor(() => expect(mocks.homeworkModalProps.at(-1).preselectedMaterialId).toBe('retry-thcs-b'));
+    const submit = mocks.homeworkModalProps.at(-1).onSubmitHomework;
+
+    await act(async () => {
+      await expect(submit(second)).rejects.toThrow(retryable ? 'Rejected' : 'could not be confirmed');
+    });
+    if (retryable) {
+      await act(async () => {
+        await expect(submit(second)).resolves.toBeUndefined();
+      });
+      expect(mocks.createHomework.mock.calls).toEqual([[first], [second], [second]]);
+      expect(mocks.notifyCommitted.mock.calls).toEqual([
+        [{ eventKind: 'thcs-homework-assigned', homeworkId: 'homework-a' }],
+        [{ eventKind: 'thcs-homework-assigned', homeworkId: 'homework-b' }],
+      ]);
+    } else {
+      await expect(submit(second)).rejects.toThrow('Check Homework');
+      expect(mocks.createHomework.mock.calls).toEqual([[first], [second]]);
+      expect(mocks.notifyCommitted).toHaveBeenCalledOnce();
+      expect(mocks.notifyCommitted).toHaveBeenCalledWith({ eventKind: 'thcs-homework-assigned', homeworkId: 'homework-a' });
+    }
+  });
+
+  it('enables mixed Listening and THCS batch assignment and advances into THCS settings', async () => {
+    const user = userEvent.setup();
+    mocks.tests = [
+      {
+        id: 'bulk-listening',
+        title: 'Bulk Listening',
+        testType: 'IELTS',
+        skill: 'Listening',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        deliveryProjectionReady: true,
+        questions: [{ id: 'q1' }],
+      },
+      {
+        id: 'bulk-thcs-a',
+        title: 'Bulk THCS A',
+        testType: 'THCS-THPT',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        metadata: { title: 'Bulk THCS A', gradeLevel: 10 },
+        questions: [{ id: 'q1' }],
+      },
+      {
+        id: 'bulk-thcs-b',
+        title: 'Bulk THCS B',
+        testType: 'THCS-THPT',
+        ownerId: 'teacher-1',
+        status: 'published',
+        isComplete: true,
+        metadata: { title: 'Bulk THCS B', gradeLevel: 11 },
+        questions: [{ id: 'q1' }],
+      },
+    ];
+
+    renderTeacherLobbyWithToasts();
+
+    for (const id of ['bulk-listening', 'bulk-thcs-a', 'bulk-thcs-b']) {
+      await user.click(await screen.findByTestId(`material-list-row-${id}`));
+    }
+
+    const assignButton = screen.getByRole('button', { name: 'Assign homework' });
+    expect(assignButton).toBeEnabled();
+    await user.click(assignButton);
+
+    const firstProps = mocks.homeworkModalProps.at(-1);
+    expect(firstProps).toEqual(expect.objectContaining({
+      preselectedMaterialId: 'bulk-listening',
+      onTargetConfirmed: expect.any(Function),
+      onConfigureNext: expect.any(Function),
+    }));
+
+    firstProps.onTargetConfirmed({ type: 'class', classId: 'class-1', className: 'IELTS Class' });
+    await firstProps.onConfigureNext({ materialId: 'bulk-listening', materialTitle: 'Bulk Listening' });
+
+    await waitFor(() => {
+      expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
+        preselectedMaterialId: 'bulk-thcs-a',
+        preselectedMaterialFilter: 'thcs-test',
+        preselectedTarget: expect.objectContaining({ classId: 'class-1' }),
+        skipTargetSelection: true,
+      }));
+    });
   });
 
   it('shows selected-material assignment toolbar on Public Library rows', async () => {
@@ -2983,20 +3175,37 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(screen.getByRole('button', { name: 'Assign selected' }));
     expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
-    expect(mocks.homeworkModalProps.at(-1).preselectedReadingPassageSet).toEqual(expect.objectContaining({
-      title: 'Selected Reading Passages',
-      passages: [
-        expect.objectContaining({ materialId: 'passage-a', title: 'Passage A' }),
-        expect.objectContaining({ materialId: 'passage-b', title: 'Passage B' }),
-      ],
+    expect(mocks.homeworkModalProps.at(-1).preselectedReadingPassage).toEqual(expect.objectContaining({
+      materialId: 'passage-a',
+      title: 'Passage A',
     }));
+    expect(mocks.homeworkModalProps.at(-1).preselectedReadingPassageSet).toBeUndefined();
     expect(mocks.trackAction).toHaveBeenCalledWith(
       'testCreation',
       'teacher_materials_reading_passage_set_assigned',
       expect.objectContaining({ passageCount: 2 }),
     );
 
-    await user.click(screen.getByRole('button', { name: /Close HomeworkCreateModal/i }));
+    mocks.homeworkModalProps.at(-1).onConfigureNext({
+      materialId: 'passage-a',
+      materialTitle: 'Passage A',
+    });
+    await waitFor(() => {
+      expect(mocks.homeworkModalProps.at(-1).preselectedReadingPassage).toEqual(expect.objectContaining({
+        materialId: 'passage-b',
+        title: 'Passage B',
+      }));
+    });
+    await mocks.homeworkModalProps.at(-1).onSubmitHomework({
+      materialId: 'passage-b',
+      materialTitle: 'Passage B',
+    });
+    await user.click(screen.getByRole('button', { name: 'Homework success' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Create Homework Assignment/i })).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: 'Select Passage A' }));
+    await user.click(screen.getByRole('button', { name: 'Select Passage B' }));
     await user.click(screen.getByRole('button', { name: 'Create full test from selected' }));
 
     await waitFor(() => {

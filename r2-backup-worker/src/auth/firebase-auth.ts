@@ -25,6 +25,23 @@ interface VerifyResult {
     error?: string;
 }
 
+export const isLocalHomeworkEmulator = (env: WorkerEnv): boolean =>
+    env.LOCAL_EMULATOR_AUTH === 'true'
+    && env.FIREBASE_PROJECT_ID === 'demo-luyentap-local'
+    && env.FIREBASE_DB_URL === 'http://localhost:9000?ns=demo-luyentap-local'
+    && env.FIRESTORE_EMULATOR_HOST === 'localhost:8080';
+
+const decodeLocalPart = (encoded: string): Record<string, unknown> | null => {
+    try {
+        const normalized = encoded.replace(/-/gu, '+').replace(/_/gu, '/');
+        const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+        const payload = JSON.parse(atob(padded));
+        return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+    } catch {
+        return null;
+    }
+};
+
 export async function verifyFirebaseToken(
     authHeader: string | null,
     env: WorkerEnv
@@ -39,6 +56,28 @@ export async function verifyFirebaseToken(
         if (!token) {
             console.warn('[Auth] Empty token after stripping Bearer prefix');
             return { valid: false, error: 'Missing Authorization header' };
+        }
+
+        if (env.LOCAL_EMULATOR_AUTH === 'true') {
+            if (!isLocalHomeworkEmulator(env)) {
+                return { valid: false, error: 'Invalid local emulator configuration' };
+            }
+            const parts = token.split('.');
+            const header = decodeLocalPart(parts[0]);
+            const payload = decodeLocalPart(parts[1] || '');
+            const now = Math.floor(Date.now() / 1000);
+            if (
+                parts.length !== 3 || parts[2] !== '' || header?.alg !== 'none'
+                || payload?.aud !== env.FIREBASE_PROJECT_ID
+                || payload.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`
+                || typeof payload.sub !== 'string'
+                || !payload.sub
+                || typeof payload.exp !== 'number'
+                || payload.exp <= now
+            ) {
+                return { valid: false, error: 'Invalid local emulator token' };
+            }
+            return { valid: true, uid: payload.sub };
         }
 
         console.log('[Auth] Verifying JWT for project:', env.FIREBASE_PROJECT_ID);

@@ -39,7 +39,7 @@ import { FEATURE_IDS } from '../../config/featureRegistry';
 interface THCSHomeworkAssignDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess?: () => void;
+    onSuccess?: () => void | boolean | Promise<void | boolean>;
     /** The THCS test ID (published test ID in RTDB) */
     testId: string;
     /** Test title for display */
@@ -55,6 +55,15 @@ interface THCSHomeworkAssignDialogProps {
     };
     contentRef?: HomeworkContentRef;
     createHomeworkAssignment?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<string>;
+    preselectedTarget?: HomeworkTarget;
+    onTargetConfirmed?: (target: HomeworkTarget) => void;
+    skipTargetSelection?: boolean;
+    nextButtonLabel?: string;
+    onConfigureNext?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) =>
+        boolean | void | Promise<boolean | void>;
+    onSubmitHomework?: (input: CreateHomeworkInput & { contentRef?: HomeworkContentRef }) => Promise<void>;
+    embedded?: boolean;
+    onValidityChange?: (valid: boolean) => void;
 }
 
 type LateSubmissionPolicy = 'accept' | 'accept-late' | 'reject' | 'penalty';
@@ -74,6 +83,14 @@ export function THCSHomeworkAssignDialog({
     testMetadata,
     contentRef,
     createHomeworkAssignment,
+    preselectedTarget,
+    onTargetConfirmed,
+    skipTargetSelection = false,
+    nextButtonLabel = 'Assign Homework',
+    onConfigureNext,
+    onSubmitHomework,
+    embedded = false,
+    onValidityChange,
 }: THCSHomeworkAssignDialogProps) {
     const { user } = useAuth();
     const { trackAction } = useFeatureTracking(FEATURE_IDS.homework);
@@ -155,6 +172,25 @@ export function THCSHomeworkAssignDialog({
         return () => { cancelled = true; };
     }, [isOpen, user?.uid]);
 
+    useEffect(() => {
+        if (!isOpen || !preselectedTarget) return;
+
+        if (preselectedTarget.type === 'class') {
+            setTargetType('class');
+            setClassId(preselectedTarget.classId);
+            setClassName(preselectedTarget.className || '');
+            setSelectedStudentIds([]);
+            return;
+        }
+
+        if (preselectedTarget.type !== 'students') return;
+
+        setTargetType('students');
+        setSelectedStudentIds([...preselectedTarget.studentIds]);
+        setClassId('');
+        setClassName('');
+    }, [isOpen, preselectedTarget]);
+
     // Derived
 
     const resetForm = useCallback(() => {
@@ -207,6 +243,34 @@ export function THCSHomeworkAssignDialog({
         return errors;
     };
 
+    const getSelectedTarget = (): HomeworkTarget | null => {
+        if (targetType === 'class' && classId.trim()) {
+            return {
+                type: 'class',
+                classId: classId.trim(),
+                ...(className.trim() ? { className: className.trim() } : {}),
+            };
+        }
+
+        if (targetType === 'students' && selectedStudentIds.length > 0) {
+            const preselectedStudentNames = preselectedTarget?.type === 'students'
+                ? preselectedTarget.studentNames || []
+                : [];
+            const studentNames = selectedStudentIds.map((id, index) => {
+                const option = studentOptions.find(o => o.value === id);
+                return option ? option.label.split(' — ')[0] || id : preselectedStudentNames[index] || id;
+            });
+            return { type: 'students', studentIds: selectedStudentIds, studentNames };
+        }
+
+        return null;
+    };
+
+    const configValid = getValidationErrors().length === 0;
+    useEffect(() => {
+        onValidityChange?.(configValid);
+    }, [configValid, onValidityChange]);
+
     const handleSubmit = async () => {
         const errors = getValidationErrors();
         if (errors.length > 0) {
@@ -220,18 +284,9 @@ export function THCSHomeworkAssignDialog({
         try {
             // Build target
             let target: HomeworkTarget;
-            if (targetType === 'class') {
-                target = { type: 'class', classId: classId.trim(), ...(className.trim() ? { className: className.trim() } : {}) };
-            } else {
-                // Denormalize student names at creation time so the UI
-                // never needs to re-fetch them (PRD denormalization pattern)
-                const studentNames = selectedStudentIds.map(id => {
-                    const option = studentOptions.find(o => o.value === id);
-                    // Label format is "Name — ClassName", extract just the name
-                    return option ? option.label.split(' — ')[0] || id : id;
-                });
-                target = { type: 'students', studentIds: selectedStudentIds, studentNames };
-            }
+            const selectedTarget = getSelectedTarget();
+            if (!selectedTarget) return;
+            target = selectedTarget;
 
             const homeworkInput: CreateHomeworkInput = {
                 materialId: testId,
@@ -269,24 +324,39 @@ export function THCSHomeworkAssignDialog({
                 },
             };
 
-            let homeworkId: string;
-            if (createHomeworkAssignment) {
-                homeworkId = await createHomeworkAssignment({
-                    ...homeworkInput,
-                    contentRef,
-                });
-            } else {
-                homeworkId = await createHomework(homeworkInput);
+            const assignmentInput = { ...homeworkInput, contentRef };
+            if (onTargetConfirmed && !preselectedTarget) {
+                onTargetConfirmed(target);
             }
 
-            trackAction('assignHomework', { homeworkId, materialType: 'thcs-test' });
-            void notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId })
-                .catch(err => console.warn('[THCSHomework] Notification failed:', err));
-            toast.success('Homework assigned.');
+            if (onConfigureNext) {
+                const handled = await onConfigureNext(assignmentInput);
+                if (handled) {
+                    return;
+                }
+            }
 
-            resetForm();
-            onClose();
-            onSuccess?.();
+            if (onSubmitHomework) {
+                await onSubmitHomework(assignmentInput);
+            } else {
+                let homeworkId: string;
+                if (createHomeworkAssignment) {
+                    homeworkId = await createHomeworkAssignment(assignmentInput);
+                } else {
+                    homeworkId = await createHomework(homeworkInput);
+                }
+
+                trackAction('assignHomework', { homeworkId, materialType: 'thcs-test' });
+                void notifyCommittedEvent({ eventKind: 'thcs-homework-assigned', homeworkId })
+                    .catch(err => console.warn('[THCSHomework] Notification failed:', err));
+                toast.success('Homework assigned.');
+            }
+
+            const shouldClose = (await onSuccess?.()) !== false;
+            if (shouldClose) {
+                resetForm();
+                onClose();
+            }
         } catch (error) {
             console.error('[THCSHomework] Error creating homework:', error);
             toast.error('Failed to assign homework. Please try again.');
@@ -341,76 +411,7 @@ export function THCSHomeworkAssignDialog({
         return null;
     }
 
-    return createPortal(
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Assign THCS Homework"
-            onClick={(event) => {
-                if (event.target === event.currentTarget) {
-                    handleRequestClose();
-                }
-            }}
-            style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 2200,
-                background: 'rgba(15, 23, 42, 0.55)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1.5rem',
-                backdropFilter: 'blur(8px)',
-            }}
-        >
-            <div
-                style={{
-                    width: 'min(960px, 100%)',
-                    maxHeight: '92vh',
-                    background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))',
-                    borderRadius: '1.5rem',
-                    border: '1px solid rgba(226,232,240,0.9)',
-                    boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                }}
-            >
-                <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        padding: '1.25rem 1.5rem',
-                        borderBottom: '1px solid rgba(226,232,240,0.9)',
-                    }}
-                >
-                    <div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
-                            📋 Assign THCS Homework
-                        </div>
-                        <div style={{ marginTop: '0.2rem', fontSize: '0.9rem', color: '#64748b' }}>
-                            Configure targets, schedule, and submission rules for this THCS-THPT assignment.
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={handleRequestClose}
-                        disabled={submitting}
-                        style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#64748b',
-                            fontSize: '1.5rem',
-                            cursor: submitting ? 'not-allowed' : 'pointer',
-                            lineHeight: 1,
-                        }}
-                    >
-                        ×
-                    </button>
-                </div>
-
+    const formContent = (
                 <div
                     style={{
                         padding: '1.5rem',
@@ -492,11 +493,11 @@ export function THCSHomeworkAssignDialog({
                             letterSpacing: '0.05em',
                         }}
                     >
-                        Target Students
+                        {skipTargetSelection ? 'Target Students (shared)' : 'Target Students'}
                     </div>
 
                     {/* Target selection */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {!skipTargetSelection && <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <button
                             type="button"
                             onClick={() => setTargetType('class')}
@@ -527,9 +528,22 @@ export function THCSHomeworkAssignDialog({
                         >
                             Individual Students
                         </button>
-                    </div>
+                    </div>}
 
-                    {targetType === 'class' ? (
+                    {skipTargetSelection ? (
+                        <div style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.9rem',
+                            border: '1px solid rgba(99,102,241,0.2)',
+                            background: 'rgba(99,102,241,0.08)',
+                            color: '#3730a3',
+                            fontWeight: 700,
+                        }}>
+                            {targetType === 'class'
+                                ? `Shared class: ${className || classId}`
+                                : `Shared students: ${selectedStudentIds.length}`}
+                        </div>
+                    ) : targetType === 'class' ? (
                         <div style={{ display: 'grid', gap: '0.4rem' }}>
                             <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
                                 Select Class
@@ -872,7 +886,7 @@ export function THCSHomeworkAssignDialog({
                         </div>
                     </label>
 
-                    <div
+                    {!embedded && <div
                         style={{
                             display: 'flex',
                             justifyContent: 'flex-end',
@@ -900,14 +914,98 @@ export function THCSHomeworkAssignDialog({
                                 minWidth: '170px',
                             }}
                         >
-                            {submitting ? 'Assigning...' : 'Assign Homework'}
+                            {submitting ? 'Assigning...' : nextButtonLabel}
                         </Button>
-                    </div>
+                    </div>}
                 </div>
-            </div>
-        </div>,
-        document.body
     );
+
+    const dialog = (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Assign THCS Homework"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    handleRequestClose();
+                }
+            }}
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 2200,
+                background: 'rgba(15, 23, 42, 0.55)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1.5rem',
+                backdropFilter: 'blur(8px)',
+            }}
+        >
+            <div
+                style={{
+                    width: 'min(960px, 100%)',
+                    maxHeight: '92vh',
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))',
+                    borderRadius: '1.5rem',
+                    border: '1px solid rgba(226,232,240,0.9)',
+                    boxShadow: '0 24px 70px rgba(15,23,42,0.28)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                }}
+            >
+                <div
+                    style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        padding: '1.25rem 1.5rem',
+                        borderBottom: '1px solid rgba(226,232,240,0.9)',
+                    }}
+                >
+                    <div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+                            📋 Assign THCS Homework
+                        </div>
+                        <div style={{ marginTop: '0.2rem', fontSize: '0.9rem', color: '#64748b' }}>
+                            Configure targets, schedule, and submission rules for this THCS-THPT assignment.
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRequestClose}
+                        disabled={submitting}
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#64748b',
+                            fontSize: '1.5rem',
+                            cursor: submitting ? 'not-allowed' : 'pointer',
+                            lineHeight: 1,
+                        }}
+                    >
+                        ×
+                    </button>
+                </div>
+
+                {formContent}
+            </div>
+        </div>
+    );
+
+    if (embedded) {
+        return (
+            <form id="thcs-homework-config" onSubmit={(event) => {
+                event.preventDefault();
+                void handleSubmit();
+            }}>
+                {formContent}
+            </form>
+        );
+    }
+    return createPortal(dialog, document.body);
 }
 
 export default THCSHomeworkAssignDialog;

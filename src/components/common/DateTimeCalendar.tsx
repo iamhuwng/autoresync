@@ -175,7 +175,7 @@ export function DateTimeCalendar({ label, value, onChange, required, minDate }: 
                         background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
                         color: '#fff',
                     }}>
-                        <button
+                        <button type="button"
                             onClick={(e) => { e.stopPropagation(); prevMonth(); }}
                             style={{
                                 background: 'rgba(255,255,255,0.15)',
@@ -191,7 +191,7 @@ export function DateTimeCalendar({ label, value, onChange, required, minDate }: 
                         <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>
                             {MONTHS[viewMonth]} {viewYear}
                         </span>
-                        <button
+                        <button type="button"
                             onClick={(e) => { e.stopPropagation(); nextMonth(); }}
                             style={{
                                 background: 'rgba(255,255,255,0.15)',
@@ -243,7 +243,7 @@ export function DateTimeCalendar({ label, value, onChange, required, minDate }: 
                             const todayMark = isToday(day);
 
                             return (
-                                <button
+                                <button type="button"
                                     key={day}
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -320,7 +320,7 @@ export function DateTimeCalendar({ label, value, onChange, required, minDate }: 
                         </div>
                         <div style={{ display: 'flex', gap: '0.35rem' }}>
                             {value && (
-                                <button
+                                <button type="button"
                                     onClick={(e) => { e.stopPropagation(); handleClear(); }}
                                     style={{
                                         background: 'none', border: '1px solid #e2e8f0',
@@ -330,7 +330,7 @@ export function DateTimeCalendar({ label, value, onChange, required, minDate }: 
                                     }}
                                 >Clear</button>
                             )}
-                            <button
+                            <button type="button"
                                 onClick={(e) => { e.stopPropagation(); setShowCalendar(false); }}
                                 style={{
                                     background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',

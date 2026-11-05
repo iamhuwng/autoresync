@@ -49,13 +49,15 @@ Toolbar actions must use shared announcements for create, assign, archive, remov
 
 | Tab | Current bulk actions | Notes |
 | --- | --- | --- |
-| My Content | `Assign homework`, `Delete selected`, `Delete simple selected`, `Review Reading V2 removal` | Assignment is single-test until the homework modal supports multi-test preselection. Reading V2 master removal is reviewed one master at a time. |
+| My Content | `Assign homework`, `Delete selected`, `Delete simple selected`, `Review Reading V2 removal` | Multiple assignable materials, including mixed test types, open a sequential homework flow that keeps one target and creates one homework per material. Type-specific settings, including THCS, stay inside the shared modal. Reading V2 master removal is reviewed one master at a time. |
 | Public Library | `Assign homework` | Public rows never expose owner-only delete/archive actions. The action is disabled with a material-specific reason when the selected public test is not assignable. |
 | Drafts | `Delete selected` | Deletes selected draft ids through `useTeacherDrafts.deleteDraft`. |
-| Reading Passage | `Assign selected`, `Create full test from selected`, `Archive selected` | `Create full test from selected` is Reading Passage only. Assignment can pass a selected passage set. |
+| Reading Passage | `Assign selected`, `Create full test from selected`, `Archive selected` | `Create full test from selected` is Reading Passage only. Multiple selected passages are assigned through the sequential homework flow as separate homework records. |
 | Book | `Archive selected` | Archives owned Books through Book metadata status, not through source-material deletion. |
 
 ## Type-Aware Delete Contract
+
+Batch assignment collects each material's required settings before the final review and creation action. A confirmed partial failure retries only the remaining assignments. An uncertain response stops retries and asks the teacher to check Homework first; the service has no batch transaction or idempotent retry contract. Successful THCS assignments retain their existing committed notification event.
 
 Bulk delete for tests must inspect selected material type before choosing actions.
 

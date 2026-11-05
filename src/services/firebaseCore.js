@@ -12,7 +12,8 @@ export const isLocalDevelopment = import.meta.env.DEV && !isTestEnvironment && !
 const localProjectId = 'demo-luyentap-local';
 const localDatabaseUrl = 'http://localhost:9000?ns=demo-luyentap-local';
 const localWorkerOrigin = 'http://localhost:8787';
-const localEndpointValues = new Set([localWorkerOrigin, 'http://localhost:5001']);
+const localHomeworkWorkerOrigin = 'http://localhost:8788';
+const localEndpointValues = new Set([localWorkerOrigin, localHomeworkWorkerOrigin, 'http://localhost:5001']);
 const localWorkerKeys = [
   'VITE_BACKUP_WORKER_URL', 'VITE_BOOK_ACTIVITY_AUTHORING_WORKER_URL',
   'VITE_BOOK_ASSEMBLY_WORKER_URL', 'VITE_BOOK_DELIVERY_WORKER_URL',
