@@ -3,6 +3,10 @@
 Changelog ID: `CL-20261105-MULTI-MATERIAL-HOMEWORK`
 Master entry: [`documentation/architecture/master_changelog.md`](../master_changelog.md)
 
+Released on 2026-11-05 at [kahut1.web.app](https://kahut1.web.app).
+Verified Hosting source: `71d6caa0481fdf5ca2b128a09488bf8c71d73865`.
+[Deployment evidence](../../release-audits/2026-11-05-multi-material-homework.md).
+
 ## Implementation and integration
 
 Feature commit: `8e0e81f2896590cf05ff878edb6bd7b86347a1bd`, fast-forwarded into `main` on 2026-11-05.
@@ -53,9 +57,9 @@ Local topology: [local and live deployment](../../system/local-live-deployment.m
 - In-app browser verification was blocked by an unavailable browser access
   host. No browser acceptance or recipient-notification proof is claimed.
 
-## Release status
+## Initial release assessment (superseded)
 
-**Unreleased. No Hosting, Worker, rules, or data deployment was performed.**
+At the initial assessment, the feature was unreleased and no deployment had been performed.
 
 The guarded assessment of the clean feature commit against independently read
 Hosting revision `f294ec80abc1cb94d33a29aa3d11a5df0c0a7d48` returned
@@ -67,3 +71,21 @@ surfaces. The checker requires separate current Worker/provider evidence,
 frontend/backend compatibility review and explicit reconciliation of prior
 hotfix differences. Neither a local build nor the narrower feature diff clears
 those requirements. The release checker and deployment gates were preserved.
+
+## Deployment and reconciliation
+
+A clean Hosting hotfix based on the observed live revision carried the client
+feature and its required follow-up fixes. THCS notices now run sequentially
+without blocking assignment creation; incomplete delivery produces one warning
+per batch while preserving the shared producer's limits and reporting.
+
+The final source passed the native release gate and all three Release Safety CI
+jobs. The guarded Hosting deployment activated version `e5858cfe6121f3d1` at
+2026-11-05 14:42:23 UTC. Full manifest/content verification and independent
+readback of the index and relevant bundles passed. The notice fix and release
+CI trigger were reconciled into `main`; local runtime fixes remain in `main`.
+
+The first activation failed because Firebase limits release messages to 255
+characters. A source-bound 113-character entry through the supported changelog
+workflow allowed the guarded retry to publish successfully. The failed attempt
+remains recorded. Browser and real-recipient inbox verification remain unavailable.

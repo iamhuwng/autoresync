@@ -2,9 +2,9 @@
   "hosting": {
     "project": "temp-a1437",
     "site": "kahut1",
-    "sourceRevision": "f294ec80abc1cb94d33a29aa3d11a5df0c0a7d48",
-    "providerVersion": "5a72ee8a355cd518",
-    "record": "2026-11-04-reading-v2-auto-v4-publish.md"
+    "sourceRevision": "71d6caa0481fdf5ca2b128a09488bf8c71d73865",
+    "providerVersion": "e5858cfe6121f3d1",
+    "record": "2026-11-05-multi-material-homework.md"
   },
   "homeworkWorker": {
     "script": "r2-backup-worker",
