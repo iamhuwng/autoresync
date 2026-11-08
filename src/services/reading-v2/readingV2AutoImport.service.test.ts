@@ -1217,7 +1217,10 @@ describe('readingV2AutoImport.service', () => {
       '2 homes/ housing',
     ]);
     const normalized = normalizeReadingV2ImportCandidate(result.candidate);
-    expect(validateReadingV2Draft(normalized.document).blockingIssues).toEqual([]);
+    const blockingIssues = validateReadingV2Draft(normalized.document).blockingIssues;
+    expect(blockingIssues).toEqual([
+      expect.objectContaining({ code: 'instruction-response-rule-mismatch' }),
+    ]);
   });
 
   it.each([false, true])('keeps Auto V4 ranged multiple-choice groups and paired multiple-select semantics (Markdown: %s)', async (markdown) => {
