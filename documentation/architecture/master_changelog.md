@@ -9,7 +9,6 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
 | 2026-11-08 | [`CL-20261108-READING-V2-AUTHORING-QUALITY`](changelog/reading-v2-authoring-quality-2026-11-08.md) | Reading V2 | Changed | Make source-backed review corrective and current-state, persist Studio drafts and publication recovery, and keep the Teacher Studio shell focused; implementation verified, deployment pending separate provider evidence for unrelated merged service changes. |
-| 2026-11-04 | [`CL-20261104-READING-V2-TABLE-CELL-WRAP`](changelog/reading-v2-table-cell-wrap-2026-11-04.md) | Reading V2 | Fixed | Keep table-completion answers inline with authored cell text, wrap long answers inside the cell, and keep the question badge on the first answer line. |
 | 2026-11-01 | [`CL-20261101-READING-V2-PASSAGE-STRUCTURE`](changelog/reading-v2-passage-structure-2026-11-01.md) | Reading V2 | Fixed | Preserve structured passage blocks and question anchors through rich editing, validation, publication and runtime. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
@@ -31,6 +30,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-04 | [`CL-20261104-READING-V2-TABLE-CELL-WRAP`](changelog/reading-v2-table-cell-wrap-2026-11-04.md) | Reading V2 | Fixed | Keep table-completion answers inline with authored cell text, wrap long answers inside the cell, and keep the question badge on the first answer line. |
 | 2026-11-04 | [`CL-20261104-READING-V2-AUTO-V4-PUBLISH`](changelog/reading-v2-auto-v4-publish-2026-11-04.md) | Reading V2 | Fixed | Deployed Auto V4 publication and multi-answer passage counting fixes; preserve Studio edits and genuine source blockers across save/resume. Native publication verified; browser verification waived. |
 | 2026-11-04 | [`CL-20261104-TEACHER-WRITING-HOMEWORK-ACCESS`](changelog/teacher-writing-homework-access-2026-11-04.md) | Homework / Writing Results | Fixed | Deployed student-authorized sharing and teacher realtime recovery; repaired the two reported submissions and verified owner access plus unrelated-user denial. Browser verification was waived. |
 
