@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { access, cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -224,12 +224,7 @@ const importRtdbSnapshot = async (snapshotPath, seed = true) => {
 
 export const replaceSnapshot = async (stagingDir, destinationDir) => {
   const backupDir = `${destinationDir}.previous`;
-  try {
-    await access(backupDir);
-    throw new Error(`Previous snapshot backup still exists: ${backupDir}`);
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
-  }
+  await rm(backupDir, { recursive: true, force: true });
   let movedExistingSnapshot = false;
   try {
     await rename(destinationDir, backupDir);
@@ -240,18 +235,8 @@ export const replaceSnapshot = async (stagingDir, destinationDir) => {
   try {
     await rename(stagingDir, destinationDir);
   } catch (error) {
-    let createdDestination = false;
-    try {
-      if (error?.code !== 'EPERM') throw error;
-      await mkdir(destinationDir);
-      createdDestination = true;
-      await cp(stagingDir, destinationDir, { recursive: true, errorOnExist: true, force: false });
-      await rm(stagingDir, { recursive: true, force: true });
-    } catch (fallbackError) {
-      if (createdDestination) await rm(destinationDir, { recursive: true, force: true });
-      if (movedExistingSnapshot) await rename(backupDir, destinationDir);
-      throw fallbackError;
-    }
+    if (movedExistingSnapshot) await rename(backupDir, destinationDir);
+    throw error;
   }
   if (movedExistingSnapshot) await rm(backupDir, { recursive: true, force: true });
 };

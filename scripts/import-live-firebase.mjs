@@ -21,9 +21,7 @@ let accessToken;
 const requestNoRedirect = async (url, options = {}, fetchImpl = fetch) => {
   const requestedUrl = String(url);
   const response = await fetchImpl(requestedUrl, { ...options, redirect: 'error' });
-  const normalizedRequestedUrl = new URL(requestedUrl).href;
-  const normalizedResponseUrl = response.url ? new URL(response.url).href : null;
-  if (normalizedResponseUrl && normalizedResponseUrl !== normalizedRequestedUrl) {
+  if (response.url && response.url !== requestedUrl) {
     throw new Error(`[Firebase] Refusing redirected Firebase request: ${requestedUrl} -> ${response.url}.`);
   }
   return response;
