@@ -25,9 +25,10 @@ published-version recovery were not consistently durable.
 
 ## Verification and release status
 
-- Focused Reading V2 regressions passed 7 files and 161 tests after the scoped
-  merge; the release/changelog checks passed 55 tests. Production build passed
-  9,521 transformed modules and the bundle budget.
+- Focused Reading V2 regressions passed 7 files and 161 tests across the
+  merged/scoped candidate; the final assertion-only delta was rerun in Auto
+  Import (49/49), and the release/changelog checks passed 55 tests. Production
+  build passed 9,521 transformed modules and the bundle budget.
 - The scoped Hosting candidate is `e865c34b2aa3394a5469cfcccabe68cffb103cc0`,
   based on observed production revision `71d6caa0481fdf5ca2b128a09488bf8c71d73865`.
 - Guarded Hosting publication completed on 9 November 2026. Firebase Hosting
@@ -40,3 +41,7 @@ published-version recovery were not consistently durable.
 - RTDB rules were separately deployed and the live `rules.reading_v2` subtree
   matched the authoring source. `main` now carries only that subtree
   reconciliation; unrelated homework/result rules were preserved.
+- A fresh local RTDB emulator rerun was blocked by the machine's existing Java
+  loopback-selector failure; prior focused emulator proof and live rules
+  readback remain available. Authenticated Studio browser workflow remains
+  unverified in this release smoke check.
