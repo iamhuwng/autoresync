@@ -331,28 +331,19 @@ describe('readingV2Backfill.service', () => {
     const first = createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' });
     const second = createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' });
     const paths = first.map((write) => write.path);
-    const passageMaterial = first.find((write) => write.writeKind === 'reading-passage-material')?.value as {
-      passageMaterialId: string;
-      currentSnapshotVersionId: string;
-    };
-    const composition = first.find((write) => write.writeKind === 'full-test-composition')?.value as {
-      compositionId: string;
-    };
-    const passageId = passageMaterial.passageMaterialId;
-    const snapshotVersionId = passageMaterial.currentSnapshotVersionId;
 
     expect(paths).toEqual(second.map((write) => write.path));
     expect(new Set(paths).size).toBe(paths.length);
-    expect(paths).toContain(`reading_v2/reading_passage_materials/${passageId}`);
+    expect(paths).toContain('reading_v2/reading_passage_materials/legacy-ready-passage-1');
     expect(paths).toContain(
-      `reading_v2/published_snapshots/${passageId}/${snapshotVersionId}`,
+      'reading_v2/published_snapshots/legacy-ready-passage-1/legacy-ready-snapshot',
     );
     expect(paths).toContain(
-      `reading_v2/full_test_compositions/${composition.compositionId}`,
+      'reading_v2/full_test_compositions/composition-legacy-ready-legacy-ready-snapshot',
     );
 
     const passageSnapshot = first.find((write) =>
-      write.path === `reading_v2/published_snapshots/${passageId}/${snapshotVersionId}`
+      write.path === 'reading_v2/published_snapshots/legacy-ready-passage-1/legacy-ready-snapshot'
     );
 
     expect(passageSnapshot?.writeKind).toBe('reading-passage-published-snapshot');
@@ -415,19 +406,18 @@ describe('readingV2Backfill.service', () => {
     });
     const writes = createReadingV2FullTestPassageBackfillWritePlan({ report, approvedBy: 'lead-1' });
     const metadataWrite = writes.find((write) => write.writeKind === 'reading-passage-metadata');
-    const materialId = (metadataWrite?.value as { materialId?: string } | undefined)?.materialId;
     const publicIndexWrite = writes.find((write) =>
-      write.path === `material_catalog/material_indexes/by_visibility/public/${materialId}`
+      write.path === 'material_catalog/material_indexes/by_visibility/public/public-shareable-passage-1'
     );
 
     expect(report.rows[0].visibilityDowngradedToPrivate).toBe(false);
-    expect(metadataWrite?.path).toBe(`reading_v2/material_metadata/${materialId}`);
+    expect(metadataWrite?.path).toBe('reading_v2/material_metadata/public-shareable-passage-1');
     expect(metadataWrite?.value).toMatchObject({
-      materialId,
+      materialId: 'public-shareable-passage-1',
       visibility: 'public',
     });
     expect(publicIndexWrite?.value).toMatchObject({
-      materialId,
+      materialId: 'public-shareable-passage-1',
       visibility: 'public',
     });
   });

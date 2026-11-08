@@ -347,9 +347,9 @@ describe('reading-v2-full-test-passage-backfill script helpers', () => {
     });
 
     expect(Object.keys(payload)).toEqual(expect.arrayContaining([
-      'reading_v2/reading_passage_materials/legacy-ready-passage-section-sentence-completion',
-      'reading_v2/full_test_compositions/composition-legacy-ready',
-      'reading_v2/full_test_composition_versions/composition-legacy-ready/snapshot-1',
+      'reading_v2/reading_passage_materials/legacy-ready-passage-1',
+      'reading_v2/full_test_compositions/composition-legacy-ready-snapshot-1',
+      'reading_v2/full_test_composition_versions/composition-legacy-ready-snapshot-1/snapshot-1',
     ]));
   });
 });
