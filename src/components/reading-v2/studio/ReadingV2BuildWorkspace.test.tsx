@@ -7,10 +7,10 @@ import { readingV2Ids, type ReadingV2Document } from '../../../types/readingV2.t
 import type { ReadingV2CanonicalTaskType } from '../../../types/readingV2Taxonomy';
 import type {
   ReadingV2BuildPassageSlot,
-  ReadingV2BuildValidationMessage,
   ReadingV2QuestionLinkTarget,
 } from './ReadingV2BuildWorkspace';
 import type { ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
+import type { ReadingV2ReviewIssue } from '../../../services/reading-v2/readingV2ReviewIssueMapping.service';
 
 vi.mock('../../../services/r2Storage', () => ({ default: { uploadImage: vi.fn() } }));
 vi.mock('../../modern/ToastNotification', () => ({
@@ -58,16 +58,23 @@ const renderWorkspace = (
   options: {
     readonly firstPromptText?: string;
     readonly firstAnswer?: string;
+    readonly instructionText?: string;
     readonly selectedQuestionLink?: ReadingV2QuestionLinkTarget | null;
     readonly withoutPrimaryAnchor?: boolean;
     readonly withImageBlock?: boolean;
     readonly layoutHint?: string;
-    readonly validationMessages?: readonly ReadingV2BuildValidationMessage[];
+    readonly reviewIssues?: readonly ReadingV2ReviewIssue[];
     readonly metadata?: ReadingV2StudioMetadata;
     readonly onAddPassage?: () => void;
   } = {},
 ) => {
   let document = createReadingV2CanonicalFixture(taskType);
+  if (options.instructionText) {
+    const group = Object.values(document.taskGroups)[0]!;
+    document = { ...document, taskGroups: { ...document.taskGroups, [group.taskGroupId]: { ...group,
+      instructionBlocks: [{ id: 'supplied-instruction', text: options.instructionText }],
+      answerRule: { ...group.answerRule, wordLimit: 1, responseShape: { kind: 'free-text', wordLimit: 1 } } } } };
+  }
   if (
     options.firstPromptText !== undefined
     || options.firstAnswer !== undefined
@@ -204,11 +211,10 @@ const renderWorkspace = (
       authoringNumbers={visibleNumbers}
       selectedTaskGroupId={taskGroup.taskGroupId}
       selectedQuestionLink={options.selectedQuestionLink}
-      validationMessages={options.validationMessages ?? []}
+      reviewIssues={(options.reviewIssues ?? []).map((issue) => ({ ...issue, target: { ...issue.target, interactionId: taskGroup.interactionIds[0], taskGroupId: taskGroup.taskGroupId } }))}
       publishBlocked={false}
       publishState="idle"
       onSaveDraft={vi.fn()}
-      onValidate={vi.fn()}
       onPreview={vi.fn()}
       onPublish={vi.fn()}
       onExit={vi.fn()}
@@ -306,110 +312,16 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     }));
   });
 
-  it('opens click-stable review issues panel instead of exposing full tooltip text', () => {
-    renderWorkspace('summary-completion-text', {
-      validationMessages: [
-        {
-          key: 'q1-answer',
-          message: 'Question 1 needs an answer.',
-          reviewLabel: 'Question 1',
-          reviewDetail: 'Add the missing answer before publishing.',
-          questionRange: { start: 1, end: 1 },
-        },
-        {
-          key: 'q2-3-source',
-          message: 'Questions 2-3 need source review.',
-          reviewLabel: 'Questions 2-3',
-          reviewDetail: 'Check prompt text and answer key.',
-          questionRange: { start: 2, end: 3 },
-        },
-      ],
-    });
-
-    const pill = screen.getByRole('button', { name: '2 validation items' });
-    expect(pill).not.toHaveAttribute('title', expect.stringContaining('Add the missing answer'));
+  it('opens the issue details from one local marker and navigates using its current ID', () => {
+    const issue: ReadingV2ReviewIssue = { id: 'missing-answer', severity: 'publish-blocker', source: 'answer-key', type: 'answer-required', label: 'Question 1', detail: 'Answer needed', originalMessage: 'Enter an answer.', target: {}, actionLabel: 'Edit answer' };
+    const { document, taskGroup, onQuestionLinkNavigation } = renderWorkspace('summary-completion-text', { reviewIssues: [issue] });
+    expect(screen.queryByText('Review imported content')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Answer needed' }));
+    expect(screen.getByRole('dialog', { name: 'Review issues' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit answer' }));
+    expect(onQuestionLinkNavigation).toHaveBeenCalledWith(expect.objectContaining({ interactionId: taskGroup.interactionIds[0], taskGroupId: taskGroup.taskGroupId }));
+    expect(document.interactions[taskGroup.interactionIds[0]!]).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Review issues' })).not.toBeInTheDocument();
-
-    fireEvent.click(pill);
-
-    const panel = screen.getByRole('dialog', { name: 'Review issues' });
-    expect(within(panel).getAllByRole('listitem')).toHaveLength(2);
-    expect(within(panel).getByRole('button', { name: 'Question 1: Missing Answer' })).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Questions 2-3: Review Required' })).toBeInTheDocument();
-    expect(within(panel).queryByText(/Interaction /i)).not.toBeInTheDocument();
-  });
-
-  it('navigates from a review issue to the target question and highlights its card', () => {
-    const { document, taskGroup, onQuestionLinkNavigation, onSelectTaskGroup, onReviewIssuesAction } = renderWorkspace('summary-completion-text', {
-      validationMessages: [
-        {
-          key: 'q1-answer',
-          message: 'Question 1 needs an answer.',
-          reviewLabel: 'Question 1',
-          reviewDetail: 'Add the missing answer before publishing.',
-          questionRange: { start: 1, end: 1 },
-        },
-      ],
-    });
-    const firstInteraction = document.interactions[taskGroup.interactionIds[0]!]!;
-
-    fireEvent.click(screen.getByRole('button', { name: '1 validation item' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Question 1: Missing Answer' }));
-
-    expect(onSelectTaskGroup).toHaveBeenCalledWith(taskGroup.taskGroupId);
-    expect(onQuestionLinkNavigation).toHaveBeenCalledWith(expect.objectContaining({
-      interactionId: firstInteraction.interactionId,
-      taskGroupId: taskGroup.taskGroupId,
-      source: 'diagnostic',
-    }));
-    expect(onReviewIssuesAction).toHaveBeenCalledWith('reviewIssueNavigate', expect.objectContaining({
-      issueId: 'q1-answer',
-      questionStart: 1,
-    }));
-    expect(screen.getByLabelText(`Review guidance for Question 1`)).toHaveAttribute('data-review-focus', 'true');
-  });
-
-  it('navigates and highlights when validation text infers the question target', () => {
-    const { document, taskGroup, onQuestionLinkNavigation, onSelectTaskGroup } = renderWorkspace('summary-completion-text', {
-      validationMessages: [
-        {
-          key: 'q1-answer-key',
-          message: 'Question 1 has no answer key.',
-        },
-      ],
-    });
-    const firstInteraction = document.interactions[taskGroup.interactionIds[0]!]!;
-
-    fireEvent.click(screen.getByRole('button', { name: '1 validation item' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Question 1: Missing Answer Key' }));
-
-    expect(onSelectTaskGroup).toHaveBeenCalledWith(taskGroup.taskGroupId);
-    expect(onQuestionLinkNavigation).toHaveBeenCalledWith(expect.objectContaining({
-      interactionId: firstInteraction.interactionId,
-      taskGroupId: taskGroup.taskGroupId,
-      source: 'diagnostic',
-    }));
-    const card = screen.getByLabelText('Review guidance for Question 1').closest('.reading-v2-build-card');
-    expect(within(card as HTMLElement).getByRole('button', { name: /Missing answer key/i })).toBeInTheDocument();
-    expect(screen.getByLabelText('Review guidance for Question 1')).toHaveAttribute('data-review-focus', 'true');
-  });
-
-  it('renders inline issue chips from the same review issue data source', () => {
-    renderWorkspace('summary-completion-text', {
-      validationMessages: [
-        {
-          key: 'q1-answer',
-          message: 'Question 1 needs an answer.',
-          reviewLabel: 'Question 1',
-          reviewDetail: 'Add the missing answer before publishing.',
-          questionRange: { start: 1, end: 1 },
-        },
-      ],
-    });
-
-    const card = screen.getByLabelText('Review guidance for Question 1').closest('.reading-v2-build-card');
-    expect(within(card as HTMLElement).getByRole('button', { name: /Missing answer/i })).toBeInTheDocument();
-    expect(screen.queryByText('2 issues')).not.toBeInTheDocument();
   });
 
   it('hides question link checks when linked questions do not need attention', () => {
@@ -916,6 +828,17 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
         orderMatters: false,
       }),
     }));
+    fireEvent.change(selectionCount, { target: { value: '3' } });
+    expect(onInteractionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      responseShape: expect.objectContaining({ selectionLimit: 3 }), reviewLabel: expect.objectContaining({ answerSlotCount: 3 }),
+      scoringRule: expect.objectContaining({ maxScore: 3 }),
+    }));
+  });
+
+  it.each(['sentence-completion', 'note-completion'] as const)('keeps valid number-plus-word answers complete in the %s editor', (taskType) => {
+    renderWorkspace(taskType, { firstAnswer: 'ten times', instructionText: 'Choose ONE WORD AND/OR A NUMBER.' });
+    expect(screen.getByLabelText('Accepted answers for Question 1')).toHaveAttribute('data-answer-state', 'complete');
+    expect(screen.queryByText(/Answer does not meet the word limit/)).not.toBeInTheDocument();
   });
 
   it('uses accepted-answer fields and word-limit controls for short-answer', () => {

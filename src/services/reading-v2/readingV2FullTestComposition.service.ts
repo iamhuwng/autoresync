@@ -118,6 +118,7 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
   readonly durationMinutes?: number;
   readonly visibility?: ReadingPassageVisibilityScope;
   readonly createdAt: string;
+  readonly materialRevision?: number;
 }): ReadingV2FullTestComposition => {
   assertUniqueCompositionRefs(input.passageRefs);
 
@@ -133,6 +134,8 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
     })),
   });
   const composition: ReadingV2FullTestComposition = {
+    state: 'published',
+    mode: 'published',
     deliveryEngine: READING_V2_ENGINE,
     plane: 'packaging',
     schemaVersion: 1,
@@ -155,6 +158,7 @@ export const createReadingV2FullTestCompositionFromRefs = (input: {
     publishedVersionId: input.publishedVersionId,
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
+    materialRevision: 1,
   };
 
   assertReadingV2RefOnlyFullTestComposition(composition);

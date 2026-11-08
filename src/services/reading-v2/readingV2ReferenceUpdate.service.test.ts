@@ -107,6 +107,11 @@ describe('readingV2ReferenceUpdate.service', () => {
       'master:composition-1:ref-1',
     ]);
     expect(summary.targets.every((target) => target.selectable)).toBe(true);
+    expect(summary.targets.find((target) => target.kind === 'master')).toMatchObject({
+      parentMaterialId: 'master-1',
+      currentMaterialRevision: undefined,
+      currentParentVersionId: 'master-version-1',
+    });
     expect(summary.excluded.nonOwnedReferenceCount).toBe(2);
     expect(summary.excluded.alreadyCurrentCount).toBe(1);
     expect(summary.excluded.frozenAssignmentCount).toBe(0);

@@ -10,7 +10,14 @@ import type {
 import { deriveReadingV2VisibleNumbers } from './readingV2Numbering.service';
 import type { ReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 import { READING_V2_STRUCTURED_MATERIALS_START } from './readingV2ExternalAiPrompt.service';
+import {
+  evaluateReadingV2AuthoringReadiness,
+  type ReadingV2AuthoringContext,
+  type ReadingV2AuthoringReadiness,
+  type ReadingV2AuthoringSourceRecord,
+} from './readingV2AuthoringQuality.service';
 import type { ReadingV2ValidationResult } from './readingV2Validation.service';
+import { buildReadingV2AutoSourceLedger } from './readingV2AutoImportSourceLedger.service';
 
 export interface ReadingV2StudioParsingDiagnosticsInput {
   readonly document: ReadingV2Document;
@@ -24,12 +31,17 @@ export interface ReadingV2StudioParsingDiagnosticsInput {
     readonly ownerId?: string;
   };
   readonly importCandidate?: ReadingV2ImportCandidate;
+  /** Persisted source state survives draft resume when the transient import candidate does not. */
+  readonly authoringContext?: ReadingV2AuthoringContext;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  /** Pass the Studio memo so diagnostics and the publish gate report one readiness result. */
+  readonly authoringReadiness?: ReadingV2AuthoringReadiness;
   readonly validationResult: ReadingV2ValidationResult;
   readonly mode: string;
   readonly activeStep: string;
   readonly draftId: string;
   readonly materialId?: string;
-  readonly revisionToken: string;
+  readonly revision: number;
   readonly generatedAt?: string;
 }
 
@@ -107,6 +119,65 @@ export interface ReadingV2TeacherImportDiagnostics {
 
 const countLines = (value: string | undefined): number =>
   value?.trim() ? value.split(/\r?\n/).length : 0;
+
+const persistedSourceFor = (
+  input: ReadingV2StudioParsingDiagnosticsInput,
+): ReadingV2AuthoringSourceRecord | undefined => {
+  const sourceId = input.authoringContext?.origin.kind === 'import'
+    ? input.authoringContext.origin.sourceId
+    : undefined;
+  if (sourceId) {
+    return input.resolvedSourceEvidence?.find((source) => source.sourceId === sourceId);
+  }
+  return input.resolvedSourceEvidence?.[0];
+};
+
+const persistedAnswerKeyText = (
+  input: ReadingV2StudioParsingDiagnosticsInput,
+  source: ReadingV2AuthoringSourceRecord | undefined,
+): string | undefined => {
+  if (!source) {
+    return undefined;
+  }
+  if (source.teacherAnswerKey?.rawText.trim()) return source.teacherAnswerKey.rawText;
+
+  const answerSlotLineIds = new Set(
+    (input.authoringContext?.requirements ?? [])
+      .filter((requirement) => requirement.kind === 'answer-slot' && requirement.sourceId === source.sourceId)
+      .flatMap((requirement) => requirement.lineIds),
+  );
+  const answerKeyLines = source.lineIndex
+    .filter((line) => answerSlotLineIds.has(line.lineId))
+    .sort((left, right) => left.lineNumber - right.lineNumber)
+    .map((line) => line.rawText);
+  if (answerKeyLines.length > 0) {
+    return answerKeyLines.join('\n');
+  }
+
+
+  const rawLines = source.rawText.trim()
+    ? source.rawText.split(/\r?\n/)
+    : source.lineIndex
+        .slice()
+        .sort((left, right) => left.lineNumber - right.lineNumber)
+        .map((line) => line.rawText);
+  const answerKeyIndex = rawLines.findIndex((line) => /^\s*#+\s*answer(?:s|\s+key)?\s*$/i.test(line));
+  return answerKeyIndex >= 0 ? rawLines.slice(answerKeyIndex + 1).join('\n') : undefined;
+};
+
+const authoringReadinessFor = (
+  input: ReadingV2StudioParsingDiagnosticsInput,
+): ReadingV2AuthoringReadiness | undefined => input.authoringReadiness
+  ?? (input.authoringContext
+    ? evaluateReadingV2AuthoringReadiness(
+        {
+          document: input.document,
+          metadata: { title: input.metadata.title ?? input.document.title },
+          authoringContext: input.authoringContext,
+        },
+        input.resolvedSourceEvidence ?? [],
+      )
+    : undefined);
 
 const stimulusText = (stimulus: ReadingV2StimulusNode | undefined): string => {
   if (!stimulus) {
@@ -470,7 +541,11 @@ const normalizeAnswerKeyLineDetail = (row: AnswerKeyRowDiagnostic): string =>
 export const buildReadingV2TeacherImportDiagnostics = (
   input: ReadingV2StudioParsingDiagnosticsInput,
 ): ReadingV2TeacherImportDiagnostics => {
-  const answerKey = parseAnswerKeyRows(input.importCandidate?.answerKeyText);
+  const persistedSource = persistedSourceFor(input);
+  const persistedDiagnostics = persistedSource?.autoImportDiagnostics ?? [];
+  const answerKeyText = input.importCandidate?.answerKeyText
+    ?? persistedSource?.teacherAnswerKey?.rawText;
+  const answerKey = parseAnswerKeyRows(answerKeyText);
   const visibleNumbers = deriveReadingV2VisibleNumbers(
     input.document.sectionIds.flatMap((sectionId) => {
       const section = input.document.sections[sectionId];
@@ -499,7 +574,7 @@ export const buildReadingV2TeacherImportDiagnostics = (
     .filter((row) => !visibleQuestionNumbers.has(row.questionNumber))
     .map((row) => row.questionNumber);
   const malformed = answerKey.unparsedLines.length > 0 || answerKey.duplicateQuestionNumbers.length > 0;
-  const hasAnswerKeyText = (input.importCandidate?.answerKeyText ?? '').trim().length > 0;
+  const hasAnswerKeyText = (answerKeyText ?? '').trim().length > 0;
   const keyBlocking = !hasAnswerKeyText || malformed || missingAnswerRows.length > 0 || extraRows.length > 0;
   const authorityStatus: ReadingV2TeacherAnswerKeyAuthorityStatus = !hasAnswerKeyText
     ? 'missing'
@@ -608,7 +683,7 @@ export const buildReadingV2TeacherImportDiagnostics = (
     });
   });
 
-  input.importCandidate?.autoImportDiagnostics?.forEach((diagnostic, index) => {
+  (input.importCandidate?.autoImportDiagnostics ?? persistedDiagnostics).forEach((diagnostic, index) => {
     pushItem(diagnosticGroupForAutoCode(diagnostic.code), {
       id: `auto-import-${index + 1}-${diagnostic.code}`,
       severity: diagnostic.severity,
@@ -701,6 +776,30 @@ export const buildReadingV2TeacherImportDiagnostics = (
 export const buildReadingV2StudioParsingDiagnostics = (
   input: ReadingV2StudioParsingDiagnosticsInput,
 ): Record<string, unknown> => {
+  const persistedSource = persistedSourceFor(input);
+  const persistedDiagnostics = persistedSource?.autoImportDiagnostics ?? [];
+  const authoringReadiness = authoringReadinessFor(input);
+  const validationResult = authoringReadiness?.validationResult ?? input.validationResult;
+  const candidateRawText = input.importCandidate?.rawText ?? '';
+  const persistedSourceText = persistedSource?.rawText
+    || persistedSource?.lineIndex
+        .slice()
+        .sort((left, right) => left.lineNumber - right.lineNumber)
+        .map((line) => line.rawText)
+        .join('\n');
+  const sourceText = input.importCandidate?.sourceRawText
+    ?? (persistedSourceText || candidateRawText);
+  const answerKeyText = input.importCandidate?.answerKeyText?.trim()
+    ? input.importCandidate.answerKeyText
+    : persistedAnswerKeyText(input, persistedSource) ?? '';
+  const sourceKind = input.importCandidate?.sourceKind ?? persistedSource?.sourceKind ?? 'none';
+  const sourceFormat = sourceText.includes(READING_V2_STRUCTURED_MATERIALS_START)
+    ? 'structured-json'
+    : sourceText.trim()
+      ? 'plain-text'
+      : 'none';
+  const structuredSource = candidateRawText.includes(READING_V2_STRUCTURED_MATERIALS_START)
+    || sourceFormat === 'structured-json';
   const orderedTaskGroups = input.document.sectionIds.flatMap((sectionId) => {
     const section = input.document.sections[sectionId];
     return section
@@ -713,7 +812,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
   const visibleNumberByInteractionId = new Map(
     visibleNumbers.map((entry) => [entry.interactionId, entry.displayNumber]),
   );
-  const answerKey = parseAnswerKeyRows(input.importCandidate?.answerKeyText);
+  const answerKey = parseAnswerKeyRows(answerKeyText);
   const allInteractions = orderedTaskGroups.flatMap((taskGroup) =>
     taskGroup.interactionIds
       .map((interactionId) => input.document.interactions[interactionId])
@@ -730,17 +829,8 @@ export const buildReadingV2StudioParsingDiagnostics = (
   const missingAnswerKeyRows = [...parsedQuestionNumbers]
     .filter((questionNumber) => !answerKey.rows.some((row) => row.questionNumber === questionNumber))
     .sort((left, right) => left - right);
-  const candidateRawText = input.importCandidate?.rawText ?? '';
-  const sourceText = input.importCandidate?.sourceRawText ?? candidateRawText;
-  const answerKeyText = input.importCandidate?.answerKeyText ?? '';
   const candidateRawTextIsStructured = candidateRawText.includes(READING_V2_STRUCTURED_MATERIALS_START);
-  const sourceFormat = sourceText.includes(READING_V2_STRUCTURED_MATERIALS_START)
-    ? 'structured-json'
-    : sourceText.trim()
-      ? 'plain-text'
-      : 'none';
-  const structuredSource = candidateRawTextIsStructured || sourceFormat === 'structured-json';
-  const questionRangeHeadingCount = (sourceText.match(/####\s+Questions\s+\d+\s*[-\u2013\u2014]\s*\d+/gi) ?? []).length;
+  const questionRangeHeadingCount = buildReadingV2AutoSourceLedger({ rawText: sourceText }).questionRanges.length;
   const numberedQuestionLineCount = (sourceText.match(/^\s*(?:\*\*)?\d{1,3}(?:\*\*)?[\).]?\s+\S+/gm) ?? []).length;
   const taskTypeCounts = orderedTaskGroups.reduce<Record<string, number>>((counts, taskGroup) => {
     counts[taskGroup.officialTaskType] = (counts[taskGroup.officialTaskType] ?? 0) + 1;
@@ -758,7 +848,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
     ...(extraAnswerKeyRows.length === 0 ? [] : ['answer_key_has_rows_without_questions']),
     ...(answerKey.unparsedLines.length === 0 ? [] : ['answer_key_has_unparsed_lines']),
     ...(placeholderCount === 0 ? [] : ['parsed_questions_still_have_placeholders']),
-    ...(input.validationResult.canPublish ? [] : ['publish_blocked_after_parse']),
+    ...(validationResult.canPublish ? [] : ['publish_blocked_after_parse']),
   ];
 
   return {
@@ -769,7 +859,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
       activeStep: input.activeStep,
       draftId: input.draftId,
       materialId: input.materialId,
-      revisionToken: input.revisionToken,
+      revision: input.revision,
       schemaVersion: input.document.schemaVersion,
       deliveryEngine: input.document.deliveryEngine,
       documentId: input.document.documentId,
@@ -782,13 +872,17 @@ export const buildReadingV2StudioParsingDiagnostics = (
       ownerId: input.metadata.ownerId,
     },
     sourceInput: {
-      sourceKind: input.importCandidate?.sourceKind ?? 'none',
+      sourceKind,
       sourceFormat,
-      fileName: input.importCandidate?.fileName,
-      supportedFileType: input.importCandidate?.supportedFileType,
+      fileName: input.importCandidate?.fileName ?? persistedSource?.fileName,
+      supportedFileType: input.importCandidate?.supportedFileType ?? persistedSource?.supportedFileType,
       rawTextIncluded: Boolean(sourceText),
       rawText: sourceText,
-      rawTextRole: input.importCandidate?.sourceRawText ? 'original-source' : 'import-candidate-payload',
+      rawTextRole: input.importCandidate?.sourceRawText
+        ? 'original-source'
+        : persistedSource
+          ? 'persisted-authoring-source'
+          : 'import-candidate-payload',
       rawTextCharCount: sourceText.length,
       rawTextLineCount: countLines(sourceText),
       questionRangeHeadingCount,
@@ -808,8 +902,31 @@ export const buildReadingV2StudioParsingDiagnostics = (
       candidateEvidence: input.importCandidate?.evidence ?? [],
       candidateUncertainty: input.importCandidate?.uncertaintyMarkers ?? [],
       candidatePublishBlockers: input.importCandidate?.publishBlockingPlaceholders ?? [],
-      candidateAutoDiagnostics: input.importCandidate?.autoImportDiagnostics ?? [],
+      candidateAutoDiagnostics: input.importCandidate?.autoImportDiagnostics ?? persistedDiagnostics,
       candidateGroupQuality: input.importCandidate?.autoImportGroupQuality ?? [],
+      persistedSourceEvidence: input.resolvedSourceEvidence?.map((source) => ({
+        sourceId: source.sourceId,
+        sourceKind: source.sourceKind,
+        fileName: source.fileName,
+        supportedFileType: source.supportedFileType,
+        rawTextIncluded: Boolean(source.rawText),
+        rawTextCharCount: source.rawText.length,
+        rawTextLineCount: countLines(source.rawText),
+        lineCount: source.lineIndex.length,
+      })) ?? [],
+      authoringContext: input.authoringContext
+        ? {
+            origin: input.authoringContext.origin,
+            scope: input.authoringContext.scope,
+            requirementCount: input.authoringContext.requirements.length,
+            requirementKinds: input.authoringContext.requirements.reduce<Record<string, number>>((counts, requirement) => {
+              counts[requirement.kind] = (counts[requirement.kind] ?? 0) + 1;
+              return counts;
+            }, {}),
+            interpretationCount: input.authoringContext.interpretations.length,
+            unboundTargetCount: input.authoringContext.unboundTargets.length,
+          }
+        : undefined,
       sourceArtifact: input.importCandidate?.importSourceArtifact
         ? {
             artifactId: input.importCandidate.importSourceArtifact.artifactId,
@@ -827,7 +944,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
       promptImprovementHints: [
         ...(structuredSource ? ['For structured JSON, preserve sectionInstructions.sectionReferences and per-question labeledOptions exactly.'] : []),
         ...(structuredSource ? ['For table-completion JSON, emit a real table structure with one stable blank target per question.'] : []),
-        ...(structuredSource || questionRangeHeadingCount > 0 ? [] : ['Ask external AI to preserve headings exactly as #### Questions 1-5.']),
+        ...(structuredSource || questionRangeHeadingCount > 0 ? [] : ['Preserve each question-range heading, such as Questions 1-5.']),
         ...(structuredSource || numberedQuestionLineCount >= allInteractions.length ? [] : ['Ask external AI to keep every question on its own numbered line.']),
         ...(answerKey.rows.length >= allInteractions.length ? [] : ['Ask external AI or teacher workflow to provide one answer-key row per visible question number.']),
         ...(extraAnswerKeyRows.length === 0 ? [] : ['Check whether source text dropped questions for some answer-key rows.']),
@@ -857,8 +974,8 @@ export const buildReadingV2StudioParsingDiagnostics = (
           questionCount: taskGroups.reduce((total, taskGroup) => total + taskGroup.interactionIds.length, 0),
           taskTypes: taskGroups.map((taskGroup) => taskGroup.officialTaskType),
           validationIssues: [
-            ...issuesFor(input.validationResult.issues, sectionId),
-            ...(firstStimulusId ? issuesFor(input.validationResult.issues, firstStimulusId) : []),
+            ...issuesFor(validationResult.issues, sectionId),
+            ...(firstStimulusId ? issuesFor(validationResult.issues, firstStimulusId) : []),
           ],
         };
       }),
@@ -883,7 +1000,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
           stimulusRefs: taskGroup.stimulusRefs,
           importEvidenceRefs: taskGroup.importEvidenceRefs ?? [],
           validationStateIssues: taskGroup.validationState.issues,
-          validationIssues: issuesFor(input.validationResult.issues, taskGroup.taskGroupId),
+          validationIssues: issuesFor(validationResult.issues, taskGroup.taskGroupId),
         };
       }),
       questions: allInteractions.map((interaction) => ({
@@ -898,7 +1015,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
         acceptableAnswers: interaction.scoringRule.acceptableAnswers ?? [],
         placeholder: interaction.placeholder === true,
         primaryAnchorId: interaction.primaryAnchorId,
-        validationIssues: issuesFor(input.validationResult.issues, interaction.interactionId),
+        validationIssues: issuesFor(validationResult.issues, interaction.interactionId),
       })),
       answerKeyBinding: {
         parsedQuestionCount: allInteractions.length,
@@ -914,14 +1031,24 @@ export const buildReadingV2StudioParsingDiagnostics = (
       taskTypeCounts,
     },
     validation: {
-      canPublish: input.validationResult.canPublish,
-      issueCount: input.validationResult.issues.length,
-      blockingIssueCount: input.validationResult.blockingIssues.length,
-      warningIssueCount: input.validationResult.warningIssues.length,
-      informationalIssueCount: input.validationResult.informationalIssues.length,
-      issueCountsByCode: byCode(input.validationResult.issues),
-      blockingIssues: input.validationResult.blockingIssues,
-      allIssues: input.validationResult.issues,
+      canPublish: authoringReadiness?.canPublish ?? validationResult.canPublish,
+      canonicalCanPublish: validationResult.canPublish,
+      issueCount: validationResult.issues.length,
+      blockingIssueCount: validationResult.blockingIssues.length,
+      warningIssueCount: validationResult.warningIssues.length,
+      informationalIssueCount: validationResult.informationalIssues.length,
+      issueCountsByCode: byCode(validationResult.issues),
+      blockingIssues: validationResult.blockingIssues,
+      allIssues: validationResult.issues,
+      authoringReadiness: authoringReadiness
+        ? {
+            canPublish: authoringReadiness.canPublish,
+            findingCount: authoringReadiness.findings.length,
+            blockingFindingCount: authoringReadiness.blockingFindings.length,
+            findings: authoringReadiness.findings,
+            blockingFindings: authoringReadiness.blockingFindings,
+          }
+        : undefined,
     },
   };
 };

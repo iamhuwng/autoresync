@@ -12,6 +12,8 @@ import { buildReadingV2TestBridgeRecord } from './readingV2TestBridge.service';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import { createReadingV2MaterialSummary } from '../materialCatalog/materialSummaryAdapters.service';
 import { buildMaterialSummaryIndexPlan } from '../materialCatalog/materialSummaryPort.service';
+import { prepareReadingV2PublicationUpdates } from './readingV2PublicationGuard.service';
+import { readingV2DraftContentEquals } from './readingV2DraftFirebaseRepository.service';
 
 export interface ReadingV2FirebasePublishUpdates {
   readonly commitPath: string;
@@ -30,23 +32,7 @@ export interface ReadingV2FirebasePublishCommitOptions {
   readonly committedAt?: string;
 }
 
-interface ExistingPublishCommitMarker {
-  readonly operationKeys?: unknown;
-}
-
 const sorted = (values: readonly string[]): readonly string[] => [...values].sort();
-
-const sameStringSet = (left: readonly string[], right: readonly string[]): boolean => {
-  const sortedLeft = sorted(left);
-  const sortedRight = sorted(right);
-
-  return sortedLeft.length === sortedRight.length && sortedLeft.every((value, index) => value === sortedRight[index]);
-};
-
-const getExistingOperationKeys = (value: ExistingPublishCommitMarker | null): readonly string[] =>
-  Array.isArray(value?.operationKeys) && value.operationKeys.every((entry) => typeof entry === 'string')
-    ? value.operationKeys
-    : [];
 
 const getSessionCode = (projection: ReadingV2DerivedProjection): string => {
   const prefix = 'session-safe:';
@@ -147,7 +133,7 @@ const universalSummaryPathForLegacyIndex = (
 
 export const buildReadingV2FirebasePublishUpdates = (
   commitPlan: ReadingV2PublishCommitPlan,
-  committedAt = new Date().toISOString(),
+  committedAt = commitPlan.operations.find((operation) => operation.kind === 'material-metadata')?.metadata.updatedAt ?? new Date().toISOString(),
 ): ReadingV2FirebasePublishUpdates => {
   const metadataOperation = commitPlan.operations.find((operation) => operation.kind === 'material-metadata');
 
@@ -269,6 +255,7 @@ export const buildReadingV2FirebasePublishUpdates = (
     operationKeys,
     writePaths,
     committedAt,
+    ...(commitPlan.operationId ? { operationId: commitPlan.operationId } : {}),
   };
 
   return {
@@ -282,49 +269,30 @@ export const commitReadingV2PublishPlanToFirebase = async (
   commitPlan: ReadingV2PublishCommitPlan,
   options: ReadingV2FirebasePublishCommitOptions = {},
 ): Promise<ReadingV2FirebasePublishCommitResult> => {
-  const firebaseUpdates = buildReadingV2FirebasePublishUpdates(commitPlan, options.committedAt);
+  const captured = buildReadingV2FirebasePublishUpdates(commitPlan, options.committedAt);
   const targetDatabase = options.database ?? defaultDatabase;
-
+  const read = async (path: string) => {
+    const snapshot = await get(ref(targetDatabase, path));
+    return snapshot.exists() ? snapshot.val() : null;
+  };
+  let firebaseUpdates = captured;
   try {
+    firebaseUpdates = { ...captured, updates: await prepareReadingV2PublicationUpdates(captured.updates, read) };
     await update(ref(targetDatabase), firebaseUpdates.updates);
-
-    return {
-      ...firebaseUpdates,
-      status: 'committed',
-    };
+    return { ...firebaseUpdates, status: 'committed' };
   } catch (writeError) {
-    if (import.meta.env.DEV && !import.meta.env.VITEST) {
-      console.error('[Diag][ReadingV2PublishFirebase] publish_update_denied', JSON.stringify({
-        commitPath: firebaseUpdates.commitPath,
-        writePaths: Object.keys(firebaseUpdates.updates).sort(),
-        operationKeys: firebaseUpdates.operationKeys,
-      }));
-    }
-
+    let currentMetadata: Record<string, unknown> | null;
     try {
-      const commitSnapshot = await get(ref(targetDatabase, firebaseUpdates.commitPath));
-
-      if (!commitSnapshot.exists()) {
-        throw writeError;
-      }
-
-      const existing = commitSnapshot.val() as ExistingPublishCommitMarker | null;
-      const existingOperationKeys = getExistingOperationKeys(existing);
-
-      if (!sameStringSet(existingOperationKeys, firebaseUpdates.operationKeys)) {
-        throw new Error('Reading V2 Firebase publish commit marker conflicts with the requested operation keys.');
-      }
-
-      return {
-        ...firebaseUpdates,
-        status: 'already-committed',
-      };
-    } catch (readError) {
-      if (readError instanceof Error && /commit marker conflicts/.test(readError.message)) {
-        throw readError;
-      }
-
+      const marker = await read(captured.commitPath);
+      const requestedMarker = captured.updates[captured.commitPath] as Record<string, unknown>;
+      if (!requestedMarker.operationId || !readingV2DraftContentEquals(marker, requestedMarker)) throw writeError;
+      currentMetadata = await read(readingV2StoragePaths.materialMetadata(commitPlan.materialId));
+    } catch {
       throw writeError;
     }
+    if (currentMetadata?.publishedSnapshotVersionId !== commitPlan.snapshotVersionId) {
+      throw new Error('The publication head advanced while its acknowledgement was uncertain. Keep the draft and inspect the material.');
+    }
+    return { ...firebaseUpdates, status: 'already-committed' };
   }
 };

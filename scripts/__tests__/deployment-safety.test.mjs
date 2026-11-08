@@ -14,6 +14,7 @@ import {
   selectReleaseSource,
   cleanParentEnv,
   findForbiddenBundleMarker,
+  hostingReleaseMessage,
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
 import { replaceSnapshot } from '../local-firebase.mjs';
@@ -436,4 +437,12 @@ test('Hosting records publication only after new provider identity and matching 
       observeSource: async () => ({ fingerprint: crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex') }) }), /unconfirmed/u);
     assert.equal(listReleases(storeDir).filter(release => release.targets[0].publication === 'unconfirmed').length, 1);
   } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('Hosting release messages stay within Firebase limits while changelog records remain detailed', () => {
+  const description = 'x'.repeat(278);
+  const message = hostingReleaseMessage(description);
+  assert.equal(message.length, 255);
+  assert.equal(message.slice(-3), '...');
+  assert.equal(hostingReleaseMessage('short release'), 'short release');
 });

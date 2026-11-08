@@ -12,8 +12,8 @@ shared publish contract.
 ## Required Flow
 
 1. Provider extracts candidate passages, questions, answers, and source proof.
-2. Review model records safe review issues and source fidelity signals.
-3. Studio presents editable content and blocking/non-blocking issues.
+2. Review model records private source facts and safe candidate findings for Studio's current readiness evaluator.
+3. Studio presents editable content and current required findings or optional suggestions in one issue surface. Supported edits and explicit source corrections reevaluate readiness without a generic acceptance step.
 4. Publish validates the Studio state and creates canonical snapshots,
    projections, runtime bridges, and MaterialSummary rows.
 

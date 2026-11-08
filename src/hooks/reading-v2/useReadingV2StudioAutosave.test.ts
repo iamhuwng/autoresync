@@ -21,7 +21,7 @@ const createSnapshot = (title: string): ReadingV2StudioWorkflowSnapshot => ({
     ownerId: 'teacher-1',
     provenanceSummary: 'Autosave test',
   },
-  revisionToken: 'autosave-rev-1',
+  revision: 1,
 });
 
 describe('useReadingV2StudioAutosave', () => {
@@ -31,7 +31,7 @@ describe('useReadingV2StudioAutosave', () => {
 
   it('schedules queued Studio draft snapshots outside the shell and reports the saved revision', async () => {
     vi.useFakeTimers();
-    const saveDraft = vi.fn(async () => ({ revisionToken: 'autosave-rev-2' }));
+    const saveDraft = vi.fn(async () => ({ revision: 2 }));
     const onResult = vi.fn();
     const { result, unmount } = renderHook(() =>
       useReadingV2StudioAutosave({
@@ -58,7 +58,7 @@ describe('useReadingV2StudioAutosave', () => {
     expect(onResult).toHaveBeenCalledWith({
       status: 'saved',
       draftId: 'autosave-draft',
-      revisionToken: 'autosave-rev-2',
+      revision: 2,
     });
 
     unmount();
@@ -66,7 +66,7 @@ describe('useReadingV2StudioAutosave', () => {
 
   it('does not save when autosave is disabled', async () => {
     vi.useFakeTimers();
-    const saveDraft = vi.fn(async () => ({ revisionToken: 'unused' }));
+    const saveDraft = vi.fn(async () => ({ revision: 1 }));
     const { result, unmount } = renderHook(() =>
       useReadingV2StudioAutosave({
         autosaveKey: 'autosave-disabled',
@@ -95,7 +95,7 @@ describe('useReadingV2StudioAutosave', () => {
     const saveDraft = vi
       .fn()
       .mockRejectedValueOnce(staleConflict)
-      .mockResolvedValueOnce({ revisionToken: 'autosave-recovered-rev' });
+      .mockResolvedValueOnce({ revision: 1 });
     const onResult = vi.fn();
     const { result, unmount } = renderHook(() =>
       useReadingV2StudioAutosave({
@@ -129,7 +129,7 @@ describe('useReadingV2StudioAutosave', () => {
     expect(onResult).toHaveBeenCalledWith({
       status: 'saved',
       draftId: 'autosave-draft',
-      revisionToken: 'autosave-recovered-rev',
+      revision: 1,
     });
 
     unmount();
@@ -137,16 +137,16 @@ describe('useReadingV2StudioAutosave', () => {
 
   it('preserves newer edits queued while an autosave is in flight', async () => {
     vi.useFakeTimers();
-    let resolveFirstSave: ((value: { revisionToken: string }) => void) | undefined;
+    let resolveFirstSave: ((value: { revision: number }) => void) | undefined;
     const saveDraft = vi
       .fn()
       .mockImplementationOnce(
         () =>
-          new Promise<{ revisionToken: string }>((resolve) => {
+          new Promise<{ revision: number }>((resolve) => {
             resolveFirstSave = resolve;
           }),
       )
-      .mockResolvedValueOnce({ revisionToken: 'autosave-rev-3' });
+      .mockResolvedValueOnce({ revision: 3 });
     const { result, unmount } = renderHook(() =>
       useReadingV2StudioAutosave({
         autosaveKey: 'autosave-draft',
@@ -166,7 +166,7 @@ describe('useReadingV2StudioAutosave', () => {
 
     act(() => {
       result.current.queueAutosave(createSnapshot('Second queued title'));
-      resolveFirstSave?.({ revisionToken: 'autosave-rev-2' });
+      resolveFirstSave?.({ revision: 2 });
     });
 
     await act(async () => {
@@ -177,9 +177,76 @@ describe('useReadingV2StudioAutosave', () => {
     expect(saveDraft).toHaveBeenCalledTimes(2);
     expect(saveDraft).toHaveBeenNthCalledWith(2, expect.objectContaining({
       document: expect.objectContaining({ title: 'Second queued title' }),
-      revisionToken: 'autosave-rev-2',
+      revision: 2,
     }));
 
     unmount();
+  });
+
+  it('retains work and releases the queue when an adapter throws synchronously', async () => {
+    vi.useFakeTimers();
+    const failure = new Error('synchronous adapter failure');
+    const saveDraft = vi.fn()
+      .mockImplementationOnce(() => { throw failure; })
+      .mockResolvedValueOnce({ revision: 2 });
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useReadingV2StudioAutosave({
+      autosaveKey: 'draft-1', enabled: true, intervalMs: 100, saveDraft, onResult,
+    }));
+    act(() => result.current.queueAutosave(createSnapshot('Local work')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', error: failure }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      document: expect.objectContaining({ title: 'Local work' }),
+    }));
+  });
+
+  it('ignores obsolete callbacks and does not carry queued work to another session', async () => {
+    vi.useFakeTimers();
+    let finish: (value: { revision: number }) => void = () => {};
+    const saveDraft = vi.fn()
+      .mockImplementationOnce(() => new Promise<{ revision: number }>((resolve) => { finish = resolve; }))
+      .mockResolvedValueOnce({ revision: 1 });
+    const onResult = vi.fn();
+    const { result, rerender } = renderHook(({ session }) => useReadingV2StudioAutosave({
+      autosaveKey: session, enabled: true, intervalMs: 100, saveDraft, onResult,
+    }), { initialProps: { session: 'teacher-1:draft-1' } });
+    act(() => result.current.queueAutosave(createSnapshot('Old work')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    act(() => result.current.queueAutosave(createSnapshot('Old queued work')));
+    rerender({ session: 'teacher-2:draft-2' });
+    await act(async () => {
+      finish({ revision: 1 });
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(onResult).not.toHaveBeenCalled();
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    act(() => result.current.queueAutosave(createSnapshot('New work')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ status: 'saved', revision: 1 }));
+  });
+
+  it('serializes a manual save behind autosave and includes context-only edits at the acknowledged revision', async () => {
+    vi.useFakeTimers();
+    let acknowledge: (value: { revision: number }) => void = () => {};
+    const saveDraft = vi.fn()
+      .mockImplementationOnce(() => new Promise<{ revision: number }>((resolve) => { acknowledge = resolve; }))
+      .mockResolvedValueOnce({ revision: 3 });
+    const { result } = renderHook(() => useReadingV2StudioAutosave({
+      autosaveKey: 'teacher:draft', enabled: true, intervalMs: 100, saveDraft,
+    }));
+    act(() => result.current.queueAutosave(createSnapshot('Original')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    const contextOnly = { ...createSnapshot('Original'), workflowOrigin: { mode: 'duplicate-material' as const } };
+    let saved: Promise<{ revision: number }>;
+    act(() => { saved = result.current.saveNow(contextOnly); });
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    await act(async () => { acknowledge({ revision: 2 }); await saved; });
+    expect(saveDraft).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      revision: 2, workflowOrigin: { mode: 'duplicate-material' },
+    }));
+    expect(result.current.saveState).toBe('saved');
   });
 });

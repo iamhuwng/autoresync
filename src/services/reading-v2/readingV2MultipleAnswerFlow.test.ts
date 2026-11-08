@@ -28,7 +28,7 @@ it('imports, saves, publishes and grades one choose-two prompt as two order-inde
   const repository = createReadingV2Repository();
   expect(validateReadingV2Draft(imported.document).blockingIssues).toEqual([]);
   const draft = repository.createDraft({ ownerId: 'teacher-1', document: imported.document });
-  const saved = repository.saveDraft({ draftId: draft.draftId, baseRevisionToken: draft.revisionToken, document: draft.document });
+  const saved = repository.saveDraft({ draftId: draft.draftId, expectedRevision: draft.revision, document: draft.document });
   const materialId = readingV2Ids.materialId('choose-two-flow');
   const published = publishReadingV2Material({ repository, materialId, ownerId: 'teacher-1',
     document: saved.document, publishedBy: 'teacher-1', skipReadingPassageExtraction: true,

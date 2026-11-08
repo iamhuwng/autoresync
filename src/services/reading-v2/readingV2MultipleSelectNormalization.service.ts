@@ -1,4 +1,12 @@
-import type { ReadingV2Document } from '../../types/readingV2.types';
+import type { ReadingV2Document, ReadingV2Interaction } from '../../types/readingV2.types';
+
+export const setReadingV2MultipleSelectCount = (interaction: ReadingV2Interaction, count: number): ReadingV2Interaction => {
+  if (interaction.responseShape.kind !== 'multi-select' || !Number.isInteger(count) || count < 1) {
+    throw new Error('Choose a positive whole selection count for a multiple-selection question.');
+  }
+  return { ...interaction, responseShape: { ...interaction.responseShape, selectionLimit: count },
+    reviewLabel: { ...interaction.reviewLabel, answerSlotCount: count }, scoringRule: { ...interaction.scoringRule, maxScore: count, orderMatters: false } };
+};
 
 // Repair editable copies only: published snapshots and their answer bindings stay immutable.
 export const normalizeReadingV2MultipleSelectSlots = (document: ReadingV2Document): ReadingV2Document => {

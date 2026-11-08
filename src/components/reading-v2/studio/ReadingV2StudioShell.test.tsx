@@ -51,6 +51,7 @@ import {
   validateReadingV2EditorDocument,
 } from '../../../services/reading-v2/readingV2EditorDocument.service';
 import { readingV2Ids, type ReadingV2Document, type ReadingV2SectionId } from '../../../types/readingV2.types';
+import { createReadingV2ManualAuthoringContext, type ReadingV2AuthoringSourceRecord } from '../../../services/reading-v2/readingV2AuthoringQuality.service';
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
@@ -207,9 +208,9 @@ describe('ReadingV2StudioShell Build Workspace', () => {
 
     expect(screen.getByRole('heading', { name: 'Untitled IELTS Reading Test' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Validate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Review \d+ issues/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Exit' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy parsing diagnostics' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Developer details' })).toHaveAttribute('aria-expanded', 'false');
@@ -217,8 +218,9 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.queryByText(/Revision token/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Developer details' }));
-    expect(screen.getByLabelText('Metadata readiness')).toHaveTextContent('Metadata');
-    expect(screen.getByLabelText('Publish readiness')).toHaveTextContent('Publish Readiness');
+    expect(within(screen.getByRole('dialog', { name: 'Developer details' })).queryByLabelText('Material title')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Publish readiness')).not.toBeInTheDocument();
+    expect(screen.getByText('Test settings and extraction')).toBeInTheDocument();
   });
 
   it('copies parser diagnostics for imported Studio drafts in one click', async () => {
@@ -259,8 +261,8 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"officialTaskType": "true-false-not-given"'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"parsedQuestionCount": 2'));
     expect(screen.queryByLabelText('Import review')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Accept into Draft' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Review import details' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Accept into Draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review import details' })).not.toBeInTheDocument();
     expect(await screen.findByText('Parsing diagnostics copied.')).toBeInTheDocument();
     expect(onAction).toHaveBeenCalledWith('copyParsingDiagnostics', expect.objectContaining({ outcome: 'success' }));
   });
@@ -325,22 +327,12 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Import review and source verification')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Review import details' }));
-    expect(screen.getByLabelText('Import review and source verification')).toHaveTextContent('Teacher key partially bound');
-    expect(onAction).toHaveBeenCalledWith('toggleImportReviewDetails', expect.objectContaining({ outcome: 'expanded' }));
-    const missingQuestionRow = screen.getByText('Question 2 has no bound teacher-key answer.').closest('li');
-    expect(missingQuestionRow).toBeTruthy();
-
-    fireEvent.click(within(missingQuestionRow as HTMLElement).getByRole('button', { name: 'Review' }));
-
-    expect(onAction).toHaveBeenCalledWith('jumpImportDiagnostic', expect.objectContaining({
-      outcome: 'interaction',
-      targetStep: 'Questions',
-    }));
+    fireEvent.click(screen.getByRole('button', { name: /Review \d+ issues/ }));
+    expect(screen.getByRole('dialog', { name: 'Review issues' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Review import details' })).not.toBeInTheDocument();
   });
 
-  it('blocks publish while imported candidate has provider repair blockers', () => {
+  it('keeps historical provider repair diagnostics out of current publish readiness', () => {
     const candidate = createReadingV2ImportCandidateFromText({
       text: [
         '## Imported Reading passage',
@@ -385,57 +377,18 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: /validation item/ }));
-    const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
-    expect(within(reviewIssues).getByRole('button', { name: 'Questions 1-2: Review Required' })).toBeInTheDocument();
-    expect(within(reviewIssues).queryByText(/Provider omitted this question group/)).not.toBeInTheDocument();
-    expect(within(reviewIssues).queryByText(/Local repair rebuilt it from source/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /Review \d+ issues/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Developer details' }));
+    expect(screen.getByRole('dialog', { name: 'Developer details' })).toBeInTheDocument();
   });
 
-  it('keeps imported review details collapsed by default and accepts import from the developer action row', async () => {
-    const onAction = vi.fn();
-    const onDraftChange = vi.fn();
-    const candidate = createReadingV2ImportCandidateFromText({
-      text: [
-        '## Imported Reading passage',
-        '',
-        'This imported passage has enough text to become an editable Reading V2 passage paragraph.',
-        '',
-        '#### Questions 1-2',
-        'Do the following statements agree with the information? TRUE, FALSE, NOT GIVEN',
-        '**1** Imported statement one',
-        '**2** Imported statement two',
-      ].join('\n'),
-      answerKeyText: ['1 TRUE', '2 FALSE'].join('\n'),
-      fileName: 'accept-from-actions.md',
-    });
-
-    render(
-      <ReadingV2StudioShell
-        mode="create-from-import"
-        importCandidate={candidate}
-        metadata={{ title: 'Accept Import' }}
-        onAction={onAction}
-        onDraftChange={onDraftChange}
-      />,
-    );
-
-    expect(screen.queryByLabelText('Import review')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Accept into Draft' }));
-
+  it('keeps imported source diagnostics out of the authoring action bar', () => {
+    const candidate = createReadingV2ImportCandidateFromText({ text: 'Imported passage content', answerKeyText: '1 answer', fileName: 'source.md' });
+    render(<ReadingV2StudioShell mode="create-from-import" importCandidate={candidate} metadata={{ title: 'Imported source' }} />);
     expect(screen.queryByRole('button', { name: 'Accept into Draft' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review import details' })).not.toBeInTheDocument();
-    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
-    const acceptedDocument = onDraftChange.mock.calls.at(-1)?.[0]?.document as ReadingV2Document;
-    expect(Object.values(acceptedDocument.taskGroups).every((taskGroup) => !taskGroup.importEvidenceRefs)).toBe(true);
-    expect(validateReadingV2Draft(acceptedDocument).issues).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: 'unresolved-import-uncertainty' })]),
-    );
-    expect(screen.getByRole('button', { name: 'Publish' })).not.toBeDisabled();
-    expect(onAction).toHaveBeenCalledWith('importMaterial', expect.objectContaining({
-      outcome: 'normalized-to-canonical-draft',
-    }));
+    expect(screen.getByRole('button', { name: /Review \d+ issues/ })).toBeInTheDocument();
   });
 
   it('tracks question-link navigation and repair actions from the Studio shell', () => {
@@ -595,7 +548,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.getByRole('button', { name: 'Add Passage' })).toBeInTheDocument();
   });
 
-  it.each([false, true])('preserves Auto V4 edits and blocks only source issues, not stale validation (source issue: %s)', async (hasSourceIssue) => {
+  it.each([false, true])('ignores old Auto V4 warning text without current source facts (source warning: %s)', async (hasSourceIssue) => {
     const onPublish = vi.fn().mockResolvedValue({ publishOutcome: 'success', duplicateWarnings: [] });
     const resolvedDoc = resolveReadingV2ImportReview(createReadingV2CanonicalFixture('sentence-completion'));
 
@@ -623,7 +576,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     await act(async () => {
       fireEvent.click(publishButton);
     });
-    expect(onPublish).toHaveBeenCalledTimes(hasSourceIssue ? 0 : 1);
+    expect(onPublish).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Passage 3 editable when selected directly from a blank test', () => {
@@ -718,7 +671,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
   }, 30000);
 
   it('saves structured table edits only after editor-block normalization keeps anchors valid', async () => {
-    const onSaveDraft = vi.fn(async () => ({ revisionToken: 'structured-normalized-rev-2' }));
+    const onSaveDraft = vi.fn(async () => ({ revision: 2 }));
 
     render(
       <ReadingV2StudioShell
@@ -778,7 +731,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
   }, 30000);
 
   it('saves incomplete drafts while publish remains blocked by teacher-readable validation', async () => {
-    const onSaveDraft = vi.fn(async () => ({ revisionToken: 'incomplete-rev-2' }));
+    const onSaveDraft = vi.fn(async () => ({ revision: 2 }));
     const onPreview = vi.fn(async (snapshot) =>
       generateReadingV2PreviewOnly({
         draftId: snapshot.draftId,
@@ -794,11 +747,10 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: /validation items/ }));
+    expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Review \d+ issues/ }));
     const reviewIssues = screen.getByRole('dialog', { name: 'Review issues' });
-    expect(within(reviewIssues).getByText('5 review items')).toBeInTheDocument();
-    expect(within(reviewIssues).getAllByRole('button', { name: 'Review item: Review Required' })).toHaveLength(5);
+    expect(within(reviewIssues).getByText('5 current issues')).toBeInTheDocument();
     expect(within(reviewIssues).queryByText('Passage 1 needs a title')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
@@ -865,38 +817,44 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     expect(screen.queryByText(/Delete Question 1/i)).not.toBeInTheDocument();
   });
 
-  it('saves against the duplicated draft identity after conflict recovery duplicate', async () => {
-    const onDuplicateDraft = vi.fn(async () => ({
-      draftId: 'duplicated-draft',
-      materialId: 'duplicated-material',
-      revisionToken: 'duplicated-draft-rev-1',
-    }));
-    const onSaveDraft = vi.fn(async () => ({ revisionToken: 'duplicated-draft-rev-2' }));
+  it('offers normal-workspace copy recovery for stale drafts', async () => {
+    const onDuplicateDraft = vi.fn();
+    render(<ReadingV2StudioShell mode="resume-draft" operationalState="conflict" draftId="source-draft" onDuplicateDraft={onDuplicateDraft} />);
+    expect(screen.getByRole('button', { name: 'Keep as a copy' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep as a copy' }));
+    expect(onDuplicateDraft).toHaveBeenCalled();
+  });
+
+  it('locks the workspace and captures one snapshot while keeping-as-copy is pending', async () => {
+    let resolveCopy!: (value: unknown) => void;
+    const onDuplicateDraft = vi.fn(() => new Promise((resolve) => { resolveCopy = resolve; }));
+    const document = createReadingV2CanonicalFixture('sentence-completion');
     render(
       <ReadingV2StudioShell
         mode="resume-draft"
         operationalState="conflict"
         draftId="source-draft"
-        materialId="source-material"
+        document={document}
+        metadata={{ title: 'Captured title', ownerId: 'teacher-1' }}
         onDuplicateDraft={onDuplicateDraft}
-        onSaveDraft={onSaveDraft}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Developer details' }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Duplicate draft' }));
+    const copyButton = screen.getByRole('button', { name: 'Keep as a copy' });
+    fireEvent.click(copyButton);
+    fireEvent.click(copyButton);
+    expect(onDuplicateDraft).toHaveBeenCalledOnce();
+    expect(copyButton).toBeDisabled();
+    expect(onDuplicateDraft.mock.calls[0]?.[0]).toMatchObject({ metadata: { title: 'Captured title' } });
+
+    resolveCopy({
+      draftId: 'copy-draft',
+      materialId: 'copy-material',
+      document,
+      metadata: onDuplicateDraft.mock.calls[0][0].metadata,
+      revision: 1,
     });
-
-    expect(onDuplicateDraft).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
-
-    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledWith(expect.objectContaining({
-      draftId: 'duplicated-draft',
-      materialId: 'duplicated-material',
-      revisionToken: 'duplicated-draft-rev-1',
-    })));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Keep as a copy' })).toBeEnabled());
   });
 
   it('enables structured task types while marker-based passage tools stay out of the TipTap editor', () => {
@@ -968,6 +926,119 @@ describe('ReadingV2StudioShell Build Workspace', () => {
       draftId: 'preview-draft',
       document: expect.objectContaining({ documentId: document.documentId }),
     }));
+  });
+
+  it('compares a bank, saves a teacher confirmation, and clears its review finding', async () => {
+    const document = createReadingV2CanonicalFixture('summary-completion-list');
+    const group = Object.values(document.taskGroups)[0];
+    const option = document.optionSets[group.optionSetRefs[0]].options[0];
+    const source: ReadingV2AuthoringSourceRecord = { kind: 'reading-v2-import-source', schemaVersion: 1, sourceId: 'bank-source', ownerId: 'teacher', createdAt: '2026-11-07', sourceKind: 'pasted-text', rawText: 'Original bank', lineIndex: [{ lineId: 'bank-line', lineNumber: 1, rawText: 'Original bank', normalizedText: 'Original bank' }] };
+    const authoringContext = { ...createReadingV2ManualAuthoringContext(), scope: { kind: 'supplied' as const, requirementIds: ['bank'] }, requirements: [{ requirementId: 'bank', kind: 'bank' as const, sourceId: source.sourceId, lineIds: ['bank-line'], target: { taskGroupId: group.taskGroupId }, bankItems: [{ label: option.label, text: 'Original wording' }] }] };
+    const onSaveDraft = vi.fn(async (_snapshot: any) => ({ revision: 2 }));
+    const onAction = vi.fn();
+    render(<ReadingV2StudioShell mode="resume-draft" document={document} metadata={{ title: 'Bank review' }} actorId="teacher" authoringContext={authoringContext} resolvedSourceEvidence={[source]} onSaveDraft={onSaveDraft} onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Review 1 issues' }));
+    const dialog = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(dialog).getByRole('table', { name: 'Answer bank comparison' })).toHaveTextContent(option.text);
+    expect(within(dialog).getByText('Original wording')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Edit answer bank' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use this answer bank' }));
+    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledOnce());
+    expect(onSaveDraft.mock.calls[0][0].authoringContext.interpretations[0]).toMatchObject({ actorId: 'teacher', bankItems: [{ optionId: option.optionId }] });
+    expect(screen.getByText('All issues resolved.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled();
+    expect(onAction).toHaveBeenCalledWith('sourceInterpretationChange', expect.objectContaining({ outcome: 'saved' }));
+  });
+
+  it('retains an explicit teacher word-limit edit without asking for another source confirmation', async () => {
+    const document = createReadingV2CanonicalFixture('sentence-completion');
+    Object.values(document.interactions).forEach((interaction) => { document.interactions[interaction.interactionId] = { ...interaction,
+      scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['stone'] } }; });
+    const group = Object.values(document.taskGroups)[0];
+    document.taskGroups[group.taskGroupId] = { ...group, instructionBlocks: [{ id: 'limit', text: 'Choose NO MORE THAN TWO WORDS from the passage.' }] };
+    const source: ReadingV2AuthoringSourceRecord = { kind: 'reading-v2-import-source', schemaVersion: 1, sourceId: 'instruction-source', ownerId: 'teacher',
+      createdAt: '2026-11-08', sourceKind: 'pasted-text', rawText: 'Choose NO MORE THAN TWO WORDS from the passage.', lineIndex: [] };
+    const context = { ...createReadingV2ManualAuthoringContext(), origin: { kind: 'import' as const, sourceId: source.sourceId },
+      scope: { kind: 'supplied' as const, requirementIds: ['instruction'] }, requirements: [{ requirementId: 'instruction', kind: 'instruction' as const,
+        sourceId: source.sourceId, lineIds: [], target: { taskGroupId: group.taskGroupId }, instructionFacts: { wordLimit: 2, numberAllowance: 'none' as const } }] };
+    const onSaveDraft = vi.fn(async () => ({ revision: 2 }));
+    render(<ReadingV2StudioShell mode="resume-draft" document={document} metadata={{ title: 'Teacher rule edit' }} actorId="teacher"
+      authoringContext={context} resolvedSourceEvidence={[source]} onSaveDraft={onSaveDraft} />);
+    fireEvent.change(screen.getByLabelText('Sentence completion word limit'), { target: { value: '1' } });
+    expect(screen.getByRole('button', { name: 'Publish', exact: true })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft', exact: true }));
+    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledOnce());
+    const saved = onSaveDraft.mock.calls[0][0];
+    expect(saved.document.taskGroups[group.taskGroupId].instructionBlocks[0].text).toContain('ONE WORD ONLY');
+    expect(saved.authoringContext.interpretations[0]).toMatchObject({ actorId: 'teacher', instructionFacts: { wordLimit: 1, numberAllowance: 'none' } });
+    expect(saved.authoringContext.requirements[0].instructionFacts.wordLimit).toBe(2);
+  });
+
+  it('offers the exact compatible bank association and resolves it from Review', async () => {
+    const wrongDocument = createReadingV2CanonicalFixture('yes-no-not-given');
+    const rightDocument = createReadingV2CanonicalFixture('matching-features');
+    const rightGroupId = Object.values(rightDocument.taskGroups)[0]!.taskGroupId;
+    rightDocument.taskGroups[rightGroupId] = {
+      ...rightDocument.taskGroups[rightGroupId]!,
+      groupTitle: 'Questions 9-13',
+    };
+    const document: ReadingV2Document = {
+      ...wrongDocument,
+      sectionIds: [...wrongDocument.sectionIds, ...rightDocument.sectionIds],
+      sections: { ...wrongDocument.sections, ...rightDocument.sections },
+      stimuli: { ...wrongDocument.stimuli, ...rightDocument.stimuli },
+      anchors: { ...wrongDocument.anchors, ...rightDocument.anchors },
+      taskGroups: { ...wrongDocument.taskGroups, ...rightDocument.taskGroups },
+      interactions: { ...wrongDocument.interactions, ...rightDocument.interactions },
+      optionSets: { ...wrongDocument.optionSets, ...rightDocument.optionSets },
+    };
+    const wrongGroup = Object.values(wrongDocument.taskGroups)[0]!;
+    const rightOptions = rightDocument.optionSets[rightDocument.taskGroups[rightGroupId]!.optionSetRefs[0]!]!.options;
+    const source: ReadingV2AuthoringSourceRecord = {
+      kind: 'reading-v2-import-source',
+      schemaVersion: 1,
+      sourceId: 'association-source',
+      ownerId: 'teacher',
+      createdAt: '2026-11-07',
+      sourceKind: 'pasted-text',
+      rawText: 'A Feature A\nB Feature B\nC Feature C\nD Feature D\nE Feature E',
+      lineIndex: [{ lineId: 'bank-line', lineNumber: 1, rawText: 'A Feature A', normalizedText: 'A Feature A' }],
+    };
+    const authoringContext = {
+      ...createReadingV2ManualAuthoringContext(),
+      scope: { kind: 'supplied' as const, requirementIds: ['association-bank'] },
+      requirements: [{
+        requirementId: 'association-bank',
+        sourceId: source.sourceId,
+        kind: 'bank' as const,
+        lineIds: ['bank-line'],
+        expectedTaskType: 'matching-features' as const,
+        target: { taskGroupId: wrongGroup.taskGroupId, sectionId: wrongGroup.sectionId },
+        bankItems: rightOptions.map(({ label, text }) => ({ label, text })),
+      }],
+    };
+    const onSaveDraft = vi.fn(async (snapshot: any) => ({ revision: snapshot.revision + 1 }));
+
+    render(<ReadingV2StudioShell
+      mode="resume-draft"
+      document={document}
+      metadata={{ title: 'Association recovery' }}
+      actorId="teacher"
+      authoringContext={authoringContext}
+      resolvedSourceEvidence={[source]}
+      onSaveDraft={onSaveDraft}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review 1 issues' }));
+    const dialog = screen.getByRole('dialog', { name: 'Review issues' });
+    const link = within(dialog).getByRole('button', { name: 'Link to Questions 9-13' });
+    fireEvent.click(link);
+
+    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledOnce());
+    expect(onSaveDraft.mock.calls[0]![0].authoringContext.requirements[0]).toMatchObject({
+      target: { taskGroupId: rightGroupId },
+    });
+    await waitFor(() => expect(within(dialog).getByText('All issues resolved.')).toBeInTheDocument());
   });
 
   it('edits the top title on double click and publishes the updated metadata title', async () => {

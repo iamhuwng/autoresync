@@ -697,12 +697,17 @@ describe('readingV2PassageLibrary.service', () => {
       [readingV2StoragePaths.materialMetadata('passage-1')]: {
         materialId: 'passage-1',
         ownerId: 'teacher-1',
+        materialKind: 'reading-passage',
         state: 'published',
+        materialRevision: 1,
+        publishedSnapshotVersionId: 'snapshot-1',
       },
       [readingV2StoragePaths.readingPassageMaterials('passage-1')]: {
         passageMaterialId: 'passage-1',
         ownerId: 'teacher-1',
         state: 'published',
+        materialRevision: 1,
+        currentSnapshotVersionId: 'snapshot-1',
       },
       'material_catalog/material_indexes/by_owner/teacher-1/passage-1': existingIndexRow,
       'material_catalog/material_indexes/by_visibility/private/passage-1': existingIndexRow,

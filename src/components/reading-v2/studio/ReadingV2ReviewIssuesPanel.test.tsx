@@ -3,81 +3,53 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReadingV2ReviewIssue } from '../../../services/reading-v2/readingV2ReviewIssueMapping.service';
 import { ReadingV2ReviewIssuesPanel } from './ReadingV2ReviewIssuesPanel';
 
-const issues: readonly ReadingV2ReviewIssue[] = [
-  {
-    id: 'issue-q12',
-    severity: 'publish-blocker',
-    source: 'validation',
-    type: 'wrong-judgement-vocabulary',
-    label: 'Q12',
-    detail: 'Wrong judgement vocabulary',
-    target: { questionRange: { start: 12, end: 12 } },
-    originalMessage: 'Interaction sample-import-q12 uses the wrong judgement vocabulary.',
-  },
-  {
-    id: 'issue-31-35',
-    severity: 'needs-review',
-    source: 'source-comparison',
-    type: 'question-text-changed',
-    label: 'Questions 31-35',
-    detail: 'Question text changed',
-    target: { questionRange: { start: 31, end: 35 } },
-    originalMessage: 'Group 31-35 is weak: question-text-changed.',
-  },
-];
+const answerIssue: ReadingV2ReviewIssue = {
+  id: 'answer:stable-q12', severity: 'publish-blocker', source: 'answer-key', type: 'missing-answer',
+  label: 'Question 12', detail: 'Answer needed', originalMessage: 'Enter an answer for Question 12.',
+  target: { interactionId: 'stable-q12', field: 'answer' }, actionLabel: 'Edit answer',
+};
+const sourceIssue: ReadingV2ReviewIssue = {
+  id: 'source:question-13', severity: 'publish-blocker', source: 'source-comparison', type: 'missing-source-question',
+  label: 'Supplied question 13', detail: 'Question needed', originalMessage: 'This supplied question is missing from the draft.',
+  target: { sourceRequirementId: 'source-q13' }, sourceExcerpt: '13 The river flows towards ___.',
+};
 
 describe('ReadingV2ReviewIssuesPanel', () => {
-  it('renders stable rows only when open and does not require hover', () => {
-    const onOpenChange = vi.fn();
-    render(
-      <ReadingV2ReviewIssuesPanel
-        issues={issues}
-        open
-        onOpenChange={onOpenChange}
-        onIssueActivate={vi.fn()}
-      />,
-    );
-
-    const panel = screen.getByRole('dialog', { name: 'Review issues' });
-    expect(within(panel).getByText('Review issues')).toBeInTheDocument();
-    expect(within(panel).getByText('2 review items')).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Question 12: Wrong Judgement Vocabulary' })).toBeInTheDocument();
-    expect(within(panel).queryByText('validation')).not.toBeInTheDocument();
-    expect(within(panel).queryByText('publish-blocker')).not.toBeInTheDocument();
-    expect(within(panel).queryByText('Wrong judgement vocabulary')).not.toBeInTheDocument();
-
-    fireEvent.keyDown(panel, { key: 'Escape' });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('activates issues from compact question rows', () => {
+  it('shows one contextual problem and a concrete edit action', () => {
     const onIssueActivate = vi.fn();
-    render(
-      <ReadingV2ReviewIssuesPanel
-        issues={issues}
-        open
-        onOpenChange={vi.fn()}
-        onIssueActivate={onIssueActivate}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Question 12: Wrong Judgement Vocabulary' }));
-    expect(onIssueActivate).toHaveBeenCalledWith(issues[0]);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Questions 31-35: Question Text Changed' }));
-    expect(onIssueActivate).toHaveBeenCalledWith(issues[1]);
+    render(<ReadingV2ReviewIssuesPanel issues={[answerIssue, sourceIssue]} selectedIssueId={answerIssue.id} open onOpenChange={vi.fn()} onIssueActivate={onIssueActivate} />);
+    const panel = screen.getByRole('dialog', { name: 'Review issues' });
+    expect(within(panel).getByText('2 current issues')).toBeInTheDocument();
+    expect(within(panel).queryByText(sourceIssue.sourceExcerpt!)).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Edit answer' }));
+    expect(onIssueActivate).toHaveBeenCalledWith(answerIssue);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Supplied question 13: Question needed' }));
+    expect(within(panel).getByText(sourceIssue.sourceExcerpt!)).toBeInTheDocument();
+    expect(within(panel).queryByText(answerIssue.originalMessage)).not.toBeInTheDocument();
   });
 
-  it('does not show secondary source buttons because rows navigate directly', () => {
-    render(
-      <ReadingV2ReviewIssuesPanel
-        issues={issues}
-        open
-        onOpenChange={vi.fn()}
-        onIssueActivate={vi.fn()}
-      />,
-    );
+  it('keeps source-only recovery actionable and announces resolution as findings disappear', () => {
+    const props = { open: true, onOpenChange: vi.fn(), onIssueActivate: vi.fn(), renderResolution: () => <button type="button">Add questions</button> };
+    const { rerender } = render(<ReadingV2ReviewIssuesPanel {...props} issues={[sourceIssue]} />);
+    expect(screen.getByRole('button', { name: 'Add questions' })).toBeInTheDocument();
+    rerender(<ReadingV2ReviewIssuesPanel {...props} issues={[]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('All issues resolved.');
+    expect(screen.queryByLabelText('Issue details')).not.toBeInTheDocument();
+  });
 
-    expect(screen.queryByRole('button', { name: 'Show source' })).not.toBeInTheDocument();
+  it('opens with focus, traps tab, closes with Escape and restores the trigger', () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(<><button type="button">Review 1 issue</button><ReadingV2ReviewIssuesPanel issues={[answerIssue]} open={false} onOpenChange={onOpenChange} onIssueActivate={vi.fn()} /></>);
+    const trigger = screen.getByRole('button', { name: 'Review 1 issue' });
+    trigger.focus();
+    rerender(<><button type="button">Review 1 issue</button><ReadingV2ReviewIssuesPanel issues={[answerIssue]} open onOpenChange={onOpenChange} onIssueActivate={vi.fn()} /></>);
+    const close = screen.getByRole('button', { name: 'Close review issues' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Edit answer' })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    rerender(<><button type="button">Review 1 issue</button><ReadingV2ReviewIssuesPanel issues={[answerIssue]} open={false} onOpenChange={onOpenChange} onIssueActivate={vi.fn()} /></>);
+    expect(trigger).toHaveFocus();
   });
 });

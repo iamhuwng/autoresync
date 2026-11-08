@@ -2,16 +2,30 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReadingV2StudioModalAdapter } from './ReadingV2StudioModalAdapter';
+import { createReadingV2CanonicalFixture } from '../../../services/reading-v2/fixtures/readingV2CanonicalFixtures';
+import { createReadingV2StudioDefaultMetadata } from '../../../services/reading-v2/readingV2StudioWorkflow.service';
+import { readingV2Ids, type ReadingV2DraftRecord } from '../../../types/readingV2.types';
+import type { ReadingV2StudioWorkflowSnapshot } from '../../../services/reading-v2/readingV2StudioWorkflow.service';
 
 const {
   publishReadingV2StudioDraftMock,
   discoverTargetsMock,
   applySelectedMock,
+  openDraftMock,
+  saveDraftMock,
+  duplicateDraftMock,
+  useAuthMock,
 } = vi.hoisted(() => ({
   publishReadingV2StudioDraftMock: vi.fn(),
   discoverTargetsMock: vi.fn(),
   applySelectedMock: vi.fn(),
+  openDraftMock: vi.fn(),
+  saveDraftMock: vi.fn(),
+  duplicateDraftMock: vi.fn(),
+  useAuthMock: vi.fn(),
 }));
+
+vi.mock('../../../contexts/AuthContext', () => ({ useAuth: useAuthMock }));
 
 vi.mock('../../../services/reading-v2/readingV2StudioFirebaseHydration.service', async () => {
   const { createReadingV2CanonicalFixture } = await vi.importActual<typeof import('../../../services/reading-v2/fixtures/readingV2CanonicalFixtures')>(
@@ -65,6 +79,9 @@ vi.mock('../../../services/reading-v2/readingV2StudioWorkflow.service', async ()
 
   return {
     ...actual,
+    openReadingV2StudioDraft: openDraftMock,
+    saveReadingV2StudioDraft: saveDraftMock,
+    duplicateReadingV2StudioDraft: duplicateDraftMock,
     publishReadingV2StudioDraft: publishReadingV2StudioDraftMock,
   };
 });
@@ -101,9 +118,53 @@ const referenceUpdateSummary = {
   },
 };
 
+const draftFromSnapshot = (snapshot: ReadingV2StudioWorkflowSnapshot): ReadingV2DraftRecord => ({
+  draftId: readingV2Ids.draftId(snapshot.draftId),
+  materialId: snapshot.materialId ? readingV2Ids.materialId(snapshot.materialId) : undefined,
+  ownerId: snapshot.metadata.ownerId,
+  document: snapshot.document,
+  studioMetadata: { ...snapshot.metadata },
+  authoringContext: snapshot.authoringContext,
+  workflowOrigin: snapshot.workflowOrigin,
+  revision: snapshot.revision + 1,
+  lastOperationId: 'operation-modal',
+  state: 'draft',
+  createdAt: '2026-11-06T00:00:00.000Z',
+  updatedAt: '2026-11-06T00:00:00.000Z',
+});
+
 describe('ReadingV2StudioModalAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthMock.mockReturnValue({ user: { uid: 'current-teacher' }, profile: { role: 'teacher' }, loading: false });
+    openDraftMock.mockImplementation(async (input) => {
+      if (input.mode === 'resume-draft' && input.draftId === 'draft-1') throw new Error('No persisted draft was found for draft-1.');
+      const document = input.sourceSnapshot?.document ?? createReadingV2CanonicalFixture('matching-headings');
+      return {
+        status: 'ready',
+        mode: input.mode,
+        draftId: input.draftId,
+        materialId: input.materialId ?? 'modal-material',
+        document,
+        metadata: createReadingV2StudioDefaultMetadata({ ...input.sourceMetadata, title: document.title, ownerId: input.actor.uid }),
+        revision: 1,
+        workflowOrigin: {
+          mode: input.mode,
+          sourceMaterialId: input.materialId,
+          sourceSnapshotVersionId: input.sourceSnapshot?.snapshotVersionId,
+        },
+      };
+    });
+    saveDraftMock.mockImplementation(async (snapshot) => ({ draft: draftFromSnapshot(snapshot) }));
+    duplicateDraftMock.mockImplementation(async (snapshot) => ({
+      draft: {
+        ...draftFromSnapshot(snapshot),
+        draftId: readingV2Ids.draftId('copy-acknowledged'),
+        materialId: readingV2Ids.materialId('new-copy-material'),
+        revision: 1,
+        workflowOrigin: { mode: 'duplicate-material', sourceMaterialId: snapshot.materialId },
+      },
+    }));
     publishReadingV2StudioDraftMock.mockResolvedValue({
       materialId: 'single-passage-1',
       snapshotVersionId: 'snapshot-new',
@@ -131,14 +192,46 @@ describe('ReadingV2StudioModalAdapter', () => {
     await waitFor(() => expect(screen.getByRole('main')).toHaveAttribute('data-host', 'modal'));
     expect(screen.getByRole('main')).toHaveAttribute('data-mode', 'revise-published');
     expect(screen.getAllByText('Modal hydrated Reading V2').length).toBeGreaterThan(0);
+    expect(openDraftMock).toHaveBeenCalledWith(expect.objectContaining({ actor: { uid: 'current-teacher', role: 'teacher' } }));
+    expect(screen.getByRole('link', { name: 'Open saved draft' })).toHaveAttribute('href', expect.stringMatching(/^\/teacher\/reading-v2\/drafts\/studio-/));
   });
 
-  it('does not expose legacy TestEditor as modal content', () => {
+  it('fails a missing durable draft without exposing editable fallback content', async () => {
     render(<ReadingV2StudioModalAdapter mode="resume-draft" draftId="draft-1" />);
 
     expect(screen.queryByText(/TestEditor/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Missing draft draft-1/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save Draft' })).toBeInTheDocument();
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('No persisted draft was found for draft-1.');
+    expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+  });
+
+  it('does not open private drafts for an unauthenticated or student session', async () => {
+    useAuthMock.mockReturnValue({ user: { uid: 'student-1' }, profile: { role: 'student' }, loading: false });
+    render(<ReadingV2StudioModalAdapter mode="create-blank" />);
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Sign in with a teacher account');
+    expect(openDraftMock).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a complete local copy after source saving fails', async () => {
+    const user = userEvent.setup();
+    saveDraftMock.mockRejectedValue(new Error('Source revision is stale.'));
+    render(<ReadingV2StudioModalAdapter mode="revise-published" materialId="single-passage-1" />);
+    await waitFor(() => expect(screen.getByRole('main')).toBeInTheDocument());
+    await user.dblClick(screen.getByRole('heading', { name: 'Modal hydrated Reading V2' }));
+    const title = screen.getByRole('textbox', { name: 'Test title' });
+    await user.clear(title);
+    await user.type(title, 'Unsaved local copy{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await user.click(await screen.findByRole('button', { name: 'Keep as a copy' }));
+
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Open saved draft' })).toHaveAttribute('href', '/teacher/reading-v2/drafts/copy-acknowledged'));
+    expect(duplicateDraftMock).toHaveBeenCalledWith(expect.objectContaining({
+      document: expect.any(Object),
+      metadata: expect.objectContaining({ title: 'Unsaved local copy', ownerId: 'current-teacher' }),
+      workflowOrigin: expect.objectContaining({ mode: 'revise-published', sourceSnapshotVersionId: 'snapshot-modal' }),
+    }), { uid: 'current-teacher', role: 'teacher' });
+    expect(saveDraftMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: 'Unsaved local copy' })).toBeInTheDocument();
   });
 
   it('opens update references after publishing a revised single passage and applies selected targets only', async () => {
@@ -197,7 +290,14 @@ describe('ReadingV2StudioModalAdapter', () => {
     await waitFor(() => expect(screen.getByRole('main')).toHaveAttribute('data-host', 'modal'));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
-    expect(await screen.findAllByText('Published successfully.')).not.toHaveLength(0);
+    await waitFor(() => expect(publishReadingV2StudioDraftMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(discoverTargetsMock).toHaveBeenCalledWith({
+      ownerId: 'current-teacher',
+      passageMaterialId: 'single-passage-1',
+      previousSnapshotVersionId: 'snapshot-modal',
+      nextSnapshotVersionId: 'snapshot-new',
+    }));
+    expect(onAction).toHaveBeenCalledWith('publish', expect.objectContaining({ outcome: 'success' }));
     expect(onAction).toHaveBeenCalledWith('reading_v2_update_references_skipped', expect.objectContaining({
       materialId: 'single-passage-1',
       outcome: 'discovery-failed-after-publish',

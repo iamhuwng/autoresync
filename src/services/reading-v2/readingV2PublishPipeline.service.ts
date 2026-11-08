@@ -1,6 +1,8 @@
 import {
   readingV2Ids,
   type ReadingV2Document,
+  type ReadingV2AuthoringContext,
+  type ReadingV2DraftId,
   type ReadingV2FullTestComposition,
   type ReadingV2FullTestId,
   type ReadingV2MaterialId,
@@ -20,7 +22,6 @@ import {
   buildMaterialCatalogIndexWrites,
 } from '../materialCatalog/materialCatalogIndexes.service';
 import type { createReadingV2Repository } from './readingV2Repository.service';
-import { normalizeReadingV2MultipleSelectSlots } from './readingV2MultipleSelectNormalization.service';
 import {
   assertReadingV2ProjectionIsStudentSanitized,
   generateReadingV2AnalyticsProjection,
@@ -57,7 +58,6 @@ import {
   type ReadingV2BrokenRefReason,
 } from './readingV2BrokenReference.service';
 import {
-  assertReadingV2PublishGate,
   ReadingV2PublishGateError,
   validateReadingV2Draft,
   type ReadingV2ValidationResult,
@@ -68,6 +68,12 @@ import {
 } from './readingV2PassageHomeworkLaunch.service';
 import { writeReadingV2WhereUsedForPublish } from './readingV2PassageAssetWorkflow.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import { buildReadingV2AuthoringRecoveryRecord } from './readingV2PublicationRecovery.service';
+import {
+  evaluateReadingV2AuthoringReadiness,
+  projectReadingV2AuthoringContext,
+  type ReadingV2AuthoringSourceRecord,
+} from './readingV2AuthoringQuality.service';
 
 export interface ReadingV2PublishRelationshipIndexWrite {
   readonly surface: ReadingV2RelationshipSurface;
@@ -105,7 +111,8 @@ export interface ReadingV2PublishStorageWrite {
     | 'reading-passage-listing-index'
     | 'reading-passage-duplicate-index'
     | 'full-test-composition'
-    | 'full-test-composition-version';
+    | 'full-test-composition-version'
+    | 'authoring-recovery';
 }
 
 export type ReadingV2PublishCommitOperation =
@@ -155,6 +162,8 @@ export interface ReadingV2PublishCommitPlan {
   readonly commitKey: string;
   readonly materialId: ReadingV2MaterialId;
   readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly expectedMaterialRevision?: number;
+  readonly operationId?: string;
   readonly operations: readonly ReadingV2PublishCommitOperation[];
 }
 
@@ -166,6 +175,27 @@ export interface ReadingV2PublishPipelineInput {
   readonly publishedBy: string;
   readonly snapshotVersionId?: ReadingV2SnapshotVersionId;
   readonly publishedAt?: string;
+  readonly expectedMaterialRevision?: number;
+  readonly operationId?: string;
+  readonly draftId?: string;
+  readonly draftRevision?: number;
+  readonly authoringContext?: ReadingV2AuthoringContext;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  readonly workflowOrigin?: {
+    readonly mode: string;
+    readonly sourceMaterialId?: string;
+    readonly sourceSnapshotVersionId?: string;
+  };
+  readonly authoringMetadata?: Readonly<Record<string, unknown>>;
+  readonly expectedBases?: Readonly<{
+    readonly compositionId?: string;
+    readonly generatedPassages?: readonly {
+      readonly sectionId: string;
+      readonly materialId: string;
+      readonly snapshotVersionId: string;
+      readonly materialRevision: number;
+    }[];
+  }>;
   readonly sessionCodeForProjection?: string;
   readonly metadata?: Omit<ReadingV2MaterialMetadataInput, 'materialId' | 'ownerId' | 'document' | 'sourceSnapshot'>;
   readonly passageAssetUses?: readonly {
@@ -173,6 +203,7 @@ export interface ReadingV2PublishPipelineInput {
     readonly consumerKind: ReadingV2WhereUsedEntry['consumerKind'];
   }[];
   readonly skipReadingPassageExtraction?: boolean;
+  readonly canonicalSnapshotStorage?: 'published' | 'private-recovery';
   readonly readingPassageExtraction?: {
     readonly sourceFullTestId?: ReadingV2FullTestId;
     readonly primaryTestTypeId?: MaterialTestTypeId;
@@ -546,6 +577,7 @@ const buildReadingPassageStorageWrites = (input: {
       sourceQuestionRange: candidate.material.sourceQuestionRange,
       sourceTitleSnapshot: candidate.material.sourceTitleSnapshot,
       updatedAt: input.publishedAt,
+      materialRevision: candidate.material.materialRevision,
     });
     const indexWrites = buildMaterialCatalogIndexWrites({
       materialId: candidate.material.passageMaterialId,
@@ -722,6 +754,7 @@ const buildStandaloneReadingPassageStorageWrites = (input: {
     },
     createdAt: input.publishedAt,
     updatedAt: input.publishedAt,
+    materialRevision: input.metadata.materialRevision,
   };
   const indexSummary = {
     materialId: input.materialId,
@@ -764,6 +797,105 @@ const buildStandaloneReadingPassageStorageWrites = (input: {
       writeKind: 'reading-passage-listing-index' as const,
     })),
   ];
+};
+
+const buildAuthoringRecoveryStorageWrites = (input: {
+  readonly materialId: ReadingV2MaterialId;
+  readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly ownerId: string;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly document: ReadingV2Document;
+  readonly metadata?: Omit<ReadingV2MaterialMetadataInput, 'materialId' | 'ownerId' | 'document' | 'sourceSnapshot'>;
+  readonly authoringMetadata?: Readonly<Record<string, unknown>>;
+  readonly authoringContext?: ReadingV2AuthoringContext;
+  readonly workflowOrigin?: {
+    readonly mode: string;
+    readonly sourceMaterialId?: string;
+    readonly sourceSnapshotVersionId?: string;
+  };
+  readonly draftId?: string;
+  readonly draftRevision?: number;
+  readonly operationId?: string;
+  readonly expectedBases?: Readonly<Record<string, unknown>>;
+  readonly extraction?: ReadingV2PassageExtractionResult;
+  readonly inlineParent: boolean;
+}): ReadingV2PublishStorageWrite[] => {
+  const authoringMetadata = input.authoringMetadata ?? {
+    title: input.metadata?.title ?? input.document.title,
+    materialKind: input.metadata?.materialKind ?? 'full-test',
+    visibility: input.metadata?.visibility ?? 'private',
+    durationMinutes: input.metadata?.durationMinutes ?? 60,
+    difficulty: input.metadata?.difficulty ?? 'intermediate',
+    targetBand: input.metadata?.targetBand,
+    description: input.metadata?.description ?? '',
+    tags: input.metadata?.tags ?? [],
+  };
+  const authoring = {
+    draftId: input.draftId as ReadingV2DraftId | undefined,
+    revision: input.draftRevision,
+    workflowOrigin: input.workflowOrigin,
+    authoringContext: input.authoringContext,
+    metadata: authoringMetadata,
+    expectedBases: input.expectedBases,
+  };
+  const build = (
+    materialId: ReadingV2MaterialId,
+    snapshotVersionId: ReadingV2SnapshotVersionId,
+    locator: Parameters<typeof buildReadingV2AuthoringRecoveryRecord>[0]['locator'],
+    recoveryAuthoring = authoring,
+  ): ReadingV2PublishStorageWrite => {
+    const recovery = buildReadingV2AuthoringRecoveryRecord({
+      materialId,
+      snapshotVersionId,
+      ownerId: input.ownerId,
+      createdAt: input.createdAt,
+      createdBy: input.createdBy,
+      locator,
+      authoring: recoveryAuthoring,
+      operationId: input.operationId,
+      commitKey: `${materialId}/${snapshotVersionId}`,
+    });
+    return {
+      path: readingV2StoragePaths.provenance(recovery.recordId),
+      value: recovery,
+      writeKind: 'authoring-recovery',
+    };
+  };
+
+  const writes = [build(
+    input.materialId,
+    input.snapshotVersionId,
+    input.inlineParent
+      ? { kind: 'inline', document: input.document }
+      : { kind: 'published-snapshot', materialId: input.materialId, snapshotVersionId: input.snapshotVersionId },
+    { ...authoring, expectedBases: input.extraction ? {
+      generatedPassages: input.extraction.passages.map((candidate) => ({
+        sectionId: candidate.sectionId,
+        materialId: candidate.material.passageMaterialId,
+        snapshotVersionId: candidate.material.currentSnapshotVersionId,
+        materialRevision: candidate.material.materialRevision,
+      })),
+    } : input.expectedBases?.generatedPassages ? { generatedPassages: input.expectedBases.generatedPassages } : undefined },
+  )];
+  input.extraction?.passages.forEach((candidate) => writes.push(build(
+    toMaterialId(candidate.material.passageMaterialId),
+    candidate.material.currentSnapshotVersionId,
+    {
+      kind: 'published-snapshot',
+      materialId: toMaterialId(candidate.material.passageMaterialId),
+      snapshotVersionId: candidate.material.currentSnapshotVersionId,
+    },
+    {
+      ...authoring,
+      metadata: { ...authoringMetadata, title: candidate.material.title, materialKind: 'reading-passage' },
+      authoringContext: input.authoringContext ? projectReadingV2AuthoringContext(input.authoringContext, {
+        taskGroupIds: candidate.material.taskGroupIds, sourceDocument: input.document,
+      }) : undefined,
+      expectedBases: undefined,
+    },
+  )));
+  return writes;
 };
 
 const compositionProjectionItems = (
@@ -861,6 +993,8 @@ const buildReadingV2PublishCommitPlan = (input: {
   readonly whereUsedWrites: readonly ReadingV2WhereUsedEntry[];
   readonly storageWrites?: readonly ReadingV2PublishStorageWrite[];
   readonly returnContext?: string;
+  readonly expectedMaterialRevision?: number;
+  readonly operationId?: string;
 }): ReadingV2PublishCommitPlan => {
   const commitKey = `${input.materialId}/${input.snapshotVersionId}`;
   const operations: ReadingV2PublishCommitOperation[] = [
@@ -910,6 +1044,8 @@ const buildReadingV2PublishCommitPlan = (input: {
     commitKey,
     materialId: input.materialId,
     snapshotVersionId: input.snapshotVersionId,
+    expectedMaterialRevision: input.expectedMaterialRevision,
+    operationId: input.operationId,
     operations,
   };
 };
@@ -1001,7 +1137,7 @@ export const dispatchReadingV2PublishCommitPlanToSinks = (
 export const publishReadingV2Material = (
   source: ReadingV2PublishPipelineInput,
 ): ReadingV2PublishPipelineResult => {
-  const input = { ...source, document: normalizeReadingV2MultipleSelectSlots(source.document) };
+  const input = { ...source, operationId: source.operationId ?? crypto.randomUUID() };
   if (input.masterComposition) {
     assertReadingV2MasterHasNoBrokenRefs(
       getReadingV2BrokenReferenceSummaryFromComposition(input.masterComposition),
@@ -1010,7 +1146,19 @@ export const publishReadingV2Material = (
 
   let validation: ReadingV2ValidationResult;
   try {
-    validation = assertReadingV2PublishGate(input.document);
+    const readiness = evaluateReadingV2AuthoringReadiness({
+      document: input.document, metadata: { title: input.metadata?.title ?? input.document.title },
+      authoringContext: input.authoringContext,
+    }, input.resolvedSourceEvidence);
+    validation = readiness.validationResult;
+    if (!readiness.canPublish) {
+      const currentIssues = readiness.findings.map((finding) => ({
+        code: finding.code, severity: finding.severity, message: finding.message,
+        objectId: finding.target.interactionId ?? finding.target.taskGroupId ?? finding.target.stimulusId ?? finding.target.sectionId,
+      }));
+      throw new ReadingV2PublishGateError({ ...validation, issues: currentIssues,
+        blockingIssues: currentIssues.filter((finding) => finding.severity === 'error'), canPublish: false });
+    }
   } catch (error) {
     if (error instanceof ReadingV2PublishGateError) {
       emitPublishCanonicalValidationBlocked(input, error.result);
@@ -1019,8 +1167,13 @@ export const publishReadingV2Material = (
   }
   const snapshotVersionId =
     input.snapshotVersionId ??
-    readingV2Ids.snapshotVersionId(`snapshot-${input.materialId}-${Date.now().toString(36)}`);
+    readingV2Ids.snapshotVersionId(`snapshot-${crypto.randomUUID()}`);
   const publishedAt = input.publishedAt ?? new Date().toISOString();
+  if (input.expectedMaterialRevision !== undefined
+    && (!Number.isSafeInteger(input.expectedMaterialRevision) || input.expectedMaterialRevision < 1)) {
+    throw new Error('Publication requires a valid captured material revision.');
+  }
+  const materialRevision = input.expectedMaterialRevision === undefined ? 1 : input.expectedMaterialRevision + 1;
 
   const stagedSnapshot: ReadingV2PublishedSnapshot = {
     snapshotVersionId,
@@ -1037,6 +1190,7 @@ export const publishReadingV2Material = (
     document: input.document,
     sourceSnapshot: stagedSnapshot,
     updatedAt: publishedAt,
+    materialRevision,
   });
   const relationshipIndexWrites = buildRelationshipIndexWrites(input.materialId, snapshotVersionId);
   const whereUsedWrites = (input.passageAssetUses ?? []).map((use) => ({
@@ -1052,6 +1206,8 @@ export const publishReadingV2Material = (
         ownerId: input.ownerId,
         sourceFullTestId: readingPassageExtractionInput.sourceFullTestId,
         testMaterialId: input.materialId,
+        compositionId: typeof input.expectedBases?.compositionId === 'string'
+          ? readingV2Ids.fullTestCompositionId(input.expectedBases.compositionId) : input.metadata?.compositionId,
         sourceSnapshotVersionId: snapshotVersionId,
         sourceTitleSnapshot: baseMetadata.title,
         primaryTestTypeId: readingPassageExtractionInput.primaryTestTypeId,
@@ -1068,7 +1224,22 @@ export const publishReadingV2Material = (
         compositionId: readingPassageExtraction.composition.compositionId,
       }
     : baseMetadata;
-  const writesCompositionFirstMaster = Boolean(readingPassageExtraction);
+  const revisionedExtraction = readingPassageExtraction
+    ? {
+        ...readingPassageExtraction,
+        composition: { ...readingPassageExtraction.composition, state: 'published' as const, materialRevision },
+        passages: readingPassageExtraction.passages.map((candidate) => {
+          const previous = (input.expectedBases?.generatedPassages as readonly { sectionId: string; materialId: string; materialRevision: number }[] | undefined)
+            ?.find((child) => child.sectionId === candidate.sectionId);
+          if (previous && previous.materialId !== candidate.material.passageMaterialId) {
+            throw new Error('A generated passage no longer matches its authored section. Keep the draft and inspect its association.');
+          }
+          return { ...candidate, material: { ...candidate.material, materialRevision: previous ? previous.materialRevision + 1 : 1 } };
+        }),
+      }
+    : undefined;
+  const writesCompositionFirstMaster = Boolean(revisionedExtraction);
+  const omitParentSnapshot = writesCompositionFirstMaster || input.canonicalSnapshotStorage === 'private-recovery';
 
   if (readingPassageExtraction?.validationIssues.some((entry) => entry.severity === 'error')) {
     emitPassageExtractionCanonicalValidationBlocked(input, readingPassageExtraction);
@@ -1087,7 +1258,7 @@ export const publishReadingV2Material = (
         publishedAt,
         publishedBy: input.publishedBy,
         metadata,
-        extraction: readingPassageExtraction!,
+        extraction: revisionedExtraction!,
         sessionCodeForProjection: input.sessionCodeForProjection,
       })
     : (() => {
@@ -1111,21 +1282,21 @@ export const publishReadingV2Material = (
         ];
       })();
 
-  if (readingPassageExtraction) {
+  if (revisionedExtraction) {
     assertDuplicateIndexReady(input);
   }
-  const duplicateArtifacts = readingPassageExtraction
+  const duplicateArtifacts = revisionedExtraction
     ? buildReadingPassageDuplicateArtifacts({
-        extraction: readingPassageExtraction,
+        extraction: revisionedExtraction,
         ownerId: input.ownerId,
         duplicateIndexRows: input.duplicateIndexRows,
         publishedAt,
       })
     : { warnings: [], writes: [] };
 
-  const storageWrites = readingPassageExtraction
+  let storageWrites = revisionedExtraction
     ? buildReadingPassageStorageWrites({
-        extraction: readingPassageExtraction,
+        extraction: revisionedExtraction,
         ownerId: input.ownerId,
         testMaterialId: input.materialId,
         snapshotVersionId,
@@ -1147,16 +1318,39 @@ export const publishReadingV2Material = (
             .some((snapshot) => snapshot.materialId === input.materialId),
         })
     : [];
+  storageWrites = [
+    ...storageWrites,
+    ...buildAuthoringRecoveryStorageWrites({
+      materialId: input.materialId,
+      snapshotVersionId,
+      ownerId: input.ownerId,
+      createdAt: publishedAt,
+      createdBy: input.publishedBy,
+      document: input.document,
+      metadata: input.metadata,
+      authoringMetadata: input.authoringMetadata,
+      authoringContext: input.authoringContext,
+      workflowOrigin: input.workflowOrigin,
+      draftId: input.draftId,
+      draftRevision: input.draftRevision,
+      operationId: input.operationId,
+      expectedBases: input.expectedBases,
+      extraction: revisionedExtraction,
+      inlineParent: omitParentSnapshot,
+    }),
+  ];
   const commitPlan = buildReadingV2PublishCommitPlan({
     materialId: input.materialId,
     snapshotVersionId,
-    snapshot: writesCompositionFirstMaster ? undefined : stagedSnapshot,
+    snapshot: omitParentSnapshot ? undefined : stagedSnapshot,
     projections,
     metadata,
     relationshipIndexWrites,
     whereUsedWrites,
     storageWrites,
     returnContext: input.returnContext,
+    expectedMaterialRevision: input.expectedMaterialRevision,
+    operationId: input.operationId,
   });
   const committed = commitReadingV2PublishPlanToRepository(input.repository, commitPlan);
 
@@ -1167,7 +1361,7 @@ export const publishReadingV2Material = (
     metadata,
     relationshipIndexWrites,
     whereUsedWrites: committed.whereUsedWrites,
-    readingPassageExtraction,
+    readingPassageExtraction: revisionedExtraction,
     duplicateWarnings: duplicateArtifacts.warnings,
     commitPlan,
     returnContextNotification: input.returnContext,

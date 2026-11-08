@@ -1298,6 +1298,84 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Grouped instructions')).toHaveTextContent('Write your answers in boxes 1-2 on your answer sheet.');
   });
 
+  it.each([
+    ['sentence-completion', 'ONE WORD AND/OR A NUMBER'],
+    ['note-completion', 'ONE WORD ONLY'],
+  ] as const)('preserves the authored number rule for %s while reformatting its question range', (taskType, phrase) => {
+    setViewport(1366, 900);
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE[taskType].studentSafe;
+    const projection = {
+      ...baseProjection,
+      content: {
+        ...baseProjection.content,
+        taskGroups: baseProjection.content.taskGroups.map((taskGroup, index) =>
+          index === 0
+            ? {
+                ...taskGroup,
+                wordLimit: 1,
+                instructionBlocks: [{ id: 'task', text: taskType === 'note-completion' ? 'Complete the notes below.' : 'Complete the sentences below.' },
+                  { id: 'rule', text: `Choose ${phrase} from the passage for each answer.` }],
+              }
+            : taskGroup,
+        ),
+      },
+    };
+
+    render(<ReadingV2RuntimeShell projection={projection} />);
+
+    const instructions = screen.getByLabelText('Grouped instructions');
+    expect(instructions).toHaveTextContent(`Choose ${phrase} from the passage for each answer.`);
+    expect(instructions).toHaveTextContent('Write your answers in boxes 1-2 on your answer sheet.');
+    expect(instructions).not.toHaveTextContent(taskType === 'sentence-completion' ? 'ONE WORD ONLY' : 'AND/OR A NUMBER');
+  });
+
+  it('preserves an authored multiple-select count while reformatting its question range', () => {
+    setViewport(1366, 900);
+    const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['multiple-select'].studentSafe;
+    const projection = {
+      ...baseProjection,
+      content: {
+        ...baseProjection.content,
+        taskGroups: baseProjection.content.taskGroups.map((taskGroup, index) =>
+          index === 0
+            ? {
+                ...taskGroup,
+                instructionBlocks: taskGroup.instructionBlocks.map((block) => ({
+                  ...block,
+                  text: 'Choose THREE letters, A-G.',
+                })),
+                interactions: taskGroup.interactions.map((interaction) => ({
+                  ...interaction,
+                  responseShape: interaction.responseShape.kind === 'multi-select'
+                    ? { ...interaction.responseShape, selectionLimit: 3 }
+                    : interaction.responseShape,
+                })),
+              }
+            : taskGroup,
+        ),
+      },
+    };
+
+    render(<ReadingV2RuntimeShell projection={projection} />);
+
+    const instructions = screen.getByLabelText('Grouped instructions');
+    expect(instructions).toHaveTextContent('Choose THREE letters, A-G.');
+    expect(instructions).toHaveTextContent('Write the correct letters, A-G, in boxes 1-2 on your answer sheet.');
+    expect(instructions).not.toHaveTextContent('Choose TWO letters');
+  });
+
+  it('preserves explicit reference labels and reuse rules in matching instructions', () => {
+    setViewport(1366, 900);
+    const base = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['matching-features'].studentSafe;
+    const projection = { ...base, content: { ...base.content, taskGroups: base.content.taskGroups.map((group) => ({ ...group,
+      instructionBlocks: [{ id: 'matching', text: 'Match each statement with the correct option, A-G. You may use any letter more than once.' }],
+    })) } };
+    render(<ReadingV2RuntimeShell projection={projection} />);
+    const instructions = screen.getByLabelText('Grouped instructions');
+    expect(instructions).toHaveTextContent('correct option, A-G');
+    expect(instructions).toHaveTextContent('You may use any letter more than once.');
+  });
+
   it('renders note-completion as structured notes with inline answer inputs', () => {
     setViewport(1024, 768);
     const baseProjection = READING_V2_PROJECTION_FIXTURES_BY_TASK_TYPE['note-completion'].studentSafe;

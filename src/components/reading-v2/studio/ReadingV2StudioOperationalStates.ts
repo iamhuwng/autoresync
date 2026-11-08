@@ -47,7 +47,7 @@ export const READING_V2_STUDIO_OPERATIONAL_STATES = {
   empty: state('empty', 'No draft content', 'Create metadata and stimulus before editing task groups.', 'warning'),
   error: state('error', 'Studio error', 'The Studio could not load the requested context.', 'error', 'Retry'),
   retry: state('retry', 'Retry available', 'The last operation can be retried through the existing shell action.', 'warning', 'Retry'),
-  conflict: state('conflict', 'Revision conflict', 'The draft revision token is stale. Reload, duplicate, or compare before saving.', 'error', 'Resolve conflict'),
+  conflict: state('conflict', 'Unsaved changes', 'Another save exists. Keep your edits as a copy or reload the latest saved draft.', 'error', 'Resolve conflict'),
   'permission-denied': state('permission-denied', 'Permission denied', 'This teacher cannot edit the requested Reading V2 material.', 'error'),
   'save-success': state('save-success', 'Draft saved', 'The canonical draft and package metadata were saved.', 'success'),
   'import-idle': state('import-idle', 'Import waiting', 'Paste Reading source and teacher answer key before analyzing.', 'neutral'),

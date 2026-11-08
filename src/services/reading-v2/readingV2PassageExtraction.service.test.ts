@@ -6,6 +6,8 @@ import { materialCatalogIds } from '../../types/materialCatalog.types';
 import { DEFAULT_MATERIAL_TEST_TYPES } from '../materialCatalog/testTypeConfig.service';
 import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 import { extractReadingV2PassageMaterials } from './readingV2PassageExtraction.service';
+import { READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE } from './fixtures/readingV2PasteImportFixtures';
+import { createReadingV2ImportCandidateFromText, normalizeReadingV2ImportCandidate } from './readingV2ImportNormalization.service';
 
 type FixtureTaskType = Parameters<typeof createReadingV2CanonicalFixture>[0];
 
@@ -88,6 +90,31 @@ const buildFullTestDocument = (
 };
 
 describe('readingV2PassageExtraction.service', () => {
+  it('preserves question-layout stimuli when extracting an imported full test', () => {
+    const { document } = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE.rawText,
+      answerKeyText: READING_V2_FULL_TEST_40_PASTE_IMPORT_FIXTURE.answerKeyText,
+    }));
+    const result = extractReadingV2PassageMaterials({
+      document,
+      ownerId: 'teacher-1',
+      testMaterialId: readingV2Ids.materialId('structured-full-test'),
+      sourceSnapshotVersionId: readingV2Ids.snapshotVersionId('structured-full-test-v1'),
+      primaryTestTypeId: materialCatalogIds.testTypeId('ielts'),
+      testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
+      createdAt: NOW,
+    });
+
+    expect(result.validationIssues).toEqual([]);
+    expect(result.canPublish).toBe(true);
+    expect(result.passages).toHaveLength(3);
+    result.passages.forEach(({ document: passage, sectionId }) => {
+      const expectedIds = document.sections[sectionId]!.stimulusIds;
+      expect(Object.keys(passage.stimuli).sort()).toEqual([...expectedIds].sort());
+      expectedIds.forEach((stimulusId) => expect(passage.stimuli[stimulusId]).toEqual(document.stimuli[stimulusId]));
+    });
+  });
+
   it.each([1, 2])('extracts a 3-passage IELTS full test with %s slots per choice interaction', (choiceSlots) => {
     const baseDocument = buildFullTestDocument('IELTS Academic Reading Test 1', [
       { taskType: 'sentence-completion', sectionTitle: 'Reading Passage 1', reviewNumbers: [1, 13] },
@@ -123,6 +150,8 @@ describe('readingV2PassageExtraction.service', () => {
     expect(result.validationIssues).toEqual([]);
     expect(result.passages).toHaveLength(3);
     expect(result.composition.passageRefs).toHaveLength(3);
+    expect(result.composition.materialRevision).toBe(1);
+    expect(result.passages.every((candidate) => candidate.material.materialRevision === 1)).toBe(true);
     expect(result.composition.questionCount).toBe(4 + 2 * choiceSlots);
     expect(result.composition.passageRefs.map((ref) => ref.questionCountSnapshot)).toEqual([2, 2, 2 * choiceSlots]);
     expect(result.composition.testMaterialId).toBe('material-full-test-ielts-1');

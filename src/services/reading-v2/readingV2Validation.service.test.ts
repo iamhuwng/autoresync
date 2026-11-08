@@ -4,6 +4,7 @@ import { READING_V2_CANONICAL_FIXTURES } from './fixtures/readingV2CanonicalFixt
 import {
   ReadingV2PublishGateError,
   assertReadingV2PublishGate,
+  readingV2CompletionAnswerViolatesRule,
   validateReadingV2Draft,
 } from './readingV2Validation.service';
 
@@ -11,6 +12,18 @@ const fixtureDocument = (): ReadingV2Document =>
   structuredClone(READING_V2_CANONICAL_FIXTURES['sentence-completion']) as ReadingV2Document;
 
 describe('readingV2Validation.service', () => {
+  it('shares the authored word-and-number rule between validation and the editor', () => {
+    const group = Object.values(fixtureDocument().taskGroups)[0];
+    const violates = (phrase: string, answer: string) => readingV2CompletionAnswerViolatesRule(answer, 1,
+      { ...group, instructionBlocks: [{ id: 'rule', text: phrase }] });
+    expect(violates('ONE WORD AND/OR A NUMBER', 'ten times')).toBe(false);
+    expect(violates('ONE WORD ONLY', 'ten times')).toBe(true);
+    expect(violates('ONE WORD AND/OR A NUMBER', 'ten red flowers')).toBe(true);
+    expect(violates('ONE WORD AND A NUMBER', 'flowers')).toBe(true);
+    expect(violates('ONE WORD AND A NUMBER', 'ten flowers')).toBe(false);
+    expect(violates('ONE WORD OR A NUMBER', 'ten flowers')).toBe(true);
+    expect(violates('ONE WORD OR A NUMBER', 'twenty-five')).toBe(false);
+  });
   it('allows publish for a valid canonical Reading V2 draft', () => {
     const result = validateReadingV2Draft(fixtureDocument());
 
@@ -56,7 +69,7 @@ describe('readingV2Validation.service', () => {
     ]));
   });
 
-  it('blocks unresolved placeholders, import uncertainty, and missing answer keys before publish', () => {
+  it('blocks unresolved placeholders and missing scoring shape without replaying import uncertainty', () => {
     const document = fixtureDocument();
     const [taskGroupId] = Object.keys(document.taskGroups);
     const [interactionId] = Object.keys(document.interactions);
@@ -96,7 +109,6 @@ describe('readingV2Validation.service', () => {
     expect(result.blockingIssues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         'unresolved-draft-placeholder',
-        'unresolved-import-uncertainty',
         'missing-scoring-response-shape',
       ]),
     );
@@ -645,6 +657,7 @@ describe('readingV2Validation.service', () => {
         ...document.taskGroups,
         [taskGroupId]: {
           ...taskGroup,
+          answerRule: { ...taskGroup.answerRule, wordLimit: 1, responseShape: { kind: 'free-text', wordLimit: 1 } },
           instructionBlocks: [
             {
               id: taskGroup.instructionBlocks[0]!.id,
@@ -654,9 +667,10 @@ describe('readingV2Validation.service', () => {
         },
       },
       interactions: {
-        ...document.interactions,
+        ...Object.fromEntries(Object.entries(document.interactions).map(([id, entry]) => [id, { ...entry, responseShape: { kind: 'free-text', wordLimit: 1 } }])),
         [interactionId]: {
           ...interaction,
+          responseShape: { kind: 'free-text', wordLimit: 1 },
           scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['ten times'] },
         },
       },
@@ -668,7 +682,7 @@ describe('readingV2Validation.service', () => {
     expect(result.blockingIssues).toEqual([]);
   });
 
-  it('blocks note-completion groups that flatten repeated note headings into question text', () => {
+  it('allows note-completion content with repeated source headings as a heuristic', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['note-completion']) as ReadingV2Document;
     const taskGroup = Object.values(document.taskGroups)[0]!;
     const [firstInteractionId, secondInteractionId] = taskGroup.interactionIds;
@@ -696,10 +710,8 @@ describe('readingV2Validation.service', () => {
 
     const result = validateReadingV2Draft(invalidDocument);
 
-    expect(result.canPublish).toBe(false);
-    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain(
-      'repeated source note headings inside question text',
-    );
+    expect(result.canPublish).toBe(true);
+    expect(result.blockingIssues).toEqual([]);
   });
 
   it('blocks passage titles that contain timing instruction text', () => {
@@ -716,7 +728,7 @@ describe('readingV2Validation.service', () => {
     expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('real passage title');
   });
 
-  it('blocks summary-completion-text groups split into overlapping source fragments', () => {
+  it('allows overlapping summary fragments as a heuristic', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['summary-completion-text']) as ReadingV2Document;
     const taskGroup = Object.values(document.taskGroups)[0]!;
     const [firstInteractionId, secondInteractionId] = taskGroup.interactionIds;
@@ -739,11 +751,11 @@ describe('readingV2Validation.service', () => {
 
     const result = validateReadingV2Draft(invalidDocument);
 
-    expect(result.canPublish).toBe(false);
-    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('overlapping question fragments');
+    expect(result.canPublish).toBe(true);
+    expect(result.blockingIssues).toEqual([]);
   });
 
-  it('blocks summary-completion-text layouts with repeated source fragments', () => {
+  it('allows repeated summary layout fragments as a heuristic', () => {
     const document = structuredClone(READING_V2_CANONICAL_FIXTURES['summary-completion-text']) as ReadingV2Document;
     const taskGroup = Object.values(document.taskGroups)[0]!;
     const repeated = 'and the copied source fragment continues for enough words';
@@ -767,8 +779,8 @@ describe('readingV2Validation.service', () => {
 
     const result = validateReadingV2Draft(invalidDocument);
 
-    expect(result.canPublish).toBe(false);
-    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('repeated or overlapping source fragments');
+    expect(result.canPublish).toBe(true);
+    expect(result.blockingIssues).toEqual([]);
   });
 
   it('blocks structured-entry task groups when response shape does not match the visible shell', () => {

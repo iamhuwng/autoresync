@@ -71,6 +71,7 @@ export interface ReadingV2MaterialMetadataInput {
   readonly sourceQuestionRange?: string;
   readonly sourceTitleSnapshot?: string;
   readonly updatedAt?: string;
+  readonly materialRevision?: number;
 }
 
 export interface ReadingV2MaterialMetadata {
@@ -108,6 +109,8 @@ export interface ReadingV2MaterialMetadata {
   readonly archivedBy?: string;
   readonly updatedAt: string;
   readonly relationshipSurfaces: readonly ReadingV2RelationshipSurface[];
+  /** Revision of the mutable metadata aggregate used by conditional writers. */
+  readonly materialRevision?: number;
 }
 
 const findTestTypeConfig = (
@@ -261,5 +264,9 @@ export const deriveReadingV2MaterialMetadata = (
       'result-identity',
       'analytics',
     ],
+    materialRevision: Number.isSafeInteger(input.materialRevision) && (input.materialRevision ?? 0) >= 1
+      ? input.materialRevision
+      : 1,
+    state: 'published',
   };
 };

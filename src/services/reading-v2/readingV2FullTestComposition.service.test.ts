@@ -92,6 +92,9 @@ describe('readingV2FullTestComposition.service', () => {
 
     expect(resolved.compatibilityMode).toBe('native-composition');
     expect(resolved.composition).toBe(composition);
+    expect(composition.state).toBe('published');
+    expect(composition.mode).toBe('published');
+    expect(composition.materialRevision).toBe(1);
     expect(composition.numbering.totalQuestionCount).toBe(13);
   });
 

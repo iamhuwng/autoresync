@@ -14,6 +14,7 @@ import {
 } from './readingV2ContractGuards.service';
 import { canonicalizeReadingV2JudgementAnswer } from './readingV2JudgementAnswers.service';
 import { deriveReadingV2VisibleNumbers } from './readingV2Numbering.service';
+import { readReadingV2InstructionFacts } from './readingV2InstructionTemplates.service';
 
 export interface ReadingV2ValidationResult {
   readonly issues: readonly ReadingV2ValidationIssue[];
@@ -36,11 +37,13 @@ const issue = (
   code: ReadingV2PublishBlockCode | string,
   message: string,
   objectId?: string,
+  field?: ReadingV2ValidationIssue['field'],
 ): ReadingV2ValidationIssue => ({
   code,
   severity: 'error',
   message,
   objectId,
+  ...(field ? { field } : {}),
 });
 
 const hasScoringAnswer = (interaction: ReadingV2Interaction): boolean => {
@@ -176,20 +179,20 @@ const completionAnswerTokenProfile = (answer: string): {
   };
 };
 
-const taskGroupAllowsNumberExpression = (taskGroup: ReadingV2TaskGroup | undefined): boolean =>
-  taskGroup?.instructionBlocks.some((block) => /\bAND\/OR A NUMBER\b/i.test(block.text)) ?? false;
-
-const answerExceedsWordLimit = (
+export const readingV2CompletionAnswerViolatesRule = (
   answer: string,
   wordLimit: number,
   taskGroup: ReadingV2TaskGroup | undefined,
 ): boolean => {
   const profile = completionAnswerTokenProfile(answer);
-  if (!taskGroupAllowsNumberExpression(taskGroup)) {
+  const allowance = readReadingV2InstructionFacts(taskGroup?.instructionBlocks.map((block) => block.text).join('\n') ?? '').numberAllowance;
+  if (!allowance || allowance === 'none') {
     return profile.tokenCount > wordLimit;
   }
 
-  return profile.wordCount > wordLimit || profile.numberExpressionCount > 1;
+  return profile.wordCount > wordLimit || profile.numberExpressionCount > 1
+    || allowance === 'required' && profile.numberExpressionCount !== 1
+    || allowance === 'alternative' && profile.numberExpressionCount > 0 && profile.wordCount > 0;
 };
 
 const COMPLETION_TASK_TYPES = new Set([
@@ -401,11 +404,11 @@ const validateNoteCompletionTaskGroup = (
 
   if (layoutSections.length === 0 && repeatedFlattenedNoteHeadings(interactions).length > 0) {
     issues.push(
-      issue(
+      { ...issue(
         'student-visible-structured-mismatch',
         'Note Completion appears to have repeated source note headings inside question text. Preserve those headings as note layout sections before publishing.',
         taskGroup.taskGroupId,
-      ),
+      ), severity: 'warning' },
     );
   }
 
@@ -470,22 +473,22 @@ const validateSummaryCompletionTextTaskGroup = (
     }
 
     if (hasRepeatedSummaryLayoutSegment(layout.segments)) {
-      return [issue(
+      return [{ ...issue(
         'student-visible-structured-mismatch',
         'Summary Completion text layout contains repeated or overlapping source fragments. Preserve the source summary as one continuous layout before publishing.',
         taskGroup.taskGroupId,
-      )];
+      ), severity: 'warning' }];
     }
 
     return [];
   }
 
   if (hasOverlappingSummaryFragments(interactions)) {
-    return [issue(
+    return [{ ...issue(
       'student-visible-structured-mismatch',
       'Summary Completion text appears split into overlapping question fragments. Preserve the source summary as one continuous layout before publishing.',
       taskGroup.taskGroupId,
-    )];
+    ), severity: 'warning' }];
   }
 
   return [];
@@ -715,6 +718,14 @@ const validateFlowchartCompletionTaskGroup = (
       );
     }
 
+    if (tableInlineBlankCount(step.text) > 0 && !step.anchorId) {
+      issues.push(issue(
+        'orphan-anchor-reference',
+        `Flowchart step ${step.stepId || index + 1} has a blank that is not linked to a question.`,
+        taskGroup.taskGroupId,
+      ));
+    }
+
     if (step.anchorId) {
       stepAnchorIds.add(step.anchorId);
       const anchor = document.anchors[step.anchorId];
@@ -824,11 +835,7 @@ const validateDiagramLabelingTaskGroup = (
 export const validateReadingV2Draft = (
   document: ReadingV2Document,
 ): ReadingV2ValidationResult => {
-  const validationIssues = (value: { readonly issues?: unknown } | undefined): ReadingV2ValidationIssue[] =>
-    Array.isArray(value?.issues) ? value.issues as ReadingV2ValidationIssue[] : [];
   const issues: ReadingV2ValidationIssue[] = [
-    ...validationIssues(document.validationState),
-    ...Object.values(document.taskGroups).flatMap((taskGroup) => validationIssues(taskGroup.validationState)),
     ...findDuplicateReadingV2StimulusAnchorIssues(document),
   ];
 
@@ -873,21 +880,23 @@ export const validateReadingV2Draft = (
   issues.push(...validatePassageTitles(document));
 
   Object.values(document.taskGroups).forEach((taskGroup) => {
+    const facts = readReadingV2InstructionFacts(taskGroup.instructionBlocks.map((block) => block.text).join('\n'));
+    const responseShapes = [taskGroup.answerRule.responseShape, ...taskGroup.interactionIds.flatMap((id) => document.interactions[id]?.responseShape ?? [])];
+    const inconsistent = (facts.wordLimit !== undefined && (!responseShapes.some((shape) => shape.kind === 'free-text' || shape.kind === 'structured-entry')
+      || taskGroup.answerRule.responseShape.kind === 'structured-entry' && taskGroup.answerRule.wordLimit !== facts.wordLimit
+      || taskGroup.answerRule.wordLimit !== undefined && taskGroup.answerRule.wordLimit !== facts.wordLimit
+      || responseShapes.some((shape) => shape.kind === 'free-text' && shape.wordLimit !== facts.wordLimit)))
+      || (facts.vocabulary && responseShapes.some((shape) => shape.kind !== 'binary-judgement' || shape.vocabulary !== facts.vocabulary))
+      || (facts.selectionLimit !== undefined && responseShapes.some((shape) =>
+        shape.kind === 'multi-select' ? shape.selectionLimit !== facts.selectionLimit : shape.kind !== 'single-choice' || facts.selectionLimit !== 1))
+      || (facts.optionReuse && (taskGroup.answerRule.optionReuse && taskGroup.answerRule.optionReuse !== facts.optionReuse
+        || responseShapes.some((shape) => shape.kind === 'matching' && shape.optionReuse !== facts.optionReuse)));
+    if (inconsistent) issues.push(issue('instruction-response-rule-mismatch', 'The displayed instruction and response rules disagree. Update the instruction or its word limit, selection count, judgement vocabulary, or option reuse rule.', taskGroup.taskGroupId, 'instruction'));
     if (taskGroup.stimulusRefs.length === 0) {
       issues.push(
         issue(
           'missing-primary-stimulus-reference',
           `Task group ${taskGroup.taskGroupId} must reference at least one stimulus before publish.`,
-          taskGroup.taskGroupId,
-        ),
-      );
-    }
-
-    if (taskGroup.importEvidenceRefs && taskGroup.importEvidenceRefs.length > 0) {
-      issues.push(
-        issue(
-          'unresolved-import-uncertainty',
-          `Task group ${taskGroup.taskGroupId} still has unresolved import evidence.`,
           taskGroup.taskGroupId,
         ),
       );
@@ -924,6 +933,7 @@ export const validateReadingV2Draft = (
           'unresolved-draft-placeholder',
           `Interaction ${interaction.interactionId} is still a draft placeholder.`,
           interaction.interactionId,
+          'answer',
         ),
       );
     }
@@ -934,6 +944,7 @@ export const validateReadingV2Draft = (
           'missing-scoring-response-shape',
           `Interaction ${interaction.interactionId} is missing a publishable answer key or scoring rule.`,
           interaction.interactionId,
+          'answer',
         ),
       );
     }
@@ -948,19 +959,22 @@ export const validateReadingV2Draft = (
           'missing-scoring-response-shape',
           `Interaction ${interaction.interactionId} needs a visible blank marker such as [blank] or ___.`,
           interaction.interactionId,
+          'question',
         ),
       );
     }
 
-    if (interaction.responseShape.kind === 'free-text' && interaction.responseShape.wordLimit) {
-      const wordLimit = interaction.responseShape.wordLimit;
+    const wordLimit = interaction.responseShape.kind === 'free-text' ? interaction.responseShape.wordLimit
+      : interaction.responseShape.kind === 'structured-entry' ? parentTaskGroup?.answerRule.wordLimit : undefined;
+    if (wordLimit) {
       (interaction.scoringRule.acceptableAnswers ?? []).forEach((answer) => {
-        if (answer.trim() && answerExceedsWordLimit(answer, wordLimit, parentTaskGroup)) {
+        if (answer.trim() && readingV2CompletionAnswerViolatesRule(answer, wordLimit, parentTaskGroup)) {
           issues.push(
             issue(
-              'invalid-packaged-material-assembly',
-              `Interaction ${interaction.interactionId} answer exceeds the ${wordLimit} word limit.`,
+              'completion-answer-rule-mismatch',
+              `Interaction ${interaction.interactionId} answer does not meet the ${wordLimit} word limit or number rule.`,
               interaction.interactionId,
+              'answer',
             ),
           );
         }

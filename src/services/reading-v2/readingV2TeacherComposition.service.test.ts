@@ -11,6 +11,39 @@ import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 import type { ReadingV2Document, ReadingV2PublishedSnapshot } from '../../types/readingV2.types';
 
 describe('readingV2TeacherComposition.service', () => {
+  const readWithPublicationBase = (
+    sourceSnapshots: Record<string, unknown>,
+    composition: Partial<{
+      compositionId: string;
+      testMaterialId: string;
+      publishedVersionId: string;
+      ownerId: string;
+      title: string;
+      state: string;
+      materialRevision: number;
+    }>,
+  ) => vi.fn(async (path: string) => {
+    if (Object.hasOwn(sourceSnapshots, path)) return sourceSnapshots[path];
+    if (composition.state === 'published'
+      && path === readingV2StoragePaths.materialMetadata(composition.testMaterialId ?? '')) {
+      return {
+        materialId: composition.testMaterialId,
+        ownerId: composition.ownerId ?? 'teacher-1',
+        materialKind: 'full-test',
+        compositionId: composition.compositionId,
+        state: 'published',
+        materialRevision: composition.materialRevision ?? 1,
+        publishedSnapshotVersionId: composition.publishedVersionId,
+        title: composition.title ?? 'Selected Reading Passages',
+      };
+    }
+    if (composition.state === 'published'
+      && path === readingV2StoragePaths.fullTestCompositions(composition.compositionId ?? '')) {
+      return { ...composition };
+    }
+    return undefined;
+  });
+
   const passages = [
     {
       materialId: 'passage-a',
@@ -306,15 +339,19 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.materialMetadata('passage-a')]: { description: 'Retained description', difficulty: 'advanced', tags: ['source'] },
     };
     let updates: Record<string, unknown> = {};
+    const baseComposition = {
+      ...buildReadingV2TeacherSelectedPassageComposition({ teacherId: 'teacher-1', passages, now: '2026-06-02T00:00:00.000Z' }),
+      ...(mode === 'edit' ? { state: 'published' as const, materialRevision: 1 } : { state: 'draft' as const, materialRevision: 1 }),
+    };
     const repository = {
-      read: vi.fn(async (path: string) => stored[path]), write: vi.fn(),
+      read: readWithPublicationBase(stored, baseComposition), write: vi.fn(),
       update: vi.fn(async (values: Record<string, unknown>) => { updates = values; }),
     };
     const input = { teacherId: 'teacher-1', passages, repository, now: '2026-10-20T00:00:00.000Z' };
     const result = mode === 'create'
       ? await createReadingV2TeacherSelectedPassageComposition(input)
       : await publishReadingV2TeacherSelectedPassageCompositionEdit({ ...input,
-        composition: buildReadingV2TeacherSelectedPassageComposition(input) });
+        composition: baseComposition });
     const [repairedRef, untouchedRef] = result.composition.passageRefs;
     expect(repository.update).toHaveBeenCalledTimes(1);
     expect(repository.write).not.toHaveBeenCalled();
@@ -461,8 +498,13 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
         snapshotWithNoteLayoutNumbers('passage-b', 'snapshot-b', [8, 9]),
     };
+    const existing = {
+      ...buildReadingV2TeacherSelectedPassageComposition({ teacherId: 'teacher-1', passages, now: '2026-06-02T00:00:00.000Z' }),
+      state: 'published' as const,
+      materialRevision: 1,
+    };
     const repository = {
-      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      read: readWithPublicationBase(sourceSnapshots, existing),
       update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
         Object.assign(updates, nextUpdates);
       }),
@@ -470,11 +512,7 @@ describe('readingV2TeacherComposition.service', () => {
 
     const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
       teacherId: 'teacher-1',
-      composition: buildReadingV2TeacherSelectedPassageComposition({
-        teacherId: 'teacher-1',
-        passages,
-        now: '2026-06-02T00:00:00.000Z',
-      }),
+      composition: existing,
       passages,
       repository,
       now: '2026-06-16T00:00:00.000Z',
@@ -499,18 +537,21 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.publishedSnapshots('passage-b-clone', 'snapshot-b-clone')]:
         snapshotFor('passage-b-clone', 'snapshot-b-clone'),
     };
+    const existing = {
+      ...buildReadingV2TeacherSelectedPassageComposition({
+        teacherId: 'teacher-1',
+        passages,
+        now: '2026-06-02T00:00:00.000Z',
+      }),
+      state: 'published' as const,
+      materialRevision: 1,
+    };
     const repository = {
-      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      read: readWithPublicationBase(sourceSnapshots, existing),
       update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
         Object.assign(updates, nextUpdates);
       }),
     };
-    const existing = buildReadingV2TeacherSelectedPassageComposition({
-      teacherId: 'teacher-1',
-      passages,
-      now: '2026-06-02T00:00:00.000Z',
-    });
-
     const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
       teacherId: 'teacher-1',
       composition: existing,
@@ -601,18 +642,21 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
         snapshotFor('passage-b', 'snapshot-b'),
     };
+    const existing = {
+      ...buildReadingV2TeacherSelectedPassageComposition({
+        teacherId: 'teacher-1',
+        passages: publicPassages,
+        now: '2026-06-02T00:00:00.000Z',
+      }),
+      state: 'published' as const,
+      materialRevision: 1,
+    };
     const repository = {
-      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      read: readWithPublicationBase(sourceSnapshots, existing),
       update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
         Object.assign(updates, nextUpdates);
       }),
     };
-    const existing = buildReadingV2TeacherSelectedPassageComposition({
-      teacherId: 'teacher-1',
-      passages: publicPassages,
-      now: '2026-06-02T00:00:00.000Z',
-    });
-
     await publishReadingV2TeacherSelectedPassageCompositionEdit({
       teacherId: 'teacher-1',
       composition: existing,
@@ -668,18 +712,21 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
         snapshotFor('passage-b', 'snapshot-b'),
     };
+    const existing = {
+      ...buildReadingV2TeacherSelectedPassageComposition({
+        teacherId: 'teacher-1',
+        passages,
+        now: '2026-06-02T00:00:00.000Z',
+      }),
+      state: 'published' as const,
+      materialRevision: 1,
+    };
     const repository = {
-      read: vi.fn(async (path: string) => sourceSnapshots[path]),
+      read: readWithPublicationBase(sourceSnapshots, existing),
       update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
         Object.assign(updates, nextUpdates);
       }),
     };
-    const existing = buildReadingV2TeacherSelectedPassageComposition({
-      teacherId: 'teacher-1',
-      passages,
-      now: '2026-06-02T00:00:00.000Z',
-    });
-
     const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
       teacherId: 'teacher-1',
       composition: existing,
@@ -710,18 +757,22 @@ describe('readingV2TeacherComposition.service', () => {
       [readingV2StoragePaths.publishedSnapshots('passage-b', 'snapshot-b')]:
         snapshotFor('passage-b', 'snapshot-b'),
     };
-    const existing = buildReadingV2TeacherSelectedPassageComposition({
-      teacherId: 'teacher-1',
-      passages,
-      now: '2026-06-02T00:00:00.000Z',
-    });
+    const existing = {
+      ...buildReadingV2TeacherSelectedPassageComposition({
+        teacherId: 'teacher-1',
+        passages,
+        now: '2026-06-02T00:00:00.000Z',
+      }),
+      state: 'published' as const,
+      materialRevision: 1,
+    };
 
     const result = await publishReadingV2TeacherSelectedPassageCompositionEdit({
       teacherId: 'teacher-1',
       composition: existing,
       passages,
       repository: {
-        read: vi.fn(async (path: string) => sourceSnapshots[path]),
+        read: readWithPublicationBase(sourceSnapshots, existing),
         update: vi.fn(async (nextUpdates: Record<string, unknown>) => {
           Object.assign(updates, nextUpdates);
         }),
@@ -752,18 +803,23 @@ describe('readingV2TeacherComposition.service', () => {
     });
     const writes: Array<{ path: string; value: unknown }> = [];
     const removes: string[] = [];
+    let updates: Record<string, unknown | null> = {};
 
     const result = await removeReadingV2MasterComposition({
       actorUserId: 'teacher-1',
       actorRole: 'teacher',
       composition,
       repository: {
+        read: async (path) => path === readingV2StoragePaths.materialMetadata(composition.testMaterialId)
+          ? { materialId: composition.testMaterialId, ownerId: composition.ownerId, materialKind: 'full-test', compositionId: composition.compositionId, publishedSnapshotVersionId: composition.publishedVersionId, materialRevision: 1, state: 'published' }
+          : { ...composition, materialRevision: 1, state: 'published' },
         write: async (path, value) => {
           writes.push({ path, value });
         },
         remove: async (path) => {
           removes.push(path);
         },
+        update: async (nextUpdates) => { updates = { ...nextUpdates }; },
       },
       now: '2026-06-03T00:00:00.000Z',
       correlationId: 'corr-master-remove-1',
@@ -771,45 +827,24 @@ describe('readingV2TeacherComposition.service', () => {
       sourceRoute: '/lobby',
     });
 
-    expect(writes).toEqual(expect.arrayContaining([
-      {
-        path: readingV2StoragePaths.fullTestCompositions(composition.compositionId),
-        value: expect.objectContaining({
-          compositionId: composition.compositionId,
-          ownerId: 'teacher-1',
-          publishedVersionId: composition.publishedVersionId,
-          state: 'removed',
-          removedAt: '2026-06-03T00:00:00.000Z',
-          removedBy: 'teacher-1',
-        }),
-      },
-      {
-        path: `${readingV2StoragePaths.materialMetadata(composition.testMaterialId)}/state`,
-        value: 'removed',
-      },
-      {
-        path: `reading_v2/audit_events/corr-master-remove-1:reading_master_removed:${composition.compositionId}`,
-        value: expect.objectContaining({
-          action: 'reading_master_removed',
-          entityType: 'reading-master',
-          entityId: composition.compositionId,
-        }),
-      },
-    ]));
-    expect(removes).toEqual(expect.arrayContaining([
+    expect(updates).toEqual(expect.objectContaining({
+      [`${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`]: 'removed',
+      [`${readingV2StoragePaths.materialMetadata(composition.testMaterialId)}/state`]: 'removed',
+    }));
+    expect(Object.keys(updates)).toEqual(expect.arrayContaining([
       `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
       `material_catalog/material_indexes/by_visibility/private/${composition.testMaterialId}`,
       `material_catalog/material_indexes/by_material_kind/full-test/${composition.testMaterialId}`,
       `material_catalog/material_indexes/by_test_type/ielts/${composition.testMaterialId}`,
       `tests/${composition.testMaterialId}`,
     ]));
-    expect([...writes.map((write) => write.path), ...removes].some((path) =>
+    expect(Object.keys(updates).some((path) =>
       path.includes('reading_passage_materials/passage-a') ||
       path.includes('reading_passage_materials/passage-b') ||
       path.includes('published_snapshots'),
     )).toBe(false);
     expect(result.changedPaths).toEqual(expect.arrayContaining([
-      readingV2StoragePaths.fullTestCompositions(composition.compositionId),
+      `${readingV2StoragePaths.fullTestCompositions(composition.compositionId)}/state`,
       `material_catalog/material_indexes/by_owner/teacher-1/${composition.testMaterialId}`,
       `tests/${composition.testMaterialId}`,
     ]));
@@ -828,6 +863,9 @@ describe('readingV2TeacherComposition.service', () => {
       actorRole: 'teacher',
       composition,
       repository: {
+        read: async (path) => path === readingV2StoragePaths.materialMetadata(composition.testMaterialId)
+          ? { materialId: composition.testMaterialId, ownerId: composition.ownerId, materialKind: 'full-test', compositionId: composition.compositionId, publishedSnapshotVersionId: composition.publishedVersionId, materialRevision: 1, state: 'published' }
+          : { ...composition, materialRevision: 1, state: 'published' },
         write: async () => {
           throw new Error('Expected root update repository path.');
         },

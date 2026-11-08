@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ReadingV2StudioSaveResult,
   ReadingV2StudioWorkflowSnapshot,
@@ -7,7 +7,7 @@ import type {
 export interface ReadingV2StudioAutosaveResult {
   readonly status: 'saved' | 'failed';
   readonly draftId: string;
-  readonly revisionToken?: string;
+  readonly revision?: number;
   readonly error?: unknown;
 }
 
@@ -25,65 +25,78 @@ export const useReadingV2StudioAutosave = ({
   intervalMs = 15000,
   saveDraft,
   onResult,
-}: UseReadingV2StudioAutosaveOptions): {
-  readonly queueAutosave: (snapshot: ReadingV2StudioWorkflowSnapshot) => void;
-} => {
-  const pendingSnapshotRef = useRef<ReadingV2StudioWorkflowSnapshot | null>(null);
-  const inFlightRef = useRef(false);
+}: UseReadingV2StudioAutosaveOptions) => {
+  const session = useMemo(() => ({
+    active: true,
+    pending: null as ReadingV2StudioWorkflowSnapshot | null,
+    inFlight: null as Promise<ReadingV2StudioSaveResult | undefined> | null,
+    revision: undefined as number | undefined,
+  }), [autosaveKey, enabled]);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const saveDraftRef = useRef(saveDraft);
   const onResultRef = useRef(onResult);
-
   saveDraftRef.current = saveDraft;
   onResultRef.current = onResult;
+  const [saveState, setSaveState] = useState<'saved' | 'dirty' | 'saving' | 'error' | 'conflict'>('saved');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const queueAutosave = useCallback((snapshot: ReadingV2StudioWorkflowSnapshot) => {
-    pendingSnapshotRef.current = snapshot;
-  }, []);
+    if (!enabled || sessionRef.current !== session) return;
+    session.pending = snapshot;
+    setSaveState((state) => state === 'error' || state === 'conflict' ? state : 'dirty');
+  }, [enabled, session]);
+
+  const flush = useCallback((): Promise<ReadingV2StudioSaveResult | undefined> => {
+    if (session.inFlight) return session.inFlight;
+    if (!enabled || !session.pending || sessionRef.current !== session) return Promise.resolve(undefined);
+    const save = saveDraftRef.current;
+    session.inFlight = Promise.resolve().then(async () => {
+      let result: ReadingV2StudioSaveResult | undefined;
+      while (session.pending && sessionRef.current === session && session.active) {
+        const snapshot = { ...session.pending, revision: session.revision ?? session.pending.revision };
+        session.pending = null;
+        setSaveState('saving');
+        try {
+          result = await save(snapshot);
+          if (sessionRef.current !== session || !session.active) return undefined;
+          session.revision = result.revision;
+          setSaveError(null);
+          setSaveState(session.pending ? 'dirty' : 'saved');
+          onResultRef.current?.({ status: 'saved', draftId: snapshot.draftId, revision: result.revision });
+        } catch (error) {
+          if (sessionRef.current !== session || !session.active) return undefined;
+          session.pending ??= snapshot;
+          setSaveState(error instanceof Error && 'payload' in error ? 'conflict' : 'error');
+          setSaveError(error instanceof Error ? error.message : 'Could not save this draft.');
+          onResultRef.current?.({ status: 'failed', draftId: snapshot.draftId, error });
+          throw error;
+        }
+      }
+      return result;
+    }).finally(() => { session.inFlight = null; });
+    return session.inFlight;
+  }, [enabled, session]);
+
+  const saveNow = useCallback((snapshot: ReadingV2StudioWorkflowSnapshot) => {
+    session.pending = snapshot;
+    return flush().then((result) => {
+      if (!result) throw new Error('The draft session changed before the save was acknowledged.');
+      return result;
+    });
+  }, [flush, session]);
 
   useEffect(() => {
-    if (!enabled) {
-      pendingSnapshotRef.current = null;
-      return undefined;
-    }
+    session.active = true;
+    setSaveState('saved');
+    setSaveError(null);
+    if (!enabled) return () => { session.active = false; };
+    const intervalId = setInterval(() => { void flush().catch(() => undefined); }, intervalMs);
+    return () => {
+      session.active = false;
+      clearInterval(intervalId);
+    };
+  }, [enabled, flush, intervalMs, session]);
 
-    const intervalId = setInterval(() => {
-      const snapshot = pendingSnapshotRef.current;
-
-      if (!snapshot || inFlightRef.current) {
-        return;
-      }
-
-      inFlightRef.current = true;
-      void Promise.resolve(saveDraftRef.current(snapshot))
-        .then((result) => {
-          if (pendingSnapshotRef.current === snapshot) {
-            pendingSnapshotRef.current = null;
-          } else if (pendingSnapshotRef.current && result.revisionToken) {
-            pendingSnapshotRef.current = {
-              ...pendingSnapshotRef.current,
-              revisionToken: result.revisionToken,
-            };
-          }
-          onResultRef.current?.({
-            status: 'saved',
-            draftId: snapshot.draftId,
-            revisionToken: result.revisionToken,
-          });
-        })
-        .catch((error: unknown) => {
-          onResultRef.current?.({
-            status: 'failed',
-            draftId: snapshot.draftId,
-            error,
-          });
-        })
-        .finally(() => {
-          inFlightRef.current = false;
-        });
-    }, intervalMs);
-
-    return () => clearInterval(intervalId);
-  }, [autosaveKey, enabled, intervalMs]);
-
-  return { queueAutosave };
+  return { queueAutosave, saveNow, flush, saveState, saveError };
 };

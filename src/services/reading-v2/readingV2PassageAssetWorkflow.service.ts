@@ -14,6 +14,7 @@ import {
 } from '../../types/readingV2.types';
 import { READING_V2_ENGINE } from '../../config/readingV2FeatureFlags';
 import type { createReadingV2Repository } from './readingV2Repository.service';
+import { projectReadingV2AuthoringContext } from './readingV2AuthoringQuality.service';
 
 export interface ReadingV2PassageAssetSearchResult {
   readonly asset: ReadingV2PassageAsset;
@@ -117,6 +118,7 @@ export const extractReadingV2TaskGroupMaterialDraft = (
   repository: ReadingV2RepositoryInstance,
   input: {
     readonly sourceDocument: ReadingV2Document;
+    readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
     readonly taskGroupIds: readonly ReadingV2TaskGroupId[];
     readonly sourceMaterialId: ReadingV2MaterialId;
     readonly sourceSnapshotVersionId?: string;
@@ -144,7 +146,7 @@ export const extractReadingV2TaskGroupMaterialDraft = (
 
   selectedTaskGroups.forEach((taskGroup) => {
     taskGroup.interactionIds.forEach((interactionId, index) => {
-      interactionIdMap.set(interactionId, `extracted-interaction-${index + 1}-${input.newMaterialId}`);
+      interactionIdMap.set(interactionId, `${taskGroupIdMap.get(taskGroup.taskGroupId)}-interaction-${index + 1}`);
     });
   });
 
@@ -187,23 +189,27 @@ export const extractReadingV2TaskGroupMaterialDraft = (
     ),
   );
 
-  const firstSectionId = input.sourceDocument.sectionIds[0];
-  const sourceSection = firstSectionId ? input.sourceDocument.sections[firstSectionId] : undefined;
-
-  if (!firstSectionId || !sourceSection) {
-    throw new Error('Reading V2 extraction requires a source section.');
+  if (!selectedTaskGroups.length || selectedTaskGroups.length !== selectedTaskGroupIdSet.size) {
+    throw new Error('Choose existing question groups to extract.');
   }
+  const sectionIds = input.sourceDocument.sectionIds.filter((id) => selectedTaskGroups.some((group) => group.sectionId === id));
+  const stimulusIds = new Set(sectionIds.flatMap((id) => input.sourceDocument.sections[id].stimulusIds));
+  selectedTaskGroups.forEach((group) => group.stimulusRefs.forEach((reference) => stimulusIds.add(reference.stimulusId)));
+  const optionSetIds = new Set(selectedTaskGroups.flatMap((group) => group.optionSetRefs));
 
   const extractedDocument: ReadingV2Document = {
     ...input.sourceDocument,
     documentId: nextDocumentId,
     title: `${input.sourceDocument.title} extracted task-group material`,
-    sections: {
-      [sourceSection.sectionId]: {
-        ...sourceSection,
-        taskGroupIds: Object.keys(nextTaskGroups).map(readingV2Ids.taskGroupId),
-      },
-    },
+    sectionIds,
+    sections: Object.fromEntries(sectionIds.map((id) => [id, {
+      ...input.sourceDocument.sections[id],
+      taskGroupIds: input.sourceDocument.sections[id].taskGroupIds.filter((groupId) => selectedTaskGroupIdSet.has(groupId))
+        .map((groupId) => readingV2Ids.taskGroupId(taskGroupIdMap.get(groupId)!)),
+    }])),
+    stimuli: Object.fromEntries(Object.entries(input.sourceDocument.stimuli).filter(([id]) => stimulusIds.has(id as never))),
+    anchors: Object.fromEntries(Object.entries(input.sourceDocument.anchors).filter(([, anchor]) => stimulusIds.has(anchor.stimulusId))),
+    optionSets: Object.fromEntries(Object.entries(input.sourceDocument.optionSets).filter(([id]) => optionSetIds.has(id as never))),
     taskGroups: nextTaskGroups,
     interactions: nextInteractions,
     validationState: { issues: [] },
@@ -237,5 +243,8 @@ export const extractReadingV2TaskGroupMaterialDraft = (
       plane: 'canonical',
       schemaVersion: READING_V2_SCHEMA_VERSION,
     },
+    authoringContext: input.authoringContext ? projectReadingV2AuthoringContext(input.authoringContext, {
+      taskGroupIds: input.taskGroupIds, sourceDocument: input.sourceDocument, taskGroupIdMap, interactionIdMap,
+    }) : undefined,
   });
 };

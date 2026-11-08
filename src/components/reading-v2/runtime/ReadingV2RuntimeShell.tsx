@@ -17,6 +17,8 @@ import type {
 import type { ReadingV2TableCellContent } from '../../../types/readingV2.types';
 import {
   getReadingV2InstructionText,
+  readReadingV2InstructionFacts,
+  readReadingV2WordLimitText,
   readingV2InstructionLooksStandard,
   type ReadingV2InstructionSemantics,
 } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
@@ -560,6 +562,16 @@ const getTaskGroupWordLimit = (taskGroup: ReadingV2ProjectedTaskGroup): number |
     : undefined;
 };
 
+const getTaskGroupSelectionLimit = (taskGroup: ReadingV2ProjectedTaskGroup): number | undefined => {
+  const multiSelectInteraction = taskGroup.interactions.find(
+    (interaction) => interaction.responseShape.kind === 'multi-select',
+  );
+
+  return multiSelectInteraction?.responseShape.kind === 'multi-select'
+    ? multiSelectInteraction.responseShape.selectionLimit
+    : undefined;
+};
+
 const isCanonicalTaskType = (taskType: string): taskType is ReadingV2CanonicalTaskType =>
   taskType in READING_V2_TASK_TAXONOMY;
 
@@ -582,10 +594,24 @@ const getTaskGroupQuestionRange = (
 
 const getRuntimeInstructionSemantics = (
   taskGroup: ReadingV2ProjectedTaskGroup,
-): ReadingV2InstructionSemantics => ({
-  questionRange: getTaskGroupQuestionRange(taskGroup),
-  wordLimit: getTaskGroupWordLimit(taskGroup),
-});
+  sourceText?: string,
+): ReadingV2InstructionSemantics => {
+  const authored = taskGroup.instructionBlocks.map((block) => block.text).join('\n');
+  const facts = { ...readReadingV2InstructionFacts(authored), ...readReadingV2InstructionFacts(sourceText ?? '') };
+  const rangePattern = /\b([A-Z]|[ivxlcdm]+)\s*[-–—]\s*([A-Z]|[ivxlcdm]+)\b/i;
+  const labels = sourceText?.match(rangePattern) ?? authored.match(rangePattern);
+  const labelRange = labels ? `${labels[1]}-${labels[2]}` : undefined;
+  const matching = taskGroup.interactions.find((interaction) => interaction.responseShape.kind === 'matching')?.responseShape;
+  return {
+    questionRange: getTaskGroupQuestionRange(taskGroup),
+    wordLimit: getTaskGroupWordLimit(taskGroup),
+    wordLimitText: readReadingV2WordLimitText(sourceText ?? '') ?? readReadingV2WordLimitText(authored),
+    selectionLimit: facts.selectionLimit ?? getTaskGroupSelectionLimit(taskGroup),
+    optionLabelRange: labelRange,
+    referenceLabelRange: labelRange,
+    reuseAllowed: facts.optionReuse ? facts.optionReuse === 'allowed' : matching?.kind === 'matching' ? matching.optionReuse === 'allowed' : undefined,
+  };
+};
 
 const getRuntimeInstructionText = (
   taskGroup: ReadingV2ProjectedTaskGroup,
@@ -596,7 +622,7 @@ const getRuntimeInstructionText = (
     return baseText;
   }
 
-  const semantics = getRuntimeInstructionSemantics(taskGroup);
+  const semantics = getRuntimeInstructionSemantics(taskGroup, baseText);
   if (!baseText || readingV2InstructionLooksStandard(taskGroup.officialTaskType, baseText, semantics)) {
     return getReadingV2InstructionText(taskGroup.officialTaskType, semantics);
   }

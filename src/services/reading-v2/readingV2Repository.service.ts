@@ -20,26 +20,41 @@ import {
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
 
 export interface ReadingV2ConflictRecoveryPayload {
-  readonly reason: 'stale-revision-token';
-  readonly currentRevisionToken: string;
-  readonly recoveryOptions: readonly ['reload-latest', 'duplicate-draft', 'compare-diff'];
+  readonly reason: 'stale-revision';
+  readonly currentRevision: number;
+  readonly recoveryOptions: readonly ['reload-latest', 'duplicate-draft'];
 }
 
 export class ReadingV2RepositoryConflictError extends Error {
   readonly payload: ReadingV2ConflictRecoveryPayload;
 
   constructor(payload: ReadingV2ConflictRecoveryPayload) {
-    super('Reading V2 draft save rejected because the revision token is stale.');
+    super('Reading V2 draft save rejected because the revision is stale.');
     this.payload = payload;
   }
 }
 
 export interface ReadingV2DraftSaveInput {
   readonly draftId: ReadingV2DraftId;
-  readonly baseRevisionToken: string;
+  readonly expectedRevision: number;
+  readonly operationId?: string;
   readonly document: ReadingV2Document;
   readonly studioMetadata?: Readonly<Record<string, unknown>>;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2DraftRecord['workflowOrigin'];
   readonly state?: ReadingV2DraftState;
+  readonly now?: string;
+}
+
+export interface ReadingV2DraftCreateInput {
+  readonly draftId: ReadingV2DraftId;
+  readonly ownerId: string;
+  readonly document: ReadingV2Document;
+  readonly materialId?: ReadingV2MaterialId;
+  readonly studioMetadata?: Readonly<Record<string, unknown>>;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2DraftRecord['workflowOrigin'];
+  readonly operationId?: string;
   readonly now?: string;
 }
 
@@ -65,27 +80,10 @@ const createStore = (): ReadingV2RepositoryStore => ({
 
 const clone = <T>(value: T): T => structuredClone(value) as T;
 
-const REVISION_TOKEN_PATTERN = /-rev-(\d+)$/;
-
-const initialRevisionToken = (draftId: string): string => `${draftId}-rev-1`;
-
-const nextRevisionToken = (draftId: string, currentRevisionToken: string): string => {
-  const match = currentRevisionToken.match(REVISION_TOKEN_PATTERN);
-  const currentRevision = match ? Number(match[1]) : 1;
-  return `${draftId}-rev-${currentRevision + 1}`;
-};
-
 export const createReadingV2Repository = (
   store: ReadingV2RepositoryStore = createStore(),
 ) => {
-  const createDraft = (input: {
-    readonly draftId: ReadingV2DraftId;
-    readonly ownerId: string;
-    readonly document: ReadingV2Document;
-    readonly materialId?: ReadingV2MaterialId;
-    readonly studioMetadata?: Readonly<Record<string, unknown>>;
-    readonly now?: string;
-  }): ReadingV2DraftRecord => {
+  const createDraft = (input: ReadingV2DraftCreateInput): ReadingV2DraftRecord => {
     assertValidReadingV2CanonicalDocument(input.document);
 
     if (store.drafts.has(input.draftId)) {
@@ -99,7 +97,10 @@ export const createReadingV2Repository = (
       materialId: input.materialId,
       document: clone(input.document),
       studioMetadata: input.studioMetadata ? clone(input.studioMetadata) : undefined,
-      revisionToken: initialRevisionToken(input.draftId),
+      authoringContext: input.authoringContext ? clone(input.authoringContext) : undefined,
+      workflowOrigin: input.workflowOrigin ? clone(input.workflowOrigin) : undefined,
+      revision: 1,
+      lastOperationId: input.operationId ?? crypto.randomUUID(),
       state: 'draft',
       createdAt: now,
       updatedAt: now,
@@ -122,11 +123,16 @@ export const createReadingV2Repository = (
       throw new Error(`Reading V2 draft does not exist: ${input.draftId}`);
     }
 
-    if (current.revisionToken !== input.baseRevisionToken) {
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1
+      || input.expectedRevision >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('Reading V2 draft revision must be a positive safe integer that can advance.');
+    }
+
+    if (current.revision !== input.expectedRevision) {
       throw new ReadingV2RepositoryConflictError({
-        reason: 'stale-revision-token',
-        currentRevisionToken: current.revisionToken,
-        recoveryOptions: ['reload-latest', 'duplicate-draft', 'compare-diff'],
+        reason: 'stale-revision',
+        currentRevision: current.revision,
+        recoveryOptions: ['reload-latest', 'duplicate-draft'],
       });
     }
 
@@ -134,7 +140,10 @@ export const createReadingV2Repository = (
       ...current,
       document: clone(input.document),
       studioMetadata: input.studioMetadata ? clone(input.studioMetadata) : current.studioMetadata,
-      revisionToken: nextRevisionToken(input.draftId, current.revisionToken),
+      authoringContext: input.authoringContext ? clone(input.authoringContext) : current.authoringContext,
+      workflowOrigin: input.workflowOrigin ? clone(input.workflowOrigin) : current.workflowOrigin,
+      revision: current.revision + 1,
+      lastOperationId: input.operationId ?? crypto.randomUUID(),
       state: input.state ?? current.state,
       updatedAt: input.now ?? new Date().toISOString(),
     };
@@ -145,7 +154,7 @@ export const createReadingV2Repository = (
 
   const autosaveDraft = saveDraft;
 
-  const discardDraft = (draftId: ReadingV2DraftId, baseRevisionToken: string): ReadingV2DraftRecord => {
+  const discardDraft = (draftId: ReadingV2DraftId, expectedRevision: number): ReadingV2DraftRecord => {
     const current = loadDraft(draftId);
 
     if (!current) {
@@ -154,7 +163,7 @@ export const createReadingV2Repository = (
 
     return saveDraft({
       draftId,
-      baseRevisionToken,
+      expectedRevision,
       document: current.document,
       state: 'discarded',
     });
@@ -175,8 +184,13 @@ export const createReadingV2Repository = (
       draftId: newDraftId,
       ownerId,
       document: source.document,
-      materialId: source.materialId,
       studioMetadata: source.studioMetadata,
+      authoringContext: source.authoringContext,
+      workflowOrigin: {
+        mode: 'duplicate-material',
+        sourceMaterialId: source.materialId ?? source.workflowOrigin?.sourceMaterialId,
+        sourceSnapshotVersionId: source.workflowOrigin?.sourceSnapshotVersionId,
+      },
     });
   };
 

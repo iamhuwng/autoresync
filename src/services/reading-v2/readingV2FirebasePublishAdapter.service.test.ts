@@ -180,6 +180,37 @@ const containsUndefined = (value: unknown): boolean => {
   return false;
 };
 
+const isPublicationBaseReadPath = (path: string): boolean =>
+  /^reading_v2\/material_metadata\/[^/]+$/.test(path)
+  || /^reading_v2\/(?:reading_passage_materials|full_test_compositions)\/[^/]+$/.test(path);
+
+const publicationBaseReadPaths = (updates: Readonly<Record<string, unknown>>): string[] =>
+  Object.keys(updates).filter(isPublicationBaseReadPath);
+
+const configurePublicationReads = (
+  commitPlan: Parameters<typeof buildReadingV2FirebasePublishUpdates>[0],
+  options: { readonly marker?: unknown; readonly metadataAfterMarker?: { readonly path: string; readonly value: unknown } } = {},
+) => {
+  const firebaseUpdates = buildReadingV2FirebasePublishUpdates(commitPlan);
+  const metadataReadCounts = new Map<string, number>();
+  vi.mocked(get).mockImplementation(async (reference: any) => {
+    const path = reference.path as string;
+    if (path === firebaseUpdates.commitPath) {
+      return databaseSnapshot(options.marker !== undefined && options.marker !== null, options.marker ?? null);
+    }
+    if (!isPublicationBaseReadPath(path)) {
+      throw new Error(`Unexpected publication read path: ${path}`);
+    }
+    const readCount = metadataReadCounts.get(path) ?? 0;
+    metadataReadCounts.set(path, readCount + 1);
+    if (options.metadataAfterMarker?.path === path && readCount > 0) {
+      return databaseSnapshot(true, options.metadataAfterMarker.value);
+    }
+    return databaseSnapshot(false, null);
+  });
+  return firebaseUpdates;
+};
+
 describe('readingV2FirebasePublishAdapter.service', () => {
   beforeEach(() => {
     vi.mocked(get).mockReset();
@@ -291,6 +322,7 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
   it('commits the whole publish plan with one root update when no marker exists', async () => {
     const commitPlan = createPublishPlan();
+    const firebaseUpdates = configurePublicationReads(commitPlan);
 
     const result = await commitReadingV2PublishPlanToFirebase(commitPlan, {
       committedAt: '2026-04-25T01:00:00.000Z',
@@ -298,7 +330,10 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
     expect(result.status).toBe('committed');
     expect(ref).toHaveBeenCalledWith(expect.anything());
-    expect(get).not.toHaveBeenCalled();
+    expect(get.mock.calls.map(([reference]) => (reference as { path: string }).path)).toEqual(
+      expect.arrayContaining(publicationBaseReadPaths(firebaseUpdates.updates)),
+    );
+    expect(get.mock.calls.map(([reference]) => (reference as { path: string }).path)).not.toContain(firebaseUpdates.commitPath);
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(
       { path: '' },
@@ -317,7 +352,7 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       '2026-06-01T01:00:00.000Z',
     );
     const updatePaths = Object.keys(firebaseUpdates.updates);
-    const passageId = 'material-firebase-passages-passage-1';
+    const passageId = 'material-firebase-passages-passage-section-sentence-completion';
     const compositionOperation = commitPlan.operations.find(
       (operation) =>
         operation.kind === 'storage-write' &&
@@ -326,14 +361,14 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
     expect(compositionOperation).toBeTruthy();
     expect(firebaseUpdates.updates['tests/material-firebase-passages']).toMatchObject({
-      compositionId: 'composition-material-firebase-passages-snapshot-firebase-passages',
+      compositionId: 'composition-material-firebase-passages',
       testType: 'IELTS',
       type: 'IELTS',
       primaryTestTypeId: 'ielts',
       testTypeIds: ['ielts'],
       isPublic: true,
       metadata: expect.objectContaining({
-        compositionId: 'composition-material-firebase-passages-snapshot-firebase-passages',
+        compositionId: 'composition-material-firebase-passages',
         primaryTestTypeId: 'ielts',
         testTypeIds: ['ielts'],
         visibility: 'public',
@@ -349,11 +384,11 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         readingV2StoragePaths.studentSafeTests('material-firebase-passages', 'snapshot-firebase-passages'),
         readingV2StoragePaths.sessionSafePayloads('publish-template', 'snapshot-firebase-passages'),
         readingV2StoragePaths.reviewProjections('material-firebase-passages', 'snapshot-firebase-passages'),
-        'reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-firebase-passages-passage-1',
-        'material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1',
-        'material_catalog/material_indexes/by_visibility/public/material-firebase-passages-passage-1',
-        'material_catalog/material_indexes/by_material_kind/reading-passage/material-firebase-passages-passage-1',
-        'material_catalog/material_indexes/by_test_type/ielts/material-firebase-passages-passage-1',
+        `reading_v2/duplicate_indexes/passages_by_owner/teacher-1/${passageId}`,
+        `material_catalog/material_indexes/by_owner/teacher-1/${passageId}`,
+        `material_catalog/material_indexes/by_visibility/public/${passageId}`,
+        `material_catalog/material_indexes/by_material_kind/reading-passage/${passageId}`,
+        `material_catalog/material_indexes/by_test_type/ielts/${passageId}`,
       ]),
     );
     expect(updatePaths).not.toContain(
@@ -379,9 +414,9 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
     expect(JSON.stringify(firebaseUpdates.updates[readingV2StoragePaths.studentSafeTests('material-firebase-passages', 'snapshot-firebase-passages')]))
       .not.toMatch(/acceptableAnswers|scoringRule|hiddenProvenance|teacherAdminProvenance/);
-    expect(JSON.stringify(firebaseUpdates.updates['reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-firebase-passages-passage-1']))
+    expect(JSON.stringify(firebaseUpdates.updates[`reading_v2/duplicate_indexes/passages_by_owner/teacher-1/${passageId}`]))
       .not.toMatch(/bodyText|questionText|document|answerKey|scoringRule|hiddenProvenance/);
-    expect(JSON.stringify(firebaseUpdates.updates['material_catalog/material_indexes/by_owner/teacher-1/material-firebase-passages-passage-1']))
+    expect(JSON.stringify(firebaseUpdates.updates[`material_catalog/material_indexes/by_owner/teacher-1/${passageId}`]))
       .not.toMatch(/acceptableAnswers|scoringRule|document|provenance/);
     expect(containsUndefined(firebaseUpdates.updates)).toBe(false);
   });
@@ -395,14 +430,14 @@ describe('readingV2FirebasePublishAdapter.service', () => {
         {
           kind: 'storage-write',
           operationKey: 'material-firebase-passages/cleanup/owner',
-          path: 'material_catalog/material_indexes/by_owner/old-teacher/material-firebase-passages-passage-1',
+          path: 'material_catalog/material_indexes/by_owner/old-teacher/material-firebase-passages-passage-section-sentence-completion',
           value: null,
           writeKind: 'reading-passage-listing-index',
         },
         {
           kind: 'storage-write',
           operationKey: 'material-firebase-passages/cleanup/source',
-          path: 'material_catalog/material_indexes/by_source_full_test/old-full-test/material-firebase-passages-passage-1',
+          path: 'material_catalog/material_indexes/by_source_full_test/old-full-test/material-firebase-passages-passage-section-sentence-completion',
           value: null,
           writeKind: 'reading-passage-listing-index',
         },
@@ -410,17 +445,21 @@ describe('readingV2FirebasePublishAdapter.service', () => {
     }, '2026-06-01T01:00:00.000Z');
 
     expect(firebaseUpdates.updates[
-      'material_catalog/material_summary_indexes/v1/by_owner/old-teacher/material-firebase-passages-passage-1'
+      'material_catalog/material_summary_indexes/v1/by_owner/old-teacher/material-firebase-passages-passage-section-sentence-completion'
     ]).toBeNull();
     expect(firebaseUpdates.updates[
-      'material_catalog/material_summary_indexes/v1/by_source_full_test/old-full-test/material-firebase-passages-passage-1'
+      'material_catalog/material_summary_indexes/v1/by_source_full_test/old-full-test/material-firebase-passages-passage-section-sentence-completion'
     ]).toBeUndefined();
   });
 
   it('publishes three child summaries that the Reading Passage library discovers', async () => {
     const plan = createThreePassagePublishPlan();
     const updates = buildReadingV2FirebasePublishUpdates(plan).updates;
-    const childIds = [1, 2, 3].map((number) => `three-passage-master-passage-${number}`);
+    const childIds = [
+      'three-passage-master-passage-section-sentence-completion',
+      'three-passage-master-passage-section-true-false-not-given',
+      'three-passage-master-passage-section-table-completion',
+    ];
     const summaryRoot = 'material_catalog/material_summary_indexes/v1';
     expect(updates[`${summaryRoot}/by_id/three-passage-master`]).toMatchObject({
       producerId: 'reading-v2-full-test', materialKind: 'full-test', passageRefCount: 3,
@@ -454,8 +493,9 @@ describe('readingV2FirebasePublishAdapter.service', () => {
       teacherId: 'teacher-1', scope: 'public',
       reader: createReadingV2PassageLibraryFirebaseReader(),
     });
-    expect(rows.map((row) => row.materialId).sort()).toEqual(childIds);
+    expect(rows.map((row) => row.materialId).sort()).toEqual([...childIds].sort());
     vi.mocked(update).mockReset();
+    configurePublicationReads(plan);
     await commitReadingV2PublishPlanToFirebase(plan);
     expect(update).toHaveBeenCalledOnce();
     expect(ref).toHaveBeenCalledWith(expect.anything());
@@ -463,9 +503,16 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
   it('treats an existing matching commit marker as an idempotent retry', async () => {
     const commitPlan = createPublishPlan();
-    const operationKeys = commitPlan.operations.map((operation) => operation.operationKey);
+    const firebaseUpdates = configurePublicationReads(commitPlan);
+    const metadataPath = readingV2StoragePaths.materialMetadata('material-firebase');
     vi.mocked(update).mockRejectedValue(new Error('permission_denied'));
-    vi.mocked(get).mockResolvedValue(databaseSnapshot(true, { operationKeys }));
+    configurePublicationReads(commitPlan, {
+      marker: firebaseUpdates.updates[firebaseUpdates.commitPath],
+      metadataAfterMarker: {
+        path: metadataPath,
+        value: firebaseUpdates.updates[metadataPath],
+      },
+    });
 
     const result = await commitReadingV2PublishPlanToFirebase(commitPlan);
 
@@ -476,23 +523,28 @@ describe('readingV2FirebasePublishAdapter.service', () => {
 
   it('rejects failed Reading Passage storage writes when no matching commit marker exists', async () => {
     const commitPlan = createPassagePublishPlan();
-    const firebaseUpdates = buildReadingV2FirebasePublishUpdates(commitPlan);
+    const firebaseUpdates = configurePublicationReads(commitPlan);
     vi.mocked(update).mockRejectedValue(new Error('permission_denied'));
-    vi.mocked(get).mockResolvedValue(databaseSnapshot(false, null));
 
     await expect(commitReadingV2PublishPlanToFirebase(commitPlan)).rejects.toThrow(/permission_denied/);
 
     expect(update).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenCalledOnce();
+    expect(get.mock.calls.map(([reference]) => (reference as { path: string }).path)).toEqual(
+      expect.arrayContaining([
+        ...publicationBaseReadPaths(firebaseUpdates.updates),
+        firebaseUpdates.commitPath,
+      ]),
+    );
     expect(ref).toHaveBeenCalledWith(expect.anything(), firebaseUpdates.commitPath);
   });
 
   it('rejects a conflicting commit marker after a failed retry write', async () => {
     const commitPlan = createPublishPlan();
+    const firebaseUpdates = configurePublicationReads(commitPlan, { marker: { operationId: 'different-operation' } });
     vi.mocked(update).mockRejectedValue(new Error('permission_denied'));
-    vi.mocked(get).mockResolvedValue(databaseSnapshot(true, { operationKeys: ['different-operation'] }));
 
-    await expect(commitReadingV2PublishPlanToFirebase(commitPlan)).rejects.toThrow(/commit marker conflicts/);
+    await expect(commitReadingV2PublishPlanToFirebase(commitPlan)).rejects.toThrow(/permission_denied/);
     expect(update).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.map(([reference]) => (reference as { path: string }).path)).toContain(firebaseUpdates.commitPath);
   });
 });

@@ -1,5 +1,9 @@
 # UI Design Standards
 
+## Reading V2 Studio Shell
+
+Reading V2 Studio omits the shared teacher top navigation. Its own workspace toolbar provides Exit, Save Draft, Preview and Publish. Teacher Lobby and other teacher pages retain their shared header.
+
 ## Teacher Mantine Replacement Standard
 
 Teacher-facing UI follows the same no-Mantine rule as student-facing UI.

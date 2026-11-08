@@ -691,7 +691,7 @@ export default function ReadingV2StudioSmokePage() {
           fixture: fixtureLabel,
           publishBlocked: metadata?.publishBlocked,
         })}
-      onSaveDraft={async () => ({ revisionToken: 'smoke-rev-2' })}
+      onSaveDraft={async () => ({ revision: 2 })}
       onPreview={async (snapshot) =>
         generateReadingV2PreviewOnly({
           draftId: snapshot.draftId,

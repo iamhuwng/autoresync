@@ -1,6 +1,8 @@
 // Reading V2 type boundary: V1 Reading files are reference-only. These contracts accept explicit
 // Reading V2 canonical, packaging, or projection shapes; legacy conversions must live in edge adapters.
 import { READING_V2_ENGINE } from '../config/readingV2FeatureFlags';
+import type { ReadingV2AuthoringContext } from '../services/reading-v2/readingV2AuthoringQuality.service';
+export type { ReadingV2AuthoringContext } from '../services/reading-v2/readingV2AuthoringQuality.service';
 import type {
   ReadingV2CanonicalTaskType,
   ReadingV2EngineeringFamily,
@@ -104,6 +106,7 @@ export interface ReadingV2ValidationIssue {
   readonly layoutKind?: 'table' | 'flowchart' | 'diagram';
   readonly questionNumber?: number;
   readonly stimulusId?: string;
+  readonly field?: 'answer' | 'question' | 'options' | 'passage' | 'instruction';
 }
 
 export interface ReadingV2ValidationState {
@@ -332,16 +335,75 @@ export type ReadingV2DraftState =
   | 'superseded'
   | 'discarded';
 
+export interface ReadingV2AuthoringPublicationBase {
+  readonly materialRevision: number;
+  readonly snapshotVersionId: string;
+  readonly compositionId?: string;
+  readonly generatedPassages?: readonly {
+    readonly sectionId: string;
+    readonly materialId: string;
+    readonly snapshotVersionId: string;
+    readonly materialRevision: number;
+  }[];
+}
+
 export interface ReadingV2DraftRecord {
   readonly draftId: ReadingV2DraftId;
   readonly ownerId: string;
   readonly materialId?: ReadingV2MaterialId;
   readonly document: ReadingV2Document;
   readonly studioMetadata?: Readonly<Record<string, unknown>>;
-  readonly revisionToken: string;
+  readonly authoringContext?: ReadingV2AuthoringContext;
+  readonly revision: number;
+  readonly lastOperationId: string;
+  readonly workflowOrigin?: {
+    readonly mode: 'create-blank' | 'create-from-import' | 'create-from-auto' | 'resume-draft' | 'revise-published' | 'duplicate-material' | 'extract-task-group-material';
+    readonly sourceMaterialId?: string;
+    readonly sourceSnapshotVersionId?: string;
+    readonly publicationBase?: ReadingV2AuthoringPublicationBase;
+  };
   readonly state: ReadingV2DraftState;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export type ReadingV2AuthoringRecoveryLocator =
+  | {
+      readonly kind: 'published-snapshot';
+      readonly materialId: ReadingV2MaterialId;
+      readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+    }
+  | {
+      readonly kind: 'inline';
+      readonly document: ReadingV2Document;
+    };
+
+/** Immutable, owner-private authoring state for reopening one exact publication. */
+export interface ReadingV2AuthoringRecoveryRecord {
+  readonly kind: 'authoring-recovery';
+  readonly schemaVersion: ReadingV2SchemaVersion;
+  readonly recordId: string;
+  readonly ownerId: string;
+  readonly materialId: ReadingV2MaterialId;
+  readonly snapshotVersionId: ReadingV2SnapshotVersionId;
+  readonly createdAt: string;
+  readonly createdBy: string;
+  readonly operationId?: string;
+  readonly commitKey?: string;
+  readonly authoring: {
+    readonly draftId?: ReadingV2DraftId;
+    readonly revision?: number;
+    readonly workflowOrigin: {
+      readonly mode: string;
+      readonly sourceMaterialId?: string;
+      readonly sourceSnapshotVersionId?: string;
+    };
+    readonly authoringContext?: ReadingV2AuthoringContext;
+    readonly metadata: Readonly<Record<string, unknown>>;
+    readonly sourceRefs?: readonly { readonly sourceId: string }[];
+    readonly expectedBases?: Readonly<Record<string, unknown>>;
+  };
+  readonly locator: ReadingV2AuthoringRecoveryLocator;
 }
 
 export interface ReadingV2ProvenanceRecord {
@@ -398,6 +460,8 @@ export interface ReadingV2ReadingPassageMaterial
   readonly provenance?: ReadingV2ProvenanceRecord;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Revision of the mutable current aggregate used by conditional writers. */
+  readonly materialRevision?: number;
 }
 
 export interface ReadingV2PassageAsset {
@@ -493,6 +557,8 @@ export interface ReadingV2CompositionNumbering {
 
 export interface ReadingV2FullTestComposition
   extends ReadingV2PlaneMarker<'packaging'> {
+  readonly state?: 'draft' | 'published' | 'removed';
+  readonly mode?: 'draft' | 'published';
   readonly compositionId: ReadingV2FullTestCompositionId;
   readonly testMaterialId: ReadingV2MaterialId;
   readonly title: string;
@@ -508,6 +574,8 @@ export interface ReadingV2FullTestComposition
   readonly publishedVersionId: ReadingV2SnapshotVersionId;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Revision of the mutable current aggregate used by conditional writers. */
+  readonly materialRevision?: number;
 }
 
 export interface ReadingV2PublishedSnapshot {

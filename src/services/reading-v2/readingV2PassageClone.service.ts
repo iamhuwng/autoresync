@@ -26,6 +26,9 @@ import {
   getReadingV2DuplicateIndexPath,
 } from './readingV2PassageDuplicateGuard.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import { buildReadingV2AuthoringRecoveryRecord } from './readingV2PublicationRecovery.service';
+import { prepareReadingV2PublicationUpdates } from './readingV2PublicationGuard.service';
+import { createReadingV2ManualAuthoringContext, evaluateReadingV2AuthoringReadiness } from './readingV2AuthoringQuality.service';
 
 export interface ReadingV2PassageCloneRepository {
   readonly read: (path: string) => Promise<unknown>;
@@ -106,16 +109,6 @@ const isPublishedSnapshot = (value: unknown): value is ReadingV2PublishedSnapsho
   typeof value.snapshotVersionId === 'string' &&
   typeof value.ownerId === 'string' &&
   isRecord(value.document);
-
-const sanitizeIdPart = (value: string): string => {
-  const sanitized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return sanitized || 'reading-passage';
-};
 
 const countInteractions = (document: ReadingV2Document): number =>
   countReadingV2QuestionSlots(Object.values(document.interactions ?? {}));
@@ -206,10 +199,10 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
 
   const clonedAt = input.now ?? new Date().toISOString();
   const clonedMaterialId = readingV2Ids.readingPassageMaterialId(
-    `clone-${sanitizeIdPart(actorTeacherId)}-${sanitizeIdPart(sourceMaterialId)}-${sanitizeIdPart(clonedAt)}`,
+    `clone-${crypto.randomUUID()}`,
   );
   const clonedSnapshotVersionId = readingV2Ids.snapshotVersionId(
-    `clone-${sanitizeIdPart(sourceSnapshotVersionId)}-${sanitizeIdPart(clonedAt)}`,
+    `clone-${crypto.randomUUID()}`,
   );
   const clonedDocument = cloneDocumentForMaterial(
     sourceSnapshot.document,
@@ -232,6 +225,7 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
     clonedFromVisibilitySnapshot: material.visibility,
     clonedAt,
     cloneReason: 'teacher-template-clone',
+    materialRevision: 1,
   };
   const clonedSnapshot: ReadingV2PublishedSnapshot = {
     materialId: clonedMaterialId as unknown as ReadingV2MaterialId,
@@ -308,6 +302,21 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
   }
 
   assertReadingV2ProjectionIsStudentSanitized(studentSafeProjection);
+  const authoringContext = { ...createReadingV2ManualAuthoringContext(), origin: {
+    kind: 'published' as const, materialId: sourceMaterialId, snapshotVersionId: sourceSnapshotVersionId,
+  } };
+  if (!evaluateReadingV2AuthoringReadiness({ document: clonedDocument, metadata, authoringContext }).canPublish) {
+    throw new Error('The selected published passage needs correction before it can be copied.');
+  }
+  const operationId = crypto.randomUUID();
+  const recovery = buildReadingV2AuthoringRecoveryRecord({
+    materialId: clonedMaterialId, snapshotVersionId: clonedSnapshotVersionId, ownerId: actorTeacherId,
+    createdAt: clonedAt, createdBy: actorTeacherId, operationId,
+    locator: { kind: 'published-snapshot', materialId: clonedMaterialId, snapshotVersionId: clonedSnapshotVersionId },
+    authoring: { metadata, authoringContext, workflowOrigin: {
+      mode: 'duplicate-material', sourceMaterialId, sourceSnapshotVersionId,
+    } },
+  });
 
   const updates = sanitizeFirebaseUpdates({
     [readingV2StoragePaths.readingPassageMaterials(clonedMaterialId)]: clonedMaterial,
@@ -317,12 +326,17 @@ export const cloneReadingV2PublicPassageToTeacherLibrary = async (input: {
     [readingV2StoragePaths.studentSafeTests(clonedMaterialId, clonedSnapshotVersionId)]: studentSafeProjection,
     [readingV2StoragePaths.reviewProjections(clonedMaterialId, clonedSnapshotVersionId)]: reviewProjection,
     [readingV2StoragePaths.materialMetadata(clonedMaterialId)]: metadata,
+    [readingV2StoragePaths.provenance(recovery.recordId)]: recovery,
     [getReadingV2DuplicateIndexPath(actorTeacherId, clonedMaterialId)]: duplicateIndexRow,
     ...Object.fromEntries(indexWrites.map((write) => [write.path, write.value])),
     ...buildMaterialSummaryUpdatePayload(summary),
   });
-
-  await input.repository.update(updates);
+  updates[readingV2StoragePaths.publishCommits(clonedMaterialId, clonedSnapshotVersionId)] = {
+    commitKey: `${clonedMaterialId}/${clonedSnapshotVersionId}`, materialId: clonedMaterialId,
+    snapshotVersionId: clonedSnapshotVersionId, ownerId: actorTeacherId, operationId,
+    deliveryEngine: READING_V2_ENGINE, committedAt: clonedAt,
+  };
+  await input.repository.update(await prepareReadingV2PublicationUpdates(updates, input.repository.read));
 
   return {
     material: clonedMaterial,

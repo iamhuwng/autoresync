@@ -199,7 +199,7 @@ describe('Reading V2 gold vertical loop', () => {
     });
     const savedDraft = repository.saveDraft({
       draftId,
-      baseRevisionToken: createdDraft.revisionToken,
+      expectedRevision: createdDraft.revision,
       document,
       studioMetadata: { source: 'phase-6-vertical-loop' },
       state: 'ready-to-publish',
@@ -207,7 +207,7 @@ describe('Reading V2 gold vertical loop', () => {
     });
     const resumedDraft = repository.loadDraft(draftId);
 
-    expect(resumedDraft?.revisionToken).toBe(savedDraft.revisionToken);
+    expect(resumedDraft?.revision).toBe(savedDraft.revision);
     expect(resumedDraft?.document).toEqual(savedDraft.document);
     expect(resumedDraft?.studioMetadata).toEqual({ source: 'phase-6-vertical-loop' });
 

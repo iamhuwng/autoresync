@@ -1,4 +1,3 @@
-import type { ReadingV2ValidationIssue } from '../../../types/readingV2.types';
 import type {
   MaterialTestTypeConfig,
   MaterialTestTypeId,
@@ -29,7 +28,6 @@ export interface ReadingV2StudioMetadata {
 
 export interface ReadingV2MetadataPanelProps {
   readonly metadata: ReadingV2StudioMetadata;
-  readonly validationIssues: readonly ReadingV2ValidationIssue[];
   readonly onMetadataChange: (metadata: ReadingV2StudioMetadata) => void;
 }
 
@@ -41,7 +39,6 @@ const parseTags = (value: string): readonly string[] =>
 
 export function ReadingV2MetadataPanel({
   metadata,
-  validationIssues,
   onMetadataChange,
 }: ReadingV2MetadataPanelProps) {
   const titleIssue = metadata.title.trim().length === 0;
@@ -51,15 +48,12 @@ export function ReadingV2MetadataPanel({
       <div className="reading-v2-studio__panel-heading">
         <div>
           <p>Material setup</p>
-          <h2>Metadata</h2>
+          <h2>Test settings</h2>
         </div>
         <span className={titleIssue ? 'reading-v2-status reading-v2-status--warning' : 'reading-v2-status'}>
           {titleIssue ? 'Needs title' : 'Ready'}
         </span>
       </div>
-      <p className="reading-v2-studio__muted">
-        Metadata updates test setup details and does not change question meaning or live published tests.
-      </p>
       <div className="reading-v2-form-grid">
       <label>
         Title
@@ -68,10 +62,6 @@ export function ReadingV2MetadataPanel({
           value={metadata.title}
           onChange={(event) => onMetadataChange({ ...metadata, title: event.currentTarget.value })}
         />
-      </label>
-      <label>
-        Product marker
-        <input aria-label="Product marker" value={metadata.productMarker} readOnly />
       </label>
       <label>
         Material kind
@@ -153,10 +143,6 @@ export function ReadingV2MetadataPanel({
         <dt>Source summary</dt>
         <dd>{metadata.provenanceSummary}</dd>
       </dl>
-      <p className="reading-v2-studio__readiness" aria-live="polite">
-        Readiness: {titleIssue ? 'Title required before publish' : 'Metadata ready for draft save'}
-      </p>
-      <p className="reading-v2-studio__muted">Validation issues: {validationIssues.length}</p>
     </section>
   );
 }
