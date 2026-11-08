@@ -1042,9 +1042,8 @@
 .reading-v2-runtime__cell-answer-field .reading-v2-runtime__text-input {
   flex: 1 1 auto;
   field-sizing: content;
-  width: auto;
+  width: min(14ch, 100%);
   min-width: 8ch;
-  min-width: 0;
   max-width: 100%;
   min-height: 28px;
   padding: 3px 0;

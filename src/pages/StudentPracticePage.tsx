@@ -81,6 +81,7 @@ import {
 import { BookPlacementRuntimeHost } from '../components/book-runtime/BookPlacementRuntimeHost';
 import type { TestData } from '../services/testStorage';
 import { readListeningHomeworkDocument } from '../features/assessment/listening/runtime/solo/listeningSoloDeliveryClient';
+import { buildReadingV2RuntimeDraftKey } from '../services/reading-v2/readingV2RuntimeDraft.service';
 
 // Lazy import for Writing practice (code-split)
 const WritingPracticeView = lazy(() => import('../components/writing-practice/WritingPracticeView'));
@@ -109,6 +110,7 @@ interface PracticeLocationState {
     resumeFrom?: any;
     autoResume?: boolean;
     supportsAutoResume?: boolean;
+    readingV2ProjectionId?: string;
     // Generic context (from library/course entry points)
     context?: {
         type: string;
@@ -158,12 +160,6 @@ const getReadingV2LaunchSurface = (locationState: PracticeLocationState): Readin
 
     return 'solo-practice';
 };
-
-const getReadingV2PracticePersistenceKey = (input: {
-    studentId?: string;
-    materialId?: string;
-    projectionId: string;
-}): string => `reading-v2:practice:${input.studentId ?? 'anonymous'}:${input.materialId}:${input.projectionId}`;
 
 const normalizePositiveTimerMinutes = (value: unknown): number | null => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -867,6 +863,7 @@ const StudentPracticePageContent: React.FC = () => {
         }
 
         const canResumePractice = testType === 'IELTS'
+            || testType === 'ReadingV2'
             || (testType === 'THCS' && locationState.isHomework && Boolean(locationState.submissionId));
 
         if (!canResumePractice) {
@@ -879,9 +876,16 @@ const StudentPracticePageContent: React.FC = () => {
             locationState: {
                 ...locationState,
                 supportsAutoResume: testType === 'IELTS',
+                ...(testType === 'ReadingV2' && readingV2Projection?.projectionId
+                    ? {
+                        supportsAutoResume: true,
+                        readingV2ProjectionId: readingV2Projection.projectionId,
+                        startedAt: locationState.startedAt ?? readingV2StartedAt,
+                    }
+                    : {}),
             },
         });
-    }, [error, loading, locationState, materialId, testType, user?.uid]);
+    }, [error, loading, locationState, materialId, readingV2Projection?.projectionId, readingV2StartedAt, testType, user?.uid]);
 
     useEffect(() => {
         if (!error) {
@@ -1011,7 +1015,7 @@ const StudentPracticePageContent: React.FC = () => {
             }
 
             await Promise.allSettled([
-                storage.remove(getReadingV2PracticePersistenceKey({
+                storage.remove(buildReadingV2RuntimeDraftKey({
                     studentId: user?.uid,
                     materialId,
                     projectionId: payload.projectionId,
@@ -1069,6 +1073,19 @@ const StudentPracticePageContent: React.FC = () => {
     const handleReadingV2Exit = useCallback(() => {
         const launchSurface = getReadingV2LaunchSurface(locationState);
 
+        if (user?.uid && materialId && readingV2Projection?.projectionId) {
+            void studentResumeService.savePracticeResume({
+                studentId: user.uid,
+                materialId,
+                locationState: {
+                    ...locationState,
+                    supportsAutoResume: true,
+                    readingV2ProjectionId: readingV2Projection.projectionId,
+                    startedAt: locationState.startedAt ?? readingV2StartedAt,
+                },
+            });
+        }
+
         trackAction('leaveTest', {
             surface: launchSurface,
             materialId: materialId ?? null,
@@ -1095,7 +1112,10 @@ const StudentPracticePageContent: React.FC = () => {
         locationState,
         materialId,
         navigateTo,
+        readingV2Projection?.projectionId,
+        readingV2StartedAt,
         trackAction,
+        user?.uid,
     ]);
 
     // ── Loading ────────────────────────────────────────────────────────────────
@@ -1158,7 +1178,7 @@ const StudentPracticePageContent: React.FC = () => {
                     onAction={(action, metadata) => trackAction(action, metadata)}
                     initialAnswers={readingV2Answers}
                     onAnswersChange={setReadingV2Answers}
-                    persistenceKey={getReadingV2PracticePersistenceKey({
+                    persistenceKey={buildReadingV2RuntimeDraftKey({
                         studentId: user?.uid,
                         materialId,
                         projectionId: readingV2Projection.projectionId,

@@ -8,9 +8,28 @@ const normalizeText = (value: unknown, options: {
 }): string => {
   const joined = Array.isArray(value) ? value.join('|') : String(value ?? '');
   const cased = options.caseSensitive ? joined : joined.toLowerCase();
-  const punctuated = options.punctuationSensitive ? cased : cased.replace(/[^\p{L}\p{N}\s|]/gu, '');
+  const punctuated = options.punctuationSensitive ? cased : cased.replace(/[^\p{L}\p{N}\s|/]/gu, '');
   return punctuated.replace(/\s+/g, ' ').trim();
 };
+
+const canonicalNumericAnswer = (value: unknown): string | null => {
+  const text = String(value ?? '').trim();
+  const integer = text.match(/^\d+$/u) ?? text.match(/^\d{1,3}(?:,\d{3})+$/u);
+  if (integer) {
+    return `integer:${text.replace(/,/g, '').replace(/^0+(?=\d)/u, '')}`;
+  }
+
+  const decimal = text.match(/^\d+\.\d+$/u);
+  if (!decimal) {
+    return null;
+  }
+
+  const [whole, fraction] = text.split('.');
+  const normalizedFraction = fraction?.replace(/0+$/u, '') ?? '';
+  return `decimal:${(whole ?? '0').replace(/^0+(?=\d)/u, '')}.${normalizedFraction || '0'}`;
+};
+
+const numericLike = (value: unknown): boolean => /^[\d][\d\s,.-]*$/u.test(String(value ?? '').trim());
 
 const normalizeAnswerItems = (
   value: unknown,
@@ -138,7 +157,17 @@ export const answerMatches = (
 
   const normalizedStudent = normalizeText(optionLabelForAnswer(studentAnswer, optionSet), interaction.scoringRule);
   return acceptableAnswers.some(
-    (answer) => normalizeText(optionLabelForAnswer(answer, optionSet), interaction.scoringRule) === normalizedStudent,
+    (answer) => {
+      const expectedLabel = optionLabelForAnswer(answer, optionSet);
+      const studentLabel = optionLabelForAnswer(studentAnswer, optionSet);
+      const expectedNumeric = canonicalNumericAnswer(expectedLabel);
+      const studentNumeric = canonicalNumericAnswer(studentLabel);
+      if (expectedNumeric || studentNumeric || numericLike(expectedLabel) || numericLike(studentLabel)) {
+        return Boolean(expectedNumeric && studentNumeric && expectedNumeric === studentNumeric);
+      }
+
+      return normalizeText(expectedLabel, interaction.scoringRule) === normalizedStudent;
+    },
   );
 };
 

@@ -6,6 +6,7 @@ import { getSubmissionById } from './homeworkSubmissionService';
 import { hasSoloProgress } from './soloProgress.service';
 import { hasWritingProgress } from './writingProgress.service';
 import type { SoloProgressScopeContext } from '../types/practice.types';
+import { buildReadingV2RuntimeDraftKey } from './reading-v2/readingV2RuntimeDraft.service';
 
 const STUDENT_RESUME_KEY = 'student_activity_resume_v1';
 const LIVE_RESUME_TTL_MS = 12 * 60 * 60 * 1000;
@@ -27,6 +28,7 @@ type PracticeLocationState = {
   resumeFrom?: unknown;
   autoResume?: boolean;
   supportsAutoResume?: boolean;
+  readingV2ProjectionId?: string;
   context?: {
     type: string;
     source: { type: string; id: string; name: string };
@@ -97,6 +99,14 @@ async function hasLocalPracticeProgress(
   studentId: string,
   locationState: PracticeLocationState,
 ): Promise<boolean> {
+  if (locationState.readingV2ProjectionId) {
+    return storage.has(buildReadingV2RuntimeDraftKey({
+      studentId,
+      materialId,
+      projectionId: locationState.readingV2ProjectionId,
+    }));
+  }
+
   const scopeContext = getSoloProgressScopeContext(locationState);
   const [hasScopedSoloProgress, hasScopedWritingProgress] = await Promise.all([
     hasSoloProgress({

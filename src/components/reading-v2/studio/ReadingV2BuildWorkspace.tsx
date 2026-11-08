@@ -35,6 +35,7 @@ import { ReadingV2TableCompletionBuilder } from './ReadingV2TableCompletionBuild
 import { updateReadingV2InstructionLimits } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
 import { setReadingV2MultipleSelectCount } from '../../../services/reading-v2/readingV2MultipleSelectNormalization.service';
 import { readingV2CompletionAnswerViolatesRule } from '../../../services/reading-v2/readingV2Validation.service';
+import { parseReadingV2AcceptedAnswerText } from '../../../services/reading-v2/readingV2ImportNormalization.service';
 
 export interface ReadingV2BuildPassageSlot {
   readonly passageNumber: number;
@@ -222,10 +223,7 @@ const createOptionSet = (
 };
 
 const parseAnswers = (value: string): readonly string[] =>
-  value
-    .split('|')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  parseReadingV2AcceptedAnswerText(value);
 
 const formatAnswers = (answers: readonly string[] | undefined): string => answers?.join(' | ') ?? '';
 

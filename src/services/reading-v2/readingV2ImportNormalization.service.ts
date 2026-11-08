@@ -301,7 +301,7 @@ const expandOptionalAnswerNotation = (value: string): readonly string[] => {
   return uniqueAnswerVariants(variants.map((variant) => `${variant}${tail}`));
 };
 
-const acceptedAnswerVariantsFromText = (answerText: string): readonly string[] =>
+export const parseReadingV2AcceptedAnswerText = (answerText: string): readonly string[] =>
   uniqueAnswerVariants(
     answerText
       .split('|')
@@ -376,7 +376,7 @@ const parsedAnswerValues = (
 } => {
   const diagnostics: ReadingV2TeacherAnswerKeyDiagnostic[] = [];
   const explicitSegments = answerText.split('|');
-  const values = acceptedAnswerVariantsFromText(answerText);
+  const values = parseReadingV2AcceptedAnswerText(answerText);
 
   if (answerText.includes('|') && explicitSegments.some((value) => canonicalAnswerText(value).length === 0)) {
     diagnostics.push(
@@ -778,7 +778,7 @@ const normalizeAnswersForResponseShape = (
       const cleaned = cleanMarkdown(answer);
       return responseShape.kind === 'binary-judgement'
         ? [normalizeReadingV2JudgementAnswerForStorage(cleaned, responseShape.vocabulary)]
-        : acceptedAnswerVariantsFromText(cleaned);
+        : parseReadingV2AcceptedAnswerText(cleaned);
     }),
   );
 

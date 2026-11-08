@@ -3,6 +3,7 @@ import type {
   ReadingV2ScoringRule,
   ReadingV2TaskGroup,
 } from '../../../types/readingV2.types';
+import { parseReadingV2AcceptedAnswerText } from '../../../services/reading-v2/readingV2ImportNormalization.service';
 
 export interface ReadingV2AnswerRuleEditorProps {
   readonly taskGroup: ReadingV2TaskGroup;
@@ -13,10 +14,7 @@ export interface ReadingV2AnswerRuleEditorProps {
 }
 
 const parseAcceptableAnswers = (value: string): readonly string[] =>
-  value
-    .split('|')
-    .map((answer) => answer.trim())
-    .filter(Boolean);
+  parseReadingV2AcceptedAnswerText(value);
 
 const updateScoringRule = (
   interaction: ReadingV2Interaction,

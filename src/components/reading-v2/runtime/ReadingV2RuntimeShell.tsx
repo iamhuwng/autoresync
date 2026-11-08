@@ -3,6 +3,7 @@
 import { Fragment, type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMobileExamMode } from '../../../core/platform/hooks/useMobileExamMode';
 import { useScreenSize } from '../../../core/platform/hooks/useScreenSize';
+import { useAppLifecycle } from '../../../core/platform/hooks/useAppLifecycle';
 import { storage } from '../../../core/platform/storage';
 import {
   assertReadingV2RuntimeProjection,
@@ -15,6 +16,13 @@ import type {
   ReadingV2ProjectedTaskGroup,
 } from '../../../services/reading-v2/readingV2Projection.service';
 import type { ReadingV2TableCellContent } from '../../../types/readingV2.types';
+import {
+  isReadingV2RuntimeAnswerMap,
+  isReadingV2RuntimeDraft,
+  READING_V2_RUNTIME_DRAFT_SCHEMA_VERSION,
+  type ReadingV2RuntimeDraft,
+  type ReadingV2RuntimeDraftHighlight,
+} from '../../../services/reading-v2/readingV2RuntimeDraft.service';
 import {
   getReadingV2InstructionText,
   readReadingV2InstructionFacts,
@@ -119,11 +127,7 @@ export interface ReadingV2RuntimeShellProps {
 
 type ReadingV2ProjectedSection = ReadingV2DerivedProjection['content']['sections'][number];
 
-interface PassageHighlight {
-  readonly id: string;
-  readonly text: string;
-  readonly color: string;
-}
+export type PassageHighlight = ReadingV2RuntimeDraftHighlight;
 
 const RUNTIME_STATES: Record<ReadingV2RuntimeState, { title: string; message: string }> = {
   ready: {
@@ -642,6 +646,18 @@ interface StimulusViewProps {
   readonly onAddHighlight: (highlight: PassageHighlight) => void;
 }
 
+const closestReadingV2TextAnchor = (node: Node | null): HTMLElement | null => {
+  const element = node instanceof HTMLElement ? node : node?.parentElement;
+  return element?.closest<HTMLElement>('[data-reading-v2-text-anchor]') ?? null;
+};
+
+const textOffsetWithinElement = (element: HTMLElement, node: Node, offset: number): number => {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.setEnd(node, offset);
+  return range.toString().length;
+};
+
 function StimulusView({
   stimulus,
   fontSize,
@@ -660,15 +676,50 @@ function StimulusView({
 
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
-    if (!selectedText || selectedText.length < 2) {
+    if (!selection || typeof selection.getRangeAt !== 'function' || selection.rangeCount < 1 || !selectedText || selectedText.length < 2) {
       return;
     }
 
-    onAddHighlight({
-      id: `highlight-${Date.now()}-${selectedText.slice(0, 12)}`,
-      text: selectedText,
-      color: highlightColor,
-    });
+    const passage = selection.anchorNode?.parentElement?.closest<HTMLElement>('.reading-v2-runtime__passage');
+    const textRoots = passage
+      ? Array.from(passage.querySelectorAll<HTMLElement>('[data-reading-v2-text-anchor]'))
+      : [];
+    const startRoot = closestReadingV2TextAnchor(selection.getRangeAt(0).startContainer);
+    const endRoot = closestReadingV2TextAnchor(selection.getRangeAt(0).endContainer);
+    const startIndex = startRoot ? textRoots.indexOf(startRoot) : -1;
+    const endIndex = endRoot ? textRoots.indexOf(endRoot) : -1;
+
+    if (startIndex >= 0 && endIndex >= startIndex) {
+      const range = selection.getRangeAt(0);
+      const baseId = `highlight-${Date.now()}-${selectedText.slice(0, 12)}`;
+      for (let index = startIndex; index <= endIndex; index += 1) {
+        const root = textRoots[index];
+        if (!root) {
+          continue;
+        }
+
+        const rootText = root.textContent ?? '';
+        const startOffset = index === startIndex
+          ? textOffsetWithinElement(root, range.startContainer, range.startOffset)
+          : 0;
+        const endOffset = index === endIndex
+          ? textOffsetWithinElement(root, range.endContainer, range.endOffset)
+          : rootText.length;
+        if (endOffset <= startOffset) {
+          continue;
+        }
+
+        onAddHighlight({
+          id: `${baseId}-${index}`,
+          text: rootText.slice(startOffset, endOffset),
+          color: highlightColor,
+          stimulusId: stimulus?.stimulusId ?? '',
+          paragraphAnchorId: root.dataset.readingV2TextAnchor ?? `${stimulus?.stimulusId ?? 'stimulus'}-paragraph-${index}`,
+          startOffset,
+          endOffset,
+        });
+      }
+    }
     selection?.removeAllRanges();
   };
 
@@ -694,9 +745,23 @@ function StimulusView({
           for (let index = 0; index < paragraphs.length; index += 1) {
             const paragraph = paragraphs[index];
             const key = paragraph.anchorId ?? paragraph.itemId ?? `${stimulus.stimulusId}-${index}`;
+            const paragraphAnchorIdFor = (entry: typeof paragraph): string =>
+              entry.anchorId ?? entry.itemId ?? `${stimulus.stimulusId}-paragraph-${paragraphs.indexOf(entry)}`;
             const content = (entry: typeof paragraph) => {
               const displayLabel = getParagraphDisplayLabel(entry.label);
-              return <>{displayLabel ? <strong className="reading-v2-runtime__passage-label">{displayLabel} </strong> : null}<ReadingV2FormattedText text={entry.text} highlights={highlights} preserveLineBreaks /></>;
+              const paragraphAnchorId = paragraphAnchorIdFor(entry);
+              return (
+                <>
+                  {displayLabel ? <strong className="reading-v2-runtime__passage-label">{displayLabel} </strong> : null}
+                  <span data-reading-v2-text-anchor={paragraphAnchorId}>
+                    <ReadingV2FormattedText
+                      text={entry.text}
+                      highlights={highlights.filter((highlight) => highlight.paragraphAnchorId === paragraphAnchorId)}
+                      preserveLineBreaks
+                    />
+                  </span>
+                </>
+              );
             };
             if (paragraph.blockKind === 'list-item') {
               const listKind = paragraph.listKind ?? 'bullet';
@@ -2347,6 +2412,7 @@ export function ReadingV2RuntimeShell({
   const [showReviewSummary, setShowReviewSummary] = useState(false);
   const [submitPhase, setSubmitPhase] = useState<'idle' | 'pending' | 'failure' | 'success'>('idle');
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [persistedTimerStartedAt, setPersistedTimerStartedAt] = useState<number | null>(null);
   const [autoSubmitReason, setAutoSubmitReason] = useState<'timer' | 'force-submit' | null>(null);
   const [navigationScrollVersion, setNavigationScrollVersion] = useState(0);
   const [leftWidthPercent, setLeftWidthPercent] = useState(50);
@@ -2375,8 +2441,13 @@ export function ReadingV2RuntimeShell({
   const textSizeHydratedRef = useRef(!textSizeStorageKey);
   const textSizeDirtyRef = useRef(false);
   const answersDirtyRef = useRef(false);
+  const draftDirtyRef = useRef(false);
   const answersRef = useRef(answers);
+  const highlightsRef = useRef(highlights);
   const initialAnswersRef = useRef(initialAnswers);
+  const activeSectionIdRef = useRef(activeSectionId);
+  const activeTaskGroupIdRef = useRef(activeTaskGroupId);
+  const activeInteractionIdRef = useRef(activeInteractionId);
   const lastForceSubmitTokenRef = useRef<string | number | null | undefined>(null);
   const autoSubmitTokenRef = useRef<string | null>(null);
   const evaluatedTimerTokenRef = useRef<string | null>(null);
@@ -2472,7 +2543,41 @@ export function ReadingV2RuntimeShell({
   ) : null;
 
   answersRef.current = answers;
+  highlightsRef.current = highlights;
   initialAnswersRef.current = initialAnswers;
+  activeSectionIdRef.current = activeSectionId;
+  activeTaskGroupIdRef.current = activeTaskGroupId;
+  activeInteractionIdRef.current = activeInteractionId;
+
+  const persistRuntimeDraft = () => {
+    if (!persistenceKey || !persistenceHydratedRef.current || !runtimeProjection) {
+      return;
+    }
+
+    const draft: ReadingV2RuntimeDraft = {
+      schemaVersion: READING_V2_RUNTIME_DRAFT_SCHEMA_VERSION,
+      projectionId: runtimeProjection.projectionId,
+      sourceSnapshotVersionId: runtimeProjection.sourceSnapshotVersionId,
+      answers: answersRef.current,
+      highlights: highlightsRef.current,
+      startedAt: persistedTimerStartedAt ?? timer?.startedAt ?? null,
+      activeSectionId: activeSectionIdRef.current,
+      activeTaskGroupId: activeTaskGroupIdRef.current,
+      activeInteractionId: activeInteractionIdRef.current,
+      updatedAt: Date.now(),
+    };
+
+    void storage.set(persistenceKey, draft);
+  };
+
+  useAppLifecycle({
+    onBeforeUnload: () => {
+      persistRuntimeDraft();
+    },
+    onBackground: () => {
+      persistRuntimeDraft();
+    },
+  });
 
   useEffect(() => {
     if (persistenceKey) {
@@ -2492,9 +2597,11 @@ export function ReadingV2RuntimeShell({
     let cancelled = false;
     persistenceHydratedRef.current = false;
     answersDirtyRef.current = false;
+    draftDirtyRef.current = false;
+    setPersistedTimerStartedAt(null);
 
     const hydrateAnswers = async () => {
-      const saved = await storage.get<Readonly<Record<string, ReadingV2AnswerValue>>>(persistenceKey);
+      const saved = await storage.get<ReadingV2RuntimeDraft>(persistenceKey);
       if (cancelled) {
         return;
       }
@@ -2502,16 +2609,36 @@ export function ReadingV2RuntimeShell({
       persistenceHydratedRef.current = true;
       logRuntimeDiagnostic('answers_persistence_hydrated', {
         projectionId: runtimeProjectionId,
-        hasSavedAnswers: Boolean(saved),
-        dirtyDuringHydration: answersDirtyRef.current,
+        hasSavedAnswers: Boolean(saved?.answers),
+        dirtyDuringHydration: draftDirtyRef.current,
       });
 
-      if (answersDirtyRef.current) {
-        await storage.set(persistenceKey, answersRef.current);
+      if (draftDirtyRef.current) {
+        persistRuntimeDraft();
         return;
       }
 
-      setAnswers(saved ?? initialAnswersRef.current ?? {});
+      if (!isReadingV2RuntimeDraft(saved)) {
+        if (isReadingV2RuntimeAnswerMap(saved)) {
+          setAnswers(saved);
+          return;
+        }
+        setAnswers(initialAnswersRef.current ?? {});
+        return;
+      }
+
+      setAnswers(saved.answers);
+      setHighlights(saved.highlights);
+      setPersistedTimerStartedAt(typeof saved.startedAt === 'number' ? saved.startedAt : null);
+      if (saved.activeSectionId) {
+        setActiveSectionId(saved.activeSectionId);
+      }
+      if (saved.activeTaskGroupId) {
+        setActiveTaskGroupId(saved.activeTaskGroupId);
+      }
+      if (saved.activeInteractionId) {
+        setActiveInteractionId(saved.activeInteractionId);
+      }
     };
 
     void hydrateAnswers();
@@ -2528,8 +2655,8 @@ export function ReadingV2RuntimeShell({
       return;
     }
 
-    void storage.set(persistenceKey, answers);
-  }, [answers, onAnswersChange, persistenceKey]);
+    persistRuntimeDraft();
+  }, [answers, highlights, activeSectionId, activeTaskGroupId, activeInteractionId, onAnswersChange, persistenceKey]);
 
   useEffect(() => {
     textSizeDirtyRef.current = false;
@@ -2614,13 +2741,14 @@ export function ReadingV2RuntimeShell({
   }, [persistenceKey, submitPhase]);
 
   useEffect(() => {
-    if (!timerDurationSeconds || !timer?.startedAt) {
+    const timerStartedAt = persistedTimerStartedAt ?? timer?.startedAt;
+    if (!timerDurationSeconds || !timerStartedAt) {
       setTimeRemaining(null);
       return;
     }
 
     const updateRemaining = () => {
-      const timerToken = `timer:${timer.startedAt}:${timerDurationSeconds}`;
+      const timerToken = `timer:${timerStartedAt}:${timerDurationSeconds}`;
       const isInitialTimerEvaluation = evaluatedTimerTokenRef.current !== timerToken;
       if (isInitialTimerEvaluation) {
         evaluatedTimerTokenRef.current = timerToken;
@@ -2628,15 +2756,15 @@ export function ReadingV2RuntimeShell({
 
       const elapsedSeconds = Math.max(
         0,
-        Math.floor((Date.now() - timer.startedAt! - (timer.pausedDurationMs ?? 0)) / 1000),
+        Math.floor((Date.now() - timerStartedAt - (timer?.pausedDurationMs ?? 0)) / 1000),
       );
       const nextRemaining = Math.max(0, timerDurationSeconds - elapsedSeconds);
       setTimeRemaining(nextRemaining);
 
       if (
         nextRemaining <= 0 &&
-        timer.autoSubmitOnExpiry &&
-        timer.running !== false &&
+        timer?.autoSubmitOnExpiry === true &&
+        timer?.running !== false &&
         canSubmit &&
         autoSubmitTokenRef.current !== timerToken
       ) {
@@ -2645,16 +2773,16 @@ export function ReadingV2RuntimeShell({
         if (isInitialTimerEvaluation) {
           logRuntimeDiagnostic('timer_initial_expired_auto_submit_suppressed', {
             projectionId: runtimeProjectionId,
-            startedAt: timer.startedAt,
-            durationMinutes: timer.durationMinutes,
+            startedAt: timerStartedAt,
+            durationMinutes: timer?.durationMinutes,
           });
           return;
         }
 
         logRuntimeDiagnostic('timer_auto_submit_requested', {
           projectionId: runtimeProjectionId,
-          startedAt: timer.startedAt,
-          durationMinutes: timer.durationMinutes,
+          startedAt: timerStartedAt,
+          durationMinutes: timer?.durationMinutes,
         });
         setAutoSubmitReason('timer');
       }
@@ -2662,7 +2790,7 @@ export function ReadingV2RuntimeShell({
 
     updateRemaining();
 
-    if (timer.running === false || submitPhase === 'success') {
+    if (timer?.running === false || submitPhase === 'success') {
       return;
     }
 
@@ -2673,6 +2801,7 @@ export function ReadingV2RuntimeShell({
     timer?.pausedDurationMs,
     timer?.running,
     timer?.startedAt,
+    persistedTimerStartedAt,
     timerDurationSeconds,
     canSubmit,
     runtimeProjectionId,
@@ -2959,19 +3088,39 @@ export function ReadingV2RuntimeShell({
 
   const recordAnswer = (interaction: ReadingV2ProjectedInteraction, value: ReadingV2AnswerValue) => {
     answersDirtyRef.current = true;
-    setAnswers((current) => ({
-      ...current,
+    draftDirtyRef.current = true;
+    const nextAnswers = {
+      ...answersRef.current,
       [interaction.interactionId]: value,
-    }));
+    };
+    answersRef.current = nextAnswers;
+    setAnswers(() => nextAnswers);
+    persistRuntimeDraft();
   };
 
   const clearAnswer = (interaction: ReadingV2ProjectedInteraction) => {
     answersDirtyRef.current = true;
-    setAnswers((current) => {
-      const next = { ...current };
-      delete next[interaction.interactionId];
-      return next;
-    });
+    draftDirtyRef.current = true;
+    const nextAnswers = { ...answersRef.current };
+    delete nextAnswers[interaction.interactionId];
+    answersRef.current = nextAnswers;
+    setAnswers(() => nextAnswers);
+    persistRuntimeDraft();
+  };
+
+  const addHighlight = (highlight: PassageHighlight) => {
+    draftDirtyRef.current = true;
+    const nextHighlights = [...highlightsRef.current, highlight];
+    highlightsRef.current = nextHighlights;
+    setHighlights(() => nextHighlights);
+    persistRuntimeDraft();
+  };
+
+  const clearHighlights = () => {
+    draftDirtyRef.current = true;
+    highlightsRef.current = [];
+    setHighlights([]);
+    persistRuntimeDraft();
   };
 
   const submitPayload = (): ReadingV2RuntimeSubmitPayload => ({
@@ -3096,7 +3245,7 @@ export function ReadingV2RuntimeShell({
       highlightColor={highlightColor}
       activeAnchorId={activeInteraction?.primaryAnchorId ?? null}
       anchorQuestionNumbers={anchorQuestionNumbers}
-      onAddHighlight={(highlight) => setHighlights((current) => [...current, highlight])}
+      onAddHighlight={addHighlight}
     />
   );
 
@@ -3434,7 +3583,7 @@ export function ReadingV2RuntimeShell({
             className="reading-v2-runtime__desktop"
             aria-label="Desktop and tablet two-column runtime"
             style={{
-              gridTemplateColumns: `minmax(320px, ${leftWidthPercent}%) 10px minmax(360px, ${100 - leftWidthPercent}%)`,
+              gridTemplateColumns: `minmax(0, ${leftWidthPercent}fr) 10px minmax(0, ${100 - leftWidthPercent}fr)`,
             }}
           >
             <section className="reading-v2-runtime__left-column" aria-label="Left passage and stimulus column">
@@ -3450,7 +3599,7 @@ export function ReadingV2RuntimeShell({
                 onLineHeightChange={setPassageLineHeight}
                 onHighlighterActiveChange={setHighlighterActive}
                 onHighlightColorChange={setHighlightColor}
-                onClearHighlights={() => setHighlights([])}
+                onClearHighlights={clearHighlights}
               />
               {stimulusView}
             </section>

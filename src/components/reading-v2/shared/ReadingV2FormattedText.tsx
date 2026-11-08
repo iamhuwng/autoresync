@@ -4,6 +4,8 @@ export interface ReadingV2TextHighlight {
   readonly id: string;
   readonly text: string;
   readonly color: string;
+  readonly startOffset?: number;
+  readonly endOffset?: number;
 }
 
 export interface ReadingV2InlineToken {
@@ -69,6 +71,7 @@ const renderPlainText = (
   text: string,
   highlights: readonly ReadingV2TextHighlight[],
   keyPrefix: string,
+  textOffset = 0,
 ): ReactNode => {
   if (highlights.length === 0) {
     return text;
@@ -79,11 +82,19 @@ const renderPlainText = (
 
   while (cursor < text.length) {
     const nextMatch = highlights
-      .map((highlight) => ({
-        highlight,
-        index: text.indexOf(highlight.text, cursor),
-      }))
-      .filter((candidate) => candidate.index >= 0)
+      .map((highlight) => {
+        if (typeof highlight.startOffset === 'number' && typeof highlight.endOffset === 'number') {
+          const absoluteStart = Math.max(highlight.startOffset, textOffset + cursor, textOffset);
+          const absoluteEnd = Math.min(highlight.endOffset, textOffset + text.length);
+          if (absoluteEnd <= absoluteStart) return null;
+          const index = absoluteStart - textOffset;
+          return { highlight, index, end: absoluteEnd - textOffset, text: text.slice(index, absoluteEnd - textOffset) };
+        }
+
+        const index = text.indexOf(highlight.text, cursor);
+        return index >= 0 ? { highlight, index, end: index + highlight.text.length, text: highlight.text } : null;
+      })
+      .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
       .sort((a, b) => a.index - b.index)[0];
 
     if (!nextMatch) {
@@ -101,10 +112,10 @@ const renderPlainText = (
         key={`${keyPrefix}-${nextMatch.highlight.id}-${nextMatch.index}`}
         style={{ backgroundColor: nextMatch.highlight.color }}
       >
-        {nextMatch.highlight.text}
+        {nextMatch.text}
       </mark>,
     );
-    cursor = nextMatch.index + nextMatch.highlight.text.length;
+    cursor = nextMatch.end;
   }
 
   return nodes;
@@ -115,20 +126,29 @@ const renderToken = (
   index: number,
   highlights: readonly ReadingV2TextHighlight[],
   preserveLineBreaks: boolean,
+  textOffset: number,
 ): ReactNode => {
   const nestedTokens = token.kind === 'text' || token.kind === 'code'
     ? null
     : parseReadingV2InlineMarkdown(token.text);
+  let nestedTextOffset = textOffset;
   const content = nestedTokens
-    ? nestedTokens.map((nestedToken, nestedIndex) => renderToken(nestedToken, nestedIndex, highlights, preserveLineBreaks))
+    ? nestedTokens.map((nestedToken, nestedIndex) => {
+      const rendered = renderToken(nestedToken, nestedIndex, highlights, preserveLineBreaks, nestedTextOffset);
+      nestedTextOffset += nestedToken.text.length;
+      return rendered;
+    })
     : preserveLineBreaks
-    ? token.text.split('\n').map((line, lineIndex) => (
-      <Fragment key={lineIndex}>
-        {lineIndex > 0 ? <br /> : null}
-        {renderPlainText(line, highlights, `formatted-${index}-${lineIndex}`)}
-      </Fragment>
-    ))
-    : renderPlainText(token.text, highlights, `formatted-${index}`);
+    ? token.text.split('\n').map((line, lineIndex) => {
+      const lineOffset = textOffset + token.text.split('\n').slice(0, lineIndex).reduce((total, value) => total + value.length + 1, 0);
+      return (
+        <Fragment key={lineIndex}>
+          {lineIndex > 0 ? <br /> : null}
+          {renderPlainText(line, highlights, `formatted-${index}-${lineIndex}`, lineOffset)}
+        </Fragment>
+      );
+    })
+    : renderPlainText(token.text, highlights, `formatted-${index}`, textOffset);
 
   if (token.kind === 'strong') {
     return <strong key={`strong-${index}`}>{content}</strong>;
@@ -151,9 +171,14 @@ export function ReadingV2FormattedText({
   highlights = [],
   preserveLineBreaks = false,
 }: ReadingV2FormattedTextProps) {
+  let textOffset = 0;
   return (
     <>
-      {parseReadingV2InlineMarkdown(text).map((token, index) => renderToken(token, index, highlights, preserveLineBreaks))}
+      {parseReadingV2InlineMarkdown(text).map((token, index) => {
+        const rendered = renderToken(token, index, highlights, preserveLineBreaks, textOffset);
+        textOffset += token.text.length;
+        return rendered;
+      })}
     </>
   );
 }

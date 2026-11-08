@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildSoloProgressStorageKey } from './soloProgress.service';
 import { buildWritingProgressStorageKey } from './writingProgress.service';
+import { buildReadingV2RuntimeDraftKey, READING_V2_RUNTIME_DRAFT_SCHEMA_VERSION } from './reading-v2/readingV2RuntimeDraft.service';
 
 const storageHarness = vi.hoisted(() => {
   const data = new Map<string, unknown>();
@@ -110,6 +111,46 @@ describe('studentResumeService', () => {
         homeworkId: 'hw-1',
         submissionId: 'sub-1',
         teacherId: 'teacher-1',
+        autoResume: true,
+      },
+    });
+  });
+
+  it('resolves an aged Reading V2 resume when its local draft exists', async () => {
+    const { studentResumeService } = await import('./studentResume.service');
+    const projectionId = 'projection-reading-v2-1';
+
+    storageHarness.data.set('student_activity_resume_v1', {
+      kind: 'practice',
+      studentId: 'student-1',
+      materialId: 'material-reading-v2-1',
+      locationState: {
+        readingV2ProjectionId: projectionId,
+        supportsAutoResume: true,
+        startedAt: Date.now() - 60_000,
+      },
+      updatedAt: Date.now() - (13 * 60 * 60 * 1000),
+    });
+    storageHarness.data.set(buildReadingV2RuntimeDraftKey({
+      studentId: 'student-1',
+      materialId: 'material-reading-v2-1',
+      projectionId,
+    }), {
+      schemaVersion: READING_V2_RUNTIME_DRAFT_SCHEMA_VERSION,
+      projectionId,
+      sourceSnapshotVersionId: 'snapshot-1',
+      answers: { question: 'answer' },
+      highlights: [],
+      updatedAt: Date.now() - 60_000,
+    });
+
+    await expect(studentResumeService.resolveResume('student-1')).resolves.toEqual({
+      route: 'STUDENT_PRACTICE',
+      params: { materialId: 'material-reading-v2-1' },
+      state: {
+        readingV2ProjectionId: projectionId,
+        supportsAutoResume: true,
+        startedAt: expect.any(Number),
         autoResume: true,
       },
     });

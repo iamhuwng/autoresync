@@ -267,10 +267,22 @@ describe('ReadingV2RuntimeShell', () => {
 
     if (width > 768) {
       await userEvent.click(screen.getByRole('button', { name: 'Highlighter OFF' }));
-      vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'one', removeAllRanges: vi.fn() } as unknown as Selection);
+      const highlightedText = within(lists[0]).getByText('one').firstChild;
+      expect(highlightedText).toBeInstanceOf(Text);
+      const selectionRange = document.createRange();
+      selectionRange.setStart(highlightedText as Text, 0);
+      selectionRange.setEnd(highlightedText as Text, 3);
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        anchorNode: highlightedText,
+        rangeCount: 1,
+        getRangeAt: () => selectionRange,
+        toString: () => 'one',
+        removeAllRanges: vi.fn(),
+      } as unknown as Selection);
       fireEvent.mouseUp(passage);
-      expect(within(lists[0]).getByText('one').tagName).toBe('MARK');
-      expect(within(lists[0]).getByText('one').parentElement?.tagName).toBe('STRONG');
+      const highlightedMatches = within(lists[0]).getAllByText('one');
+      expect(highlightedMatches.some((element) => element.tagName === 'MARK')).toBe(true);
+      expect(highlightedMatches.some((element) => element.parentElement?.tagName === 'STRONG')).toBe(true);
     }
   });
 
@@ -286,6 +298,19 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Grouped instructions')).toHaveTextContent('Choose NO MORE THAN TWO WORDS from the passage for each answer.');
     expect(screen.getByLabelText('Question 1')).toHaveTextContent('Complete the fixture sentence with the first missing word.');
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeInTheDocument();
+  });
+
+  it('keeps splitter tracks proportional without impossible hard minimums', () => {
+    setViewport(768, 700);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    const slider = screen.getByRole('slider', { name: 'Resize passage and questions columns' });
+    fireEvent.change(slider, { target: { value: '70' } });
+
+    expect(screen.getByLabelText('Desktop and tablet two-column runtime')).toHaveStyle(
+      'grid-template-columns: minmax(0, 70fr) 10px minmax(0, 30fr)',
+    );
   });
 
   it('keeps the phone runtime on phone hardware in landscape', () => {
@@ -923,7 +948,11 @@ describe('ReadingV2RuntimeShell', () => {
 
     await waitFor(async () => {
       await expect(storage.get(persistenceKey)).resolves.toMatchObject({
-        'interaction-sentence-completion-1': 'persisted answer',
+        schemaVersion: 1,
+        answers: {
+          'interaction-sentence-completion-1': 'persisted answer',
+        },
+        highlights: [],
       });
     });
 
@@ -938,6 +967,52 @@ describe('ReadingV2RuntimeShell', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toHaveValue('persisted answer');
+    });
+
+    await storage.remove(persistenceKey);
+  });
+
+  it('persists stable highlight offsets across remounts', async () => {
+    setViewport(1024, 768);
+    const persistenceKey = 'reading-v2-runtime-shell-highlight-persistence';
+    await storage.remove(persistenceKey);
+    const user = userEvent.setup();
+
+    const { unmount } = render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        persistenceKey={persistenceKey}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Highlighter OFF' }));
+    const textAnchor = document.querySelector<HTMLElement>('[data-reading-v2-text-anchor]');
+    const passage = screen.getByRole('article', { name: 'Reading passage' });
+    expect(textAnchor).toBeInTheDocument();
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(textAnchor!);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.mouseUp(passage);
+
+    await waitFor(async () => {
+      await expect(storage.get(persistenceKey)).resolves.toMatchObject({
+        highlights: [expect.objectContaining({ startOffset: 0, endOffset: expect.any(Number) })],
+      });
+    });
+
+    unmount();
+    render(
+      <ReadingV2RuntimeShell
+        projection={READING_V2_PROJECTION_FIXTURES.studentSafe}
+        persistenceKey={persistenceKey}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('mark.reading-v2-runtime__highlight')).toHaveLength(1);
     });
 
     await storage.remove(persistenceKey);
