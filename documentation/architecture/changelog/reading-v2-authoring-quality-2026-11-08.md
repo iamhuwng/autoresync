@@ -25,10 +25,18 @@ published-version recovery were not consistently durable.
 
 ## Verification and release status
 
-- Focused candidate verification passed 11 Reading V2 files and 310 tests.
-- The merged checkout is clean at source commit `2949f194`.
-- Production deployment is **not yet released**. The fresh release-safety
-  assessment is `UNVERIFIED` because the merged candidate also contains
-  post-production Worker, backup-worker, migration and Firebase-rule changes
-  requiring their separate provider evidence and compatibility review. No
-  deployment gate was bypassed.
+- Focused Reading V2 regressions passed 7 files and 161 tests after the scoped
+  merge; the release/changelog checks passed 55 tests. Production build passed
+  9,521 transformed modules and the bundle budget.
+- The scoped Hosting candidate is `e865c34b2aa3394a5469cfcccabe68cffb103cc0`,
+  based on observed production revision `71d6caa0481fdf5ca2b128a09488bf8c71d73865`.
+- Guarded Hosting publication completed on 9 November 2026. Firebase Hosting
+  version `3d2c5af913053fb2` was released for `kahut1`; the release journal is
+  `76242556-6c4c-47ff-98da-b361d058deab` and provider verification passed.
+- The deployed manifest and all 459 asset hashes read back successfully. A
+  headless public login smoke check rendered `Welcome` and `Sign in with Google`
+  with no page errors. Authenticated Studio workflow verification remains a
+  separate browser check.
+- RTDB rules were separately deployed and the live `rules.reading_v2` subtree
+  matched the authoring source. `main` now carries only that subtree
+  reconciliation; unrelated homework/result rules were preserved.
