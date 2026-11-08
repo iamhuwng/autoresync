@@ -15,6 +15,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const expectedProjectId = 'temp-a1437';
 const expectedHostingTarget = 'kahut1';
+export const hostingReleaseMessage = value => value.length <= 255 ? value : `${value.slice(0, 252)}...`;
 const notificationOrigin = 'https://luyentap-notification-firestore-qa.iamhuwng.workers.dev';
 const notificationEndpointPaths = {
   VITE_HOMEWORK_NOTIFICATION_URL: '/',
@@ -262,7 +263,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
       console.log(record.description);
       runDeploy([path.join(cwd, 'scripts/tooling-where.mjs'), '--exec', 'firebase', 'deploy',
         '--only', `hosting:${expectedHostingTarget}`, '--project', expectedProjectId,
-        '--non-interactive', '--message', record.targets[0].annotation ?? record.description], env, cwd);
+        '--non-interactive', '--message', hostingReleaseMessage(record.targets[0].annotation ?? record.description)], env, cwd);
     },
     observe: async record => {
       const source = await observeSource();
