@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "c6a8e73c06c3ec2472b64c7efe514b2ea7005697",
+  "reviewedBase": "943277ad6f8c1c89fed35fcced7afc2f720f46d2",
+  "qualification": "PASS",
+  "qualifiedAt": "2026-11-01T12:56:55.508Z",
+  "dataRepair": {
+    "releaseId": "talbot-park-structure-repair-20261101-mvxt4vqj",
+    "materialId": "studio-material-mvxpapw8",
+    "oldVersion": "snapshot-studio-material-mvxpapw8-mvxpbp2j",
+    "newVersion": "snapshot-studio-material-mvxpapw8-repair-mvxt4vqj",
+    "paragraphCount": 8,
+    "labels": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G"
+    ],
+    "verifiedPathCount": 35,
+    "historicalSnapshotUnchanged": true,
+    "updatesHash": "28095873679a809b42a6dc2aab45c386d46e894b531b1b77656c8ea4571c266b",
+    "verifiedAt": "2026-11-01T12:56:39.262Z"
+  },
+  "hosting": {
+    "releaseId": "b6f4da54-bf28-485e-8e66-9d7c8e4a4d73",
+    "status": "live",
+    "targets": [
+      {
+        "id": "firebase:temp-a1437:hosting:kahut1",
+        "publication": "published",
+        "verification": "passed",
+        "providerIdentity": "projects/temp-a1437/sites/kahut1/versions/46798435264eec19@2026-11-01T13:02:35.740Z",
+        "evidenceRefs": [
+          "https://kahut1.web.app/.well-known/luyentap-release.json",
+          "firebase-cli://temp-a1437/sites/kahut1/channels/live"
+        ]
+      }
+    ]
+  },
+  "limits": [
+    "Two started single-passage homework assignments remain pinned to old version by supported freeze contract",
+    "Authenticated application flow not verified; static real-browser editor/runtime flow passed",
+    "Four existing Listening TypeScript errors unchanged from deployed base"
+  ]
+}

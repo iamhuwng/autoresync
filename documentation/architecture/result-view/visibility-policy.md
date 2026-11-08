@@ -22,6 +22,7 @@ intent/outcome audit. It is not a general teacher issuance path, a historical
 authorship claim, or a Firebase rule relaxation. Its limitations are recorded in
 the [change record](../changelog/teacher-writing-homework-access-2026-11-04.md).
 
+The exact repair completed on 2026-11-04: live rule evaluation allowed both owner reads and denied both unrelated-user reads. The [release evidence](../../release-audits/2026-11-04-teacher-writing-homework-access.md) distinguishes this permission proof from the waived browser flow.
 
 ## 2026-10-30 Listening Classic observability
 

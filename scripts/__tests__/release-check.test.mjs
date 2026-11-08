@@ -34,6 +34,27 @@ test('fixed Homework Worker route cannot suppress services for an arbitrary cand
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
+test('Listening Worker-only route rejects foreign source and caller evidence without Hosting qualification', async () => {
+  const cwd = await fixture();
+  try {
+    const options = { cwd, base: 'HEAD^', observeListeningEditorRelease: true, listeningPhase: 'predeploy' };
+    const result = await assess(options);
+    assert.equal(result.decision, STATUS.UNVERIFIED);
+    assert.equal(result.editorObservation, null);
+    assert.equal(result.hostingReady, false);
+    assert.equal(result.observed, null);
+    assert(result.source.changedServices.includes('hosting'));
+    assert(result.source.files.includes('public/index.html'));
+    assert(result.findings.some(finding => /Editor release readback/u.test(finding.message)));
+    assert(!result.findings.some(finding => /Hosting|deployed baseline/u.test(finding.message)));
+    for (const extra of [{ baselinePath: 'assertion.json' }, { hostingObservation: {} }, { observeProvider: true },
+      { observeHomework: true }, { mode: 'hotfix' }, { compatibilityReviewPath: 'review.json' }]) {
+      await assert.rejects(assess({ ...options, ...extra }), /native observation/);
+    }
+    await assert.rejects(assess({ ...options, observeListeningEditorRelease: false, observeListening: true }), /native observation/);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('CLI receipts follow the selected --cwd candidate', async () => {
   const caller = await fixture(), selected = await fixture();
   const receipt = 'tmp/release-receipts/selected.json';
@@ -47,6 +68,21 @@ test('CLI receipts follow the selected --cwd candidate', async () => {
   }
 });
 test('classifies backup Worker and Backblaze surfaces conservatively', () => assert.deepEqual(classifyPaths(['r2-backup-worker/src/index.ts','cloudflare/wrangler.book-source.jsonc']), ['backblaze','backup-worker','worker']));
+
+test('a caller-shaped private audio claim cannot waive the local Book/Backblaze guard', async () => {
+  const cwd = await fixture();
+  try {
+    await mkdir(path.join(cwd, 'scripts'));
+    await writeFile(path.join(cwd, 'scripts/local-book-source-worker.mjs'), 'export default {};');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'local Worker change');
+    const result = await assess({ cwd, base: 'HEAD^', editorObservation: {
+      profile: 'private-audio', local: { localListeningBindingOnly: true }, phase: 'postrules',
+    } });
+    assert(result.source.services.includes('backblaze'));
+    assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Verify B2 bucket/u.test(finding.message)));
+    assert(!result.findings.some(finding => /verifies only the local Listening/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 
 test('isolates unchanged Book rollout gates while retaining them for a Book Worker change', async () => {
   const cwd = await fixture();

@@ -39,8 +39,9 @@ host-owned question/attempt state retain their existing ownership. Notices and
 sync status remain outside the fixed-height bar and may add readable height.
 
 Local in-app browser qualification confirms desktop/tablet/phone geometry,
-native controls, media-node continuity and policy states. Live publication and
-private-delivery acceptance are recorded separately in the
+native controls, media-node continuity and policy states. Live Hosting
+publication/content verification, Cambridge private audio delivery and the
+submitted/reloaded private homework result of 2/2 passed, as recorded in the
 [current audit](../release-audits/2026-10-30-listening-classic-player.md).
 
 Verification includes 1440/1024/768/375/320px desktop widths, phone identity and

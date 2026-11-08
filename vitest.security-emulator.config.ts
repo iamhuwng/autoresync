@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'src/__tests__/security/notificationFirebaseRules.emulator.test.ts',
+      'src/__tests__/security/teacher-writing-homework-access.emulator.test.ts',
       'src/__tests__/security/student-private-thcs-homework-current-rules.emulator.test.ts',
     ],
     fileParallelism: false,

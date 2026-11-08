@@ -20,6 +20,7 @@ Firestore essay fallback around RTDB read permission and no additional result
 shell, route or entry owner. See the
 [change record](../changelog/teacher-writing-homework-access-2026-11-04.md).
 
+Published on 2026-11-04; provider readback and the two reported results' owner/foreign-UID rule checks passed. See the [release evidence](../../release-audits/2026-11-04-teacher-writing-homework-access.md). Browser verification was waived.
 
 ## 2026-10-30 Listening Classic observability
 

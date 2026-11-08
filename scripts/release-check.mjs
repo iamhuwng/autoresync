@@ -8,7 +8,9 @@ import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObse
 import { assertNotificationWorkerSource, observeNotificationWorker, isNotificationWorkerObserved } from './release-notification-worker-evidence.mjs';
 import { assertReadingV2WorkerSource, observeReadingV2Worker, isReadingV2WorkerObserved } from './release-reading-v2-worker-evidence.mjs';
 import { observeListeningRelease, isListeningReleaseObserved } from './release-listening-evidence.mjs';
-import { observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
+import { assertListeningEditorSource, observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
+import { reviewedListeningPreviewRelease } from './release-listening-preview-pins.mjs';
+import { observeWritingHomework, isWritingHomeworkObserved } from './release-writing-homework-evidence.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -184,17 +186,40 @@ async function assessReadingV2Worker({ cwd, source, bundlePath, configPath, phas
   };
 }
 
-export async function assess({ cwd = repoRoot, mode = 'release', base, baselinePath, productionEnvFingerprint, observe = false, observeProvider = false, hostingObservation, compatibilityReviewPath, hostingOrigin, observeHomework = false, observeNotification = false, observeReadingV2Worker = false, workerPhase, workerBundlePath, workerConfigPath, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig } = {}) {
-  const fixedWorkerCount = [observeHomework, observeNotification, observeReadingV2Worker].filter(Boolean).length;
+export async function assess({ cwd = repoRoot, mode = 'release', base, baselinePath, productionEnvFingerprint, observe = false, observeProvider = false, hostingObservation, compatibilityReviewPath, hostingOrigin, observeHomework = false, observeNotification = false, observeReadingV2Worker = false, observeWritingHomeworkWorker = false, workerPhase, workerBundlePath, workerConfigPath, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig } = {}) {
+  const fixedWorkerCount = [observeHomework, observeNotification, observeReadingV2Worker, observeWritingHomeworkWorker].filter(Boolean).length;
   if (!fixedWorkerCount && (workerBundlePath || workerConfigPath)) throw new Error('Worker artifact paths require --observe-homework-worker, --observe-notification-worker, or --observe-reading-v2-worker.');
   if (fixedWorkerCount > 1) throw new Error('Choose only one fixed Worker observer.');
   const hasFixedWorker = fixedWorkerCount === 1;
   if (observeListening && observeListeningEditorRelease) throw new Error('Choose only one Listening release profile.');
   const qualifiedListening = observeListening || observeListeningEditorRelease;
+  const editorWorkerOnly = observeListeningEditorRelease && !observe;
   if (observeListeningEditorRelease && (listeningHomeworkBundle || listeningHomeworkConfig)) throw new Error('Editor release does not deploy the homework Worker.');
-  if (qualifiedListening && (hasFixedWorker || mode !== 'release' || !observe || observeProvider || hostingObservation || hostingOrigin || baselinePath)) throw new Error('Listening qualification requires release mode and native Hosting observation without other observers or caller baseline.');
+  if (qualifiedListening && (hasFixedWorker || mode !== 'release' || (!observe && !editorWorkerOnly) || observeProvider || hostingObservation || hostingOrigin || baselinePath || (editorWorkerOnly && compatibilityReviewPath))) throw new Error('Listening qualification requires release mode and native observation without other observers or caller baseline.');
   if (!qualifiedListening && [listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig].some(Boolean)) throw new Error('Listening options require --observe-listening-release.');
   if (hasFixedWorker && (mode !== 'release' || observe || observeProvider || hostingObservation || hostingOrigin || baselinePath || compatibilityReviewPath || productionEnvFingerprint)) throw new Error('Fixed Worker observation cannot be combined with other release modes or evidence.');
+  if (observeWritingHomeworkWorker) {
+    if (workerBundlePath || workerConfigPath || !['predeploy', 'postdeploy'].includes(workerPhase)) throw new Error('Writing Homework observation requires its fixed artifacts and --worker-phase predeploy or postdeploy.');
+    const source = await collectSourceState(cwd, base);
+    let observed = null;
+    const findings = [];
+    try {
+      observed = await observeWritingHomework({ cwd, source, phase: workerPhase });
+      if (!isWritingHomeworkObserved(observed)) throw new Error('Untrusted Writing Homework observation.');
+      if ((await collectSourceState(cwd, base)).fingerprint !== source.fingerprint) throw new Error('Writing Homework source changed during observation.');
+      findings.push({ status: STATUS.PASS, message: 'Exact Writing Homework modules, configuration and provider state verified twice; Firebase rules and the public adapter remain unchanged.' });
+    } catch (error) {
+      observed = null;
+      findings.push({ status: source.dirty ? STATUS.BLOCKED : STATUS.UNVERIFIED, message: `Writing Homework readback: ${error.message}` });
+    }
+    return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: 'isolated-writing-homework',
+      source: { ...source, services: ['worker'], changedServices: classifyPaths(source.files) }, baseline: null, observed,
+      hostingReady: false, compatibilityReview: null, hotfixes: [], findings, decision: findings[0].status,
+      requiredActions: ['Independent review and explicit deployment authorization; repeat native observation before execution.'],
+      deploymentOrder: ['Notification command Worker only, then the separately qualified Hosting correction.'],
+      recovery: ['Restore the pinned prior command Worker version; rollback does not revoke previously issued protected receipts.'],
+      authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null, readOnly: true };
+  }
   if (observeNotification && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed notification observation requires --worker-bundle and --worker-config.');
   if (observeNotification) return assessNotificationWorker({ cwd, source: await collectSourceState(cwd, base), bundlePath: path.resolve(cwd, workerBundlePath), configPath: path.resolve(cwd, workerConfigPath) });
   if (observeHomework && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed Homework Worker observation requires --worker-bundle and --worker-config.');
@@ -211,6 +236,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   let listeningObservation = null;
   let editorObservation = null;
   if (observeListeningEditorRelease) try {
+    if (editorWorkerOnly) assertListeningEditorSource(source, reviewedListeningPreviewRelease);
     editorObservation = await observeListeningEditor({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig });
     if (!isListeningEditorObserved(editorObservation)) throw new Error('Untrusted editor observation rejected.');
     if (productionEnvFingerprint !== editorObservation.local.envSha256) throw new Error('Editor environment fingerprint differs from observed input.');
@@ -221,6 +247,16 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
     editorObservation = null;
     findings.push({ status: STATUS.UNVERIFIED, message: `Editor release readback: ${error.message}` });
   }
+  if (editorWorkerOnly) return {
+    schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: 'upload-worker-only',
+    source: { ...source, services: ['worker'], changedServices: services }, baseline: null, observed: null,
+    compatibilityReview: null, listeningObservation: null, editorObservation, hostingReady: false, hotfixes: [],
+    requiredActions: ['Require independent review, fresh native verification and separate Upload Worker authorization.'],
+    deploymentOrder: ['Upload Worker only; Hosting, rules, storage bindings, homework Worker and notifications are excluded.'],
+    recovery: [`Retain Upload Worker version ${reviewedListeningPreviewRelease.upload.versionId}; recovery does not reverse data writes.`],
+    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null,
+    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
+  };
   if (observeListening) try {
     listeningObservation = await observeListeningRelease({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig, homeworkBundle: listeningHomeworkBundle, homeworkConfig: listeningHomeworkConfig });
     if (!isListeningReleaseObserved(listeningObservation)) throw new Error('Untrusted Listening observation rejected.');
@@ -234,7 +270,15 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   }
   if (services.includes('migrations')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Review additive migration prerequisites, deployment order and recovery; emulator state is never promoted.' });
   if (services.includes('backup-worker') && !listeningObservation && !editorObservation) findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
-  if (services.includes('backblaze')) findings.push({ status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
+  if (services.includes('backblaze')) {
+    const backblazePaths = source.files.filter(file => classifyPaths([file]).includes('backblaze'));
+    const privateLocalBindingOnly = isListeningEditorObserved(editorObservation) && editorObservation.profile === 'private-audio'
+      && editorObservation.local.localListeningBindingOnly === true
+      && backblazePaths.length === 1 && backblazePaths[0] === 'scripts/local-book-source-worker.mjs';
+    findings.push(privateLocalBindingOnly
+      ? { status: STATUS.PASS, message: 'The exact native private-audio profile verifies only the local Listening R2 binding correction; Book/B2 bytes are unchanged.' }
+      : { status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
+  }
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
   if (services.includes('worker') && !listeningObservation && !editorObservation) findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
@@ -305,15 +349,26 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   if (services.includes('backup-worker')) { requiredActions.push('Verify backup Worker version, R2 bindings, schedules and retention policy.'); recovery.push('Record the prior backup Worker version and R2 retention implications.'); }
   if (services.includes('hosting')) { deploymentOrder.push(services.includes('worker') ? 'Deploy and verify Worker before Hosting.' : 'Hosting-only deployment.'); recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.'); }
   if (editorObservation?.scope === 'upload-worker-only') deploymentOrder.splice(0, deploymentOrder.length, 'Upload Worker only; Hosting, rules, homework Worker and notifications are excluded.');
-  if (editorObservation?.profile === 'functional-completion') {
-    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
-    recovery.push('Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
+  if (['functional-completion', 'private-audio'].includes(editorObservation?.profile)) {
+    const privateAudio = editorObservation.profile === 'private-audio';
+    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', privateAudio
+      ? 'Deploy RTDB rules and verify their exact hash; verify Firestore remains unchanged before Hosting.'
+      : 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
+    recovery.push(privateAudio
+      ? 'RTDB tightening requires no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, RTDB, storage and Hosting recovery while preserving Firestore.'
+      : 'Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
+    if (privateAudio) {
+      deploymentOrder.unshift('Verify the fixed private audio bucket has r2.dev disabled, no custom domains and the exact reviewed lifecycle.',
+        'Verify private audio object-copy and ownership receipts before switching Upload bindings.');
+      deploymentOrder.splice(3, 0, 'After Upload verification, remove only verified shared Listening copies before RTDB rules or Hosting.');
+      recovery.push('Private audio bindings and object ownership require coordinated storage recovery; Hosting rollback does not restore copied or deleted objects.');
+    }
   }
   return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, listeningObservation, editorObservation, hostingReady: editorObservation ? listeningEditorHostingReady(editorObservation) : listeningObservation ? listeningPhase === 'homework' : undefined, hotfixes, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
 }
 
 export const formatReport = result => [`Release assessment: ${result.decision}`, `Mode: ${result.mode}`, `Revision: ${result.source.revision}`, `Branch: ${result.source.branch || 'detached'}`, `Worktree: ${result.source.dirty ? 'DIRTY' : 'clean'}`, `Services: ${result.source.services.join(', ') || 'none identified'}`, ...result.findings.map(finding => `[${finding.status}] ${finding.message}`)].join('\n');
-const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-listening-editor-release') args.observeListeningEditorRelease = true; else if (value === '--observe-listening-release') args.observeListening = true; else if (value === '--listening-phase') args.listeningPhase = argv[++i]; else if (value === '--listening-upload-bundle') args.listeningUploadBundle = argv[++i]; else if (value === '--listening-upload-config') args.listeningUploadConfig = argv[++i]; else if (value === '--listening-homework-bundle') args.listeningHomeworkBundle = argv[++i]; else if (value === '--listening-homework-config') args.listeningHomeworkConfig = argv[++i]; else if (value === '--observe-homework-worker') args.observeHomework = true; else if (value === '--observe-notification-worker') args.observeNotification = true; else if (value === '--observe-reading-v2-worker') args.observeReadingV2Worker = true; else if (value === '--worker-phase') args.workerPhase = argv[++i]; else if (value === '--worker-bundle') args.workerBundlePath = argv[++i]; else if (value === '--worker-config') args.workerConfigPath = argv[++i]; else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
+const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-listening-editor-release') args.observeListeningEditorRelease = true; else if (value === '--observe-listening-release') args.observeListening = true; else if (value === '--listening-phase') args.listeningPhase = argv[++i]; else if (value === '--listening-upload-bundle') args.listeningUploadBundle = argv[++i]; else if (value === '--listening-upload-config') args.listeningUploadConfig = argv[++i]; else if (value === '--listening-homework-bundle') args.listeningHomeworkBundle = argv[++i]; else if (value === '--listening-homework-config') args.listeningHomeworkConfig = argv[++i]; else if (value === '--observe-homework-worker') args.observeHomework = true; else if (value === '--observe-notification-worker') args.observeNotification = true; else if (value === '--observe-writing-homework-worker') args.observeWritingHomeworkWorker = true; else if (value === '--observe-reading-v2-worker') args.observeReadingV2Worker = true; else if (value === '--worker-phase') args.workerPhase = argv[++i]; else if (value === '--worker-bundle') args.workerBundlePath = argv[++i]; else if (value === '--worker-config') args.workerConfigPath = argv[++i]; else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
 const receiptPath = async (cwd, value) => { if (!value) return null; const root = path.resolve(cwd, 'tmp', 'release-receipts'); const target = path.resolve(cwd, value); const relative = path.relative(root, target); if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('Receipt must be written under tmp/release-receipts.'); for (let cursor = path.dirname(target); ; cursor = path.dirname(cursor)) { try { if ((await lstat(cursor)).isSymbolicLink()) throw new Error('Receipt directory cannot contain symlinks.'); } catch (error) { if (error.code !== 'ENOENT') throw error; } if (cursor === root) break; if (cursor === path.dirname(cursor)) throw new Error('Receipt path could not be contained under tmp/release-receipts.'); } const repoRelative = path.relative(cwd, target); if (git(['ls-files', '--', repoRelative], cwd).trim()) throw new Error('Receipt path is tracked; choose a generated path.'); try { await access(target); throw new Error('Receipt already exists; choose a new generated path.'); } catch (error) { if (error.message.startsWith('Receipt already exists')) throw error; } return target; };
 export async function main(argv = process.argv.slice(2), cwd = repoRoot) { try { const args = parseArgs(argv), result = await assess({ cwd, ...args }), target = await receiptPath(args.cwd || cwd, args.receipt); if (target) { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(result, null, 2)}\n`, 'utf8'); } console.log(args.json ? JSON.stringify(result, null, 2) : formatReport(result)); return [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(result.decision) ? 0 : 2; } catch (error) { console.error(`[Release assessment failed] ${error.message}`); return 1; } }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();
