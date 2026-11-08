@@ -26,6 +26,8 @@ import {
 } from './readingV2ExternalAiPrompt.service';
 import {
   getReadingV2InstructionText,
+  readReadingV2InstructionFacts,
+  readReadingV2WordLimitText,
   readingV2InstructionLooksStandard,
   type ReadingV2InstructionSemantics,
 } from './readingV2InstructionTemplates.service';
@@ -53,6 +55,7 @@ export interface ReadingV2ImportCandidate {
     readonly artifactId: string;
     readonly createdAt: string;
     readonly sourceKind: 'teacher-paste';
+    readonly rawTextOriginal?: string;
     readonly rawTextSha256: string;
     readonly normalizedTextSha256: string;
     readonly lineIndex: readonly {
@@ -779,15 +782,7 @@ const normalizeAnswersForResponseShape = (
     }),
   );
 
-  if (responseShape.kind !== 'free-text' || !responseShape.wordLimit) {
-    return normalized;
-  }
-
-  const withinWordLimit = normalized.filter((answer) =>
-    canonicalAnswerText(answer).split(/\s+/).filter(Boolean).length <= responseShape.wordLimit!,
-  );
-
-  return withinWordLimit.length > 0 ? withinWordLimit : normalized;
+  return normalized;
 };
 
 const instructionSourceExcerpt = (text: string | undefined): string | undefined => {
@@ -809,6 +804,8 @@ const normalizeImportedInstructionText = (
   const instructionSemantics = {
     ...semantics,
     wordLimitText: semantics.wordLimitText ?? wordLimitTextFromText(source),
+    reuseAllowed: semantics.reuseAllowed ?? (readReadingV2InstructionFacts(source).optionReuse
+      ? readReadingV2InstructionFacts(source).optionReuse === 'allowed' : undefined),
   };
 
   return getReadingV2InstructionText(taskType, instructionSemantics);
@@ -1433,27 +1430,7 @@ const wordLimitFromText = (text: string | undefined): number | undefined => {
 };
 
 const wordLimitTextFromText = (text: string | undefined): string | undefined => {
-  const normalized = cleanMarkdown(text ?? '').toUpperCase();
-  const phrasePatterns = [
-    /NO MORE THAN THREE WORDS AND\/OR A NUMBER/,
-    /NO MORE THAN TWO WORDS AND\/OR A NUMBER/,
-    /NO MORE THAN ONE WORD AND\/OR A NUMBER/,
-    /NO MORE THAN THREE WORDS/,
-    /NO MORE THAN TWO WORDS/,
-    /NO MORE THAN ONE WORD/,
-    /THREE WORDS AND\/OR A NUMBER/,
-    /TWO WORDS AND\/OR A NUMBER/,
-    /ONE WORD AND\/OR A NUMBER/,
-    /THREE WORDS ONLY/,
-    /TWO WORDS ONLY/,
-    /ONE WORD ONLY/,
-  ];
-
-  const match = phrasePatterns
-    .map((pattern) => normalized.match(pattern)?.[0])
-    .find(Boolean);
-
-  return match;
+  return readReadingV2WordLimitText(cleanMarkdown(text ?? ''));
 };
 
 const labelRangeFromItems = (
@@ -1548,6 +1525,29 @@ const structuredInstructionSourceText = (instruction: StructuredSectionInstructi
   ?? instruction.sourceInstructionEvidence
   ?? instruction.studentVisibleInstructionText
   ?? instruction.text;
+
+/** Read supplied structured values as source lines; never infer them from the generated document. */
+export const getReadingV2AuthoringSourceText = (candidate: Pick<ReadingV2ImportCandidate, 'rawText' | 'sourceRawText' | 'importSourceArtifact'>): string => {
+  const original = candidate.importSourceArtifact?.rawTextOriginal ?? candidate.sourceRawText;
+  if (original !== undefined) return original;
+  const rawText = candidate.rawText ?? '';
+  const payload = extractStructuredPayload(rawText);
+  if (!payload) return rawText;
+  return (payload.materials ?? []).flatMap((material, index) => [
+    `READING PASSAGE ${material.passageNumber ?? index + 1}`,
+    material.passages?.[0]?.title ?? material.title ?? '',
+    ...(material.passages ?? []).flatMap((passage) => [passage.content ?? '', ...(passage.contentBlocks ?? []).map((block) => block.text ?? '')]),
+    ...(material.sectionInstructions ?? []).flatMap((instruction) => [
+      `Questions ${instruction.questionRange?.start ?? 1}-${instruction.questionRange?.end ?? instruction.questionRange?.start ?? 1}`,
+      structuredInstructionSourceText(instruction) ?? '',
+      ...[...(instruction.labeledOptions ?? []), ...(instruction.sectionReferences ?? [])].map((option) => `${option.label ?? ''} ${option.text ?? ''}`),
+      ...(material.questions ?? []).filter((question) => question.sectionInstructionId === instruction.id).flatMap((question) => [
+        `${question.number ?? question.questionNumber ?? ''} ${question.questionText ?? question.question ?? ''}`,
+        ...(question.labeledOptions ?? []).map((option) => `${option.label ?? ''} ${option.text ?? ''}`),
+      ]),
+    ]),
+  ]).filter((line) => line.trim()).join('\n\n');
+};
 
 const questionRangeSemantics = (
   start: number,
@@ -3262,6 +3262,12 @@ const normalizeStructuredReadingPayload = (
         ...(flowchartContext?.issues ?? []),
         ...(diagramContext?.issues ?? []),
       ];
+      const instructionText = normalizeImportedInstructionText(
+        taskType,
+        instructionSourceText,
+        firstQuestion?.questionText ?? firstQuestion?.question ?? 'Review imported questions.',
+        instructionSemantics,
+      );
 
       taskGroups[taskGroupId] = {
         taskGroupId,
@@ -3272,17 +3278,13 @@ const normalizeStructuredReadingPayload = (
         instructionBlocks: [
           {
             id: `${taskGroupId}-instruction-1`,
-            text: normalizeImportedInstructionText(
-              taskType,
-              instructionSourceText,
-              firstQuestion?.questionText ?? firstQuestion?.question ?? 'Review imported questions.',
-              instructionSemantics,
-            ),
+            text: instructionText,
           },
         ],
         answerRule: {
           responseShape,
-          wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : undefined,
+          wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : responseShape.kind === 'structured-entry'
+            ? instructionSemantics.wordLimit ?? readReadingV2InstructionFacts(instructionText).wordLimit : undefined,
           optionReuse: responseShape.kind === 'matching' ? responseShape.optionReuse : undefined,
           casing: 'ignored',
           punctuation: 'ignored',
@@ -3506,36 +3508,8 @@ export const getReadingV2ImportSourceBlockers = (candidate: ReadingV2ImportCandi
     message.startsWith('Auto import needs teacher review before publish:'),
   );
 
-const isImportAcceptanceIssue = (issue: ReadingV2ValidationIssue): boolean =>
-  issue.code === 'unresolved-import-uncertainty' && (
-    issue.message === 'Imported Reading material requires teacher review before publish.'
-    || /^Imported questions .+ require teacher confirmation before publish\.$/.test(issue.message)
-  );
-
-export const resolveReadingV2ImportReview = (document: ReadingV2Document): ReadingV2Document => ({
-  ...document,
-  validationState: {
-    ...document.validationState,
-    issues: document.validationState.issues.filter((issue) => !isImportAcceptanceIssue(issue)),
-  },
-  taskGroups: Object.fromEntries(
-    Object.entries(document.taskGroups).map(([taskGroupId, taskGroup]) => {
-      const { importEvidenceRefs: _importEvidenceRefs, ...resolvedTaskGroup } = taskGroup;
-      return [
-        taskGroupId,
-        {
-          ...resolvedTaskGroup,
-          validationState: {
-            ...taskGroup.validationState,
-            issues: taskGroup.validationState.issues.filter(
-              (issue) => !isImportAcceptanceIssue(issue),
-            ),
-          },
-        },
-      ];
-    }),
-  ),
-});
+/** Import review is represented by authoring context; never erase evidence here. */
+export const resolveReadingV2ImportReview = (document: ReadingV2Document): ReadingV2Document => document;
 
 export const normalizeReadingV2ImportCandidate = (
   candidate: ReadingV2ImportCandidate,
@@ -3545,24 +3519,10 @@ export const normalizeReadingV2ImportCandidate = (
   }
 
   const rawText = candidate.rawText ?? createReadingV2DefaultImportCandidate().rawText ?? '';
-  // shortcut: source findings require a corrected import; revalidate them when Studio supports source-fidelity repair.
-  const sourceIssues: ReadingV2ValidationIssue[] = getReadingV2ImportSourceBlockers(candidate).map((message) => ({
-    code: 'unresolved-import-uncertainty',
-    severity: 'error',
-    message,
-  }));
   const structuredResult = normalizeStructuredReadingPayload(candidate, rawText);
 
   if (structuredResult) {
-    return {
-      ...structuredResult,
-      document: {
-        ...structuredResult.document,
-        validationState: {
-          issues: [...structuredResult.document.validationState.issues, ...sourceIssues],
-        },
-      },
-    };
+    return structuredResult;
   }
 
   const sourceTitle = frontmatterValue(rawText, 'title') ?? 'Imported Reading V2 material';
@@ -3730,7 +3690,9 @@ export const normalizeReadingV2ImportCandidate = (
         ],
         answerRule: {
           responseShape,
-          wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : undefined,
+          wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : responseShape.kind === 'structured-entry'
+            ? instructionSemantics.wordLimit ?? readReadingV2InstructionFacts(normalizeImportedInstructionText(block.taskType, sourceInstructionText,
+              `Review questions ${block.rangeLabel}.`, instructionSemantics)).wordLimit : undefined,
           optionReuse: responseShape.kind === 'matching' ? responseShape.optionReuse : undefined,
           casing: 'ignored',
           punctuation: 'ignored',
@@ -3768,8 +3730,6 @@ export const normalizeReadingV2ImportCandidate = (
   });
 
   const validationIssues = [
-    unresolvedIssue('Imported Reading material requires teacher review before publish.', `${idStem}-document`),
-    ...sourceIssues,
     ...answerKeyDiagnosticsAsIssues(teacherAnswerKey),
     ...unboundAnswerKeyRowsAsIssues(teacherAnswerKey, answeredQuestionNumbers(interactions)),
   ];

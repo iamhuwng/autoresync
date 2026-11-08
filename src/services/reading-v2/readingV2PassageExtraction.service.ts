@@ -61,6 +61,7 @@ export interface ReadingV2PassageExtractionInput {
   readonly ownerId?: string;
   readonly sourceFullTestId?: ReadingV2FullTestId;
   readonly testMaterialId?: ReadingV2MaterialId;
+  readonly compositionId?: ReadingV2FullTestCompositionId;
   readonly sourceSnapshotVersionId?: ReadingV2SnapshotVersionId;
   readonly sourceTitleSnapshot?: string;
   readonly primaryTestTypeId?: MaterialTestTypeId;
@@ -121,10 +122,9 @@ const sanitizeIdPart = (value: string): string =>
 
 export const buildReadingV2ExtractedFullTestCompositionId = (
   testMaterialId: string,
-  sourceSnapshotVersionId: string,
 ): ReadingV2FullTestCompositionId =>
   readingV2Ids.fullTestCompositionId(
-    `composition-${sanitizeIdPart(testMaterialId)}-${sanitizeIdPart(sourceSnapshotVersionId)}`,
+    `composition-${encodeURIComponent(testMaterialId).replace(/\./g, '%2E')}`,
   );
 
 const cloneRecord = <T>(value: T): T =>
@@ -430,8 +430,16 @@ const buildSinglePassageDocument = (
     throw new Error(`Reading V2 section ${sectionId} is missing from source document.`);
   }
 
-  const anchorIds = new Set<string>();
-  stimulus.anchorIds.forEach((anchorId) => anchorIds.add(anchorId));
+  const stimulusIds = unique([
+    stimulus.stimulusId,
+    ...section.stimulusIds,
+    ...taskGroups.flatMap((taskGroup) => taskGroup.stimulusRefs.map((ref) => ref.stimulusId)),
+  ]);
+  const stimuli = stimulusIds.flatMap((stimulusId) => {
+    const node = sourceDocument.stimuli[stimulusId];
+    return node ? [node] : [];
+  });
+  const anchorIds = new Set(stimuli.flatMap((node) => node.anchorIds));
   interactions.forEach((interaction) => {
     if (interaction.primaryAnchorId) {
       anchorIds.add(interaction.primaryAnchorId);
@@ -461,9 +469,7 @@ const buildSinglePassageDocument = (
     sections: {
       [sectionId]: cloneRecord(section),
     },
-    stimuli: {
-      [stimulus.stimulusId]: cloneRecord(stimulus),
-    },
+    stimuli: Object.fromEntries(stimuli.map((node) => [node.stimulusId, cloneRecord(node)])),
     anchors,
     taskGroups: Object.fromEntries(
       taskGroups.map((taskGroup) => [
@@ -554,9 +560,8 @@ export const extractReadingV2PassageMaterials = (
         deliveryEngine: READING_V2_ENGINE,
         plane: 'packaging',
         schemaVersion: 1,
-        compositionId: buildReadingV2ExtractedFullTestCompositionId(
+        compositionId: input.compositionId ?? buildReadingV2ExtractedFullTestCompositionId(
           source.testMaterialId,
-          source.sourceSnapshotVersionId,
         ),
         testMaterialId: source.testMaterialId,
         title: source.sourceTitleSnapshot,
@@ -572,6 +577,7 @@ export const extractReadingV2PassageMaterials = (
         publishedVersionId: source.sourceSnapshotVersionId,
         createdAt,
         updatedAt: createdAt,
+        materialRevision: 1,
       },
       validationIssues,
       canPublish: false,
@@ -606,7 +612,7 @@ export const extractReadingV2PassageMaterials = (
       ...getMissingAnswerKeyIssues(interactions, sectionRow.sectionId),
     ];
     const passageMaterialId = readingV2Ids.readingPassageMaterialId(
-      `${sanitizeIdPart(source.testMaterialId)}-passage-${index + 1}`,
+      `${encodeURIComponent(source.testMaterialId).replace(/\./g, '%2E')}-passage-${encodeURIComponent(sectionRow.sectionId).replace(/\./g, '%2E')}`,
     );
     const interactionIds = interactions.map((interaction) => interaction.interactionId);
     const taskGroupIds = taskGroups.map((taskGroup) => taskGroup.taskGroupId);
@@ -667,6 +673,7 @@ export const extractReadingV2PassageMaterials = (
           },
           createdAt,
           updatedAt: createdAt,
+          materialRevision: 1,
         },
         document: singlePassageDocument,
         sectionId: sectionRow.sectionId,
@@ -696,7 +703,7 @@ export const extractReadingV2PassageMaterials = (
     const interactionLookup = new Map(candidate.interactions.map((item) => [item.interactionId, item]));
     return {
       refId: readingV2Ids.passageRefId(
-        `${sanitizeIdPart(source.testMaterialId)}-passage-ref-${index + 1}`,
+        `${encodeURIComponent(source.testMaterialId).replace(/\./g, '%2E')}-passage-ref-${encodeURIComponent(candidate.sectionId).replace(/\./g, '%2E')}`,
       ),
       passageMaterialId: candidate.material.passageMaterialId,
       materialId: candidate.material.passageMaterialId,
@@ -758,9 +765,8 @@ export const extractReadingV2PassageMaterials = (
       deliveryEngine: READING_V2_ENGINE,
       plane: 'packaging',
       schemaVersion: 1,
-      compositionId: buildReadingV2ExtractedFullTestCompositionId(
+      compositionId: input.compositionId ?? buildReadingV2ExtractedFullTestCompositionId(
         source.testMaterialId,
-        source.sourceSnapshotVersionId,
       ),
       testMaterialId: source.testMaterialId,
       title: source.sourceTitleSnapshot,
@@ -776,6 +782,7 @@ export const extractReadingV2PassageMaterials = (
       publishedVersionId: source.sourceSnapshotVersionId,
       createdAt,
       updatedAt: createdAt,
+      materialRevision: 1,
     },
     validationIssues,
     canPublish: validationIssues.every((entry) => entry.severity !== 'error'),

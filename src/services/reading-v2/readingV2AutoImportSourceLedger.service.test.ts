@@ -3,6 +3,7 @@ import {
   buildReadingV2AutoLedgerPromptSummary,
   buildReadingV2ImportSourceArtifact,
   buildReadingV2AutoSourceLedger,
+  readReadingV2SourceBank,
   verifyReadingV2AutoPayloadAgainstLedger,
 } from './readingV2AutoImportSourceLedger.service';
 
@@ -34,6 +35,14 @@ const fullSyntheticSource = [
 ].join('\n\n');
 
 describe('readingV2AutoImportSourceLedger.service', () => {
+  it('keeps all labelled options on shared plain-text and Markdown bank rows', () => {
+    const ledger = buildReadingV2AutoSourceLedger({ rawText: 'Questions 24-26\nWrite the correct letter, A-F, in boxes 24-26.\n**A** medical practitioners **B** specialised tasks\nC   available resources       D   reduced illness\nE   professional authority        F   technology experts\nREADING PASSAGE 3\nA new passage' });
+    expect(ledger.referenceBanks[0].labels).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+    const bank = readReadingV2SourceBank(ledger, ledger.referenceBanks[0]);
+    expect(bank.bankItems.map((item) => item.text)).toEqual(['medical practitioners', 'specialised tasks', 'available resources', 'reduced illness', 'professional authority', 'technology experts']);
+    expect(bank.lineIds).not.toContain('line-0006');
+  });
+
   it('builds a draft-scoped raw source artifact with hashes and line index', async () => {
     const rawText = [
       'READING PASSAGE 1',
@@ -220,7 +229,7 @@ describe('readingV2AutoImportSourceLedger.service', () => {
 
     expect(ledger.passages).toHaveLength(0);
     expect(ledger.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'source-passage-boundary-missing', severity: 'error' }),
+      expect.objectContaining({ code: 'source-passage-boundary-missing', severity: 'warning' }),
     ]));
   });
 

@@ -46,9 +46,17 @@ const seedReadingV2Users = async (): Promise<void> => {
     await db.ref('reading_v2/drafts/draft-1').set({
       draftId: 'draft-1',
       ownerId: 'teacher-1',
-      document: { deliveryEngine: 'reading-v2' },
-      revisionToken: 'draft-1-rev-1',
+      document: {
+        documentId: 'seed-document',
+        deliveryEngine: 'reading-v2',
+        plane: 'canonical',
+        schemaVersion: 1,
+        title: 'Seed draft',
+      },
+      revision: 1,
+      lastOperationId: 'seed-create',
       state: 'draft',
+      createdAt: '2026-04-25T00:00:00.000Z',
       updatedAt: '2026-04-25T00:00:00.000Z',
     });
 
@@ -236,7 +244,11 @@ describe('Reading V2 Firebase rule contract', () => {
     const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
     const compositionValidation = readingV2Rules.full_test_compositions.$compositionId['.validate'];
     const versionValidation = readingV2Rules.full_test_composition_versions.$compositionId.$versionId['.validate'];
-    const prohibitedFields = [
+    const compositionProhibitedFields = [
+      'document',
+      'taskGroups',
+    ];
+    const versionProhibitedFields = [
       'document',
       'sections',
       'stimuli',
@@ -247,8 +259,10 @@ describe('Reading V2 Firebase rule contract', () => {
       'correctAnswers',
     ];
 
-    prohibitedFields.forEach((field) => {
+    compositionProhibitedFields.forEach((field) => {
       expect(compositionValidation).toContain(`!newData.child('${field}').exists()`);
+    });
+    versionProhibitedFields.forEach((field) => {
       expect(versionValidation).toContain(`!newData.child('${field}').exists()`);
     });
   });
@@ -378,7 +392,7 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(snapshotRules['.write']).not.toContain('data.child');
   });
 
-  it('allows teacher reads of safe public Reading Passage metadata for canonical public and legacy library-eligible rows', () => {
+  it('allows teacher reads of safe public Reading Passage metadata', () => {
     const readingV2Rules = databaseRules.rules.reading_v2 as Record<string, any>;
     const metadataRules = readingV2Rules.material_metadata.$materialId as Record<string, string>;
     const readRule = metadataRules['.read'];
@@ -386,9 +400,6 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(readRule).toContain("root.child('users').child(auth.uid).child('role').val() === 'teacher'");
     expect(readRule).toContain("data.child('materialKind').val() === 'reading-passage'");
     expect(readRule).toContain("data.child('visibility').val() === 'public'");
-    expect(readRule).toContain("data.child('visibility').val() === 'library-eligible'");
-    expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('visibility').val() === 'public'");
-    expect(readRule).toContain("root.child('reading_v2').child('reading_passage_materials').child($materialId).child('state').val() === 'published'");
     expect(readRule).not.toContain("root.child('users').child(auth.uid).child('role').val() === 'student'");
   });
 
@@ -422,7 +433,7 @@ describe('Reading V2 Firebase rule contract', () => {
     expect(childReadRule).toContain("data.child('isPublic').val() === true");
     expect(childReadRule).toContain("data.child('ownerId').val() === auth.uid");
     expect(childReadRule).toContain("data.child('createdBy').val() === auth.uid");
-    expect(childReadRule).not.toContain("role').val() === 'teacher'");
+    expect(childReadRule).toContain("role').val() === 'teacher'");
   });
 });
 

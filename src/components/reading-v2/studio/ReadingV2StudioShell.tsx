@@ -4,11 +4,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useClipboard } from '../../../core/platform';
 import { READING_V2_ENGINE, READING_V2_PRODUCT_LABEL } from '../../../config/readingV2FeatureFlags';
+import { FEATURE_IDS } from '../../../config/featureRegistry';
 import {
   READING_V2_SCHEMA_VERSION,
   readingV2Ids,
   type ReadingV2Anchor,
   type ReadingV2Document,
+  type ReadingV2DraftRecord,
   type ReadingV2Interaction,
   type ReadingV2OptionSet,
   type ReadingV2PassageParagraph,
@@ -18,20 +20,13 @@ import {
   type ReadingV2TableCellContent,
   type ReadingV2TaskGroup,
   type ReadingV2TaskGroupId,
-  type ReadingV2ValidationIssue,
 } from '../../../types/readingV2.types';
 import {
   getReadingV2TaskFamily,
   READING_V2_TASK_TAXONOMY,
   type ReadingV2CanonicalTaskType,
 } from '../../../types/readingV2Taxonomy';
-import {
-  normalizeReadingV2ImportCandidate,
-  getReadingV2ImportSourceBlockers,
-  resolveReadingV2ImportReview,
-  type ReadingV2AutoImportCandidateDiagnostic,
-} from '../../../services/reading-v2/readingV2ImportNormalization.service';
-import { getReadingV2InstructionText } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
+import { getReadingV2InstructionText, readReadingV2InstructionFacts } from '../../../services/reading-v2/readingV2InstructionTemplates.service';
 import {
   countReadingV2QuestionSlots,
   deriveReadingV2VisibleNumbers,
@@ -48,29 +43,38 @@ import {
   serializeReadingV2EditorDocumentToCanonical,
   validateReadingV2EditorDocument,
 } from '../../../services/reading-v2/readingV2EditorDocument.service';
-import { readingV2StudioRepository } from '../../../services/reading-v2/readingV2StudioWorkflow.service';
+import { readingV2StudioRepository, type ReadingV2StudioWorkflowOrigin } from '../../../services/reading-v2/readingV2StudioWorkflow.service';
 import {
   buildReadingV2TeacherImportDiagnostics,
   buildReadingV2StudioParsingDiagnostics,
   formatReadingV2StudioParsingDiagnostics,
-  type ReadingV2TeacherImportDiagnosticTarget,
 } from '../../../services/reading-v2/readingV2StudioParsingDiagnostics.service';
-import { validateReadingV2Draft } from '../../../services/reading-v2/readingV2Validation.service';
+import {
+  evaluateReadingV2AuthoringReadiness,
+  bindReadingV2SourceRequirement,
+  getReadingV2SourceBankTargets,
+  interpretReadingV2SourceRequirement,
+  recordReadingV2AuthoredInstructionEdit,
+  resolveReadingV2AnswerKeyRow,
+  restoreReadingV2SourceInstruction,
+  correctReadingV2PassageSourceSpan,
+  correctReadingV2SourceQuestionRange,
+  resolveReadingV2SourceBankRequirement,
+  associateReadingV2ImportedContent,
+  type ReadingV2AuthoringSourceRecord,
+} from '../../../services/reading-v2/readingV2AuthoringQuality.service';
+import { mapReadingV2AuthoringFindingsToReviewIssues, type ReadingV2ReviewIssue } from '../../../services/reading-v2/readingV2ReviewIssueMapping.service';
 import {
   ReadingV2BuildWorkspace,
   getReadingV2BuildTaskTypeLabel,
   type ReadingV2BuildPassageSlot,
   type ReadingV2QuestionLinkTarget,
-  type ReadingV2BuildValidationMessage,
 } from './ReadingV2BuildWorkspace';
 import { ReadingV2DeveloperDetailsModal } from './ReadingV2DeveloperDetailsModal';
-import { ReadingV2ImportReviewPanel, type ReadingV2ImportCandidate } from './ReadingV2ImportReviewPanel';
+import type { ReadingV2ImportCandidate } from './ReadingV2ImportReviewPanel';
 import { ReadingV2MetadataPanel, type ReadingV2StudioMetadata } from './ReadingV2MetadataPanel';
 import { ReadingV2PassageAssetPanel } from './ReadingV2PassageAssetPanel';
 import { ReadingV2PreviewOverlay } from './ReadingV2PreviewOverlay';
-import { ReadingV2SettingsPanel } from './ReadingV2SettingsPanel';
-import { ReadingV2StimulusEditor } from './ReadingV2StimulusEditor';
-import { ReadingV2TaskGroupEditor } from './ReadingV2TaskGroupEditor';
 import { ReadingV2DuplicateWarningPanel } from './ReadingV2DuplicateWarningPanel';
 import {
   type ReadingV2TeacherPassageBlockKind,
@@ -108,7 +112,7 @@ export interface ReadingV2StudioActionMetadata {
   readonly outcome?: string;
   readonly draftId?: string;
   readonly materialId?: string;
-  readonly revisionToken?: string;
+  readonly revision?: number;
   readonly taskType?: ReadingV2CanonicalTaskType;
 }
 
@@ -122,29 +126,34 @@ export interface ReadingV2StudioWorkflowSnapshot {
   readonly materialId?: string;
   readonly document: ReadingV2Document;
   readonly metadata: ReadingV2StudioMetadata;
-  readonly revisionToken: string;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2StudioWorkflowOrigin;
+  readonly revision: number;
   readonly returnContext?: string;
 }
 
 export interface ReadingV2StudioSaveResult {
-  readonly revisionToken: string;
+  readonly revision: number;
 }
 
 export interface ReadingV2StudioConflictReloadResult {
   readonly document: ReadingV2Document;
-  readonly revisionToken: string;
+  readonly metadata: ReadingV2StudioMetadata;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2StudioWorkflowOrigin;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  readonly revision: number;
 }
 
 export interface ReadingV2StudioConflictDuplicateResult {
   readonly draftId: string;
   readonly materialId?: string;
-  readonly revisionToken: string;
-}
-
-export interface ReadingV2StudioConflictDiffResult {
-  readonly latestRevisionToken?: string;
-  readonly changedTitle: boolean;
-  readonly changedValidationIssueCount: boolean;
+  readonly document: ReadingV2Document;
+  readonly metadata: ReadingV2StudioMetadata;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2StudioWorkflowOrigin;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  readonly revision: number;
 }
 
 export interface ReadingV2StudioExtractionRequest {
@@ -156,11 +165,18 @@ export interface ReadingV2StudioExtractionResult {
   readonly draftId: string;
   readonly materialId?: string;
   readonly document: ReadingV2Document;
-  readonly revisionToken: string;
+  readonly metadata: ReadingV2StudioMetadata;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2StudioWorkflowOrigin;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  readonly revision: number;
 }
 
 export interface ReadingV2StudioPublishResult {
   readonly snapshotVersionId: string;
+  readonly materialId?: string;
+  readonly publicationBase?: import('../../../types/readingV2.types').ReadingV2AuthoringPublicationBase;
+  readonly draftRevision?: number;
   readonly firebaseCommitStatus?: 'committed' | 'already-committed';
   readonly firebaseCommitPath?: string;
   readonly firebaseOperationCount?: number;
@@ -193,6 +209,8 @@ const announceReadingV2PublishSuccess = (
 const getInitialStudioStep = (mode: ReadingV2StudioMode): ReadingV2TeacherStudioStep =>
   mode === 'create-from-import' || mode === 'create-from-auto' ? 'Passages' : 'Test Info';
 
+const EMPTY_SOURCE_EVIDENCE: readonly ReadingV2AuthoringSourceRecord[] = [];
+
 const getFirstTaskGroupId = (document: ReadingV2Document): string | null =>
   document.sectionIds
     .map((sectionId) => document.sections[sectionId]?.taskGroupIds[0])
@@ -217,19 +235,24 @@ export interface ReadingV2StudioShellProps {
   readonly mode: ReadingV2StudioMode;
   readonly document?: ReadingV2Document;
   readonly metadata?: Partial<ReadingV2StudioMetadata>;
+  readonly authoringContext?: ReadingV2DraftRecord['authoringContext'];
+  readonly workflowOrigin?: ReadingV2StudioWorkflowOrigin;
+  readonly resolvedSourceEvidence?: readonly ReadingV2AuthoringSourceRecord[];
+  readonly actorId?: string;
   readonly returnContext?: ReadingV2ReturnContext;
   readonly host?: 'page' | 'modal';
   readonly operationalState?: ReadingV2StudioOperationalStateId;
   readonly importCandidate?: ReadingV2ImportCandidate;
   readonly draftId?: string;
   readonly materialId?: string;
-  readonly revisionToken?: string;
+  readonly revision?: number;
+  readonly saveState?: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
+  readonly saveError?: string | null;
   readonly onAction?: ReadingV2StudioActionHandler;
   readonly onSaveDraft?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioSaveResult | Promise<ReadingV2StudioSaveResult>;
   readonly onDraftChange?: (snapshot: ReadingV2StudioWorkflowSnapshot) => void;
   readonly onReloadLatest?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioConflictReloadResult | Promise<ReadingV2StudioConflictReloadResult>;
   readonly onDuplicateDraft?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioConflictDuplicateResult | Promise<ReadingV2StudioConflictDuplicateResult>;
-  readonly onCompareDiff?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioConflictDiffResult | Promise<ReadingV2StudioConflictDiffResult>;
   readonly onPreview?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2DerivedProjection | Promise<ReadingV2DerivedProjection>;
   readonly onPublish?: (snapshot: ReadingV2StudioWorkflowSnapshot) => ReadingV2StudioPublishResult | Promise<ReadingV2StudioPublishResult>;
   readonly onPublishSuccess?: (
@@ -243,83 +266,6 @@ export interface ReadingV2StudioShellProps {
   ) => ReadingV2StudioExtractionResult | Promise<ReadingV2StudioExtractionResult>;
   readonly onExit?: () => void;
 }
-
-const parseImportReviewQuestionRange = (
-  value: string | undefined,
-): ReadingV2BuildValidationMessage['questionRange'] | undefined => {
-  const match = value?.match(/Q?\s*(\d+)(?:\s*[-–—]\s*(\d+))?/i);
-  if (!match) {
-    return undefined;
-  }
-
-  const first = Number(match[1]);
-  const last = Number(match[2] ?? match[1]);
-  if (!Number.isFinite(first) || !Number.isFinite(last)) {
-    return undefined;
-  }
-
-  return {
-    start: Math.min(first, last),
-    end: Math.max(first, last),
-  };
-};
-
-const formatImportReviewQuestionLabel = (
-  range: ReadingV2BuildValidationMessage['questionRange'],
-): string | undefined => {
-  if (!range) {
-    return undefined;
-  }
-
-  return range.start === range.end ? `Question ${range.start}` : `Questions ${range.start}-${range.end}`;
-};
-
-const findDiagnosticForImportBlocker = (
-  message: string,
-  diagnostics: readonly ReadingV2AutoImportCandidateDiagnostic[] | undefined,
-): ReadingV2AutoImportCandidateDiagnostic | undefined => {
-  const normalizedMessage = message.replace(/^Auto import needs teacher review before publish:\s*/i, '').trim();
-  return diagnostics?.find((diagnostic) => normalizedMessage.includes(diagnostic.message) || message.includes(diagnostic.message));
-};
-
-const getImportReviewDetail = (
-  message: string,
-  diagnostic: ReadingV2AutoImportCandidateDiagnostic | undefined,
-): string => {
-  const sourceMessage = diagnostic?.message ?? message.replace(/^Auto import needs teacher review before publish:\s*/i, '').trim();
-
-  if (diagnostic?.code === 'groq-output-missing-group' || /omitted hinted group/i.test(sourceMessage)) {
-    return 'Provider omitted this question group. Local repair rebuilt it from source; check task type, prompt text, blanks, and answers.';
-  }
-
-  if (diagnostic?.code === 'group-coverage-mismatch' || /omitted question\(s\)/i.test(sourceMessage)) {
-    return 'Provider omitted questions inside this group. Local repair rebuilt them from source; check statements, option bank, and answers.';
-  }
-
-  return sourceMessage;
-};
-
-const buildImportReviewValidationMessage = (
-  message: string,
-  index: number,
-  diagnostics: readonly ReadingV2AutoImportCandidateDiagnostic[] | undefined,
-): ReadingV2BuildValidationMessage => {
-  const diagnostic = findDiagnosticForImportBlocker(message, diagnostics);
-  const questionRange = parseImportReviewQuestionRange(diagnostic?.groupRange)
-    ?? parseImportReviewQuestionRange(diagnostic?.sourceRange)
-    ?? (diagnostic?.questionNumber ? { start: diagnostic.questionNumber, end: diagnostic.questionNumber } : undefined);
-  const reviewLabel = formatImportReviewQuestionLabel(questionRange);
-  const reviewDetail = getImportReviewDetail(message, diagnostic);
-
-  return {
-    key: `import-candidate-blocker-${index}`,
-    message: reviewLabel ? `${reviewLabel}: ${reviewDetail}` : message,
-    reviewLabel,
-    reviewDetail: reviewLabel ? reviewDetail : undefined,
-    questionRange,
-    source: 'import-review',
-  };
-};
 
 const DIAG_PREFIX = '[Diag][ReadingV2Studio]';
 
@@ -346,7 +292,7 @@ const createDefaultMetadata = (
   description: overrides.description ?? '',
   tags: overrides.tags ?? [],
   visibility: overrides.visibility ?? 'private',
-  ownerId: overrides.ownerId ?? 'current-teacher',
+  ownerId: overrides.ownerId ?? '',
   provenanceSummary: overrides.provenanceSummary ?? 'Original Reading V2 draft',
   primaryTestTypeId: overrides.primaryTestTypeId,
   testTypeIds: overrides.testTypeIds ? [...overrides.testTypeIds] : undefined,
@@ -569,9 +515,10 @@ export const createManualReadingV2TaskGroup = (
     throw new Error('Cannot add a Reading V2 question group without linked passage context.');
   }
 
-  const nextPosition = section.taskGroupIds.length + 1;
+  let nextPosition = section.taskGroupIds.length + 1;
   const taskTypeLabel = READING_V2_TASK_TAXONOMY[canonicalTaskType].label;
   const safeSectionId = section.sectionId.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+  while (document.taskGroups[`${safeSectionId}-${canonicalTaskType}-question-group-${nextPosition}`]) nextPosition += 1;
   const taskGroupId = readingV2Ids.taskGroupId(`${safeSectionId}-${canonicalTaskType}-question-group-${nextPosition}`);
   const family = getReadingV2TaskFamily(canonicalTaskType);
   const optionSetId = readingV2Ids.optionSetId(`${taskGroupId}-options`);
@@ -624,7 +571,8 @@ export const createManualReadingV2TaskGroup = (
     ],
     answerRule: {
       responseShape,
-      wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : undefined,
+      wordLimit: responseShape.kind === 'free-text' ? responseShape.wordLimit : responseShape.kind === 'structured-entry'
+        ? readReadingV2InstructionFacts(getReadingV2InstructionText(canonicalTaskType)).wordLimit : undefined,
       optionReuse: responseShape.kind === 'matching' ? responseShape.optionReuse : undefined,
       casing: 'ignored',
       punctuation: 'ignored',
@@ -2040,19 +1988,24 @@ export function ReadingV2StudioShell({
   mode,
   document: documentOverride,
   metadata: metadataOverrides,
+  authoringContext: authoringContextOverride,
+  workflowOrigin: workflowOriginOverride,
+  resolvedSourceEvidence = EMPTY_SOURCE_EVIDENCE,
+  actorId,
   returnContext = { surface: 'direct-studio-route', label: 'Studio route' },
   host = 'page',
   operationalState = 'ready',
   importCandidate,
   draftId,
   materialId,
-  revisionToken = 'local-rev-1',
+  revision = 0,
+  saveState = 'idle',
+  saveError,
   onAction,
   onSaveDraft,
   onDraftChange,
   onReloadLatest,
   onDuplicateDraft,
-  onCompareDiff,
   onPreview,
   onPublish,
   onPublishSuccess,
@@ -2072,24 +2025,31 @@ export function ReadingV2StudioShell({
   const [draftDocument, setDraftDocument] = useState<ReadingV2Document>(initialDocument);
   const [currentImportCandidate, setCurrentImportCandidate] = useState(importCandidate);
   const [metadata, setMetadata] = useState<ReadingV2StudioMetadata>(initialMetadata);
+  const [authoringContext, setAuthoringContext] = useState(authoringContextOverride);
+  const [sourceEvidence, setSourceEvidence] = useState(resolvedSourceEvidence);
+  const [workflowOrigin, setWorkflowOrigin] = useState(workflowOriginOverride ?? { mode });
   const [currentDraftId, setCurrentDraftId] = useState(draftId ?? initialDocument.documentId);
   const [currentMaterialId, setCurrentMaterialId] = useState(materialId);
-  const [currentRevisionToken, setCurrentRevisionToken] = useState(revisionToken);
+  const [currentRevision, setCurrentRevision] = useState(revision);
   const [previewProjection, setPreviewProjection] = useState<ReadingV2DerivedProjection | null>(null);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
+  const [localSaveError, setLocalSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+  const workflowBusyRef = useRef(false);
   const [publishState, setPublishState] = useState<
     'idle' | 'pending' | 'success' | 'failure' | 'partial-failure' | 'permission-denied' | 'retry'
   >('idle');
   const [lastPublishCommitPath, setLastPublishCommitPath] = useState<string | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<readonly ReadingV2AutoSplitDuplicateWarning[]>([]);
   const [showDeveloperDetails, setShowDeveloperDetails] = useState(false);
-  const [showImportReviewDetails, setShowImportReviewDetails] = useState(false);
   const [diagnosticCopyState, setDiagnosticCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [extractionTaskGroupIds, setExtractionTaskGroupIds] = useState<readonly ReadingV2TaskGroupId[]>([]);
   const [extractionMaterialKind, setExtractionMaterialKind] = useState<
     ReadingV2StudioExtractionRequest['materialKind']
   >('extracted-task-group-material');
   const draftChangeHydratedRef = useRef(false);
+  const draftPropsSyncRef = useRef(false);
   const [selectedTaskGroupId, setSelectedTaskGroupId] = useState<string | null>(() =>
     getFirstTaskGroupId(initialDocument),
   );
@@ -2186,7 +2146,9 @@ export function ReadingV2StudioShell({
       : selectedTaskGroup
         ? [selectedTaskGroup.taskGroupId]
         : [];
-  const validationResult = useMemo(() => validateReadingV2Draft(draftDocument), [draftDocument]);
+  const readiness = useMemo(() => evaluateReadingV2AuthoringReadiness({ document: draftDocument, metadata, authoringContext }, sourceEvidence), [draftDocument, metadata, authoringContext, sourceEvidence]);
+  const validationResult = readiness.validationResult;
+  const reviewIssues = useMemo(() => mapReadingV2AuthoringFindingsToReviewIssues(readiness.findings, draftDocument), [readiness.findings, draftDocument]);
   const teacherImportDiagnostics = useMemo(() => buildReadingV2TeacherImportDiagnostics({
     document: draftDocument,
     metadata,
@@ -2196,168 +2158,27 @@ export function ReadingV2StudioShell({
     activeStep,
     draftId: currentDraftId,
     materialId: currentMaterialId,
-    revisionToken: currentRevisionToken,
+    revision: currentRevision,
   }), [
     activeStep,
     currentDraftId,
     currentImportCandidate,
     currentMaterialId,
-    currentRevisionToken,
+    currentRevision,
     draftDocument,
     metadata,
     mode,
     validationResult,
   ]);
   const hasImportCandidate = currentImportCandidate !== undefined;
-  const blockingIssues = validationResult.blockingIssues;
-  const metadataPublishBlocked = metadata.title.trim().length === 0;
-  const getQuestionLabelForObject = (objectId?: string): string => {
-    if (!objectId) {
-      return 'A question';
-    }
-
-    let nextNumber = 1;
-    for (const taskGroup of orderedTaskGroups) {
-      if (taskGroup.taskGroupId === objectId) {
-        return taskGroup.groupTitle ? `${taskGroup.groupTitle}` : 'A question group';
-      }
-
-      for (const interactionId of taskGroup.interactionIds) {
-        if (interactionId === objectId) {
-          return `Question ${nextNumber}`;
-        }
-
-        nextNumber += 1;
-      }
-    }
-
-    return 'A question';
-  };
-  const teacherMessageForIssue = (issue: ReadingV2ValidationIssue): string => {
-    switch (issue.code) {
-      case 'missing-scoring-response-shape':
-        if (/visible blank marker/i.test(issue.message)) {
-          return `${getQuestionLabelForObject(issue.objectId)} needs a visible blank marker such as [blank] or ___.`;
-        }
-        return `${getQuestionLabelForObject(issue.objectId)} has no answer key.`;
-      case 'unresolved-draft-placeholder':
-        return `${getQuestionLabelForObject(issue.objectId)} has no answer key.`;
-      case 'missing-primary-stimulus-reference':
-        return `${getQuestionLabelForObject(issue.objectId)} needs to be linked to a passage.`;
-      case 'unresolved-import-uncertainty':
-        return 'Imported questions need review before publishing.';
-      case 'deleted-stimulus-or-anchor-reference':
-      case 'orphan-anchor-reference':
-        return 'A question is linked to passage content that was removed or changed.';
-      case 'duplicate-numbering':
-        return 'Question numbering needs to be checked.';
-      case 'unsupported-import-structure':
-        return 'Some imported content could not be placed into the test.';
-      case 'invalid-packaged-material-assembly':
-        if (/wrong judgement vocabulary/i.test(issue.message)) {
-          return `${getQuestionLabelForObject(issue.objectId)}: Wrong judgement vocabulary.`;
-        }
-        return 'The test structure needs review before publishing.';
-      case 'orphan-interaction':
-        return 'A question is not inside a question group.';
-      default:
-        return issue.message
-          .replace(/canonical draft/gi, 'draft')
-          .replace(/canonical/gi, 'test')
-          .replace(/task group/gi, 'question group')
-          .replace(/interaction/gi, 'question')
-          .replace(/stimulus/gi, 'passage')
-          .replace(/publish-blocking/gi, 'missing');
-    }
-  };
-  const publishBlockingMessages = [
-    ...(metadataPublishBlocked
-      ? [
-          {
-            key: 'metadata-title-required',
-            message: 'Add a test title before publishing.',
-          },
-        ]
-      : []),
-    ...(currentImportCandidate
-      ? (mode === 'create-from-auto'
-          ? getReadingV2ImportSourceBlockers(currentImportCandidate)
-          : currentImportCandidate.publishBlockingPlaceholders).map((message, index) =>
-          buildImportReviewValidationMessage(message, index, currentImportCandidate.autoImportDiagnostics),
-        )
-      : []),
-    ...passageSlots.flatMap((passage) => [
-      ...(passage.hasTitle
-        ? []
-        : [
-            {
-              key: `passage-${passage.passageNumber}-title`,
-              message: `Passage ${passage.passageNumber} needs a title.`,
-            },
-          ]),
-      ...(passage.hasText
-        ? []
-        : [
-            {
-              key: `passage-${passage.passageNumber}-text`,
-              message: `Passage ${passage.passageNumber} has no passage text.`,
-            },
-          ]),
-      ...(passage.questionGroupCount > 0
-        ? []
-        : [
-            {
-              key: `passage-${passage.passageNumber}-question-groups`,
-              message: `Passage ${passage.passageNumber} has no question groups.`,
-            },
-          ]),
-    ]),
-    ...orderedTaskGroups.flatMap((taskGroup) => {
-      const optionSetsForGroup = taskGroup.optionSetRefs
-        .map((optionSetId) => draftDocument.optionSets[optionSetId])
-        .filter((optionSet): optionSet is ReadingV2OptionSet => optionSet !== undefined);
-      const emptyOptions = taskGroup.officialTaskType === 'matching-information'
-        ? []
-        : optionSetsForGroup.flatMap((optionSet) =>
-            optionSet.options
-              .filter((option) => option.text.trim().length === 0)
-              .map((option) => ({
-                key: `${optionSet.optionSetId}-${option.optionId}-text`,
-                message: `${getReadingV2BuildTaskTypeLabel(taskGroup.officialTaskType)} option ${option.label} needs text.`,
-              })),
-          );
-      const promptIssues = taskGroup.officialTaskType === 'table-completion'
-        || taskGroup.officialTaskType === 'flowchart-completion'
-        || taskGroup.officialTaskType === 'diagram-labeling'
-        ? []
-        : taskGroup.interactionIds
-            .map((interactionId) => draftDocument.interactions[interactionId])
-            .filter((interaction): interaction is ReadingV2Interaction => interaction !== undefined)
-            .filter((interaction) => (interaction.promptText ?? '').trim().length === 0)
-            .map((interaction) => ({
-              key: `${interaction.interactionId}-prompt`,
-              message: `${getQuestionLabelForObject(interaction.interactionId)} needs question text.`,
-            }));
-
-      return [
-        ...emptyOptions,
-        ...promptIssues,
-      ];
-    }),
-    ...blockingIssues.map((issue) => ({
-      key: `${issue.code}-${issue.objectId ?? issue.message}`,
-      message: teacherMessageForIssue(issue),
-    })),
-  ].filter((issue, index, issues) =>
-    issues.findIndex((candidate) => candidate.message === issue.message) === index,
-  ) satisfies readonly ReadingV2BuildValidationMessage[];
   const stateContract = READING_V2_STUDIO_OPERATIONAL_STATES[operationalState];
-  const publishBlocked = publishBlockingMessages.length > 0 || !validationResult.canPublish;
+  const publishBlocked = !readiness.canPublish;
   useEffect(() => {
     setActiveStep(getInitialStudioStep(mode));
   }, [mode]);
 
   useEffect(() => {
+    draftPropsSyncRef.current = true;
     setDraftDocument(initialDocument);
     setCurrentDraftId(draftId ?? initialDocument.documentId);
     setSelectedTaskGroupId(getFirstTaskGroupId(initialDocument));
@@ -2378,9 +2199,13 @@ export function ReadingV2StudioShell({
     setMetadata(initialMetadata);
   }, [initialMetadata]);
 
+  useEffect(() => { setAuthoringContext(authoringContextOverride); }, [authoringContextOverride]);
+  useEffect(() => { setSourceEvidence(resolvedSourceEvidence); }, [resolvedSourceEvidence]);
+  useEffect(() => { setWorkflowOrigin(workflowOriginOverride ?? { mode }); }, [workflowOriginOverride, mode]);
+
   useEffect(() => {
-    setCurrentRevisionToken(revisionToken);
-  }, [revisionToken]);
+    setCurrentRevision(revision);
+  }, [revision]);
 
   useEffect(() => {
     setDiagnosticCopyState('idle');
@@ -2407,7 +2232,7 @@ export function ReadingV2StudioShell({
       materialId: currentMaterialId,
       returnSurface: returnContext.surface,
       returnLabel: returnContext.label,
-      revisionToken: currentRevisionToken,
+      revision: currentRevision,
       ...metadataPatch,
     });
   };
@@ -2417,7 +2242,9 @@ export function ReadingV2StudioShell({
     materialId: currentMaterialId,
     document: draftDocument,
     metadata,
-    revisionToken: currentRevisionToken,
+    authoringContext,
+    workflowOrigin,
+    revision: currentRevision,
     returnContext: returnContext.surface,
   });
 
@@ -2448,7 +2275,11 @@ export function ReadingV2StudioShell({
     }
 
     const createdAt = new Date().toISOString();
-    const actorUserId = String(metadata.ownerId || 'current-teacher');
+    const actorUserId = actorId || metadata.ownerId;
+    if (!actorUserId) {
+      toast.error('Sign in again before choosing how to use this passage.');
+      return;
+    }
     const eventId = `${currentDraftId}:${auditAction}:${warning.passageMaterialId}:${match.materialId}:${Date.now()}`;
 
     void writeReadingV2AuditEvent({
@@ -2459,7 +2290,7 @@ export function ReadingV2StudioShell({
       action: auditAction,
       entityType: 'duplicate-warning',
       entityId: `${warning.passageMaterialId}:${match.materialId}`,
-      ownerId: actorUserId,
+      ownerId: metadata.ownerId,
       materialId: warning.passageMaterialId,
       titleSnapshot: match.title,
       before: {
@@ -2471,7 +2302,7 @@ export function ReadingV2StudioShell({
         decision: actionName,
       },
       correlationId: eventId,
-      sourceFeatureId: 'readingV2Studio',
+      sourceFeatureId: FEATURE_IDS.readingV2Studio,
       sourceRoute: `reading-v2-studio:${returnContext.surface}`,
     }).catch((error) => {
       emitAction('reading_passage_duplicate_audit_failed', {
@@ -2484,16 +2315,22 @@ export function ReadingV2StudioShell({
   };
 
   const handleCopyParsingDiagnostics = async () => {
+    const importSourceKind = currentImportCandidate?.sourceKind
+      ?? sourceEvidence.find((source) => authoringContext?.origin.kind === 'import' && source.sourceId === authoringContext.origin.sourceId)?.sourceKind
+      ?? sourceEvidence[0]?.sourceKind ?? 'none';
     const diagnostics = buildReadingV2StudioParsingDiagnostics({
       document: draftDocument,
       metadata,
       importCandidate: currentImportCandidate,
+      authoringContext,
+      resolvedSourceEvidence: sourceEvidence,
+      authoringReadiness: readiness,
       validationResult,
       mode,
       activeStep,
       draftId: currentDraftId,
       materialId: currentMaterialId,
-      revisionToken: currentRevisionToken,
+      revision: currentRevision,
     });
     const text = formatReadingV2StudioParsingDiagnostics(diagnostics);
     const copied = await writeClipboardText(text);
@@ -2503,44 +2340,56 @@ export function ReadingV2StudioShell({
       copied,
       mode,
       activeStep,
-      importSourceKind: currentImportCandidate?.sourceKind ?? 'none',
+      importSourceKind,
       validationIssueCount: validationResult.issues.length,
     });
     emitAction('copyParsingDiagnostics', {
       outcome: copied ? 'success' : 'failure',
-      importSourceKind: currentImportCandidate?.sourceKind ?? 'none',
+      importSourceKind,
       validationIssueCount: validationResult.issues.length,
     });
   };
 
   useEffect(() => {
+    if (draftPropsSyncRef.current) {
+      draftPropsSyncRef.current = false;
+      draftChangeHydratedRef.current = true;
+      return;
+    }
     if (!draftChangeHydratedRef.current) {
       draftChangeHydratedRef.current = true;
       return;
     }
 
     onDraftChange?.(workflowSnapshot());
-  }, [draftDocument, metadata]);
+  }, [draftDocument, metadata, authoringContext]);
 
   const handleSaveDraft = async () => {
-    emitAction('saveDraft', { outcome: 'requested', revisionToken: currentRevisionToken });
+    emitAction('saveDraft', { outcome: 'requested', revision: currentRevision });
 
     if (!onSaveDraft) {
       return;
     }
 
+    setSaving(true);
     try {
       const result = await onSaveDraft(workflowSnapshot());
-      setCurrentRevisionToken(result.revisionToken);
-      setWorkflowMessage('Draft saved.');
-      emitAction('saveDraft', { outcome: 'success', revisionToken: result.revisionToken });
-    } catch {
-      setWorkflowMessage('Draft save failed. Open Advanced Details if this keeps happening.');
-      emitAction('saveDraft', { outcome: 'failure', revisionToken: currentRevisionToken });
+      setCurrentRevision(result.revision);
+      setLocalSaveError(null);
+      toast.success('Saved draft.');
+      emitAction('saveDraft', { outcome: 'success', revision: result.revision });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save this draft. Your edits are still here.';
+      setLocalSaveError(message);
+      toast.error('Could not save this draft. Your edits are still here.');
+      emitAction('saveDraft', { outcome: 'failure', revision: currentRevision });
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleReloadLatest = async () => {
+    if (workflowBusyRef.current) return;
     emitAction('conflictRecovery', { outcome: 'reload-latest-requested' });
 
     if (!onReloadLatest) {
@@ -2548,19 +2397,30 @@ export function ReadingV2StudioShell({
       return;
     }
 
+    workflowBusyRef.current = true;
+    setWorkflowBusy(true);
     try {
       const result = await onReloadLatest(workflowSnapshot());
       setDraftDocument(result.document);
-      setCurrentRevisionToken(result.revisionToken);
-      setWorkflowMessage('Reloaded the latest persisted draft revision.');
-      emitAction('conflictRecovery', { outcome: 'reload-latest-success', revisionToken: result.revisionToken });
+      setMetadata(result.metadata);
+      setAuthoringContext(result.authoringContext);
+      setSourceEvidence(result.resolvedSourceEvidence ?? []);
+      setWorkflowOrigin(result.workflowOrigin ?? { mode });
+      setCurrentRevision(result.revision);
+      setLocalSaveError(null);
+      toast.success('Reloaded the latest saved draft.');
+      emitAction('conflictRecovery', { outcome: 'reload-latest-success', revision: result.revision });
     } catch {
-      setWorkflowMessage('Reload latest failed. The current draft view was not changed.');
+      toast.error('Could not reload the draft. Your edits are still here.');
       emitAction('conflictRecovery', { outcome: 'reload-latest-failure' });
+    } finally {
+      workflowBusyRef.current = false;
+      setWorkflowBusy(false);
     }
   };
 
   const handleDuplicateDraft = async () => {
+    if (workflowBusyRef.current) return;
     emitAction('conflictRecovery', { outcome: 'duplicate-draft-requested' });
 
     if (!onDuplicateDraft) {
@@ -2568,45 +2428,32 @@ export function ReadingV2StudioShell({
       return;
     }
 
+    const snapshot = workflowSnapshot();
+    workflowBusyRef.current = true;
+    setWorkflowBusy(true);
     try {
-      const result = await onDuplicateDraft(workflowSnapshot());
+      const result = await onDuplicateDraft(snapshot);
       setCurrentDraftId(result.draftId);
-      if (result.materialId) {
-        setCurrentMaterialId(result.materialId);
-      }
-      setCurrentRevisionToken(result.revisionToken);
-      setWorkflowMessage(`Duplicated draft ${result.draftId}.`);
+      setCurrentMaterialId(result.materialId);
+      setDraftDocument(result.document);
+      setMetadata(result.metadata);
+      setAuthoringContext(result.authoringContext);
+      setSourceEvidence(result.resolvedSourceEvidence ?? []);
+      setWorkflowOrigin(result.workflowOrigin ?? { mode: 'duplicate-material' });
+      setCurrentRevision(result.revision);
+      setLocalSaveError(null);
+      toast.success('Saved your edits as a new draft.');
       emitAction('conflictRecovery', {
         outcome: 'duplicate-draft-success',
         draftId: result.draftId,
-        revisionToken: result.revisionToken,
+        revision: result.revision,
       });
     } catch {
-      setWorkflowMessage('Duplicate draft failed. The source draft was not changed.');
+      toast.error('Could not save a copy. Your edits are still here.');
       emitAction('conflictRecovery', { outcome: 'duplicate-draft-failure' });
-    }
-  };
-
-  const handleCompareDiff = async () => {
-    emitAction('conflictRecovery', { outcome: 'compare-diff-requested' });
-
-    if (!onCompareDiff) {
-      setWorkflowMessage('Compare diff needs a draft repository handler.');
-      return;
-    }
-
-    try {
-      const result = await onCompareDiff(workflowSnapshot());
-      setWorkflowMessage(
-        `Compared with ${result.latestRevisionToken ?? 'missing latest revision'}: title changed ${String(result.changedTitle)}, validation changed ${String(result.changedValidationIssueCount)}.`,
-      );
-      emitAction('conflictRecovery', {
-        outcome: 'compare-diff-success',
-        revisionToken: result.latestRevisionToken,
-      });
-    } catch {
-      setWorkflowMessage('Compare diff failed. The current draft view was not changed.');
-      emitAction('conflictRecovery', { outcome: 'compare-diff-failure' });
+    } finally {
+      workflowBusyRef.current = false;
+      setWorkflowBusy(false);
     }
   };
 
@@ -2630,6 +2477,7 @@ export function ReadingV2StudioShell({
   };
 
   const handlePublish = async () => {
+    if (workflowBusyRef.current || publishState === 'pending') return;
     emitAction('publish', { outcome: publishBlocked ? 'blocked' : 'requested' });
 
     if (publishBlocked) {
@@ -2645,6 +2493,8 @@ export function ReadingV2StudioShell({
       return;
     }
 
+    workflowBusyRef.current = true;
+    setWorkflowBusy(true);
     setPublishState('pending');
     setWorkflowMessage('Publishing. Preparing the test for students.');
 
@@ -2669,6 +2519,15 @@ export function ReadingV2StudioShell({
 
       setPublishState('success');
       setWorkflowMessage('Published successfully.');
+      if (result.publicationBase) {
+        setWorkflowOrigin((current) => ({
+          ...current,
+          sourceSnapshotVersionId: result.snapshotVersionId,
+          publicationBase: result.publicationBase,
+        }));
+      }
+      if (result.materialId) setCurrentMaterialId(result.materialId);
+      if (result.draftRevision !== undefined) setCurrentRevision(result.draftRevision);
       emitAction('publish', { outcome: 'success' });
       announceReadingV2PublishSuccess(snapshot, result);
       onPublishSuccess?.(snapshot, result);
@@ -2690,6 +2549,9 @@ export function ReadingV2StudioShell({
           : 'Publish failed. The previous live snapshot remains active.',
       );
       emitAction('publish', { outcome: permissionDenied ? 'permission-denied' : 'failure' });
+    } finally {
+      workflowBusyRef.current = false;
+      setWorkflowBusy(false);
     }
   };
 
@@ -2706,6 +2568,7 @@ export function ReadingV2StudioShell({
   };
 
   const handleExtract = async () => {
+    if (workflowBusyRef.current) return;
     emitAction('extractTaskGroupMaterial', { outcome: 'requested' });
 
     if (!onExtract) {
@@ -2714,98 +2577,36 @@ export function ReadingV2StudioShell({
       return;
     }
 
+    const snapshot = workflowSnapshot();
+    workflowBusyRef.current = true;
+    setWorkflowBusy(true);
     try {
-      const result = await onExtract(workflowSnapshot(), {
+      const result = await onExtract(snapshot, {
         taskGroupIds: selectedExtractionTaskGroupIds.map(readingV2Ids.taskGroupId),
         materialKind: extractionMaterialKind,
       });
       setCurrentDraftId(result.draftId);
-      if (result.materialId) {
-        setCurrentMaterialId(result.materialId);
-      }
+      setCurrentMaterialId(result.materialId);
       setDraftDocument(result.document);
-      setCurrentRevisionToken(result.revisionToken);
+      setCurrentRevision(result.revision);
       setSelectedTaskGroupId(getFirstTaskGroupId(result.document));
-      setMetadata((current) => ({
-        ...current,
-        title: result.document.title,
-        materialKind: extractionMaterialKind,
-        provenanceSummary: `Extracted from ${draftDocument.title}`,
-      }));
-      setWorkflowMessage(`Opened extracted draft ${result.draftId}. Source material remains unchanged.`);
+      setMetadata(result.metadata);
+      setAuthoringContext(result.authoringContext);
+      setSourceEvidence(result.resolvedSourceEvidence ?? []);
+      setWorkflowOrigin(result.workflowOrigin ?? { mode: 'extract-task-group-material' });
+      toast.success('Created an extracted draft.');
       emitAction('extractTaskGroupMaterial', {
         outcome: 'opened-extracted-draft',
         draftId: result.draftId,
-        revisionToken: result.revisionToken,
+        revision: result.revision,
       });
     } catch {
-      setWorkflowMessage('Extraction failed. The source material remains unchanged.');
+      toast.error('Could not create the extracted draft. Your edits are still here.');
       emitAction('extractTaskGroupMaterial', { outcome: 'failure' });
+    } finally {
+      workflowBusyRef.current = false;
+      setWorkflowBusy(false);
     }
-  };
-
-  const handleJumpImportDiagnostic = (target: ReadingV2TeacherImportDiagnosticTarget) => {
-    const objectId = target.objectId;
-    const interactionFromQuestionNumber = target.questionNumber
-      ? visibleNumbers.find((entry) => entry.displayNumber === target.questionNumber)?.interactionId
-      : undefined;
-    const interactionId = objectId && draftDocument.interactions[objectId]
-      ? objectId
-      : interactionFromQuestionNumber;
-    const taskGroupId = interactionId
-      ? draftDocument.interactions[interactionId]?.taskGroupId
-      : objectId && draftDocument.taskGroups[objectId]
-        ? readingV2Ids.taskGroupId(objectId)
-        : objectId && draftDocument.optionSets[objectId]
-          ? draftDocument.optionSets[objectId]?.taskGroupId
-          : undefined;
-    const taskGroup = taskGroupId ? draftDocument.taskGroups[taskGroupId] : undefined;
-    const anchorStimulusId = objectId && draftDocument.anchors[objectId]
-      ? draftDocument.anchors[objectId]?.stimulusId
-      : undefined;
-    const explicitStimulusId = objectId && draftDocument.stimuli[objectId]
-      ? readingV2Ids.stimulusId(objectId)
-      : undefined;
-    const sectionId = taskGroup?.sectionId
-      ?? (anchorStimulusId ? getSectionIdForStimulus(draftDocument, anchorStimulusId) : undefined)
-      ?? (explicitStimulusId ? getSectionIdForStimulus(draftDocument, explicitStimulusId) : undefined)
-      ?? (objectId && draftDocument.sections[objectId] ? readingV2Ids.sectionId(objectId) : undefined);
-    const stimulusId = explicitStimulusId
-      ?? anchorStimulusId
-      ?? (sectionId ? draftDocument.sections[sectionId]?.stimulusIds[0] : undefined);
-    const nextStep = target.kind === 'publish'
-      ? 'Publish'
-      : target.kind === 'source' || target.kind === 'section' || target.kind === 'stimulus' || target.kind === 'anchor'
-        ? 'Passages'
-        : target.step;
-
-    setActiveStep(nextStep);
-    if (taskGroupId) {
-      setSelectedTaskGroupId(taskGroupId);
-    }
-    if (stimulusId) {
-      setSelectedPassageId(stimulusId);
-    }
-    setSelectedQuestionLink(
-      interactionId || target.kind === 'anchor'
-        ? {
-            anchorId: target.kind === 'anchor' && objectId ? objectId : draftDocument.interactions[interactionId ?? '']?.primaryAnchorId,
-            interactionId,
-            taskGroupId,
-            source: 'diagnostic',
-          }
-        : null,
-    );
-    setWorkflowMessage(
-      target.kind === 'answer-key-line' && target.sourceLine
-        ? `Opened answer-key issue from line ${target.sourceLine}.`
-        : 'Opened the related review area.',
-    );
-    emitAction('jumpImportDiagnostic', {
-      outcome: target.kind,
-      targetObjectId: target.objectId,
-      targetStep: nextStep,
-    });
   };
 
   const handleQuestionLinkNavigation = (target: ReadingV2QuestionLinkTarget) => {
@@ -2845,82 +2646,10 @@ export function ReadingV2StudioShell({
     outcome: string,
     metadataPatch: Record<string, string | number | boolean | undefined> = {},
   ) => {
-    setWorkflowMessage('Question link repaired. Validate to confirm publish readiness.');
+    setWorkflowMessage(null);
     emitAction('questionLinkRepair', {
       outcome,
       ...metadataPatch,
-    });
-  };
-
-  const handleAnalyzeImportSource = (candidate: ReadingV2ImportCandidate) => {
-    setCurrentImportCandidate(candidate);
-    logStudioDiagnostic('import_source_analyzed', {
-      sourceKind: candidate.sourceKind,
-      fileName: candidate.fileName,
-      rawTextCharCount: candidate.rawText?.length ?? 0,
-      answerKeyCharCount: candidate.answerKeyText?.length ?? 0,
-      evidenceCount: candidate.evidence.length,
-      uncertaintyCount: candidate.uncertaintyMarkers.length,
-      blockerCount: candidate.publishBlockingPlaceholders.length,
-    });
-    emitAction('inspectImportEvidence', { outcome: 'source-analyzed' });
-  };
-
-  const handleAcceptImport = (candidate: ReadingV2ImportCandidate) => {
-    try {
-      const result = normalizeReadingV2ImportCandidate(candidate);
-      const editorNormalization = normalizeStructuredDocumentThroughEditorBlocks(result.document);
-      const normalizedDocument = resolveReadingV2ImportReview(editorNormalization.document);
-      const normalizedTaskGroups = Object.values(normalizedDocument.taskGroups);
-      const normalizedInteractions = Object.values(normalizedDocument.interactions);
-      logStudioDiagnostic('import_normalized_to_draft', {
-        passageCount: normalizedDocument.sectionIds.length,
-        taskGroupCount: normalizedTaskGroups.length,
-        questionCount: countReadingV2QuestionSlots(normalizedInteractions),
-        taskTypeCounts: normalizedTaskGroups.reduce<Record<string, number>>((counts, taskGroup) => {
-          counts[taskGroup.officialTaskType] = (counts[taskGroup.officialTaskType] ?? 0) + 1;
-          return counts;
-        }, {}),
-        answeredQuestionCount: normalizedInteractions.filter((interaction) => hasTeacherAnswerKey(interaction)).length,
-        placeholderQuestionCount: normalizedInteractions.filter((interaction) => interaction.placeholder === true).length,
-        importEvidenceCount: result.importEvidenceIds.length,
-        editorBlockNormalized: editorNormalization.normalized,
-        editorBlockIssueCount: editorNormalization.issueCount,
-        firstEditorBlockIssue: editorNormalization.firstIssue,
-      });
-      setDraftDocument(normalizedDocument);
-      setSelectedTaskGroupId(getFirstTaskGroupId(normalizedDocument));
-      setSelectedPassageId(getFirstPassageStimulusId(normalizedDocument));
-      setMetadata((current) => ({
-        ...current,
-        title: current.title.trim().length > 0 ? current.title : normalizedDocument.title,
-        provenanceSummary: `Imported from ${candidate.fileName ?? candidate.sourceKind}`,
-      }));
-      setCurrentImportCandidate(undefined);
-      setShowImportReviewDetails(false);
-      setWorkflowMessage('Import added to your draft. Review questions and answer keys before publishing.');
-      emitAction('importMaterial', { outcome: 'normalized-to-canonical-draft' });
-    } catch {
-      setWorkflowMessage('Import failed closed. Choose a supported source or repair the pasted content.');
-      emitAction('importMaterial', { outcome: 'failed-closed' });
-    }
-  };
-
-  const handleValidate = () => {
-    const outcome = publishBlocked ? 'blocked' : 'clear';
-    setWorkflowMessage(
-      publishBlocked
-        ? 'Publish is blocked until required issues are fixed.'
-        : 'No required issues found.',
-    );
-    emitAction('validate', { outcome });
-  };
-
-  const handleToggleImportReviewDetails = () => {
-    setShowImportReviewDetails((current) => {
-      const next = !current;
-      emitAction('toggleImportReviewDetails', { outcome: next ? 'expanded' : 'collapsed' });
-      return next;
     });
   };
 
@@ -3113,6 +2842,9 @@ export function ReadingV2StudioShell({
   };
 
   const handleTaskGroupChange = (taskGroup: ReadingV2TaskGroup) => {
+    const nextDocument = updateTaskGroup(draftDocument, taskGroup);
+    if (authoringContext) setAuthoringContext(recordReadingV2AuthoredInstructionEdit(authoringContext, draftDocument, nextDocument,
+      taskGroup.taskGroupId, actorId, new Date().toISOString()));
     setDraftDocument((current) => updateTaskGroup(current, taskGroup));
     emitAction('answerKeyEdit', { outcome: 'task-group-updated' });
   };
@@ -3155,6 +2887,334 @@ export function ReadingV2StudioShell({
     emitAction('answerKeyEdit', { outcome: 'interaction-updated' });
   };
 
+  const handleSourceResolution = async (issue: ReadingV2ReviewIssue, kind: 'add' | 'link' | 'interpret' | 'associate' | 'exclude' | 'restore-instruction' | 'passage-span' | 'question-range', selection: string | readonly string[]) => {
+    if (!authoringContext || saving) return;
+    const requirementId = issue.target.sourceRequirementId ?? selection;
+    const requirement = authoringContext.requirements.find((item) => item.requirementId === requirementId);
+    if (!requirement && kind !== 'associate') return;
+    let nextDocument = draftDocument;
+    let nextContext = authoringContext;
+    const { questionRange, passageNumber, field, sourceRequirementId, ...stableTarget } = issue.target;
+    let target = stableTarget;
+    try {
+      if (kind === 'exclude') {
+        nextContext = resolveReadingV2AnswerKeyRow(authoringContext, requirementId, draftDocument, actorId, new Date().toISOString());
+      } else if (kind === 'restore-instruction') {
+        nextDocument = restoreReadingV2SourceInstruction(authoringContext, requirementId, draftDocument);
+      } else if (kind === 'passage-span') {
+        const source = sourceEvidence.find((entry) => entry.sourceId === requirement.sourceId);
+        if (!source) throw new Error('Reload the supplied source before correcting its passage span.');
+        nextContext = correctReadingV2PassageSourceSpan(authoringContext, requirementId, selection as readonly string[], draftDocument, source, actorId, new Date().toISOString());
+      } else if (kind === 'question-range') {
+        const source = sourceEvidence.find((entry) => entry.sourceId === requirement.sourceId);
+        if (!source) throw new Error('Reload the supplied source before correcting its range.');
+        const [start, end] = String(selection).split('-').map(Number);
+        nextContext = correctReadingV2SourceQuestionRange(authoringContext, requirementId, start, end, source, actorId, new Date().toISOString());
+      } else if (kind === 'associate') {
+        const sourceId = authoringContext.origin.kind === 'import' ? authoringContext.origin.sourceId : undefined;
+        const source = sourceEvidence.find((item) => item.sourceId === sourceId);
+        if (!source || !actorId) throw new Error('The supplied source must be loaded before linking this content.');
+        nextContext = associateReadingV2ImportedContent(authoringContext, {
+          target, sourceId: source.sourceId, lineIds: selection as readonly string[], actorId, updatedAt: new Date().toISOString(),
+        }, draftDocument, source);
+      } else if (kind === 'interpret') {
+        const group = target.taskGroupId ? draftDocument.taskGroups[target.taskGroupId] : undefined;
+        if ((!group && requirement.kind !== 'instruction') || !actorId) throw new Error('Sign in again before changing this source interpretation.');
+        nextContext = interpretReadingV2SourceRequirement(authoringContext, {
+          requirementId,
+          ...(requirement.kind === 'bank' || requirement.kind === 'instruction' ? {} : { taskType: group!.officialTaskType }),
+          actorId, updatedAt: new Date().toISOString(),
+        }, draftDocument, sourceEvidence.find((source) => source.sourceId === requirement.sourceId));
+      } else {
+        if (kind === 'add') {
+          if (requirement.kind === 'passage') {
+            const created = ensurePassageDocument(draftDocument, draftDocument.sectionIds.length + 1);
+            nextDocument = created.document;
+            target = { sectionId: created.sectionId, stimulusId: created.stimulusId };
+          } else {
+            let group = selection.startsWith('group:') ? draftDocument.taskGroups[selection.slice(6)] : undefined;
+            if (!group) {
+              const taskType = selection.slice(4) as ReadingV2CanonicalTaskType;
+              if (!selection.startsWith('new:') || !READING_V2_TASK_TAXONOMY[taskType]) throw new Error('Choose a question group or a question type.');
+              nextDocument = createManualReadingV2TaskGroup(draftDocument, taskType, requirement.sourceSectionId ? readingV2Ids.sectionId(requirement.sourceSectionId) : selectedPassageSectionId);
+              group = Object.values(nextDocument.taskGroups).find((item) => !draftDocument.taskGroups[item.taskGroupId]);
+              if (!group) throw new Error('Could not create a question group.');
+              target = { taskGroupId: group.taskGroupId, interactionId: group.interactionIds[0], sectionId: group.sectionId, answerSlotIndex: 0 };
+            } else {
+              const created = createQuestionForTaskGroup(draftDocument, group);
+              nextDocument = created.document;
+              target = { taskGroupId: group.taskGroupId, interactionId: created.interactionId, sectionId: group.sectionId, answerSlotIndex: 0 };
+            }
+          }
+        } else if (issue.target.sourceRequirementId) {
+          if (requirement.kind === 'passage') {
+            target = { stimulusId: selection, sectionId: getSectionIdForStimulus(draftDocument, selection) };
+          } else if (requirement.kind === 'bank' || requirement.kind === 'instruction') {
+            const group = draftDocument.taskGroups[selection];
+            target = { taskGroupId: selection, sectionId: group?.sectionId };
+          } else {
+            const [interactionId, slot] = selection.split('#slot:');
+            const interaction = draftDocument.interactions[interactionId];
+            const group = interaction && draftDocument.taskGroups[interaction.taskGroupId];
+            target = { interactionId, taskGroupId: group?.taskGroupId, sectionId: group?.sectionId, ...(slot !== undefined ? { answerSlotIndex: Number(slot) } : {}) };
+          }
+        }
+        nextContext = bindReadingV2SourceRequirement(
+          authoringContext,
+          requirementId,
+          target,
+          nextDocument,
+          sourceEvidence.find((source) => source.sourceId === requirement?.sourceId),
+        );
+      }
+      setDraftDocument(nextDocument);
+      setAuthoringContext(nextContext);
+      if (target.taskGroupId) setSelectedTaskGroupId(target.taskGroupId);
+      const stimulusId = target.stimulusId ?? (target.sectionId ? nextDocument.sections[target.sectionId]?.stimulusIds[0] : undefined);
+      if (stimulusId) setSelectedPassageId(stimulusId);
+      const scopeCorrection = kind === 'exclude' || kind === 'question-range' || kind === 'passage-span';
+      const action = kind === 'add' ? 'sourceRequirementAdd' : kind === 'interpret' || kind === 'restore-instruction' ? 'sourceInterpretationChange' : scopeCorrection ? 'sourceScopeCorrection' : 'sourceRequirementLink';
+      emitAction(action, { outcome: 'updated', issueId: issue.id });
+      if (onSaveDraft) {
+        setSaving(true);
+        const saved = await onSaveDraft({ ...workflowSnapshot(), document: nextDocument, authoringContext: nextContext });
+        setCurrentRevision(saved.revision);
+        setLocalSaveError(null);
+        toast.success(kind === 'interpret' || kind === 'restore-instruction' ? 'Saved source interpretation.' : scopeCorrection ? 'Saved source scope correction.' : 'Saved source association.');
+        emitAction(action, { outcome: 'saved', issueId: issue.id, revision: saved.revision });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update this source association.';
+      toast.error(message);
+      if (nextContext !== authoringContext) setLocalSaveError('Could not save the source correction. Your edits are still here.');
+      emitAction(kind === 'interpret' ? 'sourceInterpretationChange' : kind === 'add' ? 'sourceRequirementAdd' : kind === 'exclude' ? 'sourceScopeCorrection' : 'sourceRequirementLink', { outcome: 'failure', issueId: issue.id });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderIssueResolution = (issue: ReadingV2ReviewIssue) => {
+    const isBankIssue = issue.type === 'source-bank-missing'
+      || issue.type === 'source-bank-mismatch'
+      || issue.type === 'source-bank-association-invalid';
+    if (!isBankIssue && ((issue.action === 'edit' && issue.type !== 'source-passage-incomplete') || (!issue.target.sourceRequirementId && issue.action === 'add'))) return undefined;
+    if (!authoringContext) return undefined;
+    if (issue.type === 'source-unavailable') return (
+      <p>The supplied source could not be loaded. Save your edits, then reopen this draft to load it again.</p>
+    );
+    if (issue.action === 'exclude' && issue.target.sourceRequirementId) return (
+      <div className="reading-v2-build__source-actions">
+        <p>{issue.target.interactionId ? 'Compare the supplied row with the authored answer. Choosing the authored answer keeps the question and its marking checks.' : 'This supplied answer-key row has no question in this import. Exclude this row only if it belongs outside the selected test.'}</p>
+        {issue.target.interactionId ? <p>Authored answer: {draftDocument.interactions[issue.target.interactionId]?.scoringRule.acceptableAnswers?.join(' / ') || 'Missing'}</p> : null}
+        <button className="reading-v2-studio__button" type="button" disabled={saving} onClick={() => void handleSourceResolution(issue, 'exclude', '')}>
+          {issue.target.interactionId ? 'Use authored answer' : 'This row is outside this test'}
+        </button>
+      </div>
+    );
+    const requirement = authoringContext.requirements.find((item) => item.requirementId === issue.target.sourceRequirementId);
+    const group = issue.target.taskGroupId ? draftDocument.taskGroups[issue.target.taskGroupId] : undefined;
+    const source = requirement
+      ? sourceEvidence.find((item) => item.sourceId === requirement.sourceId)
+      : undefined;
+    if (issue.type === 'source-passage-incomplete' && requirement?.sourcePassageNumber !== undefined) return (
+      <p>Restore the supplied passage text in the passage editor.</p>
+    );
+    if (issue.type === 'source-passage-incomplete' && source && requirement) return (
+      <form className="reading-v2-build__source-actions" onSubmit={(event) => {
+        event.preventDefault();
+        const lineIds = new FormData(event.currentTarget).getAll('passageLines').filter((value): value is string => typeof value === 'string');
+        void handleSourceResolution(issue, 'passage-span', lineIds);
+      }}>
+        <p>Restore the supplied text in the passage editor. If the source span was detected incorrectly, select the lines that form this passage.</p>
+        <label>Source passage lines
+          <select name="passageLines" multiple required size={6} defaultValue={[...requirement.lineIds]} aria-label="Source passage lines">
+            {source.lineIndex.filter((line) => requirement.lineIds.includes(line.lineId) && line.rawText.trim()).map((line) => <option key={line.lineId} value={line.lineId}>{line.lineNumber}. {line.rawText}</option>)}
+          </select>
+        </label>
+        <button className="reading-v2-studio__button" type="submit" disabled={saving}>Correct passage source span</button>
+      </form>
+    );
+    const expectedBankRequirement = requirement?.kind === 'bank' && source
+      ? resolveReadingV2SourceBankRequirement(requirement, source)
+      : requirement;
+    const occupiedBankGroupIds = new Set(
+      authoringContext.requirements
+        .filter((item) => item.kind === 'bank' && item.requirementId !== requirement?.requirementId)
+        .map((item) => item.target?.taskGroupId)
+        .filter((taskGroupId): taskGroupId is string => Boolean(taskGroupId)),
+    );
+    const bankTargets = expectedBankRequirement?.kind === 'bank'
+      ? getReadingV2SourceBankTargets(draftDocument, expectedBankRequirement)
+        .filter(({ group: candidate }) => !occupiedBankGroupIds.has(candidate.taskGroupId)
+          || candidate.taskGroupId === issue.target.taskGroupId)
+      : [];
+    const bankGroupLabel = (candidate: ReadingV2TaskGroup): string => {
+      if (candidate.groupTitle?.trim()) return candidate.groupTitle.trim();
+      const numbers = candidate.interactionIds
+        .map((interactionId) => authoringNumbers.find((number) => number.interactionId === interactionId)?.displayNumber)
+        .filter((number): number is number => typeof number === 'number');
+      if (!numbers.length) return getReadingV2BuildTaskTypeLabel(candidate.officialTaskType);
+      const first = numbers[0]!;
+      const last = numbers[numbers.length - 1]!;
+      return first === last ? `Question ${first}` : `Questions ${first}-${last}`;
+    };
+    const exactBankTargets = bankTargets.filter(({ matchesSource }) => matchesSource);
+    const renderBankAssociation = bankTargets.length > 0 ? (
+      <div className="reading-v2-build__source-actions" aria-label="Answer bank association">
+        <p>Choose the compatible question group for this supplied answer bank.</p>
+        {exactBankTargets.length === 1 ? (
+          <button
+            className="reading-v2-studio__button reading-v2-studio__button--primary"
+            type="button"
+            disabled={saving}
+            onClick={() => void handleSourceResolution(issue, 'link', exactBankTargets[0]!.group.taskGroupId)}
+          >
+            Link to {bankGroupLabel(exactBankTargets[0]!.group)}
+          </button>
+        ) : (
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const selected = new FormData(event.currentTarget).get('bankTarget');
+            if (typeof selected === 'string' && selected) void handleSourceResolution(issue, 'link', selected);
+          }}>
+            <label>
+              Compatible question group
+              <select name="bankTarget" required defaultValue="" aria-label="Compatible question group">
+                <option value="" disabled>Choose…</option>
+                {bankTargets.map(({ group: candidate }) => (
+                  <option key={candidate.taskGroupId} value={candidate.taskGroupId}>{bankGroupLabel(candidate)}</option>
+                ))}
+              </select>
+            </label>
+            <button className="reading-v2-studio__button" type="submit" disabled={saving}>Change association</button>
+          </form>
+        )}
+      </div>
+    ) : null;
+    if (issue.type === 'source-bank-mismatch' && requirement && group) {
+      const expected = expectedBankRequirement ?? requirement;
+      const options = group.optionSetRefs.flatMap((id) => draftDocument.optionSets[id]?.options ?? []);
+      const rows = (expected.bankItems ?? []).map((item) => ({ ...item, matches: options.filter((option) => option.label.trim().toLowerCase() === item.label.trim().toLowerCase() && option.text.trim()) }));
+      const canConfirm = Boolean(source && rows.length && rows.every((row) => row.matches.length === 1));
+      return (
+        <div className="reading-v2-build__source-actions">
+          {renderBankAssociation}
+          <table className="reading-v2-review-issues__bank">
+            <caption>Answer bank comparison</caption>
+            <thead><tr><th scope="col">Label</th><th scope="col">Supplied text</th><th scope="col">Current text</th></tr></thead>
+            <tbody>{rows.map((row, index) => <tr key={`${row.label}-${index}`}><th scope="row">{row.label}</th><td>{row.text}</td><td>{row.matches.length === 1 ? row.matches[0].text : row.matches.length ? 'Duplicate label' : 'Missing option'}</td></tr>)}</tbody>
+          </table>
+          <p>{canConfirm ? 'If the current wording is correct, confirm this bank to resolve the review. Required labels and options will still be checked.' : 'Restore each required label with non-empty text before confirming this bank.'}</p>
+          <button className="reading-v2-studio__button" type="button" disabled={saving || !canConfirm} onClick={() => void handleSourceResolution(issue, 'interpret', '')}>Use this answer bank</button>
+        </div>
+      );
+    }
+    if (isBankIssue && renderBankAssociation) return renderBankAssociation;
+    if (issue.type === 'source-bank-association-invalid') {
+      return <p>No compatible question group is available for this answer bank. Create or restore the matching question group, then relink this source.</p>;
+    }
+    if (issue.type === 'source-instruction-mismatch' && issue.target.sourceRequirementId) return (
+      <div className="reading-v2-build__source-actions">
+        {group ? <p>Current rules: {group.answerRule.wordLimit !== undefined ? `${group.answerRule.wordLimit} word(s). ` : ''}{group.answerRule.responseShape.kind === 'multi-select' ? `Choose ${group.answerRule.responseShape.selectionLimit} answers. ` : ''}{readReadingV2InstructionFacts(group.instructionBlocks.map((block) => block.text).join('\n')).numberAllowance === 'optional' ? 'One number may accompany the words. ' : ''}{group.answerRule.responseShape.kind === 'binary-judgement' ? `${group.answerRule.responseShape.vocabulary}. ` : ''}{group.answerRule.optionReuse ? `Option reuse ${group.answerRule.optionReuse}.` : ''}</p> : null}
+        <button className="reading-v2-studio__button" type="button" disabled={saving || !group} onClick={() => void handleSourceResolution(issue, 'restore-instruction', '')}>
+          Restore supplied rules
+        </button>
+        <button className="reading-v2-studio__button" type="button" disabled={saving} onClick={() => void handleSourceResolution(issue, 'interpret', '')}>
+          Use current response rules
+        </button>
+      </div>
+    );
+    if (isBankIssue) return undefined;
+    if (issue.type === 'source-content-unbound') {
+      const sourceId = authoringContext.origin.kind === 'import' ? authoringContext.origin.sourceId : undefined;
+      const source = sourceEvidence.find((item) => item.sourceId === sourceId);
+      const currentText = issue.target.interactionId ? draftDocument.interactions[issue.target.interactionId]?.promptText
+        : issue.target.stimulusId ? getPassageText(draftDocument.stimuli[issue.target.stimulusId]) : '';
+      return source ? (
+        <form className="reading-v2-build__source-actions" onSubmit={(event) => {
+          event.preventDefault();
+          const lines = new FormData(event.currentTarget).getAll('sourceLineIds').filter((value): value is string => typeof value === 'string');
+          void handleSourceResolution(issue, 'associate', lines);
+        }}>
+          <p>{currentText}</p>
+          <label>Supplied source lines
+            <select name="sourceLineIds" aria-label="Supplied source lines" required multiple size={6}>
+              {source.lineIndex.filter((line) => line.rawText.trim()).map((line) => <option key={line.lineId} value={line.lineId}>{line.lineNumber}. {line.rawText}</option>)}
+            </select>
+          </label>
+          <button className="reading-v2-studio__button" type="submit" disabled={saving}>Link supplied content</button>
+        </form>
+      ) : <p>Save your edits, then reopen this draft to load the supplied source.</p>;
+    }
+    if (issue.action === 'interpret' && group) return (
+      <button className="reading-v2-studio__button" type="button" disabled={saving} onClick={() => void handleSourceResolution(issue, 'interpret', '')}>Use this task type</button>
+    );
+    const availableRequirements = authoringContext.requirements.filter((item) =>
+      authoringContext.scope.requirementIds.includes(item.requirementId)
+      && (issue.target.interactionId ? item.kind === 'question' || item.kind === 'answer-slot' : issue.target.taskGroupId ? item.kind === 'bank' : item.kind === 'passage'));
+    const linkTargets = requirement?.kind === 'passage'
+      ? passageSlots.filter((passage) => passage.stimulusId).map((passage) => ({ id: passage.stimulusId, label: `Passage ${passage.passageNumber}: ${passage.title || 'Untitled'}` }))
+      : requirement?.kind === 'bank' || requirement?.kind === 'instruction'
+        ? orderedTaskGroups.map((item) => ({ id: item.taskGroupId, label: item.groupTitle || getReadingV2BuildTaskTypeLabel(item.officialTaskType) }))
+        : authoringNumbers
+          .filter((number) => {
+            if (!requirement?.sourceSectionId) return true;
+            const sectionId = draftDocument.taskGroups[draftDocument.interactions[number.interactionId]?.taskGroupId ?? '']?.sectionId;
+            return sectionId === requirement.sourceSectionId;
+          })
+          .flatMap((number) => requirement?.kind === 'answer-slot' || requirement?.kind === 'question' ? Array.from(
+            { length: draftDocument.interactions[number.interactionId]?.reviewLabel.answerSlotCount ?? 1 },
+            (_value, slot) => ({ id: `${number.interactionId}#slot:${slot}`, label: `Question ${number.displayNumber + slot}, answer slot ${slot + 1}` }),
+          ) : [{ id: number.interactionId, label: `Question ${number.displayNumber}` }]);
+    return (
+      <fieldset className="reading-v2-build__source-actions" disabled={saving} key={issue.id}>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          const selected = new FormData(event.currentTarget).get('target');
+          if (typeof selected === 'string' && selected) void handleSourceResolution(issue, 'link', selected);
+        }}>
+          <label>{requirement ? 'Link existing content' : 'Supplied source item'}
+            <select name="target" required defaultValue="" aria-label={requirement ? 'Link existing content' : 'Supplied source item'}>
+              <option value="" disabled>Choose…</option>
+              {requirement ? linkTargets.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)
+                : availableRequirements.map((item, index) => <option key={item.requirementId} value={item.requirementId}>{item.kind === 'answer-slot' ? 'Answer slot' : item.kind === 'question' ? 'Question' : item.kind === 'passage' ? 'Passage' : 'Answer bank'} {index + 1}</option>)}
+            </select>
+          </label>
+          <button className="reading-v2-studio__button" type="submit">{requirement?.kind === 'passage' ? 'Link existing passage' : requirement?.kind === 'bank' ? 'Link existing answer bank' : 'Link existing questions'}</button>
+        </form>
+        {requirement && requirement.kind !== 'bank' && (requirement.kind !== 'passage' || canEditPassageCollection) ? (
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const selected = new FormData(event.currentTarget).get('destination');
+            void handleSourceResolution(issue, 'add', typeof selected === 'string' ? selected : '');
+          }}>
+            {requirement.kind !== 'passage' ? <label>Add to
+              <select name="destination" required defaultValue="" aria-label="Add questions to">
+                <option value="" disabled>Choose a question group or type…</option>
+                <optgroup label="Existing question groups">{orderedTaskGroups.filter((item) => !requirement.sourceSectionId || item.sectionId === requirement.sourceSectionId).map((item) => <option key={item.taskGroupId} value={`group:${item.taskGroupId}`}>{item.groupTitle || getReadingV2BuildTaskTypeLabel(item.officialTaskType)}</option>)}</optgroup>
+                <optgroup label="New question group">{Object.keys(READING_V2_TASK_TAXONOMY).map((taskType) => <option key={taskType} value={`new:${taskType}`}>{getReadingV2BuildTaskTypeLabel(taskType as ReadingV2CanonicalTaskType)}</option>)}</optgroup>
+              </select>
+            </label> : null}
+            <button className="reading-v2-studio__button" type="submit">{requirement.kind === 'passage' ? 'Add passage' : 'Add questions'}</button>
+          </form>
+        ) : null}
+        {requirement && source && ['question', 'answer-slot'].includes(requirement.kind)
+          && source.lineIndex.some((line) => requirement.lineIds.includes(line.lineId) && /Questions?\s+\d+\s*[-–—]\s*\d+/i.test(line.rawText)) ? (
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const range = new FormData(event.currentTarget).get('sourceRange');
+            if (typeof range === 'string') void handleSourceResolution(issue, 'question-range', range);
+          }}>
+            <label>Correct source question range
+              <input name="sourceRange" required pattern="[0-9]+-[0-9]+" placeholder="1-40" aria-label="Correct source question range" />
+            </label>
+            <button className="reading-v2-studio__button" type="submit">Correct source range</button>
+          </form>
+        ) : null}
+      </fieldset>
+    );
+  };
+
   const handleOperationalStateAction = () => {
     emitAction('operationalStateAction', {
       outcome: operationalState,
@@ -3192,6 +3252,7 @@ export function ReadingV2StudioShell({
 
   const handleBuildWorkspaceMetadataChange = (nextMetadata: ReadingV2StudioMetadata) => {
     setMetadata(nextMetadata);
+    if (nextMetadata.title !== metadata.title) setDraftDocument((current) => ({ ...current, title: nextMetadata.title }));
     emitAction('metadataEdit', {
       outcome: nextMetadata.title !== metadata.title
         ? 'workspaceTitleChange'
@@ -3215,13 +3276,18 @@ export function ReadingV2StudioShell({
         authoringNumbers={authoringNumbers}
         selectedTaskGroupId={selectedTaskGroup?.taskGroupId}
         selectedQuestionLink={selectedQuestionLink}
-        validationMessages={publishBlockingMessages}
+        reviewIssues={reviewIssues}
         publishBlocked={publishBlocked}
         workflowMessage={workflowMessage}
         publishState={publishState}
+        workflowBusy={workflowBusy}
+        saveState={saving ? 'saving' : saveState}
+        saveError={saveError ?? localSaveError}
+        saveConflict={operationalState === 'conflict' || saveState === 'conflict'}
+        onKeepAsCopy={onDuplicateDraft ? () => void handleDuplicateDraft() : undefined}
+        onReloadLatest={onReloadLatest ? () => void handleReloadLatest() : undefined}
         operationalActionLabel={stateContract.actionLabel && operationalState !== 'conflict' ? stateContract.actionLabel : undefined}
         onSaveDraft={() => void handleSaveDraft()}
-        onValidate={handleValidate}
         onPreview={() => void handlePreview()}
         onPublish={() => void handlePublish()}
         onExit={handleExitWorkspace}
@@ -3256,6 +3322,7 @@ export function ReadingV2StudioShell({
           questionEnd: actionMetadata?.questionEnd,
           issueCount: actionMetadata?.issueCount,
         })}
+        renderIssueResolution={renderIssueResolution}
         onAddQuestion={handleAddQuestionToGroup}
         onDuplicateQuestionGroup={handleDuplicateQuestionGroup}
         onDeleteQuestionGroup={handleDeleteQuestionGroup}
@@ -3285,25 +3352,6 @@ export function ReadingV2StudioShell({
 
       <section className="reading-v2-studio__advanced" aria-label="Developer details">
         <div className="reading-v2-studio__advanced-actions">
-          {currentImportCandidate && mode !== 'create-from-auto' ? (
-            <button
-              className="reading-v2-studio__button reading-v2-studio__button--secondary"
-              type="button"
-              onClick={() => handleAcceptImport(currentImportCandidate)}
-            >
-              Accept into Draft
-            </button>
-          ) : null}
-          {hasImportCandidate ? (
-            <button
-              className="reading-v2-studio__button reading-v2-studio__button--quiet"
-              type="button"
-              aria-expanded={showImportReviewDetails}
-              onClick={handleToggleImportReviewDetails}
-            >
-              {showImportReviewDetails ? 'Hide import review' : 'Review import details'}
-            </button>
-          ) : null}
           <button
             className="reading-v2-studio__button reading-v2-studio__button--quiet"
             type="button"
@@ -3320,20 +3368,6 @@ export function ReadingV2StudioShell({
             Developer details
           </button>
         </div>
-        {hasImportCandidate && showImportReviewDetails ? (
-          <section className="reading-v2-studio__metadata" aria-label="Import review and source verification">
-            <ReadingV2ImportReviewPanel
-              candidate={currentImportCandidate}
-              teacherFacing
-              diagnostics={teacherImportDiagnostics}
-              showAcceptAction={false}
-              onInspectEvidence={() => emitAction('inspectImportEvidence')}
-              onAnalyzeSource={handleAnalyzeImportSource}
-              onAcceptImport={handleAcceptImport}
-              onJumpToDiagnostic={handleJumpImportDiagnostic}
-            />
-          </section>
-        ) : null}
         {diagnosticCopyState !== 'idle' ? (
           <p
             className={diagnosticCopyState === 'copied' ? 'reading-v2-studio__copy-status' : 'reading-v2-alert'}
@@ -3346,46 +3380,18 @@ export function ReadingV2StudioShell({
         ) : null}
       </section>
 
-      <ReadingV2DeveloperDetailsModal
-        open={showDeveloperDetails}
-        onClose={() => setShowDeveloperDetails(false)}
-      >
-        <section className="reading-v2-studio__state-card" aria-label="Draft autosave and conflict recovery">
-          <h2>Draft Autosave</h2>
-          <p>Revision token: <strong>{currentRevisionToken}</strong></p>
-          <p>Mode: {getModeLabel(mode)} | Schema v{READING_V2_SCHEMA_VERSION} | Engine: {READING_V2_ENGINE}</p>
-          {lastPublishCommitPath ? <p>Firebase commit path: {lastPublishCommitPath}</p> : null}
-          {operationalState === 'conflict' ? (
-            <div className="reading-v2-studio__inline-actions" aria-label="Conflict recovery actions">
-              <button className="reading-v2-studio__button" type="button" onClick={() => void handleReloadLatest()}>
-                Reload latest
-              </button>
-              <button className="reading-v2-studio__button" type="button" onClick={() => void handleDuplicateDraft()}>
-                Duplicate draft
-              </button>
-              <button className="reading-v2-studio__button" type="button" onClick={() => void handleCompareDiff()}>
-                Compare diff
-              </button>
-            </div>
-          ) : null}
-        </section>
-
+      <details className="reading-v2-studio__advanced" onToggle={(event) => { if (event.currentTarget.open) emitAction('settingsEdit', { outcome: 'opened' }); }}>
+        <summary>Test settings and extraction</summary>
+        <fieldset disabled={workflowBusy || saving} inert={workflowBusy || saving}>
       <section className="reading-v2-studio__metadata" aria-label="Metadata readiness">
         <ReadingV2MetadataPanel
           metadata={metadata}
-          validationIssues={draftDocument.validationState.issues}
           onMetadataChange={(nextMetadata) => {
             setMetadata(nextMetadata);
+            if (nextMetadata.title !== metadata.title) setDraftDocument((current) => ({ ...current, title: nextMetadata.title }));
             emitAction('metadataEdit');
           }}
         />
-      </section>
-
-      <section className="reading-v2-studio__state-card" aria-label="Publish readiness">
-        <h2>Publish Readiness</h2>
-        <p>{publishBlocked ? 'Publish is blocked until validation issues are resolved.' : 'Ready for Task 5 publish handoff.'}</p>
-        <p>Teacher answer key is authoritative for marking; Auto source verifier details remain teacher-only.</p>
-        <p>Issues: {validationResult.issues.length}</p>
       </section>
 
       <section className="reading-v2-studio__columns" aria-label="Two-column Studio workspace">
@@ -3495,57 +3501,29 @@ export function ReadingV2StudioShell({
           </section>
         </aside>
 
-        <section className="reading-v2-studio__right" aria-label="Right column task logic and questions">
-          {activeStep === 'Questions' ? (
-            <ReadingV2TaskGroupEditor
-              document={draftDocument}
-              taskGroups={orderedTaskGroups}
-              interactions={draftDocument.interactions}
-              optionSets={draftDocument.optionSets}
-              visibleNumbers={visibleNumbers}
-              selectedTaskGroupId={selectedTaskGroup?.taskGroupId}
-              onSelectTaskGroup={(taskGroupId) => setSelectedTaskGroupId(taskGroupId)}
-              onAddTaskGroup={() => handleAddTaskGroup('sentence-completion')}
-              onMoveSelectedTaskGroup={handleReorderTaskGroup}
-              onTaskGroupChange={handleTaskGroupChange}
-              onInteractionChange={handleInteractionChange}
-              onInteractionRemove={(interactionId, taskGroup) =>
-                setDraftDocument((current) => removeInteraction(current, interactionId, taskGroup))
-              }
-              onOptionSetChange={(optionSet) =>
-                setDraftDocument((current) => updateOptionSet(current, optionSet))
-              }
-            />
-          ) : null}
-
-          {activeStep === 'Publish' ? (
-            <ReadingV2SettingsPanel
-              metadata={metadata}
-              validationIssues={draftDocument.validationState.issues}
-              publishBlocked={publishBlocked}
-              answerKeyAuthority={hasImportCandidate ? teacherImportDiagnostics.authority : undefined}
-              onMetadataChange={(nextMetadata) => {
-                setMetadata(nextMetadata);
-                emitAction('settingsEdit');
-              }}
-            />
-          ) : null}
-
-          {activeStep === 'Passages' ? (
-            <ReadingV2StimulusEditor
-              document={draftDocument}
-              onDocumentChange={handleDocumentChange}
-            />
-          ) : null}
-        </section>
       </section>
+        </fieldset>
+      </details>
 
-      <footer className="reading-v2-studio__utility" aria-label="Bottom utility rail">
-        <span>Warnings: {validationResult.issues.length}</span>
-        <span>Provenance visible to author only</span>
-        <span>Import evidence publish-blocking until resolved</span>
-        <span>Preview is teacher-only local state</span>
-      </footer>
+      <ReadingV2DeveloperDetailsModal
+        open={showDeveloperDetails}
+        onClose={() => setShowDeveloperDetails(false)}
+      >
+        {hasImportCandidate ? (
+          <details onToggle={(event) => { if (event.currentTarget.open) emitAction('inspectImportEvidence'); }}>
+            <summary>Import diagnostics</summary>
+            <pre>{JSON.stringify(teacherImportDiagnostics, null, 2)}</pre>
+          </details>
+        ) : null}
+        <section className="reading-v2-studio__state-card" aria-label="Draft autosave and conflict recovery">
+          <h2>Draft Autosave</h2>
+          <p>Revision: <strong>{currentRevision}</strong></p>
+          <p>Mode: {getModeLabel(mode)} | Schema v{READING_V2_SCHEMA_VERSION} | Engine: {READING_V2_ENGINE}</p>
+          {lastPublishCommitPath ? <p>Firebase commit path: {lastPublishCommitPath}</p> : null}
+
+        </section>
+
+
       </ReadingV2DeveloperDetailsModal>
 
       {previewProjection ? (

@@ -19,25 +19,25 @@ const metadata: ReadingV2StudioMetadata = {
 describe('ReadingV2MetadataPanel', () => {
   it('captures required metadata without editing question meaning', () => {
     const onMetadataChange = vi.fn();
-    render(<ReadingV2MetadataPanel metadata={metadata} validationIssues={[]} onMetadataChange={onMetadataChange} />);
+    render(<ReadingV2MetadataPanel metadata={metadata} onMetadataChange={onMetadataChange} />);
 
     fireEvent.change(screen.getByLabelText('Material title'), { target: { value: 'Cambridge Reading Set' } });
     fireEvent.change(screen.getByLabelText('Tags or topics'), { target: { value: 'science, academic' } });
 
     expect(onMetadataChange).toHaveBeenCalledWith(expect.objectContaining({ title: 'Cambridge Reading Set' }));
     expect(onMetadataChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ['science', 'academic'] }));
-    expect(screen.getByText(/does not change question meaning/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Test settings' })).toBeInTheDocument();
   });
 
   it('shows publish readiness when title is missing', () => {
-    render(<ReadingV2MetadataPanel metadata={metadata} validationIssues={[]} onMetadataChange={vi.fn()} />);
+    render(<ReadingV2MetadataPanel metadata={metadata} onMetadataChange={vi.fn()} />);
 
-    expect(screen.getByText(/Title required before publish/)).toBeInTheDocument();
+    expect(screen.getByText('Needs title')).toBeInTheDocument();
   });
 
   it('emits publish-compatible material kind and visibility values', () => {
     const onMetadataChange = vi.fn();
-    render(<ReadingV2MetadataPanel metadata={metadata} validationIssues={[]} onMetadataChange={onMetadataChange} />);
+    render(<ReadingV2MetadataPanel metadata={metadata} onMetadataChange={onMetadataChange} />);
 
     fireEvent.change(screen.getByLabelText('Material kind'), {
       target: { value: 'reading-passage' },

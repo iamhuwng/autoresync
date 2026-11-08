@@ -99,6 +99,31 @@ update, but their historical canonical structure remains unchanged.
 
 ## Publication
 
-Pending: final candidate qualification, committed source, current-material
-correction, Hosting publication and post-publication readback. Update this
-section with the actual release ID and target-specific evidence after execution.
+On 1 November 2026, source commit `c6a8e73c06c3ec2472b64c7efe514b2ea7005697`
+was qualified and deployed through guarded Hosting. Release
+`b6f4da54-bf28-485e-8e66-9d7c8e4a4d73` published Firebase Hosting version
+`46798435264eec19` at 13:02:35.740 UTC (20:02:35 Bangkok). The source manifest
+and all 459 listed file hashes were independently read back; provider and source
+verification passed. The production build and bundle budget passed.
+
+Data-maintenance release `talbot-park-structure-repair-20261101-mvxt4vqj`
+published corrected version
+`snapshot-studio-material-mvxpapw8-repair-mvxt4vqj`. All 35 normal-publisher
+update paths were read back and verified, including eight content blocks and
+A–G labels. The original snapshot hash was unchanged. The operation used the
+normal atomic multi-location publication contract after fresh material and
+version precondition checks; no root database replacement or old-version rewrite
+was performed.
+
+Both operations are recorded as published and verification passed in the local
+release journal `%USERPROFILE%/.luyentap/changelog/temp-a1437/state.json` and
+associated with this CL ID. Compact durable evidence is
+[2026-11-01-reading-passage-structure-publication.json](../../release-audits/2026-11-01-reading-passage-structure-publication.json).
+Private backups and operational receipts remain ignored. This later documentation
+revision is not the deployed application source.
+
+Remaining limits: authenticated browser verification was blocked by the occupied
+role port/execution policy; real-browser component verification passed. The two
+started homework pins and historical results were intentionally preserved. Full
+TypeScript checking retains the four unchanged Listening diagnostics described
+above.

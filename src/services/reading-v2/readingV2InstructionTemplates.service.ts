@@ -22,6 +22,55 @@ export interface ReadingV2InstructionSemantics {
   readonly reuseAllowed?: boolean;
 }
 
+export interface ReadingV2InstructionFacts {
+  readonly wordLimit?: number;
+  readonly numberAllowance?: 'none' | 'optional' | 'required' | 'alternative';
+  readonly selectionLimit?: number;
+  readonly vocabulary?: 'TFNG' | 'YNNG';
+  readonly optionReuse?: 'allowed' | 'disallowed';
+}
+
+const WORD_LIMIT_PHRASE = /\b(?:NO MORE THAN\s+(?:ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORDS?(?:\s+(?:AND\s*\/\s*OR|AND|OR)\s+A\s+NUMBER)?|(?:ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORDS?\s+(?:ONLY|(?:AND\s*\/\s*OR|AND|OR)\s+A\s+NUMBER))\b/i;
+const SELECTION_PHRASE = /\bCHOOSE\s+(?:EXACTLY\s+)?(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+LETTERS?\b/i;
+const instructionNumber = (value: string): number =>
+  ({ ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }[value.toUpperCase()] ?? Number(value));
+
+export const readReadingV2WordLimitText = (value: string): string | undefined =>
+  value.replace(/[*_]/g, '').match(WORD_LIMIT_PHRASE)?.[0].replace(/\s+/g, ' ').replace(/\s*\/\s*/g, '/').toUpperCase();
+
+/** Only explicit response rules are facts; task-type hints remain parser interpretations. */
+export const readReadingV2InstructionFacts = (value: string): ReadingV2InstructionFacts => {
+  const text = value.replace(/[*_]/g, '').replace(/\s+/g, ' ').toUpperCase();
+  const phrase = readReadingV2WordLimitText(text);
+  const word = phrase?.match(/\b(ONE|TWO|THREE|FOUR|FIVE|\d+)\s+WORDS?\b/)?.[1];
+  const wordLimit = word ? instructionNumber(word) : undefined;
+  const numberAllowance = phrase ? /AND\/OR A NUMBER/.test(phrase) ? 'optional'
+    : /AND A NUMBER/.test(phrase) ? 'required' : /OR A NUMBER/.test(phrase) ? 'alternative' : 'none' : undefined;
+  const count = text.match(SELECTION_PHRASE)?.[1];
+  const selectionLimit = count ? instructionNumber(count) : undefined;
+  const vocabulary = /\bTRUE\b/.test(text) && /\bFALSE\b/.test(text) && /\bNOT GIVEN\b/.test(text) ? 'TFNG'
+    : /\bYES\b/.test(text) && /\bNO\b/.test(text) && /\bNOT GIVEN\b/.test(text) ? 'YNNG' : undefined;
+  const reuseMentioned = /\b(?:LETTER|OPTION|HEADING)S?\b/.test(text) && /MORE THAN ONCE|ONLY ONCE/.test(text);
+  const optionReuse = reuseMentioned ? /\b(?:NOT|NEVER|CANNOT|CAN'T)\s+(?:BE\s+)?(?:USED|USE)\b|ONLY ONCE/.test(text) ? 'disallowed' : 'allowed' : undefined;
+  return { ...(wordLimit && Number.isFinite(wordLimit) ? { wordLimit, numberAllowance } : {}),
+    ...(selectionLimit && Number.isFinite(selectionLimit) ? { selectionLimit } : {}), ...(vocabulary ? { vocabulary } : {}), ...(optionReuse ? { optionReuse } : {}) };
+};
+
+export const updateReadingV2InstructionLimits = (text: string, limits: Pick<ReadingV2InstructionFacts, 'wordLimit' | 'selectionLimit'>): string => {
+  if (limits.wordLimit !== undefined) {
+    const word = NUMBER_WORDS[limits.wordLimit] ?? String(limits.wordLimit);
+    text = text.replace(WORD_LIMIT_PHRASE, (phrase) => {
+      const suffix = phrase.match(/\s+(?:AND\s*\/\s*OR|AND|OR)\s+A\s+NUMBER\b/i)?.[0].toUpperCase() ?? '';
+      return `${limits.wordLimit === 1 ? `ONE WORD${suffix ? '' : ' ONLY'}` : `NO MORE THAN ${word} WORDS`}${suffix}`;
+    });
+  }
+  if (limits.selectionLimit !== undefined) {
+    const word = NUMBER_WORDS[limits.selectionLimit] ?? String(limits.selectionLimit);
+    text = text.replace(SELECTION_PHRASE, `Choose ${word} ${limits.selectionLimit === 1 ? 'letter' : 'letters'}`);
+  }
+  return text;
+};
+
 const NUMBER_WORDS: Readonly<Record<number, string>> = {
   1: 'ONE',
   2: 'TWO',
@@ -137,6 +186,10 @@ const selectionPhrase = (selectionLimit: number | undefined): string => {
   return NUMBER_WORDS[bounded] ?? String(bounded);
 };
 
+const reuseInstruction = (semantics: ReadingV2InstructionSemantics, noun = 'letter'): string | undefined =>
+  semantics.reuseAllowed === true ? `NB You may use any ${noun} more than once.`
+    : semantics.reuseAllowed === false ? `Use each ${noun} only once.` : undefined;
+
 export const getReadingV2InstructionText = (
   taskType: ReadingV2CanonicalTaskType,
   semantics: ReadingV2InstructionSemantics = {},
@@ -212,23 +265,26 @@ export const getReadingV2InstructionParagraphs = (
         referenceRange
           ? `Write the correct number, ${referenceRange}, in ${boxTarget(range) ?? 'the boxes'} on your answer sheet.`
           : writeCorrectLetterLine(range, undefined),
+        reuseInstruction(semantics, 'heading'),
       ]);
     case 'matching-information':
       return compact([
         'Which paragraph contains the following information?',
         writeCorrectLetterLine(range, referenceRange ?? 'A-F'),
-        semantics.reuseAllowed ? 'NB You may use any letter more than once.' : undefined,
+        reuseInstruction(semantics),
       ]);
     case 'matching-features':
       return compact([
         'Look at the following statements and the list below.',
         `Match each statement with the correct option, ${referenceRange ?? 'A-E'}.`,
         writeCorrectLetterLine(range, referenceRange ?? 'A-E'),
+        reuseInstruction(semantics),
       ]);
     case 'matching-sentence-endings':
       return compact([
         `Complete each sentence with the correct ending, ${referenceRange ?? 'A-F'}, below.`,
         writeCorrectLetterLine(range, referenceRange ?? 'A-F'),
+        reuseInstruction(semantics),
       ]);
     case 'multiple-choice':
       return compact([

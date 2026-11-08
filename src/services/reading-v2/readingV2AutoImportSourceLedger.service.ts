@@ -186,7 +186,7 @@ export interface ReadingV2AutoSourceVerifierIssue {
 
 const PASSAGE_HEADING_PATTERN = /^\s*(?:#{1,6}\s*)?READING\s+PASSAGE\s+(\d+)\s*(?::\s*(.+?)\s*)?$/i;
 const QUESTION_RANGE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:\*{1,3})?Questions?\s+(\d+)\s*(?:-|\u2013|\u2014|\u00e2\u20ac\u201c|\u00e2\u20ac\u201d|to|and)\s*(\d+)\b/i;
-const QUESTION_SINGLE_PATTERN = /^\s*(?:#{1,6}\s*)?Question\s+(\d+)\b/i;
+const QUESTION_SINGLE_PATTERN = /^\s*(?:#{1,6}\s*)?(?:Question\s+|Q\s*)(\d+)\b/i;
 const NUMBERED_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:\*\*)?(\d{1,3})(?:\*\*)?(?:\\?[\).])?(?:\*\*)?\s+(.+)$/;
 const ALPHA_REFERENCE_ROW_PATTERN = /^\s*(?:[-*]\s*)?([A-Z])(?:[\).:]|\s+[-\u2013\u2014])?\s+\S+/;
 const ROMAN_REFERENCE_ROW_PATTERN = /^\s*(?:[-*]\s*)?([ivxlcdm]{1,8})(?:[\).:]|\s+[-\u2013\u2014])?\s+\S+/i;
@@ -430,8 +430,11 @@ const isLikelyAnswerRow = (line: string): boolean => {
   return SHORT_ANSWER_VALUE_PATTERN.test(compact(answer.replace(/\([^)]*\bcapitals?\s+optional\b[^)]*\)/i, '')));
 };
 
+export const isReadingV2SourceAnswerKeyHeading = (text: string): boolean =>
+  ANSWER_KEY_HEADING_PATTERN.test(normalizeReadingV2TeacherAnswerKeyLine(text));
+
 const firstAnswerHeadingLine = (lines: readonly ReadingV2AutoSourceLine[]): number | null =>
-  lines.find((line) => ANSWER_KEY_HEADING_PATTERN.test(normalizeReadingV2TeacherAnswerKeyLine(line.text)))?.lineNumber ?? null;
+  lines.find((line) => isReadingV2SourceAnswerKeyHeading(line.text))?.lineNumber ?? null;
 
 const collectAnswerKeyRows = (
   lines: readonly ReadingV2AutoSourceLine[],
@@ -634,7 +637,7 @@ const detectVisibleQuestionNumbers = (
       return;
     }
 
-    const match = line.text.match(NUMBERED_LINE_PATTERN);
+    const match = line.text.match(NUMBERED_LINE_PATTERN) ?? line.text.match(/^\s*Q(?:uestion)?\s*(\d{1,3})\b[.:)]?\s+(.+)$/i);
     const number = match?.[1] ? Number(match[1]) : NaN;
     const rest = match?.[2]?.trim() ?? '';
 
@@ -749,6 +752,24 @@ const referenceQuestionRangeFor = (
   return range ? { start: range.start, end: range.end } : undefined;
 };
 
+const parseReadingV2SourceBankRow = (text: string, roman = false): readonly { label: string; text: string }[] => {
+  const row = text.replace(/\s+(?=\*\*(?:[A-Z]|[ivxlcdm]{1,8})\*\*)/g, '  ').replace(/\*\*/g, '').trim().replace(/^[-*]\s+/, '');
+  const marker = roman ? '[ivxlcdm]{1,8}' : '[A-Z]';
+  const matches = [...row.matchAll(new RegExp(`(?:^|\\s{2,})(${marker})(?:[).:]|\\s+[-–—])?\\s+`, roman ? 'gi' : 'g'))];
+  if (matches[0]?.index !== 0) return [];
+  return matches.map((match, index) => ({ label: match[1].toUpperCase(), text: row.slice(match.index! + match[0].length, matches[index + 1]?.index).trim() }));
+};
+
+export const readReadingV2SourceBank = (ledger: ReadingV2AutoSourceLedger, bank: ReadingV2AutoSourceReferenceBank) => {
+  const endLine = Math.min(...ledger.passages.filter((passage) => passage.lineNumber > bank.lineNumber).map((passage) => passage.lineNumber),
+    ...ledger.questionRanges.filter((range) => range.lineNumber > bank.lineNumber).map((range) => range.lineNumber),
+    ...ledger.answerKeyRows.filter((row) => row.sourceLine > bank.lineNumber).map((row) => row.sourceLine), ledger.lineCount + 1);
+  const lines = ledger.lineIndex.filter((line) => line.lineNumber >= bank.lineNumber && line.lineNumber < endLine);
+  const bankItems = lines.flatMap((line) => parseReadingV2SourceBankRow(line.rawText, bank.kind === 'headings-list'))
+    .filter((item) => bank.labels.some((label) => label.toUpperCase() === item.label));
+  return { lineIds: lines.map((line) => line.lineId), bankItems };
+};
+
 const collectReferenceRowsAfter = (
   lines: readonly ReadingV2AutoSourceLine[],
   lineNumber: number,
@@ -771,10 +792,10 @@ const collectReferenceRowsAfter = (
         return true;
       }
 
-      const match = trimmed.match(pattern);
-      if (match?.[1]) {
+      const items = parseReadingV2SourceBankRow(line.text, pattern === ROMAN_REFERENCE_ROW_PATTERN);
+      if (items.length) {
         collecting = true;
-        labels.push(match[1].toUpperCase());
+        labels.push(...items.map((item) => item.label));
         return false;
       }
 
@@ -972,7 +993,7 @@ const buildIssues = (input: {
   if (input.passages.length === 0) {
     issues.push({
       code: 'source-passage-boundary-missing',
-      severity: 'error',
+      severity: 'warning',
       message: 'No strict READING PASSAGE heading was detected.',
     });
   }
@@ -980,7 +1001,7 @@ const buildIssues = (input: {
   if (input.questionRanges.length === 0) {
     issues.push({
       code: 'source-question-range-missing',
-      severity: input.questionNumbers.length > 0 ? 'warning' : 'error',
+      severity: 'warning',
       message: 'No explicit question-range headings were detected.',
     });
   }
@@ -1021,7 +1042,7 @@ const buildIssues = (input: {
   if (input.passages.length > 0 && input.questionNumbers.length === 0) {
     issues.push({
       code: 'source-ambiguous-topology',
-      severity: 'error',
+      severity: 'warning',
       message: 'Passage text was detected but no question topology was found.',
     });
   }
@@ -1157,7 +1178,7 @@ export const buildReadingV2AutoLedgerPromptSummary = (
 
   return [
     'SOURCE_LEDGER_EXPECTATIONS:',
-    `- local ledger is topology authority; Gemini is extraction witness only`,
+    `- local ledger is an inferred topology guide; preserve supplied content when labels or boundaries are ambiguous`,
     `- source hash: ${ledger.sourceHash}`,
     `- category: ${ledger.category}`,
     `- expected passage count: ${ledger.passages.length}`,

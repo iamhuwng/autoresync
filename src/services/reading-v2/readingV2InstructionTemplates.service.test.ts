@@ -3,10 +3,21 @@ import {
   READING_V2_INSTRUCTION_DISPLAY_SOURCE,
   READING_V2_INSTRUCTION_TEXT_SOURCE,
   getReadingV2InstructionText,
+  readReadingV2InstructionFacts,
+  updateReadingV2InstructionLimits,
   readingV2InstructionLooksStandard,
 } from './readingV2InstructionTemplates.service';
 
 describe('readingV2InstructionTemplates.service', () => {
+  it('captures explicit choice counts and word-plus-number response rules', () => {
+    expect(readReadingV2InstructionFacts('Choose THREE letters, A-G.')).toMatchObject({ selectionLimit: 3 });
+    expect(readReadingV2InstructionFacts('Choose ONE WORD AND/OR A NUMBER.')).toMatchObject({ wordLimit: 1, numberAllowance: 'optional' });
+    expect(readReadingV2InstructionFacts('Choose NO MORE THAN TWO WORDS AND A NUMBER.')).toMatchObject({ wordLimit: 2, numberAllowance: 'required' });
+    expect(readReadingV2InstructionFacts('Choose ONE WORD ONLY.')).toMatchObject({ wordLimit: 1, numberAllowance: 'none' });
+    expect(readReadingV2InstructionFacts('Choose ONE WORD OR A NUMBER.')).toMatchObject({ wordLimit: 1, numberAllowance: 'alternative' });
+    expect(updateReadingV2InstructionLimits('Choose ONE WORD AND/OR A NUMBER from the passage.', { wordLimit: 2 }))
+      .toBe('Choose NO MORE THAN TWO WORDS AND/OR A NUMBER from the passage.');
+  });
   it('anchors standard instructions to the repo IELTS reading source docs', () => {
     expect(READING_V2_INSTRUCTION_TEXT_SOURCE).toBe('documentation/samples/IELTS-question-task-type-samples.md');
     expect(READING_V2_INSTRUCTION_DISPLAY_SOURCE).toBe('documentation/samples/IELTS-reading-question-type-display-design.md');

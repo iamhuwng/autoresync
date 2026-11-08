@@ -69,11 +69,16 @@ const lifecyclePreflightReadMap = (state: 'published' | 'archived' = 'published'
   [readingV2StoragePaths.materialMetadata('passage-1')]: {
     materialId: 'passage-1',
     ownerId: 'teacher-1',
+    materialKind: 'reading-passage',
+    publishedSnapshotVersionId: 'snapshot-1',
+    materialRevision: 1,
     state,
   },
   [readingV2StoragePaths.readingPassageMaterials('passage-1')]: {
     passageMaterialId: 'passage-1',
     ownerId: 'teacher-1',
+    publishedSnapshotVersionId: 'snapshot-1',
+    materialRevision: 1,
     state,
   },
 });
@@ -230,6 +235,7 @@ describe('readingV2PassageArchive.service', () => {
 
   it('restores archived passages only when current version and projection are valid', async () => {
     const readMap = {
+      ...lifecyclePreflightReadMap('archived'),
       [readingV2StoragePaths.readingPassageMaterialVersions('passage-1', 'snapshot-1')]: {
         passageMaterialId: 'passage-1',
         currentSnapshotVersionId: 'snapshot-1',
@@ -342,6 +348,7 @@ describe('readingV2PassageArchive.service', () => {
 
   it('skips missing archive-index delete on restore retry preflight', async () => {
     const repo = repository({
+      ...lifecyclePreflightReadMap('archived'),
       [readingV2StoragePaths.readingPassageMaterialVersions('passage-1', 'snapshot-1')]: {
         passageMaterialId: 'passage-1',
         currentSnapshotVersionId: 'snapshot-1',
@@ -378,6 +385,7 @@ describe('readingV2PassageArchive.service', () => {
 
   it('rejects restore when current projection is missing and rejects non-owner actions', async () => {
     const repo = repository({
+      ...lifecyclePreflightReadMap('archived'),
       [readingV2StoragePaths.readingPassageMaterialVersions('passage-1', 'snapshot-1')]: {
         passageMaterialId: 'passage-1',
         currentSnapshotVersionId: 'snapshot-1',

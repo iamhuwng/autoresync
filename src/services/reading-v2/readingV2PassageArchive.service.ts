@@ -24,9 +24,13 @@ import {
 } from './readingV2PassageDuplicateGuard.service';
 import { isReadingV2PublicVisibility } from './readingV2MaterialMetadata.service';
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
+import {
+  buildReadingV2LifecycleRevisionWrites,
+  readReadingV2PublicationBase,
+} from './readingV2PublicationGuard.service';
 
 export interface ReadingV2PassageArchiveRepository {
-  readonly read?: (path: string) => Promise<unknown>;
+  readonly read: (path: string) => Promise<unknown>;
   readonly update: (updates: Record<string, unknown | null>) => Promise<void>;
   readonly write?: (path: string, value: unknown) => Promise<void>;
   readonly remove?: (path: string) => Promise<void>;
@@ -52,6 +56,7 @@ export interface ReadingV2PassageArchiveMaterial {
   readonly publishedSnapshotVersionId?: string;
   readonly questionCount?: number;
   readonly archivedAt?: string;
+  readonly materialRevision?: number;
 }
 
 export interface ReadingV2ArchiveIndexRow {
@@ -256,37 +261,6 @@ const buildExistingRemovalWrites = async (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const ownedRecordExists = (value: unknown, ownerId: string): boolean =>
-  isRecord(value) && value.ownerId === ownerId;
-
-const recordState = (value: unknown): string | null =>
-  isRecord(value) && typeof value.state === 'string'
-    ? value.state
-    : null;
-
-const readArchivePreflight = async (input: {
-  readonly read: (path: string) => Promise<unknown>;
-  readonly materialId: string;
-  readonly ownerId: string;
-}): Promise<{ readonly alreadyArchived: boolean }> => {
-  const [metadata, material, archiveIndex] = await Promise.all([
-    input.read(readingV2StoragePaths.materialMetadata(input.materialId)),
-    input.read(readingV2StoragePaths.readingPassageMaterials(input.materialId)),
-    input.read(getReadingV2ArchiveIndexPath(input.ownerId, input.materialId)),
-  ]);
-
-  if (!ownedRecordExists(metadata, input.ownerId) || !ownedRecordExists(material, input.ownerId)) {
-    throw new Error('Reading Passage archive requires existing owned material metadata and passage records.');
-  }
-
-  return {
-    alreadyArchived:
-      recordState(metadata) === 'archived' ||
-      recordState(material) === 'archived' ||
-      hasExistingValue(archiveIndex),
-  };
-};
-
 const buildDuplicateIndexStateWrite = async (input: {
   readonly read: (path: string) => Promise<unknown>;
   readonly ownerId: string;
@@ -333,11 +307,23 @@ export const archiveReadingV2PassageMaterial = async (
 
   const read = requireLifecycleRead(input.repository, 'archive');
   const archivedAt = input.now ?? new Date().toISOString();
-  const preflight = await readArchivePreflight({
+  const base = await readReadingV2PublicationBase({
     read,
     materialId,
     ownerId: input.passage.ownerId,
+    expectedHead: input.passage.currentVersionId ?? input.passage.publishedSnapshotVersionId,
   });
+  if (base.metadata.state === 'removed' || base.record.state === 'removed') {
+    throw new Error('Removed Reading Passage materials cannot be archived or restored.');
+  }
+  const authoritativePassage = { ...input.passage, ...base.record,
+    materialId,
+    ownerId: base.ownerId,
+    currentVersionId: base.snapshotVersionId,
+    publishedSnapshotVersionId: base.snapshotVersionId,
+    materialRevision: base.materialRevision,
+  } as ReadingV2PassageArchiveMaterial;
+  const alreadyArchived = base.metadata.state === 'archived' || base.record.state === 'archived';
   const metadataBasePath = readingV2StoragePaths.materialMetadata(materialId);
   const materialBasePath = readingV2StoragePaths.readingPassageMaterials(materialId);
   const writes = [
@@ -352,7 +338,7 @@ export const archiveReadingV2PassageMaterial = async (
     {
       path: getReadingV2ArchiveIndexPath(input.passage.ownerId, materialId),
       value: buildArchiveIndexRow({
-        passage: input.passage,
+        passage: authoritativePassage,
         archivedAt,
         archivedBy: input.actorUserId,
         usageSummary: input.usageSummary,
@@ -360,14 +346,14 @@ export const archiveReadingV2PassageMaterial = async (
     },
   ];
 
-  const cleanupWrites = preflight.alreadyArchived
+  const cleanupWrites = alreadyArchived
     ? []
-    : listMaterialCatalogIndexPaths(toIndexSummary(input.passage))
-      .map((path) => ({ path, value: null }));
+    : listMaterialCatalogIndexPaths(toIndexSummary(authoritativePassage))
+    .map((path) => ({ path, value: null }));
   const legacyTestBridgeCleanupWrite = { path: `tests/${materialId}`, value: null };
   const duplicateIndexWrite = await buildDuplicateIndexStateWrite({
     read,
-    ownerId: input.passage.ownerId,
+    ownerId: authoritativePassage.ownerId,
     materialId,
     state: 'archived',
     updatedAt: archivedAt,
@@ -377,6 +363,7 @@ export const archiveReadingV2PassageMaterial = async (
     archivedAt,
   });
   const updatePayload = toUpdatePayload([
+    ...Object.entries(buildReadingV2LifecycleRevisionWrites(base)).map(([path, value]) => ({ path, value })),
     ...writes,
     ...cleanupWrites,
     legacyTestBridgeCleanupWrite,
@@ -386,8 +373,8 @@ export const archiveReadingV2PassageMaterial = async (
   Object.assign(
     updatePayload,
     buildMaterialSummaryUpdatePayload(
-      toUniversalSummary(input.passage, 'archived', archivedAt),
-      toUniversalSummary(input.passage, 'active', input.passage.updatedAt),
+      toUniversalSummary(authoritativePassage, 'archived', archivedAt),
+      toUniversalSummary(authoritativePassage, 'active', authoritativePassage.updatedAt),
     ),
   );
 
@@ -420,8 +407,7 @@ export const restoreReadingV2PassageMaterial = async (
   input: ReadingV2PassageRestoreInput,
 ): Promise<ReadingV2PassageArchiveResult> => {
   const materialId = input.passage.materialId.trim();
-  const currentVersionId = currentVersionIdFor(input.passage);
-  if (!materialId || !currentVersionId) {
+  if (!materialId) {
     throw new Error('Reading Passage restore requires a material id and current version id.');
   }
   assertArchiveOwner({
@@ -430,7 +416,24 @@ export const restoreReadingV2PassageMaterial = async (
     ownerId: input.passage.ownerId,
   });
   const read = requireLifecycleRead(input.repository, 'restore');
+  const base = await readReadingV2PublicationBase({
+    read,
+    materialId,
+    ownerId: input.passage.ownerId,
+    expectedHead: input.passage.currentVersionId ?? input.passage.publishedSnapshotVersionId,
+  });
+  if (base.metadata.state !== 'archived' || base.record.state !== 'archived') {
+    throw new Error('Only archived Reading Passage materials can be restored.');
+  }
+  const currentVersionId = base.snapshotVersionId;
   await assertRestoreProjectionIsValid(input, currentVersionId, read);
+  const authoritativePassage = { ...input.passage, ...base.record,
+    materialId,
+    ownerId: base.ownerId,
+    currentVersionId,
+    publishedSnapshotVersionId: currentVersionId,
+    materialRevision: base.materialRevision,
+  } as ReadingV2PassageArchiveMaterial;
 
   const restoredAt = input.now ?? new Date().toISOString();
   const metadataBasePath = readingV2StoragePaths.materialMetadata(materialId);
@@ -447,8 +450,9 @@ export const restoreReadingV2PassageMaterial = async (
     { path: `${materialBasePath}/restoredAt`, value: restoredAt },
     { path: `${materialBasePath}/restoredBy`, value: input.actorUserId },
     { path: `${materialBasePath}/updatedAt`, value: restoredAt },
+    ...Object.entries(buildReadingV2LifecycleRevisionWrites(base)).map(([path, value]) => ({ path, value })),
     ...buildMaterialCatalogIndexWrites(toIndexSummary({
-      ...input.passage,
+      ...authoritativePassage,
       visibility: input.restoreVisibility,
       updatedAt: restoredAt,
     }, input.restoreVisibility)),
@@ -480,13 +484,13 @@ export const restoreReadingV2PassageMaterial = async (
     updatePayload,
     buildMaterialSummaryUpdatePayload(
       toUniversalSummary(
-        input.passage,
+        authoritativePassage,
         'active',
         restoredAt,
         input.restoreVisibility,
         true,
       ),
-      toUniversalSummary(input.passage, 'archived', input.passage.updatedAt),
+        toUniversalSummary(authoritativePassage, 'archived', authoritativePassage.updatedAt),
     ),
   );
 

@@ -20,6 +20,7 @@ import {
   type ReadingV2ImportCandidate,
 } from './readingV2ImportNormalization.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
+import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
 import {
   buildReadingV2AutoImportPrompt,
   READING_V2_AUTO_IMPORT_SYSTEM_INSTRUCTION,
@@ -3088,7 +3089,9 @@ const reviewableGuardrailDiagnosticCodes = new Set<ReadingV2AutoImportDiagnostic
   'passage-count-mismatch',
   'possible-trimmed-passage',
   'source-passage-missing',
+  'source-passage-extra',
   'source-question-missing',
+  'source-question-extra',
   'source-answer-row-unbound',
   'source-question-range-missing',
   'source-reference-bank-missing',
@@ -3371,6 +3374,7 @@ const finalizeAutoImportPayload = (input: {
 
   try {
     const normalized = normalizeReadingV2ImportCandidate(candidateWithLedger);
+    assertValidReadingV2CanonicalDocument(normalized.document);
     const validation = validateReadingV2Draft(normalized.document);
     const canonicalBlockers = validation.blockingIssues.map((issue) =>
       `Draft validation: ${issue.message}`,
@@ -4075,6 +4079,9 @@ export const generateReadingV2AutoImportCandidate = async (
   });
   const candidateWithLedger: ReadingV2ImportCandidate = {
     ...candidate,
+    sourceLedgerCategory: sourceLedger.category,
+    sourceRawText: sourceLedger.normalizedText,
+    importSourceArtifact: sourceArtifact,
     autoImportDiagnostics: diagnostics,
     evidence: [
       ...candidate.evidence,
@@ -4098,6 +4105,7 @@ export const generateReadingV2AutoImportCandidate = async (
 
   try {
     const normalized = normalizeReadingV2ImportCandidate(candidateWithLedger);
+    assertValidReadingV2CanonicalDocument(normalized.document);
     const validation = validateReadingV2Draft(normalized.document);
     const canonicalBlockers = validation.blockingIssues.map((issue) =>
       `Draft validation: ${issue.message}`,

@@ -8,6 +8,11 @@ import {
   READING_V2_STRUCTURED_MATERIALS_START,
 } from './readingV2ExternalAiPrompt.service';
 import {
+  evaluateReadingV2AuthoringReadiness,
+  type ReadingV2AuthoringContext,
+  type ReadingV2AuthoringSourceRecord,
+} from './readingV2AuthoringQuality.service';
+import {
   buildReadingV2TeacherImportDiagnostics,
   buildReadingV2StudioParsingDiagnostics,
   formatReadingV2StudioParsingDiagnostics,
@@ -47,7 +52,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-1',
-      revisionToken: 'rev-1',
+      revision: 1,
       generatedAt: '2026-05-06T00:00:00.000Z',
     });
     const formatted = formatReadingV2StudioParsingDiagnostics(diagnostics);
@@ -60,6 +65,124 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
     expect(formatted).toContain('"parsedQuestionCount": 2');
     expect(formatted).toContain('"acceptableAnswers"');
     expect(formatted).toContain('"Not Given"');
+  });
+
+  it('uses persisted source evidence and shared readiness when a resumed draft has no import candidate', () => {
+    const persistedRawText = [
+      'READING PASSAGE 1',
+      '',
+      'A persisted source passage with enough text for a resumed diagnostic export.',
+      '',
+      'Questions 1-1',
+      'Choose the correct letter, A or B.',
+      '**1** Which source option is correct?',
+      'A source option',
+      'B another option',
+      '',
+      'ANSWER KEY',
+      '1 A',
+    ].join('\n');
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: persistedRawText.replace(/^Questions/gm, '#### Questions'),
+      answerKeyText: '1 A',
+      sourceKind: 'auto-gemini',
+      fileName: 'resumed-auto-source.txt',
+    });
+    const normalized = normalizeReadingV2ImportCandidate(candidate);
+    const group = Object.values(normalized.document.taskGroups)[0];
+    const optionSet = normalized.document.optionSets[group.optionSetRefs[0]];
+    const requiredOption = optionSet.options[0];
+    const source: ReadingV2AuthoringSourceRecord = {
+      kind: 'reading-v2-import-source',
+      schemaVersion: 1,
+      sourceId: 'resumed-source',
+      ownerId: 'teacher-1',
+      createdAt: '2026-11-07T00:00:00.000Z',
+      sourceKind: 'auto-gemini',
+      fileName: 'resumed-auto-source.txt',
+      rawText: persistedRawText,
+      lineIndex: persistedRawText.split(/\r?\n/).map((rawText, index) => ({
+        lineId: `source-line-${index + 1}`,
+        lineNumber: index + 1,
+        rawText,
+        normalizedText: rawText.trim().toLowerCase(),
+      })),
+    };
+    const bankLine = source.lineIndex.find((line) => line.rawText === 'A source option');
+    const answerLine = source.lineIndex.find((line) => line.rawText === '1 A');
+    const authoringContext: ReadingV2AuthoringContext = {
+      origin: { kind: 'import', sourceId: source.sourceId },
+      scope: { kind: 'supplied', requirementIds: ['resumed-bank', 'resumed-answer'] },
+      requirements: [
+        {
+          requirementId: 'resumed-bank',
+          kind: 'bank',
+          sourceId: source.sourceId,
+          lineIds: bankLine ? [bankLine.lineId] : [],
+          target: { taskGroupId: group.taskGroupId, sectionId: group.sectionId },
+          bankItems: [{ label: requiredOption.label, text: requiredOption.text, optionId: requiredOption.optionId }],
+        },
+        {
+          requirementId: 'resumed-answer',
+          kind: 'answer-slot',
+          sourceId: source.sourceId,
+          lineIds: answerLine ? [answerLine.lineId] : [],
+          target: { interactionId: group.interactionIds[0], taskGroupId: group.taskGroupId, sectionId: group.sectionId },
+          answerSlotIndex: 0,
+        },
+      ],
+      interpretations: [],
+      unboundTargets: [],
+    };
+    const resumedDocument = {
+      ...normalized.document,
+      optionSets: {
+        ...normalized.document.optionSets,
+        [optionSet.optionSetId]: { ...optionSet, options: optionSet.options.slice(1) },
+      },
+    };
+    const readiness = evaluateReadingV2AuthoringReadiness(
+      { document: resumedDocument, metadata: { title: 'Resumed Auto' }, authoringContext },
+      [source],
+    );
+    expect(readiness.findings.map((finding) => finding.code)).toContain('source-bank-mismatch');
+
+    const diagnostics = buildReadingV2StudioParsingDiagnostics({
+      document: resumedDocument,
+      metadata: { title: 'Resumed Auto' },
+      authoringContext,
+      resolvedSourceEvidence: [source],
+      authoringReadiness: readiness,
+      validationResult: readiness.validationResult,
+      mode: 'resume-draft',
+      activeStep: 'Publish',
+      draftId: 'resumed-draft',
+      revision: 2,
+      generatedAt: '2026-11-07T00:00:00.000Z',
+    });
+
+    const sourceInput = diagnostics.sourceInput as {
+      sourceKind: string;
+      rawText: string;
+      answerKey: { rowCount: number };
+    };
+    const parseState = diagnostics.parseState as { inputQualityFlags: readonly string[] };
+    const validation = diagnostics.validation as {
+      canPublish: boolean;
+      canonicalCanPublish: boolean;
+      authoringReadiness: { canPublish: boolean; findings: readonly { code: string }[] };
+    };
+
+    expect(sourceInput.sourceKind).toBe('auto-gemini');
+    expect(sourceInput.rawText).toContain('persisted source passage');
+    expect(sourceInput.questionRangeHeadingCount).toBe(1);
+    expect((diagnostics.parseState as { inputQualityFlags: string[] }).inputQualityFlags).not.toContain('question_range_headings_missing');
+    expect(sourceInput.answerKey.rowCount).toBe(1);
+    expect(parseState.inputQualityFlags).not.toContain('source_text_missing');
+    expect(validation.canPublish).toBe(readiness.canPublish);
+    expect(validation.authoringReadiness.canPublish).toBe(readiness.canPublish);
+    expect(validation.authoringReadiness.findings.map((finding) => finding.code)).toContain('source-bank-mismatch');
+    expect(validation.canonicalCanPublish).toBe(readiness.validationResult.canPublish);
   });
 
   it('treats structured JSON source and passage answer-key headings as diagnostic context, not parse failure', () => {
@@ -119,7 +242,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-structured',
-      revisionToken: 'rev-structured',
+      revision: 1,
       generatedAt: '2026-05-06T00:00:00.000Z',
     });
 
@@ -186,7 +309,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-teacher',
-      revisionToken: 'rev-teacher',
+      revision: 1,
     });
 
     expect(diagnostics.authority).toMatchObject({
@@ -286,7 +409,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-auto-diagnostics',
-      revisionToken: 'rev-auto-diagnostics',
+      revision: 1,
     });
 
     expect(diagnostics.groups.find((group) => group.id === 'source-structure')?.items).toEqual(expect.arrayContaining([
@@ -369,7 +492,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-source-artifact',
-      revisionToken: 'rev-source-artifact',
+      revision: 1,
       generatedAt: '2026-05-25T00:00:00.000Z',
     });
     const formatted = formatReadingV2StudioParsingDiagnostics(diagnostics);
@@ -442,7 +565,7 @@ describe('readingV2StudioParsingDiagnostics.service', () => {
       mode: 'create-from-import',
       activeStep: 'Passages',
       draftId: 'draft-flattened',
-      revisionToken: 'rev-flattened',
+      revision: 1,
     });
     const structuredLayout = diagnostics.groups.find((group) => group.id === 'structured-layout');
 

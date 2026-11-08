@@ -7,6 +7,16 @@ Master entry: [`documentation/architecture/master_changelog.md`](../master_chang
 Status: active architecture contract.
 Updated: 2026-06-15
 
+## 2026-10-29 Shared Firebase document normalization
+
+The Studio and teacher composition copies of Firebase document normalization
+are consolidated into one pure Reading V2 module. Trusted Worker snapshot
+loading uses the same normalization before canonical validation in individual,
+homework-passage-set and full-test-composition paths. This handles RTDB-erased
+empty review labels without changing scoring policy or persisted snapshots.
+Invalid references still reject submission before result writes. This entry
+records a source change, not a production deployment.
+
 ## 2026-10-18 Backend source reconciliation
 
 Fresh active backup Worker source retains saved-assignment ownership and the

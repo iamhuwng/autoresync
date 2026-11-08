@@ -31,37 +31,37 @@ describe('readingV2Repository.service', () => {
       now: '2026-04-25T00:00:00.000Z',
     });
 
-    expect(repository.loadDraft(draftId)?.revisionToken).toBe(created.revisionToken);
-    expect(created.revisionToken).toBe('draft-1-rev-1');
+    expect(repository.loadDraft(draftId)?.revision).toBe(created.revision);
+    expect(created.revision).toBe(1);
 
     const saved = repository.saveDraft({
       draftId,
-      baseRevisionToken: created.revisionToken,
+      expectedRevision: created.revision,
       document: created.document,
       now: '2026-04-25T00:01:00.000Z',
     });
 
-    expect(saved.revisionToken).toBe('draft-1-rev-2');
+    expect(saved.revision).toBe(2);
 
     const autosaved = repository.autosaveDraft({
       draftId,
-      baseRevisionToken: saved.revisionToken,
+      expectedRevision: saved.revision,
       document: saved.document,
     });
-    expect(autosaved.revisionToken).toBe('draft-1-rev-3');
+    expect(autosaved.revision).toBe(3);
     const duplicated = repository.duplicateDraft(draftId, duplicateDraftId, 'teacher-1');
 
     expect(duplicated.draftId).toBe(duplicateDraftId);
     expect(repository.listDrafts('teacher-1')).toHaveLength(2);
 
-    repository.discardDraft(draftId, autosaved.revisionToken);
+    repository.discardDraft(draftId, autosaved.revision);
 
     expect(repository.listDrafts('teacher-1').map((draft) => draft.draftId)).toEqual([
       duplicateDraftId,
     ]);
   });
 
-  it('rejects stale revision tokens and returns conflict recovery options', () => {
+  it('rejects stale revisions and returns conflict recovery options', () => {
     const repository = createReadingV2Repository();
     const created = repository.createDraft({
       draftId: readingV2Ids.draftId('draft-conflict'),
@@ -70,14 +70,14 @@ describe('readingV2Repository.service', () => {
     });
     repository.saveDraft({
       draftId: created.draftId,
-      baseRevisionToken: created.revisionToken,
+      expectedRevision: created.revision,
       document: created.document,
     });
 
     expect(() =>
       repository.saveDraft({
         draftId: created.draftId,
-        baseRevisionToken: created.revisionToken,
+        expectedRevision: created.revision,
         document: created.document,
       }),
     ).toThrow(ReadingV2RepositoryConflictError);
@@ -85,13 +85,13 @@ describe('readingV2Repository.service', () => {
     try {
       repository.saveDraft({
         draftId: created.draftId,
-        baseRevisionToken: created.revisionToken,
+        expectedRevision: created.revision,
         document: created.document,
       });
     } catch (error) {
       expect(error).toBeInstanceOf(ReadingV2RepositoryConflictError);
-      expect((error as ReadingV2RepositoryConflictError).payload.currentRevisionToken).toBe(
-        'draft-conflict-rev-2',
+      expect((error as ReadingV2RepositoryConflictError).payload.currentRevision).toBe(
+        2,
       );
     }
   });
@@ -105,7 +105,7 @@ describe('readingV2Repository.service', () => {
     });
     const saved = repository.saveDraft({
       draftId: created.draftId,
-      baseRevisionToken: created.revisionToken,
+      expectedRevision: created.revision,
       document: {
         ...created.document,
         title: 'Renamed fixture',
@@ -115,6 +115,37 @@ describe('readingV2Repository.service', () => {
     expect(saved.document.documentId).toBe(created.document.documentId);
     expect(saved.document.sectionIds).toEqual(created.document.sectionIds);
     expect(Object.keys(saved.document.interactions)).toEqual(Object.keys(created.document.interactions));
+  });
+
+  it('keeps editor-safe incomplete content saveable and copies complete private state without the publish target', () => {
+    const repository = createReadingV2Repository();
+    const document = fixtureDocument();
+    const [interactionId] = Object.keys(document.interactions);
+    const incomplete = {
+      ...document,
+      interactions: { ...document.interactions, [interactionId]: {
+        ...document.interactions[interactionId], promptText: '',
+        scoringRule: { ...document.interactions[interactionId].scoringRule, acceptableAnswers: [] },
+      } },
+    };
+    const created = repository.createDraft({
+      draftId: readingV2Ids.draftId('source-private'), ownerId: 'teacher-1',
+      document: incomplete, materialId: readingV2Ids.materialId('published-original'),
+      studioMetadata: { tags: ['original'], title: 'Metadata' },
+      authoringContext: {
+        origin: { kind: 'import', sourceId: 'attempt-1' },
+        scope: { kind: 'supplied', requirementIds: ['requirement-1'] },
+        requirements: [{ requirementId: 'requirement-1', kind: 'question', sourceId: 'attempt-1', lineIds: [] }],
+        interpretations: [], unboundTargets: [],
+      },
+    });
+    const copy = repository.duplicateDraft(created.draftId, readingV2Ids.draftId('complete-copy'), 'teacher-1');
+    expect(copy.materialId).toBeUndefined();
+    expect(copy.workflowOrigin?.sourceMaterialId).toBe('published-original');
+    expect(copy.studioMetadata).toEqual(created.studioMetadata);
+    expect(copy.authoringContext).toEqual(created.authoringContext);
+    expect(copy.document).toEqual(incomplete);
+    expect(repository.loadDraft(created.draftId)?.materialId).toBe('published-original');
   });
 
   it('creates immutable published snapshots and never mutates old versions on republish', () => {

@@ -232,7 +232,7 @@ const toReadingV2MasterModalRecord = (material) => {
     deriveReadingV2SelectedPassageCompositionId(materialId) ||
     (
       materialId && publishedVersionId
-        ? buildReadingV2ExtractedFullTestCompositionId(materialId, publishedVersionId)
+        ? buildReadingV2ExtractedFullTestCompositionId(materialId)
         : undefined
     );
 

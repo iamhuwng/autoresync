@@ -205,6 +205,32 @@ describe('readingV2PublishPipeline.service', () => {
     );
   });
 
+  it('publishes the acknowledged multiple-select document without late slot repair', () => {
+    const fixture = createReadingV2CanonicalFixture('multiple-select');
+    const group = Object.values(fixture.taskGroups)[0]!;
+    const [firstId, secondId] = group.interactionIds;
+    const document = {
+      ...fixture,
+      interactions: {
+        ...fixture.interactions,
+        [firstId!]: { ...fixture.interactions[firstId!], promptText: 'Which TWO options are correct?', reviewLabel: { displayNumber: 25 } },
+        [secondId!]: { ...fixture.interactions[secondId!], promptText: 'Which TWO options are correct?', reviewLabel: { displayNumber: 26 } },
+      },
+    };
+    const repository = createReadingV2Repository();
+    const materialId = readingV2Ids.materialId('multiple-select-publish');
+    const snapshotVersionId = readingV2Ids.snapshotVersionId('multiple-select-publish-v1');
+    const result = publishReadingV2Material({
+      repository, materialId, ownerId: 'teacher-1', document, publishedBy: 'teacher-1',
+      snapshotVersionId, skipReadingPassageExtraction: true,
+      metadata: { title: document.title, materialKind: 'full-test', visibility: 'private' },
+    });
+
+    expect(result.commitPlan.operations.find((operation) => operation.kind === 'published-snapshot')).toEqual(
+      expect.objectContaining({ snapshot: expect.objectContaining({ document }) }),
+    );
+  });
+
   it('does not publish or expose student payloads when blocking validation fails', () => {
     const repository = createReadingV2Repository();
     const document = fixtureDocument();
@@ -428,8 +454,8 @@ describe('readingV2PublishPipeline.service', () => {
     const byPath = Object.fromEntries(
       storageWrites.map((operation) => [operation.path, operation.value]),
     );
-    const firstPassageId = 'material-full-test-with-passages-passage-1';
-    const secondPassageId = 'material-full-test-with-passages-passage-2';
+    const firstPassageId = 'material-full-test-with-passages-passage-section-sentence-completion';
+    const secondPassageId = 'material-full-test-with-passages-passage-section-true-false-not-given';
 
     expect(result.readingPassageExtraction?.passages).toHaveLength(2);
     expect(result.readingPassageExtraction?.composition.passageRefs.map((ref) => ref.passageMaterialId)).toEqual([
@@ -468,11 +494,11 @@ describe('readingV2PublishPipeline.service', () => {
           result.readingPassageExtraction!.composition.compositionId,
           snapshotVersionId,
         ),
-        'material_catalog/material_indexes/by_owner/teacher-1/material-full-test-with-passages-passage-1',
-        'material_catalog/material_indexes/by_visibility/public/material-full-test-with-passages-passage-1',
-        'material_catalog/material_indexes/by_material_kind/reading-passage/material-full-test-with-passages-passage-1',
-        'material_catalog/material_indexes/by_test_type/ielts/material-full-test-with-passages-passage-1',
-        'material_catalog/material_indexes/by_source_full_test/full-test-with-passages/material-full-test-with-passages-passage-1',
+        `material_catalog/material_indexes/by_owner/teacher-1/${firstPassageId}`,
+        `material_catalog/material_indexes/by_visibility/public/${firstPassageId}`,
+        `material_catalog/material_indexes/by_material_kind/reading-passage/${firstPassageId}`,
+        `material_catalog/material_indexes/by_test_type/ielts/${firstPassageId}`,
+        `material_catalog/material_indexes/by_source_full_test/full-test-with-passages/${firstPassageId}`,
       ]),
     );
     expect(Object.keys(byPath)).not.toContain(readingV2StoragePaths.publishedSnapshots(materialId, snapshotVersionId));
@@ -547,7 +573,7 @@ describe('readingV2PublishPipeline.service', () => {
       .not.toMatch(/"document"|"sections"|"stimuli"|"taskGroups"|"interactions"|"optionSets"|"answerKey"|"correctAnswers"/);
     expect(JSON.stringify(byPath[readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId)]))
       .not.toMatch(/acceptableAnswers|scoringRule|importEvidence|hiddenProvenance/);
-    expect(JSON.stringify(byPath['material_catalog/material_indexes/by_owner/teacher-1/material-full-test-with-passages-passage-1']))
+    expect(JSON.stringify(byPath[`material_catalog/material_indexes/by_owner/teacher-1/${firstPassageId}`]))
       .not.toMatch(/acceptableAnswers|scoringRule|document|teacherAdminProvenance/);
     expect(result.commitPlan.operations.map((operation) => operation.operationKey)).toEqual(
       expect.arrayContaining([
@@ -700,7 +726,7 @@ describe('readingV2PublishPipeline.service', () => {
 
     expect(result.duplicateWarnings).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        passageMaterialId: 'material-duplicate-guard-full-test-passage-1',
+        passageMaterialId: 'material-duplicate-guard-full-test-passage-section-sentence-completion',
         result: expect.objectContaining({
           shouldWarn: true,
           blockPublish: false,
@@ -718,7 +744,7 @@ describe('readingV2PublishPipeline.service', () => {
       }),
     ]));
     expect(duplicateIndexWrites.map((operation) => operation.path)).toContain(
-      'reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-duplicate-guard-full-test-passage-1',
+      'reading_v2/duplicate_indexes/passages_by_owner/teacher-1/material-duplicate-guard-full-test-passage-section-sentence-completion',
     );
     expect(JSON.stringify(duplicateIndexWrites)).not.toMatch(/bodyText|questionText|document|answerKey|scoringRule/);
   });
@@ -768,7 +794,7 @@ describe('readingV2PublishPipeline.service', () => {
         visibility: 'public' as any,
       },
     });
-    const firstPassageId = 'material-multi-anchor-table-full-test-passage-1';
+    const firstPassageId = 'material-multi-anchor-table-full-test-passage-section-table-completion';
     const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
     const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
     const passageSnapshotPath = readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId);
@@ -821,7 +847,7 @@ describe('readingV2PublishPipeline.service', () => {
     });
 
     const storageWrites = result.commitPlan.operations.filter((operation) => operation.kind === 'storage-write');
-    const firstPassageId = 'material-auto-full-test-passages-passage-1';
+    const firstPassageId = 'material-auto-full-test-passages-passage-section-sentence-completion';
 
     expect(result.readingPassageExtraction?.composition).toMatchObject({
       testMaterialId: materialId,
@@ -839,8 +865,8 @@ describe('readingV2PublishPipeline.service', () => {
         readingV2StoragePaths.readingPassageMaterials(firstPassageId),
         readingV2StoragePaths.publishedSnapshots(firstPassageId, snapshotVersionId),
         readingV2StoragePaths.studentSafeTests(firstPassageId, snapshotVersionId),
-        'material_catalog/material_indexes/by_visibility/public/material-auto-full-test-passages-passage-1',
-        'material_catalog/material_indexes/by_source_full_test/material-auto-full-test-passages/material-auto-full-test-passages-passage-1',
+        `material_catalog/material_indexes/by_visibility/public/${firstPassageId}`,
+        `material_catalog/material_indexes/by_source_full_test/material-auto-full-test-passages/${firstPassageId}`,
       ]),
     );
   });
@@ -923,7 +949,12 @@ describe('readingV2PublishPipeline.service', () => {
     });
 
     expect(result.readingPassageExtraction).toBeUndefined();
-    expect(result.commitPlan.operations.some((operation) => operation.kind === 'storage-write')).toBe(false);
+    expect(result.commitPlan.operations.some((operation) =>
+      operation.kind === 'storage-write' && operation.writeKind === 'authoring-recovery',
+    )).toBe(true);
+    expect(result.commitPlan.operations.some((operation) =>
+      operation.kind === 'storage-write' && operation.writeKind === 'reading-passage-material',
+    )).toBe(false);
   });
 
   it('blocks full-test publish when Reading Passage extraction reports a blocking issue', () => {

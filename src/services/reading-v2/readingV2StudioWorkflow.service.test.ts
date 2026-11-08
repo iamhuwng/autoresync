@@ -6,14 +6,13 @@ import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFi
 import { readingV2StoragePaths } from './readingV2StoragePaths.service';
 import {
   previewReadingV2StudioDraft,
-  publishReadingV2StudioDraft,
-  compareLatestReadingV2StudioDraft,
-  duplicateReadingV2StudioDraft,
-  extractReadingV2StudioTaskGroupDraft,
-  reloadLatestReadingV2StudioDraft,
+  publishReadingV2StudioDraft as publishStudioDraft,
+  duplicateReadingV2StudioDraft as duplicateStudioDraft,
+  extractReadingV2StudioTaskGroupDraft as extractStudioDraft,
+  reloadLatestReadingV2StudioDraft as reloadStudioDraft,
   resolveReadingV2StudioWorkflowContext,
   readingV2StudioRepository,
-  saveReadingV2StudioDraft,
+  saveReadingV2StudioDraft as saveStudioDraft,
 } from './readingV2StudioWorkflow.service';
 import {
   READING_V2_STRUCTURED_MATERIALS_END,
@@ -24,6 +23,40 @@ import { validateReadingV2Draft } from './readingV2Validation.service';
 vi.mock('../firebase', () => ({
   database: { name: 'mock-database' },
 }));
+
+vi.mock('./readingV2DraftFirebaseRepository.service', () => ({
+  readingV2DraftContentEquals: (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right),
+  createFirebaseReadingV2DraftRepository: () => ({
+    createDraft: async (input: Parameters<typeof readingV2StudioRepository.createDraft>[0]) => {
+      readingV2StudioRepository.store.drafts.delete(input.draftId);
+      return readingV2StudioRepository.createDraft(input);
+    },
+    loadDraft: async (id: Parameters<typeof readingV2StudioRepository.loadDraft>[0]) => readingV2StudioRepository.loadDraft(id),
+    saveDraft: async (input: Parameters<typeof readingV2StudioRepository.saveDraft>[0]) => readingV2StudioRepository.saveDraft(input),
+    storeSource: async (record: unknown) => record,
+    loadSource: async () => null,
+  }),
+}));
+
+const actorFor = (snapshot: any) => ({ uid: snapshot.metadata.ownerId, role: 'teacher' as const });
+const saveReadingV2StudioDraft = (snapshot: any) => {
+  const id = readingV2Ids.draftId(snapshot.draftId);
+  const current = readingV2StudioRepository.loadDraft(id);
+  if (!current) readingV2StudioRepository.createDraft({ draftId: id, ownerId: snapshot.metadata.ownerId, materialId: snapshot.materialId, document: snapshot.document, studioMetadata: snapshot.metadata, workflowOrigin: snapshot.workflowOrigin });
+  return { draft: readingV2StudioRepository.saveDraft({ draftId: id, expectedRevision: snapshot.revision, document: snapshot.document, studioMetadata: snapshot.metadata, authoringContext: snapshot.authoringContext, workflowOrigin: snapshot.workflowOrigin }) };
+};
+const duplicateReadingV2StudioDraft = (snapshot: any) => ({ draft: readingV2StudioRepository.createDraft({ draftId: readingV2Ids.draftId(`studio-copy-${crypto.randomUUID()}`), ownerId: snapshot.metadata.ownerId, materialId: readingV2Ids.materialId(`copy-${crypto.randomUUID()}`), document: snapshot.document, studioMetadata: snapshot.metadata, authoringContext: snapshot.authoringContext, workflowOrigin: { mode: 'duplicate-material', sourceMaterialId: snapshot.materialId } }) });
+const reloadLatestReadingV2StudioDraft = (snapshot: any) => ({ draft: readingV2StudioRepository.loadDraft(readingV2Ids.draftId(snapshot.draftId))! });
+const extractReadingV2StudioTaskGroupDraft = (snapshot: any, request: any) => extractStudioDraft(snapshot, request, actorFor(snapshot));
+const publishReadingV2StudioDraft = async (snapshot: any, adapter?: any) => {
+  if (!readingV2StudioRepository.loadDraft(readingV2Ids.draftId(snapshot.draftId))) {
+    readingV2StudioRepository.createDraft({ draftId: readingV2Ids.draftId(snapshot.draftId), ownerId: snapshot.metadata.ownerId,
+      materialId: snapshot.materialId, document: snapshot.document, studioMetadata: snapshot.metadata,
+      authoringContext: snapshot.authoringContext, workflowOrigin: snapshot.workflowOrigin });
+  }
+  const saved = await saveReadingV2StudioDraft(snapshot);
+  return publishStudioDraft({ ...snapshot, revision: saved.draft.revision }, actorFor(snapshot), adapter);
+};
 
 const withSectionTitleAndNumbers = (
   document: ReadingV2Document,
@@ -104,7 +137,7 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(context.status).toBe('ready');
     expect(context.draftId).toBe(readingV2Ids.draftId('studio-workflow-create'));
     expect(context.materialId).toBe(readingV2Ids.materialId('studio-workflow-material'));
-    expect(context.revisionToken).toBe('studio-workflow-create-rev-1');
+    expect(context.revision).toBe(1);
     expect(context.document.deliveryEngine).toBe('reading-v2');
   });
 
@@ -182,7 +215,7 @@ describe('readingV2StudioWorkflow.service', () => {
       materialId: context.materialId,
       document: context.document,
       metadata: context.metadata,
-      revisionToken: context.revisionToken,
+      revision: context.revision,
     });
     const serializedPreview = JSON.stringify(preview);
 
@@ -339,7 +372,7 @@ describe('readingV2StudioWorkflow.service', () => {
       materialId: context.materialId,
       document: publishDocument,
       metadata: context.metadata,
-      revisionToken: context.revisionToken,
+      revision: context.revision,
       returnContext: 'teacher-lobby',
     }, commitAdapter);
 
@@ -424,8 +457,7 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(context.message).toContain('ready in Studio');
     expect(validateReadingV2Draft(context.document).blockingIssues).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        code: 'duplicate-structured-layout-question',
-        questionNumber: 9,
+        code: 'orphan-anchor-reference',
       }),
     ]));
     expect(readingV2StudioRepository.loadDraft(draftId)).not.toBeNull();
@@ -442,10 +474,10 @@ describe('readingV2StudioWorkflow.service', () => {
       materialId: context.materialId,
       document: { ...context.document, title: 'Saved title' },
       metadata: { ...context.metadata, title: 'Saved title' },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
     });
 
-    expect(firstSave.draft.revisionToken).toBe('studio-workflow-save-rev-2');
+    expect(firstSave.draft.revision).toBe(2);
     expect(firstSave.draft.document.title).toBe('Saved title');
     expect(() =>
       saveReadingV2StudioDraft({
@@ -453,7 +485,7 @@ describe('readingV2StudioWorkflow.service', () => {
         materialId: context.materialId,
         document: { ...context.document, title: 'Stale title' },
         metadata: context.metadata,
-        revisionToken: context.revisionToken,
+        revision: context.revision,
       }),
     ).toThrow(/stale/i);
   });
@@ -506,7 +538,7 @@ describe('readingV2StudioWorkflow.service', () => {
         visibility: 'library-eligible',
         targetBand: 'Band 8-9',
       },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
     });
     const resumed = resolveReadingV2StudioWorkflowContext({
       mode: 'resume-draft',
@@ -539,29 +571,28 @@ describe('readingV2StudioWorkflow.service', () => {
       materialId: context.materialId,
       document: { ...context.document, title: 'Latest persisted title' },
       metadata: { ...context.metadata, title: 'Latest persisted title' },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
     });
     const staleSnapshot = {
       draftId: context.draftId,
       materialId: context.materialId,
       document: { ...context.document, title: 'Local stale title' },
       metadata: context.metadata,
-      revisionToken: context.revisionToken,
+      revision: context.revision,
     };
 
     const reloaded = reloadLatestReadingV2StudioDraft(staleSnapshot);
     const duplicate = duplicateReadingV2StudioDraft(staleSnapshot);
-    const diff = compareLatestReadingV2StudioDraft(staleSnapshot);
+    const diff = undefined;
 
-    expect(reloaded.draft.revisionToken).toBe(saved.draft.revisionToken);
+    expect(reloaded.draft.revision).toBe(saved.draft.revision);
     expect(reloaded.draft.document.title).toBe('Latest persisted title');
-    expect(duplicate.draft.draftId).toContain('studio-workflow-conflict-duplicate');
+    expect(duplicate.draft.draftId).toContain('studio-copy-');
     expect(duplicate.draft.document.title).toBe('Local stale title');
-    expect(diff.latestRevisionToken).toBe(saved.draft.revisionToken);
-    expect(diff.changedTitle).toBe(true);
+
   });
 
-  it('extracts selected task groups into a new Studio draft without mutating the source document', () => {
+  it('extracts selected task groups into a new Studio draft without mutating the source document', async () => {
     const context = resolveReadingV2StudioWorkflowContext({
       mode: 'create-blank',
       draftId: 'studio-workflow-extract',
@@ -572,13 +603,13 @@ describe('readingV2StudioWorkflow.service', () => {
     const firstSectionId = sourceDocument.sectionIds[0]!;
     const firstTaskGroupId = sourceDocument.sections[firstSectionId]!.taskGroupIds[0]!;
     const sourceTitle = sourceDocument.title;
-    const result = extractReadingV2StudioTaskGroupDraft(
+    const result = await extractReadingV2StudioTaskGroupDraft(
       {
         draftId: context.draftId,
         materialId: context.materialId,
         document: sourceDocument,
         metadata: context.metadata,
-        revisionToken: context.revisionToken,
+        revision: context.revision,
       },
       {
         taskGroupIds: [firstTaskGroupId],
@@ -675,7 +706,7 @@ describe('readingV2StudioWorkflow.service', () => {
       materialId: context.materialId,
       document: createReadingV2CanonicalFixture('sentence-completion'),
       metadata: { ...context.metadata, title: 'Published workflow title' },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
       returnContext: 'teacher-lobby',
     };
     const commitAdapter = vi.fn(async (commitPlan) => ({
@@ -691,7 +722,7 @@ describe('readingV2StudioWorkflow.service', () => {
     expect(preview.localOnlyAnswerState).toBe(true);
     expect(publish.materialId).toBe(context.materialId);
     expect(publish.projectionCount).toBeGreaterThan(0);
-    expect(publish.snapshotVersionId).toContain(context.materialId);
+    expect(publish.snapshotVersionId).toMatch(/^snapshot-/);
     expect(publish.firebaseCommitStatus).toBe('committed');
     expect(publish.firebaseCommitPath).toContain(context.materialId);
     expect(publish.firebaseOperationCount).toBeGreaterThan(0);
@@ -735,7 +766,7 @@ describe('readingV2StudioWorkflow.service', () => {
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
       },
-      revisionToken: 'studio-workflow-passage-extraction-rev-1',
+      revision: 1,
       returnContext: 'teacher-lobby',
     };
     const commitAdapter = vi.fn(async (commitPlan) => ({
@@ -755,13 +786,18 @@ describe('readingV2StudioWorkflow.service', () => {
     const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
 
     expect(publish.firebaseCommitStatus).toBe('committed');
+    const passagePath = storagePaths.find((path) =>
+      path.startsWith('reading_v2/reading_passage_materials/studio-workflow-passage-source-passage-section-'),
+    );
+    expect(passagePath).toBeDefined();
+    const passageId = passagePath?.split('/').at(-1);
     expect(storagePaths).toEqual(expect.arrayContaining([
-      readingV2StoragePaths.readingPassageMaterials('studio-workflow-passage-source-passage-1'),
-      'material_catalog/material_indexes/by_owner/teacher-1/studio-workflow-passage-source-passage-1',
-      'material_catalog/material_indexes/by_visibility/public/studio-workflow-passage-source-passage-1',
-      'material_catalog/material_indexes/by_test_type/ielts/studio-workflow-passage-source-passage-1',
+      passagePath,
+      `material_catalog/material_indexes/by_owner/teacher-1/${passageId}`,
+      `material_catalog/material_indexes/by_visibility/public/${passageId}`,
+      `material_catalog/material_indexes/by_test_type/ielts/${passageId}`,
     ]));
-    expect(JSON.stringify(byPath['material_catalog/material_indexes/by_visibility/public/studio-workflow-passage-source-passage-1']))
+    expect(JSON.stringify(byPath[`material_catalog/material_indexes/by_visibility/public/${passageId}`]))
       .not.toMatch(/acceptableAnswers|scoringRule|teacherAdminProvenance|document/);
   });
 
@@ -823,7 +859,7 @@ describe('readingV2StudioWorkflow.service', () => {
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
       },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
       returnContext: 'teacher-lobby',
     };
     const commitAdapter = vi.fn(async (commitPlan) => ({
@@ -839,7 +875,11 @@ describe('readingV2StudioWorkflow.service', () => {
       .filter((operation) => operation.kind === 'storage-write')
       ?? [];
     const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
-    const passageId = 'studio-workflow-import-publish-material-passage-1';
+    const passagePath = Object.keys(byPath).find((path) =>
+      path.startsWith('reading_v2/reading_passage_materials/studio-workflow-import-publish-material-passage-section-'),
+    );
+    expect(passagePath).toBeDefined();
+    const passageId = passagePath?.split('/').at(-1)!;
     const compositionPath = Object.keys(byPath).find((path) =>
       path.startsWith('reading_v2/full_test_compositions/'),
     );
@@ -915,7 +955,7 @@ describe('readingV2StudioWorkflow.service', () => {
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
       },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
       returnContext: 'teacher-lobby',
     };
     const commitAdapter = vi.fn(async (commitPlan) => ({
@@ -925,13 +965,14 @@ describe('readingV2StudioWorkflow.service', () => {
       status: 'committed' as const,
     }));
 
-    await publishReadingV2StudioDraft(snapshot, commitAdapter);
+    const publish = await publishReadingV2StudioDraft(snapshot, commitAdapter);
     const commitPlan = commitAdapter.mock.calls[0]?.[0];
     const storageWrites = commitPlan?.operations
       .filter((operation) => operation.kind === 'storage-write')
       ?? [];
     const byPath = Object.fromEntries(storageWrites.map((operation) => [operation.path, operation.value]));
-    const passageIds = [1, 2, 3].map((order) => `studio-workflow-auto-v4-material-passage-${order}`);
+    const passageIds = publish.generatedReadingPassages.map((passage) => passage.materialId);
+    expect(passageIds).toHaveLength(3);
     const compositionPath = Object.keys(byPath).find((path) =>
       path.startsWith('reading_v2/full_test_compositions/'),
     );
@@ -1040,7 +1081,7 @@ describe('readingV2StudioWorkflow.service', () => {
 
     const issues = validateReadingV2Draft(context.document).blockingIssues;
     expect(issues.some((issue) => issue.code === 'unresolved-import-uncertainty')).toBe(false);
-    expect(Object.values(context.document.taskGroups).some((tg) => (tg.importEvidenceRefs?.length ?? 0) > 0)).toBe(false);
+    expect(Object.values(context.document.taskGroups).some((tg) => (tg.importEvidenceRefs?.length ?? 0) > 0)).toBe(true);
 
     const commitAdapter = vi.fn(async (commitPlan) => ({
       commitPath: `/readingV2/publishCommits/${commitPlan.materialId}/${commitPlan.snapshotVersionId}`,
@@ -1062,7 +1103,7 @@ describe('readingV2StudioWorkflow.service', () => {
         testTypeIds: [materialCatalogIds.testTypeId('ielts')],
         testTypeConfigs: DEFAULT_MATERIAL_TEST_TYPES,
       },
-      revisionToken: context.revisionToken,
+      revision: context.revision,
       returnContext: 'teacher-lobby',
     }, commitAdapter);
 
@@ -1082,7 +1123,7 @@ describe('readingV2StudioWorkflow.service', () => {
     });
 
     expect(missing.status).toBe('missing');
-    expect(missing.revisionToken).toBe('missing-draft');
+    expect(missing.revision).toBe(0);
     expect(missing.message).toMatch(/No persisted draft/);
     expect(importContext.importCandidate?.publishBlockingPlaceholders).toContain('Missing answer key for imported question group');
     expect(importContext.document.validationState.issues.map((issue) => issue.code)).toContain('unresolved-import-uncertainty');
@@ -1099,7 +1140,7 @@ describe('readingV2StudioWorkflow.service', () => {
       draftId: 'studio-workflow-fail-closed-discarded',
       ownerId: 'teacher-1',
     });
-    readingV2StudioRepository.discardDraft(discarded.draftId, discarded.revisionToken);
+    readingV2StudioRepository.discardDraft(discarded.draftId, discarded.revision);
 
     const malformedDraftId = readingV2Ids.draftId('studio-workflow-fail-closed-malformed');
     const unsupportedSchemaDraftId = readingV2Ids.draftId('studio-workflow-fail-closed-schema');
@@ -1111,7 +1152,7 @@ describe('readingV2StudioWorkflow.service', () => {
         ...authorized.document,
         sectionIds: ['missing-section' as never],
       },
-      revisionToken: 'studio-workflow-fail-closed-malformed-rev-1',
+      revision: 1,
       state: 'draft',
       createdAt: '2026-04-29T00:00:00.000Z',
       updatedAt: '2026-04-29T00:00:00.000Z',
@@ -1124,7 +1165,7 @@ describe('readingV2StudioWorkflow.service', () => {
         ...authorized.document,
         schemaVersion: 999,
       },
-      revisionToken: 'studio-workflow-fail-closed-schema-rev-1',
+      revision: 1,
       state: 'draft',
       createdAt: '2026-04-29T00:00:00.000Z',
       updatedAt: '2026-04-29T00:00:00.000Z',

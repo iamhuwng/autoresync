@@ -108,7 +108,7 @@ const createVerticalLoop = (fixtureName: string | null = null) => {
   });
   const savedDraft = repository.saveDraft({
     draftId,
-    baseRevisionToken: createdDraft.revisionToken,
+    expectedRevision: createdDraft.revision,
     document,
     studioMetadata: { source: 'phase-6-browser-gate' },
     state: 'ready-to-publish',

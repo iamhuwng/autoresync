@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../../../contexts/AuthContext';
+import { buildRoute } from '../../../constants/routes';
 import { useReadingV2StudioAutosave } from '../../../hooks/reading-v2/useReadingV2StudioAutosave';
 import {
   loadReadingV2PublishedRevisionSource,
@@ -14,19 +16,21 @@ import {
 import {
   previewReadingV2StudioDraft,
   publishReadingV2StudioDraft,
-  compareLatestReadingV2StudioDraft,
   duplicateReadingV2StudioDraft,
   extractReadingV2StudioTaskGroupDraft,
   reloadLatestReadingV2StudioDraft,
-  resolveReadingV2StudioWorkflowContext,
+  openReadingV2StudioDraft,
   saveReadingV2StudioDraft,
+  studioContextFromDraft,
+  type ReadingV2StudioWorkflowContext,
 } from '../../../services/reading-v2/readingV2StudioWorkflow.service';
 import { createFirebaseReadingV2ReferenceUpdateRepository } from '../../../services/reading-v2/readingV2ReferenceUpdateFirebaseRepository.service';
 import type { ReadingV2ReferenceUpdateSummary } from '../../../services/reading-v2/readingV2ReferenceUpdate.service';
 
-type RevisionHydrationState = {
-  readonly key?: string;
+type StudioOpeningState = {
+  readonly session?: object;
   readonly status: 'idle' | 'loading' | 'loaded' | 'error';
+  readonly context?: ReadingV2StudioWorkflowContext;
   readonly source?: ReadingV2PublishedRevisionSource;
   readonly message?: string;
 };
@@ -56,90 +60,93 @@ export function ReadingV2StudioModalAdapter({
   onAction,
   onClose,
 }: ReadingV2StudioModalAdapterProps) {
+  const { user, profile, loading: authLoading } = useAuth();
+  const actor = useMemo(() => user && profile && profile.role !== 'student'
+    ? { uid: user.uid, role: profile.role }
+    : undefined, [profile?.role, user?.uid]);
+  const openingSession = useMemo(() => ({
+    draftId: draftId ?? `studio-${crypto.randomUUID()}`,
+    promise: undefined as Promise<{
+      context: ReadingV2StudioWorkflowContext;
+      source?: ReadingV2PublishedRevisionSource;
+    }> | undefined,
+  }), [actor, draftId, materialId, mode, ownerId]);
+  const activeSessionRef = useRef(openingSession);
+  activeSessionRef.current = openingSession;
+  const [saveSession, setSaveSession] = useState(0);
   const contextLabel = materialId
     ? `${returnContext.label}: Material ${materialId}`
     : draftId
       ? `${returnContext.label}: Draft ${draftId}`
       : returnContext.label;
-  const revisionMaterialId = mode === 'revise-published' ? materialId : undefined;
   const referenceUpdateRepository = useMemo(() => createFirebaseReadingV2ReferenceUpdateRepository(), []);
-  const [revisionHydration, setRevisionHydration] = useState<RevisionHydrationState>({
+  const [openingState, setOpeningState] = useState<StudioOpeningState>({
     status: 'idle',
   });
   const [referenceUpdateModal, setReferenceUpdateModal] = useState<ReferenceUpdateModalState | null>(null);
 
   useEffect(() => {
-    if (!revisionMaterialId) {
-      setRevisionHydration({ status: 'idle' });
+    setReferenceUpdateModal(null);
+    if (authLoading) return undefined;
+    if (!actor) {
+      setOpeningState({ session: openingSession, status: 'error', message: 'Sign in with a teacher account to open this draft.' });
       return undefined;
     }
 
     let cancelled = false;
-    setRevisionHydration({ key: revisionMaterialId, status: 'loading' });
-
-    void loadReadingV2PublishedRevisionSource(revisionMaterialId)
-      .then((source) => {
-        if (cancelled) {
-          return;
+    setOpeningState({ session: openingSession, status: 'loading' });
+    openingSession.promise ??= Promise.resolve().then(async () => {
+      const source = mode === 'revise-published' && materialId
+        ? await loadReadingV2PublishedRevisionSource(materialId, { ownerId: actor.uid, role: actor.role })
+        : undefined;
+      if (source && source.status !== 'loaded') {
+        throw new Error(source.message ?? 'The published snapshot could not be hydrated.');
+      }
+      const context = await openReadingV2StudioDraft({
+        actor,
+        mode,
+        materialId,
+        draftId: openingSession.draftId,
+        ownerId,
+        sourceSnapshot: source?.snapshot,
+        sourceMetadata: source?.metadata,
+        sourceAuthoringMetadata: source?.authoringMetadata,
+        sourceAuthoringContext: source?.authoringContext,
+        sourceWorkflowOrigin: source?.workflowOrigin,
+      });
+      return { context, source };
+    });
+    void openingSession.promise
+      .then(({ context, source }) => {
+        if (!cancelled) {
+          setOpeningState({ session: openingSession, status: 'loaded', context, source });
         }
-
-        setRevisionHydration({
-          key: revisionMaterialId,
-          status: source.status === 'loaded' ? 'loaded' : 'error',
-          source,
-          message: source.message,
-        });
       })
       .catch((error) => {
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setOpeningState({
+            session: openingSession,
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Failed to open Reading V2 draft.',
+          });
         }
-
-        setRevisionHydration({
-          key: revisionMaterialId,
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to load published Reading V2 material.',
-        });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [revisionMaterialId]);
+  }, [actor, authLoading, materialId, mode, openingSession, ownerId]);
 
-  const isRevisionHydrating =
-    Boolean(revisionMaterialId) &&
-    (revisionHydration.key !== revisionMaterialId ||
-      revisionHydration.status === 'idle' ||
-      revisionHydration.status === 'loading');
-  const revisionHydrationError =
-    Boolean(revisionMaterialId) &&
-    revisionHydration.key === revisionMaterialId &&
-    revisionHydration.status === 'error';
-  const revisionSource = revisionHydration.source?.status === 'loaded'
-    ? revisionHydration.source
-    : undefined;
-  const studioContext = useMemo(
-    () =>
-      resolveReadingV2StudioWorkflowContext({
-        mode,
-        materialId,
-        draftId,
-        ownerId,
-        sourceSnapshot: revisionSource?.snapshot,
-        sourceMetadata: revisionSource?.metadata,
-        deferPublishedRevisionFallback: isRevisionHydrating,
-      }),
-    [draftId, isRevisionHydrating, materialId, mode, ownerId, revisionSource?.metadata, revisionSource?.snapshot],
-  );
-  const [autosaveRevisionToken, setAutosaveRevisionToken] = useState(studioContext.revisionToken);
-  const saveStudioSnapshot = (snapshot: Parameters<typeof saveReadingV2StudioDraft>[0]) => {
-    const result = saveReadingV2StudioDraft(snapshot);
-    return { revisionToken: result.draft.revisionToken };
+  const studioContext = openingState.session === openingSession ? openingState.context : undefined;
+  const [autosaveRevision, setAutosaveRevision] = useState<number | undefined>();
+  const saveStudioSnapshot = async (snapshot: Parameters<typeof saveReadingV2StudioDraft>[0]) => {
+    if (!actor) throw new Error('Sign in with a teacher account to save this draft.');
+    const result = await saveReadingV2StudioDraft(snapshot, actor);
+    return { revision: result.draft.revision };
   };
-  const { queueAutosave } = useReadingV2StudioAutosave({
-    autosaveKey: studioContext.draftId,
-    enabled: studioContext.status === 'ready',
+  const { queueAutosave, saveNow, flush, saveState, saveError } = useReadingV2StudioAutosave({
+    autosaveKey: `${actor?.uid}:${studioContext?.draftId}:${saveSession}`,
+    enabled: Boolean(actor && studioContext?.status === 'ready'),
     saveDraft: saveStudioSnapshot,
     onResult: (result) => {
       onAction?.('autosaveDraft', {
@@ -148,31 +155,31 @@ export function ReadingV2StudioModalAdapter({
         draftId: result.draftId,
         materialId,
         outcome: result.status,
-        revisionToken: result.revisionToken,
+        revision: result.revision,
       });
-      if (result.revisionToken) {
-        setAutosaveRevisionToken(result.revisionToken);
+      if (result.revision !== undefined) {
+        setAutosaveRevision(result.revision);
       }
     },
   });
 
   useEffect(() => {
-    setAutosaveRevisionToken(studioContext.revisionToken);
-  }, [studioContext.draftId, studioContext.revisionToken]);
+    setAutosaveRevision(studioContext?.revision);
+  }, [studioContext?.draftId, studioContext?.revision]);
 
-  if (isRevisionHydrating) {
+  if (authLoading || openingState.session !== openingSession || openingState.status === 'idle' || openingState.status === 'loading') {
     return (
       <section role="dialog" aria-busy="true" aria-modal="true" aria-label="Reading V2 Studio modal adapter">
-        <p>Loading published Reading V2 material...</p>
+        <p>{mode === 'revise-published' ? 'Loading published Reading V2 material...' : 'Opening saved Reading V2 draft...'}</p>
       </section>
     );
   }
 
-  if (revisionHydrationError) {
+  if (!actor || !studioContext || studioContext.status !== 'ready') {
     return (
       <section role="alertdialog" aria-modal="true" aria-label="Reading V2 Studio modal adapter">
-        <p>Unable to open this published Reading V2 material for editing.</p>
-        <p>{revisionHydration.message ?? 'The published snapshot could not be hydrated.'}</p>
+        <p>Unable to open this Reading V2 draft for editing.</p>
+        <p>{openingState.message ?? studioContext?.message ?? 'The saved draft could not be loaded.'}</p>
       </section>
     );
   }
@@ -180,67 +187,96 @@ export function ReadingV2StudioModalAdapter({
   return (
     <>
       <section role="dialog" aria-modal="true" aria-label="Reading V2 Studio modal adapter">
+        <a
+          href={buildRoute('TEACHER_READING_V2_DRAFT', { draftId: studioContext.draftId })}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onAction?.('resumeDraft', { mode, host: 'modal', draftId: studioContext.draftId, outcome: 'open-saved-draft' })}
+        >Open saved draft</a>
         <ReadingV2StudioShell
-          mode={mode}
+          mode={studioContext.workflowOrigin?.mode ?? mode}
           host="modal"
           returnContext={{ ...returnContext, label: contextLabel }}
-          operationalState={studioContext.status === 'missing' ? 'error' : 'ready'}
+          operationalState="ready"
           importCandidate={studioContext.importCandidate}
+          resolvedSourceEvidence={studioContext.resolvedSourceEvidence}
+          actorId={actor.uid}
           document={studioContext.document}
           metadata={studioContext.metadata}
           draftId={studioContext.draftId}
           materialId={studioContext.materialId}
-          revisionToken={autosaveRevisionToken}
+          revision={autosaveRevision ?? studioContext.revision}
+          authoringContext={studioContext.authoringContext}
+          workflowOrigin={studioContext.workflowOrigin}
+          saveState={saveState}
+          saveError={saveError}
           onAction={onAction}
-          onSaveDraft={(snapshot) => {
-            const result = saveStudioSnapshot(snapshot);
-            setAutosaveRevisionToken(result.revisionToken);
-            return result;
-          }}
+          onSaveDraft={saveNow}
           onDraftChange={queueAutosave}
-          onReloadLatest={(snapshot) => {
-            const result = reloadLatestReadingV2StudioDraft(snapshot);
-            setAutosaveRevisionToken(result.draft.revisionToken);
+          onReloadLatest={async (snapshot) => {
+            const result = await reloadLatestReadingV2StudioDraft(snapshot, actor);
+            if (activeSessionRef.current !== openingSession) throw new Error('The draft session changed before reload completed.');
+            const context = studioContextFromDraft(result.draft, mode);
+            setOpeningState((current) => ({ ...current, context }));
+            setSaveSession((current) => current + 1);
             return {
-              document: result.draft.document,
-              revisionToken: result.draft.revisionToken,
+              document: context.document,
+              metadata: context.metadata,
+              authoringContext: context.authoringContext,
+              workflowOrigin: context.workflowOrigin,
+              revision: context.revision,
             };
           }}
-          onDuplicateDraft={(snapshot) => {
-            const result = duplicateReadingV2StudioDraft(snapshot);
-            setAutosaveRevisionToken(result.draft.revisionToken);
+          onDuplicateDraft={async (snapshot) => {
+            const result = await duplicateReadingV2StudioDraft(snapshot, actor);
+            if (activeSessionRef.current !== openingSession) throw new Error('The draft session changed before the copy was acknowledged.');
+            const context = studioContextFromDraft(result.draft, 'duplicate-material');
+            setOpeningState((current) => ({ ...current, context }));
+            setSaveSession((current) => current + 1);
             return {
-              draftId: result.draft.draftId,
-              materialId: result.draft.materialId,
-              revisionToken: result.draft.revisionToken,
+              draftId: context.draftId,
+              materialId: context.materialId,
+              document: context.document,
+              metadata: context.metadata,
+              authoringContext: context.authoringContext,
+              workflowOrigin: context.workflowOrigin,
+              revision: context.revision,
             };
           }}
-          onCompareDiff={compareLatestReadingV2StudioDraft}
-          onExtract={(snapshot, request) => {
-            const result = extractReadingV2StudioTaskGroupDraft(snapshot, request);
-            setAutosaveRevisionToken(result.draft.revisionToken);
+          onExtract={async (snapshot, request) => {
+            const result = await extractReadingV2StudioTaskGroupDraft(snapshot, request, actor);
+            if (activeSessionRef.current !== openingSession) throw new Error('The draft session changed before extraction was acknowledged.');
+            const context = studioContextFromDraft(result.draft, 'extract-task-group-material');
+            setOpeningState((current) => ({ ...current, context }));
+            setSaveSession((current) => current + 1);
             return {
-              draftId: result.draft.draftId,
-              materialId: result.draft.materialId,
-              document: result.draft.document,
-              revisionToken: result.draft.revisionToken,
+              draftId: context.draftId,
+              materialId: context.materialId,
+              document: context.document,
+              metadata: context.metadata,
+              authoringContext: context.authoringContext,
+              workflowOrigin: context.workflowOrigin,
+              revision: context.revision,
             };
           }}
           onPreview={previewReadingV2StudioDraft}
           onPublish={async (snapshot) => {
-            const result = await publishReadingV2StudioDraft(snapshot);
+            const saved = await saveNow(snapshot);
+            const result = await publishReadingV2StudioDraft({ ...snapshot, revision: saved.revision }, actor);
+            if (activeSessionRef.current !== openingSession) throw new Error('The draft session changed before publication completed.');
+            const previousSnapshotVersionId = studioContext.workflowOrigin?.sourceSnapshotVersionId;
             const isSinglePassageRevision =
-              mode === 'revise-published' &&
-              revisionSource?.metadata?.materialKind === 'reading-passage' &&
-              Boolean(revisionSource.snapshot) &&
-              revisionSource.snapshot?.snapshotVersionId !== result.snapshotVersionId;
+              studioContext.workflowOrigin?.mode === 'revise-published' &&
+              studioContext.metadata.materialKind === 'reading-passage' &&
+              Boolean(previousSnapshotVersionId) &&
+              previousSnapshotVersionId !== result.snapshotVersionId;
 
-            if (isSinglePassageRevision && revisionSource.snapshot) {
+            if (isSinglePassageRevision && previousSnapshotVersionId) {
               try {
                 const summary = await referenceUpdateRepository.discoverTargets({
                   ownerId: snapshot.metadata.ownerId,
                   passageMaterialId: result.materialId,
-                  previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+                  previousSnapshotVersionId,
                   nextSnapshotVersionId: result.snapshotVersionId,
                 });
 
@@ -248,7 +284,7 @@ export function ReadingV2StudioModalAdapter({
                   mode,
                   host: 'modal',
                   materialId: result.materialId,
-                  previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+                  previousSnapshotVersionId,
                   nextSnapshotVersionId: result.snapshotVersionId,
                   updateTargetCount: summary.targets.length,
                 });
@@ -271,7 +307,7 @@ export function ReadingV2StudioModalAdapter({
                   console.warn('[Diag][ReadingV2StudioModal] reference_update_discovery_failed_after_publish', {
                     message: error instanceof Error ? error.message : String(error),
                     materialId: result.materialId,
-                    previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
+                    previousSnapshotVersionId,
                     nextSnapshotVersionId: result.snapshotVersionId,
                   });
                 }
@@ -293,7 +329,7 @@ export function ReadingV2StudioModalAdapter({
               generatedReadingPassages: result.generatedReadingPassages,
             };
           }}
-          onExit={onClose}
+          onExit={() => { void flush().then(onClose).catch(() => undefined); }}
         />
       </section>
       {referenceUpdateModal ? (

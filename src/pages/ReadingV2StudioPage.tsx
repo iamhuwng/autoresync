@@ -1,44 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { FEATURE_IDS } from '../config/featureRegistry';
+import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { useNavigation } from '../hooks/useNavigation';
 import { useReadingV2StudioAutosave } from '../hooks/reading-v2/useReadingV2StudioAutosave';
 import { AssessmentStatusState } from '../features/assessment/shared/components/AssessmentStatusState';
-import {
-  ReadingV2StudioShell,
-  type ReadingV2ReturnContext,
-  type ReadingV2StudioMode,
-} from '../components/reading-v2/studio/ReadingV2StudioShell';
+import { ReadingV2StudioShell, type ReadingV2StudioMode } from '../components/reading-v2/studio/ReadingV2StudioShell';
 import { ReadingV2UpdateReferencesModal } from '../components/reading-v2/master/ReadingV2UpdateReferencesModal';
+import { toast } from '../components/modern/ToastNotification';
+import { useAppLifecycle } from '../core/platform/hooks/useAppLifecycle';
 import { resolveMaterialTestTypeIdsFromLegacyTestType } from '../services/materialCatalog/materialTestTypeMapping.service';
 import type { ReadingV2ImportCandidate } from '../services/reading-v2/readingV2ImportNormalization.service';
 import {
-  previewReadingV2StudioDraft,
-  publishReadingV2StudioDraft,
-  compareLatestReadingV2StudioDraft,
-  duplicateReadingV2StudioDraft,
-  extractReadingV2StudioTaskGroupDraft,
-  reloadLatestReadingV2StudioDraft,
-  resolveReadingV2StudioWorkflowContext,
-  saveReadingV2StudioDraft,
-  type ReadingV2StudioWorkflowMetadata,
+  previewReadingV2StudioDraft, publishReadingV2StudioDraft, duplicateReadingV2StudioDraft,
+  extractReadingV2StudioTaskGroupDraft, reloadLatestReadingV2StudioDraft, openReadingV2StudioDraft,
+  saveReadingV2StudioDraft, studioContextFromDraft,
+  type ReadingV2StudioWorkflowMetadata, type ReadingV2StudioWorkflowContext, type ReadingV2StudioActor,
 } from '../services/reading-v2/readingV2StudioWorkflow.service';
-import {
-  loadReadingV2PublishedRevisionSource,
-  type ReadingV2PublishedRevisionSource,
-} from '../services/reading-v2/readingV2StudioFirebaseHydration.service';
+import { loadReadingV2PublishedRevisionSource } from '../services/reading-v2/readingV2StudioFirebaseHydration.service';
 import { createFirebaseReadingV2ReferenceUpdateRepository } from '../services/reading-v2/readingV2ReferenceUpdateFirebaseRepository.service';
 import type { ReadingV2ReferenceUpdateSummary } from '../services/reading-v2/readingV2ReferenceUpdate.service';
 
-type RevisionHydrationState = {
-  readonly key?: string;
-  readonly status: 'idle' | 'loading' | 'loaded' | 'error';
-  readonly source?: ReadingV2PublishedRevisionSource;
-  readonly message?: string;
-};
-
-type ReadingV2StudioRouteState = {
+type RouteState = {
   readonly entryPoint?: string;
   readonly initialMetadata?: Partial<ReadingV2StudioWorkflowMetadata>;
   readonly initialImportCandidate?: ReadingV2ImportCandidate;
@@ -46,450 +30,228 @@ type ReadingV2StudioRouteState = {
   readonly testType?: string;
 };
 
-type ReferenceUpdateModalState = {
-  readonly status: 'closed' | 'open' | 'updating';
-  readonly passageTitle: string;
-  readonly summary: ReadingV2ReferenceUpdateSummary;
+type OpeningState = {
+  readonly key: string;
+  readonly context?: ReadingV2StudioWorkflowContext;
+  readonly error?: string;
 };
 
-const compactActionMetadata = (
-  metadata: Record<string, unknown>,
-): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(metadata).filter(([, value]) => value !== undefined));
-
-const resolveStudioMode = (pathname: string): ReadingV2StudioMode => {
-  if (pathname.endsWith('/import')) {
-    return 'create-from-import';
-  }
-
-  if (pathname.includes('/drafts/')) {
-    return 'resume-draft';
-  }
-
-  if (pathname.includes('/materials/') && pathname.endsWith('/revise')) {
-    return 'revise-published';
-  }
-
-  return 'create-blank';
-};
-
-const mergeRouteTestTypeMetadata = (
-  metadata: Partial<ReadingV2StudioWorkflowMetadata> | undefined,
-  testType: string | undefined,
-): Partial<ReadingV2StudioWorkflowMetadata> | undefined => {
-  const routeTestTypeIds = resolveMaterialTestTypeIdsFromLegacyTestType(testType);
-
-  if (routeTestTypeIds.length === 0) {
-    return metadata;
-  }
-
-  return {
-    ...metadata,
-    primaryTestTypeId: metadata?.primaryTestTypeId ?? routeTestTypeIds[0],
-    testTypeIds: metadata?.testTypeIds && metadata.testTypeIds.length > 0
-      ? metadata.testTypeIds
-      : routeTestTypeIds,
-  };
-};
+const resolveStudioMode = (pathname: string): ReadingV2StudioMode =>
+  pathname.includes('/drafts/') ? 'resume-draft'
+    : pathname.includes('/materials/') && pathname.endsWith('/revise') ? 'revise-published'
+      : pathname.endsWith('/import') ? 'create-from-import' : 'create-blank';
 
 export default function ReadingV2StudioPage() {
   const location = useLocation();
   const params = useParams();
+  const { user, profile, loading: authLoading } = useAuth();
   const { navigateTo } = useNavigation('teacher');
   const { trackAction } = useFeatureTracking(FEATURE_IDS.readingV2Studio);
-  const referenceUpdateRepository = useMemo(() => createFirebaseReadingV2ReferenceUpdateRepository(), []);
-  const routeState = useMemo<ReadingV2StudioRouteState>(
-    () => (location.state && typeof location.state === 'object'
-      ? location.state as ReadingV2StudioRouteState
-      : {}),
-    [location.state],
-  );
+  const actor = useMemo<ReadingV2StudioActor | null>(() => user && ['teacher', 'super_admin'].includes(profile?.role)
+    ? { uid: user.uid, role: profile.role } : null, [user?.uid, profile?.role]);
+  const routeState = useMemo<RouteState>(() => location.state && typeof location.state === 'object'
+    ? location.state as RouteState : {}, [location.state]);
   const pathMode = resolveStudioMode(location.pathname);
-  const mode = routeState.startMode === 'create-from-auto' ? 'create-from-auto' : pathMode;
-  const revisionMaterialId = mode === 'revise-published' ? params.materialId : undefined;
-  const routeInitialMetadata = useMemo(
-    () => mergeRouteTestTypeMetadata(routeState.initialMetadata, routeState.testType),
-    [routeState.initialMetadata, routeState.testType],
-  );
-  const [revisionHydration, setRevisionHydration] = useState<RevisionHydrationState>({
-    status: 'idle',
-  });
-  const [referenceUpdateModal, setReferenceUpdateModal] = useState<ReferenceUpdateModalState | null>(null);
+  const routeMode = pathMode === 'create-blank' || pathMode === 'create-from-import'
+    ? routeState.startMode === 'create-from-auto' ? 'create-from-auto' : pathMode : pathMode;
+  const openingKey = `${actor?.uid}:${actor?.role}:${location.key}:${location.pathname}`;
+  const openingKeyRef = useRef(openingKey);
+  openingKeyRef.current = openingKey;
+  const openingPromisesRef = useRef(new Map<string, Promise<ReadingV2StudioWorkflowContext>>());
+  const [opening, setOpening] = useState<OpeningState>({ key: '' });
+  const [saveEpoch, setSaveEpoch] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [referenceSummary, setReferenceSummary] = useState<ReadingV2ReferenceUpdateSummary | null>(null);
+  const [updatingReferences, setUpdatingReferences] = useState(false);
+  const referenceRepository = useMemo(() => createFirebaseReadingV2ReferenceUpdateRepository(), []);
 
   useEffect(() => {
-    if (!revisionMaterialId) {
-      setRevisionHydration({ status: 'idle' });
-      return undefined;
-    }
-
-    let cancelled = false;
-    setRevisionHydration({ key: revisionMaterialId, status: 'loading' });
-
-    void loadReadingV2PublishedRevisionSource(revisionMaterialId)
-      .then((source) => {
-        if (cancelled) {
-          return;
-        }
-
-        setRevisionHydration({
-          key: revisionMaterialId,
-          status: source.status === 'loaded' ? 'loaded' : 'error',
-          source,
-          message: source.message,
-        });
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        setRevisionHydration({
-          key: revisionMaterialId,
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Failed to load published Reading V2 material.',
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [revisionMaterialId]);
-
-  const isRevisionHydrating =
-    Boolean(revisionMaterialId) &&
-    (revisionHydration.key !== revisionMaterialId ||
-      revisionHydration.status === 'idle' ||
-      revisionHydration.status === 'loading');
-  const revisionHydrationError =
-    Boolean(revisionMaterialId) &&
-    revisionHydration.key === revisionMaterialId &&
-    revisionHydration.status === 'error';
-  const revisionSource = revisionHydration.source?.status === 'loaded'
-    ? revisionHydration.source
-    : undefined;
-  const studioContext = useMemo(
-    () =>
-      resolveReadingV2StudioWorkflowContext({
-        mode,
+    if (authLoading || !actor) return;
+    let active = true;
+    const open = async () => {
+      const source = routeMode === 'revise-published' && params.materialId
+        ? await loadReadingV2PublishedRevisionSource(params.materialId, {
+          ownerId: actor.uid, role: actor.role,
+          snapshotVersionId: new URLSearchParams(location.search).get('version') ?? undefined,
+        }) : undefined;
+      if (source && source.status !== 'loaded') throw new Error(source.message ?? 'The published revision could not be loaded.');
+      const testTypeIds = resolveMaterialTestTypeIdsFromLegacyTestType(routeState.testType);
+      const context = await openReadingV2StudioDraft({
+        mode: routeMode,
         draftId: params.draftId,
         materialId: params.materialId,
-        ownerId: routeInitialMetadata?.ownerId,
-        initialMetadata: routeInitialMetadata,
+        actor,
+        initialMetadata: {
+          ...routeState.initialMetadata,
+          ownerId: actor.uid,
+          primaryTestTypeId: routeState.initialMetadata?.primaryTestTypeId ?? testTypeIds[0],
+          testTypeIds: routeState.initialMetadata?.testTypeIds ?? testTypeIds,
+        },
         initialImportCandidate: routeState.initialImportCandidate,
-        sourceSnapshot: revisionSource?.snapshot,
-        sourceMetadata: revisionSource?.metadata,
-        deferPublishedRevisionFallback: isRevisionHydrating,
-      }),
-    [
-      isRevisionHydrating,
-      mode,
-      params.draftId,
-      params.materialId,
-      routeInitialMetadata,
-      revisionSource?.metadata,
-      revisionSource?.snapshot,
-      routeState.initialImportCandidate,
-    ],
-  );
-  const [autosaveRevisionToken, setAutosaveRevisionToken] = useState(studioContext.revisionToken);
-  const saveStudioSnapshot = (snapshot: Parameters<typeof saveReadingV2StudioDraft>[0]) => {
-    const result = saveReadingV2StudioDraft(snapshot);
-    return { revisionToken: result.draft.revisionToken };
-  };
-  const { queueAutosave } = useReadingV2StudioAutosave({
-    autosaveKey: studioContext.draftId,
-    enabled: studioContext.status === 'ready',
-    saveDraft: saveStudioSnapshot,
-    onResult: (result) => {
-      trackAction('autosaveDraft', {
-        mode,
-        draftId: result.draftId,
-        outcome: result.status,
-        revisionToken: result.revisionToken,
+        sourceSnapshot: source?.snapshot,
+        sourceMetadata: source?.metadata,
+        sourceAuthoringMetadata: source?.authoringMetadata,
+        sourceAuthoringContext: source?.authoringContext,
+        sourceWorkflowOrigin: source?.workflowOrigin,
       });
-      if (result.revisionToken) {
-        setAutosaveRevisionToken(result.revisionToken);
+      return context;
+    };
+    const openingPromise = openingPromisesRef.current.get(openingKey) ?? open();
+    openingPromisesRef.current.set(openingKey, openingPromise);
+    const applyOpening = async () => {
+      const context = await openingPromise;
+      if (!active || openingKeyRef.current !== openingKey) return;
+      setOpening({ key: openingKey, context });
+      setRevision(context.revision);
+      trackAction('openStudio', { mode: context.mode, draftId: context.draftId, materialId: context.materialId });
+      if (context.status === 'ready' && pathMode !== 'resume-draft') {
+        navigateTo('TEACHER_READING_V2_DRAFT', { draftId: context.draftId }, {
+          replace: true, reason: 'reading_v2_draft_acknowledged',
+        });
       }
+    };
+    void applyOpening().catch((error) => {
+      if (active && openingKeyRef.current === openingKey) {
+        setOpening({ key: openingKey, error: error instanceof Error ? error.message : 'Could not open this draft.' });
+      }
+    });
+    return () => { active = false; };
+  }, [actor, authLoading, openingKey, params.draftId, params.materialId, pathMode, routeMode, routeState, navigateTo, trackAction, location.search]);
+
+  const context = opening.key === openingKey ? opening.context : undefined;
+  const { queueAutosave, saveNow, flush, saveState, saveError } = useReadingV2StudioAutosave({
+    autosaveKey: `${actor?.uid}:${context?.draftId}:${saveEpoch}`,
+    enabled: Boolean(actor && context?.status === 'ready'),
+    saveDraft: async (snapshot) => {
+      if (!actor) throw new Error('Sign in as a teacher to save this draft.');
+      const result = await saveReadingV2StudioDraft(snapshot, actor);
+      return { revision: result.draft.revision };
+    },
+    onResult: (result) => {
+      trackAction('autosaveDraft', { draftId: result.draftId, outcome: result.status, revision: result.revision });
+      if (result.revision !== undefined) setRevision(result.revision);
     },
   });
-  const returnContext: ReadingV2ReturnContext = useMemo(
-    () => ({
-      surface: 'direct-studio-route',
-      label: params.draftId
-        ? `Draft ${params.draftId}`
-        : params.materialId
-          ? `Material ${params.materialId}`
-          : 'Direct Studio route',
-    }),
-    [params.draftId, params.materialId],
-  );
+  useAppLifecycle({
+    onBeforeUnload: () => saveState !== 'saved' ? 'Your draft still has unsaved changes.' : undefined,
+    onBackground: () => { void flush().catch(() => undefined); },
+  });
 
-  useEffect(() => {
-    setAutosaveRevisionToken(studioContext.revisionToken);
-  }, [studioContext.draftId, studioContext.revisionToken]);
-
-  useEffect(() => {
-    if (isRevisionHydrating || revisionHydrationError) {
-      return;
+  const replaceDraft = (result: Awaited<ReturnType<typeof duplicateReadingV2StudioDraft>>) => {
+    const { draft, resolvedSourceEvidence } = result;
+    const next = { ...studioContextFromDraft(draft), resolvedSourceEvidence };
+    setOpening({ key: openingKey, context: next });
+    setRevision(draft.revision);
+    setSaveEpoch((epoch) => epoch + 1);
+    if (draft.draftId !== params.draftId) {
+      navigateTo('TEACHER_READING_V2_DRAFT', { draftId: draft.draftId }, {
+        replace: true, reason: 'reading_v2_destination_draft_acknowledged',
+      });
     }
+    return { ...next, materialId: draft.materialId };
+  };
 
-    const actionName =
-      mode === 'create-from-auto'
-        ? 'startAutoImportMaterial'
-        : mode === 'create-from-import'
-        ? 'startImportMaterial'
-        : mode === 'resume-draft'
-          ? 'resumeDraft'
-          : mode === 'revise-published'
-            ? 'revisePublishedMaterial'
-            : 'startBlankMaterial';
-
-    trackAction('openStudio', compactActionMetadata({
-      mode,
-      draftId: params.draftId,
-      materialId: params.materialId,
-      entryPoint: routeState.entryPoint,
-      startMode: routeState.startMode,
-    }));
-    trackAction(actionName, compactActionMetadata({
-      mode,
-      draftId: params.draftId,
-      materialId: params.materialId,
-      entryPoint: routeState.entryPoint,
-    }));
-  }, [
-    isRevisionHydrating,
-    mode,
-    params.draftId,
-    params.materialId,
-    revisionHydrationError,
-    routeState.entryPoint,
-    routeState.startMode,
-    trackAction,
-  ]);
-
-  useEffect(() => {
-    if (isRevisionHydrating || revisionHydrationError || studioContext.status !== 'invalid') {
-      return;
-    }
-
-    trackAction('studioImportCandidateRejected', compactActionMetadata({
-      mode,
-      draftId: params.draftId,
-      materialId: params.materialId,
-      entryPoint: routeState.entryPoint,
-      outcome: 'blocked',
-      issueCode: 'invalid-import-candidate',
-    }));
-  }, [
-    isRevisionHydrating,
-    mode,
-    params.draftId,
-    params.materialId,
-    revisionHydrationError,
-    routeState.entryPoint,
-    studioContext.status,
-    trackAction,
-  ]);
-
-  if (isRevisionHydrating) {
-    return (
-      <AssessmentStatusState
-        as="main"
-        variant="loading"
-        title="READING-V2"
-        message={<p>Loading published Reading V2 material...</p>}
-      />
-    );
-  }
-
-  if (revisionHydrationError) {
-    return (
-      <AssessmentStatusState
-        as="main"
-        variant="error"
-        title="READING-V2"
-        message={(
-          <>
-            <p>Unable to open this published Reading V2 material for editing.</p>
-            <p>{revisionHydration.message ?? 'The published snapshot could not be hydrated.'}</p>
-          </>
-        )}
-      />
-    );
-  }
-
-  if (studioContext.status === 'invalid') {
-    return (
-      <AssessmentStatusState
-        as="main"
-        variant="error"
-        title="READING-V2"
-        message={(
-          <>
-            <p>Unable to open this Reading V2 Studio draft.</p>
-            <p>{studioContext.message ?? 'Auto import needs review before Studio can open.'}</p>
-          </>
-        )}
-      />
-    );
-  }
-
-  return (
-    <>
-      <ReadingV2StudioShell
-      mode={mode}
-        returnContext={returnContext}
-        operationalState={studioContext.status === 'missing' ? 'error' : 'ready'}
-        importCandidate={studioContext.importCandidate}
-        document={studioContext.document}
-      metadata={studioContext.metadata}
-      draftId={studioContext.draftId}
-      materialId={studioContext.materialId}
-      revisionToken={autosaveRevisionToken}
-      onAction={(actionName, metadata) => trackAction(actionName, metadata ? { ...metadata } : undefined)}
-      onSaveDraft={(snapshot) => {
-        const result = saveStudioSnapshot(snapshot);
-        setAutosaveRevisionToken(result.revisionToken);
-        return result;
-      }}
+  const error = !authLoading && !actor ? 'Sign in as a teacher to open Reading V2 Studio.'
+    : opening.key === openingKey ? opening.error ?? (context?.status !== 'ready' ? context?.message : undefined) : undefined;
+  return <>
+    {error || !context || !actor ? <AssessmentStatusState as="main" variant={error ? 'error' : 'loading'}
+      title="Reading V2 Studio" message={<p>{error ?? 'Opening saved draft…'}</p>} /> : <ReadingV2StudioShell
+      key={`${actor.uid}:${context.draftId}`}
+      mode={context.mode}
+      returnContext={{ surface: 'direct-studio-route', label: 'Saved Reading V2 draft' }}
+      operationalState="ready"
+      importCandidate={context.importCandidate}
+      document={context.document}
+      metadata={context.metadata}
+      authoringContext={context.authoringContext}
+      actorId={actor.uid}
+      resolvedSourceEvidence={context.resolvedSourceEvidence}
+      workflowOrigin={context.workflowOrigin}
+      draftId={context.draftId}
+      materialId={context.materialId}
+      revision={revision}
+      saveState={saveState}
+      saveError={saveError}
+      onAction={(action, metadata) => trackAction(action, metadata ? { ...metadata } : undefined)}
+      onSaveDraft={saveNow}
       onDraftChange={queueAutosave}
-      onReloadLatest={(snapshot) => {
-        const result = reloadLatestReadingV2StudioDraft(snapshot);
-        setAutosaveRevisionToken(result.draft.revisionToken);
-        return {
-          document: result.draft.document,
-          revisionToken: result.draft.revisionToken,
-        };
+      onReloadLatest={async (snapshot) => {
+        const key = openingKey;
+        const result = await reloadLatestReadingV2StudioDraft(snapshot, actor);
+        if (openingKeyRef.current !== key) throw new Error('The draft session changed.');
+        return replaceDraft(result);
       }}
-      onDuplicateDraft={(snapshot) => {
-        const result = duplicateReadingV2StudioDraft(snapshot);
-        setAutosaveRevisionToken(result.draft.revisionToken);
-        return {
-          draftId: result.draft.draftId,
-          materialId: result.draft.materialId,
-          revisionToken: result.draft.revisionToken,
-        };
+      onDuplicateDraft={async (snapshot) => {
+        const key = openingKey;
+        const result = await duplicateReadingV2StudioDraft(snapshot, actor);
+        if (openingKeyRef.current !== key) throw new Error('The draft session changed.');
+        return replaceDraft(result);
       }}
-      onCompareDiff={compareLatestReadingV2StudioDraft}
-      onExtract={(snapshot, request) => {
-        const result = extractReadingV2StudioTaskGroupDraft(snapshot, request);
-        setAutosaveRevisionToken(result.draft.revisionToken);
-        return {
-          draftId: result.draft.draftId,
-          materialId: result.draft.materialId,
-          document: result.draft.document,
-          revisionToken: result.draft.revisionToken,
-        };
+      onExtract={async (snapshot, request) => {
+        const key = openingKey;
+        const result = await extractReadingV2StudioTaskGroupDraft(snapshot, request, actor);
+        if (openingKeyRef.current !== key) throw new Error('The draft session changed.');
+        return replaceDraft(result);
       }}
       onPreview={previewReadingV2StudioDraft}
       onPublish={async (snapshot) => {
-        const result = await publishReadingV2StudioDraft(snapshot);
-        const isSinglePassageRevision =
-          mode === 'revise-published' &&
-          revisionSource?.metadata?.materialKind === 'reading-passage' &&
-          Boolean(revisionSource.snapshot) &&
-          revisionSource.snapshot?.snapshotVersionId !== result.snapshotVersionId;
-
-        if (isSinglePassageRevision && revisionSource.snapshot) {
+        const key = openingKey;
+        const saved = await saveNow(snapshot);
+        const selected = { ...snapshot, revision: saved.revision };
+        const result = await publishReadingV2StudioDraft(selected, actor);
+        if (openingKeyRef.current !== key) throw new Error('The publication finished in an earlier draft session.');
+        const nextOrigin = {
+          ...(snapshot.workflowOrigin ?? { mode: routeMode }),
+          sourceSnapshotVersionId: result.snapshotVersionId,
+          publicationBase: result.publicationBase,
+        };
+        let draftRevision = saved.revision;
+        try {
+          const persisted = await saveReadingV2StudioDraft({ ...selected, workflowOrigin: nextOrigin }, actor);
+          draftRevision = persisted.draft.revision;
+          setRevision(persisted.draft.revision);
+          setSaveEpoch((epoch) => epoch + 1);
+        } catch (error) {
+          toast.warning('Published successfully, but the draft revision marker could not be saved. Reopen the published revision before editing again.');
+          trackAction('publish', { outcome: 'published_draft_marker_save_failed', message: error instanceof Error ? error.message : 'unknown' });
+        }
+        const sourceVersion = snapshot.workflowOrigin?.sourceSnapshotVersionId;
+        if (snapshot.workflowOrigin?.mode === 'revise-published' && snapshot.metadata.materialKind === 'reading-passage' && sourceVersion) {
           try {
-            const summary = await referenceUpdateRepository.discoverTargets({
-              ownerId: snapshot.metadata.ownerId,
-              passageMaterialId: result.materialId,
-              previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
-              nextSnapshotVersionId: result.snapshotVersionId,
+            const summary = await referenceRepository.discoverTargets({
+              ownerId: snapshot.metadata.ownerId, passageMaterialId: result.materialId,
+              previousSnapshotVersionId: sourceVersion, nextSnapshotVersionId: result.snapshotVersionId,
             });
-
-            trackAction('reading_v2_single_passage_version_published', {
-              materialId: result.materialId,
-              previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
-              nextSnapshotVersionId: result.snapshotVersionId,
-              updateTargetCount: summary.targets.length,
-            });
-
-            if (summary.targets.length > 0) {
-              setReferenceUpdateModal({
-                status: 'open',
-                passageTitle: snapshot.document.title,
-                summary,
-              });
-              trackAction('reading_v2_update_references_opened', {
-                materialId: result.materialId,
-                updateTargetCount: summary.targets.length,
-              });
-            }
-          } catch (error) {
-            if (import.meta.env.DEV && !import.meta.env.VITEST) {
-              console.warn('[Diag][ReadingV2Studio] reference_update_discovery_failed_after_publish', {
-                message: error instanceof Error ? error.message : String(error),
-                materialId: result.materialId,
-                previousSnapshotVersionId: revisionSource.snapshot.snapshotVersionId,
-                nextSnapshotVersionId: result.snapshotVersionId,
-              });
-            }
-            trackAction('reading_v2_update_references_skipped', {
-              materialId: result.materialId,
-              outcome: 'discovery-failed-after-publish',
-            });
+            if (openingKeyRef.current === key && summary.targets.length) setReferenceSummary(summary);
+          } catch {
+            trackAction('reading_v2_update_references_skipped', { materialId: result.materialId, outcome: 'discovery-failed-after-publish' });
           }
         }
-
-        return {
-          snapshotVersionId: result.snapshotVersionId,
-          firebaseCommitStatus: result.firebaseCommitStatus,
-          firebaseCommitPath: result.firebaseCommitPath,
-          firebaseOperationCount: result.firebaseOperationCount,
-          duplicateWarnings: result.duplicateWarnings,
-          generatedReadingPassages: result.generatedReadingPassages,
-        };
+        return { ...result, draftRevision };
       }}
-      onPublishSuccess={mode === 'revise-published' ? undefined : (snapshot, result) => {
-        trackAction('exitStudio', compactActionMetadata({
-          mode,
-          draftId: snapshot.draftId,
-          materialId: snapshot.materialId,
-          snapshotVersionId: result.snapshotVersionId,
-          reason: 'reading_v2_studio_publish_success',
-        }));
-        navigateTo('LOBBY', undefined, {
-          reason: 'reading_v2_studio_publish_success',
-          replace: true,
-        });
+      onPublishSuccess={context.workflowOrigin.mode === 'revise-published' ? undefined : () => {
+        navigateTo('LOBBY', undefined, { replace: true, reason: 'reading_v2_studio_publish_success' });
       }}
-      onExit={() => {
+      onExit={async () => {
+        const key = openingKey;
+        await flush();
+        if (openingKeyRef.current !== key) return;
         navigateTo('LOBBY', undefined, { reason: 'reading_v2_studio_exit' });
       }}
-    />
-      {referenceUpdateModal ? (
-        <ReadingV2UpdateReferencesModal
-          open={referenceUpdateModal.status !== 'closed'}
-          passageTitle={referenceUpdateModal.passageTitle}
-          summary={referenceUpdateModal.summary}
-          onClose={() => setReferenceUpdateModal(null)}
-          onSkipAll={() => {
-            trackAction('reading_v2_update_references_skipped', {
-              materialId: referenceUpdateModal.summary.passageMaterialId,
-              updateTargetCount: referenceUpdateModal.summary.targets.length,
-            });
-            setReferenceUpdateModal(null);
-          }}
-          onUpdateSelected={async (selectedTargetIds) => {
-            setReferenceUpdateModal((current) => current ? { ...current, status: 'updating' } : current);
-            const result = await referenceUpdateRepository.applySelected({
-              summary: referenceUpdateModal.summary,
-              selectedTargetIds,
-            });
-            trackAction('reading_v2_update_references_submitted', {
-              materialId: referenceUpdateModal.summary.passageMaterialId,
-              selectedTargetCount: selectedTargetIds.length,
-              updatedMasterCount: result.updatedMasters.length,
-              updatedBookCount: result.updatedBooks.length,
-              skippedTargetCount: result.skippedTargetIds.length,
-            });
-            setReferenceUpdateModal(null);
-          }}
-        />
-      ) : null}
-    </>
-  );
+    />}
+    {referenceSummary ? <ReadingV2UpdateReferencesModal open passageTitle={context?.metadata.title ?? ''}
+      summary={referenceSummary}
+      onClose={() => setReferenceSummary(null)}
+      onSkipAll={() => { trackAction('reading_v2_update_references_skipped'); setReferenceSummary(null); }}
+      onUpdateSelected={async (selectedTargetIds) => {
+        if (updatingReferences) return;
+        setUpdatingReferences(true);
+        try {
+          const result = await referenceRepository.applySelected({ summary: referenceSummary, selectedTargetIds });
+          trackAction('reading_v2_update_references_submitted', { selectedTargetCount: selectedTargetIds.length,
+            updatedMasterCount: result.updatedMasters.length, updatedBookCount: result.updatedBooks.length });
+          setReferenceSummary(null);
+        } finally { setUpdatingReferences(false); }
+      }} /> : null}
+  </>;
 }

@@ -76,7 +76,7 @@ The redesign changes the teacher-facing authoring UI only.
 Replace separate “Passages” and “Questions” authoring steps with one combined step:
 
 ```text
-Test Info → Build Test → Review → Publish
+Test Info → Build Test → Publish
 ```
 
 The main redesign is the **Build Test** step.
@@ -96,17 +96,16 @@ The Build Test screen has:
 Required actions:
 
 * Save Draft
-* Validate
 * Preview
-* Publish
+* Review N issues when required findings exist; Publish when ready
 * Exit
 
 Rules:
 
 * Save Draft is always available.
-* Validate shows teacher-readable validation messages.
+* Current issues update as the teacher edits; Review opens the issue detail beside the work.
 * Preview opens the student-facing preview.
-* Publish is disabled until required issues are fixed.
+* Required issues replace the primary Publish action with Review N issues until resolved.
 * Exit should avoid accidental loss of unsaved work.
 
 ---
@@ -385,7 +384,7 @@ Action:
 Message:
 
 ```text
-Imported content needs teacher review before publishing.
+Check the current issues before publishing.
 ```
 
 Show plain review items, not schema/debug details.
@@ -404,7 +403,7 @@ Examples:
 * Question 14 has no answer key.
 * Diagram question needs an image.
 * Table question has an empty answer cell.
-* Publish is blocked until required issues are fixed.
+* Required issues show a Review action until fixed.
 
 Do not use:
 
@@ -535,6 +534,6 @@ The implementation is acceptable only if:
 * Answer keys are edited inside question group cards.
 * Normal UI does not expose schema/internal terms.
 * Save Draft works with incomplete content.
-* Publish is blocked when required validation issues exist.
+* Required issues present Review N issues as the primary action; Publish appears when ready.
 * Preview shows the student-facing version of the draft.
 * Unsupported visual features are not faked.

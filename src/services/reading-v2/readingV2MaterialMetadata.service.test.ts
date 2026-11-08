@@ -22,6 +22,8 @@ describe('readingV2MaterialMetadata.service', () => {
     });
 
     expect(metadata.deliveryEngine).toBe('reading-v2');
+    expect(metadata.state).toBe('published');
+    expect(metadata.materialRevision).toBe(1);
     expect(metadata.title).toBe('Published Reading V2 material');
     expect(metadata.visibility).toBe('public');
     expect(metadata.relationshipSurfaces).toEqual(
@@ -47,6 +49,8 @@ describe('readingV2MaterialMetadata.service', () => {
     });
 
     expect(metadata.compositionId).toBe('composition-material-composition-metadata-snapshot-1');
+    expect(metadata.state).toBe('published');
+    expect(metadata.materialRevision).toBe(1);
   });
 
   it('requires a metadata title before publish output is produced', () => {

@@ -28,6 +28,7 @@ import {
 } from '../../types/readingV2.types';
 import { createReadingV2FullTestCompositionFromRefs } from './readingV2FullTestComposition.service';
 import { assertValidReadingV2CanonicalDocument } from './readingV2ContractGuards.service';
+import { normalizeReadingV2FirebaseDocument } from './readingV2FirebaseDocument.service';
 import { buildReadingV2FirebasePublishUpdates } from './readingV2FirebasePublishAdapter.service';
 import { publishReadingV2Material } from './readingV2PublishPipeline.service';
 import { createReadingV2Repository } from './readingV2Repository.service';
@@ -41,6 +42,8 @@ import {
   buildReadingV2AuditEvent,
   getReadingV2AuditEventPath,
 } from './readingV2AuditTrail.service';
+import { buildReadingV2LifecycleRevisionWrites, readReadingV2PublicationBase, prepareReadingV2PublicationUpdates } from './readingV2PublicationGuard.service';
+import { createReadingV2ManualAuthoringContext } from './readingV2AuthoringQuality.service';
 
 export interface ReadingV2TeacherCompositionRepository {
   readonly read?: (path: string) => Promise<unknown>;
@@ -49,6 +52,7 @@ export interface ReadingV2TeacherCompositionRepository {
 }
 
 export interface ReadingV2MasterRemoveRepository {
+  readonly read: (path: string) => Promise<unknown>;
   readonly write: (path: string, value: unknown) => Promise<void>;
   readonly remove: (path: string) => Promise<void>;
   readonly update?: (updates: Readonly<Record<string, unknown | null>>) => Promise<void>;
@@ -137,60 +141,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getString = (record: Record<string, unknown>, key: string): string | undefined =>
   typeof record[key] === 'string' ? record[key] : undefined;
 
-const normalizeFirebaseDocumentRoundTrip = (document: ReadingV2Document): ReadingV2Document => ({
-  ...document,
-  sectionIds: Array.isArray(document.sectionIds) ? document.sectionIds : [],
-  sections: Object.fromEntries(
-    Object.entries(document.sections ?? {}).map(([sectionId, section]) => [
-      sectionId,
-      {
-        ...section,
-        stimulusIds: Array.isArray(section.stimulusIds) ? section.stimulusIds : [],
-        taskGroupIds: Array.isArray(section.taskGroupIds) ? section.taskGroupIds : [],
-      },
-    ]),
-  ),
-  stimuli: Object.fromEntries(
-    Object.entries(document.stimuli ?? {}).map(([stimulusId, stimulus]) => [
-      stimulusId,
-      {
-        ...stimulus,
-        anchorIds: Array.isArray(stimulus.anchorIds) ? stimulus.anchorIds : [],
-      },
-    ]),
-  ),
-  anchors: document.anchors ?? {},
-  taskGroups: Object.fromEntries(
-    Object.entries(document.taskGroups ?? {}).map(([taskGroupId, taskGroup]) => [
-      taskGroupId,
-      {
-        ...taskGroup,
-        instructionBlocks: Array.isArray(taskGroup.instructionBlocks) ? taskGroup.instructionBlocks : [],
-        stimulusRefs: Array.isArray(taskGroup.stimulusRefs) ? taskGroup.stimulusRefs : [],
-        optionSetRefs: Array.isArray(taskGroup.optionSetRefs) ? taskGroup.optionSetRefs : [],
-        interactionIds: Array.isArray(taskGroup.interactionIds) ? taskGroup.interactionIds : [],
-        validationState: {
-          ...taskGroup.validationState,
-          issues: Array.isArray(taskGroup.validationState?.issues) ? taskGroup.validationState.issues : [],
-        },
-      },
-    ]),
-  ),
-  interactions: Object.fromEntries(
-    Object.entries(document.interactions ?? {}).map(([interactionId, interaction]) => [
-      interactionId,
-      {
-        ...interaction,
-        reviewLabel: interaction.reviewLabel ?? {},
-      },
-    ]),
-  ),
-  optionSets: document.optionSets ?? {},
-  validationState: {
-    ...document.validationState,
-    issues: Array.isArray(document.validationState?.issues) ? document.validationState.issues : [],
-  },
-});
 
 const omitUndefinedForFirebase = (value: unknown): unknown => {
   if (Array.isArray(value)) {
@@ -906,7 +856,7 @@ const toPublishedSnapshot = (value: unknown): ReadingV2PublishedSnapshot | null 
   const rawSnapshot = clone(value as unknown as ReadingV2PublishedSnapshot);
   const snapshot: ReadingV2PublishedSnapshot = {
     ...rawSnapshot,
-    document: normalizeFirebaseDocumentRoundTrip(rawSnapshot.document),
+    document: normalizeReadingV2FirebaseDocument(rawSnapshot.document),
   };
   assertValidReadingV2CanonicalDocument(snapshot.document);
   return snapshot;
@@ -1024,7 +974,7 @@ const prepareSelectedPassageSnapshots = async (
   };
 };
 
-const buildReadingV2TeacherSelectedPassageDocument = (input: {
+export const buildReadingV2TeacherSelectedPassageDocument = (input: {
   readonly composition: ReturnType<typeof buildReadingV2TeacherSelectedPassageComposition>;
   readonly snapshots: readonly ReadingV2PublishedSnapshot[];
 }): ReadingV2Document => {
@@ -1090,7 +1040,11 @@ const writeUpdates = async (
   repository: ReadingV2TeacherCompositionRepository,
   updates: Readonly<Record<string, unknown>>,
 ): Promise<void> => {
-  const sanitized = sanitizeFirebaseUpdates(updates);
+  let sanitized = sanitizeFirebaseUpdates(updates);
+  if (Object.keys(sanitized).some((path) => /^reading_v2\/material_metadata\/[^/]+$/.test(path))) {
+    if (!repository.read) throw new Error('Reading V2 publication requires current material base reads.');
+    sanitized = sanitizeFirebaseUpdates(await prepareReadingV2PublicationUpdates(sanitized, repository.read));
+  }
   logTeacherCompositionWriteDiagnostics('publish_update_prepare', sanitized);
 
   if (repository.update) {
@@ -1102,15 +1056,9 @@ const writeUpdates = async (
     }
     return;
   }
-
-  try {
-    await Promise.all(
-      Object.entries(sanitized).map(([path, value]) => repository.write(path, value)),
-    );
-  } catch (error) {
-    logTeacherCompositionWriteDiagnostics('publish_update_failed', sanitized, error);
-    throw error;
-  }
+  const error = new Error('Reading V2 publication requires atomic publish updates.');
+  logTeacherCompositionWriteDiagnostics('publish_update_failed', sanitized, error);
+  throw error;
 };
 
 export const buildReadingV2TeacherSelectedPassageComposition = (input: {
@@ -1238,6 +1186,9 @@ export const createReadingV2TeacherSelectedPassageComposition = async (input: {
     publishedBy: input.teacherId,
     snapshotVersionId: composition.publishedVersionId,
     publishedAt: composition.createdAt,
+    authoringContext: { ...createReadingV2ManualAuthoringContext(), origin: {
+      kind: 'published', materialId: composition.testMaterialId, snapshotVersionId: composition.publishedVersionId,
+    } },
     skipReadingPassageExtraction: true,
     metadata: {
       title: composition.title,
@@ -1325,6 +1276,7 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
     mode: 'published',
     updatedAt: publishedAt,
     state: 'published',
+    materialRevision: input.composition.state === 'draft' ? 1 : Number(input.composition.materialRevision) + 1,
   } as ReadingV2FullTestComposition;
   const prepared = await prepareSelectedPassageSnapshots(input.repository, selected, publishedAt);
   const composition = prepared.composition;
@@ -1344,6 +1296,10 @@ export const publishReadingV2TeacherSelectedPassageCompositionEdit = async (inpu
     publishedBy: input.teacherId,
     snapshotVersionId: composition.publishedVersionId,
     publishedAt,
+    expectedMaterialRevision: input.composition.state === 'draft' ? undefined : input.composition.materialRevision,
+    authoringContext: { ...createReadingV2ManualAuthoringContext(), origin: {
+      kind: 'published', materialId: composition.testMaterialId, snapshotVersionId: composition.publishedVersionId,
+    } },
     skipReadingPassageExtraction: true,
     metadata: {
       title: composition.title,
@@ -1396,10 +1352,19 @@ export const removeReadingV2MasterComposition = async (input: {
   }
 
   const removedAt = input.now ?? new Date().toISOString();
+  const base = await readReadingV2PublicationBase({
+    read: input.repository.read,
+    materialId: input.composition.testMaterialId,
+    ownerId: input.composition.ownerId,
+    expectedHead: input.composition.publishedVersionId,
+  });
+  if (base.metadata.state === 'removed' || base.record.state === 'removed') {
+    throw new Error('Reading V2 master has already been removed and cannot be resurrected.');
+  }
   const changedPaths: string[] = [];
-  const compositionPath = readingV2StoragePaths.fullTestCompositions(input.composition.compositionId);
+  const compositionPath = base.recordPath;
   const metadataPath = readingV2StoragePaths.materialMetadata(input.composition.testMaterialId);
-  const compositionRecord = input.composition as typeof input.composition & {
+  const compositionRecord = base.record as unknown as typeof input.composition & {
     readonly publishedSnapshotVersionId?: string;
     readonly sourceSnapshotVersionId?: string;
     readonly state?: string;
@@ -1407,44 +1372,20 @@ export const removeReadingV2MasterComposition = async (input: {
     readonly removedBy?: string;
     readonly mode?: string;
   };
+  const currentComposition = { ...input.composition, ...compositionRecord };
   const publishedVersionId =
-    (typeof input.composition.publishedVersionId === 'string' && input.composition.publishedVersionId) ||
+    (typeof compositionRecord.publishedVersionId === 'string' && compositionRecord.publishedVersionId) ||
     (typeof compositionRecord.publishedSnapshotVersionId === 'string' && compositionRecord.publishedSnapshotVersionId) ||
     (typeof compositionRecord.sourceSnapshotVersionId === 'string' && compositionRecord.sourceSnapshotVersionId);
   if (!publishedVersionId) {
     throw new Error('Reading V2 master is missing published version identity.');
   }
 
-  const passageQuestionCount = input.composition.passageRefs.reduce(
-    (total, passage) => total + Number(passage.questionCountSnapshot ?? 0),
-    0,
-  );
-  const removedComposition = omitUndefinedForFirebase({
-    deliveryEngine: input.composition.deliveryEngine || 'reading-v2',
-    plane: input.composition.plane || 'packaging',
-    schemaVersion: input.composition.schemaVersion || READING_V2_SCHEMA_VERSION,
-    compositionId: input.composition.compositionId,
-    testMaterialId: input.composition.testMaterialId,
-    title: input.composition.title,
-    primaryTestTypeId: input.composition.primaryTestTypeId,
-    testTypeIds: input.composition.testTypeIds,
-    skill: input.composition.skill || 'reading',
-    passageRefs: input.composition.passageRefs,
-    questionCount: input.composition.questionCount ?? passageQuestionCount,
-    numbering: input.composition.numbering,
-    durationMinutes: input.composition.durationMinutes,
-    visibility: input.composition.visibility,
-    ownerId: input.composition.ownerId,
-    publishedVersionId,
-    createdAt: input.composition.createdAt || removedAt,
-    updatedAt: removedAt,
-    mode: compositionRecord.mode,
-    state: 'removed',
-    removedAt,
-    removedBy: input.actorUserId,
-  });
   const materialStateWrites = [
-    { path: compositionPath, value: removedComposition },
+    { path: `${compositionPath}/state`, value: 'removed' },
+    { path: `${compositionPath}/updatedAt`, value: removedAt },
+    { path: `${compositionPath}/removedAt`, value: removedAt },
+    { path: `${compositionPath}/removedBy`, value: input.actorUserId },
     { path: `${metadataPath}/state`, value: 'removed' },
     { path: `${metadataPath}/removedAt`, value: removedAt },
     { path: `${metadataPath}/removedBy`, value: input.actorUserId },
@@ -1454,18 +1395,18 @@ export const removeReadingV2MasterComposition = async (input: {
   const indexSummary = {
     materialId: input.composition.testMaterialId,
     ownerId: input.composition.ownerId,
-    title: input.composition.title,
-    visibility: input.composition.visibility === 'public' ? 'public' : 'private',
+    title: currentComposition.title,
+    visibility: currentComposition.visibility === 'public' ? 'public' : 'private',
     materialKind: 'full-test' as const,
-    testTypeIds: input.composition.testTypeIds,
-    updatedAt: input.composition.updatedAt,
+    testTypeIds: currentComposition.testTypeIds,
+    updatedAt: currentComposition.updatedAt,
   };
 
   const legacyTestPath = `tests/${input.composition.testMaterialId}`;
   const eventId = [
     input.correlationId,
     'reading_master_removed',
-    input.composition.compositionId,
+    currentComposition.compositionId,
   ].map(auditEventIdPart).join(':');
   const auditPath = getReadingV2AuditEventPath(eventId);
   const event = buildReadingV2AuditEvent({
@@ -1475,14 +1416,14 @@ export const removeReadingV2MasterComposition = async (input: {
     actorRole: input.actorRole,
     action: 'reading_master_removed',
     entityType: 'reading-master',
-    entityId: input.composition.compositionId,
-    ownerId: input.composition.ownerId,
-    materialId: input.composition.testMaterialId,
+    entityId: currentComposition.compositionId,
+    ownerId: currentComposition.ownerId,
+    materialId: currentComposition.testMaterialId,
     versionId: publishedVersionId,
-    titleSnapshot: input.composition.title,
+    titleSnapshot: currentComposition.title,
     after: {
       state: 'removed',
-      passageRefCount: input.composition.passageRefs.length,
+      passageRefCount: currentComposition.passageRefs.length,
     },
     adminOverride: input.actorRole === 'super_admin' || undefined,
     correlationId: input.correlationId,
@@ -1492,18 +1433,18 @@ export const removeReadingV2MasterComposition = async (input: {
   const activeSummary = createReadingV2FullTestMaterialSummary({
     materialId: input.composition.testMaterialId,
     ownerId: input.composition.ownerId,
-    title: input.composition.title,
-    visibility: input.composition.visibility,
+    title: currentComposition.title,
+    visibility: currentComposition.visibility,
     lifecycleState: 'active',
-    primaryTestTypeId: input.composition.primaryTestTypeId,
-    testTypeIds: input.composition.testTypeIds,
-    questionCount: input.composition.passageRefs.reduce(
+    primaryTestTypeId: currentComposition.primaryTestTypeId,
+    testTypeIds: currentComposition.testTypeIds,
+    questionCount: currentComposition.passageRefs.reduce(
       (total, passage) => total + Number(passage.questionCountSnapshot ?? 0),
       0,
     ),
-    durationMinutes: input.composition.durationMinutes,
+    durationMinutes: currentComposition.durationMinutes,
     sourceSnapshotVersionId: publishedVersionId,
-    updatedAt: input.composition.updatedAt,
+    updatedAt: currentComposition.updatedAt,
   });
   const removedSummary = {
     ...activeSummary,
@@ -1520,17 +1461,9 @@ export const removeReadingV2MasterComposition = async (input: {
     ...buildMaterialSummaryUpdatePayload(removedSummary, activeSummary),
   }) as Record<string, unknown | null>;
 
-  if (input.repository.update) {
-    await input.repository.update(updatePayload);
-  } else {
-    for (const [path, value] of Object.entries(updatePayload)) {
-      if (value === null) {
-        await input.repository.remove(path);
-      } else {
-        await input.repository.write(path, value);
-      }
-    }
-  }
+  if (!input.repository.update) throw new Error('Reading V2 master removal requires an atomic update repository.');
+  Object.assign(updatePayload, buildReadingV2LifecycleRevisionWrites(base));
+  await input.repository.update(updatePayload);
   changedPaths.push(...Object.keys(updatePayload));
 
   return { changedPaths };

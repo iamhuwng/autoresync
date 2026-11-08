@@ -13,6 +13,10 @@ export interface ReadingV2ReferenceUpdateTarget {
   readonly currentSnapshotVersionId: string;
   readonly nextSnapshotVersionId: string;
   readonly selectable: boolean;
+  /** Captured from the authoritative parent metadata during discovery. */
+  readonly currentMaterialRevision?: number;
+  readonly parentMaterialId?: string;
+  readonly currentParentVersionId?: string;
 }
 
 export interface ReadingV2ReferenceUpdateSummary {
@@ -53,6 +57,8 @@ export interface ReadingV2ReferenceUpdateResult {
     readonly frozenAssignmentCount: number;
     readonly resultSnapshotCount: number;
   };
+  readonly operationId?: string;
+  readonly versionIds?: Readonly<Record<string, string>>;
 }
 
 const isMatchingMaterialRef = (
@@ -165,6 +171,9 @@ export const findReadingV2ReferenceUpdateTargets = (input: {
         kind: 'master',
         title: master.title,
         ownerId: master.ownerId,
+        parentMaterialId: master.testMaterialId,
+        currentMaterialRevision: master.materialRevision,
+        currentParentVersionId: master.publishedVersionId,
         refId: ref.refId,
         materialId: ref.passageMaterialId,
         currentSnapshotVersionId: ref.snapshotVersionId,
