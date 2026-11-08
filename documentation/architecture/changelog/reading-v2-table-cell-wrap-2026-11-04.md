@@ -25,5 +25,11 @@ long answers wrap inside the same cell.
 - Live localhost Studio preview verified authored text, inline badge placement,
   and long-answer wrapping in the teacher preview.
 
-Production Hosting publication and provider readback are recorded below after
-the guarded deployment completes.
+## Publication
+
+Guarded Hosting publication completed on 4 November 2026. Firebase Hosting
+version `b7000f8f9ffb2f6e` was released at `2026-11-03T20:05:41.098Z` and the
+production manifest read back source revision `c8d7793347620fbb6da1ed6671024c6525ed4f83`,
+tree `aa7d7c234bdcf3bff9cea856c56c1ee31b088995`, and 459 file hashes. The
+release journal is `d2d3a04b-193e-4406-9ffd-00fc4cc52dab` under the local
+release store.
