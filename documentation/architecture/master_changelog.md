@@ -27,6 +27,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-09 | [`CL-20261109-READING-V2-STUDIO-REVIEW-CORRECTION`](changelog/reading-v2-studio-review-correction-2026-11-09.md) | Reading V2 | Fixed | Made answer-bank review actionable per question, allowed approval of valid authored banks, and blocked publish after save errors; Hosting revision `66d111a8` verified live. |
 | 2026-11-09 | [`CL-20261108-READING-V2-AUTHORING-QUALITY`](changelog/reading-v2-authoring-quality-2026-11-08.md) | Reading V2 | Fixed | Deployed corrective source-backed review, durable Studio drafts, exact publication recovery and the focused Teacher Studio shell; Hosting manifest and 459 asset hashes verified. |
 
 ## 2026-11-05 — Released
