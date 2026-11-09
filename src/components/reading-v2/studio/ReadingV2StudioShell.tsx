@@ -2480,6 +2480,13 @@ export function ReadingV2StudioShell({
     if (workflowBusyRef.current || publishState === 'pending') return;
     emitAction('publish', { outcome: publishBlocked ? 'blocked' : 'requested' });
 
+    if (saveState === 'error' || saveState === 'conflict' || saveError || localSaveError) {
+      setWorkflowMessage('Resolve the draft save issue before publishing. Your local edits are still here.');
+      setPublishState('retry');
+      emitAction('publish', { outcome: 'blocked-by-save-state' });
+      return;
+    }
+
     if (publishBlocked) {
       setWorkflowMessage('Publish blocked. Fix the checklist items before publishing.');
       setPublishState('failure');
@@ -3098,20 +3105,39 @@ export function ReadingV2StudioShell({
     ) : null;
     if (issue.type === 'source-bank-mismatch' && requirement && group) {
       const expected = expectedBankRequirement ?? requirement;
-      const options = group.optionSetRefs.flatMap((id) => draftDocument.optionSets[id]?.options ?? []);
-      const rows = (expected.bankItems ?? []).map((item) => ({ ...item, matches: options.filter((option) => option.label.trim().toLowerCase() === item.label.trim().toLowerCase() && option.text.trim()) }));
-      const optionLabels = new Set(options.map((option) => option.label.trim().toLowerCase()));
-      const canConfirm = Boolean(source && options.length && optionLabels.size === options.length
-        && options.every((option) => option.label.trim() && option.text.trim()));
+      const optionSets = group.optionSetRefs.map((id) => draftDocument.optionSets[id]).filter(Boolean);
+      const options = optionSets.flatMap((optionSet) => optionSet.options);
+      const expectedItems = expected.bankItems ?? [];
+      let sourceOffset = 0;
+      const rows = optionSets.map((optionSet, index) => {
+        const currentChoices = optionSet.options;
+        const sourceChoices = expectedItems.length === options.length
+          ? expectedItems.slice(sourceOffset, sourceOffset + currentChoices.length)
+          : expectedItems;
+        sourceOffset += currentChoices.length;
+        const interactionId = group.interactionIds[index];
+        const questionLabel = authoringNumbers.find((entry) => entry.interactionId === interactionId)?.label
+          ?? `Question ${index + 1}`;
+        return { questionLabel, sourceChoices, currentChoices };
+      });
+      const canConfirm = Boolean(source && optionSets.length && optionSets.every((optionSet) => {
+        const labels = new Set(optionSet.options.map((option) => option.label.trim().toLowerCase()));
+        return optionSet.options.length > 0 && labels.size === optionSet.options.length
+          && optionSet.options.every((option) => option.label.trim() && option.text.trim());
+      }));
       return (
         <div className="reading-v2-build__source-actions">
           {renderBankAssociation}
           <table className="reading-v2-review-issues__bank">
-            <caption>Answer bank comparison</caption>
-            <thead><tr><th scope="col">Label</th><th scope="col">Supplied text</th><th scope="col">Current text</th></tr></thead>
-            <tbody>{rows.map((row, index) => <tr key={`${row.label}-${index}`}><th scope="row">{row.label}</th><td>{row.text}</td><td>{row.matches.length === 1 ? row.matches[0].text : row.matches.length ? 'Duplicate label' : 'Missing option'}</td></tr>)}</tbody>
+            <caption>Compare source and current answer choices</caption>
+            <thead><tr><th scope="col">Question</th><th scope="col">Source choices</th><th scope="col">Current choices</th></tr></thead>
+            <tbody>{rows.map((row) => <tr key={row.questionLabel}>
+              <th scope="row">{row.questionLabel}</th>
+              <td>{row.sourceChoices.length ? row.sourceChoices.map((choice) => `${choice.label}: ${choice.text}`).join(' | ') : 'No source choices found'}</td>
+              <td>{row.currentChoices.length ? row.currentChoices.map((choice) => `${choice.label}: ${choice.text || 'Empty'}`).join(' | ') : 'No current choices'}</td>
+            </tr>)}</tbody>
           </table>
-          <p>{canConfirm ? 'If the current answer bank is correct, approve it to resolve this review. Every current option still needs a unique label and non-empty text.' : 'Give every current option a unique label and non-empty text before approving this bank.'}</p>
+          <p>{canConfirm ? 'If the current choices are correct, approve them to resolve this review. Each question still needs unique labels and non-empty text.' : 'Give each question unique labels and non-empty text for its choices before approving this review.'}</p>
           <button className="reading-v2-studio__button" type="button" disabled={saving || !canConfirm} onClick={() => void handleSourceResolution(issue, 'interpret', '')}>Approve current answer bank</button>
         </div>
       );
