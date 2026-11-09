@@ -35,7 +35,7 @@ The target visual reference is the current V1 phone Reading runtime:
 - `src/components/test/mobile/MobileReviewSummary.tsx`
 - `src/components/test/IELTSQuestionsPanel.tsx` in embedded mode
 - `src/core/platform/hooks/useMobileExamMode.ts`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 
 These files are visual and interaction references only. Do not use their legacy Reading schema or heuristic grouped-task reconstruction as the V2 engine.
 

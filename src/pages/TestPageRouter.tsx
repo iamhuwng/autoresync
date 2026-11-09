@@ -24,7 +24,6 @@ import {
   isReadingV2Payload,
 } from '../config/readingV2FeatureFlags';
 import ListeningTestPage from '../skills/listening/components/ListeningTestPage';
-import StudentTestPage from './StudentTestPage';
 import {
   ReadingV2RuntimeShell,
   type ReadingV2AnswerValue,
@@ -813,7 +812,7 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           </div>
         );
       }
-      return <StudentTestPage />;
+      return <FullPageState>{MATERIAL_UNAVAILABLE_MESSAGE}</FullPageState>;
 
     case 'Listening':
       return <ListeningTestPage />;
@@ -839,18 +838,14 @@ const TestPageRouter: React.FC<TestPageRouterProps> = () => {
           </Suspense>
         );
       }
-      // No writing test data loaded yet — fallback
-      return <StudentTestPage />;
+      return <FullPageState>{MATERIAL_UNAVAILABLE_MESSAGE}</FullPageState>;
 
     case 'Speaking':
-      // Speaking is not yet implemented — use generic
-      console.log(`⚠️ Speaking skill not yet implemented, using generic test page`);
-      return <StudentTestPage />;
+      return <FullPageState>{MATERIAL_UNAVAILABLE_MESSAGE}</FullPageState>;
 
     case 'generic':
     default:
-      // Fallback to generic test page
-      return <StudentTestPage />;
+      return <FullPageState>{MATERIAL_UNAVAILABLE_MESSAGE}</FullPageState>;
   }
 };
 

@@ -122,10 +122,6 @@ vi.mock('../skills/listening/components/ListeningTestPage', () => ({
   default: () => <div>listening-page</div>,
 }));
 
-vi.mock('./StudentTestPage', () => ({
-  default: () => <div>generic-page</div>,
-}));
-
 vi.mock('../components/thcs-student/THCSTestLayout', () => ({
   default: () => <div>thcs-page</div>,
 }));

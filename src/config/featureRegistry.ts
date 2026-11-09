@@ -139,9 +139,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     id: FEATURE_IDS.testCreation,
     name: 'Test Creation',
     routes: [
+      '/create-test',
       '/teacher/test/create',
-      '/teacher/test/create-standalone',
-      '/teacher/test/review/:draftId',
       '/teacher/thcs-test/create',
       '/teacher/thcs-test/edit/:draftId',
       '/teacher/writing-test/create',

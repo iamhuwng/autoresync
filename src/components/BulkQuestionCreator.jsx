@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Text, Textarea, Select, FileButton } from '@mantine/core';
 import { Button } from './modern';
-import { parseTextToQuiz } from '../utils/parsers/textParser';
+import { parseListeningQuestionText } from '../features/assessment/listening/authoring/parseListeningQuestionText';
 
 const BulkQuestionCreator = ({ show, onClose, onSave, passages, inline = false }) => {
   const [inputText, setInputText] = useState('');
@@ -40,16 +40,16 @@ const BulkQuestionCreator = ({ show, onClose, onSave, passages, inline = false }
 
     try {
       // Use the text parser to parse questions
-      const result = parseTextToQuiz(inputText);
+      const result = parseListeningQuestionText(inputText);
       
-      if (!result.success || !result.quiz || !result.quiz.questions || result.quiz.questions.length === 0) {
+      if (!result.success || result.questions.length === 0) {
         setParseError(result.error || 'No questions were found in the text. Please check the format and try again.');
         setIsParsing(false);
         return;
       }
 
       // Add passage if selected
-      const questionsWithPassage = result.quiz.questions.map(q => {
+      const questionsWithPassage = result.questions.map(q => {
         const question = { ...q };
         if (selectedPassage !== null && passages && passages[selectedPassage]) {
           question.passage = passages[selectedPassage];

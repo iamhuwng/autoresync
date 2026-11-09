@@ -54,8 +54,7 @@ import { ListeningHeader } from './ListeningHeader';
 import { SectionRubricBlock } from './SectionRubricBlock';
 import { ListeningNavArrows } from './ListeningNavArrows';
 
-// Types from storage
-import type { ListeningDisplayMode, QuestionImage } from '../../../services/listeningTestStorage';
+import type { ListeningDisplayMode, QuestionImage } from '../../../types/listening.types';
 
 // Generic test components
 import { TestWaitingOverlay } from '../../../components/test/TestWaitingOverlay';

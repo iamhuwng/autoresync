@@ -28,7 +28,7 @@ Planning docs verified before repo inspection:
 | Area | Current route or entry | Verified files |
 | --- | --- | --- |
 | Reading V2 authoring | `/teacher/reading-v2/create`, `/teacher/reading-v2/import`, `/teacher/reading-v2/drafts/:draftId`, `/teacher/reading-v2/materials/:materialId/revise` | `src/constants/routes.ts`, `src/routes/teacherRoutes.tsx`, `src/pages/ReadingV2StudioPage.tsx` |
-| Legacy/general test builder | `/create-test?skill=...` | `src/constants/routes.ts`, `src/routes/teacherRoutes.tsx`, `src/pages/TestBuilderRouter.tsx` |
+| Shared teacher creation entry | Teacher Lobby `TestCreationModal` | `src/pages/TeacherLobbyPage.jsx`, `src/components/test-creation/TestCreationModal.tsx` |
 | Reading V2 solo/homework runtime | `/student/practice/:materialId`, `/student/solo-test/:materialId`, homework nested test route | `src/routes/studentRoutes.tsx`, `src/pages/StudentPracticePage.tsx`, `src/components/reading-v2/runtime/ReadingV2RuntimeShell.tsx` |
 | Live student test runtime | `/student-test/:sessionCode` | `src/routes/studentRoutes.tsx`, `src/pages/TestPageRouter.tsx` |
 | Listening solo/homework runtime | `/student/practice/:materialId`, `/student/solo-test/:materialId`, homework nested test route | `src/pages/StudentPracticePage.tsx`, `src/components/practice/ListeningPracticeView.tsx` |
@@ -48,8 +48,8 @@ Verified correct:
 
 Corrected from previous audit:
 
-- `/create-test?skill=Reading` is not the Reading V2 Studio route. `TestBuilderRouter` still maps Reading to legacy/general `TestCreationPage`; Reading V2 authoring uses dedicated `/teacher/reading-v2/*` routes.
-- Reading V2 authoring is not a neutral shared authoring layer today. It is Reading-specific and should remain so until neutral shared primitives are extracted.
+- Reading V2 authoring uses dedicated `/teacher/reading-v2/*` routes and the shared Teacher Lobby modal entry. The retired standalone Reading builder is removed.
+- Reading V2 authoring remains Reading-specific and should remain so until neutral shared primitives are extracted.
 
 ## Reading V2 student runtime
 
@@ -71,7 +71,7 @@ Verified correct:
 
 - `TestBuilderRouter` maps `skill=Listening` to `src/skills/listening/builders/ListeningTestBuilder.tsx`.
 - `ListeningTestBuilder` is a large Listening-specific authoring surface. It handles mode selection, audio, question setup, review, metadata, and save/publish workflow.
-- `src/services/listeningTestStorage.ts` owns Listening persistence shape, audio controls config, audio section formatting, question section mapping, and save behavior.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts` owns Listening persistence shape, audio controls config, audio section formatting, question section mapping, and save behavior.
 - Listening save validates audio sections and fails when audio is missing for a section.
 - Listening save moves temp R2 audio URLs to permanent storage before persisting and keeps `audioUrl` / `streamUrl` aligned when needed.
 
@@ -99,7 +99,7 @@ Corrected from previous audit:
 
 - Listening solo/homework state is not generic shared mobile state. It is Listening-specific and versioned.
 - Listening solo/homework playback state must not be generalized into live-session state.
-- `IELTSPracticeView` still contains legacy Listening branches/imports, but current dedicated solo/homework Listening route goes through `ListeningPracticeView`.
+- Current dedicated solo/homework Listening route goes through `ListeningPracticeView`.
 
 ## Listening live-session runtime
 
@@ -257,7 +257,7 @@ Still risky:
 ### Corrected
 
 - Removed the implied direction of Listening toward Reading V2 internals.
-- Corrected `/create-test?skill=Reading` vs dedicated Reading V2 Studio route distinction.
+- Removed the retired `/create-test?skill=Reading` entry in favor of the Teacher Lobby modal and dedicated Reading V2 Studio routes.
 - Corrected shared-route assumption: `/student/practice/:materialId` still branches to separate runtimes.
 - Corrected audio authority model: current repo still uses both legacy `audioCommand` and `masterAudioState`.
 - Corrected pause/resume risk: monitor page wrapper calls can fall back to default section/position/speed.
@@ -266,7 +266,7 @@ Still risky:
 ### Missing from previous audit
 
 - Live student route `/student-test/:sessionCode` and `ListeningTestPage` as distinct live Listening runtime.
-- Listening audio temp-to-permanent storage lifecycle in `listeningTestStorage.ts`.
+- Listening audio temp-to-permanent storage lifecycle in `listeningAuthoringWorkflow.ts`.
 - Per-player headphone readiness path.
 - Explicit unsafe status for `AudioProgressPanel`, `useMonitorControls`, `AudioPlayer`, and `ListeningTestPage`.
 - Large-file risk list.

@@ -248,7 +248,6 @@ Important interaction note:
 ### Related Docs
 
 - @doc/extractions/session-extraction-ielts-test-creation-review-publish-contract-and-upload-loop-2026-03-29
-- @doc/prd/prd-test-creation-modal
 - @doc/patterns/pattern-dynamic-step-order-wizard
 - @doc/architecture/test-system-architecture
 - @doc/architecture/firebase-infrastructure

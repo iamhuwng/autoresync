@@ -222,12 +222,16 @@ export async function getLibraryMaterials(
     try {
         logMaterialLibraryDiagnostic('getLibraryMaterials_requested', { filters });
 
-        // Legacy tests are limited to the public index. Reading V2 public
+        // Supported non-Reading tests come from the public index. Reading V2
         // entries are loaded separately from the approved relationship index.
         const allTests = await getLegacyPublicLibraryTests(filters);
 
         // Filter tests based on criteria
         let filteredTests = allTests.filter(test => {
+            // Reading V1 is retired; Reading V2 enters through the approved summary index below.
+            if (String((test as any).skillType || (test as any).skill || '').toLowerCase() === 'reading') {
+                return false;
+            }
             // Apply source filter
             if (filters.source === 'public') {
                 // Public library: must have isPublic flag set by the teacher
@@ -330,6 +334,9 @@ export async function getCourseMaterials(
 
         // Filter tests that belong to this course and have solo enabled
         const courseMaterials = allTests.filter(test => {
+            if (String((test as any).skillType || (test as any).skill || '').toLowerCase() === 'reading') {
+                return false;
+            }
             // Check if test has solo mode enabled
             if (!test.soloConfig?.soloEnabled) {
                 return false;

@@ -20,7 +20,7 @@ Two offline/async test-taking modes complementing the live session system:
 
 Both share the same test-taking infrastructure but add context tracking, access control, and deadline management.
 
-Retired Google Drive-backed materials, Reading V1, and Quiz must not be created or launched from homework/solo-practice surfaces. Retained academic results continue to use saved result data; retired source material is not rehydrated. See @doc/architecture/retired-features-current-state.
+Homework and solo-practice material selection launches only supported Reading V2, Listening, Writing, THCS, and book activity projections.
 
 ## Architecture Diagram
 
@@ -173,17 +173,6 @@ Resume rules:
 Timeout rule:
 - homework Writing timer expiry must auto-submit the homework attempt instead of leaving only a local draft
 
-## 2026-04-02 Amendment - Reading Passage Highlight Contract
-
-Solo practice and homework Reading flows now share one source-of-truth renderer contract:
-- `src/skills/reading/components/PassageRenderer.tsx` is the owning implementation for passage highlighting behavior.
-- `src/components/PassageRenderer_v2.jsx` is a compatibility wrapper only and must delegate to the skill-owned renderer instead of reimplementing highlight logic.
-- Highlight persistence must be based on source passage offsets, not per-paragraph DOM offsets.
-- Selections that start in one rendered paragraph and end in the next are valid and must save as one logical highlight.
-- New solo student preferences must default `highlighterEnabled` to `false`, so the tool stays off until the student explicitly enables it.
-
-See @doc/architecture/reading-passage-highlighting-architecture.
-
 ## 2026-04-05 Amendment — IELTS Writing Homework Copy Paste Toggle And Persistence Contract
 
 IELTS Writing homework now honors the homework anti-cheat copy/paste flag instead of running as an always-on exception.
@@ -200,19 +189,6 @@ Scope boundary:
 
 Detailed reference:
 - @doc/architecture/ielts-writing/ielts-writing-copy-paste-toggle-and-attempt-persistence-2026-04-05
-
-## 2026-04-09 Amendment - Mobile IELTS Reading Homework Launch Integrity
-
-Homework mobile Reading now depends on two additional launch rules:
-- homework launchers must pass a non-empty `studentName` into the shared practice surface so submission creation never writes `undefined` into Firestore payloads
-- `StudentPracticePage.tsx` must preserve homework `timerMinutes` and `maxAttempts` from route state when handing off to the shared Reading practice host
-
-Why this matters:
-- mobile homework resume depends on the canonical launch state staying intact after navigation from the student homework detail surface
-- the resumed phone Reading route must restore the correct timed/attempt-limited behavior instead of silently degrading to the untimed solo default
-
-Reference:
-- @doc/architecture/mobile-ielts-reading-test-taking
 
 ## 2026-06-03 Amendment - Reading V2 Homework Completion Contract
 
@@ -248,7 +224,7 @@ Required rules:
 Scope boundary:
 - this amendment covers non-live Reading V2 launches from homework and student practice entry points
 - it does not change live-session Reading V2 routing in `TestPageRouter.tsx`
-- it does not change Writing, Listening, or legacy Reading V1 exit behavior in the same pass
+- it does not change Writing or Listening exit behavior in the same pass
 
 Obsolete as of 2026-06-15:
 - expecting students to use browser back because Reading V2 runtime has no explicit return affordance

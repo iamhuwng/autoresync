@@ -1,5 +1,7 @@
 # Reading V2 Runtime V1 Parity Verification Notes
 
+> Retired V1 implementation files were removed. This V2 parity contract preserves behavior evidence only; it is not a pointer to a supported V1 path.
+
 This note supports PRD-0048 Phase 6 task 6.28. It records the V1 runtime surfaces used for comparison while implementing the projection-only `ReadingV2RuntimeShell`.
 
 This is evidence-only parity documentation. Product intent and execution law remain owned by the PRD, contract-freeze, feature-pipeline, page-schema, and family-contract docs.
@@ -39,7 +41,7 @@ Old V1 reference files:
 - `src/components/test/mobile/MobileQuestionSheet.tsx`
 - `src/components/test/mobile/MobileReviewSummary.tsx`
 - `src/core/platform/hooks/useMobileExamMode.ts`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 
 Current V2 implementation:
 

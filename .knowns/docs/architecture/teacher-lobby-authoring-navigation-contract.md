@@ -69,7 +69,7 @@ Defines current Teacher Lobby authoring, card, search, compact header, and respo
 - `documentation/architecture/teacher-lobby-authoring-and-navigation.md`
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
 - `documentation/architecture/teacher-materials-bulk-selection-actions.md`
-- `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`
 

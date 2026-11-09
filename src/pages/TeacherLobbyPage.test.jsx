@@ -1772,7 +1772,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(mocks.refreshTests).toHaveBeenCalled();
   });
 
-  it('keeps legacy Reading cards on the existing edit-modal path with full stored test data', async () => {
+  it('blocks retired Reading cards instead of opening the legacy editor', async () => {
     const user = userEvent.setup();
     const legacyReadingTest = {
       id: 'legacy-reading-1',
@@ -1789,8 +1789,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     await user.click(within(screen.getByTestId('material-list-row-legacy-reading-1')).getByRole('button', { name: 'Edit' }));
 
-    await waitFor(() => expect(mocks.openEditTest).toHaveBeenCalledWith(legacyReadingTest));
-    expect(screen.queryByRole('dialog', { name: 'Reading V2 Studio modal adapter' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('This Reading material uses the retired editor. Open it from Reading V2.').closest('.toast-card')).toBeInTheDocument());
+    expect(mocks.openEditTest).not.toHaveBeenCalled();
   });
 
   it('opens the PRD0054 master removal modal instead of the legacy delete confirmation for Reading V2 masters', async () => {

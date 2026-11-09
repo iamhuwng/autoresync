@@ -33,7 +33,7 @@ const renderMetadataStep = (props: RenderMetadataStepProps = {}) => {
         metadata: {},
         format: 'academic' as TestFormat,
         testType: 'IELTS' as TestType,
-        skillType: 'reading' as SkillType,
+        skillType: 'reading-v2' as SkillType,
         onUpdate: vi.fn(),
     };
 
@@ -104,7 +104,7 @@ describe('MetadataStep', () => {
             const onUpdate = vi.fn();
             renderMetadataStep({
                 testType: 'IELTS',
-                skillType: 'reading',
+                skillType: 'reading-v2',
                 metadata: {},
                 onUpdate,
             });
@@ -123,7 +123,7 @@ describe('MetadataStep', () => {
             const onUpdate = vi.fn();
             renderMetadataStep({
                 testType: 'IELTS',
-                skillType: 'reading',
+                skillType: 'reading-v2',
                 metadata: { title: 'My Custom Title' },
                 onUpdate,
             });

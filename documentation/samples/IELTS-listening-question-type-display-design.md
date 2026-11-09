@@ -24,7 +24,7 @@ Primary public reference:
 
 Repo references:
 
-- `src/services/listeningTestStorage.ts` supports `displayMode: 'text' | 'image'`, `audioSections`, `questionImages`, `questions[]`, `options`, `context`, and `acceptableAnswers`.
+- `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts` supports `displayMode: 'text' | 'image'`, `audioSections`, `questionImages`, `questions[]`, `options`, `context`, and `acceptableAnswers`.
 - `src/skills/listening/components/ListeningQuestionDisplay.tsx` currently renders text-mode completion groups with `InlineFormCompletion`, option/matching groups with an options box plus answer input, and map/diagram groups with images.
 - `src/skills/listening/components/ListeningImageModeDisplay.tsx` and `src/components/test/mobile/MobileListeningImageCanvas.tsx` currently treat image mode as question-image display plus numbered answer inputs.
 - `documentation/architecture/mobile-ielts-listening-audio-navigation.md` is the active mobile audio/navigation contract.

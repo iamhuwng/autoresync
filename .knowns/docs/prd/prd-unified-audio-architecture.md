@@ -507,7 +507,7 @@ if (drift > 1) {
 | `TeacherLobbyPage.tsx` | Add audio mode selector UI (required selection) |
 | `ListeningTestPage.tsx` | Add headphone request UI, sync indicator, late-join handling |
 | `StudentDetailModal.tsx` | Show headphone request status (no pre-grant) |
-| `listeningTestStorage.ts` | Add `audioMode` to settings schema |
+| `listeningAuthoringWorkflow.ts` | Add `audioMode` to settings schema |
 | `googleDriveAudio.ts` | Add deprecation warning, mark for removal |
 | `ListeningTestBuilder.tsx` | Remove Google Drive upload option, validate audio formats |
 

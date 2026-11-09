@@ -40,7 +40,7 @@ import {
     type ReadingV2RuntimeLifecycle,
     type ReadingV2RuntimeSubmitPayload,
 } from '../components/reading-v2/runtime/ReadingV2RuntimeShell';
-import type { PracticeContext } from '../components/practice/IELTSPracticeView';
+import type { PracticeContext } from '../types/practice.types';
 import type { HomeworkWritingContext } from '../components/writing-practice/WritingPracticeView';
 import type { IELTSWritingTest } from '../types/ielts-writing.types';
 import { studentResumeService } from '../services/studentResume.service';

@@ -26,7 +26,7 @@
 - `src/skills/listening/components/ListeningTestPage.tsx` - Student test interface. Add headphone request UI, sync indicator, offline mode UI, late-join handling.
 
 ### Services & Storage
-- `src/services/listeningTestStorage.ts` - Listening test data types. Add `audioMode`, `examMode` to session settings schema.
+- `src/types/audio.types.ts` and `src/types/listening.types.ts` - Listening data types. Add `audioMode`, `examMode` to session settings schema.
 - `src/services/googleDriveAudio.ts` - Obsolete residue. No compatibility contract; remove under a separate cleanup audit.
 
 ### Builders
@@ -133,7 +133,7 @@
     - Highlight selected mode, show warning if none selected
     - Accept `value`, `onChange`, `required` props
   
-  - [x] **3.2** ~~Update `src/services/listeningTestStorage.ts`~~ Already in `src/types/audio.types.ts`:
+  - [x] **3.2** ~~Update `src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts`~~ Already in `src/types/audio.types.ts`:
     - `audioMode: 'online' | 'offline'` in `ListeningSessionSettings` interface
     - Add `examMode?: boolean` to interface
     - ~~Update any save/load functions~~ Session settings handled separately via Firebase

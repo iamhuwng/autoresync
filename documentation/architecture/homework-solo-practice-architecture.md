@@ -24,7 +24,7 @@ Canonical visibility governance for homework and solo-practice results lives in:
 
 - Producers must persist the canonical `result.visibility` snapshot.
 - Consumers must not promote `selectedTeacherId`, `assigningTeacherId`, or assignment status into ownership.
-- Homework and solo-practice material selection must not create or launch retired Google Drive-backed materials, Reading V1, or Quiz. Existing completed academic results from those retired families remain governed by result visibility and answer-review retention rules. See `documentation/architecture/retired-features-current-state.md`.
+- Homework and solo-practice material selection launches only supported Reading V2, Listening, Writing, THCS, and book activity projections.
 
 ## 2026-05-10 Amendment - Homework Result Access Revoked Repair
 
@@ -48,18 +48,6 @@ Import writes must:
 - preserve administrative audit metadata under `administrativeImport`
 - keep the Writing submission in `pending-review` until grading is published
 - block duplicate imports when latest homework work is already `submitted` or `graded`
-
-## 2026-04-02 Amendment - Reading Passage Highlight Contract
-
-Solo practice and homework Reading flows now share one source-of-truth renderer contract:
-- `src/skills/reading/components/PassageRenderer.tsx` is the owning implementation for passage highlighting behavior.
-- `src/components/PassageRenderer_v2.jsx` is a compatibility wrapper only and must delegate to the skill-owned renderer instead of reimplementing highlight logic.
-- highlight persistence must be based on source passage offsets, not per-paragraph DOM offsets
-- selections that start in one rendered paragraph and end in the next are valid and must save as one logical highlight
-- new solo student preferences must default `highlighterEnabled` to `false`, so the tool stays off until the student explicitly enables it
-
-Reference:
-- `documentation/architecture/reading-passage-highlighting-architecture.md`
 
 ## Student Shell Homework Summary Contract
 
@@ -133,31 +121,9 @@ Scope boundary:
 Detailed reference:
 - `ielts-writing/copy-paste-toggle-and-attempt-persistence.md`
 
-## 2026-04-09 Amendment - Mobile IELTS Reading Delivery Contract
-
-Canonical architecture governance for the phone-specific IELTS Reading delivery surface now lives in:
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
-
-Scope note:
-- this applies to both live Reading sessions and the solo/homework Reading practice surface when `useMobileExamMode()` activates the shared mobile scaffold
-- homework and solo-practice flows must follow the same host/scaffold ownership split and the same persisted mobile Reading state contract documented there
-
-## 2026-04-09 Amendment - Mobile IELTS Reading Homework Launch Integrity
-
-Homework mobile Reading now depends on two additional launch rules:
-- homework launchers must pass a non-empty `studentName` into the shared practice surface so submission creation never writes `undefined` into Firestore payloads
-- `StudentPracticePage.tsx` must preserve homework `timerMinutes` and `maxAttempts` from route state when handing off to the shared Reading practice host
-
-Why this matters:
-- mobile homework resume depends on the canonical launch state staying intact after navigation from the student homework detail surface
-- the resumed phone Reading route must restore the correct timed/attempt-limited behavior instead of silently degrading to the untimed solo default
-
-Reference:
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
-
 ## 2026-05-10 Amendment - Student Test Delivery Projection Contract
 
-Legacy IELTS Listening/Reading solo and homework delivery must read student-safe projections, not answer-bearing canonical test rows.
+Listening solo and homework delivery must read student-safe projections, not answer-bearing canonical test rows.
 
 Required rules:
 - teacher edit saves, `saveTestToFirebase()`, and `updateTestInFirebase()` must regenerate `student_safe_tests/{testId}` with the canonical write
@@ -202,7 +168,7 @@ Required rules:
 Scope boundary:
 - This amendment changes Reading V2 homework runtime and submit telemetry.
 - It does not enable anti-cheat for solo, public-library, or course-material Reading V2 launches unless a future platform owner provides an explicit config.
-- It does not replace legacy IELTS Reading or Writing anti-cheat behavior.
+- It does not change Writing or Listening anti-cheat behavior.
 
 Detailed reference:
 - `documentation/architecture/reading-v2-runtime-integrations.md`
@@ -222,7 +188,7 @@ Required rules:
 Scope boundary:
 - this amendment covers non-live Reading V2 launches from homework and student practice entry points
 - it does not change live-session Reading V2 routing in `TestPageRouter.tsx`
-- it does not change Writing, Listening, or legacy Reading V1 exit behavior in the same pass
+- it does not change Writing or Listening exit behavior in the same pass
 
 Obsolete as of 2026-06-15:
 - expecting students to use browser back because Reading V2 runtime has no explicit return affordance

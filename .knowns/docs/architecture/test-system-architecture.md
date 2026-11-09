@@ -43,18 +43,18 @@ The test system is the core feature of the platform. It supports two test types 
 │                    1. TEST CREATION                              │
 │                                                                  │
 │  IELTS Path:                    THCS Path:                       │
-│  TestCreationPage.tsx           THCSTestEditorPage.tsx            │
-│  ├── TestUploadWizard           ├── THCSWizardLayout              │
-│  ├── TypeClassifierService      ├── THCSSetupStep (metadata)      │
-│  ├── AIExtractorService         ├── THCSQuestionsStep (editor)    │
+│  TestCreationModal.tsx          THCSTestEditorPage.tsx            │
+│  ├── Reading V2 Studio             ├── THCSWizardLayout              │
+│  ├── Reading V2 import/validation   ├── THCSSetupStep (metadata)      │
+│  ├── Reading V2 Auto pipeline        ├── THCSQuestionsStep (editor)    │
 │  ├── ValidationService          ├── THCSAnswerKeyStep             │
-│  └── ParseReviewPanel           └── THCSReviewStep (preview)      │
+│  └── Reading V2 Studio review       └── THCSReviewStep (preview)      │
 │                                                                  │
 │  Output → /tests/{testId} in RTDB                               │
 ├──────────────────────────────────────────────────────────────────┤
 │                    2. TEST EDITING                               │
 │                                                                  │
-│  IELTS: EditQuizModal.jsx (legacy, 42KB)                        │
+│  IELTS: TestEditor.tsx (current edit surface)                        │
 │  THCS: THCSTestEditorModal.tsx (tabbed: Context, Questions,     │
 │         Answer Key, Settings)                                    │
 │                                                                  │
@@ -128,7 +128,7 @@ The test system is the core feature of the platform. It supports two test types 
 ### Pages
 | Page | Purpose |
 |------|---------|
-| `TestCreationPage.tsx` | IELTS test creation (AI-powered upload) |
+| `TestCreationModal.tsx` | IELTS test creation (AI-powered upload) |
 | `THCSTestEditorPage.tsx` | THCS test creation (wizard) |
 | `TestPageRouter.tsx` | Routes to correct test-taking UI |
 | `StudentTestPage.tsx` | IELTS test-taking interface |
@@ -199,24 +199,13 @@ The test system is the core feature of the platform. It supports two test types 
 - ⚠️ Guest detection: ONLY use `startsWith('guest_')`, never pattern-match on UID format
 - See @doc/sop/test-end-flow-debug-retrospective
 
-### Test Creation Pipeline (IELTS)
-- Upload -> document conversion -> AI extraction -> independent rules classification -> validator merge -> review
-- AI uses Gemini primary and Groq fallback for the teacher Reading creator path
-- `extractReadingTest()` returning `success: false` is treated as extraction failure, not as partial success
-- AI extraction failure routes into offline/rules fallback; fallback output must still hydrate reviewable passages and merged questions
-- Parser success requires at least one merged question; blank parse output must fail before draft save or review navigation
-- Checkpoint/resume still applies for long documents
-- See @doc/architecture/ai-parsing-extraction and @doc/system/project-structure-test-creation
-## Related PRDs
+### Test Creation Pipeline (IELTS)`r`n- Reading V2 creation/import runs through `TestCreationModal` and the Reading V2 Studio/Auto pipeline.`r`n- Studio owns draft repair, validation, preview, and publish readiness.`r`n- Student delivery consumes explicit Reading V2 projections; provider output and canonical drafts never render directly.`r`n- Listening and THCS remain skill-owned creation paths.`r`n`r`n## Related PRDs
 - @doc/prd/prd-thcs-phase-1 — THCS test system foundation
 - @doc/prd/prd-thcs-phase-2 — THCS live session & monitoring
 - @doc/prd/prd-thcs-phase-3 — THCS solo practice & homework
-- @doc/prd/prd-test-creation-modal — Unified test creation modal
 - @doc/prd/prd-test-duration-end-flow — Timer & end flow redesign
-- @doc/prd/prd-automated-ielts-reading — AI-powered IELTS creation
 
 ## Related SOPs
-- @doc/sop/test-creation-page-analysis — Creation page deep review
 - @doc/sop/test-end-flow-debug-retrospective — End flow debugging journey
 - @doc/sop/timer-bug-fix-retrospective — Timer bug investigation
 - @doc/sop/tfynng-implementation — True/False/Yes/No/Not Given question type
@@ -532,86 +521,3 @@ The acknowledgement page must not imply auto-grading. It exists to confirm persi
 ### Related docs
 
 - @doc/architecture/ielts-writing/ielts-writing-authoring-edit-shell-and-publish-contract-2026-04-03
-
-
-## 2026-04-09 Amendment - Teacher Reading Creation Parsing And Review Contract
-
-### Current state of the feature
-
-The teacher reading creation modal now depends on a fail-closed parsing contract before a draft can enter review.
-
-Current operational rules:
-- The parsing flow is `TestCreationModal -> testCreationService -> aiExtractor/offline parser -> validator -> testDraftService.saveParsedContent -> review route`.
-- Review transition requires non-empty merged questions. Blank parse output is not a valid intermediate success state.
-- Draft persistence is part of the success boundary. If `saveParsedContent()` fails, the modal must stay in error/retry state and must not advance to review.
-- Passages may come from AI extraction or offline parsing, but teacher review requires questions first; passage-only success is not enough.
-
-### Cross-feature interaction boundary
-
-#### AI provider failure -> teacher review route
-
-Gemini/Groq provider failures must be resolved before route transition. The modal and parser service must not convert provider outages into blank review drafts.
-
-#### Parser result -> draft persistence
-
-`testDraftService.saveParsedContent()` is the final write gate before review. A failed write must block navigation even if parsing itself succeeded.
-
-### Operational rule going forward
-
-Teacher-side reading creation must fail closed whenever the system cannot produce and persist reviewable question content. Retriable provider failures, offline fallback, and save errors are allowed; empty review drafts are not.
-
-Related implementation anchors:
-- `src/components/test-creation/TestCreationModal.tsx`
-- `src/services/test-creation/index.ts`
-- `src/services/draftCloudService.ts`
-- `src/components/test-creation/TestCreationModal.test.tsx`
-- `src/services/test-creation/index.test.ts`
-
-Source: @task-1bch3u
-
-## 2026-04-10 Amendment - Teacher Reading Question Extraction Resilience
-
-### Current state of the feature
-
-Teacher IELTS Reading creation now retries transient Gemini `503` / `high demand` failures across the remaining Gemini keys before it degrades to Groq. If Groq question extraction fails because the request is too large, the provider retries with smaller output budgets instead of immediately marking the key exhausted. The local offline parser also accepts markdown-numbered IELTS questions so markdown paste input can still produce reviewable question content.
-
-### Cross-feature interaction boundary
-
-#### Provider transient failure -> question extraction stage
-
-A temporary Gemini high-demand response is now a stage-local retry event, not an immediate provider handoff.
-
-#### Provider prompt budget -> fallback path
-
-A Groq `413` oversized request is now treated as a prompt-shaping problem first. Key benching only belongs to actual provider rate-limit exhaustion.
-
-#### Markdown paste -> offline fallback
-
-Markdown numbering is now part of the accepted teacher authoring input shape, so offline fallback can still rescue pasted IELTS reading content when AI parsing fails.
-
-### Operational rule going forward
-
-The reading creator must prefer stage-local recovery before cross-provider fallback, and its non-AI rescue path must understand the markdown formats teachers actually paste into the creation modal.
-
-## 2026-04-10 Amendment - IELTS Reading Staged Parse Job
-The teacher IELTS Reading creation pipeline now keeps the external flow unchanged while splitting internal orchestration into explicit artifacts for normalized source, extraction, classification, validation, and review-draft assembly.
-
-Current runtime rule:
-- modal/review consumers continue to depend on final assembled draft-ready payloads rather than provider-specific intermediate results
-- future parser extensions should attach to stage artifacts, not bypass them
-
-Related docs:
-- @doc/architecture/reading-staged-parse-job
-- @doc/architecture/ai-parsing-extraction
-
-
-## 2026-04-12 Amendment - Reading Chunking Env Retirement
-The teacher IELTS Reading creation system no longer exposes document chunking through the shared Vite environment contract.
-
-Current runtime rule:
-- the live reading-creation path uses staged extraction and validation, not env-driven chunk sizing
-- any remaining chunking utilities are legacy helpers and must carry local defaults instead of extending the app env schema
-
-Related docs:
-- @doc/architecture/ai-parsing-extraction
-- @doc/architecture/reading-staged-parse-job

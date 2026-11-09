@@ -13,29 +13,6 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import type {
-    Passage,
-    ParsedQuestion,
-    QuestionType,
-    ReadingLabeledOption,
-    ReadingOptionLabelFormat,
-    ReadingSectionReference,
-} from './document.types';
-import type {
-    GroupAcknowledgementsField,
-    TableCompletionDiagnosticsField,
-    QuestionGroupsField,
-} from './tableCompletion';
-
-// Re-export for convenience
-export type {
-    Passage,
-    ParsedQuestion,
-    QuestionType,
-    ReadingLabeledOption,
-    ReadingOptionLabelFormat,
-    ReadingSectionReference,
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1: Core Enums and Types
@@ -46,13 +23,12 @@ export type {
 export type TestType = 'IELTS' | 'TOEIC' | 'SAT' | 'THCS-THPT' | 'Custom';
 
 /** Skill sections within a test */
-export type SkillType = 'reading' | 'reading-v2' | 'listening' | 'writing' | 'speaking' | 'mixed';
+export type SkillType = 'reading-v2' | 'listening' | 'writing' | 'speaking' | 'mixed';
 
 /** Test format (primarily for IELTS) */
 export type TestFormat = 'academic' | 'general';
 
 /** Draft lifecycle status */
-export type DraftStatus = 'metadata' | 'parsing' | 'review';
 
 /** Difficulty level for tests */
 export type DifficultyLevel = 'Beginner' | 'Intermediate' | 'Advanced';
@@ -93,78 +69,20 @@ export interface DraftMetadata {
     tags?: string[];
 }
 
-/** Complete draft document stored in Firebase */
-export interface DraftDocument {
-    /** Firebase auto-generated document ID */
-    id: string;
-
-    /** Owner's Firebase Auth UID */
-    userId: string;
-
-    // ─── Test Type Info ───
-    testType: TestType;
-    skillType: SkillType;
-    format: TestFormat;
-
-    // ─── Metadata (from Step 3) ───
-    metadata: DraftMetadata;
-
-    // ─── Content (populated after parsing) ───
-    /** Parsed passages from source text */
-    passages: Passage[];
-
-    /** Parsed questions with answers */
-    questions: ParsedQuestion[];
-
-    /** Section instructions keyed by passage ID or "global" */
-    sectionInstructions: Record<string, string>;
-
-    /** Canonical grouped question storage for grouped Reading tasks */
-    questionGroups: QuestionGroupsField;
-
-    /** Draft-only acknowledgement state for acknowledgement-required grouped issues */
-    groupAcknowledgements: GroupAcknowledgementsField;
-
-    /** Canonical grouped-table diagnostics, including unresolved parse runs */
-    tableCompletionDiagnostics: TableCompletionDiagnosticsField;
-
-    // ─── Status Tracking ───
-    status: DraftStatus;
-    questionCount: number;
-    missingAnswerCount: number;
-
-    // ─── Timestamps ───
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-/** Draft list item (for display in Drafts view) */
-export interface DraftListItem {
-    id: string;
-    title: string;
-    testType: TestType;
-    skillType: SkillType;
-    format: TestFormat;
-    cefrLevel?: CEFRLevel;
-    duration: number;
-    status: DraftStatus;
-    questionCount: number;
-    createdAt: Date;
-    updatedAt?: Date;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SECTION 3: Modal State Management
 // Implemented by: UI track
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface ServiceResponse<T = void> {
+    success: boolean;
+    data?: T;
+    error?: string;
+}
+
 /** Steps in the test creation modal */
-export type ModalStep = 'type' | 'skill' | 'metadata' | 'upload' | 'parsing' | 'reading-v2-start' | 'reading-v2-import' | 'reading-v2-auto'
+export type ModalStep = 'type' | 'skill' | 'metadata' | 'reading-v2-start' | 'reading-v2-import' | 'reading-v2-auto'
     | 'listening-mode' | 'listening-builder'
     | 'writing-metadata' | 'writing-format' | 'writing-content';
-
-/** Step order for navigation (Reading/Listening) */
-export const MODAL_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'upload', 'parsing'];
 
 /** Step order for Reading V2 skill - metadata first, then route into Studio */
 export const READING_V2_STEP_ORDER: ModalStep[] = ['type', 'skill', 'metadata', 'reading-v2-start', 'reading-v2-import', 'reading-v2-auto'];
@@ -186,11 +104,6 @@ export interface ModalStepData {
     // Step 3: Metadata (includes format)
     format: TestFormat;
     metadata: Partial<DraftMetadata>;
-
-    // Step 4: Source Input
-    inputMethod: 'upload' | 'paste';
-    sourceContent: string | null;
-    sourceFile: File | null;
 
     // Writing-specific data (for in-modal writing wizard)
     writingMetadata?: {
@@ -229,203 +142,10 @@ export const INITIAL_MODAL_DATA: ModalStepData = {
     skillType: null,
     format: 'academic',
     metadata: {},
-    inputMethod: 'upload',
-    sourceContent: null,
-    sourceFile: null,
     writingMetadata: undefined,
     writingFormat: undefined,
     writingTasks: undefined,
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 4: Draft Service Interface
-// Implemented by: Infrastructure track (draftCloudService.ts)
-// Called by: UI track
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Standard service response wrapper */
-export interface ServiceResponse<T = void> {
-    success: boolean;
-    data?: T;
-    error?: string;
-}
-
-/** Draft service function signatures */
-export interface DraftServiceInterface {
-    /**
-     * Create a new draft document
-     * Called when: User completes Step 3 (metadata) and starts parsing
-     */
-    createDraft(
-        userId: string,
-        testType: TestType,
-        skillType: SkillType,
-        format: TestFormat,
-        metadata: DraftMetadata
-    ): Promise<ServiceResponse<{ draftId: string }>>;
-
-    /**
-     * Load a draft by ID
-     * Called when: User navigates to /teacher/test/review/:draftId
-     */
-    loadDraft(
-        draftId: string
-    ): Promise<ServiceResponse<DraftDocument>>;
-
-    /**
-     * Update draft with partial data
-     * Called when: Auto-save during review, or explicit save
-     */
-    updateDraft(
-        draftId: string,
-        updates: Partial<Omit<DraftDocument, 'id' | 'userId' | 'createdAt'>>
-    ): Promise<ServiceResponse>;
-
-    /**
-     * Delete a draft permanently
-     * Called when: User clicks Delete on draft card, or after successful publish
-     */
-    deleteDraft(
-        draftId: string
-    ): Promise<ServiceResponse>;
-
-    /**
-     * Get all drafts for a user
-     * Called when: User views Drafts tab in Materials page
-     */
-    getUserDrafts(
-        userId: string
-    ): Promise<ServiceResponse<DraftListItem[]>>;
-
-    /**
-     * Update only the draft status
-     * Called when: Draft transitions between phases (metadata → parsing → review)
-     */
-    updateDraftStatus(
-        draftId: string,
-        status: DraftStatus
-    ): Promise<ServiceResponse>;
-
-    /**
-     * Save parsed content to draft
-     * Called when: Parsing completes successfully
-     */
-    saveParsedContent(
-        draftId: string,
-        passages: Passage[],
-        questions: ParsedQuestion[],
-        sectionInstructions: Record<string, string>,
-        questionGroups?: QuestionGroupsField,
-        groupAcknowledgements?: GroupAcknowledgementsField,
-        tableCompletionDiagnostics?: TableCompletionDiagnosticsField,
-    ): Promise<ServiceResponse>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 5: Audit Service Interface
-// Implemented by: Infrastructure track (auditService.ts)
-// Called by: Both tracks
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Audit event action types */
-export type AuditAction =
-    | 'draft_created'
-    | 'draft_updated'
-    | 'draft_deleted'
-    | 'draft_status_changed'
-    | 'test_published'
-    | 'test_visibility_changed'
-    | 'access_denied';
-
-/** Target resource type */
-export type AuditTargetType = 'draft' | 'test';
-
-/** Audit event structure */
-export interface AuditEvent {
-    action: AuditAction;
-    userId: string;
-    userRole: 'teacher' | 'super_admin';
-    targetId: string;
-    targetType: AuditTargetType;
-    details?: Record<string, unknown>;
-    timestamp: Date;
-}
-
-/** Audit service function signatures */
-export interface AuditServiceInterface {
-    /**
-     * Log an audit event
-     * Called whenever: A trackable action occurs
-     */
-    logEvent(event: Omit<AuditEvent, 'timestamp'>): Promise<void>;
-
-    /**
-     * Get audit logs for a resource (Super Admin only)
-     */
-    getResourceLogs(
-        targetId: string,
-        targetType: AuditTargetType
-    ): Promise<ServiceResponse<AuditEvent[]>>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 6: Hook Return Types
-// Implemented by: Infrastructure track
-// Used by: UI track
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Return type for useOwnershipCheck hook */
-export interface UseOwnershipCheckReturn {
-    /** Whether current user is the owner of the resource */
-    isOwner: boolean;
-
-    /** Whether ownership check is loading */
-    isLoading: boolean;
-
-    /** Error message if check failed */
-    error: string | null;
-
-    /** Whether user can access (owner OR super_admin) */
-    canAccess: boolean;
-}
-
-/** Return type for useDraftAutoSave hook */
-export interface UseDraftAutoSaveReturn {
-    /** Whether a save is currently in progress */
-    isSaving: boolean;
-
-    /** Timestamp of last successful save */
-    lastSaved: Date | null;
-
-    /** Error from last save attempt */
-    error: string | null;
-
-    /** Trigger a save with updates */
-    save: (updates: Partial<DraftDocument>) => void;
-
-    /** Force immediate save (for beforeunload) */
-    saveImmediately: () => Promise<void>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 7: Publishing Types
-// Used by: Both tracks
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Published test visibility */
-export interface TestVisibility {
-    /** Whether test is in Public Library (true) or My Content (false) */
-    isPublic: boolean;
-
-    /** Owner's Firebase Auth UID */
-    ownerId: string;
-}
-
-/** Publish options for Super Admin */
-export interface PublishOptions {
-    /** Make test publicly available to all teachers */
-    publishToPublicLibrary: boolean;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 8: Default Values

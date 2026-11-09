@@ -23,15 +23,6 @@ vi.mock('./QuestionEditorPanel', () => ({
   default: ({ isImagePassage }: any) => <div data-testid="flat-question-editor">{isImagePassage ? 'Image question answer editor' : 'Flat Question Editor'}</div>,
 }));
 
-vi.mock('./test/editor/layouts/ReadingEditorLayout', () => ({
-  ReadingEditorLayout: ({ questionList, questionEditor }: any) => (
-    <div>
-      <div>{questionList}</div>
-      <div>{questionEditor}</div>
-    </div>
-  ),
-}));
-
 vi.mock('./test/editor/layouts/ListeningEditorLayout', () => ({
   ListeningEditorLayout: ({ title, onTitleChange, onSave, onCancel, readOnly, isSaving, questionList, questionEditor, resourceManager }: any) => (
     <div>
@@ -225,27 +216,7 @@ describe('TestEditor', () => {
     mockListeningSave.mockResolvedValue({ status: 'published', versionId: 'version-2' });
   });
 
-  it('blocks Reading V2 payloads before legacy editor hooks run', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    render(
-      <TestEditor
-        test={{ ...TEST_FIXTURE, deliveryEngine: 'reading-v2' } as any}
-        show
-        handleClose={vi.fn()}
-      />,
-    );
-
-    expect(screen.queryByRole('button', { name: 'Select question 1' })).not.toBeInTheDocument();
-    expect(mockUseAuth).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(
-      '[TestEditor] Blocked Reading V2 payload from entering legacy editor.',
-    );
-
-    warnSpy.mockRestore();
-  });
-
-  it('shows a read-only canonical table notice instead of the flat editor for published groups', () => {
+  it('blocks unsupported Reading payloads before editor hooks run', () => {
     render(
       <TestEditor
         test={TEST_FIXTURE as any}
@@ -254,12 +225,7 @@ describe('TestEditor', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select question 1' }));
-
-    expect(screen.getByText('Canonical Table Group')).toBeInTheDocument();
-    expect(
-      screen.getByText(/read-only after publish in Phase 1/i),
-    ).toBeInTheDocument();
+    expect(mockUseAuth).not.toHaveBeenCalled();
     expect(screen.queryByTestId('flat-question-editor')).not.toBeInTheDocument();
   });
 

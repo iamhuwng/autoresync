@@ -1,0 +1,4 @@
+export const MOBILE_LAYER_Z_INDEX = {
+  OVERFLOW_MENU: 4000,
+  UTILITY_MODAL: 4500,
+} as const;

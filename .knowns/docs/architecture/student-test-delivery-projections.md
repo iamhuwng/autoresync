@@ -1,6 +1,6 @@
 ---
 title: Student Test Delivery Projections
-description: Legacy and Reading V2 student-safe projection contract for student runtime delivery, including Reading V2 namespaced snapshots/projections, homework completion linkage, and host-owned return routing.
+description: Student-safe projection contract for Listening and Reading V2 runtime delivery, homework completion linkage, and host-owned return routing.
 createdAt: '2026-06-03T00:00:00.000Z'
 updatedAt: '2026-06-15T00:00:00.000Z'
 tags:
@@ -18,18 +18,6 @@ tags:
 Canonical teacher/admin data can contain answer keys, scoring rules, import evidence, repair history, and editor metadata. Student runtime must load answer-free projections.
 
 Repo architecture mirror: `documentation/architecture/student-test-delivery-projections.md`.
-
-Reading V1 is retired and must not be inferred from absent Reading V2 markers, `skill: Reading`, or `contentKind: ielts_reading`. Reading V2 delivery requires explicit Reading V2 markers/projections/snapshots. Unknown Reading-shaped records fail closed to unsupported routing. See @doc/architecture/retired-features-current-state.
-
-## Legacy Reading/Listening
-
-Legacy IELTS Reading/Listening uses:
-
-- canonical: `tests/{testId}`
-- student safe: `student_safe_tests/{testId}`
-- live session: `session_test_payloads/{sessionCode}`
-
-Normal save/update paths must keep canonical and student-safe data in the same write unit. Repair/backfill is incident-only, not the normal operating model.
 
 ## Reading V2
 

@@ -71,12 +71,6 @@ interface AudioPlayerProps {
   onTimeUpdate: (currentTime: number, duration: number) => void;
   onSectionComplete: () => void;
   onError: (error: string) => void;
-  /** @deprecated Use audioControls.showPlayPause instead */
-  allowPause?: boolean;
-  /** @deprecated Use audioControls.showSeekControl instead */
-  allowRewind?: boolean;
-  /** @deprecated Use audioControls.showSpeedControl instead */
-  allowSpeedControl?: boolean;
   maxReplays?: number;
   allowReplay?: boolean;
   /** Use minimal/compact display mode (IELTS style) */
@@ -218,9 +212,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onTimeUpdate,
   onSectionComplete,
   onError,
-  allowPause: allowPauseLegacy = true,
-  allowRewind: allowRewindLegacy = false,
-  allowSpeedControl: allowSpeedControlLegacy = false,
   maxReplays = 1,
   allowReplay = false,
   minimal = true,
@@ -252,10 +243,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     return () => document.removeEventListener('pointerdown', dismissPanels);
   }, []);
 
-  // Resolve settings: prefer audioControls if provided, fall back to legacy props
-  const allowPause = audioControls?.showPlayPause ?? allowPauseLegacy;
-  const allowRewind = audioControls?.showSeekControl ?? allowRewindLegacy;
-  const allowSpeedControl = audioControls?.showSpeedControl ?? allowSpeedControlLegacy;
+  const allowPause = audioControls?.showPlayPause ?? true;
+  const allowRewind = audioControls?.showSeekControl ?? false;
+  const allowSpeedControl = audioControls?.showSpeedControl ?? false;
   const showSkipSection = audioControls?.showSkipSection ?? false;
   const showVolumeControl = audioControls?.showVolumeControl ?? true;
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -398,7 +388,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   // Override control visibility based on mode
-  // Priority: online teacher control > offline hiding > audioControls prop > solo defaults > legacy props
+  // Priority: online teacher control > offline hiding > audioControls prop > solo defaults
   // In online mode (teacher-controlled): disable all playback controls except volume
   const effectiveAllowPause = (teacherControlledOnline || hideControlsForOffline)
     ? false

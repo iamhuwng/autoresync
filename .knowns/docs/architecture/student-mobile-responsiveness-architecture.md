@@ -96,4 +96,4 @@ Required checks:
 - @doc/architecture/student-shell-right-rail-architecture
 - @doc/architecture/student-shell-data-loading-architecture
 - @doc/architecture/student-dashboard-architecture
-- @doc/architecture/mobile-ielts-reading-test-taking
+- @doc/architecture/reading-v2-runtime-integrations

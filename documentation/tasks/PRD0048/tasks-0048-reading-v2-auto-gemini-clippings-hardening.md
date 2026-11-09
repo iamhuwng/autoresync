@@ -6,7 +6,7 @@
 > **Primary source PRD:** `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 > **Pipeline source:** `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 > **Parent Auto task:** `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-import.md`
-> **V1 lesson source:** `documentation/architecture/reading-staged-parse-job.md`
+> **V1 lesson source:** retired staged-parser notes (historical context only)
 
 This task list supplements, but does not replace:
 
@@ -16,8 +16,8 @@ This task list supplements, but does not replace:
 - `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-import.md`
 - `documentation/tasks/PRD0048/tasks-0048-reading-v2-paste-import-and-answer-key-authority.md`
-- `documentation/architecture/teacher-test-creation-parsing-and-review.md`
-- `documentation/architecture/reading-staged-parse-job.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
+- retired staged-parser notes (historical context only)
 - `documentation/tasks/process-task-list.md`
 
 ## Problem Statement
@@ -198,8 +198,8 @@ Add or update this section whenever implementation touches more files.
 - [x] Read `documentation/tasks/process-task-list.md` before starting implementation and before marking any parent task complete.
 - [x] Read `documentation/tasks/PRD0048/tasks-0048-reading-v2-auto-gemini-import.md`.
 - [x] Read `documentation/tasks/PRD0048/reading-v2-test-making-pipeline.md`.
-- [x] Read `documentation/architecture/teacher-test-creation-parsing-and-review.md`.
-- [x] Read `documentation/architecture/reading-staged-parse-job.md` for V1 lesson shape only.
+- [x] Read `documentation/architecture/reading-v2-runtime-integrations.md`.
+- [x] Read retired staged-parser notes (historical context only) for V1 lesson shape only.
 - [x] Read `documentation/rules/codebase-hygiene.md` before changing imports or shared data contracts.
 - [x] Read `documentation/rules/observability.md` before changing Auto UI actions or diagnostics.
 - [x] Read `documentation/rules/react-patterns.md` before changing modal state, retry state, or loading state.
@@ -938,7 +938,7 @@ V3 audit note, 2026-05-14: `documentation/tasks/PRD0048/completion-audit-reading
 
 - [x] Update `tasks-0048-reading-v2-auto-gemini-import.md` with implementation notes and link back to this hardening batch.
 - [x] Update `reading-v2-test-making-pipeline.md` only if the frozen pipeline contract changes.
-- [x] Update `teacher-test-creation-parsing-and-review.md` if failure-handling or provider behavior changes.
+- [x] Update `reading-v2-runtime-integrations.md` if failure-handling or provider behavior changes.
 - [x] Add a concise architecture note if source-ledger and repair-loop concepts become durable services.
 - [x] Mark obsolete any older wording that says answer-key binding alone solved Auto import fidelity.
 - [x] Run UTF-8 checks for touched files.

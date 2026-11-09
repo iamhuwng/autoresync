@@ -1,5 +1,5 @@
 import React from 'react';
-import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
+import { MOBILE_LAYER_Z_INDEX } from './mobileLayering';
 
 export interface MobileOverflowMenuItem {
   key: string;
@@ -17,7 +17,7 @@ export interface MobileOverflowMenuProps {
 const backdropStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
-  zIndex: MOBILE_READING_LAYER_Z_INDEX.OVERFLOW_MENU,
+  zIndex: MOBILE_LAYER_Z_INDEX.OVERFLOW_MENU,
   background: 'rgba(15, 23, 42, 0.18)',
 };
 
@@ -25,7 +25,7 @@ const menuStyle: React.CSSProperties = {
   position: 'fixed',
   top: 'calc(env(safe-area-inset-top, 0px) + 52px)',
   right: '12px',
-  zIndex: MOBILE_READING_LAYER_Z_INDEX.OVERFLOW_MENU + 1,
+  zIndex: MOBILE_LAYER_Z_INDEX.OVERFLOW_MENU + 1,
   width: 'min(280px, calc(100vw - 24px))',
   background: '#ffffff',
   border: '1px solid #e2e8f0',

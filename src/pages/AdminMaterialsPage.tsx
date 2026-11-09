@@ -36,9 +36,6 @@ import { deleteTestFromFirebase, updateTestInFirebase } from '../services/testSt
 import TestEditor from '../components/TestEditor';
 // Test Creation Modal for new test flow
 import TestCreationModal from '../components/test-creation/TestCreationModal';
-import { testDraftService } from '../services/draftCloudService';
-// Draft Management Components
-import { DraftsListView } from '../components/drafts';
 
 interface Material {
     id: string;
@@ -98,8 +95,6 @@ const AdminMaterialsPage: React.FC = () => {
 
     // Test Creation Modal state
     const [showTestCreationModal, setShowTestCreationModal] = useState(false);
-    const [draftCount, setDraftCount] = useState(0);
-    const [showDraftsView, setShowDraftsView] = useState(false);
 
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -109,7 +104,6 @@ const AdminMaterialsPage: React.FC = () => {
     useEffect(() => {
         if (isSuperAdmin) {
             loadData();
-            loadDraftCount();
         }
     }, [isSuperAdmin]);
 
@@ -121,18 +115,6 @@ const AdminMaterialsPage: React.FC = () => {
             setSearchParams({}, { replace: true });
         }
     }, [searchParams, setSearchParams]);
-
-    const loadDraftCount = useCallback(async () => {
-        if (!profile?.uid) return;
-        try {
-            const response = await testDraftService.getUserDrafts(profile.uid);
-            if (response.success && response.data) {
-                setDraftCount(response.data.length);
-            }
-        } catch (error) {
-            console.error('[AdminMaterials] Error loading draft count:', error);
-        }
-    }, [profile?.uid]);
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -232,24 +214,8 @@ const AdminMaterialsPage: React.FC = () => {
         setShowTestCreationModal(true);
     };
 
-    const handleTestCreationComplete = (draftId: string) => {
-        setShowTestCreationModal(false);
-        // Navigate to the review page with the draft ID
-        navigate(`/teacher/test/review/${draftId}`);
-    };
-
     const handleTestCreationClose = () => {
         setShowTestCreationModal(false);
-        // Refresh draft count in case a draft was saved
-        loadDraftCount();
-    };
-
-    const handleToggleDraftsView = () => {
-        setShowDraftsView(!showDraftsView);
-        // Refresh draft count when toggling to drafts view
-        if (!showDraftsView) {
-            loadDraftCount();
-        }
     };
 
     const handleEdit = (material: Material) => {
@@ -419,33 +385,6 @@ const AdminMaterialsPage: React.FC = () => {
                             Refresh
                         </Button>
                         <Button
-                            variant={showDraftsView ? 'primary' : 'glass'}
-                            onClick={handleToggleDraftsView}
-                            style={{
-                                position: 'relative',
-                            }}
-                        >
-                            <IconNotes size={16} style={{ marginRight: '0.5rem' }} />
-                            Drafts
-                            {draftCount > 0 && (
-                                <Badge
-                                    size="xs"
-                                    variant="filled"
-                                    color="red"
-                                    style={{
-                                        position: 'absolute',
-                                        top: '-8px',
-                                        right: '-8px',
-                                        minWidth: '18px',
-                                        height: '18px',
-                                        padding: '0 4px',
-                                    }}
-                                >
-                                    {draftCount}
-                                </Badge>
-                            )}
-                        </Button>
-                        <Button
                             variant="primary"
                             onClick={handleCreateNew}
                         >
@@ -492,13 +431,7 @@ const AdminMaterialsPage: React.FC = () => {
                     </Tabs.List>
                 </Tabs>
 
-                {/* Content - Show DraftsListView or Materials based on toggle */}
-                {showDraftsView ? (
-                    <DraftsListView
-                        userId={profile?.uid || ''}
-                        onCreateNew={handleCreateNew}
-                    />
-                ) : loading ? (
+                {loading ? (
                     <Group justify="center" py="xl">
                         <Loader size="lg" />
                     </Group>
@@ -749,7 +682,6 @@ const AdminMaterialsPage: React.FC = () => {
             <TestCreationModal
                 opened={showTestCreationModal}
                 onClose={handleTestCreationClose}
-                onComplete={handleTestCreationComplete}
             />
         </AdminLayout>
     );

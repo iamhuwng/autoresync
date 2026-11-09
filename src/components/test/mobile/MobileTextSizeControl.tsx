@@ -1,5 +1,5 @@
 import React from 'react';
-import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
+import { MOBILE_LAYER_Z_INDEX } from './mobileLayering';
 
 export interface MobileTextSizeControlProps {
   currentSize: number;
@@ -10,7 +10,7 @@ export interface MobileTextSizeControlProps {
 const backdropStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
-  zIndex: MOBILE_READING_LAYER_Z_INDEX.UTILITY_MODAL,
+  zIndex: MOBILE_LAYER_Z_INDEX.UTILITY_MODAL,
   background: 'rgba(15, 23, 42, 0.52)',
   display: 'flex',
   alignItems: 'flex-end',

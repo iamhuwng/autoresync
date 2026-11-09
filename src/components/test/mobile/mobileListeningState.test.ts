@@ -45,9 +45,9 @@ describe('mobileListeningState helpers', () => {
       expect(isCompatibleListeningMobileState(null, baseContext)).toBe(false);
     });
 
-    it('returns false for a Reading state', () => {
+    it('returns false for an unsupported state kind', () => {
       expect(isCompatibleListeningMobileState(
-        { kind: 'reading', questionSheetOpen: false, reviewSummaryOpen: false, passageScrollByPassage: {}, activeQuestionGroupByPassage: {}, questionSheetScrollByPassage: {} },
+        { kind: 'unsupported' },
         baseContext,
       )).toBe(false);
     });

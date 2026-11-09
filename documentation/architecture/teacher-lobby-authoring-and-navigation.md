@@ -36,7 +36,7 @@ Required flow:
 3. IELTS Reading continues through the shared parser/draft/review path.
 4. THCS-THPT branches into the THCS setup and editor surface inside the same shared modal shell.
 5. Reading V2 starts from the same modal entry and forwards metadata/start mode into the Studio pipeline.
-6. Reading V1 and Quiz are retired and must not appear as active teacher creation/runtime choices.
+6. Reading V2 is the only Reading authoring/runtime path exposed from the lobby.
 
 Required rules:
 
@@ -45,7 +45,7 @@ Required rules:
 - Do not make the lobby card grid own canonical authoring state.
 - Modal close/discard behavior must stay owned by the shared `TestCreationModal` shell.
 
-Legacy route-backed creation/edit pages may remain as compatibility or direct-draft entry points, but they are not the normal teacher-lobby create path.
+Direct route-backed creation/edit pages are outside the lobby contract; the lobby owns the shared modal entry.
 
 ## THCS Setup Modal Contract
 
@@ -173,6 +173,6 @@ Use these checks when changing this surface:
 - `documentation/architecture/teacher-materials-listing-and-diagnostics.md`
 - `documentation/architecture/teacher-materials-list-view-contract.md`
 - `documentation/architecture/teacher-materials-bulk-selection-actions.md`
-- `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 - `documentation/system/navigation-ux-guide.md`

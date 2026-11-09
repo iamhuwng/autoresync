@@ -70,9 +70,6 @@ export const ROUTES = {
   TEACHER_READING_V2_REVISE: '/teacher/reading-v2/materials/:materialId/revise',
   TEACHER_MATERIAL_BOOK: '/teacher/materials/books/:bookId',
 
-  // Teacher Routes - Test Review (PRD-0022)
-  TEACHER_TEST_REVIEW: '/teacher/test/review/:draftId',
-
   // Teacher Routes - THCS-THPT Test Editor (PRD-0027)
   TEACHER_THCS_CREATE: '/teacher/thcs-test/create',
   TEACHER_THCS_EDIT: '/teacher/thcs-test/edit/:draftId',

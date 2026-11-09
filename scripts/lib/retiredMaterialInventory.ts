@@ -278,7 +278,6 @@ export const RETIREMENT_OWNERSHIP = {
     'src/components/ui/DeprecatedAudioBadge.tsx',
   ],
   readingV1: [
-    'src/components/test-creation/TestCreationModal.tsx',
     'src/skills/reading/components/ReadingTestPage.tsx',
     'src/skills/reading/components/index.ts',
     'src/components/practice/IELTSPracticeView',
@@ -480,7 +479,7 @@ export async function buildRetiredMaterialInventory(
     },
     legacyReadingSchemaEvidence: {
       status: 'observed-not-approved',
-      sourceOwner: 'src/services/testStorage.ts: saveTestToFirebase',
+      sourceOwner: 'historical V1 producer signature (removed from src/services/testStorage.ts)',
       root: '/tests/{testId}',
       requiredFields: [
         'type=IELTS',

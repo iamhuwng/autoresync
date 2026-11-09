@@ -36,7 +36,6 @@ const FORBIDDEN_IMPORT_PATTERNS = [
   /from ['"].*QuestionEditorPanel/,
   /from ['"].*TestEditor/,
   /from ['"].*readingQuestionGroups/,
-  /from ['"].*readingQuestionContract/,
   /from ['"].*tableCompletionTransforms/,
   /from ['"].*tableCompletionCanonicalizer/,
   /from ['"].*tableCompletionRepair/,

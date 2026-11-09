@@ -10,7 +10,6 @@ import { ref, set, get, update } from 'firebase/database';
 import { database } from './firebase';
 import { withRestoreGuard } from './restoreGuard';
 import type {
-  Passage,
   ParsedQuestion,
   ReadingLabeledOption,
   ReadingOptionLabelFormat,
@@ -20,7 +19,6 @@ import type { MaterialSoloConfig } from '../types/solo.types';
 import type { QuestionGroupsField } from '../types/tableCompletion';
 import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 import { stripAnswerKeys } from '../utils/answerKeyHelper';
-import { canonicalizeReadingQuestion } from '../utils/readingQuestionContract';
 import {
   generateReadingV2SessionSafeProjection,
   type ReadingV2DerivedProjection,
@@ -40,18 +38,6 @@ export interface MaterialLink {
   materialId: string;
   materialVersion: number;
   linkedAt: number;
-}
-
-export interface TestMetadata {
-  title: string;
-  type: 'IELTS' | 'TOEFL' | 'Custom' | 'College Entrance' | 'THCS-THPT';
-  skill: 'Reading' | 'Listening' | 'Writing' | 'Speaking' | 'Mixed';
-  duration: number;
-  difficulty?: 'Beginner' | 'Intermediate' | 'Advanced';
-  description?: string;
-  tags?: string[];
-  targetBand?: string;
-  estimatedScore?: string;
 }
 
 /** Audio section for Listening tests */
@@ -169,6 +155,12 @@ export interface TestData {
     passageId: string;
     resourceId?: string; // New unified link
     sectionNumber?: number; // For Listening tests - which audio section
+    context?: {
+      sectionHeading?: string;
+      subsectionLabel?: string;
+      contextLines?: readonly string[];
+      currentLineIndex?: number;
+    };
     points: number;
     explanation?: string;
     acceptableAnswers?: string[];
@@ -229,279 +221,6 @@ export const generateTestId = (): string => {
  * Helper to compile possible acceptable answers from IELTS answer key syntax
  * Computes UI-specific formats like pipe-delimited variants for multi-blanks directly at creation time.
  */
-function compileAcceptableAnswers(questionText: string, answer: any): string[] {
-  if (!answer || typeof answer !== 'string') return [];
-
-  const variants = new Set<string>();
-  const parts = answer.split(/[/|]/).map(p => p.trim());
-
-  for (const part of parts) {
-    if (part.includes('(') && part.includes(')')) {
-      variants.add(part.replace(/[()]/g, ''));
-      variants.add(part.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim());
-
-      const blankCount = (questionText?.match(/_{3,}/g) || []).length;
-      if (blankCount > 1) {
-        const piped = part.replace(/\([^)]*\)/g, '|').split('|').map(s => s.trim()).filter(Boolean).join('|');
-        if (piped.split('|').length === blankCount) {
-          variants.add(piped);
-        }
-      }
-    } else {
-      variants.add(part);
-    }
-  }
-  return Array.from(variants);
-}
-
-/**
- * Save test to Firebase
- */
-export const saveTestToFirebase = async (
-  metadata: TestMetadata,
-  passages: Passage[],
-  questions: ParsedQuestion[],
-  createdBy: string = 'teacher-default',
-  materialLink?: MaterialLink,
-  ownerId?: string,
-  isPublic: boolean = false,
-  questionGroups: QuestionGroupsField = [],
-): Promise<{ success: boolean; testId?: string; error?: string }> => {
-  try {
-    const testId = generateTestId();
-    const now = Date.now();
-    const sortedQuestionGroups = sortTableCompletionQuestionGroups(
-      questionGroups,
-      passages.map((passage) => passage.id),
-    );
-    const tableCompletionDiagnostics = buildPersistedTableCompletionDiagnostics(sortedQuestionGroups);
-    const effectiveQuestions = mergeQuestionsWithCanonicalTableGroups(questions, sortedQuestionGroups);
-
-    // Format passages
-    const formattedPassages = passages.map((passage, index) => {
-      // Find question range for this passage
-      const passageQuestions = effectiveQuestions.filter(q => q.passageId === passage.id);
-      const questionNumbers = passageQuestions.map(q => q.number || 0).filter(n => n > 0);
-
-      const questionStart = questionNumbers.length > 0 ? Math.min(...questionNumbers) : (index * 13) + 1;
-      const questionEnd = questionNumbers.length > 0 ? Math.max(...questionNumbers) : questionStart + 12;
-
-      return {
-        id: passage.id,
-        title: passage.title || `Passage ${index + 1}`,
-        content: passage.content,
-        type: passage.type || 'text',
-        imageUrl: passage.imageUrl || '',
-        wordCount: passage.content.split(/\s+/).length,
-        questionStart,
-        questionEnd,
-        createdAt: now,
-      };
-    });
-
-    // Format questions
-    const formattedQuestions = effectiveQuestions.map((question, index) => {
-      const canonicalQuestion = canonicalizeReadingQuestion({
-        questionNumber: question.questionNumber || question.number,
-        type: question.type,
-        questionText: (question as any).questionText || question.question || '',
-        question: question.question,
-        options: question.labeledOptions || question.options || [],
-        labeledOptions: question.labeledOptions,
-        optionLabelFormat: question.optionLabelFormat,
-        sectionReferences: question.sectionReferences,
-        sectionInstructionId: (question as any).sectionInstructionId,
-        groupId: (question as any).groupId,
-        blankId: (question as any).blankId,
-        anchorId: (question as any).anchorId,
-        groupTaskType: (question as any).groupTaskType,
-        tableGroupSchemaVersion: (question as any).tableGroupSchemaVersion,
-      });
-
-      if (canonicalQuestion.issues.length > 0) {
-        throw new Error(canonicalQuestion.issues[0]!.message);
-      }
-
-      const formatted: any = {
-        number: question.number || index + 1,
-        type: question.type,
-        question: canonicalQuestion.question,
-        questionText: canonicalQuestion.questionText,
-        answer: question.answer,
-        passageId: question.passageId || (passages[0]?.id || 'default'),
-        points: question.points || 1,
-      };
-
-      // Only include optional fields if they have values (Firebase doesn't allow undefined)
-      if (canonicalQuestion.options && canonicalQuestion.options.length > 0) {
-        formatted.options = canonicalQuestion.options;
-      }
-      if (canonicalQuestion.labeledOptions && canonicalQuestion.labeledOptions.length > 0) {
-        formatted.labeledOptions = canonicalQuestion.labeledOptions;
-      }
-      if (canonicalQuestion.optionLabelFormat) {
-        formatted.optionLabelFormat = canonicalQuestion.optionLabelFormat;
-      }
-      if (canonicalQuestion.sectionReferences && canonicalQuestion.sectionReferences.length > 0) {
-        formatted.sectionReferences = canonicalQuestion.sectionReferences;
-      }
-      if ((question as any).explanation) {
-        formatted.explanation = (question as any).explanation;
-      }
-
-      // Pre-compile acceptable answers variants at storage step matching student UI structures
-      const existingVariants = (question as any).acceptableAnswers || [];
-      const generatedVariants = compileAcceptableAnswers(canonicalQuestion.questionText, question.answer);
-      const combinedVariants = Array.from(new Set([...existingVariants, ...generatedVariants]));
-
-      if (combinedVariants.length > 0) {
-        formatted.acceptableAnswers = combinedVariants;
-      }
-
-      if (question.wordLimit !== undefined && question.wordLimit > 0) {
-        formatted.wordLimit = question.wordLimit;
-      }
-      if (question.imageUrl) {
-        formatted.imageUrl = question.imageUrl;
-      }
-      if ((question as any).sectionInstructionId) {
-        formatted.sectionInstructionId = (question as any).sectionInstructionId;
-      }
-      if ((question as any).groupId) {
-        formatted.groupId = (question as any).groupId;
-      }
-      if ((question as any).blankId) {
-        formatted.blankId = (question as any).blankId;
-      }
-      if ((question as any).anchorId) {
-        formatted.anchorId = (question as any).anchorId;
-      }
-      if ((question as any).groupTaskType) {
-        formatted.groupTaskType = (question as any).groupTaskType;
-      }
-      if ((question as any).tableGroupSchemaVersion) {
-        formatted.tableGroupSchemaVersion = (question as any).tableGroupSchemaVersion;
-      }
-
-      return formatted;
-    });
-
-    // Diagnostic: Log wordLimit statistics for debugging
-    const questionsWithWordLimit = formattedQuestions.filter((q: any) => q.wordLimit);
-    if (questionsWithWordLimit.length > 0) {
-      console.log(`📏 [TestStorage] ${questionsWithWordLimit.length}/${formattedQuestions.length} questions have wordLimit set`);
-    }
-
-    // Check for missing answer keys
-    const questionsWithoutAnswers = formattedQuestions.filter(q =>
-      !q.answer ||
-      (typeof q.answer === 'string' && q.answer.trim() === '') ||
-      (Array.isArray(q.answer) && q.answer.length === 0)
-    );
-    const missingAnswerCount = questionsWithoutAnswers.length;
-    const isComplete = missingAnswerCount === 0;
-
-    if (!isComplete) {
-      console.log(`⚠️ Test has ${missingAnswerCount}/${formattedQuestions.length} questions without answer keys`);
-    }
-
-    // Build test data structure
-    const testData: TestData = {
-      id: testId,
-      title: metadata.title,
-      type: metadata.type,
-      skill: metadata.skill,
-      duration: metadata.duration,
-      difficulty: metadata.difficulty || 'Intermediate',
-      questionCount: formattedQuestions.length,
-      createdAt: now,
-      createdBy,
-      updatedAt: now,
-      isPublished: true,
-      ownerId: ownerId || createdBy, // Use ownerId if provided, otherwise fall back to createdBy
-      isPublic,
-      isComplete,
-      // Only include missingAnswerCount if > 0 (Firebase rejects undefined)
-      ...(missingAnswerCount > 0 && { missingAnswerCount }),
-
-      metadata: {
-        description: metadata.description || '',
-        instructions: `You have ${metadata.duration} minutes to complete all ${formattedQuestions.length} questions`,
-        tags: metadata.tags || [metadata.type, metadata.skill],
-        // Only include optional fields if they have values (Firebase rejects undefined)
-        ...(metadata.targetBand && { targetBand: metadata.targetBand }),
-        ...(metadata.estimatedScore && { estimatedScore: metadata.estimatedScore }),
-      },
-
-      passages: formattedPassages,
-      questions: formattedQuestions,
-      ...(sortedQuestionGroups.length > 0 ? { questionGroups: sortedQuestionGroups } : {}),
-      ...(tableCompletionDiagnostics.length > 0
-        ? { tableCompletionDiagnostics }
-        : {}),
-
-      settings: {
-        allowPause: false,
-        showTimer: true,
-        shuffleQuestions: false,
-        showResults: 'immediate',
-        allowReview: true,
-        passingScore: 60,
-      },
-
-      statistics: {
-        attempts: 0,
-        averageScore: 0,
-        averageTime: 0,
-        completionRate: 0,
-      },
-
-      // Material link (if created from Material Library)
-      ...(materialLink && { materialLink }),
-    };
-
-    // Save to Firebase
-    const summary = createLegacyTestMaterialSummary(testId, testData);
-    await update(ref(database), {
-      [`tests/${testId}`]: testData,
-      ...buildMaterialSummaryUpdatePayload(summary),
-    });
-    await writeStudentSafeTestData(testId, testData);
-
-    console.log('✅ Test saved to Firebase:', testId);
-
-    return {
-      success: true,
-      testId,
-    };
-
-  } catch (error) {
-    console.error('❌ Error saving test to Firebase:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any)?.code,
-      stack: error instanceof Error ? error.stack : undefined
-    });
-
-    // Provide more specific error messages
-    let errorMessage = 'Failed to save test';
-    if (error instanceof Error) {
-      if (error.message.includes('permission')) {
-        errorMessage = 'Permission denied. Please check Firebase database rules.';
-      } else if (error.message.includes('network')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else {
-        errorMessage = error.message;
-      }
-    }
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
-  }
-};
-
 /**
  * Get test from Firebase
  */

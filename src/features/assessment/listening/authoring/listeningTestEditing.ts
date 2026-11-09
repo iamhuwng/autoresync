@@ -98,7 +98,21 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
     if (!result.previewUrl) throw new Error('Audio preview is unavailable. Retry opening this Listening test.');
     return [section.assetId!, result.previewUrl];
   }));
-  return { ...test, ...structuredClone(source.document), listeningEditSource: source,
+  const document = structuredClone(source.document);
+  const questions = document.questions.map((question) => {
+    const { options, acceptableAnswers, ...rest } = question;
+    return {
+      ...rest,
+      passageId: '',
+      ...(options ? { options: [...options] } : {}),
+      ...(acceptableAnswers ? { acceptableAnswers: [...acceptableAnswers] } : {}),
+    };
+  });
+  return { ...test, ...document, questions,
+    audioSections: [...document.audioSections],
+    ...(document.questionImages ? { questionImages: [...document.questionImages] } : {}),
+    metadata: { ...document.metadata, tags: [...document.metadata.tags] },
+    listeningEditSource: source,
     listeningAudioPreviewUrls: Object.fromEntries(previews.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])),
     listeningAudioPreviewWarnings: previews.flatMap((result, index) => result.status === 'rejected' ? [previewSections[index]!.name] : []),
   } as EditableTest;

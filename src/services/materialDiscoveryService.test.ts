@@ -51,7 +51,7 @@ describe('materialDiscoveryService', () => {
         expect(query).not.toHaveBeenCalled();
     });
 
-    it('uses the public legacy tests index instead of a broad tests read for the public library source', async () => {
+    it('does not expose retired Reading V1 rows through the public library index', async () => {
         vi.mocked(get).mockImplementation(async (path: any) => {
             if (path === 'tests') {
                 throw new Error('Unexpected broad tests read');
@@ -86,16 +86,10 @@ describe('materialDiscoveryService', () => {
         expect(orderByChild).toHaveBeenCalledWith('isPublic');
         expect(equalTo).toHaveBeenCalledWith(true);
         expect(query).toHaveBeenCalledWith('tests', { type: 'orderByChild', child: 'isPublic' }, { type: 'equalTo', value: true });
-        expect(materials).toEqual([
-            expect.objectContaining({
-                id: 'legacy-public',
-                title: 'Legacy Public Test',
-                source: { type: 'public', courseName: undefined, courseId: undefined },
-            }),
-        ]);
+        expect(materials).toEqual([]);
     });
 
-    it('uses the public legacy tests index instead of a broad tests read for course materials', async () => {
+    it('does not expose retired Reading V1 rows through course materials', async () => {
         vi.mocked(get).mockImplementation(async (path: any) => {
             if (path === 'tests') {
                 throw new Error('Unexpected broad tests read');
@@ -129,13 +123,7 @@ describe('materialDiscoveryService', () => {
 
         expect(ref).toHaveBeenCalledWith({}, 'tests');
         expect(query).toHaveBeenCalledWith('tests', { type: 'orderByChild', child: 'isPublic' }, { type: 'equalTo', value: true });
-        expect(materials).toEqual([
-            expect.objectContaining({
-                id: 'legacy-public',
-                title: 'Legacy Public Test',
-                source: { type: 'course', courseId: 'course-1', courseName: undefined },
-            }),
-        ]);
+        expect(materials).toEqual([]);
     });
 
     it('uses canonical student results and only counts self-study attempts for the target material', async () => {

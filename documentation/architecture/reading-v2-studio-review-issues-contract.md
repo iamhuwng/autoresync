@@ -39,4 +39,4 @@ They guide edit/publish decisions but are not student runtime payload.
 
 - [`documentation/architecture/reading-v2-auto-v4-provider-review-contract.md`](reading-v2-auto-v4-provider-review-contract.md)
 - [`documentation/architecture/reading-v2-material-publish-and-passage-library.md`](reading-v2-material-publish-and-passage-library.md)
-- [`documentation/architecture/teacher-test-creation-parsing-and-review.md`](teacher-test-creation-parsing-and-review.md)
+- [`documentation/architecture/reading-v2-runtime-integrations.md`](reading-v2-runtime-integrations.md)

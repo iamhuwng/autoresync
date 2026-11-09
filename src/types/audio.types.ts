@@ -258,7 +258,7 @@ export interface AudioControlsConfig {
 }
 
 // ============================================================
-// PRESETS (Re-export from listeningTestStorage for convenience)
+// Shared audio-control presets
 // ============================================================
 
 /**

@@ -1055,7 +1055,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         questions: Array.from({ length: readingPassageSummary.questionCount }, (_value, index) => ({
                             id: `reading-passage-question-${index + 1}`,
                         })),
-                        skillType: 'reading',
+                        skillType: 'reading-v2',
                         testType: 'ReadingV2',
                         metadata: {
                             deliveryEngine: 'reading-v2',
@@ -1095,7 +1095,7 @@ export const StudentHomeworkDetailPage: React.FC = () => {
                         questions: Array.from({ length: summary.questionCount }, (_value, index) => ({
                             id: `reading-v2-question-${index + 1}`,
                         })),
-                        skillType: 'reading',
+                        skillType: 'reading-v2',
                         testType: 'ReadingV2',
                         metadata: summary.metadata,
                     } as unknown as TestData);

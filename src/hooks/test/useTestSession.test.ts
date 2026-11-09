@@ -88,12 +88,12 @@ describe('useTestSession', () => {
           players: {
             'player-1': {
               mobileState: {
-                activePassageId: 'p2',
-                questionSheetOpen: true,
-                reviewSummaryOpen: false,
-                passageScrollByPassage: { p2: 220 },
-                activeQuestionGroupByPassage: { p2: 8 },
-                questionSheetScrollByPassage: { p2: 72 },
+                kind: 'listening',
+                version: 1,
+                viewedPartNumber: 2,
+                currentQuestionNumber: 8,
+                answerSheetScrollByPart: { '2': 220 },
+                imageZoomByPart: {},
                 textSize: 19,
               },
             },
@@ -105,7 +105,9 @@ describe('useTestSession', () => {
 
     expect(result.current.mobileState).toEqual(
       expect.objectContaining({
-        activePassageId: 'p2',
+        kind: 'listening',
+        version: 1,
+        viewedPartNumber: 2,
         textSize: 19,
       }),
     );
