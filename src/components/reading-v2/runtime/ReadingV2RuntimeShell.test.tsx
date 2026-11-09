@@ -300,17 +300,17 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeInTheDocument();
   });
 
-  it('keeps splitter tracks proportional without impossible hard minimums', () => {
+  it('exposes a keyboard-accessible splitter with a comfortable drag target', () => {
     setViewport(768, 700);
 
     render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
 
-    const slider = screen.getByRole('slider', { name: 'Resize passage and questions columns' });
-    fireEvent.change(slider, { target: { value: '70' } });
-
-    expect(screen.getByLabelText('Desktop and tablet two-column runtime')).toHaveStyle(
-      'grid-template-columns: minmax(0, 70fr) 10px minmax(0, 30fr)',
-    );
+    const splitter = screen.getByRole('separator', { name: 'Resize passage and questions columns' });
+    expect(splitter).toHaveAttribute('aria-orientation', 'vertical');
+    expect(splitter).toHaveAttribute('role', 'separator');
+    expect(splitter).toHaveAttribute('tabindex', '0');
+    expect(splitter).toHaveAttribute('data-panel-resize-handle-enabled', 'true');
+    expect(splitter).toHaveClass('reading-v2-runtime__divider');
   });
 
   it('keeps the phone runtime on phone hardware in landscape', () => {

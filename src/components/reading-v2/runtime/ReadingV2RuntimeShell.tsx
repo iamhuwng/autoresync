@@ -42,6 +42,7 @@ import {
 } from './task-type-components/ReadingV2TaskTypeComponents';
 import { ReadingV2InstructionText } from '../shared/ReadingV2InstructionText';
 import { ReadingV2FormattedText } from '../shared/ReadingV2FormattedText';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import {
   ReadingV2MobileUtilities,
   type ReadingV2MobileUtilityPanel,
@@ -2415,7 +2416,6 @@ export function ReadingV2RuntimeShell({
   const [persistedTimerStartedAt, setPersistedTimerStartedAt] = useState<number | null>(null);
   const [autoSubmitReason, setAutoSubmitReason] = useState<'timer' | 'force-submit' | null>(null);
   const [navigationScrollVersion, setNavigationScrollVersion] = useState(0);
-  const [leftWidthPercent, setLeftWidthPercent] = useState(50);
   const [passageFontSize, setPassageFontSize] = useState(16);
   const [textSizeHydrated, setTextSizeHydrated] = useState(!textSizeStorageKey);
   const [passageLineHeight, setPassageLineHeight] = useState(1.5);
@@ -3579,47 +3579,44 @@ export function ReadingV2RuntimeShell({
         </section>
       ) : (
         <>
-          <section
-            className="reading-v2-runtime__desktop"
-            aria-label="Desktop and tablet two-column runtime"
-            style={{
-              gridTemplateColumns: `minmax(0, ${leftWidthPercent}fr) 10px minmax(0, ${100 - leftWidthPercent}fr)`,
-            }}
-          >
-            <section className="reading-v2-runtime__left-column" aria-label="Left passage and stimulus column">
-              <PassageControls
-                fontSize={passageFontSize}
-                lineHeight={passageLineHeight}
-                highlighterActive={highlighterActive}
-                highlightColor={highlightColor}
-                onFontSizeChange={(fontSize) => {
-                  textSizeDirtyRef.current = true;
-                  setPassageFontSize(fontSize);
-                }}
-                onLineHeightChange={setPassageLineHeight}
-                onHighlighterActiveChange={setHighlighterActive}
-                onHighlightColorChange={setHighlightColor}
-                onClearHighlights={clearHighlights}
-              />
-              {stimulusView}
-            </section>
-            <div className="reading-v2-runtime__divider" aria-label="Resizable passage and questions divider">
-              <input
-                type="range"
-                min={30}
-                max={70}
-                value={leftWidthPercent}
+          <section className="reading-v2-runtime__desktop" aria-label="Desktop and tablet two-column runtime">
+            <PanelGroup className="reading-v2-runtime__panel-group" direction="horizontal" id="reading-v2-runtime-panels">
+              <Panel defaultSize={50} minSize={30} maxSize={70} id="reading-v2-runtime-passage" style={{ overflow: 'auto' }}>
+                <section className="reading-v2-runtime__left-column" aria-label="Left passage and stimulus column">
+                  <PassageControls
+                    fontSize={passageFontSize}
+                    lineHeight={passageLineHeight}
+                    highlighterActive={highlighterActive}
+                    highlightColor={highlightColor}
+                    onFontSizeChange={(fontSize) => {
+                      textSizeDirtyRef.current = true;
+                      setPassageFontSize(fontSize);
+                    }}
+                    onLineHeightChange={setPassageLineHeight}
+                    onHighlighterActiveChange={setHighlighterActive}
+                    onHighlightColorChange={setHighlightColor}
+                    onClearHighlights={clearHighlights}
+                  />
+                  {stimulusView}
+                </section>
+              </Panel>
+              <PanelResizeHandle
+                className="reading-v2-runtime__divider"
+                id="reading-v2-runtime-divider"
                 aria-label="Resize passage and questions columns"
-                onChange={(event) => setLeftWidthPercent(Number(event.currentTarget.value))}
+                aria-orientation="vertical"
+                hitAreaMargins={{ coarse: 15, fine: 10 }}
               />
-            </div>
-            <section
-              className="reading-v2-runtime__right-column"
-              ref={desktopQuestionPanelRef}
-              aria-label="Right full grouped question panel"
-            >
-              {sectionQuestionPanel}
-            </section>
+              <Panel defaultSize={50} minSize={30} maxSize={70} id="reading-v2-runtime-questions" style={{ overflow: 'auto' }}>
+                <section
+                  className="reading-v2-runtime__right-column"
+                  ref={desktopQuestionPanelRef}
+                  aria-label="Right full grouped question panel"
+                >
+                  {sectionQuestionPanel}
+                </section>
+              </Panel>
+            </PanelGroup>
           </section>
           <div className="reading-v2-runtime__floating-arrows" aria-label="Previous and next question controls">
             <button type="button" aria-label="Previous question" onClick={() => moveInteraction(-1)}>{'<'}</button>
