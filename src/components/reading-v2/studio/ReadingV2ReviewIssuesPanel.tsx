@@ -10,6 +10,14 @@ export interface ReadingV2ReviewIssuesPanelProps {
   readonly renderResolution?: (issue: ReadingV2ReviewIssue) => ReactNode;
 }
 
+const issueRangeLabel = (issue: ReadingV2ReviewIssue): string => {
+  const range = issue.target.questionRange;
+  if (!range) return issue.label;
+  return range.start === range.end
+    ? `Question ${range.start}`
+    : `Questions ${range.start}-${range.end}`;
+};
+
 export function ReadingV2ReviewIssuesPanel({ issues, selectedIssueId, open, onOpenChange, onIssueActivate, renderResolution }: ReadingV2ReviewIssuesPanelProps) {
   const panelRef = useRef<HTMLElement>(null);
   const [activeId, setActiveId] = useState<string | null>(selectedIssueId ?? null);
@@ -62,14 +70,21 @@ export function ReadingV2ReviewIssuesPanel({ issues, selectedIssueId, open, onOp
       </ul>
       {activeIssue ? (
         <section className="reading-v2-review-issues__detail" aria-label="Issue details">
-          <p>{activeIssue.originalMessage}</p>
+          {activeIssue.type === 'source-bank-mismatch' ? (
+            <>
+              <p>{issueRangeLabel(activeIssue)} has answer choices that differ from the pasted source.</p>
+              <p>Compare the source choices with the current choices below. Keep the current version only when every choice is complete and each label is unique.</p>
+            </>
+          ) : <p>{activeIssue.originalMessage}</p>}
           <p className="reading-v2-review-issues__effect">{activeIssue.severity === 'publish-blocker' ? 'Required before publishing.' : 'Suggestion; publishing is available.'}</p>
           {sourceExcerpt && activeIssue.type !== 'source-bank-mismatch' ? <blockquote>{sourceExcerpt}</blockquote> : null}
           {resolution ?? (
             <button className="reading-v2-studio__button" type="button" onClick={() => onIssueActivate(activeIssue)}>{activeIssue.actionLabel ?? 'Edit question'}</button>
           )}
           {(activeIssue.type === 'source-bank-mismatch' || activeIssue.type === 'source-bank-missing' || activeIssue.type === 'source-passage-incomplete') && resolution ? (
-            <button className="reading-v2-studio__button" type="button" onClick={() => onIssueActivate(activeIssue)}>{activeIssue.actionLabel ?? 'Edit answer bank'}</button>
+            <button className="reading-v2-studio__button" type="button" onClick={() => onIssueActivate(activeIssue)}>
+              {activeIssue.type === 'source-bank-mismatch' ? `Go to ${issueRangeLabel(activeIssue)} to edit choices` : activeIssue.actionLabel ?? 'Edit answer bank'}
+            </button>
           ) : null}
         </section>
       ) : null}

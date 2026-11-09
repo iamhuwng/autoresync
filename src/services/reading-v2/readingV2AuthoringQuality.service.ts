@@ -430,12 +430,34 @@ export const interpretReadingV2SourceRequirement = (
     if (!source || source.sourceId !== requirement.sourceId) throw new Error('Load the supplied answer bank before confirming it.');
     const expected = resolveReadingV2SourceBankRequirement(requirement, source);
     const group = document.taskGroups[requirement.target!.taskGroupId!];
-    const options = group.optionSetRefs.flatMap((id) => document.optionSets[id]?.options ?? []);
-    const bankItems = expected.bankItems?.map((item) => {
-      const matches = options.filter((option) => normalized(option.label) === normalized(item.label) && option.text.trim());
-      if (matches.length !== 1) throw new Error(`Restore one option labelled ${item.label} before confirming this bank.`);
-      return { label: item.label, text: matches[0].text, optionId: matches[0].optionId };
-    });
+    const optionSets = group.optionSetRefs.map((id) => document.optionSets[id]).filter(Boolean);
+    const options = optionSets.flatMap((optionSet) => optionSet.options);
+    const authoredBankItems = interpretation.bankItems;
+    const bankItems = authoredBankItems
+      ? (() => {
+          const hasInvalidOptionSet = !optionSets.length || optionSets.some((optionSet) => {
+            const labels = new Set<string>();
+            return optionSet.options.some((option) => {
+              const label = normalized(option.label);
+              const duplicate = labels.has(label);
+              labels.add(label);
+              return !option.label.trim() || !option.text.trim() || duplicate;
+            });
+          });
+          const optionIds = new Set<string>();
+          if (hasInvalidOptionSet) throw new Error('Give every question a unique label and non-empty text for each answer choice before approving this bank.');
+          return authoredBankItems.map((item) => {
+            const option = options.find((entry) => entry.optionId === item.optionId);
+            if (!option || optionIds.has(option.optionId)) throw new Error(`Choose each current answer option only once before approving this bank.`);
+            optionIds.add(option.optionId);
+            return { label: option.label, text: option.text, optionId: option.optionId };
+          });
+        })()
+      : expected.bankItems?.map((item) => {
+          const matches = options.filter((option) => normalized(option.label) === normalized(item.label) && option.text.trim());
+          if (matches.length !== 1) throw new Error(`Restore one option labelled ${item.label} before confirming this bank.`);
+          return { label: item.label, text: matches[0].text, optionId: matches[0].optionId };
+        });
     if (!bankItems?.length) throw new Error('The supplied answer bank could not be read.');
     interpretation = { requirementId: interpretation.requirementId, actorId: interpretation.actorId, updatedAt: interpretation.updatedAt, bankItems };
   } else if (requirement.kind === 'instruction') {

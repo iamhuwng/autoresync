@@ -4882,11 +4882,14 @@ export function ReadingV2BuildWorkspace({
     [authoringNumbers],
   );
   const title = metadata.title.trim() || 'Untitled IELTS Reading Test';
+  const saveBlocked = Boolean(saveConflict || saveError || saveState === 'error' || saveState === 'conflict');
   const statusLabel =
     publishState === 'success'
       ? 'Published'
       : publishState === 'pending'
         ? 'Publishing'
+        : saveBlocked
+          ? 'Save needed'
         : publishBlocked
           ? 'Needs review'
           : 'Ready';
@@ -5267,7 +5270,7 @@ export function ReadingV2BuildWorkspace({
               ? `${reviewIssues.length} current issue${reviewIssues.length === 1 ? '' : 's'}.`
               : 'No current issues.'}
           </p>
-          <span className={publishBlocked ? 'reading-v2-status reading-v2-status--warning' : 'reading-v2-status'}>
+          <span className={publishBlocked || saveBlocked ? 'reading-v2-status reading-v2-status--warning' : 'reading-v2-status'}>
             {statusLabel}
           </span>
           <span className="reading-v2-build__mode">{modeLabel}</span>
@@ -5291,10 +5294,12 @@ export function ReadingV2BuildWorkspace({
             <button
               className="reading-v2-studio__button reading-v2-studio__button--primary"
               type="button"
-              aria-expanded={publishBlocked ? reviewIssuesOpen : undefined}
+              aria-expanded={publishBlocked && !saveBlocked ? reviewIssuesOpen : undefined}
+              disabled={saveBlocked}
+              title={saveBlocked ? 'Resolve the draft save issue before publishing.' : undefined}
               onClick={publishBlocked ? () => handleReviewIssueActivate(reviewIssues.find((issue) => issue.severity === 'publish-blocker') ?? reviewIssues[0]) : onPublish}
             >
-              {publishState === 'pending' ? 'Publishing…' : publishBlocked ? `Review ${reviewIssues.filter((issue) => issue.severity === 'publish-blocker').length} issues` : 'Publish'}
+              {publishState === 'pending' ? 'Publishing…' : saveBlocked ? 'Resolve save issue' : publishBlocked ? `Review ${reviewIssues.filter((issue) => issue.severity === 'publish-blocker').length} issues` : 'Publish'}
             </button>
             <ReadingV2ReviewIssuesPanel
               issues={reviewIssues}

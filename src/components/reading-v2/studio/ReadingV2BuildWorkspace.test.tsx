@@ -66,6 +66,9 @@ const renderWorkspace = (
     readonly reviewIssues?: readonly ReadingV2ReviewIssue[];
     readonly metadata?: ReadingV2StudioMetadata;
     readonly onAddPassage?: () => void;
+    readonly saveConflict?: boolean;
+    readonly saveError?: string;
+    readonly saveState?: 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
   } = {},
 ) => {
   let document = createReadingV2CanonicalFixture(taskType);
@@ -214,6 +217,9 @@ const renderWorkspace = (
       reviewIssues={(options.reviewIssues ?? []).map((issue) => ({ ...issue, target: { ...issue.target, interactionId: taskGroup.interactionIds[0], taskGroupId: taskGroup.taskGroupId } }))}
       publishBlocked={false}
       publishState="idle"
+      saveConflict={options.saveConflict}
+      saveError={options.saveError}
+      saveState={options.saveState}
       onSaveDraft={vi.fn()}
       onPreview={vi.fn()}
       onPublish={vi.fn()}
@@ -322,6 +328,20 @@ describe('ReadingV2BuildWorkspace task-type editors', () => {
     expect(onQuestionLinkNavigation).toHaveBeenCalledWith(expect.objectContaining({ interactionId: taskGroup.interactionIds[0], taskGroupId: taskGroup.taskGroupId }));
     expect(document.interactions[taskGroup.interactionIds[0]!]).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Review issues' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Publish unavailable while the resolved draft still has a save failure', () => {
+    renderWorkspace('summary-completion-text', { saveConflict: true });
+
+    expect(screen.getByText('Save needed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resolve save issue' })).toBeDisabled();
+  });
+
+  it('treats an explicit save error state as unresolved even without an error message', () => {
+    renderWorkspace('summary-completion-text', { saveState: 'error' });
+
+    expect(screen.getByText('Save needed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resolve save issue' })).toBeDisabled();
   });
 
   it('hides question link checks when linked questions do not need attention', () => {

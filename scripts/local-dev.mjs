@@ -29,6 +29,7 @@ runSetup('local-firebase.mjs', ['start']);
 
 const localWorkerOrigin = 'http://localhost:8787';
 const localHomeworkWorkerOrigin = 'http://localhost:8788';
+const localAiWorkerOrigin = 'http://localhost:8789';
 const rawViteArgs = process.argv.slice(2);
 const vitePort = rawViteArgs.length === 1 && /^\d+$/u.test(rawViteArgs[0])
   ? rawViteArgs[0]
@@ -79,8 +80,7 @@ const localEnv = {
   LOCAL_VITE_ORIGIN: `http://localhost:${vitePort}`,
   ...Object.fromEntries(localWorkerKeys.map((key) => [key, localWorkerOrigin])),
   VITE_BACKUP_WORKER_URL: localHomeworkWorkerOrigin,
-  // shortcut: local AI is unavailable until an isolated gateway runtime is provided.
-  VITE_THCS_GEMMA_WORKER_URL: '',
+  VITE_THCS_GEMMA_WORKER_URL: localAiWorkerOrigin,
   VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN: 'https://s3.us-west-004.backblazeb2.com',
   VITE_READING_V2_SUBMISSION_ENDPOINT: '',
   VITE_READING_V2_SUBMISSION_EMULATOR_ORIGIN: 'http://localhost:5001',
@@ -115,11 +115,18 @@ const homeworkWorker = spawn(process.execPath, [path.join(scriptDir, 'local-home
   stdio: 'inherit',
   windowsHide: true,
 });
+const aiGateway = spawn(process.execPath, [path.join(scriptDir, 'local-ai-gateway.mjs')], {
+  cwd: repoRoot,
+  env: localEnv,
+  stdio: 'inherit',
+  windowsHide: true,
+});
 
 const forwardSignal = (signal) => {
   vite.kill(signal);
   bookSourceWorker.kill(signal);
   homeworkWorker.kill(signal);
+  aiGateway.kill(signal);
 };
 process.on('SIGINT', () => forwardSignal('SIGINT'));
 process.on('SIGTERM', () => forwardSignal('SIGTERM'));
@@ -133,6 +140,14 @@ homeworkWorker.on('exit', (code, signal) => {
   if (code !== 0 || signal) {
     vite.kill('SIGTERM');
     bookSourceWorker.kill('SIGTERM');
+    process.exit(code ?? 1);
+  }
+});
+aiGateway.on('exit', (code, signal) => {
+  if (code !== 0 || signal) {
+    vite.kill('SIGTERM');
+    bookSourceWorker.kill('SIGTERM');
+    homeworkWorker.kill('SIGTERM');
     process.exit(code ?? 1);
   }
 });

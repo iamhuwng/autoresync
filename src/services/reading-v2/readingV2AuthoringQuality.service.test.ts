@@ -139,6 +139,38 @@ describe('current Reading V2 authoring readiness', () => {
     expect(evaluate(removed, resumed).findings.map((finding) => finding.code)).toContain('source-bank-mismatch');
   });
 
+  it('approves a structurally valid current bank when the supplied bank is malformed', () => {
+    const document = documentFor('summary-completion-list');
+    const group = Object.values(document.taskGroups)[0];
+    const options = document.optionSets[group.optionSetRefs[0]].options;
+    const malformedSource = { ...source, rawText: 'A source A\nB source B\nC source C\nB source B again', lineIndex: [
+      { lineId: 'bank-line', lineNumber: 1, rawText: 'A source A', normalizedText: 'a source a' },
+    ] };
+    const context: ReadingV2AuthoringContext = { ...createReadingV2ManualAuthoringContext(), origin: { kind: 'import', sourceId: source.sourceId },
+      scope: { kind: 'supplied', requirementIds: ['bank'] }, requirements: [{ requirementId: 'bank', sourceId: source.sourceId, kind: 'bank', lineIds: ['bank-line'],
+        target: { taskGroupId: group.taskGroupId }, bankItems: options.slice(0, 4).map((option, index) => ({ label: index === 3 ? 'B' : option.label, text: `Source ${index + 1}` })) }] };
+    const currentBankItems = options.map(({ label, text, optionId }) => ({ label, text, optionId }));
+
+    expect(evaluateReadingV2AuthoringReadiness({ document, metadata: { title: 'Malformed bank' }, authoringContext: context }, [malformedSource]).findings.map((finding) => finding.code))
+      .toContain('source-bank-mismatch');
+
+    const approved = interpretReadingV2SourceRequirement(context, {
+      requirementId: 'bank',
+      bankItems: currentBankItems,
+      actorId: 'teacher',
+      updatedAt: source.createdAt,
+    }, document, malformedSource);
+    expect(evaluateReadingV2AuthoringReadiness({ document, metadata: { title: 'Malformed bank' }, authoringContext: approved }, [malformedSource]).findings)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ code: 'source-bank-mismatch' })]));
+
+    const incomplete = { ...document, optionSets: { ...document.optionSets, [group.optionSetRefs[0]]: {
+      ...document.optionSets[group.optionSetRefs[0]], options: options.map((option, index) => index === 0 ? { ...option, text: '' } : option),
+    } } };
+    expect(() => interpretReadingV2SourceRequirement(context, {
+      requirementId: 'bank', bankItems: currentBankItems, actorId: 'teacher', updatedAt: source.createdAt,
+    }, incomplete, malformedSource)).toThrow(/unique label and non-empty text/);
+  });
+
   it('uses current content rather than historical diagnostic strings or generic acceptance', () => {
     const document = documentFor();
     const group = Object.values(document.taskGroups)[0];
