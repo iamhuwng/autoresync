@@ -3494,4 +3494,48 @@ describe('readingV2ImportNormalization.service', () => {
       'wrong judgement vocabulary',
     );
   });
+
+  it('builds one shared candidate pool from differently formatted grouped multiple-answer rows', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        READING_V2_STRUCTURED_MATERIALS_START,
+        '```json',
+        JSON.stringify({
+          materials: [{
+            passageNumber: 1,
+            title: 'Grouped multiple answer',
+            passages: [{
+              title: 'Grouped multiple answer',
+              content: 'This passage contains enough source text to exercise grouped multiple-answer normalization.',
+            }],
+            sectionInstructions: [{
+              id: 'choose-three',
+              taskType: 'multiple-select',
+              questionRange: { start: 8, end: 10 },
+              selectionLimit: 3,
+              labeledOptions: ['A', 'B', 'C'].map((label) => ({ label, text: `Option ${label}` })),
+            }],
+            questions: [
+              { questionNumber: 8, type: 'multiple-select', sectionInstructionId: 'choose-three', questionText: 'Which THREE options are correct?' },
+              { questionNumber: 9, type: 'multiple-select', sectionInstructionId: 'choose-three', questionText: '' },
+              { questionNumber: 10, type: 'multiple-select', sectionInstructionId: 'choose-three', questionText: '' },
+            ],
+          }],
+        }),
+        '```',
+        READING_V2_STRUCTURED_MATERIALS_END,
+      ].join('\n'),
+      answerKeyText: '8. A/B/C\n9. a,b,c\n10. a or b or c',
+    });
+
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interactions = Object.values(result.document.interactions);
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]).toMatchObject({
+      responseShape: { kind: 'multi-select', selectionLimit: 3 },
+      scoringRule: { maxScore: 3, acceptableAnswers: ['A', 'B', 'C'], orderMatters: false },
+      reviewLabel: { displayNumber: 8, answerSlotCount: 3 },
+    });
+    expect(validateReadingV2Draft(result.document).blockingIssues).toEqual([]);
+  });
 });

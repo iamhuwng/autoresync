@@ -32,6 +32,8 @@ export interface AIQuestion {
   optionLabelFormat?: ReadingOptionLabelFormat | null;
   sectionReferences?: ReadingSectionReference[] | null;
   answer: string | string[];
+  /** Structured Studio-ready variants returned by answer-key interpretation. */
+  acceptedAnswers?: string[];
   passageId?: string | null;
   confidence: number;
 

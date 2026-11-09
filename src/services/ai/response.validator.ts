@@ -83,6 +83,7 @@ const AIQuestionSchema = z.object({
   sectionReferences: z.array(ReadingSectionReferenceSchema).nullable().optional(),
   summaryGroupId: z.string().optional(),
   answer: z.union([z.string(), z.array(z.string())]),
+  acceptedAnswers: z.array(z.string()).optional(),
   passageId: z.string().nullable().optional(),
   confidence: z.number().min(0).max(100).optional().default(0),
   sectionInstruction: z.string().nullable().optional(),

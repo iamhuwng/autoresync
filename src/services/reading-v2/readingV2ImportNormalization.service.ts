@@ -785,6 +785,41 @@ const normalizeAnswersForResponseShape = (
   return normalized;
 };
 
+const groupedMultipleSelectAnswerValues = (
+  answers: readonly string[],
+  optionLabels: readonly string[],
+): readonly string[] => {
+  const labelsByKey = new Map(optionLabels.map((label) => [label.trim().toLowerCase(), label.trim()]));
+
+  return uniqueAnswerVariants(answers.flatMap((answer) => {
+    const cleaned = canonicalAnswerText(answer);
+    const parts = cleaned.split(/\s*(?:\/|,|\bor\b)\s*/i).filter(Boolean);
+    if (parts.length <= 1) {
+      return [labelsByKey.get(cleaned.toLowerCase()) ?? cleaned];
+    }
+
+    const normalizedParts = parts.map((part) => labelsByKey.get(part.toLowerCase()));
+    return normalizedParts.every((part): part is string => Boolean(part))
+      ? normalizedParts
+      : [cleaned];
+  }));
+};
+
+const groupedMultipleSelectOptionLabels = (
+  instruction: StructuredSectionInstruction | undefined,
+  questions: readonly StructuredReadingQuestion[],
+  taskType: ReadingV2CanonicalTaskType,
+): readonly string[] => {
+  const explicitLabels = [
+    ...(instruction?.labeledOptions ?? []).map((option) => option.label ?? ''),
+    ...questions.flatMap((question) => (question.labeledOptions ?? []).map((option) => option.label ?? '')),
+  ];
+
+  return uniqueAnswerVariants(explicitLabels.length > 0
+    ? explicitLabels
+    : defaultOptionLabelsForTaskType(taskType, instruction));
+};
+
 const instructionSourceExcerpt = (text: string | undefined): string | undefined => {
   const cleaned = cleanMarkdown(text ?? '');
   if (!cleaned) {
@@ -1022,6 +1057,7 @@ interface StructuredReadingQuestion {
   readonly question?: string;
   readonly type?: string;
   readonly answer?: string | readonly string[];
+  readonly acceptedAnswers?: readonly string[];
   readonly wordLimit?: number;
   readonly wordLimitText?: string;
   readonly sectionInstructionId?: string;
@@ -1392,6 +1428,10 @@ const structuredMaterialPassageNumber = (
 };
 
 const structuredQuestionAnswers = (question: StructuredReadingQuestion): readonly string[] => {
+  if (Array.isArray(question.acceptedAnswers)) {
+    return question.acceptedAnswers.map((answer) => cleanMarkdown(String(answer))).filter(Boolean);
+  }
+
   if (Array.isArray(question.answer)) {
     return question.answer.map((answer) => cleanMarkdown(String(answer))).filter(Boolean);
   }
@@ -1405,6 +1445,9 @@ const structuredQuestionAnswers = (question: StructuredReadingQuestion): readonl
     .map(cleanMarkdown)
     .filter(Boolean);
 };
+
+const structuredQuestionUsesAcceptedAnswers = (question: StructuredReadingQuestion): boolean =>
+  Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length > 0;
 
 const wordLimitFromText = (text: string | undefined): number | undefined => {
   const normalized = cleanMarkdown(text ?? '').toLowerCase();
@@ -3160,10 +3203,16 @@ const normalizeStructuredReadingPayload = (
       }
 
       const groupMultiSelectAnswerValues = taskType === 'multiple-select'
-        ? Array.from(new Set((answerKeyRows.size > 0
-          ? Array.from({ length: end - start + 1 }, (_, offset) => answerKeyRows.get(start + offset) ?? []).flat()
-          : groupQuestions.flatMap(structuredQuestionAnswers))
-          .map((answer) => answer.trim()).filter(Boolean)))
+        ? groupedMultipleSelectAnswerValues(
+          Array.from({ length: end - start + 1 }, (_, offset) => {
+            const questionNumber = start + offset;
+            const question = groupQuestions.find((candidate) => structuredQuestionNumber(candidate) === questionNumber);
+            return question && structuredQuestionUsesAcceptedAnswers(question)
+              ? structuredQuestionAnswers(question)
+              : answerKeyRows.get(questionNumber) ?? (question ? structuredQuestionAnswers(question) : []);
+          }).flat(),
+          groupedMultipleSelectOptionLabels(instruction, groupQuestions, taskType),
+        )
         : [];
       const multiSelectQuestionNumbers = groupQuestions.map(structuredQuestionNumber);
       const multiSelectPrompts = new Set(groupQuestions
@@ -3215,9 +3264,9 @@ const normalizeStructuredReadingPayload = (
                 : interactionResponseShape.kind === 'multi-select'
                 && groupMultiSelectAnswerValues.length === interactionResponseShape.selectionLimit
                 ? groupMultiSelectAnswerValues
-                : answerKeyRows.size > 0
-                  ? answerKeyRows.get(questionNumber) ?? []
-                  : structuredQuestionAnswers(question),
+                : structuredQuestionUsesAcceptedAnswers(question)
+                  ? structuredQuestionAnswers(question)
+                  : answerKeyRows.get(questionNumber) ?? structuredQuestionAnswers(question),
               interactionResponseShape,
             ),
             orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
@@ -3626,6 +3675,12 @@ export const normalizeReadingV2ImportCandidate = (
       const blockPrompts = new Set(Object.values(prompts)
         .map((prompt) => prompt.replace(/\s+/g, ' ').trim().toLowerCase())
         .filter(Boolean));
+      const groupedAnswerValues = responseShape.kind === 'multi-select'
+        ? groupedMultipleSelectAnswerValues(
+          Array.from({ length: blockSlotCount }, (_, slot) => answerKeyRows.get(block.start + slot) ?? []).flat(),
+          groupedMultipleSelectOptionLabels(undefined, [], block.taskType),
+        )
+        : [];
       const combinesMultipleSelectSlots = responseShape.kind === 'multi-select'
         && blockSlotCount > 1
         && blockSlotCount === responseShape.selectionLimit
@@ -3648,7 +3703,7 @@ export const normalizeReadingV2ImportCandidate = (
             maxScore: combinesMultipleSelectSlots ? blockSlotCount : 1,
             acceptableAnswers: normalizeAnswersForResponseShape(
               combinesMultipleSelectSlots
-                ? Array.from(new Set(Array.from({ length: blockSlotCount }, (_, slot) => answerKeyRows.get(block.start + slot) ?? []).flat()))
+                ? groupedAnswerValues
                 : answerKeyRows.get(questionNumber) ?? [],
               responseShape,
             ),

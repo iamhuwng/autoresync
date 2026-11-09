@@ -20,6 +20,20 @@ const interactionFor = (acceptableAnswers: readonly string[]) => {
   };
 };
 
+const groupedMultiSelectInteraction = () => {
+  const interaction = Object.values(createReadingV2CanonicalFixture('multiple-select').interactions)[0];
+  if (!interaction || interaction.responseShape.kind !== 'multi-select') {
+    throw new Error('Expected a multiple-select fixture interaction.');
+  }
+
+  return {
+    ...interaction,
+    responseShape: { ...interaction.responseShape, selectionLimit: 3 as const },
+    scoringRule: { maxScore: 3, acceptableAnswers: ['A', 'B', 'C'], orderMatters: false },
+    reviewLabel: { displayNumber: 8, answerSlotCount: 3 },
+  };
+};
+
 describe('readingV2AnswerScoring', () => {
   it.each([
     ['1,000', '1000', 1],
@@ -32,5 +46,16 @@ describe('readingV2AnswerScoring', () => {
     ['A/B', 'AB', 0],
   ] as const)('scores %s against %s as %s', (expected, student, score) => {
     expect(scoreReadingV2Answer(student, interactionFor([expected])).score).toBe(score);
+  });
+
+  it.each([
+    [['A', 'B', 'C'], 3],
+    [['B', 'C', 'A'], 3],
+    [['C', 'A', 'B'], 3],
+    [['A', 'A', 'C'], 2],
+  ] as const)('scores grouped multiple-answer selections one-to-one', (student, score) => {
+    const result = scoreReadingV2Answer(student, groupedMultiSelectInteraction());
+    expect(result.score).toBe(score);
+    expect(result.answerSlotScores).toHaveLength(3);
   });
 });

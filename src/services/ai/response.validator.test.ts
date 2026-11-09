@@ -24,6 +24,7 @@ describe('Response Validator', () => {
             type: 'multiple-choice',
             options: ['A', 'B', 'C', 'D'],
             answer: 'A',
+            acceptedAnswers: ['A', 'a'],
             confidence: 95,
           },
         ],
