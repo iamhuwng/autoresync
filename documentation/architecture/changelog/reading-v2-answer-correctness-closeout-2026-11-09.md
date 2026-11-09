@@ -34,10 +34,18 @@ AI-supplied answer as scoring data when no source answer-key row existed.
 ## Release status
 
 The code is merged and verified, but no production deployment was performed.
-The fresh release assessment against the observed live Hosting revision
-`e865c34b2aa3394a5469cfcccabe68cffb103cc0` returned `BLOCKED` because current
-`main` contains broader unreleased Hosting, Firebase rules, Worker,
-backup-worker, migration, and historical reconciliation deltas. The guarded
-release process requires those surfaces to be qualified before deployment;
-this change must not be published as a Hosting-only release from the broader
-`main` delta.
+The first assessment supplied the stale base
+`e865c34b2aa3394a5469cfcccabe68cffb103cc0`; its live readback actually
+identified production revision
+`66d111a8753db036ccb71f763fbcbcc21dcaf301` (tree
+`ebea06139c225ae47ab742a052da3c17b285fadb`). That stale-base mismatch was
+corrected and is not a remaining product or release defect.
+
+The corrected assessment against `66d111a8…` independently read back the
+Hosting manifest and all listed assets, then returned `UNVERIFIED` for the
+genuine remaining obligations: Worker endpoint and compatibility evidence,
+Firebase rules and migration order, backup-worker provider evidence, and
+historical hotfix reconciliation. Current `main` contains those broader
+unqualified service deltas, so it must not be published as a Hosting-only
+release. The bounded verifier passed its correctness checks; production
+speedup has not been established by this assessment.
