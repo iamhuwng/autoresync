@@ -8,6 +8,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-09 | [`CL-20261109-HOSTING-VERIFIER-OPTIMIZATION`](changelog/hosting-verifier-optimization-2026-11-09.md) | Hosting Release Safety | Fixed | Bound Hosting asset readback, stopped queued work after failure, classified permanent failures ahead of retryable ones, and preserved complete source/hash verification; source integration only, not deployed. |
 | 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
 | 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-FORMAT-NORMALIZATION`](changelog/reading-v2-answer-format-normalization-2026-11-09.md) | Reading V2 / Auto V4 | Fixed | Normalize AI and raw answer keys into Studio accepted-answer pools, including one-to-one grouped multiple-answer scoring while preserving literal slash answers. |
 | 2026-11-09 | [`CL-20261109-LEGACY-READING-REMOVAL`](changelog/legacy-reading-removal-2026-11-09.md) | Reading V1 retirement | Removed | Removed the retired Reading V1 runtime, authoring/parser stack, routes, scripts, tests, and obsolete documentation while preserving Reading V2 contracts and results. |

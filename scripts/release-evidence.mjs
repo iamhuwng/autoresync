@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 const origin = 'https://kahut1.web.app';
 const manifestPath = '/.well-known/luyentap-release.json';
+const defaultReadConcurrency = 8;
+const defaultReadAttempts = 3;
+const defaultRetryDelayMs = 250;
+const retryableHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const observations = new WeakSet();
 export const isObserved = value => observations.has(value);
@@ -39,26 +43,62 @@ export function observeHostingProvider({ exec = spawnSync } = {}) {
   return observation;
 }
 
-// Only fixed production HTTPS resources are read; supplied JSON never enters this trust boundary.
-export async function observeHosting({ fetchImpl = fetch, originOverride, expectedEnvironment = 'production' } = {}) {
-  const effectiveOrigin = originOverride || origin;
-  if (!['production', 'acceptance'].includes(expectedEnvironment)) throw new Error('Invalid Hosting evidence environment.');
-  if (originOverride) {
-    const parsed = new URL(originOverride);
-    if (expectedEnvironment !== 'acceptance' || parsed.protocol !== 'http:' || parsed.hostname !== 'localhost') {
-      throw new Error('Hosting origin override is restricted to localhost acceptance evidence.');
+const transientReadError = (message, cause) => {
+  const error = new Error(message, cause ? { cause } : undefined);
+  error.retryable = true;
+  return error;
+};
+
+const readConcurrent = async (items, limit, read) => {
+  let next = 0, stopped = false;
+  const failures = [];
+  const worker = async () => {
+    while (!stopped) {
+      const index = next++;
+      if (index >= items.length) return;
+      try {
+        await read(items[index]);
+      } catch (error) {
+        failures.push({ index, error });
+        stopped = true;
+        return;
+      }
     }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failures.length) {
+    failures.sort((left, right) => left.index - right.index);
+    throw (failures.find(failure => !failure.error?.retryable) || failures[0]).error;
   }
+};
+
+const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvironment, readConcurrency }) => {
   const get = async pathname => {
-    const response = await fetchImpl(`${effectiveOrigin}${pathname}`, { method: 'GET', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000) });
-    if (!response.ok || (response.url && new URL(response.url).origin !== effectiveOrigin)) throw new Error('Hosting readback unavailable or resource identity mismatch.');
-    const bytes = Buffer.from(await response.arrayBuffer());
+    let response;
+    try {
+      response = await fetchImpl(`${effectiveOrigin}${pathname}`, { method: 'GET', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      throw transientReadError(`Hosting readback unavailable: ${error.message}`, error);
+    }
+    if (!response.ok) {
+      const message = `Hosting readback unavailable (HTTP ${response.status}).`;
+      throw retryableHttpStatuses.has(response.status) ? transientReadError(message) : new Error(message);
+    }
+    if (response.url && new URL(response.url).origin !== effectiveOrigin) throw new Error('Hosting readback unavailable or resource identity mismatch.');
+    let bytes;
+    try {
+      bytes = Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      throw transientReadError(`Hosting response body read failed: ${error.message}`, error);
+    }
     if (bytes.length > 32 * 1024 * 1024) throw new Error('Hosting evidence exceeds size limit.');
     return bytes;
   };
+
+  const manifestBytes = await get(manifestPath);
   let manifest;
   try {
-    manifest = JSON.parse((await get(manifestPath)).toString('utf8'));
+    manifest = JSON.parse(manifestBytes.toString('utf8'));
   } catch {
     throw new Error('Invalid production Hosting manifest: response is not JSON.');
   }
@@ -66,11 +106,40 @@ export async function observeHosting({ fetchImpl = fetch, originOverride, expect
   if (!manifest.files.some(file => file.path === '/index.html')) throw new Error('Hosting evidence lacks index.html.');
   for (const file of manifest.files) {
     if (!/^\/[a-zA-Z0-9_./-]+$/u.test(file.path) || file.path.includes('..') || !/^[a-f0-9]{64}$/u.test(file.sha256 || '')) throw new Error('Unsafe Hosting evidence path or hash.');
-    if (hash(await get(file.path)) !== file.sha256) throw new Error(`Hosting content drift: ${file.path}`);
   }
-  const observation = Object.freeze({ service: 'hosting', identity: 'temp-a1437/kahut1', revision: manifest.revision, tree: manifest.tree, fingerprint: hash(JSON.stringify(manifest)), evidenceRef: `${effectiveOrigin}${manifestPath}`, observedAt: new Date().toISOString(), compatibility: manifest.compatibility || {}, manifest });
-  observations.add(observation);
-  return observation;
+  await readConcurrent(manifest.files, readConcurrency, async file => {
+    if (hash(await get(file.path)) !== file.sha256) throw transientReadError(`Hosting content drift: ${file.path}`);
+  });
+  return Object.freeze({ service: 'hosting', identity: 'temp-a1437/kahut1', revision: manifest.revision, tree: manifest.tree, fingerprint: hash(JSON.stringify(manifest)), evidenceRef: `${effectiveOrigin}${manifestPath}`, observedAt: new Date().toISOString(), compatibility: manifest.compatibility || {}, manifest });
+};
+
+// Only fixed production HTTPS resources are read; supplied JSON never enters this trust boundary.
+export async function observeHosting({ fetchImpl = fetch, originOverride, expectedEnvironment = 'production', readConcurrency = defaultReadConcurrency, maxAttempts = defaultReadAttempts, retryDelayMs = defaultRetryDelayMs } = {}) {
+  const effectiveOrigin = originOverride || origin;
+  if (!['production', 'acceptance'].includes(expectedEnvironment)) throw new Error('Invalid Hosting evidence environment.');
+  if (!Number.isInteger(readConcurrency) || readConcurrency < 1) throw new Error('Hosting read concurrency must be a positive integer.');
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error('Hosting read attempts must be a positive integer.');
+  if (!Number.isFinite(retryDelayMs) || retryDelayMs < 0) throw new Error('Hosting retry delay must be a non-negative number.');
+  if (originOverride) {
+    const parsed = new URL(originOverride);
+    if (expectedEnvironment !== 'acceptance' || parsed.protocol !== 'http:' || parsed.hostname !== 'localhost') {
+      throw new Error('Hosting origin override is restricted to localhost acceptance evidence.');
+    }
+  }
+  // A deployment can change the manifest and assets between reads; retry the complete snapshot.
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const observation = await observeHostingAttempt({ fetchImpl, effectiveOrigin, expectedEnvironment, readConcurrency });
+      observations.add(observation);
+      return observation;
+    } catch (error) {
+      lastError = error;
+      if (!error?.retryable || attempt === maxAttempts) throw error;
+      if (retryDelayMs) await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+    }
+  }
+  throw lastError;
 }
 
 export async function writeHostingManifest({ cwd, envFingerprint, environment = 'production', hotfixes = [] }) {
