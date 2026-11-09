@@ -50,16 +50,26 @@ const transientReadError = (message, cause) => {
 };
 
 const readConcurrent = async (items, limit, read) => {
-  let next = 0;
+  let next = 0, stopped = false;
+  const failures = [];
   const worker = async () => {
-    while (next < items.length) {
+    while (!stopped) {
       const index = next++;
-      await read(items[index]);
+      if (index >= items.length) return;
+      try {
+        await read(items[index]);
+      } catch (error) {
+        failures.push({ index, error });
+        stopped = true;
+        return;
+      }
     }
   };
-  const outcomes = await Promise.allSettled(Array.from({ length: Math.min(limit, items.length) }, worker));
-  const failure = outcomes.find(outcome => outcome.status === 'rejected');
-  if (failure) throw failure.reason;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failures.length) {
+    failures.sort((left, right) => left.index - right.index);
+    throw (failures.find(failure => !failure.error?.retryable) || failures[0]).error;
+  }
 };
 
 const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvironment, readConcurrency }) => {

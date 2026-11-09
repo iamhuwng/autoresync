@@ -161,6 +161,41 @@ test('Hosting retries wait for the failed read batch before starting another bat
   assert.equal(attempt, 2);
   assert.ok(maxInFlight <= 8, `asset read concurrency exceeded the configured bound: ${maxInFlight}`);
 });
+test('Hosting stops assigning queued files after an early permanent failure', async () => {
+  const contentHash = crypto.createHash('sha256').update('asset').digest('hex');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: contentHash }, ...Array.from({ length: 119 }, (_, index) => ({ path: `/asset-${index}.js`, sha256: contentHash }))] };
+  let assetRequests = 0, manifestReads = 0;
+  await assert.rejects(() => observeHosting({ readConcurrency: 8, maxAttempts: 3, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      manifestReads += 1;
+      return { ok: true, url, arrayBuffer: async () => Buffer.from(JSON.stringify(manifest)) };
+    }
+    assetRequests += 1;
+    if (url.endsWith('/index.html')) return { ok: false, status: 404, url, arrayBuffer: async () => Buffer.alloc(0) };
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return { ok: true, url, arrayBuffer: async () => Buffer.from('asset') };
+  } }), /HTTP 404/u);
+  assert.equal(manifestReads, 1);
+  assert.ok(assetRequests <= 8, `queued asset work continued after failure: ${assetRequests}`);
+});
+test('Hosting prefers a permanent failure when retryable and permanent reads fail together', async () => {
+  const contentHash = crypto.createHash('sha256').update('good').digest('hex');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: contentHash }, { path: '/asset-0.js', sha256: contentHash }, ...Array.from({ length: 118 }, (_, index) => ({ path: `/asset-${index + 1}.js`, sha256: contentHash }))] };
+  let assetRequests = 0, manifestReads = 0;
+  await assert.rejects(() => observeHosting({ readConcurrency: 8, maxAttempts: 3, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      manifestReads += 1;
+      return { ok: true, url, arrayBuffer: async () => Buffer.from(JSON.stringify(manifest)) };
+    }
+    assetRequests += 1;
+    if (url.endsWith('/asset-0.js')) return { ok: false, status: 404, url, arrayBuffer: async () => Buffer.alloc(0) };
+    if (url.endsWith('/index.html')) await new Promise(resolve => setTimeout(resolve, 10));
+    else await new Promise(resolve => setTimeout(resolve, 20));
+    return { ok: true, url, arrayBuffer: async () => Buffer.from(url.endsWith('/index.html') ? 'bad' : 'good') };
+  } }), /HTTP 404/u);
+  assert.equal(manifestReads, 1);
+  assert.ok(assetRequests <= 8, `queued asset work continued after simultaneous failures: ${assetRequests}`);
+});
 test('Hosting retries a transient response-body read but not a permanent HTTP error', async () => {
   const bodyHash = crypto.createHash('sha256').update('asset').digest('hex');
   const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: bodyHash }] };
