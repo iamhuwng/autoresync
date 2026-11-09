@@ -66,24 +66,13 @@ export interface StudentSoloPreferences {
     audioSpeed: number;      // default 1.0
 }
 
-/**
- * Persisted mobile Reading shell state.
- * Must remain JSON-safe because it is stored in RTDB/local storage.
- *
- * The `kind` discriminant was added for the Reading/Listening union.
- * Legacy payloads without `kind` are treated as Reading by hydration helpers.
- */
-export interface ReadingSavedMobileState {
-    kind: 'reading';
-    activePassageId?: string;
-    questionSheetOpen: boolean;
-    reviewSummaryOpen: boolean;
-    /** Legacy field kept optional so older persisted payloads still hydrate safely. */
-    flaggedQuestions?: number[];
-    passageScrollByPassage: Record<string, number>;
-    activeQuestionGroupByPassage: Record<string, number>;
-    questionSheetScrollByPassage: Record<string, number>;
-    textSize?: number;
+export interface PracticeContext {
+    type: 'course_material' | 'self_study' | 'homework';
+    courseId?: string;
+    moduleId?: string;
+    courseName?: string;
+    homeworkId?: string;
+    submissionId?: string;
 }
 
 /**
@@ -119,14 +108,7 @@ export interface ListeningSavedMobileState {
     };
 }
 
-/**
- * Discriminated union of all mobile shell states.
- *
- * Legacy payloads (before the `kind` discriminant existed) lack a `kind` field.
- * Hydration helpers in `mobileReadingState.ts` and `mobileListeningState.ts`
- * handle the legacy case by treating missing `kind` as Reading.
- */
-export type SavedMobileState = ReadingSavedMobileState | ListeningSavedMobileState;
+export type SavedMobileState = ListeningSavedMobileState;
 
 export interface SoloProgressScopeContext {
     mode: 'self_study' | 'course_material' | 'homework';

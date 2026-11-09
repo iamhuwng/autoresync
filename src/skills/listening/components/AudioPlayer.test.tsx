@@ -197,7 +197,16 @@ describe('AudioPlayer', () => {
     const onPlayPause = vi.fn();
     const { container } = render(<AudioPlayer audioUrl="https://cdn.example.com/audio.mp3" sectionNumber={1}
       isPlaying={false} volume={1} playbackSpeed={1} onPlayPause={onPlayPause} onTimeUpdate={() => {}}
-      onSectionComplete={() => {}} onError={() => {}} allowPause={false} allowReplay maxReplays={1} />);
+      onSectionComplete={() => {}} onError={() => {}}
+      audioControls={{
+        showPlayPause: false,
+        showProgressBar: true,
+        showSeekControl: false,
+        showSpeedControl: false,
+        showSkipSection: false,
+        showVolumeControl: true,
+      }}
+      allowReplay maxReplays={1} />);
     await screen.findByRole('slider', { name: 'Audio progress' });
     const audio = container.querySelector('audio')!;
     Object.defineProperty(audio, 'duration', { configurable: true, value: 6 });

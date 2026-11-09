@@ -201,4 +201,4 @@ Useful overflow assertion:
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
 - `documentation/architecture/student-dashboard-architecture.md`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`

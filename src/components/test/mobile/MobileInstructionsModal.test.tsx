@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MobileInstructionsModal } from './MobileInstructionsModal';
-import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
+import { MOBILE_LAYER_Z_INDEX } from './mobileLayering';
 
 describe('MobileInstructionsModal', () => {
   it('renders live-mode rules and controls help when opened', () => {
@@ -70,7 +70,7 @@ describe('MobileInstructionsModal', () => {
     );
 
     expect(screen.getByTestId('mobile-instructions-modal')).toHaveStyle({
-      zIndex: String(MOBILE_READING_LAYER_Z_INDEX.UTILITY_MODAL),
+      zIndex: String(MOBILE_LAYER_Z_INDEX.UTILITY_MODAL),
     });
   });
 });

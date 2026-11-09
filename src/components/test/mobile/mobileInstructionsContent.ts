@@ -9,7 +9,7 @@
  * @see PRD-0043 Tasks 2A.1, 8.3
  */
 
-import type { PracticeContext } from '../../practice/IELTSPracticeView';
+import type { PracticeContext } from '../../../types/practice.types';
 import type { ResolvedPracticeSettings } from '../../../types/practice.types';
 
 export type ExamMode = 'live' | 'solo' | 'homework';

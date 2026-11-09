@@ -20,12 +20,12 @@ vi.mock('../services/firebase', () => ({
 }));
 
 const sampleMobileState: SavedMobileState = {
-  activePassageId: 'p2',
-  questionSheetOpen: true,
-  reviewSummaryOpen: false,
-  passageScrollByPassage: { p1: 120, p2: 280 },
-  activeQuestionGroupByPassage: { p2: 7 },
-  questionSheetScrollByPassage: { p2: 96 },
+  kind: 'listening',
+  version: 1,
+  viewedPartNumber: 2,
+  currentQuestionNumber: 7,
+  answerSheetScrollByPart: { '1': 120, '2': 280 },
+  imageZoomByPart: {},
   textSize: 18,
 };
 
@@ -105,9 +105,7 @@ describe('useTestAutoSave', () => {
       answers: { 5: 'G' },
       mobileState: {
         ...sampleMobileState,
-        passageScrollByPassage: { ...sampleMobileState.passageScrollByPassage },
-        activeQuestionGroupByPassage: { ...sampleMobileState.activeQuestionGroupByPassage },
-        questionSheetScrollByPassage: { ...sampleMobileState.questionSheetScrollByPassage },
+        answerSheetScrollByPart: { ...sampleMobileState.answerSheetScrollByPart },
       },
     });
 

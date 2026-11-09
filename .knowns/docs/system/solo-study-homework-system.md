@@ -334,16 +334,6 @@ Current guardrails:
 - single-attempt homework must auto-resume saved progress and must not offer restart
 - timer expiry in homework mode must auto-submit the homework attempt
 
-## 2026-04-02 Amendment - Reading Highlight Delivery Contract
-
-For Reading solo practice and homework surfaces:
-- shared highlight behavior is owned by `src/skills/reading/components/PassageRenderer.tsx`
-- `src/components/PassageRenderer_v2.jsx` is wrapper-only compatibility code
-- new solo preference records default the highlighter off (`highlighterEnabled: false`)
-- highlight selections must map back to full passage source offsets so cross-paragraph selections persist correctly
-
-See @doc/architecture/reading-passage-highlighting-architecture.
-
 ## 2026-04-09 Amendment — Mobile IELTS Reading Homework Launch Integrity
 
 Shared homework-to-practice route handoff rules for mobile IELTS Reading:
@@ -352,5 +342,5 @@ Shared homework-to-practice route handoff rules for mobile IELTS Reading:
 - resumed mobile Reading homework must restore the canonical timed/attempt-limited state instead of falling back to untimed solo defaults
 
 Related architecture:
-- @doc/architecture/mobile-ielts-reading-test-taking
+- @doc/architecture/reading-v2-runtime-integrations
 - @doc/architecture/homework-solo-practice-architecture

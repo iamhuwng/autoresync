@@ -103,8 +103,9 @@ export async function submitListeningLiveTest(input: {
     throw new Error('The Listening test has no verified published version. Ask the teacher to restart it.');
   }
   return submitListeningTest({
+    ...input,
     mode: 'live', testId: input.testId, versionId: pin.versionId,
     operationId: `live__${pin.runId}__${input.studentId ?? getAuth().currentUser?.uid ?? ''}`,
-    ...input, answers: input.answers ?? {},
+    answers: input.answers ?? {},
   });
 }

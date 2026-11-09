@@ -588,4 +588,4 @@ Updated solo Reading contract:
 - Reading highlight selections must resolve against full passage source offsets, not per-paragraph DOM offsets
 - a selection may begin in one rendered paragraph and end in the next paragraph without corrupting the saved highlight
 
-Implementation reference: @doc/architecture/reading-passage-highlighting-architecture.
+Reading V2 runtime reference: @doc/architecture/reading-v2-runtime-integrations.

@@ -249,7 +249,7 @@ interface PracticeSettings {
 | FR-23 | Modal displays available settings based on test skill (Reading vs Listening) |
 | FR-24 | Settings locked by teacher are greyed out with tooltip "Set by teacher". The modal receives `resolvedPracticeSettings` as a prop to determine which fields are teacher-locked (any field where the resolved value differs from `'default'` and was set at course/module/material level by teacher). |
 | FR-25 | Student settings persist in `localStorage` under key `solo_student_prefs_{studentId}` |
-| FR-25a | Reading highlights must resolve against full passage source offsets so a selection can start in one rendered paragraph and end in the next without corruption. See `documentation/architecture/reading-passage-highlighting-architecture.md`. |
+| FR-25a | Reading highlights must resolve against full passage source offsets so a selection can start in one rendered paragraph and end in the next without corruption. See `documentation/architecture/reading-v2-runtime-integrations.md`. |
 
 **Reading test student settings:**
 

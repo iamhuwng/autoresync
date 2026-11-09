@@ -1400,6 +1400,17 @@ const TeacherLobbyPage = () => {
       return;
     }
 
+    if (test?.testType !== 'IELTS' || String(test?.skill || '').toLowerCase() !== 'listening') {
+      trackAction('editTest', {
+        source: 'teacher_lobby_test_card',
+        skill: String(test?.skill || '').toLowerCase() || null,
+        testId: test?.id || null,
+        outcome: 'retired_material_blocked',
+      });
+      toast.warning('This Reading material uses the retired editor. Open it from Reading V2.');
+      return;
+    }
+
     trackAction('editTest', {
       source: 'teacher_lobby_test_card',
       skill: String(test?.skill || '').toLowerCase() || null,
@@ -3647,10 +3658,6 @@ const TeacherLobbyPage = () => {
             <TestCreationModal
               opened={modals.state.testCreation.show}
               onClose={handleCloseTestCreation}
-              onComplete={(draftId) => {
-                handleCloseTestCreation();
-                navigateTo('TEACHER_TEST_REVIEW', { draftId }, { reason: 'teacher_lobby_open_test_review' });
-              }}
               onAction={(actionName, metadata) => trackAction(actionName, metadata)}
               onCreateReadingV2FromExistingPassages={handleStartReadingV2ExistingPassages}
               readingV2AutoPipelineLane={readingV2AutoPipelineLane}

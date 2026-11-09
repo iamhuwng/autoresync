@@ -44,9 +44,7 @@ interface UseTestAutoSaveOptions {
    */
   answers: StudentAnswers;
 
-  /**
-   * Optional mobile Reading shell state to persist alongside answers.
-   */
+  /** Optional mobile Listening shell state to persist alongside answers. */
   mobileState?: SavedMobileState;
   
   /**
@@ -91,16 +89,14 @@ export const useTestAutoSave = ({
   const mobileStateRef = useRef<SavedMobileState | undefined>(mobileState);
 
   const scrollStateString = JSON.stringify({
-    passageScrollByPassage: mobileState?.passageScrollByPassage ?? {},
-    questionSheetScrollByPassage: mobileState?.questionSheetScrollByPassage ?? {},
+    answerSheetScrollByPart: mobileState?.answerSheetScrollByPart ?? {},
   });
 
   const mobileStateWithoutScrollString = JSON.stringify(
     mobileState
       ? {
         ...mobileState,
-        passageScrollByPassage: {},
-        questionSheetScrollByPassage: {},
+        answerSheetScrollByPart: {},
       }
       : null,
   );

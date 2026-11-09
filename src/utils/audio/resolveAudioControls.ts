@@ -10,7 +10,7 @@
  * @see PRD-0018: Unified Audio Architecture - Task 10.3
  */
 
-import type { AudioControlsConfig } from '../../services/listeningTestStorage';
+import type { AudioControlsConfig } from '../../types/listening.types';
 
 // ============================================================
 // TYPES

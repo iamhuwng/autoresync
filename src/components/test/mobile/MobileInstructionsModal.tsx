@@ -1,7 +1,7 @@
 import React from 'react';
-import type { PracticeContext } from '../../practice/IELTSPracticeView';
+import type { PracticeContext } from '../../../types/practice.types';
 import type { ResolvedPracticeSettings } from '../../../types/practice.types';
-import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
+import { MOBILE_LAYER_Z_INDEX } from './mobileLayering';
 import { getMobileInstructionsContent, type ExamMode } from './mobileInstructionsContent';
 
 export interface MobileInstructionsModalProps {
@@ -15,7 +15,7 @@ export interface MobileInstructionsModalProps {
 const backdropStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
-  zIndex: MOBILE_READING_LAYER_Z_INDEX.UTILITY_MODAL,
+  zIndex: MOBILE_LAYER_Z_INDEX.UTILITY_MODAL,
   background: 'rgba(15, 23, 42, 0.52)',
   display: 'flex',
   alignItems: 'center',

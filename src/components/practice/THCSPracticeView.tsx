@@ -62,7 +62,7 @@ import { buildThcsPracticePersistenceContext } from './thcsPracticeResultContext
 import { studentResumeService } from '../../services/studentResume.service';
 
 import type { THCSTest } from '../../types/thcs-test.types';
-import type { PracticeContext } from './IELTSPracticeView';
+import type { PracticeContext } from '../../types/practice.types';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 

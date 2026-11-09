@@ -26,13 +26,12 @@ vi.mock('@/core/platform/storage', () => ({
 }));
 
 const sampleMobileState: SavedMobileState = {
-  kind: 'reading',
-  activePassageId: 'p1',
-  questionSheetOpen: true,
-  reviewSummaryOpen: false,
-  passageScrollByPassage: { p1: 140 },
-  activeQuestionGroupByPassage: { p1: 3 },
-  questionSheetScrollByPassage: { p1: 90 },
+  kind: 'listening',
+  version: 1,
+  viewedPartNumber: 1,
+  currentQuestionNumber: 3,
+  answerSheetScrollByPart: { '1': 140 },
+  imageZoomByPart: {},
   textSize: 17,
 };
 

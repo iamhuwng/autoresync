@@ -2,11 +2,12 @@
 
 This audit records the intended V1 Reading test-taking behavior before the V2 runtime is corrected. It uses recent product documentation plus the live V1 implementation as evidence.
 
+> Retired V1 implementation files were removed. This audit preserves behavior evidence for the Reading V2 runtime only; it is not a pointer to a supported V1 path.
+
 Source documents consulted:
 
-- `documentation/tasks/0043-prd-mobile-ielts-reading-test-taking-interface.md`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
-- `documentation/architecture/reading-passage-highlighting-architecture.md`
+- `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/tasks/0048-prd-reading-v2-studio-and-runtime.md`
 - `documentation/tasks/PRD0048/reading-v2-student-runtime-v1-parity-contract.md`
 - `documentation/tasks/PRD0048/reading-v2-page-schema-student-runtime-desktop-tablet.md`

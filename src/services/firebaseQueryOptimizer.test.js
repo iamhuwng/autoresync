@@ -135,7 +135,7 @@ describe('firebaseQueryOptimizer', () => {
     expect(getMock).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'tests', constraints: undefined }));
   });
 
-  it('marks owned legacy IELTS Reading and Listening tests ready when student-safe payloads exist', async () => {
+  it('marks owned legacy IELTS Listening tests ready when student-safe payloads exist', async () => {
     const ownedIeltsRows = {
       'ielts-reading-safe': {
         id: 'ielts-reading-safe',
@@ -203,16 +203,6 @@ describe('firebaseQueryOptimizer', () => {
 
     const rows = await queryOptimizer.getTeacherOwnedTests('teacher-1', true);
 
-    expect(rows.find((row) => row.id === 'ielts-reading-safe')).toMatchObject({
-      deliveryProjectionReady: true,
-      hasStudentSafeProjection: true,
-      studentSafeProjectionReady: true,
-      metadata: {
-        deliveryProjectionReady: true,
-        hasStudentSafeProjection: true,
-        studentSafeProjectionReady: true,
-      },
-    });
     expect(rows.find((row) => row.id === 'ielts-listening-safe')).toMatchObject({
       deliveryProjectionReady: true,
       hasStudentSafeProjection: true,
@@ -226,7 +216,7 @@ describe('firebaseQueryOptimizer', () => {
     expect(getMock).not.toHaveBeenCalledWith({ path: 'student_safe_tests/ielts-writing' });
   });
 
-  it('marks thin owned legacy Reading and Listening rows ready when student-safe payloads exist', async () => {
+  it('marks thin owned legacy Listening rows ready when student-safe payloads exist', async () => {
     const ownedRows = {
       'reading-thin-safe': {
         id: 'reading-thin-safe',
@@ -275,11 +265,6 @@ describe('firebaseQueryOptimizer', () => {
 
     const rows = await queryOptimizer.getTeacherOwnedTests('teacher-1', true);
 
-    expect(rows.find((row) => row.id === 'reading-thin-safe')).toMatchObject({
-      deliveryProjectionReady: true,
-      hasStudentSafeProjection: true,
-      studentSafeProjectionReady: true,
-    });
     expect(rows.find((row) => row.id === 'listening-thin-safe')).toMatchObject({
       deliveryProjectionReady: true,
       hasStudentSafeProjection: true,

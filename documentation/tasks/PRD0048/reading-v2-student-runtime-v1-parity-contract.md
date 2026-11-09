@@ -1,5 +1,7 @@
 # Reading V2 Student Runtime V1 UI Parity Contract
 
+> Retired V1 implementation files were removed. This V2 parity contract preserves behavior evidence only; it is not a pointer to a supported V1 path.
+
 This document is part of the PRD-0048 source-of-truth packet.
 
 Authoritative companion docs:
@@ -47,7 +49,7 @@ Phone reference files:
 - `src/components/test/mobile/MobileQuestionSheet.tsx`
 - `src/components/test/mobile/MobileReviewSummary.tsx`
 - `src/core/platform/hooks/useMobileExamMode.ts`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 
 Use these files to observe layout, interaction shape, density, and navigation behavior. Do not reuse their legacy Reading schema or heuristic grouped-task reconstruction as V2 architecture.
 

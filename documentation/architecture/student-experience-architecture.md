@@ -179,7 +179,7 @@ Some student routes intentionally bypass `StudentLayout` and own their own stand
 
 Required rules:
 - IELTS Reading live-test and practice routes are standalone student-facing pages and must not inherit shell rail chrome
-- when those routes classify as phone Reading, they must hand off to the shared mobile Reading scaffold contract documented in `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- when those routes classify as phone Reading, they must hand off to the shared mobile Reading scaffold contract documented in `documentation/architecture/reading-v2-runtime-integrations.md`
 - student shell entry points such as Library and Homework remain responsible for passing launch context intact into those standalone test routes
 - standalone non-live Reading V2 delivery must provide an explicit close/exit affordance that returns the student to the owning shell surface, because browser-history-only escape is not an acceptable student contract
 
@@ -191,5 +191,5 @@ Required rules:
 - `documentation/architecture/student-shell-right-rail-architecture.md`
 - `documentation/architecture/student-shell-data-loading.md`
 - `documentation/architecture/browser-document-title-architecture.md`
-- `documentation/architecture/mobile-ielts-reading-test-taking-architecture.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/rules/student-data-loading.md`

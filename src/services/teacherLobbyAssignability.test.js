@@ -37,7 +37,7 @@ describe('teacherLobbyAssignability', () => {
     [
       'IELTS Reading',
       { ...publishedBase, id: 'ielts-reading-1', skill: 'Reading', deliveryProjectionReady: true },
-      { contentKind: 'ielts_reading', contentId: 'ielts-reading-1', flow: 'standard' },
+      { contentKind: 'ielts_reading', contentId: 'ielts-reading-1', reasonCode: HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE },
     ],
     [
       'IELTS Listening',
@@ -62,11 +62,15 @@ describe('teacherLobbyAssignability', () => {
       },
       { contentKind: 'ielts_reading', contentId: 'reading-v2-full-1', version: 'snapshot-1', flow: 'standard' },
     ],
-  ])('returns assignable metadata for %s', (_label, item, expected) => {
+  ])('returns expected metadata for %s', (_label, item, expected) => {
     const family = expected.family || 'test';
     const result = resolveTeacherLobbyAssignability(item, { family });
 
-    expect(result.assignable).toBe(true);
+    expect(result.assignable).toBe(expected.reasonCode ? false : true);
+    if (expected.reasonCode) {
+      expect(result.reasonCode).toBe(expected.reasonCode);
+      return;
+    }
     expect(result.flow).toBe(expected.flow);
     expect(result.contentRef).toMatchObject({
       contentKind: expected.contentKind,

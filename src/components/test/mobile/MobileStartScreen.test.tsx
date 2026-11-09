@@ -203,7 +203,7 @@ describe('MobileStartScreen — Start button', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('MobileStartScreen — No desktop chrome', () => {
-  it('does not render TestHeader or ReadingHeader', () => {
+  it('does not render TestHeader', () => {
     render(<MobileStartScreen {...baseProps} mode="solo" />);
     // These test IDs are used by the desktop header components
     expect(screen.queryByTestId('test-header')).toBeNull();

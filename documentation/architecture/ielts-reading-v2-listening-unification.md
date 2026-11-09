@@ -321,5 +321,5 @@ Current verification anchors:
 - `documentation/architecture/mobile-ielts-listening-audio-navigation.md`
 - `documentation/rules/mobile-ielts-listening-runtime-diagnostics.md`
 - `documentation/architecture/reading-v2-studio-review-issues-contract.md`
-- `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+- `documentation/architecture/reading-v2-runtime-integrations.md`
 - `documentation/architecture/ui-design-standards.md`

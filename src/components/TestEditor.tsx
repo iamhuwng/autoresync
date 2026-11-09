@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { EditorTab } from './test/editor/EditTestFrame';
-import { ReadingEditorLayout } from './test/editor/layouts/ReadingEditorLayout';
 import { ListeningEditorLayout } from './test/editor/layouts/ListeningEditorLayout';
-import { isReadingV2Payload } from '../config/readingV2FeatureFlags';
 
 // @ts-ignore
 import QuestionEditorPanel from './QuestionEditorPanel';
@@ -16,26 +14,19 @@ import MassAnswerImportPanel from './MassAnswerImportPanel';
 
 import r2StorageService from '../services/r2Storage';
 import { toast } from './modern/ToastNotification';
-import { propagateTestMetadataToHomework } from '../services/homeworkManager';
 
 import { QuestionList } from './test/editor/QuestionList';
-import { database } from '../services/firebase';
-import { ref, update } from 'firebase/database';
 import { Button } from './modern';
 import type { TestData, ContextResource } from '../services/testStorage';
 import { ResourceManager } from './test/editor/ResourceManager';
-import { adaptTestToResources, adaptResourcesToTest, linkQuestionsToResources } from './test/editor/resourceAdapters';
-import { getGroupQuestions } from '../utils/summaryGroupUtils';
+import { adaptTestToResources, linkQuestionsToResources } from './test/editor/resourceAdapters';
 import { useAuth } from '../hooks/useAuth';
 import { PracticeSettingsModal } from './PracticeSettingsModal';
-import { createLegacyTestMaterialSummary } from '../services/materialCatalog/legacyTestMaterialSummary.service';
-import { buildMaterialSummaryUpdatePayload } from '../services/materialCatalog/materialSummaryPort.service';
 import { createListeningTestEditSession, uploadListeningEditorAudio, hasUnsupportedListeningStructure } from '../features/assessment/listening/authoring/listeningTestEditing';
 import { ListeningQuestionContextEditor } from '../features/assessment/listening/authoring/ListeningQuestionContextEditor';
 import { renumberListeningContextQuestions, syncListeningQuestionUpdate } from '../skills/listening/utils/listeningQuestionContext';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
-import { storage } from '../core/platform/storage';
 
 interface TestEditorProps {
   test: TestData;
@@ -173,12 +164,7 @@ const NativeModal: React.FC<NativeModalProps> = ({
 const TestEditor: React.FC<TestEditorProps> = (props) => {
   const { test } = props;
 
-  if (isReadingV2Payload(test)) {
-    // Reading V2 canonical payloads must route through ReadingV2StudioModalAdapter,
-    // not the legacy flat-question TestEditor modal.
-    console.warn('[TestEditor] Blocked Reading V2 payload from entering legacy editor.');
-    return null;
-  }
+  if (test.skill !== 'Listening') return null;
 
   return <LegacyTestEditor {...props} />;
 };
@@ -219,6 +205,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   const [isPublicModified, setIsPublicModified] = useState(false);
   const [activeTab, setActiveTab] = useState<EditorTab>('questions');
   const [resources, setResources] = useState<ContextResource[]>([]);
+  const initialEditorState = useRef({ resources: '[]', duration: 0, isPublic: false });
   const canonicalTableGroupMap = useMemo(
     () => new Map((test.questionGroups || []).map((group) => [group.groupId, group])),
     [test.questionGroups],
@@ -227,100 +214,25 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   // Legacy states for backward compat while refactoring (will be replaced by resources)
   const [answerKeySubMode, setAnswerKeySubMode] = useState<'none' | 'manual' | 'massImport'>('none');
 
-  const getStorageKey = () => `test_edit_${test?.id}`;
-
   useEffect(() => {
-    if (!show) previewWarningShown.current = undefined;
-    if (test && show) {
-      setAudioPreviewUrls((test as any).listeningAudioPreviewUrls ?? {});
-      const previewWarnings = (test as any).listeningAudioPreviewWarnings as string[] | undefined;
-      const warningKey = `${test.id}:${previewWarnings?.join(',')}`;
-      if (previewWarnings?.length && previewWarningShown.current !== warningKey) {
-        previewWarningShown.current = warningKey;
-        toast.warning(`Audio preview unavailable: ${previewWarnings.join(', ')}. You can replace the audio or reopen this test to retry.`);
-      }
-      const storageKey = getStorageKey();
-      const savedData = test.skill === 'Listening' ? null : localStorage.getItem(storageKey);
-
-      // DEBUG: Log what test data we receive
-      console.log('📝 [TestEditor] Received test data:', {
-        id: test.id,
-        skill: (test as any).skill,
-        hasQuestionImages: (test as any).questionImages?.length || 0,
-      });
-
-      const tableQuestionGroups = Array.isArray(test.questionGroups)
-        ? test.questionGroups.filter((group) => group?.taskType === 'table-completion')
-        : [];
-
-      logTablePresentationDiag('editor_loaded', {
-        testId: test.id,
-        questionCount: Array.isArray(test.questions) ? test.questions.length : 0,
-        questionGroupCount: Array.isArray(test.questionGroups) ? test.questionGroups.length : 0,
-        tableGroupCount: tableQuestionGroups.length,
-        tableGroups: tableQuestionGroups.map((group) => ({
-          groupId: group.groupId,
-          questionRange: group.questionRange,
-          blankCount: Array.isArray(group.blanks) ? group.blanks.length : 0,
-          rowCount: Array.isArray(group.rows) ? group.rows.length : 0,
-          columnCount: Array.isArray(group.columns) ? group.columns.length : 0,
-          caption: group.sharedContent?.caption || null,
-        })),
-      });
-
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-
-          // Check if cached resources are stale:
-          // 1. Test has questionImages but cache has no image resources
-          // 2. Test has questionImages but cache has wrong number (old grouped format vs new per-image format)
-          const testQuestionImagesCount = (test as any).questionImages?.length || 0;
-          const cachedImageResourcesCount = parsed.resources?.filter((r: any) => r.type === 'image').length || 0;
-          const cacheIsStale = testQuestionImagesCount > 0 && cachedImageResourcesCount !== testQuestionImagesCount;
-
-          if (cacheIsStale) {
-            console.log('🔄 [TestEditor] Stale cache detected - regenerating resources:', {
-              testQuestionImagesCount,
-              cachedImageResourcesCount,
-              reason: cachedImageResourcesCount === 0 ? 'no image resources' : 'count mismatch (grouped vs per-image format)'
-            });
-            localStorage.removeItem(storageKey);
-            initializeFreshState();
-            return;
-          }
-
-          setEditedQuestions(parsed.questions || {});
-          setModifiedQuestions(new Set(parsed.modified || []));
-          setEditedTitle(parsed.title || test.title);
-          setEditedDuration(parsed.duration || test.duration || 0);
-          setEditedIsPublic(parsed.isPublic ?? test.isPublic ?? false);
-          setTitleModified(parsed.titleModified || false);
-          setIsPublicModified(parsed.isPublicModified || false);
-
-          if (parsed.resources) {
-            setResources(parsed.resources);
-          } else {
-            setResources(adaptTestToResources(test));
-          }
-
-          // Legacy states - keeping them empty/synced just in case, but rely on resources
-
-          setActiveTab(parsed.activeTab || 'questions');
-        } catch (error) {
-          console.error('Error loading from localStorage:', error);
-          localStorage.removeItem(storageKey);
-          initializeFreshState();
-        }
-      } else {
-        initializeFreshState();
-      }
+    if (!show || !test) return;
+    setAudioPreviewUrls((test as any).listeningAudioPreviewUrls ?? {});
+    const previewWarnings = (test as any).listeningAudioPreviewWarnings as string[] | undefined;
+    const warningKey = String(test.id) + ':' + (previewWarnings?.join(',') ?? '');
+    if (previewWarnings?.length && previewWarningShown.current !== warningKey) {
+      previewWarningShown.current = warningKey;
+      toast.warning('Audio preview unavailable: ' + previewWarnings.join(', ') + '. You can replace the audio or reopen this test to retry.');
     }
+    initializeFreshState();
   }, [test, show]);
-
   const initializeFreshState = () => {
     const freshResources = adaptTestToResources(test);
     setResources(freshResources);
+    initialEditorState.current = {
+      resources: JSON.stringify(freshResources),
+      duration: test.duration || 0,
+      isPublic: test.isPublic || false,
+    };
 
     // Link questions to resources (migration)
     const linkedQuestions = linkQuestionsToResources(test.questions, freshResources);
@@ -346,25 +258,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
 
 
   };
-
-  useEffect(() => {
-    if (test && test.skill !== 'Listening' && Object.keys(editedQuestions).length > 0) {
-      const storageKey = getStorageKey();
-      const dataToSave = {
-        timestamp: new Date().toISOString(),
-        questions: editedQuestions,
-        modified: Array.from(modifiedQuestions),
-        title: editedTitle,
-        titleModified,
-        isPublic: editedIsPublic,
-        isPublicModified,
-        resources,
-        duration: editedDuration,
-        activeTab,
-      };
-      localStorage.setItem(storageKey, JSON.stringify(dataToSave));
-    }
-  }, [editedQuestions, modifiedQuestions, test, editedTitle, titleModified, editedIsPublic, isPublicModified, resources, editedDuration, activeTab]);
 
   useEffect(() => {
     if (selectedQuestionIndex !== null) {
@@ -420,35 +313,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
    *                                Each element preserves its original .number field so we can
    *                                map it back to the correct index in editedQuestions.
    */
-  const handleGroupUpdate = (updatedGroupQuestions: any[]) => {
-    setEditedQuestions(prev => {
-      const next = { ...prev };
-      // For each updated question, find its index by matching question.number
-      // against the indices in editedQuestions (question.number is 1-based, index is 0-based)
-      updatedGroupQuestions.forEach(updatedQ => {
-        // Find the index whose current question has the same number
-        const index = Object.keys(next).find(
-          key => next[Number(key)]?.number === updatedQ.number
-        );
-        if (index !== undefined) {
-          next[Number(index)] = updatedQ;
-        }
-      });
-      return next;
-    });
-    // Mark all indices in the group as modified
-    setModifiedQuestions(prev => {
-      const newSet = new Set(prev);
-      updatedGroupQuestions.forEach(updatedQ => {
-        const index = Object.keys(editedQuestions).find(
-          key => editedQuestions[Number(key)]?.number === updatedQ.number
-        );
-        if (index !== undefined) newSet.add(Number(index));
-      });
-      return newSet;
-    });
-  };
-
   const handleResetQuestion = (index: number) => {
     const currentQuestion = editedQuestions[index] || test.questions[index];
     if (
@@ -715,6 +579,12 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     performSave();
   };
 
+  const hasUnsavedChanges = () => modifiedQuestions.size > 0
+    || titleModified
+    || isPublicModified
+    || editedDuration !== initialEditorState.current.duration
+    || JSON.stringify(resources) !== initialEditorState.current.resources;
+
   const performSave = async () => {
     // Guard: read-only users must never reach the database write path
     if (isReadOnly) {
@@ -723,7 +593,7 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     }
 
     if (test && test.id) {
-      if (Object.keys(editedQuestions).length === 0 && !titleModified && !isPublicModified && resources.length === 0 && !editedDuration) {
+      if (!hasUnsavedChanges()) {
         handleClose();
         return;
       }
@@ -743,165 +613,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
           await finishSave();
           return;
         }
-        // 0. Process any temporary R2 files (move to permanent storage)
-        let finalResources = [...resources];
-        const tempFiles: { resourceIndex: number; key: 'audioUrl' | 'images'; subIndex?: number; url: string }[] = [];
-        const keysToMove: string[] = [];
-
-        finalResources.forEach((res, index) => {
-          if (res.audioUrl && r2StorageService.isTempFile(res.audioUrl)) {
-            const key = r2StorageService.getKeyFromUrl(res.audioUrl);
-            if (key) {
-              tempFiles.push({ resourceIndex: index, key: 'audioUrl', url: res.audioUrl });
-              keysToMove.push(key);
-            }
-          }
-          if (res.images && res.images.length > 0) {
-            res.images.forEach((imgUrl, imgIndex) => {
-              if (r2StorageService.isTempFile(imgUrl)) {
-                const key = r2StorageService.getKeyFromUrl(imgUrl);
-                if (key) {
-                  tempFiles.push({ resourceIndex: index, key: 'images', subIndex: imgIndex, url: imgUrl });
-                  keysToMove.push(key);
-                }
-              }
-            });
-          }
-        });
-
-        if (keysToMove.length > 0) {
-          console.log(`📦 Moving ${keysToMove.length} temp files to permanent storage...`);
-          const moveResults = await r2StorageService.moveMultipleToPermanent(keysToMove);
-
-          tempFiles.forEach((fileInfo, i) => {
-            const result = moveResults[i];
-            if (result && result.success) {
-              const res = finalResources[fileInfo.resourceIndex];
-              if (res) {
-                if (fileInfo.key === 'audioUrl') {
-                  res.audioUrl = result.newUrl;
-                } else if (fileInfo.key === 'images' && fileInfo.subIndex !== undefined) {
-                  if (res.images) {
-                    res.images[fileInfo.subIndex] = result.newUrl;
-                  }
-                }
-              }
-            }
-          });
-          // Update local state to reflect permanent URLs
-          setResources(finalResources);
-        }
-
-        const updates: Record<string, any> = {};
-
-        // 1. Convert resources to legacy DB format
-        const resourceUpdates = adaptResourcesToTest(finalResources);
-        if (resourceUpdates.passages) updates[`/tests/${test.id}/passages`] = resourceUpdates.passages;
-        if (resourceUpdates.audioSections) updates[`/tests/${test.id}/audioSections`] = resourceUpdates.audioSections;
-        if (resourceUpdates.questionImages) updates[`/tests/${test.id}/questionImages`] = resourceUpdates.questionImages;
-
-        // Map resourceId -> sectionNumber for Audio resources
-        const audioSectionMap = new Map<string, number>();
-        if (resourceUpdates.audioSections) {
-          resources.filter(r => r.type === 'audio').forEach((r, idx) => {
-            if (resourceUpdates.audioSections && resourceUpdates.audioSections[idx]) {
-              audioSectionMap.set(r.id, resourceUpdates.audioSections[idx].number);
-            }
-          });
-        }
-
-        // 2. Update questions
-        Object.entries(editedQuestions).forEach(([index, question]) => {
-          const qUpdate = { ...question };
-          const qNum = parseInt(index) + 1;
-
-          // Find governing resource by range (Source of Truth)
-          const governingResource = resources.find(r => qNum >= (r.questionStart || 0) && qNum <= (r.questionEnd || 0));
-
-          if (governingResource) {
-            if (governingResource.type === 'text') {
-              qUpdate.passageId = governingResource.id;
-              if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-            } else if (governingResource.type === 'audio') {
-              const secNum = audioSectionMap.get(governingResource.id);
-              if (secNum) qUpdate.sectionNumber = secNum;
-              qUpdate.passageId = null;
-            }
-            // Update internal resourceId for consistency
-            qUpdate.resourceId = governingResource.id;
-          } else {
-            // unlink if no resource covers this question
-            qUpdate.passageId = null;
-            if (qUpdate.sectionNumber) delete qUpdate.sectionNumber;
-            qUpdate.resourceId = null;
-          }
-
-          updates[`/tests/${test.id}/questions/${index}`] = qUpdate;
-        });
-
-        // Update title if modified
-        if (titleModified) {
-          updates[`/tests/${test.id}/title`] = editedTitle;
-        }
-
-        // Update isPublic if modified
-        if (isPublicModified) {
-          updates[`/tests/${test.id}/isPublic`] = editedIsPublic;
-        }
-
-        // Duration
-        if (editedDuration !== test.duration) {
-          updates[`/tests/${test.id}/duration`] = editedDuration;
-        }
-
-        // Update timestamp
-        const updatedAt = Date.now();
-        updates[`/tests/${test.id}/updatedAt`] = updatedAt;
-
-        // Recalculate isComplete based on edited questions
-        const allQuestions = Object.values(editedQuestions);
-        const questionsWithoutAnswers = allQuestions.filter((q: any) =>
-          !q.answer ||
-          (typeof q.answer === 'string' && q.answer.trim() === '') ||
-          (Array.isArray(q.answer) && q.answer.length === 0)
-        );
-        const isComplete = questionsWithoutAnswers.length === 0;
-        const missingAnswerCount = questionsWithoutAnswers.length;
-
-        updates[`/tests/${test.id}/isComplete`] = isComplete;
-        updates[`/tests/${test.id}/missingAnswerCount`] = missingAnswerCount;
-
-        const nextTestData = {
-          ...test,
-          title: titleModified ? editedTitle : test.title,
-          isPublic: isPublicModified ? editedIsPublic : test.isPublic,
-          duration: editedDuration,
-          questions: Object.values(editedQuestions),
-          ...(resourceUpdates.passages
-            ? { passages: resourceUpdates.passages }
-            : {}),
-          ...(resourceUpdates.audioSections
-            ? { audioSections: resourceUpdates.audioSections }
-            : {}),
-          ...(resourceUpdates.questionImages
-            ? { questionImages: resourceUpdates.questionImages }
-            : {}),
-          isComplete,
-          missingAnswerCount,
-          updatedAt,
-        };
-        Object.entries(buildMaterialSummaryUpdatePayload(
-          createLegacyTestMaterialSummary(test.id, nextTestData),
-          createLegacyTestMaterialSummary(test.id, test),
-        )).forEach(([path, value]) => {
-          updates[`/${path}`] = value;
-        });
-
-        console.log(`📝 Test save: isComplete=${isComplete}, missingAnswerCount=${missingAnswerCount}`);
-
-        await update(ref(database), updates);
-
-        await finishSave();
       } catch (error) {
         console.error('Error saving test:', error);
         toast.error(test.skill === 'Listening' && error instanceof Error
@@ -913,21 +624,15 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
   };
 
   const finishSave = async () => {
-    await storage.remove(getStorageKey());
     toast.success('Test saved successfully ✅');
-    // Assigned Listening work retains its publication; generic homework keeps its existing metadata propagation.
-    if (test.skill !== 'Listening' && titleModified && test.id) {
-      propagateTestMetadataToHomework(test.id, { materialTitle: editedTitle });
-    }
     handleClose();
   };
 
   const handleCancel = () => {
     if (isSaving) return;
-    if (modifiedQuestions.size > 0 || titleModified) {
+    if (hasUnsavedChanges()) {
       if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
         // Clear cached edits so stale modifications don't re-trigger the popup next open
-        localStorage.removeItem(getStorageKey());
         handleClose();
       }
     } else {
@@ -1108,19 +813,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
       );
     }
 
-    // Compute group if this is a summary type
-    const isSummaryType = test.skill !== 'Listening' && (
-      q?.type === 'summary-completion-list' || q?.type === 'summary-completion-text'
-    );
-
-    let groupQuestions: any[] | null = null;
-    if (isSummaryType) {
-      const allQsArray = Object.keys(editedQuestions)
-        .sort((a, b) => Number(a) - Number(b))
-        .map(key => editedQuestions[Number(key)]);
-      groupQuestions = getGroupQuestions(allQsArray, selectedQuestionIndex);
-    }
-
     const panel = (
       <QuestionEditorPanel
         isImagePassage={isImagePassage}
@@ -1136,8 +828,8 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         onNext={() => {
           if (selectedQuestionIndex < test.questions.length - 1) setSelectedQuestionIndex(selectedQuestionIndex + 1);
         }}
-        groupQuestions={groupQuestions}
-        onGroupUpdate={isSummaryType ? handleGroupUpdate : null}
+        groupQuestions={null}
+        onGroupUpdate={null}
         readOnly={isReadOnly}
       />
     );
@@ -1184,8 +876,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
     />
   );
 
-  const isListening = (test as any).skill === 'Listening';
-
   return (
     <NativeModal
       opened={show}
@@ -1201,7 +891,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
         inner: { padding: 0 }
       }}
     >
-      {isListening ? (
         <ListeningEditorLayout
           {...frameProps}
           questionList={questionListPanel}
@@ -1219,26 +908,6 @@ const LegacyTestEditor: React.FC<TestEditorProps> = ({ test, show, handleClose }
           showSingleCreator={showSingleCreator}
           showBulkCreator={showBulkCreator}
         />
-      ) : (
-        <ReadingEditorLayout
-          {...frameProps}
-          questionList={questionListPanel}
-          resourceManager={resourceManagerPanel}
-          questionEditor={questionEditorPanel}
-          singleQuestionCreator={
-            <SingleQuestionCreator onSave={handleSaveSingleQuestion} onCancel={handleCancelAdd} />
-          }
-          bulkQuestionCreator={
-            <BulkQuestionCreator onSave={handleSaveBulkQuestions} onCancel={handleCancelAdd} />
-          }
-          answerKeySelector={answerKeySelector}
-          answerKeyEditor={answerKeyEditor}
-          showEditor={showEditor}
-          showSingleCreator={showSingleCreator}
-          showBulkCreator={showBulkCreator}
-        />
-      )}
-
       {showValidationPopup && (
         <NativeModal
           opened={showValidationPopup}

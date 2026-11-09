@@ -127,20 +127,6 @@ vi.mock('../../../hooks/useNavigation', () => ({
   }),
 }));
 
-vi.mock('../../../services/listeningTestStorage', () => ({
-  AUDIO_CONTROLS_PRESETS: {
-    IELTS_STANDARD: {
-      showPlayPause: false,
-      showProgressBar: true,
-      showSeekControl: false,
-      showSpeedControl: false,
-      showSkipSection: false,
-      showVolumeControl: true,
-    },
-  },
-  saveListeningTestToFirebase: mocks.saveListeningTestToFirebase,
-}));
-
 vi.mock('../../../features/assessment/listening/authoring/listeningAuthoringWorkflow', () => ({
   createListeningAuthoringWorkflow: vi.fn(() => ({
     saveDraft: mocks.saveDraft,

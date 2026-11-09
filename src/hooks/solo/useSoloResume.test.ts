@@ -37,12 +37,12 @@ describe('useSoloResume', () => {
       startedAt: 1000,
       lastSavedAt: Date.now(),
       mobileState: {
-        activePassageId: 'p2',
-        questionSheetOpen: true,
-        reviewSummaryOpen: false,
-        passageScrollByPassage: { p2: 200 },
-        activeQuestionGroupByPassage: { p2: 6 },
-        questionSheetScrollByPassage: { p2: 44 },
+        kind: 'listening',
+        version: 1,
+        viewedPartNumber: 2,
+        currentQuestionNumber: 6,
+        answerSheetScrollByPart: { '2': 200 },
+        imageZoomByPart: {},
         textSize: 18,
       },
     };

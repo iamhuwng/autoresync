@@ -29,8 +29,6 @@ const StudentHomeworkProfile = lazyWithRetry(() => import('../pages/StudentHomew
 const TeacherHomeworkDetailPage = lazyWithRetry(() => import('../pages/TeacherHomeworkDetailPage.tsx'));
 const TeacherHomeworkListPage = lazyWithRetry(() => import('../pages/TeacherHomeworkListPage.tsx'));
 const TestCreationRedirectPage = lazyWithRetry(() => import('../pages/TestCreationRedirectPage.tsx'));
-const TestCreationPage = lazyWithRetry(() => import('../pages/TestCreationPage.tsx'));
-const TestReviewPage = lazyWithRetry(() => import('../pages/TestReviewPage.tsx'));
 const ReadingV2StudioPage = lazyWithRetry(() => import('../pages/ReadingV2StudioPage.tsx'));
 const THCSTestEditorPage = lazyWithRetry(() => import('../pages/THCSTestEditorPage.tsx'));
 const TeacherGradingPage = lazyWithRetry(() => import('../pages/TeacherGradingPage.tsx'));
@@ -231,14 +229,6 @@ export const createTeacherRoutes = (
   {
     path: '/teacher/test/create',
     element: asTeacherPage(<TestCreationRedirectPage />, 'testCreation', ['teacher', 'super_admin']),
-  },
-  {
-    path: '/teacher/test/create-standalone',
-    element: asTeacherErrorBoundaryPage(<TestCreationPage />, 'testCreation', ['teacher', 'super_admin']),
-  },
-  {
-    path: '/teacher/test/review/:draftId',
-    element: asTeacherErrorBoundaryPage(<TestReviewPage />, 'testCreation', ['teacher', 'super_admin']),
   },
   // Reading V2 route URLs remain registered for feature ownership, but the
   // route table mounts them only after the rollout mode allows teacher entry.

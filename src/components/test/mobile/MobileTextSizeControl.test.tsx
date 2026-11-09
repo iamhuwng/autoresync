@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MobileTextSizeControl } from './MobileTextSizeControl';
-import { MOBILE_READING_LAYER_Z_INDEX } from './mobileReadingLayering';
+import { MOBILE_LAYER_Z_INDEX } from './mobileLayering';
 
 describe('MobileTextSizeControl', () => {
   it('renders the expected slider range, step, and current value', () => {
@@ -61,7 +61,7 @@ describe('MobileTextSizeControl', () => {
     );
 
     expect(screen.getByTestId('mobile-text-size-control')).toHaveStyle({
-      zIndex: String(MOBILE_READING_LAYER_Z_INDEX.UTILITY_MODAL),
+      zIndex: String(MOBILE_LAYER_Z_INDEX.UTILITY_MODAL),
     });
   });
 });

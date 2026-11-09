@@ -260,7 +260,7 @@ This section documents all file upload patterns currently in the codebase.
 |-----------|--------|--------|---------|--------|
 | `AvatarUploader.tsx` | `uploadAvatar()` | `avatars/` | Direct permanent | ✅ Correct |
 | `ListeningTestBuilder.tsx` | `uploadAudio()` | `temp/audio/` | Temp → Permanent | ✅ Correct |
-| `listeningTestStorage.ts` | `moveToPermanent()` | `audio/` | Move on save | ✅ Correct |
+| `listeningAuthoringWorkflow.ts` | `moveToPermanent()` | `audio/` | Move on save | ✅ Correct |
 | `TestEditor.tsx` | `isTempFile()` + `moveMultipleToPermanent()` | Various | Move on save | ✅ Correct |
 | `AudioResourceEditor.tsx` | `uploadAudio()` | `temp/audio/` | Temp → Permanent | ✅ Correct |
 | `ImageResourceEditor.tsx` | `uploadImage()` | `temp/images/` | Temp → Permanent | ✅ Correct |

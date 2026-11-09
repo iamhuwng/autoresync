@@ -1,9 +1,7 @@
 /**
  * Mobile Listening z-index layering contract.
  *
- * Mirrors the Reading layering approach (mobileReadingLayering.ts)
- * but uses a dedicated namespace so Listening and Reading scaffolds
- * remain independent per PRD-0045 FR-68.
+ * Uses a dedicated namespace so Listening layers remain independent.
  */
 
 export const MOBILE_LISTENING_LAYER_Z_INDEX = {

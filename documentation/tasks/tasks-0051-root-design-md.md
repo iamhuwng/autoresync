@@ -44,7 +44,7 @@ Read these files before writing `DESIGN.md`.
 3. `documentation/architecture/teacher-materials-list-view-contract.md`
 4. `documentation/architecture/teacher-material-visual-taxonomy.md`
 5. `documentation/architecture/teacher-route-runtime-resilience.md`
-6. `documentation/architecture/teacher-test-creation-parsing-and-review.md`
+6. `documentation/architecture/reading-v2-runtime-integrations.md`
 7. `documentation/tasks/PRD0048/reading-v2-teacher-lobby-integration.md`
 
 ### Student Design Sources

@@ -51,8 +51,7 @@ import { ListeningNavArrows } from '../../skills/listening/components/ListeningN
 import { ListeningQuestionNav } from '../../skills/listening/components/ListeningQuestionNav';
 import { ListeningImageModeDisplay } from '../../skills/listening/components/ListeningImageModeDisplay';
 
-// Types from listening storage
-import type { ListeningDisplayMode, QuestionImage } from '../../services/listeningTestStorage';
+import type { ListeningDisplayMode, QuestionImage } from '../../types/listening.types';
 import type { TestData } from '../../services/testStorage';
 
 // Solo hooks
@@ -100,7 +99,7 @@ import type {
 } from '../../types/practice.types';
 import { DEFAULT_STUDENT_PREFS } from '../../types/practice.types';
 import type { AntiCheatConfig } from '../../types/integrity.types';
-import type { PracticeContext } from './IELTSPracticeView';
+import type { PracticeContext } from '../../types/practice.types';
 
 // Services & utils
 import { getHomeworkById } from '../../services/homeworkManager';

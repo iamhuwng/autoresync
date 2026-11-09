@@ -10,7 +10,10 @@ export function ListeningAudioReplacementNotice({ replaced, testId, recordedAt }
     return onValue(ref(database, `tests/${testId}/audioReplacedAt`), snapshot => {
       const at = snapshot.val();
       setChanged(typeof at === 'number' && at > recordedAt!);
-    }, error => console.warn('Recording replacement status is unavailable:', error.code));
+    }, error => console.warn(
+      'Recording replacement status is unavailable:',
+      error instanceof Error && 'code' in error ? (error as Error & { code?: unknown }).code : error,
+    ));
   }, [testId, recordedAt]);
   return replaced || changed ? <small role="note" style={{ display: 'block', color: '#92400e', fontSize: 12, lineHeight: 1.2 }}>
     Recording replaced. Earlier answers/results may differ.

@@ -6,7 +6,7 @@
  * - Mode-specific rules from getMobileInstructionsContent()
  * - Dominant Start button (when showStartButton is true)
  *
- * Does NOT render TestHeader, ReadingHeader, SoloSettingsModal, or any
+ * Does NOT render TestHeader, SoloSettingsModal, or any
  * desktop header/body chrome. No @mantine imports.
  *
  * @see PRD-0043 FR-24–29, Task 2A.2
@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { getMobileInstructionsContent } from './mobileInstructionsContent';
-import type { PracticeContext } from '../../practice/IELTSPracticeView';
+import type { PracticeContext } from '../../../types/practice.types';
 import type { ResolvedPracticeSettings } from '../../../types/practice.types';
 
 export interface MobileStartScreenProps {

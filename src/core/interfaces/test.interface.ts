@@ -125,13 +125,6 @@ export interface TestStatistics {
 }
 
 // Skill-specific test extensions
-export interface ReadingTest extends BaseTest {
-  primarySkill: 'Reading';
-  passages: ReadingPassage[];
-  questions: ReadingQuestion[];
-  readingSpeed?: number; // Words per minute recommendation
-}
-
 export interface ListeningTest extends BaseTest {
   primarySkill: 'Listening';
   audioTracks: AudioTrack[];
@@ -265,9 +258,6 @@ export interface ProctoringSettings {
 }
 
 // Export type guards for runtime checking
-export const isReadingTest = (test: BaseTest): test is ReadingTest => 
-  test.primarySkill === 'Reading';
-
 export const isListeningTest = (test: BaseTest): test is ListeningTest => 
   test.primarySkill === 'Listening';
 
@@ -281,7 +271,6 @@ export const isCompositeTest = (test: BaseTest): test is CompositeTest =>
   test.isComposite === true;
 
 // Re-export specific interfaces from skill modules
-export type { ReadingPassage, ReadingQuestion } from '../../skills/reading/types';
 export type { AudioTrack, ListeningSection, ListeningQuestion, PlaybackRules } from '../../skills/listening/types';
 export type { WritingTask, WritingRubric } from '../../skills/writing/types';
 export type { SpeakingPart, RecordingSettings, SpeakingRubric } from '../../skills/speaking/types';

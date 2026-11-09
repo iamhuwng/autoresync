@@ -2,11 +2,9 @@
 
 ## Purpose
 
-This document defines how canonical test data becomes student-renderable data for legacy IELTS Listening and Reading delivery, and how Reading V2 keeps the same no-answer-key invariant in its namespaced projection plane.
+This document defines how canonical test data becomes student-renderable data for Listening delivery and how Reading V2 uses a namespaced projection plane with the same no-answer-key invariant.
 
 The contract exists because teacher/admin storage can contain grading answers, editor metadata, image ranges, audio ranges, and repair history, while student runtime pages need a fresh answer-free render payload.
-
-Retirement boundary: Reading V1 is retired and must not be inferred from missing Reading V2 markers, `skill: Reading`, or `contentKind: ielts_reading`. Reading V2 launches require explicit Reading V2 markers/projections/snapshots; unknown Reading records fail closed. See `documentation/architecture/retired-features-current-state.md`.
 
 ## Storage Nodes
 
@@ -41,7 +39,7 @@ Rules:
 
 ### Reading V2 Namespaced Projections
 
-Reading V2 does not use the legacy root `student_safe_tests/{testId}` path.
+Reading V2 uses its namespaced projection roots instead of the shared Listening projection root.
 
 Reading V2 student delivery paths:
 
@@ -78,7 +76,7 @@ Current producers:
   - image-mode resource ranges are converted before projection, so each saved image keeps its own `questionRange`
 
 Repair-only helper:
-- `refreshStudentSafeTestData(testId)` remains available for incident repair or legacy migration.
+- `refreshStudentSafeTestData(testId)` remains available for Listening incident repair.
 - It is not the foundation for normal editor saves.
 
 Reading V2 producers:
@@ -141,7 +139,7 @@ Current rule:
 
 ## Freshness Semantics
 
-`updatedAt` is the freshness marker for legacy student-safe payloads.
+`updatedAt` is the freshness marker for student-safe Listening payloads.
 
 Rules:
 - editor/update producers must bump `updatedAt`

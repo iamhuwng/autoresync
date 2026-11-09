@@ -1,5 +1,5 @@
 import type { ResultContext } from '../../types/solo.types';
-import type { PracticeContext } from './IELTSPracticeView';
+import type { PracticeContext } from '../../types/practice.types';
 
 export interface ThcsPracticePersistenceContext {
     academicContext?: {

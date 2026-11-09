@@ -243,7 +243,7 @@ const MATERIAL_PRODUCER_REGISTRATIONS = [
     canonicalRootPaths: ['listening_authoring', 'tests'],
     integrationMode: 'summary-v1',
     summaryContractVersion: 1,
-    lifecycleEntrypoints: ['src/services/listeningTestStorage.ts'],
+    lifecycleEntrypoints: ['src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts'],
     reconciliationSource: 'tests',
   },
 ] as const satisfies readonly MaterialProducerRegistration[];

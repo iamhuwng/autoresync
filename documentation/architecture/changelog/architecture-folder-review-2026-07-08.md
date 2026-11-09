@@ -53,8 +53,8 @@ Classification meanings:
 | `firebase-hosting-worker-endpoint-policy.md` | `KEEP_ARCHITECTURE` | Current infrastructure endpoint authority. |
 | `master_changelog.md` | `KEEP_ARCHITECTURE` | User-required master changelog location exception. |
 | `mobile-ielts-listening-audio-navigation.md` | `KEEP_ARCHITECTURE` | Current mobile Listening audio/navigation contract. |
-| `mobile-ielts-reading-test-taking-architecture.md` | `KEEP_ARCHITECTURE` | Current mobile Reading delivery architecture. |
-| `reading-passage-highlighting-architecture.md` | `KEEP_ARCHITECTURE` | Current source-of-truth and selection mapping contract. |
+| `mobile-ielts-reading-test-taking-architecture.md` | `REMOVED_LEGACY` | Retired with the legacy Reading runtime; Reading V2 runtime contract is current. |
+| `reading-passage-highlighting-architecture.md` | `REMOVED_LEGACY` | Retired renderer/offset contract; Reading V2 runtime contract is current. |
 | `result-view/README.md` | `KEEP_ARCHITECTURE` | Current result-view architecture pack index. |
 | `result-view/surface-map.md` | `KEEP_ARCHITECTURE` | Current concise surface map. |
 | `result-view/visibility-policy.md` | `KEEP_ARCHITECTURE` | Current concise visibility policy. |
@@ -84,7 +84,7 @@ Classification meanings:
 | `ielts-writing/essay-editor-tool-contract-and-mark-composition.md` | `SPLIT` | Current tool contract plus many follow-up history sections. |
 | `ielts-writing/grading-editor-state-and-compatibility.md` | `SPLIT` | Current grading contract plus many follow-up history sections. |
 | `ielts-writing/lifecycle-and-surfaces.md` | `SPLIT` | Current lifecycle/surface map plus dated amendments. |
-| `reading-staged-parse-job.md` | `SPLIT` | Current staged pipeline model plus dated parser/provider amendments. |
+| `reading-staged-parse-job.md` | `REMOVED_LEGACY` | Retired flat Reading parser notes; Reading V2 Auto pipeline docs are current. |
 | `results-academic-record.md` | `SPLIT` | Current alignment note plus dated Writing comment-rail amendments. |
 | `session-lifecycle-authority.md` | `SPLIT` | Current authority plus migration, obsolete designs, verification commands. |
 | `teacher-class-management-lifecycle.md` | `SPLIT` | Current lifecycle contract plus incident evidence. |

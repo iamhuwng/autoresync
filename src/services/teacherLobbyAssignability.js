@@ -207,10 +207,7 @@ function resolveTestAssignability(item) {
   }
 
   if (contentKind === 'ielts_reading') {
-    if (!hasReadyStudentSafeProjection(item)) {
-      return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
-    }
-    return supported({ contentKind: 'ielts_reading', ...baseRef, source: 'ielts' });
+    return blocked(HOMEWORK_ASSIGNMENT_REASON_CODES.CONTENT_NOT_ASSIGNABLE);
   }
 
   if (contentKind === 'ielts_listening') {

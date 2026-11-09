@@ -3,7 +3,6 @@
  * clamping, compatibility checks, and transient-state clearing.
  *
  * Single source of truth for all Listening mobile payload manipulation.
- * Follows the same structural pattern as mobileReadingState.ts.
  *
  * @see PRD-0045 Sections 3, 5
  */

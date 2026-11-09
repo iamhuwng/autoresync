@@ -52,6 +52,13 @@ An unavailable original preview does not block the owner's editor. It produces
 a shared warning and permits replacement. Ownership, conflict checks and the
 backend asset-commit barrier still apply to save and publication.
 
+The former `src/services/listeningTestStorage.ts` facade is retired. New
+authoring writes use `listeningAuthoringWorkflow`; the active compatibility
+boundary remains read-only legacy public R2 audio resolution and the first-edit
+freeze for legacy published rows. Broad legacy migration and private-delivery
+cutover remain deferred to the approved Listening storage/authoring follow-up
+contracts.
+
 Published text and answer keys remain immutable. A new homework attempt selects
 the latest published text through trusted start and stores `listeningVersionId`;
 started attempts keep that version. Existing started rows without the pin keep

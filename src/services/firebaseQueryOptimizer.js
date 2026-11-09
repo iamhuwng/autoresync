@@ -81,10 +81,9 @@ function legacyIeltsNeedsProjectionCheck(test) {
   if (test.deliveryEngine === 'reading-v2') {
     return false;
   }
-  // Temporary legacy bridge: remove Reading V1 probing after Reading V1 tests are retired.
   // Listening remains here until it moves to the System A / Reading V2-style projection model.
   const contentKind = resolveTeacherLobbyTestContentKind(test);
-  return contentKind === 'ielts_reading' || contentKind === 'ielts_listening';
+  return contentKind === 'ielts_listening';
 }
 
 function getReadingV2MaterialId(test) {

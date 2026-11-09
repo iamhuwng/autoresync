@@ -353,7 +353,7 @@ Likely areas:
 ```text
 src/components/reading-v2/runtime/
 src/pages/StudentPracticePage.tsx
-src/components/practice/IELTSPracticeView.tsx
+src/components/practice/ListeningPracticeView.tsx
 ```
 
 Focus:
@@ -372,7 +372,7 @@ Likely areas:
 ```text
 src/pages/TestBuilderRouter.tsx
 src/skills/listening/builders/ListeningTestBuilder.tsx
-src/services/listeningTestStorage.ts
+src/features/assessment/listening/authoring/listeningAuthoringWorkflow.ts
 src/skills/listening/
 ```
 
@@ -675,7 +675,7 @@ Do not build a single generic runtime that hides important skill differences.
 2. Buttons, cards, headers, modals, spacing, and typography feel consistent.
 3. Teacher authoring flows feel related.
 4. Student test-taking flows feel related.
-5. Differences are explainable by test nature, not legacy drift.
+5. Differences are explainable by test nature, not obsolete implementation residue.
 
 ---
 
@@ -686,7 +686,7 @@ Codex should add or update tests where possible.
 Minimum test areas:
 
 1. `StudentPracticePage` routes Reading V2 and Listening correctly.
-2. Reading V2 runtime still rejects unsupported legacy payloads if that is current behavior.
+2. Reading V2 runtime rejects unsupported non-V2 payloads before renderer selection.
 3. Listening runtime still loads audio sections.
 4. Listening saved mobile state remains compatible.
 5. Listening solo/homework playback state is not applied incorrectly to live teacher-controlled state.

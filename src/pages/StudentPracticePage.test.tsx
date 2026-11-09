@@ -9,7 +9,6 @@ import { navigationService } from '../services/navigation.service';
 
 const {
   getMock,
-  ieltsPracticeViewPropsMock,
   listeningPracticeViewPropsMock,
   writingPracticeViewPropsMock,
   trackActionMock,
@@ -33,7 +32,6 @@ const {
   isBookActivityRolloutGateEnabledMock,
 } = vi.hoisted(() => ({
   getMock: vi.fn(),
-  ieltsPracticeViewPropsMock: vi.fn(),
   listeningPracticeViewPropsMock: vi.fn(),
   writingPracticeViewPropsMock: vi.fn(),
   trackActionMock: vi.fn(),
@@ -182,13 +180,6 @@ vi.mock('../hooks/test/useFullscreenMode', () => ({
 
 vi.mock('../components/test/TestErrorBoundary', () => ({
   TestErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-vi.mock('../components/practice/IELTSPracticeView', () => ({
-  IELTSPracticeView: (props: unknown) => {
-    ieltsPracticeViewPropsMock(props);
-    return <div data-testid="ielts-practice-view" />;
-  },
 }));
 
 vi.mock('../components/practice/THCSPracticeView', () => ({
@@ -939,7 +930,6 @@ describe('StudentPracticePage', () => {
     expect(screen.queryByTestId('ielts-practice-view')).not.toBeInTheDocument();
     expect(screen.queryByTestId('listening-practice-view')).not.toBeInTheDocument();
     expect(screen.queryByTestId('writing-practice-view')).not.toBeInTheDocument();
-    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('launches private Worker-created IELTS Writing homework from its homework-scoped safe projection', async () => {
@@ -1162,7 +1152,6 @@ describe('StudentPracticePage', () => {
 
     expect(await screen.findAllByText('Material no longer available')).toHaveLength(2);
     expect(screen.queryByTestId('listening-practice-view')).not.toBeInTheDocument();
-    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('fails closed for legacy IELTS Reading V1 launches without probing Reading V2 storage', async () => {
@@ -1178,7 +1167,7 @@ describe('StudentPracticePage', () => {
               id: 'legacy-reading-1',
               testType: 'IELTS',
               skill: 'Reading',
-              skillType: 'reading',
+              skillType: 'reading-v2',
             };
           }
 
@@ -1202,7 +1191,6 @@ describe('StudentPracticePage', () => {
       expect.anything(),
       expect.stringContaining('reading_v2/'),
     );
-    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('routes explicitly marked Reading V2 materials to the Reading V2 runtime', async () => {
@@ -1247,8 +1235,6 @@ describe('StudentPracticePage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('reading-v2-runtime')).toBeInTheDocument();
     });
-
-    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
     expect(refMock).not.toHaveBeenCalledWith({}, 'reading_v2/material_metadata/material-v2');
     expect(refMock).toHaveBeenCalledWith(
       {},
@@ -2111,7 +2097,6 @@ describe('StudentPracticePage', () => {
       undefined,
       expect.any(Number),
     );
-    expect(ieltsPracticeViewPropsMock).not.toHaveBeenCalled();
   });
 
   it('replays assigned Reading Passage set homework from frozen snapshots after source passages are archived', async () => {

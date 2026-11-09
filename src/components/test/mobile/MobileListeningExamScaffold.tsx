@@ -27,7 +27,7 @@ import type { MobileOverflowMenuItem } from './MobileOverflowMenu';
 import { MobileTextSizeControl } from './MobileTextSizeControl';
 import { MobileInstructionsModal } from './MobileInstructionsModal';
 import { MOBILE_LISTENING_LAYER_Z_INDEX } from './mobileListeningLayering';
-import type { PracticeContext } from '../../practice/IELTSPracticeView';
+import type { PracticeContext } from '../../../types/practice.types';
 import type { ResolvedPracticeSettings } from '../../../types/practice.types';
 
 // ── Scaffold Props ──────────────────────────────────────────────────────────

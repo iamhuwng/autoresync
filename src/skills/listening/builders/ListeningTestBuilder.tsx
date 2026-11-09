@@ -19,15 +19,13 @@ import {
 } from '@tabler/icons-react';
 import { useLocation } from 'react-router-dom';
 import { Button, toast } from '../../../components/modern';
-import {
-  AUDIO_CONTROLS_PRESETS,
-} from '../../../services/listeningTestStorage';
+import { AUDIO_CONTROLS_PRESETS } from '../../../types/listening.types';
 import type {
   AudioSection as StorageAudioSection,
   ListeningDisplayMode,
   QuestionImage,
   AudioControlsConfig,
-} from '../../../services/listeningTestStorage';
+} from '../../../types/listening.types';
 import r2StorageService from '../../../services/r2Storage';
 import type { ParsedQuestion } from '../../../types/document.types';
 import { listeningRouter } from '../../../services/parser/listening.router';
