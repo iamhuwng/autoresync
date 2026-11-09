@@ -430,19 +430,22 @@ export const interpretReadingV2SourceRequirement = (
     if (!source || source.sourceId !== requirement.sourceId) throw new Error('Load the supplied answer bank before confirming it.');
     const expected = resolveReadingV2SourceBankRequirement(requirement, source);
     const group = document.taskGroups[requirement.target!.taskGroupId!];
-    const options = group.optionSetRefs.flatMap((id) => document.optionSets[id]?.options ?? []);
+    const optionSets = group.optionSetRefs.map((id) => document.optionSets[id]).filter(Boolean);
+    const options = optionSets.flatMap((optionSet) => optionSet.options);
     const authoredBankItems = interpretation.bankItems;
     const bankItems = authoredBankItems
       ? (() => {
-          const labels = new Set<string>();
-          const optionIds = new Set<string>();
-          const hasInvalidOption = options.some((option) => {
-            const label = normalized(option.label);
-            const duplicate = labels.has(label);
-            labels.add(label);
-            return !option.label.trim() || !option.text.trim() || duplicate;
+          const hasInvalidOptionSet = !optionSets.length || optionSets.some((optionSet) => {
+            const labels = new Set<string>();
+            return optionSet.options.some((option) => {
+              const label = normalized(option.label);
+              const duplicate = labels.has(label);
+              labels.add(label);
+              return !option.label.trim() || !option.text.trim() || duplicate;
+            });
           });
-          if (!options.length || hasInvalidOption) throw new Error('Give every answer option a unique label and non-empty text before approving this bank.');
+          const optionIds = new Set<string>();
+          if (hasInvalidOptionSet) throw new Error('Give every question a unique label and non-empty text for each answer choice before approving this bank.');
           return authoredBankItems.map((item) => {
             const option = options.find((entry) => entry.optionId === item.optionId);
             if (!option || optionIds.has(option.optionId)) throw new Error(`Choose each current answer option only once before approving this bank.`);

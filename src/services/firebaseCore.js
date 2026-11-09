@@ -13,7 +13,8 @@ const localProjectId = 'demo-luyentap-local';
 const localDatabaseUrl = 'http://localhost:9000?ns=demo-luyentap-local';
 const localWorkerOrigin = 'http://localhost:8787';
 const localHomeworkWorkerOrigin = 'http://localhost:8788';
-const localEndpointValues = new Set([localWorkerOrigin, localHomeworkWorkerOrigin, 'http://localhost:5001']);
+const localAiWorkerOrigin = 'http://localhost:8789';
+const localEndpointValues = new Set([localWorkerOrigin, localHomeworkWorkerOrigin, localAiWorkerOrigin, 'http://localhost:5001']);
 const localWorkerKeys = [
   'VITE_BACKUP_WORKER_URL', 'VITE_BOOK_ACTIVITY_AUTHORING_WORKER_URL',
   'VITE_BOOK_ASSEMBLY_WORKER_URL', 'VITE_BOOK_DELIVERY_WORKER_URL',
@@ -76,7 +77,7 @@ if (isLocalDevelopment && import.meta.env.VITE_LOCAL_DEV_BOOTSTRAP !== 'true') {
 }
 
 if (isLocalDevelopment) {
-  if (import.meta.env.VITE_THCS_GEMMA_WORKER_URL && import.meta.env.VITE_THCS_GEMMA_WORKER_URL !== localWorkerOrigin) {
+  if (import.meta.env.VITE_THCS_GEMMA_WORKER_URL && import.meta.env.VITE_THCS_GEMMA_WORKER_URL !== localAiWorkerOrigin) {
     throw new Error('[Firebase] Local AI requires an isolated gateway runtime; live gateway configuration is forbidden.');
   }
   if (import.meta.env.VITE_BOOK_SOURCE_B2_UPLOAD_ORIGIN !== 'https://s3.us-west-004.backblazeb2.com') {

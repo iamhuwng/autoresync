@@ -37,6 +37,28 @@ describe('ReadingV2ReviewIssuesPanel', () => {
     expect(screen.queryByLabelText('Issue details')).not.toBeInTheDocument();
   });
 
+  it('explains a source answer-choice mismatch and offers a direct edit destination', () => {
+    const issue: ReadingV2ReviewIssue = {
+      id: 'source:bank', severity: 'publish-blocker', source: 'source-comparison', type: 'source-bank-mismatch',
+      label: 'Questions 37-40', detail: 'Approve or edit answer bank',
+      originalMessage: 'Compare the required source options with the current answer bank.',
+      target: { taskGroupId: 'group-37-40', questionRange: { start: 37, end: 40 }, sourceRequirementId: 'bank' },
+    };
+    const onIssueActivate = vi.fn();
+    render(<ReadingV2ReviewIssuesPanel
+      issues={[issue]}
+      open
+      onOpenChange={vi.fn()}
+      onIssueActivate={onIssueActivate}
+      renderResolution={() => <button type="button">Approve current answer bank</button>}
+    />);
+
+    expect(screen.getByText('Questions 37-40 has answer choices that differ from the pasted source.')).toBeInTheDocument();
+    expect(screen.getByText(/Compare the source choices with the current choices below/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Questions 37-40 to edit choices' }));
+    expect(onIssueActivate).toHaveBeenCalledWith(issue);
+  });
+
   it('opens with focus, traps tab, closes with Escape and restores the trigger', () => {
     const onOpenChange = vi.fn();
     const { rerender } = render(<><button type="button">Review 1 issue</button><ReadingV2ReviewIssuesPanel issues={[answerIssue]} open={false} onOpenChange={onOpenChange} onIssueActivate={vi.fn()} /></>);

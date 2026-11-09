@@ -104,7 +104,7 @@ export const mapReadingV2AuthoringFindingsToReviewIssues = (
       originalMessage: message,
       sourceExcerpt: finding.sourceExcerpt,
       action: finding.action,
-      actionLabel: finding.action === 'exclude' ? 'Resolve answer-key row' : /source-bank/.test(finding.code) ? 'Edit answer bank' : finding.action === 'add' && !finding.target.sourceRequirementId ? 'Add Question Group'
+      actionLabel: finding.action === 'exclude' ? 'Resolve answer-key row' : /source-bank/.test(finding.code) ? 'Edit answer choices' : finding.action === 'add' && !finding.target.sourceRequirementId ? 'Add Question Group'
         : finding.action === 'edit' ? answer ? 'Edit answer' : title && passageIndex < 0 ? 'Edit test title' : passageIndex >= 0 && !taskGroupId ? 'Edit passage' : 'Edit question' : undefined,
     };
   });
