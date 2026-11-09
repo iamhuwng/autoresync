@@ -18,8 +18,44 @@ import {
   formatReadingV2StudioParsingDiagnostics,
 } from './readingV2StudioParsingDiagnostics.service';
 import { validateReadingV2Draft } from './readingV2Validation.service';
+import { createReadingV2CanonicalFixture } from './fixtures/readingV2CanonicalFixtures';
 
 describe('readingV2StudioParsingDiagnostics.service', () => {
+  it('counts every visible answer slot when checking teacher-key coverage', () => {
+    const original = createReadingV2CanonicalFixture('multiple-select');
+    const [firstId, secondId] = Object.keys(original.interactions);
+    const document = {
+      ...original,
+      interactions: {
+        ...original.interactions,
+        [firstId!]: { ...original.interactions[firstId!]!, reviewLabel: { answerSlotCount: 2 } },
+        [secondId!]: { ...original.interactions[secondId!]!, reviewLabel: {} },
+      },
+    };
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: 'READING PASSAGE 1\nQuestions 1-3\n1 First\n2 Second\n3 Third',
+      answerKeyText: '1 A\n2 B\n3 C',
+    });
+
+    const diagnostics = buildReadingV2TeacherImportDiagnostics({
+      document,
+      metadata: { title: 'Slot coverage' },
+      importCandidate: candidate,
+      validationResult: validateReadingV2Draft(document),
+      mode: 'create-from-import',
+      activeStep: 'Questions',
+      draftId: 'slot-coverage',
+      revision: 1,
+    });
+
+    expect(diagnostics.authority).toMatchObject({
+      status: 'authoritative',
+      boundQuestionCount: 3,
+      totalQuestionCount: 3,
+      blocking: false,
+    });
+  });
+
   it('exports source, answer key, passage, group, question, task-type, and validation diagnostics', () => {
     const candidate = createReadingV2ImportCandidateFromText({
       text: [

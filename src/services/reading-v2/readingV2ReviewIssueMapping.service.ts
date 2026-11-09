@@ -73,7 +73,7 @@ export const mapReadingV2AuthoringFindingsToReviewIssues = (
       'source-passage-missing': 'Passage needed',
       'source-passage-incomplete': 'Restore passage text',
       'source-bank-missing': 'Answer bank needed',
-      'source-bank-mismatch': 'Check answer bank',
+      'source-bank-mismatch': 'Approve or edit answer bank',
       'source-bank-association-invalid': 'Wrong answer bank association',
       'source-content-unbound': 'Link supplied content',
       'source-task-type-mismatch': 'Check question type',

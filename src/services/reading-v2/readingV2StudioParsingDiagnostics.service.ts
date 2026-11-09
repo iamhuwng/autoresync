@@ -293,6 +293,13 @@ const optionSetSummary = (
 const answerCount = (interaction: ReadingV2Interaction): number =>
   interaction.scoringRule.acceptableAnswers?.filter((answer) => answer.trim().length > 0).length ?? 0;
 
+const expandVisibleQuestionNumbers = (
+  visibleNumbers: readonly { readonly displayNumber: number; readonly displayNumberEnd?: number }[],
+): Set<number> => new Set(visibleNumbers.flatMap((entry) => {
+  const end = entry.displayNumberEnd ?? entry.displayNumber;
+  return Array.from({ length: Math.max(1, end - entry.displayNumber + 1) }, (_value, offset) => entry.displayNumber + offset);
+}));
+
 const byCode = (issues: readonly ReadingV2ValidationIssue[]): Record<string, number> =>
   issues.reduce<Record<string, number>>((counts, issue) => {
     counts[issue.code] = (counts[issue.code] ?? 0) + 1;
@@ -557,7 +564,7 @@ export const buildReadingV2TeacherImportDiagnostics = (
     }),
     input.document.interactions,
   );
-  const visibleQuestionNumbers = new Set(visibleNumbers.map((entry) => entry.displayNumber));
+  const visibleQuestionNumbers = expandVisibleQuestionNumbers(visibleNumbers);
   const boundTeacherKeyQuestionNumbers = new Set(
     answerKey.rows
       .filter((row) =>
@@ -818,11 +825,7 @@ export const buildReadingV2StudioParsingDiagnostics = (
       .map((interactionId) => input.document.interactions[interactionId])
       .filter((interaction): interaction is ReadingV2Interaction => interaction !== undefined),
   );
-  const parsedQuestionNumbers = new Set(
-    allInteractions
-      .map((interaction) => visibleNumberByInteractionId.get(interaction.interactionId))
-      .filter((displayNumber): displayNumber is number => displayNumber !== undefined),
-  );
+  const parsedQuestionNumbers = expandVisibleQuestionNumbers(visibleNumbers);
   const extraAnswerKeyRows = answerKey.rows
     .filter((row) => !parsedQuestionNumbers.has(row.questionNumber))
     .map((row) => row.questionNumber);

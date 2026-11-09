@@ -431,11 +431,30 @@ export const interpretReadingV2SourceRequirement = (
     const expected = resolveReadingV2SourceBankRequirement(requirement, source);
     const group = document.taskGroups[requirement.target!.taskGroupId!];
     const options = group.optionSetRefs.flatMap((id) => document.optionSets[id]?.options ?? []);
-    const bankItems = expected.bankItems?.map((item) => {
-      const matches = options.filter((option) => normalized(option.label) === normalized(item.label) && option.text.trim());
-      if (matches.length !== 1) throw new Error(`Restore one option labelled ${item.label} before confirming this bank.`);
-      return { label: item.label, text: matches[0].text, optionId: matches[0].optionId };
-    });
+    const authoredBankItems = interpretation.bankItems;
+    const bankItems = authoredBankItems
+      ? (() => {
+          const labels = new Set<string>();
+          const optionIds = new Set<string>();
+          const hasInvalidOption = options.some((option) => {
+            const label = normalized(option.label);
+            const duplicate = labels.has(label);
+            labels.add(label);
+            return !option.label.trim() || !option.text.trim() || duplicate;
+          });
+          if (!options.length || hasInvalidOption) throw new Error('Give every answer option a unique label and non-empty text before approving this bank.');
+          return authoredBankItems.map((item) => {
+            const option = options.find((entry) => entry.optionId === item.optionId);
+            if (!option || optionIds.has(option.optionId)) throw new Error(`Choose each current answer option only once before approving this bank.`);
+            optionIds.add(option.optionId);
+            return { label: option.label, text: option.text, optionId: option.optionId };
+          });
+        })()
+      : expected.bankItems?.map((item) => {
+          const matches = options.filter((option) => normalized(option.label) === normalized(item.label) && option.text.trim());
+          if (matches.length !== 1) throw new Error(`Restore one option labelled ${item.label} before confirming this bank.`);
+          return { label: item.label, text: matches[0].text, optionId: matches[0].optionId };
+        });
     if (!bankItems?.length) throw new Error('The supplied answer bank could not be read.');
     interpretation = { requirementId: interpretation.requirementId, actorId: interpretation.actorId, updatedAt: interpretation.updatedAt, bankItems };
   } else if (requirement.kind === 'instruction') {
