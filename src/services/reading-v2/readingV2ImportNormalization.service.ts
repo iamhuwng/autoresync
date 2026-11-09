@@ -3029,6 +3029,18 @@ const normalizeStructuredReadingPayload = (
   const optionSets: Record<string, ReadingV2OptionSet> = {};
   const teacherAnswerKey = answerKeyPayloadForCandidate(candidate);
   const answerKeyRows = answerKeyRowsByQuestion(teacherAnswerKey);
+  const structuredAnswerValuesForQuestion = (
+    questionNumber: number,
+    question: StructuredReadingQuestion | undefined,
+  ): readonly string[] => {
+    if (answerKeyRows.has(questionNumber)) {
+      return question && structuredQuestionUsesAcceptedAnswers(question)
+        ? structuredQuestionAnswers(question)
+        : answerKeyRows.get(questionNumber) ?? [];
+    }
+
+    return candidate.sourceKind === 'auto-gemini' ? [] : question ? structuredQuestionAnswers(question) : [];
+  };
   const usedPassageNumbers = new Set<number>();
   const sectionIds = materials.map((material, materialIndex) => {
     const passageNumber = structuredMaterialPassageNumber(material, materialIndex, usedPassageNumbers);
@@ -3217,9 +3229,7 @@ const normalizeStructuredReadingPayload = (
           Array.from({ length: end - start + 1 }, (_, offset) => {
             const questionNumber = start + offset;
             const question = groupQuestions.find((candidate) => structuredQuestionNumber(candidate) === questionNumber);
-            return question && structuredQuestionUsesAcceptedAnswers(question)
-              ? structuredQuestionAnswers(question)
-              : answerKeyRows.get(questionNumber) ?? (question ? structuredQuestionAnswers(question) : []);
+            return structuredAnswerValuesForQuestion(questionNumber, question);
           }).flat(),
           groupedMultipleSelectOptionLabels(instruction, groupQuestions, taskType),
         )
@@ -3274,9 +3284,7 @@ const normalizeStructuredReadingPayload = (
                 : interactionResponseShape.kind === 'multi-select'
                 && groupMultiSelectAnswerValues.length === interactionResponseShape.selectionLimit
                 ? groupMultiSelectAnswerValues
-                : structuredQuestionUsesAcceptedAnswers(question)
-                  ? structuredQuestionAnswers(question)
-                  : answerKeyRows.get(questionNumber) ?? structuredQuestionAnswers(question),
+                : structuredAnswerValuesForQuestion(questionNumber, question),
               interactionResponseShape,
             ),
             orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
@@ -3686,6 +3694,11 @@ export const normalizeReadingV2ImportCandidate = (
       const blockPrompts = new Set(Object.values(prompts)
         .map((prompt) => prompt.replace(/\s+/g, ' ').trim().toLowerCase())
         .filter(Boolean));
+      const sharedPromptText = (() => {
+        const lines = block.text.split(/\r?\n/).map((line) => cleanMarkdown(line)).filter(Boolean);
+        const promptLines = lines.slice(1).filter((line) => !/^(?:[A-Z]|[ivxlcdm]{1,8})(?:[).:]|\s+)\s*\S/i.test(line));
+        return promptLines.length === 1 ? promptLines[0] : undefined;
+      })();
       const groupedAnswerValues = responseShape.kind === 'multi-select'
         ? groupedMultipleSelectAnswerValues(
           Array.from({ length: blockSlotCount }, (_, slot) => answerKeyRows.get(block.start + slot) ?? []).flat(),
@@ -3695,7 +3708,7 @@ export const normalizeReadingV2ImportCandidate = (
       const combinesMultipleSelectSlots = responseShape.kind === 'multi-select'
         && blockSlotCount > 1
         && blockSlotCount === responseShape.selectionLimit
-        && blockPrompts.size === 1;
+        && (blockPrompts.size === 1 || (blockPrompts.size === 0 && Boolean(sharedPromptText)));
       const interactionCount = combinesMultipleSelectSlots ? 1 : blockSlotCount;
       const interactionIds = Array.from({ length: interactionCount }, (_, offset) => {
         const questionNumber = block.start + offset;
@@ -3725,7 +3738,7 @@ export const normalizeReadingV2ImportCandidate = (
             ...(combinesMultipleSelectSlots ? { answerSlotCount: blockSlotCount } : {}),
           },
           promptText: combinesMultipleSelectSlots
-            ? Object.values(prompts).find((prompt) => prompt.trim().length > 0)
+            ? Object.values(prompts).find((prompt) => prompt.trim().length > 0) ?? sharedPromptText
             : promptText,
           primaryAnchorId,
           placeholder: combinesMultipleSelectSlots

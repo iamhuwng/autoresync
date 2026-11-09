@@ -440,7 +440,14 @@ export const interpretReadingV2SourceRequirement = (
   const requirement = context.requirements.find((entry) => entry.requirementId === interpretation.requirementId);
   if (!requirement || !interpretation.actorId || !interpretation.updatedAt
     || (requirement.kind !== 'instruction' && !targetExists(document, requirement.target))) throw new Error('Only a concrete task interpretation with current associated content can be changed.');
-  if (requirement.kind === 'bank') {
+  if (requirement.kind === 'answer-key') {
+    const interaction = requirement.target?.interactionId ? document.interactions[requirement.target.interactionId] : undefined;
+    if (!interaction?.scoringRule.acceptableAnswers?.some((answer) => answer.trim())) {
+      throw new Error('Correct this question and its authored answer before approving the marking answer.');
+    }
+    interpretation = { requirementId: interpretation.requirementId, actorId: interpretation.actorId, updatedAt: interpretation.updatedAt,
+      answerKeyResolution: 'authored-answer' };
+  } else if (requirement.kind === 'bank') {
     if (!source || source.sourceId !== requirement.sourceId) throw new Error('Load the supplied answer bank before confirming it.');
     const expected = resolveReadingV2SourceBankRequirement(requirement, source);
     const group = document.taskGroups[requirement.target!.taskGroupId!];
