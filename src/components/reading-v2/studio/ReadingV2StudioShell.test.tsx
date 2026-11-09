@@ -940,7 +940,7 @@ describe('ReadingV2StudioShell Build Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review 1 issues' }));
     const dialog = screen.getByRole('dialog', { name: 'Review issues' });
     expect(within(dialog).getByRole('table', { name: 'Compare source and current answer choices' })).toHaveTextContent(option.text);
-    expect(within(dialog).getByText('Original wording')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Original wording/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /Go to Questions/ })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Approve current answer bank' }));
     await waitFor(() => expect(onSaveDraft).toHaveBeenCalledOnce());
