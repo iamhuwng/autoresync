@@ -33,5 +33,5 @@ this local runtime correction.
 - Full TypeScript checking still reports four pre-existing Listening errors;
   changed files are not among those errors.
 
-Production release evidence is recorded by the guarded Hosting release receipt
-for the exact merged revision.
+Production release remains pending. The exact release block and receipts are
+recorded in `documentation/release-audits/2026-11-09-reading-v2-release-blocked.md`.

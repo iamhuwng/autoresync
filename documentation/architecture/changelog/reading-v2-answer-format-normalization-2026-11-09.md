@@ -37,5 +37,5 @@ Legacy Reading remains outside this change.
 - ESLint passed for all changed source and test files.
 - `git diff --check` passed.
 
-Production release evidence is recorded by the guarded Hosting release receipt
-for the exact merged revision.
+Production release remains pending. The exact release block and receipts are
+recorded in `documentation/release-audits/2026-11-09-reading-v2-release-blocked.md`.
