@@ -491,6 +491,7 @@ interface AutoQuestion {
   number?: number;
   questionNumber?: number;
   answer?: string | readonly string[];
+  acceptedAnswers?: readonly string[];
   [key: string]: unknown;
 }
 
@@ -603,6 +604,8 @@ const answerKeyHeadingScore = (line: string): number => {
     && ANSWER_KEY_HEADING_SIGNAL_PATTERN.test(cleaned)
     && !ANSWER_KEY_NEGATIVE_LINE_PATTERN.test(cleaned)
     && !/\b(?:must|written|boxes?|sheet)\b/i.test(cleaned)
+    && !/\banswers?\s+(?:is|are)\b/i.test(cleaned)
+    && !READING_V2_AUTO_COMPLETION_BLANK_PATTERN.test(cleaned)
   ) {
     return 20;
   }
@@ -869,6 +872,7 @@ const stripAnswersWhenNoSourceKey = (payload: AutoPayload): AutoPayload => ({
     questions: (material.questions ?? []).map((question) => ({
       ...question,
       answer: '',
+      acceptedAnswers: [],
     })),
   })),
 });
@@ -876,7 +880,15 @@ const stripAnswersWhenNoSourceKey = (payload: AutoPayload): AutoPayload => ({
 const rawTextHasAnswerKeyHeading = (rawText: string): boolean =>
   rawText.split(/\r?\n/).some((line) => answerKeyHeadingScore(line.trim()) > 0);
 
-const answerKeyValuesForQuestion = (answer: AutoQuestion['answer']): readonly string[] => {
+const answerKeyValuesForQuestion = (question: Pick<AutoQuestion, 'answer' | 'acceptedAnswers'>): readonly string[] => {
+  if (Array.isArray(question.acceptedAnswers)) {
+    return question.acceptedAnswers
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  const answer = question.answer;
   if (Array.isArray(answer)) {
     return answer
       .filter((value): value is string => typeof value === 'string')
@@ -936,7 +948,7 @@ const mergedAnswerKeyTextFromPayloads = (
       (payload.materials ?? []).forEach((material) => {
         (material.questions ?? []).forEach((question) => {
           const questionNumber = questionNumberFor(question);
-          const values = answerKeyValuesForQuestion(question.answer);
+          const values = answerKeyValuesForQuestion(question);
           if (questionNumber > 0 && values.length > 0) {
             addRow(`${questionNumber} ${values.join(' | ')}`);
           }
@@ -1640,7 +1652,7 @@ const buildAutoPayloadState = (
   chunkPayloads: readonly ChunkPayload[],
 ): AutoPayloadState => {
   const mergedAnswerKeyText = mergedAnswerKeyTextFromPayloads(extractedAnswerKeyText, chunkPayloads, {
-    allowQuestionAnswerFallback: !extractedAnswerKeyText && rawTextHasAnswerKeyHeading(sourceLedger.normalizedText),
+    allowQuestionAnswerFallback: !extractedAnswerKeyText && sourceLedger.answerKeyRows.length > 0,
   });
   const answerKeyText = answerKeyTextForSourceLedger(mergedAnswerKeyText, sourceLedger);
   const mergedPayload: AutoPayload = {
@@ -2857,6 +2869,9 @@ const buildAutoPayloadFromAutoV4Results = (input: {
               questionText: summaryLayout?.questionTextByQuestionNumber.get(question.questionNumber)
                 ?? autoV4PromptTextForTask(group.taskType, question.source.questionText),
               answer: answers.join(' | '),
+              acceptedAnswers: Array.isArray(question.source.acceptedAnswers)
+                ? question.source.acceptedAnswers
+                : undefined,
               labeledOptions: autoV4QuestionLabeledOptions(question.source, group.taskType),
               sectionReferences: readingV2TaskUsesPrimarySectionReferenceBank(group.taskType)
                 ? autoV4QuestionReferenceItems(question.source)
