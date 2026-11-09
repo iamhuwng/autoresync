@@ -117,6 +117,83 @@ test('production observation rejects invalid identity and content evidence', asy
 test('production observation explains a pre-manifest HTML response', async () => { await assert.rejects(() => observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from('<!doctype html>')})}), /response is not JSON/u); });
 test('Firebase Hosting provider metadata is accepted only as source-unverified evidence', () => { const provider=parseHostingChannelEvidence({result:{channels:[{name:'projects/temp-a1437/sites/kahut1/channels/live',url:'https://kahut1.web.app',release:{releaseTime:'2026-10-11T00:00:00Z',version:{name:'projects/temp-a1437/sites/kahut1/versions/abc123',status:'FINALIZED',fileCount:'445',versionBytes:'10',config:{rewrites:[]},labels:{'deployment-tool':'cli-firebase'}}}}]}}); assert.equal(provider.version,'projects/temp-a1437/sites/kahut1/versions/abc123'); assert.throws(()=>parseHostingChannelEvidence({result:{channels:[]}}),/finalized kahut1/u); });
 test('acceptance preview manifests cannot become production observations', async () => { await assert.rejects(() => observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from(JSON.stringify({schemaVersion:1,environment:'acceptance',project:'temp-a1437',site:'kahut1',revision:'a'.repeat(40),tree:'b'.repeat(40),files:[{path:'/index.html',sha256:'c'.repeat(64)}]}))})}), /Invalid production Hosting manifest/u); });
+test('Hosting observation bounds concurrent asset readback', async () => {
+  const contentHash = crypto.createHash('sha256').update('asset').digest('hex');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: contentHash }, ...Array.from({ length: 16 }, (_, index) => ({ path: `/asset-${index}.js`, sha256: contentHash }))] };
+  let inFlight = 0, maxInFlight = 0;
+  const observation = await observeHosting({ readConcurrency: 3, maxAttempts: 1, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) return { ok: true, url, arrayBuffer: async () => Buffer.from(JSON.stringify(manifest)) };
+    inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight); await new Promise(resolve => setTimeout(resolve, 1)); inFlight -= 1;
+    return { ok: true, url, arrayBuffer: async () => Buffer.from('asset') };
+  } });
+  assert.equal(observation.revision, manifest.revision);
+  assert.equal(maxInFlight, 3);
+});
+test('Hosting observation retries a complete snapshot after transient asset drift', async () => {
+  const newHash = crypto.createHash('sha256').update('new').digest('hex');
+  const manifest = revision => ({ schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision, tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: newHash }] });
+  let manifestReads = 0;
+  const observation = await observeHosting({ readConcurrency: 1, maxAttempts: 2, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      manifestReads += 1;
+      return { ok: true, url, arrayBuffer: async () => Buffer.from(JSON.stringify(manifest(manifestReads === 1 ? 'a'.repeat(40) : 'c'.repeat(40)))) };
+    }
+    return { ok: true, url, arrayBuffer: async () => Buffer.from(manifestReads === 1 ? 'old' : 'new') };
+  } });
+  assert.equal(observation.revision, 'c'.repeat(40));
+  assert.equal(manifestReads, 2);
+});
+test('Hosting retries wait for the failed read batch before starting another batch', async () => {
+  const newHash = crypto.createHash('sha256').update('new').digest('hex');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: newHash }, ...Array.from({ length: 15 }, (_, index) => ({ path: `/asset-${index}.js`, sha256: newHash }))] };
+  let attempt = 0, inFlight = 0, maxInFlight = 0;
+  await observeHosting({ readConcurrency: 8, maxAttempts: 2, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      attempt += 1;
+      return { ok: true, url, arrayBuffer: async () => Buffer.from(JSON.stringify(manifest)) };
+    }
+    const firstAttempt = attempt === 1 && url.endsWith('/index.html');
+    inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight);
+    if (!firstAttempt) await new Promise(resolve => setTimeout(resolve, 10));
+    inFlight -= 1;
+    return { ok: true, url, arrayBuffer: async () => Buffer.from(firstAttempt ? 'old' : 'new') };
+  } });
+  assert.equal(attempt, 2);
+  assert.ok(maxInFlight <= 8, `asset read concurrency exceeded the configured bound: ${maxInFlight}`);
+});
+test('Hosting retries a transient response-body read but not a permanent HTTP error', async () => {
+  const bodyHash = crypto.createHash('sha256').update('asset').digest('hex');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: bodyHash }] };
+  let manifestReads = 0;
+  await observeHosting({ maxAttempts: 2, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      manifestReads += 1;
+      return { ok: true, url, arrayBuffer: async () => {
+        if (manifestReads === 1) throw new Error('socket reset');
+        return Buffer.from(JSON.stringify(manifest));
+      } };
+    }
+    return { ok: true, url, arrayBuffer: async () => Buffer.from('asset') };
+  } });
+  assert.equal(manifestReads, 2);
+
+  let transientHttpManifestReads = 0;
+  await observeHosting({ maxAttempts: 2, retryDelayMs: 0, fetchImpl: async url => {
+    if (url.endsWith('luyentap-release.json')) {
+      transientHttpManifestReads += 1;
+      if (transientHttpManifestReads === 1) return { ok: false, status: 503, url, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    return { ok: true, url, arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'asset') };
+  } });
+  assert.equal(transientHttpManifestReads, 2);
+
+  let permanentReads = 0;
+  await assert.rejects(() => observeHosting({ maxAttempts: 3, retryDelayMs: 0, fetchImpl: async url => {
+    permanentReads += 1;
+    return { ok: false, status: 404, url, arrayBuffer: async () => Buffer.alloc(0) };
+  } }), /HTTP 404/u);
+  assert.equal(permanentReads, 1);
+});
 test('acceptance observation can use only an explicit localhost origin', async () => { const contentHash=crypto.createHash('sha256').update('x').digest('hex'); const observation=await observeHosting({originOverride:'http://localhost:5199',expectedEnvironment:'acceptance',fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify({schemaVersion:1,environment:'acceptance',project:'temp-a1437',site:'kahut1',revision:'a'.repeat(40),tree:'b'.repeat(40),files:[{path:'/index.html',sha256:contentHash}]}) : 'x')})}); assert.equal(observation.evidenceRef,'http://localhost:5199/.well-known/luyentap-release.json'); await assert.rejects(() => observeHosting({originOverride:'https://kahut1.web.app',expectedEnvironment:'acceptance',fetchImpl:async()=>({})}), /localhost acceptance/u); });
 test('manifest writer binds acceptance artifacts to acceptance environment', async () => { const cwd=await fixture(); try { await mkdir(path.join(cwd,'dist'),{recursive:true}); await writeFile(path.join(cwd,'dist','index.html'),'x'); const manifest=await writeHostingManifest({cwd,envFingerprint:'mock-env',environment:'acceptance'}); assert.equal(manifest.environment,'acceptance'); assert.equal(JSON.parse(await readFile(path.join(cwd,'dist','.well-known','luyentap-release.json'),'utf8')).environment,'acceptance'); } finally { await rm(cwd,{recursive:true,force:true}); } });
 
