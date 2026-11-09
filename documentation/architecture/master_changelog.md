@@ -8,7 +8,6 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-CORRECTNESS-CLOSEOUT`](changelog/reading-v2-answer-correctness-closeout-2026-11-09.md) | Reading V2 / Listening | Fixed | Coalesced verified grouped multiple-answer imports, made accepted-answer approval actionable, and prevented source-less Auto answers from becoming scoring data; merged and verified, with the corrected `66d111a8…` baseline still gated by broader service obligations. |
 | 2026-11-09 | [`CL-20261109-HOSTING-VERIFIER-OPTIMIZATION`](changelog/hosting-verifier-optimization-2026-11-09.md) | Hosting Release Safety | Fixed | Bound Hosting asset readback, stopped queued work after failure, classified permanent failures ahead of retryable ones, and preserved complete source/hash verification; source integration only, not deployed. |
 | 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
 | 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-FORMAT-NORMALIZATION`](changelog/reading-v2-answer-format-normalization-2026-11-09.md) | Reading V2 / Auto V4 | Fixed | Normalize AI and raw answer keys into Studio accepted-answer pools, including one-to-one grouped multiple-answer scoring while preserving literal slash answers. |
@@ -29,6 +28,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-CORRECTNESS-CLOSEOUT`](changelog/reading-v2-answer-correctness-closeout-2026-11-09.md) | Reading V2 / Listening | Fixed | Deployed the scoped Hosting hotfix `23ae29a7…` from observed baseline `66d111a8…`; verified the live manifest and retained the historical hotfix ledger. Broader `main` service qualification remains separate. |
 | 2026-11-09 | [`CL-20261109-READING-V2-STUDIO-REVIEW-CORRECTION`](changelog/reading-v2-studio-review-correction-2026-11-09.md) | Reading V2 | Fixed | Made answer-bank review actionable per question, allowed approval of valid authored banks, and blocked publish after save errors; Hosting revision `66d111a8` verified live. |
 | 2026-11-09 | [`CL-20261108-READING-V2-AUTHORING-QUALITY`](changelog/reading-v2-authoring-quality-2026-11-08.md) | Reading V2 | Fixed | Deployed corrective source-backed review, durable Studio drafts, exact publication recovery and the focused Teacher Studio shell; Hosting manifest and 459 asset hashes verified. |
 
