@@ -8,8 +8,6 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
-| 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-FORMAT-NORMALIZATION`](changelog/reading-v2-answer-format-normalization-2026-11-09.md) | Reading V2 / Auto V4 | Fixed | Normalize AI and raw answer keys into Studio accepted-answer pools, including one-to-one grouped multiple-answer scoring while preserving literal slash answers. |
 | 2026-11-01 | [`CL-20261101-READING-V2-PASSAGE-STRUCTURE`](changelog/reading-v2-passage-structure-2026-11-01.md) | Reading V2 | Fixed | Preserve structured passage blocks and question anchors through rich editing, validation, publication and runtime. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
@@ -25,6 +23,8 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
+| 2026-11-09 | [`CL-20261109-READING-V2-ANSWER-FORMAT-NORMALIZATION`](changelog/reading-v2-answer-format-normalization-2026-11-09.md) | Reading V2 / Auto V4 | Fixed | Normalize AI and raw answer keys into Studio accepted-answer pools, including one-to-one grouped multiple-answer scoring while preserving literal slash answers. |
 | 2026-11-09 | [`CL-20261108-READING-V2-AUTHORING-QUALITY`](changelog/reading-v2-authoring-quality-2026-11-08.md) | Reading V2 | Fixed | Deployed corrective source-backed review, durable Studio drafts, exact publication recovery and the focused Teacher Studio shell; Hosting manifest and 459 asset hashes verified. |
 
 ## 2026-11-05 — Released
