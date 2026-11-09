@@ -452,6 +452,46 @@ describe('readingV2ImportNormalization.service', () => {
     expect(interaction?.scoringRule.acceptableAnswers).toEqual(['teacher structured answer']);
   });
 
+  it('does not promote structured Auto answers without a source answer-key row', () => {
+    const structuredPayload = [
+      READING_V2_STRUCTURED_MATERIALS_START,
+      '```json',
+      JSON.stringify({
+        materials: [{
+          passageNumber: 1,
+          title: 'Auto import without key',
+          passages: [{
+            title: 'Auto import without key',
+            content: 'This passage is long enough to exercise source-key authority for an Auto import.',
+          }],
+          sectionInstructions: [{
+            id: 'instruction-1',
+            taskType: 'sentence-completion',
+            questionRange: { start: 1, end: 1 },
+          }],
+          questions: [{
+            number: 1,
+            type: 'sentence-completion',
+            sectionInstructionId: 'instruction-1',
+            questionText: 'The answer is ___.',
+            acceptedAnswers: ['invented'],
+          }],
+        }],
+      }),
+      '```',
+      READING_V2_STRUCTURED_MATERIALS_END,
+    ].join('\n');
+    const result = normalizeReadingV2ImportCandidate(createReadingV2ImportCandidateFromText({
+      text: structuredPayload,
+      sourceKind: 'auto-gemini',
+    }));
+    const interaction = Object.values(result.document.interactions).find(
+      (candidateInteraction) => candidateInteraction.reviewLabel.displayNumber === 1,
+    );
+
+    expect(interaction?.scoringRule.acceptableAnswers).toEqual([]);
+  });
+
   it('preserves repeated note headings as note-completion layout instead of flattening them into every prompt', () => {
     const structuredPayload = [
       READING_V2_STRUCTURED_MATERIALS_START,
@@ -3537,5 +3577,31 @@ describe('readingV2ImportNormalization.service', () => {
       reviewLabel: { displayNumber: 8, answerSlotCount: 3 },
     });
     expect(validateReadingV2Draft(result.document).blockingIssues).toEqual([]);
+  });
+
+  it('recognizes plain-text choose-three grouped multiple answers', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Plain grouped passage',
+        '',
+        'This plain passage has enough source text to exercise the grouped multiple-answer import path safely.',
+        '',
+        'Questions 8-10',
+        'Choose THREE letters, A-C.',
+        'Which THREE options are correct?',
+        'A First option',
+        'B Second option',
+        'C Third option',
+      ].join('\n'),
+      answerKeyText: '8. A\n9. B\n10. C',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interactions = Object.values(result.document.interactions);
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]).toMatchObject({
+      responseShape: { kind: 'multi-select', selectionLimit: 3 },
+      scoringRule: { maxScore: 3, acceptableAnswers: ['A', 'B', 'C'], orderMatters: false },
+      reviewLabel: { displayNumber: 8, answerSlotCount: 3 },
+    });
   });
 });

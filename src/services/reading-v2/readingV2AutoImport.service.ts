@@ -604,6 +604,8 @@ const answerKeyHeadingScore = (line: string): number => {
     && ANSWER_KEY_HEADING_SIGNAL_PATTERN.test(cleaned)
     && !ANSWER_KEY_NEGATIVE_LINE_PATTERN.test(cleaned)
     && !/\b(?:must|written|boxes?|sheet)\b/i.test(cleaned)
+    && !/\banswers?\s+(?:is|are)\b/i.test(cleaned)
+    && !READING_V2_AUTO_COMPLETION_BLANK_PATTERN.test(cleaned)
   ) {
     return 20;
   }
@@ -870,6 +872,7 @@ const stripAnswersWhenNoSourceKey = (payload: AutoPayload): AutoPayload => ({
     questions: (material.questions ?? []).map((question) => ({
       ...question,
       answer: '',
+      acceptedAnswers: [],
     })),
   })),
 });
@@ -1649,7 +1652,7 @@ const buildAutoPayloadState = (
   chunkPayloads: readonly ChunkPayload[],
 ): AutoPayloadState => {
   const mergedAnswerKeyText = mergedAnswerKeyTextFromPayloads(extractedAnswerKeyText, chunkPayloads, {
-    allowQuestionAnswerFallback: !extractedAnswerKeyText && rawTextHasAnswerKeyHeading(sourceLedger.normalizedText),
+    allowQuestionAnswerFallback: !extractedAnswerKeyText && sourceLedger.answerKeyRows.length > 0,
   });
   const answerKeyText = answerKeyTextForSourceLedger(mergedAnswerKeyText, sourceLedger);
   const mergedPayload: AutoPayload = {

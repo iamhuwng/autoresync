@@ -396,4 +396,45 @@ describe('current Reading V2 authoring readiness', () => {
     expect(evaluate(document, corrected).findings.map((entry) => entry.code)).not.toContain('source-answer-key-invalid');
     expect(evaluate(incomplete, corrected).canPublish).toBe(false);
   });
+
+  it('blocks unsupported AI answer variants until the teacher approves the authored answer', () => {
+    const base = documentFor();
+    const interaction = Object.values(base.interactions)[0]!;
+    const document = {
+      ...base,
+      interactions: {
+        ...base.interactions,
+        [interaction.interactionId]: {
+          ...interaction,
+          scoringRule: { ...interaction.scoringRule, acceptableAnswers: ['source answer', 'unsupported AI variant'] },
+        },
+      },
+    };
+    const requirement = {
+      requirementId: 'key', kind: 'answer-key' as const, sourceId: source.sourceId, lineIds: ['l1'],
+      sourceQuestionNumber: 1, answerKeyStatus: 'bound' as const, target: { interactionId: interaction.interactionId },
+    };
+    const context: ReadingV2AuthoringContext = {
+      ...createReadingV2ManualAuthoringContext(),
+      origin: { kind: 'import', sourceId: source.sourceId },
+      scope: { kind: 'supplied', requirementIds: ['key'] },
+      requirements: [requirement],
+    };
+    const sourceWithKey: ReadingV2AuthoringSourceRecord = {
+      ...source,
+      teacherAnswerKey: {
+        rawText: '1 source answer',
+        rows: [{ questionNumber: 1, rawAnswerText: 'source answer', parsedAnswerValues: ['source answer'], sourceLine: 1, diagnostics: [], bindingStatus: 'bound' }],
+        diagnostics: [],
+      },
+    };
+
+    const readiness = evaluateReadingV2AuthoringReadiness({ document, metadata: { title: 'Test' }, authoringContext: context }, [sourceWithKey]);
+    expect(readiness.findings.map((finding) => finding.code)).toContain('source-answer-key-variants-unapproved');
+
+    const approved = interpretReadingV2SourceRequirement(context, {
+      requirementId: 'key', actorId: 'teacher', updatedAt: source.createdAt,
+    }, document, sourceWithKey);
+    expect(evaluateReadingV2AuthoringReadiness({ document, metadata: { title: 'Test' }, authoringContext: approved }, [sourceWithKey]).findings.map((finding) => finding.code)).not.toContain('source-answer-key-variants-unapproved');
+  });
 });

@@ -60,6 +60,7 @@ export const mapReadingV2AuthoringFindingsToReviewIssues = (
     const last = displayNumbers.at(-1)?.displayNumberEnd ?? displayNumbers.at(-1)?.displayNumber;
     const questionRange = first !== undefined && last !== undefined ? { start: first, end: last } : undefined;
     const answer = finding.target.field === 'answer' || ['answer-required', 'source-answer-slot-missing'].includes(finding.code);
+    const answerKeyVariantApproval = finding.code === 'source-answer-key-variants-unapproved';
     const title = /title/.test(finding.code);
     const label = questionRange ? first === last ? `Question ${first}` : `Questions ${first}-${last}`
       : passageIndex >= 0 ? `Passage ${passageIndex + 1}` : finding.target.sourceRequirementId ? 'Supplied content' : 'Test';
@@ -69,6 +70,7 @@ export const mapReadingV2AuthoringFindingsToReviewIssues = (
       'source-answer-slot-missing': 'Answer slot needed',
       'source-answer-key-unbound': 'Answer key row needs review',
       'source-answer-key-invalid': 'Answer key row needs review',
+      'source-answer-key-variants-unapproved': 'Approve accepted answer variants',
       'source-instruction-mismatch': 'Review imported instruction',
       'source-passage-missing': 'Passage needed',
       'source-passage-incomplete': 'Restore passage text',
@@ -103,8 +105,8 @@ export const mapReadingV2AuthoringFindingsToReviewIssues = (
       target: { ...finding.target, sectionId, taskGroupId, questionRange, sourcePassageNumber: finding.target.sourcePassageNumber, field: /source-bank/.test(finding.code) ? 'options' : answer ? 'answer' : title ? 'title' : finding.target.field },
       originalMessage: message,
       sourceExcerpt: finding.sourceExcerpt,
-      action: finding.action,
-      actionLabel: finding.action === 'exclude' ? 'Resolve answer-key row' : /source-bank/.test(finding.code) ? 'Edit answer choices' : finding.action === 'add' && !finding.target.sourceRequirementId ? 'Add Question Group'
+      action: answerKeyVariantApproval ? 'exclude' : finding.action,
+      actionLabel: answerKeyVariantApproval ? 'Approve accepted answer variants' : finding.action === 'exclude' ? 'Resolve answer-key row' : /source-bank/.test(finding.code) ? 'Edit answer choices' : finding.action === 'add' && !finding.target.sourceRequirementId ? 'Add Question Group'
         : finding.action === 'edit' ? answer ? 'Edit answer' : title && passageIndex < 0 ? 'Edit test title' : passageIndex >= 0 && !taskGroupId ? 'Edit passage' : 'Edit question' : undefined,
     };
   });

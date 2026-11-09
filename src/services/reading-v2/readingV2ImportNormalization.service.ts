@@ -666,6 +666,16 @@ interface QuestionBlock {
   readonly taskType: ReadingV2CanonicalTaskType;
 }
 
+const selectionLimitFromText = (text: string): number | undefined => {
+  const normalized = text.toLowerCase();
+  const match = normalized.match(/\b(?:choose|select|which)\s+(one|two|three|four|five|six|[1-6])\s+(?:letters?|options?|answers?)\b/)
+    ?? normalized.match(/\b(?:choose|select|which)\s+(one|two|three|four|five|six|[1-6])\s+of\s+the\s+following\b/);
+  if (!match?.[1]) return undefined;
+  const words: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+  const value = words[match[1]] ?? Number(match[1]);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+};
+
 const detectTaskType = (text: string): ReadingV2CanonicalTaskType => {
   const normalized = text.toLowerCase();
 
@@ -693,7 +703,7 @@ const detectTaskType = (text: string): ReadingV2CanonicalTaskType => {
     return 'matching-sentence-endings';
   }
 
-  if (/\b(?:choose|select)\s+(?:two|2)\s+(?:letters?|options?)\b/.test(normalized)) {
+  if ((selectionLimitFromText(normalized) ?? 0) >= 2) {
     return 'multiple-select';
   }
 
@@ -3019,6 +3029,18 @@ const normalizeStructuredReadingPayload = (
   const optionSets: Record<string, ReadingV2OptionSet> = {};
   const teacherAnswerKey = answerKeyPayloadForCandidate(candidate);
   const answerKeyRows = answerKeyRowsByQuestion(teacherAnswerKey);
+  const structuredAnswerValuesForQuestion = (
+    questionNumber: number,
+    question: StructuredReadingQuestion | undefined,
+  ): readonly string[] => {
+    if (answerKeyRows.has(questionNumber)) {
+      return question && structuredQuestionUsesAcceptedAnswers(question)
+        ? structuredQuestionAnswers(question)
+        : answerKeyRows.get(questionNumber) ?? [];
+    }
+
+    return candidate.sourceKind === 'auto-gemini' ? [] : question ? structuredQuestionAnswers(question) : [];
+  };
   const usedPassageNumbers = new Set<number>();
   const sectionIds = materials.map((material, materialIndex) => {
     const passageNumber = structuredMaterialPassageNumber(material, materialIndex, usedPassageNumbers);
@@ -3207,9 +3229,7 @@ const normalizeStructuredReadingPayload = (
           Array.from({ length: end - start + 1 }, (_, offset) => {
             const questionNumber = start + offset;
             const question = groupQuestions.find((candidate) => structuredQuestionNumber(candidate) === questionNumber);
-            return question && structuredQuestionUsesAcceptedAnswers(question)
-              ? structuredQuestionAnswers(question)
-              : answerKeyRows.get(questionNumber) ?? (question ? structuredQuestionAnswers(question) : []);
+            return structuredAnswerValuesForQuestion(questionNumber, question);
           }).flat(),
           groupedMultipleSelectOptionLabels(instruction, groupQuestions, taskType),
         )
@@ -3264,9 +3284,7 @@ const normalizeStructuredReadingPayload = (
                 : interactionResponseShape.kind === 'multi-select'
                 && groupMultiSelectAnswerValues.length === interactionResponseShape.selectionLimit
                 ? groupMultiSelectAnswerValues
-                : structuredQuestionUsesAcceptedAnswers(question)
-                  ? structuredQuestionAnswers(question)
-                  : answerKeyRows.get(questionNumber) ?? structuredQuestionAnswers(question),
+                : structuredAnswerValuesForQuestion(questionNumber, question),
               interactionResponseShape,
             ),
             orderMatters: interactionResponseShape.kind === 'multi-select' ? false : undefined,
@@ -3658,9 +3676,10 @@ export const normalizeReadingV2ImportCandidate = (
         questionRange: questionRangeSemantics(block.start, block.end),
         wordLimit: wordLimitFromText(block.text),
         wordLimitText: wordLimitTextFromText(block.text),
+        selectionLimit: selectionLimitFromText(block.text),
         passageNumber,
       };
-      const responseShape = responseShapeFor(block.taskType, optionSetId, instructionSemantics.wordLimit);
+      const responseShape = responseShapeFor(block.taskType, optionSetId, instructionSemantics.wordLimit, instructionSemantics.selectionLimit);
       const prompts = questionPromptByNumber(block);
       const evidenceId = readingV2Ids.importEvidenceId(`${idStem}-evidence-${passageNumber}-${block.rangeLabel}`);
       const instructionIssue = customInstructionIssue(
@@ -3675,6 +3694,11 @@ export const normalizeReadingV2ImportCandidate = (
       const blockPrompts = new Set(Object.values(prompts)
         .map((prompt) => prompt.replace(/\s+/g, ' ').trim().toLowerCase())
         .filter(Boolean));
+      const sharedPromptText = (() => {
+        const lines = block.text.split(/\r?\n/).map((line) => cleanMarkdown(line)).filter(Boolean);
+        const promptLines = lines.slice(1).filter((line) => !/^(?:[A-Z]|[ivxlcdm]{1,8})(?:[).:]|\s+)\s*\S/i.test(line));
+        return promptLines.length === 1 ? promptLines[0] : undefined;
+      })();
       const groupedAnswerValues = responseShape.kind === 'multi-select'
         ? groupedMultipleSelectAnswerValues(
           Array.from({ length: blockSlotCount }, (_, slot) => answerKeyRows.get(block.start + slot) ?? []).flat(),
@@ -3684,7 +3708,7 @@ export const normalizeReadingV2ImportCandidate = (
       const combinesMultipleSelectSlots = responseShape.kind === 'multi-select'
         && blockSlotCount > 1
         && blockSlotCount === responseShape.selectionLimit
-        && blockPrompts.size === 1;
+        && (blockPrompts.size === 1 || (blockPrompts.size === 0 && Boolean(sharedPromptText)));
       const interactionCount = combinesMultipleSelectSlots ? 1 : blockSlotCount;
       const interactionIds = Array.from({ length: interactionCount }, (_, offset) => {
         const questionNumber = block.start + offset;
@@ -3714,7 +3738,7 @@ export const normalizeReadingV2ImportCandidate = (
             ...(combinesMultipleSelectSlots ? { answerSlotCount: blockSlotCount } : {}),
           },
           promptText: combinesMultipleSelectSlots
-            ? Object.values(prompts).find((prompt) => prompt.trim().length > 0)
+            ? Object.values(prompts).find((prompt) => prompt.trim().length > 0) ?? sharedPromptText
             : promptText,
           primaryAnchorId,
           placeholder: combinesMultipleSelectSlots

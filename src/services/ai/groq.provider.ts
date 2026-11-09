@@ -816,6 +816,7 @@ ${chunk.text}
 1. Find Answer Key section (at end)
 2. Map each question number to its answer
 3. Preserve exact format: "A", "YES", "rivers", etc.
+4. For every question with a source answer-key row, also return acceptedAnswers: the complete Studio-ready list of answers that should receive credit. Expand clearly justified forms such as flavour / flavor and 1/3 to ["one third", "1/3"]; keep literals such as km/h intact. Never invent accepted answers when the source key is missing or ambiguous.
 
 **═══════════════════════════════════════════════════════════════**
 **🔍 PRE-ANALYSIS: QUESTION GROUP DETECTION**
