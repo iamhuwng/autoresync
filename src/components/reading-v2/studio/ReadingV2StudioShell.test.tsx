@@ -52,6 +52,7 @@ import {
 } from '../../../services/reading-v2/readingV2EditorDocument.service';
 import { readingV2Ids, type ReadingV2Document, type ReadingV2SectionId } from '../../../types/readingV2.types';
 import { createReadingV2ManualAuthoringContext, type ReadingV2AuthoringSourceRecord } from '../../../services/reading-v2/readingV2AuthoringQuality.service';
+import { toast } from '../../modern/ToastNotification';
 
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
@@ -188,6 +189,7 @@ const createPublishableThreePassageDocument = (): ReadingV2Document => {
 };
 
 afterEach(() => {
+  toast.clear();
   if (originalClipboardDescriptor) {
     Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor);
   } else {
