@@ -67,5 +67,11 @@ describe('autoMarking.service', () => {
             const result = scoreQuestion(q, 'A');
             expect(result.feedback).not.toBe('Invalid answer format.');
         });
+
+        it('uses accepted candidates once each for multiple-select scoring', () => {
+            const q = { id: '1', type: 'multiple-select' as QuestionType, question: '', answer: ['A', 'C'], acceptableAnswers: ['A', 'C'] };
+            const result = scoreQuestion(q, ['A', 'A']);
+            expect(result.score).toBeLessThan(result.maxScore);
+        });
     });
 });

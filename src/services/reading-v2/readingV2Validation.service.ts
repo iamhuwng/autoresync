@@ -1000,7 +1000,9 @@ export const validateReadingV2Draft = (
     }
 
     if (interaction.responseShape.kind === 'multi-select') {
-      const answerCount = interaction.scoringRule.acceptableAnswers?.filter((answer) => answer.trim().length > 0).length ?? 0;
+      const nonEmptyAnswers = interaction.scoringRule.acceptableAnswers?.filter((answer) => answer.trim().length > 0) ?? [];
+      const answerCount = nonEmptyAnswers.length;
+      const distinctAnswerCount = new Set(nonEmptyAnswers.map(answerKey)).size;
       const answerSlotCount = interaction.reviewLabel?.answerSlotCount;
       if (interaction.responseShape.selectionLimit < 1) {
         issues.push(
@@ -1018,6 +1020,15 @@ export const validateReadingV2Draft = (
             interaction.interactionId,
           ),
         );
+      }
+
+      if (distinctAnswerCount !== answerCount) {
+        issues.push(issue(
+          'missing-scoring-response-shape',
+          `Interaction ${interaction.interactionId} cannot use duplicate acceptable multi-select candidates.`,
+          interaction.interactionId,
+          'answer',
+        ));
       }
 
       if (interaction.scoringRule.orderMatters !== false) {

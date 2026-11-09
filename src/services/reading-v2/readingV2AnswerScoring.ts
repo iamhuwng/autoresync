@@ -31,6 +31,14 @@ const canonicalNumericAnswer = (value: unknown): string | null => {
 
 const numericLike = (value: unknown): boolean => /^[\d][\d\s,.-]*$/u.test(String(value ?? '').trim());
 
+const canonicalUnitBearingAnswer = (value: unknown): string | null => {
+  const text = String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const match = text.match(/^(\d[\d,.\s]*)(\s+)([\p{L}][\p{L}/-]*)$/u);
+  if (!match?.[1] || !match[3]) return null;
+  const groupedNumber = match[1].replace(/(\d),(?=\d{3}(?:[.,\s]|$))/gu, '$1');
+  return `${groupedNumber} ${match[3]}`;
+};
+
 const normalizeAnswerItems = (
   value: unknown,
   options: {
@@ -160,6 +168,11 @@ export const answerMatches = (
     (answer) => {
       const expectedLabel = optionLabelForAnswer(answer, optionSet);
       const studentLabel = optionLabelForAnswer(studentAnswer, optionSet);
+      const expectedUnitBearing = canonicalUnitBearingAnswer(expectedLabel);
+      const studentUnitBearing = canonicalUnitBearingAnswer(studentLabel);
+      if (expectedUnitBearing || studentUnitBearing) {
+        return Boolean(expectedUnitBearing && studentUnitBearing && expectedUnitBearing === studentUnitBearing);
+      }
       const expectedNumeric = canonicalNumericAnswer(expectedLabel);
       const studentNumeric = canonicalNumericAnswer(studentLabel);
       if (expectedNumeric || studentNumeric || numericLike(expectedLabel) || numericLike(studentLabel)) {

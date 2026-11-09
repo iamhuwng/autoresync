@@ -3538,4 +3538,30 @@ describe('readingV2ImportNormalization.service', () => {
     });
     expect(validateReadingV2Draft(result.document).blockingIssues).toEqual([]);
   });
+
+  it('recognizes plain-text choose-three grouped multiple answers', () => {
+    const candidate = createReadingV2ImportCandidateFromText({
+      text: [
+        '## Plain grouped passage',
+        '',
+        'This plain passage has enough source text to exercise the grouped multiple-answer import path safely.',
+        '',
+        'Questions 8-10',
+        'Choose THREE letters, A-C.',
+        'Which THREE options are correct?',
+        'A First option',
+        'B Second option',
+        'C Third option',
+      ].join('\n'),
+      answerKeyText: '8. A\n9. B\n10. C',
+    });
+    const result = normalizeReadingV2ImportCandidate(candidate);
+    const interactions = Object.values(result.document.interactions);
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]).toMatchObject({
+      responseShape: { kind: 'multi-select', selectionLimit: 3 },
+      scoringRule: { maxScore: 3, acceptableAnswers: ['A', 'B', 'C'], orderMatters: false },
+      reviewLabel: { displayNumber: 8, answerSlotCount: 3 },
+    });
+  });
 });

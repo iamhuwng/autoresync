@@ -254,7 +254,11 @@ function scoreMultipleSelect(
   question: Question,
   studentAnswer: string[] | string
 ): QuestionMarkingResult {
-  const correctAnswers = question.answer as string[];
+  const correctAnswers = question.acceptableAnswers?.length
+    ? question.acceptableAnswers
+    : Array.isArray(question.answer)
+      ? question.answer
+      : [String(question.answer)];
   const maxScore = question.points || 10;
 
   let normalizedStudentAnswer = studentAnswer;
@@ -280,8 +284,13 @@ function scoreMultipleSelect(
   let correctSelections = 0;
   let incorrectSelections = 0;
 
+  const usedCorrectAnswers = new Set<number>();
   normalizedStudentAnswer.forEach((ans) => {
-    if (correctAnswers.some((correct) => answersMatch(correct, ans))) {
+    const correctIndex = correctAnswers.findIndex((correct, index) =>
+      !usedCorrectAnswers.has(index) && answersMatch(correct, ans),
+    );
+    if (correctIndex >= 0) {
+      usedCorrectAnswers.add(correctIndex);
       correctSelections++;
     } else {
       incorrectSelections++;

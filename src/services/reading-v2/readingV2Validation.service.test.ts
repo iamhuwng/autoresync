@@ -942,4 +942,25 @@ describe('readingV2Validation.service', () => {
     expect(result.canPublish).toBe(false);
     expect(result.blockingIssues.map((issue) => issue.code)).toContain('duplicate-numbering');
   });
+
+  it('blocks duplicate acceptable candidates in grouped multiple-select scoring', () => {
+    const document = structuredClone(READING_V2_CANONICAL_FIXTURES['multiple-select']) as ReadingV2Document;
+    const [interactionId] = Object.keys(document.interactions);
+    const interaction = document.interactions[interactionId]!;
+    const invalidDocument: ReadingV2Document = {
+      ...document,
+      interactions: {
+        ...document.interactions,
+        [interactionId]: {
+          ...interaction,
+          responseShape: { ...interaction.responseShape, selectionLimit: 3 },
+          scoringRule: { ...interaction.scoringRule, maxScore: 3, acceptableAnswers: ['A', 'A', 'C'], orderMatters: false },
+          reviewLabel: { ...interaction.reviewLabel, displayNumber: 8, answerSlotCount: 3 },
+        },
+      },
+    };
+    const result = validateReadingV2Draft(invalidDocument);
+    expect(result.canPublish).toBe(false);
+    expect(result.blockingIssues.map((issue) => issue.message).join(' ')).toContain('duplicate acceptable multi-select candidates');
+  });
 });

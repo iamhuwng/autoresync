@@ -1,4 +1,4 @@
-import type { ReadingV2Document, ReadingV2TaskGroup, ReadingV2ValidationIssue } from '../../types/readingV2.types';
+import type { ReadingV2Document, ReadingV2Interaction, ReadingV2TaskGroup, ReadingV2ValidationIssue } from '../../types/readingV2.types';
 import type { ReadingV2CanonicalTaskType } from '../../types/readingV2Taxonomy';
 import { getReadingV2AuthoringSourceText, parseReadingV2TeacherAnswerKey, type ReadingV2ImportCandidate, type ReadingV2TeacherAnswerKeyPayload } from './readingV2ImportNormalization.service';
 import { buildReadingV2AutoSourceLedger, isReadingV2SourceAnswerKeyHeading, readReadingV2SourceBank, type ReadingV2AutoSourceReferenceBankKind } from './readingV2AutoImportSourceLedger.service';
@@ -198,6 +198,20 @@ const targetForInteraction = (document: ReadingV2Document, interactionId: string
   const interaction = document.interactions[interactionId];
   const group = interaction && document.taskGroups[interaction.taskGroupId];
   return { interactionId, ...(group ? { taskGroupId: group.taskGroupId, sectionId: group.sectionId } : {}) };
+};
+
+const hasUnapprovedAnswerVariants = (
+  source: ReadingV2AuthoringSourceRecord,
+  questionNumber: number | undefined,
+  interaction: ReadingV2Interaction | undefined,
+): boolean => {
+  if (!interaction || questionNumber === undefined || !source.teacherAnswerKey) return false;
+  const row = source.teacherAnswerKey.rows.find((candidate) => candidate.questionNumber === questionNumber);
+  const sourceAnswers = new Set((row?.parsedAnswerValues ?? []).map((answer) => answer.trim().toLowerCase()).filter(Boolean));
+  if (sourceAnswers.size === 0) return false;
+  return (interaction.scoringRule.acceptableAnswers ?? [])
+    .map((answer) => answer.trim().toLowerCase())
+    .some((answer) => answer && !sourceAnswers.has(answer));
 };
 
 const targetForIssue = (document: ReadingV2Document, issue: ReadingV2ValidationIssue): ReadingV2FindingTarget => {
@@ -736,6 +750,8 @@ export const evaluateReadingV2AuthoringReadiness = (state: {
         if (resolution === 'authored-answer' && interaction?.scoringRule.acceptableAnswers?.some((answer) => answer.trim())) return;
         if (!interaction) {
           add('source-answer-key-unbound', `Answer key row ${requirement.sourceQuestionNumber ?? ''} is outside the current questions. Confirm the row is outside this import or add its question.`, target, 'exclude', sourceExcerpt);
+        } else if (hasUnapprovedAnswerVariants(source, requirement.sourceQuestionNumber, interaction)) {
+          add('source-answer-key-variants-unapproved', `Question ${requirement.sourceQuestionNumber ?? ''} has accepted answer variants that were not explicitly approved against the supplied teacher key.`, target, 'interpret', sourceExcerpt);
         } else if (requirement.answerKeyStatus === 'invalid' || requirement.answerKeyStatus === 'duplicate') {
           add('source-answer-key-invalid', `Answer key row ${requirement.sourceQuestionNumber ?? ''} is ${requirement.answerKeyStatus}. Use the current authored answer or restore the supplied row.`, target, 'exclude', sourceExcerpt);
         }
