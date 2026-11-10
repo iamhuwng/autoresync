@@ -23,13 +23,30 @@ into.
 - Reading V2 import and grouped-answer suites: 90 tests passed.
 - `git diff --check`: passed.
 - Committed locally as `fee1ea31`.
+- The production source was recovered and retained locally at
+  `refs/heads/recovered/production-23ae29a7`.
+- An isolated candidate was prepared from the exact deployed revision
+  `23ae29a79f816b27a551071345d700988b043bc7` as `04d9fb5c19629fc88451f6d8e033f3195e471027`.
+- The isolated candidate passed 75 runtime/CSS tests and 87 import/grouped-answer
+  tests; its final tree is `178ba8f9505d3073a04f0d6759ee35de5eaf155d`.
 
 ## Release status
 
-The live Hosting manifest was read back from `https://kahut1.web.app` and
-reported production revision `23ae29a79f816b27a551071345d700988b043bc7`.
-The guarded release assessment against `origin/main` returned `BLOCKED` because
-the reviewed base does not match that deployed revision and the exact deployed
-Git object is unavailable in the local repository. No Hosting deployment was
-executed. A fresh compatibility review and an isolated hotfix from the observed
-production source are required before deployment.
+The live Hosting manifest was independently matched to production revision
+`23ae29a79f816b27a551071345d700988b043bc7`, tree
+`d4dfd19cf7fa94098ab7d5ddb2b0ed9a73e7f216`, and observation fingerprint
+`46f7dd467389485548637c49133b71ba6eec4b024a7b464c08be360f91e0c5b2`.
+The guarded path remains blocked because this application-code hotfix still
+needs a fresh independently supported compatibility review bound to candidate
+`04d9fb5c19629fc88451f6d8e033f3195e471027`, base `23ae29a79f816b27a551071345d700988b043bc7`,
+and that observation fingerprint. A self-authored `decision: verified` review
+from local tests was rejected by the safety reviewer because those tests do not
+establish broad Hosting/Worker/Firebase compatibility. No Hosting deployment
+was executed.
+
+The recovered commit was absent from `origin`, which exposed the source-retention
+gap. The minimal fail-closed follow-up is to require an independently durable
+release ref for the exact source revision before deployment, verify that ref in
+the release preflight, and record its name in the Hosting manifest and receipt.
+This is a release-control requirement; it does not require redesigning the
+application or automatically pushing to a remote.
