@@ -30,7 +30,7 @@ describe('ReadingV2RuntimeShell phone CSS contract', () => {
   });
 
   it('keeps structured table answer fields wide enough to target on phone and desktop', () => {
-    expect(css).toMatch(/\.reading-v2-runtime__structured-answer table\s*{[^}]*min-width:\s*720px/);
+    expect(css).toMatch(/\.reading-v2-runtime__structured-answer table\s*{[^}]*min-width:\s*800px/);
     expect(css).toMatch(/\.reading-v2-runtime__cell-answer-line\s*{[^}]*width:\s*max-content[^}]*max-width:\s*none/);
     expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field\s*{[^}]*min-width:\s*max-content/);
     expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input\s*{[^}]*flex:\s*0 0 14ch[^}]*width:\s*14ch[^}]*min-width:\s*14ch/);
