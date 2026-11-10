@@ -28,4 +28,11 @@ describe('ReadingV2RuntimeShell phone CSS contract', () => {
     expect(css).toMatch(/data-layout="phone"[^}]*reading-v2-runtime__text-input[\s\S]*?min-height:\s*44px/);
     expect(css).toMatch(/data-layout="phone"[^}]*reading-v2-runtime__text-input[\s\S]*?font-size:\s*16px/);
   });
+
+  it('keeps structured table answer fields wide enough to target on phone and desktop', () => {
+    expect(css).toMatch(/\.reading-v2-runtime__structured-answer table\s*{[^}]*min-width:\s*640px/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-line\s*{[^}]*width:\s*max-content[^}]*max-width:\s*none/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field\s*{[^}]*min-width:\s*max-content/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input\s*{[^}]*flex:\s*0 0 14ch[^}]*width:\s*14ch[^}]*min-width:\s*14ch/);
+  });
 });
