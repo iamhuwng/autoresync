@@ -43,5 +43,7 @@ describe('ReadingV2RuntimeShell phone CSS contract', () => {
     expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input\s*{[^}]*flex:\s*0 1 auto[^}]*field-sizing:\s*content[^}]*width:\s*auto[^}]*min-width:\s*3ch[^}]*max-width:\s*14ch[^}]*border-bottom:\s*2px solid[^}]*overflow:\s*hidden[^}]*white-space:\s*nowrap/);
     expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input:focus\s*{[^}]*border-bottom-width:\s*3px[^}]*outline:\s*0/);
     expect(css).not.toContain('.reading-v2-runtime__cell-answer-field:focus-within');
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-line\.reading-v2-runtime__question-anchor--focused\s*{[^}]*outline:\s*0[^}]*animation:\s*none/);
+    expect(css).toContain('.reading-v2-runtime__cell-answer-line.reading-v2-runtime__question-anchor--focused .reading-v2-runtime__text-input,');
   });
 });

@@ -1599,12 +1599,11 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByLabelText('Table completion answer table')).toHaveTextContent('wide range of');
     const answer = screen.getByRole('textbox', { name: 'Question 1 structured answer' });
     expect(answer).toBeInTheDocument();
-    expect(answer.tagName).toBe('TEXTAREA');
-    expect(answer).toHaveAttribute('rows', '1');
-    expect(answer).toHaveAttribute('wrap', 'soft');
+    expect(answer).toHaveAttribute('type', 'text');
 
     fireEvent.change(answer, { target: { value: 'a longer answer' } });
-    expect(answer.closest('.reading-v2-runtime__cell-answer-stack')).toBeInTheDocument();
+    expect(answer).toHaveValue('a longer answer');
+    expect(answer.closest('.reading-v2-runtime__cell-answer-field')).toBeInTheDocument();
   });
 
   it('preserves answer state while switching phone answer layers', () => {

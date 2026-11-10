@@ -1028,6 +1028,11 @@
   white-space: normal;
 }
 
+.reading-v2-runtime__cell-answer-line.reading-v2-runtime__question-anchor--focused {
+  outline: 0;
+  animation: none;
+}
+
 .reading-v2-runtime__cell-answer-field {
   display: inline-flex;
   flex: 0 0 auto;
@@ -1066,6 +1071,7 @@
   white-space: nowrap;
 }
 
+.reading-v2-runtime__cell-answer-line.reading-v2-runtime__question-anchor--focused .reading-v2-runtime__text-input,
 .reading-v2-runtime__cell-answer-field .reading-v2-runtime__text-input:focus {
   border-bottom-width: 3px;
   outline: 0;
