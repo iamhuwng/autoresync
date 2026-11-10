@@ -36,17 +36,29 @@ The live Hosting manifest was independently matched to production revision
 `23ae29a79f816b27a551071345d700988b043bc7`, tree
 `d4dfd19cf7fa94098ab7d5ddb2b0ed9a73e7f216`, and observation fingerprint
 `46f7dd467389485548637c49133b71ba6eec4b024a7b464c08be360f91e0c5b2`.
-The guarded path remains blocked because this application-code hotfix still
-needs a fresh independently supported compatibility review bound to candidate
-`04d9fb5c19629fc88451f6d8e033f3195e471027`, base `23ae29a79f816b27a551071345d700988b043bc7`,
-and that observation fingerprint. A self-authored `decision: verified` review
-from local tests was rejected by the safety reviewer because those tests do not
-establish broad Hosting/Worker/Firebase compatibility. No Hosting deployment
-was executed.
+An independent compatibility review verified candidate
+`04d9fb5c19629fc88451f6d8e033f3195e471027` against base
+`23ae29a79f816b27a551071345d700988b043bc7` and the observed production
+fingerprint. It confirmed unchanged Worker endpoints, Firebase permissions and
+configuration, runtime contracts, and dependency manifests. The guarded
+assessment returned `PASS`, including all historical hotfix reconciliations.
+
+The isolated candidate was deployed through the guarded Hosting route. The live
+manifest now reports revision `04d9fb5c19629fc88451f6d8e033f3195e471027`, tree
+`178ba8f9505d3073a04f0d6759ee35de5eaf155d`, and production environment
+fingerprint `8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57`.
+The post-deploy full file/hash observation passed; Firebase provider version
+`ba91b4cfa8c09eaa` was released at `2026-11-10T05:47:55.283Z`.
+
+The in-app browser authenticated the student session and loaded the live
+student shell. The supplied historical practice URL returned `Error Loading
+Test` / `Failed to load test information`, so that specific test record was
+unavailable for a live typing interaction check. The candidate CSS was also
+verified in a focused desktop/phone browser preview before deployment.
 
 The recovered commit was absent from `origin`, which exposed the source-retention
 gap. The minimal fail-closed follow-up is to require an independently durable
 release ref for the exact source revision before deployment, verify that ref in
 the release preflight, and record its name in the Hosting manifest and receipt.
-This is a release-control requirement; it does not require redesigning the
+This remains a release-control follow-up; it does not require redesigning the
 application or automatically pushing to a remote.

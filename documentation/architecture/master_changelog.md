@@ -8,7 +8,6 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-10 | [`CL-20261110-READING-V2-TABLE-ANSWER-FIELD-WIDTH`](changelog/reading-v2-table-answer-field-width-2026-11-10.md) | Reading V2 Student Runtime | Fixed | Widened structured table answer fields and the scrollable table surface for reliable desktop and phone input; isolated candidate `04d9fb5c` is tested from recovered production source, with Hosting still blocked on an independently supported compatibility review. |
 | 2026-11-10 | [`CL-20261110-READING-V2-SPLITTER-DRAG`](changelog/reading-v2-splitter-drag-2026-11-10.md) | Reading V2 Student Runtime | Fixed | Replaced the moving native range divider with the existing accessible panel resize handle, preserving the 50/50 default and 30%–70% limits; locally verified pointer drag and question-pane usability, while production deployment remains blocked by unavailable exact deployed source provenance. |
 | 2026-11-09 | [`CL-20261109-HOSTING-VERIFIER-OPTIMIZATION`](changelog/hosting-verifier-optimization-2026-11-09.md) | Hosting Release Safety | Fixed | Bound Hosting asset readback, stopped queued work after failure, classified permanent failures ahead of retryable ones, and preserved complete source/hash verification; source integration only, not deployed. |
 | 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
@@ -19,6 +18,12 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
 | 2026-07-08 | [`CL-20260708-CHANGELOG-SYSTEM-RESEARCH`](changelog/changelog-system-research.md) | Documentation | Research | Researched professional changelog and documentation maintenance patterns and adapted them to this repo. |
+
+## 2026-11-10 — Released
+
+| Date | ID | Area | Type | Summary |
+| --- | --- | --- | --- | --- |
+| 2026-11-10 | [`CL-20261110-READING-V2-TABLE-ANSWER-FIELD-WIDTH`](changelog/reading-v2-table-answer-field-width-2026-11-10.md) | Reading V2 Student Runtime | Fixed | Deployed isolated hotfix `04d9fb5c` from recovered production source `23ae29a7`; live manifest, full Hosting hash readback, and guarded release evidence passed. The supplied historical practice record was unavailable for live typing verification. |
 
 ## 2026-11-06 — Released
 
