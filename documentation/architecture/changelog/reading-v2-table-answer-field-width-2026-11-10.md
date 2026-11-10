@@ -50,11 +50,14 @@ fingerprint `8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57`.
 The post-deploy full file/hash observation passed; Firebase provider version
 `ba91b4cfa8c09eaa` was released at `2026-11-10T05:47:55.283Z`.
 
-The in-app browser authenticated the student session and loaded the live
-student shell. The supplied historical practice URL returned `Error Loading
-Test` / `Failed to load test information`, so that specific test record was
-unavailable for a live typing interaction check. The candidate CSS was also
-verified in a focused desktop/phone browser preview before deployment.
+The in-app browser authenticated the student session and opened the current
+Homework assignment `Selected Reading Passages` through the supported
+student flow. Its `Resume Attempt` route loaded the live Reading V2 runtime,
+displayed table questions 4–7, and accepted the unsent value `wholesalers` in
+question 5 on the phone layout. The direct deep link initially returned
+`Error Loading Test`, but the same assignment loaded correctly from Homework
+details. The candidate CSS was also verified in a focused desktop/phone
+browser preview before deployment.
 
 The recovered commit was absent from `origin`, which exposed the source-retention
 gap. The minimal fail-closed follow-up is to require an independently durable
