@@ -63,3 +63,14 @@ The exact deployed candidate is now durably preserved on GitHub at
 The minimal fail-closed follow-up is to require an independently durable release
 ref for the exact source revision before deployment, verify that ref in release
 preflight, and record its name in the Hosting manifest and receipt.
+
+## Combined release follow-up, 2026-11-11
+
+The completed field work is retained in production source `64e2bd69`, alongside
+the completed splitter repair. Final live phone verification exposed and fixed
+the separate question-navigation anchor outline, so navigator selection and
+typing both use the underline focus treatment. The existing runtime assertion
+was updated for the approved single-line input; candidate 77/77 and canonical
+main 78/78 focused tests passed. See
+[`reading-v2-completed-runtime-layout-2026-11-11.md`](reading-v2-completed-runtime-layout-2026-11-11.md)
+for final provider, source, compatibility, and actual runtime evidence.
