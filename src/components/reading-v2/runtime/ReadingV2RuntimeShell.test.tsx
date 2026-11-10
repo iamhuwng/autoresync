@@ -288,6 +288,19 @@ describe('ReadingV2RuntimeShell', () => {
     expect(screen.getByRole('textbox', { name: 'Question 1 answer' })).toBeInTheDocument();
   });
 
+  it('exposes a keyboard-accessible splitter with a comfortable drag target', () => {
+    setViewport(768, 700);
+
+    render(<ReadingV2RuntimeShell projection={READING_V2_PROJECTION_FIXTURES.studentSafe} />);
+
+    const splitter = screen.getByRole('separator', { name: 'Resize passage and questions columns' });
+    expect(splitter).toHaveAttribute('aria-orientation', 'vertical');
+    expect(splitter).toHaveAttribute('role', 'separator');
+    expect(splitter).toHaveAttribute('tabindex', '0');
+    expect(splitter).toHaveAttribute('data-panel-resize-handle-enabled', 'true');
+    expect(splitter).toHaveClass('reading-v2-runtime__divider');
+  });
+
   it('keeps the phone runtime on phone hardware in landscape', () => {
     setViewport(844, 390);
     vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
