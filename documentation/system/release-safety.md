@@ -6,6 +6,122 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+Start routine preparation with `npm run release:plan -- --json`. It observes
+the live source/assets, selects that base automatically and reuses this assessor.
+It runs no build or tests and creates no approval. See
+[integration and source convergence](integration-releases.md) for the required
+CI result, pending GitHub protection, and the qualification of main.
+
+## Hosting release foundation
+
+The guarded Hosting route now executes the reviewed test scope itself and
+retains source, artifact and technical evidence on the existing GitHub
+repository **before** Firebase publication. This is the first implementation
+phase; it does not qualify `main`, change production authorization, or replace
+the existing compatibility and historical-hotfix gates.
+
+**Qualification gate:** the [November 11 GitHub rehearsal](../release-audits/2026-11-11-release-foundation-github-rehearsal.md)
+passed real archive/readback, source/artifact restoration and interrupted receipt
+recovery, with exact cleanup. This is not Hosting publication/rollback proof.
+Keep the foundation on its implementation branch until qualified integration
+review and the applicable source-publication/merge authorization are complete.
+Do not treat local or GitHub-only evidence as complete production qualification.
+No bypass flag is provided.
+
+In addition to the existing base/source/environment/observed-state bindings,
+set these reviewed inputs:
+
+- `LUYENTAP_RELEASE_SOURCE_REF`: an existing fully qualified GitHub branch or
+  tag, such as `refs/heads/codex/my-reviewed-release`, resolving to the exact
+  candidate commit and tree. Publish that source under the task's authorization
+  before deploying; the deployment script never pushes a branch for you.
+- `LUYENTAP_RELEASE_TEST_PLAN_FILE` and
+  `LUYENTAP_RELEASE_TEST_PLAN_SHA256`: exact bytes of the reviewed verification
+  scope. A plan is a list of checks, not a supplied claim that they passed.
+- `LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256` when a compatibility review is
+  supplied: the review's exact SHA-256, independently bound alongside its path.
+
+A verification plan can live outside the candidate so the candidate stays
+clean. Its test/configuration files must be explicit tracked paths in the
+candidate:
+
+```json
+{
+  "schemaVersion": 1,
+  "suites": [
+    {
+      "runner": "node",
+      "files": ["scripts/__tests__/deployment-safety.test.mjs"]
+    },
+    {
+      "runner": "vitest",
+      "config": "vitest.config.ts",
+      "files": ["src/path/to/the-affected.test.ts"]
+    }
+  ]
+}
+```
+
+Choose the actual affected tests during technical review; the example is not a
+default sufficient scope. A passing result establishes execution of that scope,
+not its adequacy for the intended change. Diff review and affected-workflow
+evidence remain necessary until impact-based selection is qualified. These
+intermediate inputs are not the intended permanent operator interface; a later
+planner must derive their mechanical bindings without inventing review or
+authorization. Unknown runners, globs, untracked paths, zero tests,
+failed/skipped/TODO tests and source/configuration changes fail closed. Tests
+run directly through Node or the existing Vitest resolver. The branded result
+is consumed in the same deployment process; an edited receipt cannot replace
+execution. Only normalized results and output digests are archived, not raw
+test output or production environment values.
+
+The source, built artifact, reviewed inputs and prior provider version/config
+are retained in an operation-specific **draft** GitHub release archive. It
+does not publish a product release or change GitHub's latest release. Existing
+repository credentials are required to read the draft during recovery. The exact source and
+all uploaded archive bytes are independently read back before publication.
+Source is retained as `source.tar.gz`, with bounded compressed and extracted
+sizes. Exact parent-tree reconstruction includes tracked Gitlink commit
+identities. This does not fetch or recover linked repositories' contents; any
+required linked source needs separate recoverability evidence.
+Draft discovery uses GitHub's GraphQL tag lookup followed by REST retrieval
+through the numeric release ID. REST `releases/tags/{tag}` is a published-release
+endpoint and is not used for draft recovery.
+Repository permissions govern this archive; it is durable evidence, not a
+cryptographic approval or protection from a repository administrator deleting
+it. Outcome assets are append-only in this tool, not immutable at the provider.
+GitHub release immutability takes effect on publication and prevents subsequent
+asset changes, so a future sealing step must finish all evidence first or store
+later outcomes separately. No such sealing or permission change is performed
+by this phase. Remote retention/tag protection and CI promotion remain later
+phases.
+
+Publication messages include a stable operation ID. If Firebase accepts the
+release but hash readback fails, the journal records `published/unverified`
+when the provider identifies that operation. Resume that operation without a
+build, production environment file or deployment invocation:
+
+```powershell
+npm run release:verify-existing -- <operation-uuid>
+```
+
+This command reads the remote archive, current provider identity and **all**
+manifest-listed assets. It never rolls back, rebuilds or deploys. It refuses
+to reassign an already confirmed publication to a different provider version.
+If another release is now live or publication is ambiguous, inspect the
+existing operation; do not blindly repeat deployment. Verification also
+repairs a previously interrupted remote outcome upload.
+
+The historical `release-operation --finish --evidence` entry remains a manual
+recording route; caller JSON is not the native verifier. Generic rules,
+indexes and Functions changes require their own evidence and cannot pass from
+a Hosting observation. Fixed native service qualifications retain their scope.
+
+`npm run build:production` remains build-only and does not create a qualified
+release or a remote archive. The foundation is tested with disposable source,
+artifact and provider fixtures; production/rollback qualification must be
+reported separately.
+
 Current operational state: the October 18 [Book restoration release](../release-audits/2026-10-18-book-hosting-release.md)
 serves a verified production source manifest. Start with `--observe-hosting` and
 fresh provider evidence. The October 11 rehearsals and missing-manifest statements
@@ -64,7 +180,7 @@ non-mutating. This keeps the bootstrap useful for a pre-manifest site without
 allowing a locally assembled dirty artifact to be mistaken for the reviewed
 revision/tree.
 
-`deploy-live.mjs` writes the same source/tree/file-hash manifest into each production build before Hosting deployment. The mutating Hosting route additionally requires `LUYENTAP_RELEASE_BASELINE_FILE`, `LUYENTAP_RELEASE_BASELINE_SHA256`, `LUYENTAP_RELEASE_BASE`, `LUYENTAP_RELEASE_FINGERPRINT`, and `LUYENTAP_RELEASE_ENV_FINGERPRINT`. Hotfix assessments carry a computed reconciliation obligation into the next manifest; later assessments compare the complete hotfix delta against the candidate. These values bind a technical preflight to its inputs; they are not human authorization. A separate authorized operator decision is still required, and the baseline file must contain no credentials.
+`deploy-live.mjs` writes the same source/tree/file-hash manifest into each production build before Hosting deployment. The mutating Hosting route requires `LUYENTAP_RELEASE_BASE`, `LUYENTAP_RELEASE_FINGERPRINT`, `LUYENTAP_RELEASE_OBSERVED_FINGERPRINT`, and `LUYENTAP_RELEASE_ENV_FINGERPRINT`, plus the foundation inputs above. A caller-supplied baseline file is optional and cannot substitute for independent observation; if supplied, its exact `LUYENTAP_RELEASE_BASELINE_SHA256` is required. Hotfix assessments carry a computed reconciliation obligation into the next manifest; later assessments compare the complete hotfix delta against the candidate. These values bind technical preflight, not human authorization. A separate authorized operator decision is still required, and evidence files must contain no credentials.
 
 ## Fixed Homework Worker artifact assessment
 

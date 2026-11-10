@@ -24,7 +24,7 @@ const rules = [
   ['backup-worker', p => /^r2-backup-worker\//u.test(p)],
   ['migrations', p => /(^|\/)(migrations?\/|[^/]*(?:migrate|backfill|reconciliation)[^/]*\.(?:mjs|ts|js)$)/iu.test(p)],
   ['backblaze', p => /(backblaze|book-source|wrangler\.book-source|B2)/i.test(p)],
-  ['tooling', p => /^(package(?:\.json|-lock\.json)|scripts\/(?:tooling|harness|dev-env|branch-doctor|release-|hotfix-|deploy-live|local-dev))/.test(p)],
+  ['tooling', p => /^(\.github\/workflows\/|package(?:\.json|-lock\.json)|scripts\/(?:tooling|harness|dev-env|branch-doctor|release-|hotfix-|deploy-live|local-dev|integration-check))/.test(p)],
 ];
 const git = (args, cwd) => { const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }); if (result.error || result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.error?.message || result.stderr?.trim() || result.status}`); return result.stdout; };
 const names = output => [...new Set(output.split(/\r?\n/u).map(value => value.trim()).filter(Boolean))].sort();
@@ -282,6 +282,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
   if (services.includes('worker') && !listeningObservation && !editorObservation) findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
+  if (services.includes('firebase-rules') && !listeningObservation && !editorObservation) findings.push({ status: STATUS.UNVERIFIED, message: 'Firebase rules, indexes and Functions changes require their own native provider qualification; Hosting observation cannot verify those service scopes.' });
   if (services.includes('hosting') && services.includes('worker') && !listeningObservation && !editorObservation) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Worker changed together; verify endpoint and payload compatibility.' });
   if (services.includes('hosting') && services.includes('firebase-rules') && !listeningObservation && !editorObservation) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Firebase rules changed together; verify authorization and migration order.' });
   let baseline = null, baselineFingerprint = null;
@@ -295,6 +296,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
       findings.push({ status: STATUS.PASS, message: observation.sourceKnown === false ? `Firebase Hosting live release ${observation.provider.version} independently read back; source provenance is unavailable.` : 'Production Hosting source manifest and deployed file hashes independently read back.' });
       if (observation.sourceKnown === false) findings.push({ status: STATUS.UNVERIFIED, message: 'Firebase Hosting provider metadata does not identify the deployed Git revision or content tree.' });
       else if (observation.revision !== source.baseRevision) findings.push({ status: STATUS.BLOCKED, message: 'Reviewed base does not match observed production Hosting revision.' });
+      else if (observation.tree !== git(['rev-parse', `${source.baseRevision}^{tree}`], cwd).trim()) findings.push({ status: STATUS.BLOCKED, message: 'Reviewed base tree does not match observed production Hosting tree.' });
       if (baseline?.observed?.fingerprint && baseline.observed.fingerprint !== observation.fingerprint) findings.push({ status: STATUS.BLOCKED, message: 'Production Hosting changed since the reviewed observation.' });
     }
   }
