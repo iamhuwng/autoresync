@@ -23,7 +23,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-10 | [`CL-20261110-READING-V2-TABLE-ANSWER-FIELD-WIDTH`](changelog/reading-v2-table-answer-field-width-2026-11-10.md) | Reading V2 Student Runtime | Fixed | Deployed isolated hotfix `04d9fb5c` from recovered production source `23ae29a7`; live manifest, full Hosting hash readback, guarded release evidence, and live phone table typing through a current Homework assignment passed. |
+| 2026-11-10 | [`CL-20261110-READING-V2-TABLE-ANSWER-FIELD-WIDTH`](changelog/reading-v2-table-answer-field-width-2026-11-10.md) | Reading V2 Student Runtime | Fixed | Deployed isolated hotfix `b550a600` from observed production base `12567749`; live manifest, full Hosting hash readback, compatibility review, guarded release evidence, and real student-runtime table typing passed. |
 
 ## 2026-11-06 — Released
 

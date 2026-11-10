@@ -4,64 +4,60 @@ Changelog ID: `CL-20261110-READING-V2-TABLE-ANSWER-FIELD-WIDTH`
 
 ## Problem
 
-Structured table-completion answer fields collapsed around the question badge on
-desktop and phone. The resulting target was too small to tap reliably or type
-into.
+Structured table-completion answer fields were difficult to tap and visually
+separated from the sentence or table-cell text. Focus also exposed an unwanted
+rectangular control border.
 
 ## Change
 
-- Reserved a 14-character input width for every structured table answer field.
-- Kept the answer field and question badge together without shrink-to-content
-  collapse.
-- Raised the table's scrollable minimum width so narrow screens can pan to a
-  usable field instead of clipping or compressing it.
-- Added a CSS contract test for the shared phone and desktop table renderer.
+- Rendered shared free-text answers as borderless inline underlines, with a
+  thicker underline as the focus indicator.
+- Rendered structured table answers as single-line text inputs in the inline
+  cell flow, without an outer wrapper box; long values stay clipped to one
+  line and the surrounding cell text remains contained.
+- Kept the table layout left-aligned and usable across desktop, tablet, and
+  mobile widths.
+- Updated the runtime CSS/markup and the mobile CSS contract test only.
 
 ## Verification
 
-- Reading V2 runtime and CSS suites: 77 tests passed.
-- Reading V2 import and grouped-answer suites: 90 tests passed.
-- `git diff --check`: passed.
-- Committed locally as `fee1ea31`.
-- The production source was recovered and retained locally at
-  `refs/heads/recovered/production-23ae29a7`.
-- An isolated candidate was prepared from the exact deployed revision
-  `23ae29a79f816b27a551071345d700988b043bc7` as `04d9fb5c19629fc88451f6d8e033f3195e471027`.
-- The isolated candidate passed 75 runtime/CSS tests and 87 import/grouped-answer
-  tests; its final tree is `178ba8f9505d3073a04f0d6759ee35de5eaf155d`.
+- Candidate: `b550a600ff950e4ea707861065534d12bb015b8b`.
+- Exact observed production base: `12567749befa536c5fb81891c8e528e4e7b97092`.
+- Candidate diff is limited to the runtime CSS, runtime markup, and its mobile
+  CSS contract test.
+- Production build and tooling doctor passed. The copied candidate checkout's
+  focused Vitest command remains unavailable because its junctioned dependency
+  and config path fails before test discovery; this is recorded as a harness
+  limitation rather than a product test pass.
+- `git diff --check` passed for the release documentation.
 
 ## Release status
 
-The live Hosting manifest was independently matched to production revision
-`23ae29a79f816b27a551071345d700988b043bc7`, tree
-`d4dfd19cf7fa94098ab7d5ddb2b0ed9a73e7f216`, and observation fingerprint
-`46f7dd467389485548637c49133b71ba6eec4b024a7b464c08be360f91e0c5b2`.
-An independent compatibility review verified candidate
-`04d9fb5c19629fc88451f6d8e033f3195e471027` against base
-`23ae29a79f816b27a551071345d700988b043bc7` and the observed production
-fingerprint. It confirmed unchanged Worker endpoints, Firebase permissions and
-configuration, runtime contracts, and dependency manifests. The guarded
-assessment returned `PASS`, including all historical hotfix reconciliations.
+The live Hosting manifest was independently matched to the observed production
+base and then to candidate revision `b550a600ff950e4ea707861065534d12bb015b8b`.
+The candidate tree is `8ac2c7a319c31803b45c84e138c2a7824db288ce`; the observed
+production fingerprint is
+`f5d883ad2e5fcdf1a138f01f6c5f9c73d55293b99f20d57ca46919b5eb2a0a07`.
+An independent compatibility review verified the candidate against base
+`12567749befa536c5fb81891c8e528e4e7b97092` and that fingerprint. It confirmed
+unchanged Worker endpoints, Firebase permissions/configuration, application
+answer callbacks, runtime dependencies, and package manifests. The guarded
+assessment returned `PASS`, including historical hotfix reconciliation.
 
 The isolated candidate was deployed through the guarded Hosting route. The live
-manifest now reports revision `04d9fb5c19629fc88451f6d8e033f3195e471027`, tree
-`178ba8f9505d3073a04f0d6759ee35de5eaf155d`, and production environment
+manifest now reports revision `b550a600ff950e4ea707861065534d12bb015b8b`, tree
+`8ac2c7a319c31803b45c84e138c2a7824db288ce`, and production environment
 fingerprint `8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57`.
-The post-deploy full file/hash observation passed; Firebase provider version
-`ba91b4cfa8c09eaa` was released at `2026-11-10T05:47:55.283Z`.
+The post-deploy full file/hash observation passed; Firebase provider version is
+`206edf3769d3d900`.
 
-The in-app browser authenticated the student session and opened the current
-Homework assignment `Selected Reading Passages` through the supported
-student flow. Its `Resume Attempt` route loaded the live Reading V2 runtime,
-displayed table questions 4–7, and accepted the unsent value `wholesalers` in
-question 5 on the phone layout. The direct deep link initially returned
-`Error Loading Test`, but the same assignment loaded correctly from Homework
-details. The candidate CSS was also verified in a focused desktop/phone
-browser preview before deployment.
+The in-app browser opened the real live Urban farming Reading V2 student
+runtime. Desktop/tablet evidence shows the Q4–Q7 table contained in its scroll
+region. Focusing Q4 shows only the underline; a temporary long value remained
+single-line and contained within the cell, then was cleared. The live runtime
+also showed Q1–Q3 borderless underlines and the running student timer.
 
-The recovered commit was absent from `origin`, which exposed the source-retention
-gap. The minimal fail-closed follow-up is to require an independently durable
-release ref for the exact source revision before deployment, verify that ref in
-the release preflight, and record its name in the Hosting manifest and receipt.
-This remains a release-control follow-up; it does not require redesigning the
-application or automatically pushing to a remote.
+The recovered source-retention gap is recorded separately from this UI release.
+The minimal fail-closed follow-up is to require an independently durable release
+ref for the exact source revision before deployment, verify that ref in release
+preflight, and record its name in the Hosting manifest and receipt.
