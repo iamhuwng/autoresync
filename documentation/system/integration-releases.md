@@ -57,7 +57,7 @@ files, no failures/skips/TODOs. Relevant coverage remains a review responsibilit
 The build uses disposable acceptance configuration and the existing bundle budget.
 PRs test their merge commit; stale base checks must be blocked by protection.
 
-After the new workflow has actually reported on GitHub, the proposed main policy is:
+The main policy applied and read back on November 11 is:
 
 - Require a pull request and **LuyenTap integration** from GitHub Actions
   (observed app ID `15368`), with the branch up to date before merging.
@@ -66,16 +66,34 @@ After the new workflow has actually reported on GitHub, the proposed main policy
   and no code-owner/last-pusher approval, so the solo maintainer can merge a
   qualified PR. Preserve existing history and allow normal merge commits.
 
-Setting protection requires explicit authorization. Qualify it with a failing
-PR check that demonstrably blocks merging, followed by the repaired exact-source
-check. A local helper test does not establish enforcement. Never use an empty
+The owner authorized this policy. The real [PR #202](https://github.com/iamhuwng/autoresync/pull/202)
+passed the complete [Release Safety run](https://github.com/iamhuwng/autoresync/actions/runs/42916422768)
+at `2b5218f0`. A subsequent authorized [controlled run](https://github.com/iamhuwng/autoresync/actions/runs/42917059040)
+at `6c0eb381` deliberately skipped `guardrails`: all four running dependencies
+passed, the aggregate failed for the skipped/missing-source dependency and
+GitHub reported this non-draft, mergeable PR as `BLOCKED`. The temporary skip
+is restored in the repair; require the repaired latest head to pass before any
+authorized merge. No merge endpoint was called to test enforcement.
+
+Real-run qualification exposed five empty, unreferenced development Gitlinks
+without `.gitmodules` URLs. Their tracked entries were removed and exact ignore
+rules added; all directories and 15 registered worktrees were preserved. The
+retained historical Worker is extracted from its exact Git archive and still
+must match the original normalized artifact hash. Two imported conversation
+records also needed their existing local byte-preservation rules checked into
+`.gitattributes`; their blob contents were preserved. Checkout credential
+cleanup and whole-source integrity checks remain enabled.
+
+Future protection changes require authorization. A local helper test does not
+establish enforcement. Never use an empty
 required-check list or a path-filtered workflow as a substitute. See GitHub's
 [protected branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
 ## Converge content without replaying history
 
-The November 11 observation verified 458 assets at live `64e2bd69`, while remote
-and local main were `3c6d5734` with no protection/rulesets. Those are dated
+The initial November 11 observation verified 458 assets at live `64e2bd69`, while remote
+and local main were `3c6d5734` with no protection/rulesets. Protection was then
+applied and qualified as recorded above; main's source was not changed. Those are dated
 observations, not future defaults. The histories diverged by 98 main-only and
 12 live-only commits; their trees differed at 317 paths (191 under `src`).
 
@@ -97,6 +115,11 @@ evidence. Mark work deferred only through an explicit reviewed source change;
 mark incompatible when an observed contract fails; keep unexplained or untested
 work unresolved. Do not manufacture completion from a difference inventory.
 The deployed-service JSON is a historical index, not current provider truth.
+
+A read-only runtime check found student localhost:5174 serving the old
+`64e2bd69` production artifact, and teacher localhost:5173 serving Reading
+runtime source different from current main. Backend ownership was unverified.
+Those services were left intact and cannot count as current-main browser proof.
 
 For Hosting qualification, test teacher authoring save/reload/publish and student
 draft/highlight/reload/submit/resume, current Listening edit/cancel/runtime and

@@ -71,8 +71,6 @@ jobs:
           echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
   guardrails:
-    # Authorized non-production protection rehearsal; restore before handoff.
-    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
