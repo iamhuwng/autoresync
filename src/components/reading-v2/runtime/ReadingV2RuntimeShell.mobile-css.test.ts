@@ -29,10 +29,19 @@ describe('ReadingV2RuntimeShell phone CSS contract', () => {
     expect(css).toMatch(/data-layout="phone"[^}]*reading-v2-runtime__text-input[\s\S]*?font-size:\s*16px/);
   });
 
-  it('keeps structured table answer fields wide enough to target on phone and desktop', () => {
+  it('keeps shared free-text answers inline without an outer box', () => {
+    expect(css).toMatch(/\.reading-v2-runtime__text-input\s*{[^}]*border:\s*0[^}]*border-bottom:\s*2px solid #b7c3cf[^}]*background:\s*transparent[^}]*overflow:\s*hidden[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.reading-v2-runtime__text-input:focus\s*{[^}]*border-bottom-color:\s*#1f5f99[^}]*border-bottom-width:\s*3px[^}]*outline:\s*0/);
+  });
+
+  it('keeps structured table answer fields compact and content-expandable', () => {
     expect(css).toMatch(/\.reading-v2-runtime__structured-answer table\s*{[^}]*min-width:\s*800px/);
-    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-line\s*{[^}]*width:\s*max-content[^}]*max-width:\s*none/);
-    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field\s*{[^}]*min-width:\s*max-content/);
-    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input\s*{[^}]*flex:\s*0 0 14ch[^}]*width:\s*14ch[^}]*min-width:\s*14ch/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-line\s*{[^}]*display:\s*inline[^}]*white-space:\s*normal/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-prefix\s*{[^}]*display:\s*inline[^}]*vertical-align:\s*middle[^}]*white-space:\s*normal/);
+    expect(css).toMatch(/\.reading-v2-runtime__structured-answer \.reading-v2-runtime__table-scroll td\[data-blank="true"\]\s*{[^}]*text-align:\s*left/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field\s*{[^}]*flex:\s*0 0 auto[^}]*align-items:\s*baseline[^}]*width:\s*fit-content[^}]*max-width:\s*100%[^}]*min-width:\s*0/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input\s*{[^}]*flex:\s*0 1 auto[^}]*field-sizing:\s*content[^}]*width:\s*auto[^}]*min-width:\s*3ch[^}]*max-width:\s*14ch[^}]*border-bottom:\s*2px solid[^}]*overflow:\s*hidden[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.reading-v2-runtime__cell-answer-field \.reading-v2-runtime__text-input:focus\s*{[^}]*border-bottom-width:\s*3px[^}]*outline:\s*0/);
+    expect(css).not.toContain('.reading-v2-runtime__cell-answer-field:focus-within');
   });
 });

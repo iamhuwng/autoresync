@@ -1297,45 +1297,46 @@ function TableCompletionRuntime({
     const parts = cell.text.split(/_{3,}|\[\s*blank\s*\]|\{\{\s*blank\s*\}\}|\{\s*blank\s*\}/gi);
     return (
       <>
-        {parts.map((part, index) => (
-          <Fragment key={`${cell.cellId ?? 'cell'}-part-${index}`}>
-            {part ? <ReadingV2FormattedText text={part} /> : null}
-            {index < linkedInteractions.length ? (() => {
-              const interaction = linkedInteractions[index];
-              const answerValue = typeof answers[interaction.interactionId] === 'string'
-                ? answers[interaction.interactionId]
-                : '';
-              return (
-                <span
-                  className="reading-v2-runtime__cell-answer-line"
-                  id={getQuestionAnchorId(interaction.displayNumber)}
-                  key={interaction.interactionId}
-                  ref={(element) => registerQuestionAnchor?.(interaction, element)}
-                >
-                  <span className="reading-v2-runtime__cell-answer-field">
-                    <ReadingV2QuestionBadge
-                      number={interaction.displayNumber}
-                      state={isAnswered(answers[interaction.interactionId]) ? 'answered' : 'empty'}
-                    />
-                    <textarea
-                      className="reading-v2-runtime__text-input"
-                      aria-label={`Question ${interaction.displayNumber} structured answer`}
-                      disabled={disabled}
-                      rows={1}
-                      wrap="soft"
-                      value={answerValue}
-                      onFocus={() => onFocusInteraction(interaction)}
-                      onChange={(event) => {
-                        onFocusInteraction(interaction);
-                        onAnswer(interaction, event.currentTarget.value);
-                      }}
-                    />
-                  </span>
+        {parts.map((part, index) => {
+          const interaction = index < linkedInteractions.length ? linkedInteractions[index] : null;
+          if (!interaction) {
+            return part ? <ReadingV2FormattedText key={`${cell.cellId ?? 'cell'}-part-${index}`} text={part} /> : null;
+          }
+
+          const answerValue = typeof answers[interaction.interactionId] === 'string'
+            ? answers[interaction.interactionId]
+            : '';
+          return (
+            <span
+              className="reading-v2-runtime__cell-answer-line"
+              id={getQuestionAnchorId(interaction.displayNumber)}
+              key={interaction.interactionId}
+              ref={(element) => registerQuestionAnchor?.(interaction, element)}
+            >
+              <span className="reading-v2-runtime__cell-answer-prefix">
+                {part ? <ReadingV2FormattedText text={part} /> : null}
+                <span className="reading-v2-runtime__cell-answer-field">
+                  <ReadingV2QuestionBadge
+                    number={interaction.displayNumber}
+                    state={isAnswered(answers[interaction.interactionId]) ? 'answered' : 'empty'}
+                  />
+                  <input
+                    className="reading-v2-runtime__text-input"
+                    type="text"
+                    aria-label={`Question ${interaction.displayNumber} structured answer`}
+                    disabled={disabled}
+                    value={answerValue}
+                    onFocus={() => onFocusInteraction(interaction)}
+                    onChange={(event) => {
+                      onFocusInteraction(interaction);
+                      onAnswer(interaction, event.currentTarget.value);
+                    }}
+                  />
                 </span>
-              );
-            })() : null}
-          </Fragment>
-        ))}
+              </span>
+            </span>
+          );
+        })}
       </>
     );
   };
