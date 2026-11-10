@@ -18,6 +18,10 @@
 
 artifacts/prd0062-ticket-06b/browser/upload-fixture.pdf binary
 
+# Preserve imported historical conversation bytes without local-only attributes.
+documentation/conversation_2026-02-22_session2_log.md -text
+documentation/conversation_2026-03-13_log.md -text
+
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
