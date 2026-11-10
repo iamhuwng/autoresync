@@ -21,6 +21,13 @@ dist
 dist-ssr
 *.local
 
+# Local development directories are not application submodules.
+/.tmp_branch_scoring_capture/
+/.tmp_pending_lane_deploy/
+/.tmp_reading_label_contract_worktree/
+/.tmp_teacher_runtime_deploy/
+/ai-workspace-sync/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
