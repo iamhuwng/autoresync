@@ -58,6 +58,8 @@ single-line and contained within the cell, then was cleared. The live runtime
 also showed Q1–Q3 borderless underlines and the running student timer.
 
 The recovered source-retention gap is recorded separately from this UI release.
+The exact deployed candidate is now durably preserved on GitHub at
+`codex/reading-v2-table-field-release` (`b550a600ff950e4ea707861065534d12bb015b8b`).
 The minimal fail-closed follow-up is to require an independently durable release
 ref for the exact source revision before deployment, verify that ref in release
 preflight, and record its name in the Hosting manifest and receipt.
