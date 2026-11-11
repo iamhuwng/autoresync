@@ -120,6 +120,7 @@ jobs:
             src/skills/listening/builders/ListeningTestBuilder.test.tsx
             src/services/serverClock.test.ts
             src/pages/TestPageRouter.test.tsx
+            src/pages/TestBuilderRouter.test.tsx
             src/pages/StudentPracticePage.test.tsx
             src/pages/TeacherLobbyPage.test.jsx
             src/components/TestEditor.test.tsx
