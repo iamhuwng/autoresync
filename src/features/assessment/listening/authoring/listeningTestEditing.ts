@@ -99,6 +99,8 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
     return [section.assetId!, result.previewUrl];
   }));
   const document = structuredClone(source.document);
+  // RTDB omits empty arrays; restore tags for the editor and strict save validation.
+  document.metadata = { ...document.metadata, tags: document.metadata?.tags ?? [] };
   const questions = document.questions.map((question) => {
     const { options, acceptableAnswers, ...rest } = question;
     return {
@@ -112,7 +114,7 @@ export async function loadListeningTestForEditing(test: TestData): Promise<TestD
     audioSections: [...document.audioSections],
     ...(document.questionImages ? { questionImages: [...document.questionImages] } : {}),
     metadata: { ...document.metadata, tags: [...document.metadata.tags] },
-    listeningEditSource: source,
+    listeningEditSource: { ...source, document },
     listeningAudioPreviewUrls: Object.fromEntries(previews.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])),
     listeningAudioPreviewWarnings: previews.flatMap((result, index) => result.status === 'rejected' ? [previewSections[index]!.name] : []),
   } as EditableTest;

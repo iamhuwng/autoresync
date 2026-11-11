@@ -67,6 +67,12 @@ export const parseReadingV2InlineMarkdown = (text: string): readonly ReadingV2In
   return tokens.length > 0 ? tokens : [{ kind: 'text', text }];
 };
 
+// Persisted offsets count DOM text; nested markup and rendered <br> add no characters.
+const renderedTokenLength = (token: ReadingV2InlineToken, preserveLineBreaks: boolean): number =>
+  token.kind === 'text' || token.kind === 'code'
+    ? (preserveLineBreaks ? token.text.replaceAll('\n', '') : token.text).length
+    : parseReadingV2InlineMarkdown(token.text).reduce((length, nested) => length + renderedTokenLength(nested, preserveLineBreaks), 0);
+
 const renderPlainText = (
   text: string,
   highlights: readonly ReadingV2TextHighlight[],
@@ -135,12 +141,12 @@ const renderToken = (
   const content = nestedTokens
     ? nestedTokens.map((nestedToken, nestedIndex) => {
       const rendered = renderToken(nestedToken, nestedIndex, highlights, preserveLineBreaks, nestedTextOffset);
-      nestedTextOffset += nestedToken.text.length;
+      nestedTextOffset += renderedTokenLength(nestedToken, preserveLineBreaks);
       return rendered;
     })
     : preserveLineBreaks
     ? token.text.split('\n').map((line, lineIndex) => {
-      const lineOffset = textOffset + token.text.split('\n').slice(0, lineIndex).reduce((total, value) => total + value.length + 1, 0);
+      const lineOffset = textOffset + token.text.split('\n').slice(0, lineIndex).reduce((total, value) => total + value.length, 0);
       return (
         <Fragment key={lineIndex}>
           {lineIndex > 0 ? <br /> : null}
@@ -176,7 +182,7 @@ export function ReadingV2FormattedText({
     <>
       {parseReadingV2InlineMarkdown(text).map((token, index) => {
         const rendered = renderToken(token, index, highlights, preserveLineBreaks, textOffset);
-        textOffset += token.text.length;
+        textOffset += renderedTokenLength(token, preserveLineBreaks);
         return rendered;
       })}
     </>

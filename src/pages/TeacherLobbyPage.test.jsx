@@ -56,6 +56,41 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+function recordDatabaseWrite(path, value) {
+  mocks.dbWrites.push({ path, value });
+  mocks.dbReads[path] = structuredClone(value);
+  for (const [parent, record] of Object.entries(mocks.dbReads)) {
+    if (!path.startsWith(`${parent}/`) || !record || typeof record !== 'object') continue;
+    const parts = path.slice(parent.length + 1).split('/');
+    const key = parts.pop();
+    let target = record;
+    for (const part of parts) target = target[part] ??= {};
+    if (value === null) delete target[key];
+    else target[key] = structuredClone(value);
+  }
+}
+
+function seedPublishedComposition(composition) {
+  const record = { state: 'published', materialRevision: 1, ...composition };
+  mocks.dbReads[readingV2StoragePaths.fullTestCompositions(record.compositionId)] = record;
+  mocks.dbReads[readingV2StoragePaths.materialMetadata(record.testMaterialId)] = {
+    materialId: record.testMaterialId, ownerId: record.ownerId,
+    materialKind: 'full-test', compositionId: record.compositionId,
+    state: record.state, materialRevision: record.materialRevision,
+    publishedSnapshotVersionId: record.publishedVersionId,
+  };
+  return record;
+}
+
+function seedPublishedPassage(materialId, snapshotVersionId) {
+  const common = { materialId, ownerId: 'teacher-1', state: 'published', materialRevision: 1,
+    publishedSnapshotVersionId: snapshotVersionId };
+  mocks.dbReads[readingV2StoragePaths.materialMetadata(materialId)] = { ...common, materialKind: 'reading-passage' };
+  mocks.dbReads[readingV2StoragePaths.readingPassageMaterials(materialId)] = {
+    ...common, passageMaterialId: materialId, currentSnapshotVersionId: snapshotVersionId,
+  };
+}
+
 vi.mock('../config/readingV2FeatureFlags', async () => {
   const actual = await vi.importActual('../config/readingV2FeatureFlags');
 
@@ -85,15 +120,15 @@ vi.mock('firebase/database', () => ({
     val: () => mocks.dbReads[path] ?? null,
   })),
   set: vi.fn(async (path, value) => {
-    mocks.dbWrites.push({ path, value });
+    recordDatabaseWrite(path, value);
   }),
   update: vi.fn(async (_path, updates) => {
     Object.entries(updates).forEach(([path, value]) => {
-      mocks.dbWrites.push({ path, value });
+      recordDatabaseWrite(path, value);
     });
   }),
   remove: vi.fn(async (path) => {
-    mocks.dbWrites.push({ path, value: null });
+    recordDatabaseWrite(path, null);
   }),
 }));
 
@@ -116,6 +151,11 @@ vi.mock('../services/notificationProducerClient', () => ({
 vi.mock('../services/book-assembly/assemblyClient.browser', async () => ({
   ...await vi.importActual('../services/book-assembly/assemblyClient.browser'),
   createBookAssemblyClient: () => ({ discoverDrafts: async () => [] }),
+}));
+
+vi.mock('../services/book-assembly/assemblyPublication.client', async () => ({
+  ...await vi.importActual('../services/book-assembly/assemblyPublication.client'),
+  createBookAssemblyPreviewClient: () => ({ readCurrentPublication: async () => null }),
 }));
 
 vi.mock('../services/reading-v2/readingV2PassageLibrary.service', async () => {
@@ -496,6 +536,7 @@ const renderTeacherLobbyWithToasts = () => render(
 describe('TeacherLobbyPage Reading V2 integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     toast.clear();
     mocks.tests = [];
     mocks.drafts = [];
@@ -644,10 +685,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     const user = userEvent.setup();
     mocks.tests = [
       {
-        id: 'ielts-reading-1',
-        title: 'IELTS Reading Practice',
+        id: 'ielts-listening-1',
+        title: 'IELTS Listening Practice',
         testType: 'IELTS',
-        skill: 'Reading',
+        skill: 'Listening',
         ownerId: 'teacher-1',
         status: 'published',
         isComplete: true,
@@ -658,16 +699,16 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     renderTeacherLobbyWithToasts();
 
-    const row = await screen.findByTestId('material-list-row-ielts-reading-1');
+    const row = await screen.findByTestId('material-list-row-ielts-listening-1');
     await user.click(within(row).getByRole('button', { name: 'Assign HW' }));
 
     expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
     expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
-      preselectedMaterialId: 'ielts-reading-1',
+      preselectedMaterialId: 'ielts-listening-1',
       preselectedMaterialFilter: 'test',
       preselectedContentRef: expect.objectContaining({
-        contentKind: 'ielts_reading',
-        contentId: 'ielts-reading-1',
+        contentKind: 'ielts_listening',
+        contentId: 'ielts-listening-1',
       }),
       createHomeworkAssignment: expect.any(Function),
     }));
@@ -675,8 +716,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       'testCreation',
       'assignHomework',
       expect.objectContaining({
-        contentKind: 'ielts_reading',
-        materialId: 'ielts-reading-1',
+        contentKind: 'ielts_listening',
+        materialId: 'ielts-listening-1',
       }),
     );
   });
@@ -713,10 +754,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     const user = userEvent.setup();
     mocks.tests = [
       {
-        id: 'ielts-reading-bulk',
-        title: 'Bulk IELTS Reading',
+        id: 'ielts-listening-bulk',
+        title: 'Bulk IELTS Listening',
         testType: 'IELTS',
-        skill: 'Reading',
+        skill: 'Listening',
         ownerId: 'teacher-1',
         status: 'published',
         isComplete: true,
@@ -727,7 +768,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     renderTeacherLobbyWithToasts();
 
-    const row = await screen.findByTestId('material-list-row-ielts-reading-bulk');
+    const row = await screen.findByTestId('material-list-row-ielts-listening-bulk');
     await user.click(row);
 
     expect(screen.getByText('1 selected')).toBeInTheDocument();
@@ -735,10 +776,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     expect(screen.getByRole('dialog', { name: /Create Homework Assignment/i })).toBeInTheDocument();
     expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
-      preselectedMaterialId: 'ielts-reading-bulk',
+      preselectedMaterialId: 'ielts-listening-bulk',
       preselectedContentRef: expect.objectContaining({
-        contentKind: 'ielts_reading',
-        contentId: 'ielts-reading-bulk',
+        contentKind: 'ielts_listening',
+        contentId: 'ielts-listening-bulk',
       }),
     }));
     expect(mocks.trackAction).toHaveBeenCalledWith(
@@ -752,10 +793,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     const user = userEvent.setup();
     mocks.tests = [
       {
-        id: 'bulk-reading',
-        title: 'Bulk Reading',
+        id: 'bulk-listening',
+        title: 'Bulk Listening',
         testType: 'IELTS',
-        skill: 'Reading',
+        skill: 'Listening',
         ownerId: 'teacher-1',
         status: 'published',
         isComplete: true,
@@ -776,7 +817,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     renderTeacherLobbyWithToasts();
 
-    await user.click(await screen.findByTestId('material-list-row-bulk-reading'));
+    await user.click(await screen.findByTestId('material-list-row-bulk-listening'));
     await user.click(await screen.findByTestId('material-list-row-bulk-writing'));
 
     const assignButton = screen.getByRole('button', { name: 'Assign homework' });
@@ -785,7 +826,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     const firstProps = mocks.homeworkModalProps.at(-1);
     expect(firstProps).toEqual(expect.objectContaining({
-      preselectedMaterialId: 'bulk-reading',
+      preselectedMaterialId: 'bulk-listening',
       onTargetConfirmed: expect.any(Function),
     }));
     firstProps.onTargetConfirmed({
@@ -793,7 +834,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       classId: 'class-1',
       className: 'IELTS Class',
     });
-    firstProps.onConfigureNext({ materialId: 'bulk-reading', materialTitle: 'Bulk Reading' });
+    firstProps.onConfigureNext({ materialId: 'bulk-listening', materialTitle: 'Bulk Listening' });
 
     await waitFor(() => {
       expect(mocks.homeworkModalProps.at(-1)).toEqual(expect.objectContaining({
@@ -1168,7 +1209,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     );
   });
 
-  it('shows Assign HW for owned My Content IELTS Reading enriched with student-safe projection metadata', async () => {
+  it('blocks Assign HW for retired owned My Content IELTS Reading enriched with student-safe projection metadata', async () => {
     mocks.tests = [
       {
         id: 'ielts-reading-owned',
@@ -1189,7 +1230,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     render(<TeacherLobbyPage />);
 
     const row = await screen.findByTestId('material-list-row-ielts-reading-owned');
-    expect(within(row).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Assign HW' })).not.toBeInTheDocument();
   });
 
   it('shows Assign HW for owned My Content IELTS Listening enriched with student-safe projection metadata', async () => {
@@ -1215,7 +1256,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     expect(within(row).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
   });
 
-  it('shows Assign HW for thin owned legacy Reading and Listening rows after safe projection enrichment', async () => {
+  it('keeps retired thin Reading blocked while retained Listening remains assignable', async () => {
     mocks.tests = [
       {
         id: 'reading-thin-owned',
@@ -1244,7 +1285,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     render(<TeacherLobbyPage />);
 
     const readingRow = await screen.findByTestId('material-list-row-reading-thin-owned');
-    expect(within(readingRow).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
+    expect(within(readingRow).queryByRole('button', { name: 'Assign HW' })).not.toBeInTheDocument();
 
     const listeningRow = await screen.findByTestId('material-list-row-listening-thin-owned');
     expect(within(listeningRow).getByRole('button', { name: 'Assign HW' })).toBeInTheDocument();
@@ -1607,6 +1648,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     mocks.dbReads[readingV2StoragePaths.publishedSnapshots('passage-a', 'snapshot-a')] =
       readingPassageSnapshotFor('passage-a', 'snapshot-a');
 
+    seedPublishedComposition(mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-v2')]);
+
     renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId('material-list-row-material-v2')).getByRole('button', { name: 'Edit' }));
@@ -1622,7 +1665,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     });
   });
 
-  it('derives legacy auto-split composition identity before hydrating published master references', async () => {
+  it('derives stable extracted composition identity before hydrating published master references', async () => {
     const user = userEvent.setup();
     mocks.tests = [
       {
@@ -1636,8 +1679,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
         questionCount: 27,
       },
     ];
-    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-material-v2-snapshot-v2')] = {
-      compositionId: 'composition-material-v2-snapshot-v2',
+    mocks.dbReads[readingV2StoragePaths.fullTestCompositions('composition-material-v2')] = {
+      compositionId: 'composition-material-v2',
       testMaterialId: 'material-v2',
       title: 'Published Reading V2',
       ownerId: 'teacher-1',
@@ -1663,7 +1706,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       expect(mocks.masterModalProps.at(-1)?.master?.passageRefs).toHaveLength(1);
     });
     expect(mocks.masterModalProps.at(-1).master).toEqual(expect.objectContaining({
-      compositionId: 'composition-material-v2-snapshot-v2',
+      compositionId: 'composition-material-v2',
       compositionLoadState: 'ready',
     }));
   });
@@ -1727,6 +1770,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       ],
     };
 
+    seedPublishedComposition(mocks.dbReads[readingV2StoragePaths.fullTestCompositions(compositionId)]);
+
     renderTeacherLobbyWithToasts();
 
     await user.click(within(screen.getByTestId(`material-list-row-${materialId}`)).getByRole('button', { name: 'Edit' }));
@@ -1748,8 +1793,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: readingV2StoragePaths.fullTestCompositions(compositionId),
-          value: expect.objectContaining({ state: 'removed' }),
+          path: `${readingV2StoragePaths.fullTestCompositions(compositionId)}/state`,
+          value: 'removed',
         },
         {
           path: `${readingV2StoragePaths.materialMetadata(materialId)}/state`,
@@ -1866,6 +1911,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
 
+    seedPublishedComposition({ ...mocks.tests[0], testMaterialId: 'master-1', state: 'published' });
+
     renderTeacherLobbyWithToasts();
     await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
     await user.click(within(screen.getByRole('dialog', { name: 'Remove Reading V2 master?' })).getByRole('button', { name: 'Remove master only' }));
@@ -1873,8 +1920,8 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
     await waitFor(() => {
       expect(mocks.dbWrites).toEqual(expect.arrayContaining([
         {
-          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1',
-          value: expect.objectContaining({ state: 'removed' }),
+          path: 'reading_v2/full_test_compositions/composition-master-1-snapshot-1/state',
+          value: 'removed',
         },
         {
           path: 'reading_v2/material_metadata/master-1/state',
@@ -1944,9 +1991,10 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       },
     ];
     ['passage-1', 'passage-2'].forEach((passageId) => {
-      mocks.dbReads[`reading_v2/material_metadata/${passageId}`] = { ownerId: 'teacher-1', state: 'published' };
-      mocks.dbReads[`reading_v2/reading_passage_materials/${passageId}`] = { ownerId: 'teacher-1', state: 'published' };
+      seedPublishedPassage(passageId, 'snapshot-1');
     });
+
+    seedPublishedComposition({ ...mocks.tests[0], testMaterialId: 'master-1', state: 'published' });
 
     renderTeacherLobbyWithToasts();
     await user.click(within(screen.getByTestId('material-list-row-master-1')).getByRole('button', { name: 'Delete' }));
@@ -2259,6 +2307,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
   it('creates a PDF Book and continues into the guided PDF setup', async () => {
     const user = userEvent.setup();
+    vi.stubEnv('VITE_BOOK_ASSEMBLY_WORKER_URL', 'https://assembly.example');
     const createdBook = {
       id: 'book-pdf',
       bookId: 'book-pdf',
@@ -2317,7 +2366,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'PDF Assembly Book' });
     expect(dialog).toHaveAttribute('data-editor-intent', 'create');
-    expect(within(dialog).getByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
+    expect(await within(dialog).findByRole('heading', { name: 'How will this Book use PDFs?' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /One complete PDF/ })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /Several component PDFs/ })).toBeInTheDocument();
     expect(within(dialog).queryByRole('tab')).not.toBeInTheDocument();
@@ -3098,6 +3147,7 @@ describe('TeacherLobbyPage Reading V2 integration', () => {
       ownerId: 'teacher-1',
       state: 'published',
     };
+    seedPublishedPassage('passage-owner', 'snapshot-owner');
     render(<TeacherLobbyPage />);
 
     await user.click(screen.getByRole('tab', { name: 'Reading Passage' }));

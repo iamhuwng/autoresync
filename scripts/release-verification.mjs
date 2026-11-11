@@ -17,18 +17,18 @@ const inside = (root, file) => {
   const relative = path.relative(root, file);
   return relative !== '' && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`);
 };
-const execute = (command, args, cwd) => {
+const execute = (command, args, cwd, allowNonzero = false) => {
   const child = spawnSync(command, args, { cwd, encoding: 'utf8', shell: false, windowsHide: true,
     env: Object.fromEntries(Object.entries(process.env).filter(([key]) => key !== 'NODE_TEST_CONTEXT')),
     timeout: 600000, maxBuffer: 8 * 1024 * 1024 });
-  if (child.error || child.status !== 0 || child.signal) fail(`runner failed (${child.error?.code || child.signal || child.status})`);
+  if (child.error || child.signal || (!allowNonzero && child.status !== 0)) fail(`runner failed (${child.error?.code || child.signal || child.status})`);
   return child;
 };
 
 async function trackedPath(cwd, value, test = false) {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$/u.test(value)
     || value.split('/').some(part => !part || part === '.' || part === '..')
-    || (test && !/\.(?:test|spec)\.(?:[cm]?js|tsx?)$/u.test(value))) fail('paths must be explicit relative tracked files');
+    || (test && !/\.(?:test|spec)\.(?:[cm]?js|[jt]sx?)$/u.test(value))) fail('paths must be explicit relative tracked files');
   const absolute = path.resolve(cwd, value);
   if (!inside(cwd, absolute) || !inside(cwd, await realpath(absolute)) || !(await stat(absolute)).isFile()) fail('path escapes candidate or is not a file');
   execute('git', ['ls-files', '--error-unmatch', '--', value], cwd);
@@ -58,6 +58,9 @@ const validCounts = counts => {
 };
 
 export function parseVitestReport(report, expectedFiles, cwd) {
+  const failedFiles = expectedFiles.filter(file => report?.testResults?.some(result =>
+    path.resolve(result.name) === path.resolve(cwd, file) && result.status !== 'passed'));
+  if (failedFiles.length) fail(`Vitest failed in ${failedFiles.join(', ')}`);
   if (!report || report.success !== true || report.numFailedTestSuites !== 0 || report.numPendingTestSuites !== 0
     || !Array.isArray(report.testResults) || report.testResults.length !== expectedFiles.length
     || report.testResults.some(result => result.status !== 'passed')
@@ -112,9 +115,10 @@ export async function runReleaseVerification({ cwd, base, planPath, envFingerpri
         const outputFile = path.join(temporary, 'vitest.json');
         const child = execute(process.execPath, [path.join(cwd, 'scripts/tooling-where.mjs'), '--exec', 'vitest', 'run',
           ...suite.files, ...(suite.config ? ['--config', suite.config] : []), '--reporter=json', '--outputFile', outputFile,
-          '--passWithNoTests=false', '--maxWorkers=1'], cwd);
+          '--passWithNoTests=false', '--maxWorkers=1'], cwd, true);
         const reportBytes = await readFile(outputFile);
         counts = parseVitestReport(JSON.parse(reportBytes), suite.files, cwd);
+        if (child.status !== 0) fail(`Vitest runner exited ${child.status} despite its passing report`);
         outputSha256 = hash(`${child.stdout}\n${child.stderr}\n${reportBytes}`);
       } finally { await rm(temporary, { recursive: true, force: true }); }
     }
