@@ -101,8 +101,8 @@ export function validateListeningEvidence(local, provider, phase, pins = reviewe
   }
 }
 
-function command(executable, args, cwd) {
-  const result = spawnSync(executable, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+function command(executable, args, cwd, env = process.env) {
+  const result = spawnSync(executable, args, { cwd, env, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
   assert(!result.error && result.status === 0, `Listening command failed: ${executable} ${args.slice(0, 2).join(' ')} (${result.error?.code ?? `exit ${result.status}`}; signal ${result.signal ?? 'none'})`);
   return result.stdout.trim();
 }
@@ -159,10 +159,12 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
   assert(credentials?.type === 'oauth' && typeof credentials.token === 'string' && credentials.token, 'Existing Cloudflare OAuth session unavailable');
   const token = credentials.token;
   const gcloud = args => {
+    // This named operator profile uses stored credentials, not VM metadata discovery.
+    const env = { ...process.env, CLOUDSDK_CORE_CHECK_GCE_METADATA: 'false' };
     try {
       return process.platform === 'win32'
-        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud.cmd ${args.map(arg => `'${arg}'`).join(' ')}`])
-        : command('gcloud', args);
+        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud.cmd ${args.map(arg => `'${arg}'`).join(' ')}`], undefined, env)
+        : command('gcloud', args, undefined, env);
     } catch (error) { throw new Error(`Google CLI ${args.slice(0, 2).join(' ')}: ${error.message}`); }
   };
   const auth = JSON.parse(gcloud(['auth', 'list', '--format=json']));

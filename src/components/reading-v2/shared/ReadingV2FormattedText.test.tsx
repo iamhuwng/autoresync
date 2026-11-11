@@ -57,4 +57,27 @@ describe('ReadingV2FormattedText', () => {
     expect(screen.getByText(/x < 3/).closest('u')).toBeInTheDocument();
     expect(document.querySelector('img')).not.toBeInTheDocument();
   });
+
+  it.each([
+    { text: '<u>_**important text**_</u> tail', selected: 'tail', preserveLineBreaks: false },
+    { text: '<u>_**first**_ tail</u> end', selected: 'tail', preserveLineBreaks: false },
+    { text: 'one\ntwo', selected: 'two', preserveLineBreaks: true },
+  ])('restores DOM-offset highlights in $text', ({ text, selected, preserveLineBreaks }) => {
+    const { container, rerender } = render(<ReadingV2FormattedText text={text} preserveLineBreaks={preserveLineBreaks} />);
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    let target = walker.nextNode();
+    while (target && !target.textContent?.includes(selected)) target = walker.nextNode();
+    expect(target).not.toBeNull();
+    const before = document.createRange();
+    before.selectNodeContents(container);
+    before.setEnd(target!, target!.textContent!.indexOf(selected));
+    const startOffset = before.toString().length;
+    const visibleText = container.textContent;
+
+    rerender(<ReadingV2FormattedText text={text} preserveLineBreaks={preserveLineBreaks}
+      highlights={[{ id: 'persisted', text: selected, color: '#fff59d', startOffset, endOffset: startOffset + selected.length }]} />);
+
+    expect(container.querySelector('mark')?.textContent).toBe(selected);
+    expect(container.textContent).toBe(visibleText);
+  });
 });

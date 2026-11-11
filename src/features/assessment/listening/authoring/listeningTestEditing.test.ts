@@ -80,6 +80,16 @@ describe('Listening published-test editing', () => {
     expect(mocks.publish.mock.calls[0][0]).toEqual(mocks.publish.mock.calls[1][0]);
   });
 
+  it('restores empty tags omitted by RTDB before opening and saving the working draft', async () => {
+    const stored = mocks.records['listening_authoring/drafts/draft-1'].document;
+    delete stored.metadata.tags;
+    const editable = await loadListeningTestForEditing(test);
+    expect(editable.metadata.tags).toEqual([]);
+    await createListeningTestEditSession(editable)(edits(editable));
+    expect(parseSaveDraftRequest(mocks.save.mock.calls[0][0]).document.metadata.tags).toEqual([]);
+    expect(stored.metadata).not.toHaveProperty('tags');
+  });
+
   it('synchronizes a native form prompt before strict save without changing another key', async () => {
     const contextLines = ['Name: [1]', 'Address: [2]', 'Telephone: 012345'];
     const draft = mocks.records['listening_authoring/drafts/draft-1'].document;

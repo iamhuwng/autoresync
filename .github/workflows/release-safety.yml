@@ -121,6 +121,7 @@ jobs:
             src/components/TestEditor.test.tsx
             src/__tests__/readingV2BoundaryImports.test.ts
             src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx
+            src/components/reading-v2/shared/ReadingV2FormattedText.test.tsx
             src/services/reading-v2/readingV2RuntimeDraft.service.test.ts
             src/services/reading-v2/readingV2AnswerScoring.test.ts
             src/services/reading-v2/readingV2ContractGuards.service.test.ts
