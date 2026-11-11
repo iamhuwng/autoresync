@@ -29,10 +29,59 @@ establish coverage of imports, callers, negative cases or browser flows.
 `--offline --base <revision>` permits an explicitly unverified local comparison.
 An explicit online base that disagrees with live is blocked by the shared
 assessor. Missing source objects are reported, never silently reconstructed.
-The command neither fetches Git objects nor changes branches, worktrees, files,
+The command neither fetches Git objects nor changes branches, worktrees, candidate files,
 GitHub settings or deployments. Exit 0 means a normal source candidate; exit 2
 means preparation/qualification is required; exit 1 is an invocation failure.
 Every result keeps `deploymentReady: false` and authorization ungranted.
+Authenticated provider tools may refresh their existing local session cache;
+this does not create a login, change permissions or modify application state.
+
+### Hosting publication scope
+
+The planner defaults to `--target hosting`; `--target all` retains the broader
+service assessment. The shared checker defaults to `all`, so select
+`release:check -- --target hosting --base <observed-live-revision>` explicitly
+when preparing a Hosting publication. The guarded Hosting command selects this
+scope automatically. Fixed historical service-release profiles remain separate.
+
+A monorepo difference does not mean every service will be deployed. The Hosting
+scope preserves the complete source/service delta while checking its actual
+active dependencies. When backend paths differ, native readback must establish
+candidate rules equal active RTDB/Firestore rules, stable Worker versions,
+bindings/routing, and private-audio access/lifecycle constraints. All 15 compiled
+shared Homework inputs must equal the verified live Hosting source. Changes to
+those inputs, Functions, indexes, Firebase configuration or Vite configuration
+cannot use this qualification path. They require their own substantive review
+and service qualification; there is no override flag.
+
+The observation describes active backend code; it does not certify candidate
+Worker code or repair the pre-existing scorer mismatch. The compatibility review
+must also bind its `dependenciesFingerprint`, which covers exact candidate,
+production environment, verified Hosting baseline and active provider state.
+Native readback is repeated after archive retention and before publication.
+Changed dependencies stop publication. The retained intent includes the same
+binding. Caller JSON cannot create native observations. A review file records
+technical review, never establishes independent evidence or owner authorization.
+
+Without a backend delta, the existing frontend path remains in use. After a
+qualified normal release from main, unchanged backend files no longer create a
+historical production-to-main delta; this is not a new release branch or a
+permanent production-source reconstruction process.
+
+### Historical corrections
+
+Hotfix comparison uses the verified live Git tree as its current baseline.
+An unchanged live successor needs no repeated historical equivalence review.
+Any changed protected path still needs review, including restoring an older
+hotfix while losing a later correction. Without a trusted matching live tree,
+the historical checks remain conservative. Paths, file modes and deletions are
+compared through Git tree entries.
+
+The planner groups the residual paths once in its readable output; JSON retains
+each obligation and disposition. Reviewing the same path against several old
+releases is mechanical bookkeeping, not several distinct product decisions.
+Existing exact-candidate reconciliation bindings remain required. This change
+neither deletes release history nor manufactures compatibility approvals.
 
 `--integration-ref` defaults to local `refs/heads/main`. Its ancestry and
 divergence are context, not releasability evidence. Remote freshness, required
@@ -103,6 +152,12 @@ required-check list or a path-filtered workflow as a substitute. See GitHub's
 [protected branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
 ## Converge content without replaying history
+
+The [November 11 convergence follow-up](../release-audits/2026-11-11-source-convergence.md)
+records current native dependency evidence and bounded implementation checks.
+It qualifies the new Hosting dependency observation on clean main `c2780d5d`;
+candidate compatibility approval and adoption of the later tooling remain
+pending. The initial comparison below is dated context, not the current gate.
 
 The initial November 11 observation verified 458 assets at live `64e2bd69`, while remote
 and local main were `3c6d5734` with no protection/rulesets. Protection was then

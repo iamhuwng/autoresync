@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const accountId = 'e41db829dabe9993f03674afdfd56510';
 const account = `/accounts/${accountId}`;
@@ -149,14 +150,18 @@ export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
 
 // Fixed native provider GETs only; no caller transport or evidence injection.
 export async function readListeningProvider(cwd, { firestore = false, privateAudio = false } = {}) {
-  const authRoot = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'xdg.config') : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  const credentials = await readFile(path.join(authRoot, '.wrangler/config/default.toml'), 'utf8');
-  const token = credentials.match(/^oauth_token\s*=\s*"([^"\r\n]+)"/mu)?.[1];
-  assert(token, 'Existing Cloudflare authentication unavailable');
+  // Wrangler refreshes the existing session; copying its cached access token fails after expiry.
+  const credentialOutput = command(process.execPath, [fileURLToPath(new URL('./tooling-where.mjs', import.meta.url)),
+    '--exec', 'cloudflare-wrangler', 'auth', 'token', '--json'], cwd);
+  let credentials;
+  try { credentials = JSON.parse(credentialOutput); }
+  catch { throw new Error('Wrangler returned an invalid authentication response.'); }
+  assert(credentials?.type === 'oauth' && typeof credentials.token === 'string' && credentials.token, 'Existing Cloudflare OAuth session unavailable');
+  const token = credentials.token;
   const gcloud = args => {
     try {
       return process.platform === 'win32'
-        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud ${args.map(arg => `'${arg}'`).join(' ')}`])
+        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud.cmd ${args.map(arg => `'${arg}'`).join(' ')}`])
         : command('gcloud', args);
     } catch (error) { throw new Error(`Google CLI ${args.slice(0, 2).join(' ')}: ${error.message}`); }
   };
@@ -166,7 +171,7 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
   const googleToken = gcloud(['auth', 'print-access-token', '--account=iamhuwng@gmail.com', '--project=temp-a1437']);
   async function get(url, bearer, multipart = false) {
     const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${bearer}`, ...(url.startsWith('https://firebaserules.googleapis.com/') ? { 'x-goog-user-project': 'temp-a1437' } : {}) }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
-    assert(response.ok && (!response.url || response.url === url), `Listening provider GET failed: ${response.status}`);
+    assert(response.ok && (!response.url || response.url === url), `Listening provider GET failed: ${new URL(url).host}${new URL(url).pathname} (${response.status})`);
     if (multipart) return response.formData();
     return response.json();
   }

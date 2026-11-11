@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentPracticePage from './StudentPracticePage';
 import { READING_V2_PROJECTION_FIXTURES } from '../services/reading-v2/fixtures/readingV2ProjectionFixtures';
 import { navigationService } from '../services/navigation.service';
+import { studentResumeService } from '../services/studentResume.service';
 
 const {
   getMock,
@@ -1859,6 +1860,7 @@ describe('StudentPracticePage', () => {
 
   it('returns Reading V2 homework launches to the homework list from the exit button', async () => {
     const user = userEvent.setup();
+    const saveResume = vi.spyOn(studentResumeService, 'savePracticeResume');
     const projection = READING_V2_PROJECTION_FIXTURES.studentSafe;
     const snapshotVersionId = projection.sourceSnapshotVersionId;
 
@@ -1919,9 +1921,21 @@ describe('StudentPracticePage', () => {
     );
 
     await screen.findByTestId('reading-v2-runtime');
+    const startedAt = readingV2RuntimePropsMock.mock.lastCall?.[0].timer.startedAt;
+    saveResume.mockClear();
     await user.click(screen.getByRole('button', { name: 'Exit Reading V2' }));
 
     expect(await screen.findByText('Homework return')).toBeInTheDocument();
+    expect(saveResume).toHaveBeenCalledWith(expect.objectContaining({
+      studentId: 'student-1', materialId: 'material-v2-return-homework',
+      locationState: expect.objectContaining({
+        isHomework: true, homeworkId: 'hw-v2-return', submissionId: 'submission-1',
+        supportsAutoResume: true, readingV2ProjectionId: projection.projectionId,
+        startedAt,
+      }),
+    }));
+    expect(startedAt).toEqual(expect.any(Number));
+    saveResume.mockRestore();
     expect(trackActionMock).toHaveBeenCalledWith('leaveTest', expect.objectContaining({
       surface: 'homework',
       materialId: 'material-v2-return-homework',
