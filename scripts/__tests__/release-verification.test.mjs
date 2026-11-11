@@ -7,15 +7,15 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { runReleaseVerification, isReleaseVerification, assertReleaseVerification, parseVitestReport } from '../release-verification.mjs';
 
 const envFingerprint = 'a'.repeat(64);
-async function fixture(t, content) {
+async function fixture(t, content, filename = 'sample.test.mjs') {
   const cwd = await mkdtemp(path.join(os.tmpdir(), 'release-verification-test-'));
   const planPath = path.join(os.tmpdir(), `${path.basename(cwd)}.json`);
   t.after(async () => { await rm(cwd, { recursive: true, force: true }); await rm(planPath, { force: true }); });
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
   git('init', '-q'); git('config', 'user.name', 'Verification Test'); git('config', 'user.email', 'test@example.invalid');
-  await writeFile(path.join(cwd, 'sample.test.mjs'), content);
-  git('add', '--', 'sample.test.mjs'); git('commit', '-qm', 'Fixture');
-  await writeFile(planPath, JSON.stringify({ schemaVersion: 1, suites: [{ runner: 'node', files: ['sample.test.mjs'] }] }));
+  await writeFile(path.join(cwd, filename), content);
+  git('add', '--', filename); git('commit', '-qm', 'Fixture');
+  await writeFile(planPath, JSON.stringify({ schemaVersion: 1, suites: [{ runner: 'node', files: [filename] }] }));
   return { cwd, base: git('rev-parse', 'HEAD'), planPath, envFingerprint };
 }
 
@@ -32,6 +32,12 @@ test('direct Node execution produces frozen in-process candidate evidence', asyn
   assert.throws(() => assertReleaseVerification(value, { ...binding, envFingerprint: 'b'.repeat(64) }), /stale/u);
   assert.throws(() => assertReleaseVerification(value, { ...binding, planSha256: 'b'.repeat(64) }), /stale/u);
   assert.throws(() => assertReleaseVerification(value, { ...binding, source: { ...value.source, revision: 'b'.repeat(40) } }), /stale/u);
+});
+
+test('accepts tracked JSX test paths without bypassing test execution', async t => {
+  const value = await runReleaseVerification(await fixture(t,
+    "const test = require('node:test'); test('tracked JSX path', () => {});", 'sample.test.jsx'));
+  assert.equal(value.suites[0].counts.passed, 1);
 });
 
 for (const [label, content] of [

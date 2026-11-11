@@ -47,10 +47,16 @@ scorer or authorize any Worker/rules/data publication.
    processes now set supported `CLOUDSDK_CORE_CHECK_GCE_METADATA=false`; three
    identical auth reads passed in 2.3–2.4 seconds. Named account/project checks
    and timeout/error handling remain. No global SDK/credential setting changes.
+4. **Executable verification scope.** Running the first full prepared plan
+   rejected the tracked Teacher Lobby `.test.jsx` file before executing tests.
+   The filename validator accepted JS/TS/TSX but omitted JSX. Accept JSX in that
+   existing extension check; retain tracked-path/containment validation and
+   exact executed-file/report checks. One actual tracked JSX fixture reproduces
+   the failure (7/8 passed); the corrected verification suite passes 8/8.
 
 The affected provider-reader, Hosting-dependency, release-check and planner
 Node suites also passed 78/78, with zero failures, cancellations or skipped
-tests. This reuses existing test machinery; no additional framework was added.
+   tests. This reuses existing test machinery; no additional framework was added.
 
 ## Focused browser evidence
 
