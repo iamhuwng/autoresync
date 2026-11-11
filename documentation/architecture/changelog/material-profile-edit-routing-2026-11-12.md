@@ -28,8 +28,21 @@ workflow, session behavior, data path or compatibility layer was added.
 
 ## Qualification boundary
 
-This is a normal frontend candidate based on protected `main` `67cab04b`. Local
-focused routing proof passed; production publication and independent Hosting
-readback remain separately authorized. If published, the retained operation must
-associate this CL with its Hosting target and reconcile the dated outcome through
-the existing release workflow.
+This was a normal frontend candidate based on protected `main` `147b264f`. The
+guarded operation `d5c212c0-6419-4fa6-bf91-3c183a78b997` published only Firebase
+Hosting `temp-a1437/kahut1` as version `e897b078505d3df2`. The retained operation
+associated this CL with the Hosting target; exact source/tree and all 443
+manifest-listed asset hashes passed independent readback. The first immediate
+provider response was inconclusive, so the same operation resumed and settled
+without a second publication or rollback.
+
+
+## Recorded release outcomes
+
+<!-- release-operation:d5c212c0-6419-4fa6-bf91-3c183a78b997:outcome-aec9040585ae3260293a5c5ccf637a305e9a7ebf0543e02610835c3e3a0a0a85.json -->
+
+- Recorded: 2026-11-11T21:01:40.201Z; operation: `d5c212c0-6419-4fa6-bf91-3c183a78b997`.
+- Source: `147b264fc7193c4e8db809aa96f8777fe658a886`; target: `firebase:temp-a1437:hosting:kahut1`; action: deploy.
+- Publication: **published**; verification: **passed**; provider: `projects/temp-a1437/sites/kahut1/versions/e897b078505d3df2@2026-11-11T20:58:00.004Z`.
+- Retained evidence: [operation outcome](https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-d5c212c0-6419-4fa6-bf91-3c183a78b997#outcome-aec9040585ae3260293a5c5ccf637a305e9a7ebf0543e02610835c3e3a0a0a85.json).
+- This is a scoped historical observation; it does not establish current activation or completion of excluded services. Earlier implementation notes remain dated history.

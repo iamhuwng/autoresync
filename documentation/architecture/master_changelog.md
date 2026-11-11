@@ -8,7 +8,6 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-12 | [`CL-20261112-MATERIAL-PROFILE-EDIT`](changelog/material-profile-edit-routing-2026-11-12.md) | Teacher Materials / Release Qualification | Fixed | Route the owner-only Material Profile edit action through the existing family-specific Teacher Lobby editor dispatcher; retired and unsupported material stays blocked. |
 | 2026-11-12 | [`CL-20261112-RELEASE-CHANGE-TRACEABILITY`](changelog/release-change-traceability-2026-11-12.md) | Development / Release | Changed | Connect reviewed, target-scoped change IDs to operation intent, retained archives, recovery and resumable historical references; local implementation, not a production release. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
@@ -18,6 +17,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 | [`CL-20261112-MATERIAL-PROFILE-EDIT`](changelog/material-profile-edit-routing-2026-11-12.md) | Teacher Materials / Release Qualification | Fixed | Published from protected main `147b264f` in Hosting version `e897b078505d3df2`; the exact source/tree and all 443 manifest assets were independently verified, and verification resumed without republishing. [Release outcomes](changelog/material-profile-edit-routing-2026-11-12.md#recorded-release-outcomes). |
 | 2026-11-12 | [`CL-20261112-NORMAL-MAIN-RELEASE-ONE`](changelog/normal-main-release-one-2026-11-12.md) | Development / Release / Reading V2 / Listening | Changed | Published qualified protected main `5981a4da` through the guarded Hosting workflow; retained source/build/evidence, verified all 443 asset hashes, and resumed verification without republishing. Phase 2 is 1/2 real normal releases. |
 | 2026-11-09 | [`CL-20261109-HOSTING-VERIFIER-OPTIMIZATION`](changelog/hosting-verifier-optimization-2026-11-09.md) | Hosting Release Safety | Fixed | Bound Hosting asset readback, stopped queued work after failure, classified permanent failures ahead of retryable ones, and preserved complete source/hash verification; executed in the first normal main release. |
 | 2026-11-09 | [`CL-20261109-READING-V2-STUDENT-RUNTIME-PROGRESS`](changelog/reading-v2-student-runtime-progress-2026-11-09.md) | Reading V2 Student Runtime | Fixed | Persist unfinished progress and anchored highlights, repair table and splitter geometry, and tighten numeric answer matching. |
