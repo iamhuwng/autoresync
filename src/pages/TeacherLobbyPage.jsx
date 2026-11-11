@@ -1434,6 +1434,26 @@ const TeacherLobbyPage = () => {
       });
   }, [modals.openEditThcsTest, modals.openEditTest, navigateTo, openWritingDraftEditor, readingV2CompositionRepository, trackAction, user?.uid]);
 
+  const handedOffEditMaterialId = location.state?.editMaterialId;
+  const handledEditMaterialRef = useRef(null);
+  useEffect(() => {
+    if (!handedOffEditMaterialId || handledEditMaterialRef.current === handedOffEditMaterialId) return;
+    handledEditMaterialRef.current = handedOffEditMaterialId;
+    void getTestFromFirebase(handedOffEditMaterialId)
+      .then((result) => {
+        if (!result.success || !result.data) throw new Error(result.error || 'The material could not be loaded for editing.');
+        // Material Profile reads the canonical test record, whose IELTS family field is `type`.
+        handleEditTest({ ...result.data, testType: result.data.testType || result.data.type });
+      })
+      .catch((error) => {
+        console.error('[TeacherLobby] Failed to open handed-off material:', error);
+        toast.error(error instanceof Error ? error.message : 'Could not open this material for editing.');
+      })
+      .finally(() => {
+        navigateTo('LOBBY', {}, { force: true, replace: true, reason: 'teacher_material_profile_edit_handoff_consumed' });
+      });
+  }, [handleEditTest, handedOffEditMaterialId, navigateTo]);
+
   const handleDeleteTest = useCallback(async (test, options = {}) => {
     const source = options.source || 'teacher_materials_test_card';
     const isThcs = test.testType === 'THCS-THPT';

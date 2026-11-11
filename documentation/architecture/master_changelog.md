@@ -8,6 +8,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-12 | [`CL-20261112-MATERIAL-PROFILE-EDIT`](changelog/material-profile-edit-routing-2026-11-12.md) | Teacher Materials / Release Qualification | Fixed | Route the owner-only Material Profile edit action through the existing family-specific Teacher Lobby editor dispatcher; retired and unsupported material stays blocked. |
 | 2026-11-12 | [`CL-20261112-RELEASE-CHANGE-TRACEABILITY`](changelog/release-change-traceability-2026-11-12.md) | Development / Release | Changed | Connect reviewed, target-scoped change IDs to operation intent, retained archives, recovery and resumable historical references; local implementation, not a production release. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
