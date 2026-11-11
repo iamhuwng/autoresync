@@ -56,7 +56,29 @@ scorer or authorize any Worker/rules/data publication.
 
 The affected provider-reader, Hosting-dependency, release-check and planner
 Node suites also passed 78/78, with zero failures, cancellations or skipped
-   tests. This reuses existing test machinery; no additional framework was added.
+tests. This reuses existing test machinery; no additional framework was added.
+
+Executing the complete selected release scope exposed twelve stale Teacher
+Lobby cases (356/368 app checks passed). Generic assignment positives used
+retired Reading rows, lifecycle fixtures omitted the matching publication head
+and revision, removal expected an obsolete whole-record write, and Book draft
+discovery lacked its mocked endpoint. Keep retired Reading assignment blocked,
+exercise generic assignment through retained Listening, seed explicit matching
+publication bases, and reflect atomic database updates in the test store.
+Use the stable extracted composition identity and wait for asynchronous Book
+resolution. Product guards are unchanged. The first repair passed 69/70; the
+remaining Book case identified the missing mocked endpoint. Independent pure
+publication/archive service suites passed 24/24 with disposable CI configuration.
+The configured Book client requires HTTPS; its test uses an inert HTTPS endpoint
+and existing client/discovery mocks. The isolated Book case then passed; the
+other 69 cases were deliberately not rerun by that focused invocation. Final
+acceptance still requires all selected cases without skips on the clean commit.
+
+Teacher Lobby and Student Practice join the existing required app CI scope.
+Verifier failures now name matching failed test files while still rejecting
+nonzero runners, skipped/missing tests and stale source. This addresses the
+observed diagnostic gap that forced a full application rerun to identify the
+failed file. It does not retain raw test output in the release archive.
 
 ## Focused browser evidence
 

@@ -118,6 +118,8 @@ jobs:
             src/skills/listening/builders/ListeningTestBuilder.test.tsx
             src/services/serverClock.test.ts
             src/pages/TestPageRouter.test.tsx
+            src/pages/StudentPracticePage.test.tsx
+            src/pages/TeacherLobbyPage.test.jsx
             src/components/TestEditor.test.tsx
             src/__tests__/readingV2BoundaryImports.test.ts
             src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx

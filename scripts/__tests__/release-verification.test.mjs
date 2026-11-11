@@ -70,6 +70,9 @@ test('Vitest summary rejects wrong files, zero tests, skipped tests and runner f
     numFailedTests: 0, numPendingTests: 0, numTodoTests: 0,
     testResults: [{ name: path.join(cwd, 'sample.test.ts'), status: 'passed' }] };
   assert.equal(parseVitestReport(report, ['sample.test.ts'], cwd).passed, 2);
+  assert.throws(() => parseVitestReport({ ...report, success: false,
+    testResults: [{ name: path.join(cwd, 'sample.test.ts'), status: 'failed' }] }, ['sample.test.ts'], cwd),
+  /Vitest failed in sample\.test\.ts/u);
   for (const override of [{ success: false }, { numFailedTestSuites: 1 }, { numTotalTests: 0, numPassedTests: 0 },
     { numPendingTests: 1 }, { testResults: [{ name: path.join(cwd, 'other.test.ts'), status: 'passed' }] }]) {
     assert.throws(() => parseVitestReport({ ...report, ...override }, ['sample.test.ts'], cwd));
