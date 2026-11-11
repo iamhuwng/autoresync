@@ -27,7 +27,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Test integration result gate
-        run: node --test scripts/__tests__/integration-check.test.mjs scripts/__tests__/release-plan.test.mjs
+        run: node --test scripts/__tests__/integration-check.test.mjs scripts/__tests__/release-plan.test.mjs scripts/__tests__/release-hosting-dependencies.test.mjs
       - name: Check exact-candidate verification and retained Hosting recovery
         run: node --test scripts/__tests__/release-verification.test.mjs scripts/__tests__/release-archive.test.mjs scripts/__tests__/release-changelog-recorder.test.mjs
       - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs scripts/__tests__/release-notification-worker-evidence.test.mjs scripts/__tests__/release-reading-v2-worker-evidence.test.mjs scripts/__tests__/release-listening-evidence.test.mjs scripts/__tests__/release-listening-editor-evidence.test.mjs

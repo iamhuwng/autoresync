@@ -1,6 +1,6 @@
 # Release safety workflow
 
-`npm run release:check` is the shared, read-only assessment for normal releases and isolated hotfixes. It never invokes Firebase, Wrangler, Backblaze, or deployment commands. Every assessment requires an explicit `--base`; a Git branch or `HEAD^` is not production truth.
+`npm run release:check` is the shared, read-only assessment for normal releases and isolated hotfixes. It reads source and native provider evidence without deploying or changing application data. Every assessment requires an explicit `--base`; a Git branch or `HEAD^` is not production truth.
 
 Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
@@ -10,7 +10,8 @@ Start routine preparation with `npm run release:plan -- --json`. It observes
 the live source/assets, selects that base automatically and reuses this assessor.
 It runs no build or tests and creates no approval. See
 [integration and source convergence](integration-releases.md) for the required
-CI result, pending GitHub protection, and the qualification of main.
+CI result, applied GitHub protection, Hosting publication scope and the remaining
+qualification of main.
 
 ## Hosting release foundation
 
@@ -23,8 +24,9 @@ the existing compatibility and historical-hotfix gates.
 **Qualification gate:** the [November 11 GitHub rehearsal](../release-audits/2026-11-11-release-foundation-github-rehearsal.md)
 passed real archive/readback, source/artifact restoration and interrupted receipt
 recovery, with exact cleanup. This is not Hosting publication/rollback proof.
-Keep the foundation on its implementation branch until qualified integration
-review and the applicable source-publication/merge authorization are complete.
+The foundation was integrated through protected PR #202 at `c2780d5d` under
+explicit merge authorization. Later convergence changes still need their own
+reviewed integration; this does not authorize publication.
 Do not treat local or GitHub-only evidence as complete production qualification.
 No bypass flag is provided.
 

@@ -61,6 +61,7 @@ function integrationState(cwd, ref, revision, baseline) {
 }
 
 export async function planRelease({ cwd = repoRoot, base, offline = false,
+  target = 'hosting',
   integrationRef = 'refs/heads/main', envFile = process.env.LUYENTAP_PRODUCTION_ENV_FILE
     || path.join(os.homedir(), '.luyentap', 'env', '.env.production'),
   compatibilityReviewPath, hostingObservation } = {}) {
@@ -84,7 +85,7 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
   }
   if (selectedBase) {
     try {
-      assessment = await assess({ cwd, base: selectedBase, mode: 'release', hostingObservation: observed,
+      assessment = await assess({ cwd, base: selectedBase, mode: 'release', target, hostingObservation: observed,
         productionEnvFingerprint: envFingerprint, compatibilityReviewPath });
       const patch = git(cwd, ['diff', '--no-ext-diff', '--no-renames', '--unified=0', assessment.source.baseRevision, '--']);
       impact = describeImpact(assessment.source.files, patch);
@@ -111,8 +112,13 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
   const qualified = assessment && observed && [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(assessment.decision) && !blockers.length;
   const selection = !assessment ? 'SOURCE_EVIDENCE_REQUIRED' : assessment.source.dirty ? 'CLEAN_CANDIDATE_REQUIRED'
     : !qualified ? 'QUALIFICATION_REQUIRED' : !integration.containsCandidate ? 'INTEGRATION_REQUIRED' : 'NORMAL_CANDIDATE';
+  const hotfixComparisons = assessment?.hotfixComparison || [];
+  const convergence = {
+    hotfixReviewPaths: [...new Set(hotfixComparisons.filter(entry => !entry.reviewed).flatMap(entry => entry.reviewRequiredPaths))].sort(),
+    preservedLivePaths: [...new Set(hotfixComparisons.flatMap(entry => entry.preservedLivePaths))].sort(),
+  };
   return { schemaVersion: 1, generatedAt: new Date().toISOString(), readOnly: true,
-    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', deploymentReady: false, selection,
+    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', deploymentReady: false, target, selection, convergence,
     source: assessment?.source || { revision },
     live: observed ? { revision: observed.revision, tree: observed.tree, fingerprint: observed.fingerprint,
       observedAt: observed.observedAt, evidenceRef: observed.evidenceRef, verifiedAssets: observed.manifest.files.length } : null,
@@ -132,7 +138,10 @@ export const formatPlan = plan => [
   `Integration: ${plan.integration.ref} @ ${plan.integration.revision || 'unavailable'} (local ref; remote/CI not checked)`,
   `Impact: ${plan.impact?.signals.map(signal => signal.category).join(', ') || 'unclassified'} (advisory)`,
   `Services: ${plan.assessment?.source.services.join(', ') || 'unverified/none identified'}`,
-  ...plan.blockers.map(blocker => `- ${blocker}`),
+  `Publication target: ${plan.target}; this does not qualify excluded backend deployments.`,
+  `Hotfix convergence: ${plan.convergence.hotfixReviewPaths.length} distinct paths need review; ${plan.convergence.preservedLivePaths.length} already preserve verified live content.`,
+  ...(plan.convergence.hotfixReviewPaths.length ? [`Hotfix paths: ${plan.convergence.hotfixReviewPaths.join(', ')}`] : []),
+  ...plan.blockers.filter(blocker => !/^\[REVIEW_REQUIRED\] Hotfix .* content differs from (?:verified live|historical) content:/u.test(blocker)).map(blocker => `- ${blocker}`),
   `Suggested test files: ${plan.verification.suggestedTests.length}; selection adequacy and execution are unverified.`,
   ...plan.nextActions.map(action => `Next: ${action}`),
   'Read-only: no build, tests, approval, Git writes or deployment performed.',
@@ -147,6 +156,7 @@ export async function main(argv = process.argv.slice(2)) {
     else if (flag === '--offline') options.offline = true;
     else {
       const key = { '--cwd': 'cwd', '--base': 'base', '--integration-ref': 'integrationRef',
+        '--target': 'target',
         '--env-file': 'envFile', '--compatibility-review': 'compatibilityReviewPath' }[flag];
       if (!key || !argv[index + 1] || argv[index + 1].startsWith('--')) throw new Error(`Unknown or incomplete argument ${flag}`);
       options[key] = argv[++index];

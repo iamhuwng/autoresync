@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { assess, classifyPaths, collectSourceState, main, STATUS } from '../release-check.mjs';
+import { assess, classifyPaths, collectSourceState, compatibilityReviewBindingsMatch, main, STATUS } from '../release-check.mjs';
 import { prepareHotfix } from '../hotfix-prepare.mjs';
 import { observeHosting, parseHostingChannelEvidence, writeHostingManifest } from '../release-evidence.mjs';
 
@@ -15,6 +15,43 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies website build configuration as Hosting', () => assert.deepEqual(classifyPaths(['postcss.config.cjs','tailwind.config.js','tsconfig.json','tsconfig.app.json']), ['hosting']));
 test('classifies CI and integration result machinery as release tooling', () => assert.deepEqual(classifyPaths(['.github/workflows/release-safety.yml','scripts/integration-check.mjs']), ['tooling']));
+test('historical migration documentation is not an executable migration requirement', () => {
+  assert.deepEqual(classifyPaths(['documentation/migration/backup-tests-collection.js', '.knowns/docs/migration/hooks.md']), []);
+  assert(classifyPaths(['scripts/backfill-reading.mjs']).includes('migrations'));
+  assert(classifyPaths(['migrations/001.sql']).includes('migrations'));
+});
+test('Hosting review binding rejects changed or omitted native dependency state', () => {
+  const source = { revision: 'a'.repeat(40), baseRevision: 'b'.repeat(40) };
+  const observation = { fingerprint: 'c'.repeat(64) }, dependencies = { fingerprint: 'd'.repeat(64) };
+  const review = { schemaVersion: 1, decision: 'verified', reviewer: 'fixture reviewer', reviewedAt: new Date().toISOString(),
+    sourceRevision: source.revision, baseRevision: source.baseRevision, observedFingerprint: observation.fingerprint,
+    scope: ['Hosting against active dependencies'], dependenciesFingerprint: dependencies.fingerprint };
+  assert.equal(compatibilityReviewBindingsMatch(review, source, observation, dependencies), true);
+  assert.equal(compatibilityReviewBindingsMatch({ ...review, dependenciesFingerprint: undefined }, source, observation, dependencies), false);
+  assert.equal(compatibilityReviewBindingsMatch(review, source, observation, { fingerprint: 'e'.repeat(64) }), false);
+});
+test('Hosting target cannot use caller dependency JSON or fixed service profiles to clear service gates', async () => {
+  const cwd = await fixture();
+  try {
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    await writeFile(path.join(cwd, 'cloudflare/changed-worker.ts'), 'export const changed = true;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'backend source differs');
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: base,
+      tree: git(cwd, 'rev-parse', `${base}^{tree}`), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('x').digest('hex') }] };
+    const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'x') }) });
+    const result = await assess({ cwd, base, target: 'hosting', hostingObservation: observation,
+      hostingDependenciesObservation: { scope: 'hosting-dependencies', readOnly: true }, productionEnvFingerprint: 'env' });
+    assert.equal(result.target, 'hosting');
+    assert(result.source.services.includes('worker'));
+    assert.equal(result.hostingDependencies, null);
+    assert.equal(result.decision, STATUS.UNVERIFIED);
+    assert(result.findings.some(finding => /Untrusted or stale Hosting dependency/u.test(finding.message)));
+    for (const options of [{ observeHomework: true }, { observeListening: true }, { baselinePath: 'assertion.json' }, { mode: 'acceptance' }]) {
+      await assert.rejects(assess({ cwd, base, target: 'hosting', ...options }), /native production Hosting observation/u);
+    }
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 test('shared compiled scoring and contract code affects Hosting and the Homework Worker', () => {
   assert.deepEqual(classifyPaths(['src/services/reading-v2/readingV2AnswerScoring.ts', 'src/services/reading-v2/readingV2ContractGuards.service.ts']), ['backup-worker', 'hosting']);
   assert.deepEqual(classifyPaths(['src/components/reading-v2/runtime/ReadingV2RuntimeShell.css']), ['hosting']);
@@ -316,6 +353,44 @@ test('deployed multi-commit hotfix detects loss of an earlier correction', async
     assert.equal(lost.decision, STATUS.REVIEW_REQUIRED);
     assert.ok(lost.findings.some(f => /content differs.*public\/index.html/u.test(f.message)));
   } finally { await rm(cwd, {recursive: true, force: true}); }
+});
+
+test('a historical hotfix already superseded by verified live content needs no repeated review', async () => {
+  const cwd = await fixture();
+  try {
+    const firstFix = git(cwd, 'rev-parse', 'HEAD'), firstBase = git(cwd, 'rev-parse', 'HEAD^');
+    await writeFile(path.join(cwd, 'public/index.html'), 'published successor');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'published successor');
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: base,
+      tree: git(cwd, 'rev-parse', 'HEAD^{tree}'), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('published successor').digest('hex') }],
+      hotfixes: [{ revision: firstFix, baseRevision: firstBase }] };
+    const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'published successor') }) });
+    await writeFile(path.join(cwd, 'public/next.txt'), 'routine next change');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'next release preserves live successor');
+    const result = await assess({ cwd, base, hostingObservation: observation, productionEnvFingerprint: 'env' });
+    assert.equal(result.decision, STATUS.PASS);
+    assert.deepEqual(result.hotfixComparison[0].preservedLivePaths, ['public/index.html']);
+    assert.deepEqual(result.hotfixComparison[0].reviewRequiredPaths, []);
+    const untrusted = await assess({ cwd, base, hostingObservation: JSON.parse(JSON.stringify(observation)), productionEnvFingerprint: 'env' });
+    assert.equal(untrusted.decision, STATUS.BLOCKED);
+    const wrongTree = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify({ ...manifest, tree: 'f'.repeat(40) }) : 'published successor') }) });
+    const wrongBaseline = await assess({ cwd, base, hostingObservation: wrongTree, productionEnvFingerprint: 'env' });
+    assert.deepEqual(wrongBaseline.hotfixComparison[0].preservedLivePaths, []);
+    assert(wrongBaseline.hotfixComparison[0].reviewRequiredPaths.includes('public/index.html'));
+    await writeFile(path.join(cwd, 'public/index.html'), 'accidental regression');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'lose current published correction');
+    const regressed = await assess({ cwd, base, hostingObservation: observation, productionEnvFingerprint: 'env' });
+    assert.equal(regressed.decision, STATUS.REVIEW_REQUIRED);
+    assert(regressed.hotfixComparison[0].reviewRequiredPaths.includes('public/index.html'));
+    await writeFile(path.join(cwd, 'public/index.html'), git(cwd, 'show', `${firstFix}:public/index.html`));
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'restore older hotfix but lose live successor');
+    const oldFix = await assess({ cwd, base, hostingObservation: observation, productionEnvFingerprint: 'env' });
+    assert.equal(oldFix.decision, STATUS.REVIEW_REQUIRED);
+    assert.deepEqual(oldFix.hotfixComparison[0].reviewRequiredPaths, ['public/index.html']);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
 test('hotfix successor review binds the exact differing paths and preserves every obligation', async t => {

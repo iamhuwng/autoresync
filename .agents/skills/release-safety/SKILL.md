@@ -28,7 +28,7 @@ before assessment. Choose an explicit reviewed `--base`; a branch name,
 Use the production manifest observer for the manifest-bearing live site:
 
 ```powershell
-node scripts/release-check.mjs --mode release --base <review-base> `
+node scripts/release-check.mjs --mode release --target hosting --base <review-base> `
   --observe-hosting --env-fingerprint <production-env-sha256> --json
 ```
 
@@ -49,7 +49,7 @@ Assess the selected candidate and write a receipt:
 ```powershell
 $envFile = Join-Path $HOME '.luyentap\env\.env.production'
 $envFingerprint = (Get-FileHash $envFile -Algorithm SHA256).Hash.ToLower()
-node scripts/release-check.mjs --mode release --base <review-base> `
+node scripts/release-check.mjs --mode release --target hosting --base <review-base> `
   --observe-hosting --env-fingerprint $envFingerprint `
   --json --receipt tmp/release-receipts/release-assessment.json
 ```
@@ -57,7 +57,11 @@ node scripts/release-check.mjs --mode release --base <review-base> `
 Provider metadata remains `UNVERIFIED` when it lacks deployed source/tree.
 Once a production manifest is independently present, use `--observe-hosting`;
 application changes also require a compatibility review bound to the exact
-source, base, and observed fingerprint. A `PASS` from fixtures or a manually
+source, base, and observed fingerprint. When backend paths differ, the Hosting
+target independently observes active dependencies and requires that review's
+`dependenciesFingerprint` to match. Follow `documentation/system/integration-releases.md`
+for supported scope and separate backend qualification; the target grants no
+Worker deployment readiness. A `PASS` from fixtures or a manually
 edited receipt is not production evidence.
 
 Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and

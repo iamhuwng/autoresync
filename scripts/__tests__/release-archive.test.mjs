@@ -96,6 +96,23 @@ function provider(source) {
   return { exec, files, calls, state, get release() { return release; } };
 }
 
+test('retained Hosting dependency evidence stays bound to the reviewed source and observed provider', async t => {
+  const request = await fixture(t), nativeFingerprint = 'b'.repeat(64), hostingFingerprint = 'c'.repeat(64);
+  request.intent.review = { dependenciesFingerprint: nativeFingerprint };
+  request.intent.assessment.compatibilityReview = { ...request.intent.review };
+  request.intent.assessment.target = 'hosting';
+  request.intent.assessment.observed.fingerprint = hostingFingerprint;
+  request.intent.assessment.hostingDependencies = { scope: 'hosting-dependencies', source: { ...request.intent.source },
+    fingerprint: nativeFingerprint, providerFingerprint: 'd'.repeat(64), hostingFingerprint,
+    envFingerprint: request.intent.envFingerprint, workerDeploymentReady: false };
+  const remote = provider(request.intent.source);
+  assert(isHostingArchive(await createHostingArchive(request, remote)));
+  request.intent.assessment.hostingDependencies.providerFingerprint = 'invalid';
+  await assert.rejects(createHostingArchive(request, remote), /Hosting dependency retention binding differs/u);
+  delete request.intent.assessment.hostingDependencies;
+  await assert.rejects(createHostingArchive(request, remote), /Hosting dependency retention binding differs/u);
+});
+
 test('inaccessible or mismatched draft identity stops before reading assets', async () => {
   const id = crypto.randomUUID();
   for (const kind of ['inaccessible', 'wrong-id', 'wrong-tag']) {

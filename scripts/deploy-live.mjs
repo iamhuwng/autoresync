@@ -5,7 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { assess, collectSourceState } from './release-check.mjs';
+import { assess, classifyPaths, collectSourceState } from './release-check.mjs';
+import { isHostingDependenciesObserved, observeHostingDependencies } from './release-hosting-dependencies.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
 import { prepareDeploymentChangelog } from './release-changelog.mjs';
@@ -97,7 +98,7 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
   if (compatibilityReviewPath && (!/^[a-f0-9]{64}$/u.test(compatibilityReviewSha256 || '')
     || digest(await readFile(path.resolve(cwd, compatibilityReviewPath))) !== compatibilityReviewSha256)) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
-  const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
+  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
   assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
@@ -313,6 +314,13 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
   assertReleaseVerification(verification, { source, envFingerprint: expected.envFingerprint, planSha256: verificationPlanSha256 });
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)
     || assessment.source.fingerprint !== source.fingerprint || assessment.observed.revision !== base) fail('deployment requires the current exact-source assessment.');
+  if (assessment.hostingDependencies && !isHostingDependenciesObserved(assessment.hostingDependencies)) fail('deployment rejects caller-supplied Hosting dependency evidence.');
+  if (assessment.target === 'hosting' && classifyPaths(source.files).some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service))
+    && (!isHostingDependenciesObserved(assessment.hostingDependencies)
+      || assessment.hostingDependencies.source.fingerprint !== source.fingerprint
+      || assessment.compatibilityReview?.dependenciesFingerprint !== assessment.hostingDependencies.fingerprint)) {
+    fail('deployment requires native Hosting dependencies bound to the reviewed candidate.');
+  }
   const config = { firebase: JSON.parse(await readFile(path.join(cwd, 'firebase.json'), 'utf8')),
     firebaseRc: JSON.parse(await readFile(path.join(cwd, '.firebaserc'), 'utf8')) };
   const before = await observeProvider();
@@ -333,13 +341,29 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
         schemaVersion: 1, id, request: recordedIntent(record), expectedManifest: expected, before, source,
         envFingerprint: expected.envFingerprint, verification, config,
         assessment: { decision: assessment.decision, source: assessment.source, observed: assessment.observed,
-          findings: assessment.findings, compatibilityReview: assessment.compatibilityReview },
+          findings: assessment.findings, compatibilityReview: assessment.compatibilityReview,
+          target: assessment.target, hostingDependencies: assessment.hostingDependencies ? {
+            scope: assessment.hostingDependencies.scope, source: assessment.hostingDependencies.source,
+            envFingerprint: assessment.hostingDependencies.envFingerprint,
+            hostingFingerprint: assessment.hostingDependencies.hostingFingerprint,
+            providerFingerprint: assessment.hostingDependencies.providerFingerprint,
+            fingerprint: assessment.hostingDependencies.fingerprint,
+            services: assessment.hostingDependencies.services, observedAt: assessment.hostingDependencies.observedAt,
+            workerDeploymentReady: false,
+          } : undefined },
         review: assessment.compatibilityReview,
       } });
       const live = await observeSource();
       const provider = await observeProvider();
       if (live.fingerprint !== assessment.observed.fingerprint || providerIdentity(provider) !== providerIdentity(before)) {
         fail('production changed while preserving the archive; reassess before publication.');
+      }
+      if (assessment.hostingDependencies) {
+        const currentDependencies = await observeHostingDependencies({ cwd, source, hostingObservation: live,
+          envFingerprint: expected.envFingerprint });
+        if (currentDependencies.fingerprint !== assessment.hostingDependencies.fingerprint) {
+          fail('backend dependencies changed while preserving the archive; reassess before publication.');
+        }
       }
       await revalidate?.();
       const current = await collectSourceState(cwd, base);

@@ -96,6 +96,17 @@ function validateIntent(intent, id) {
   if (intent.before?.identity !== 'temp-a1437/kahut1' || !/^projects\/temp-a1437\/sites\/kahut1\/versions\/[a-z0-9]+$/u.test(intent.before.provider?.version || '')
     || !Number.isFinite(Date.parse(intent.before.provider.releaseTime))) fail('invalid prior Hosting provider identity');
   if (JSON.stringify(intent.review ?? null) !== JSON.stringify(intent.assessment.compatibilityReview ?? null)) fail('review binding differs');
+  const dependencies = intent.assessment.hostingDependencies;
+  if (Boolean(dependencies) !== Boolean(intent.review?.dependenciesFingerprint)) fail('Hosting dependency retention binding differs');
+  if (dependencies && (intent.assessment.target !== 'hosting' || dependencies.scope !== 'hosting-dependencies'
+    || dependencies.workerDeploymentReady !== false || !shaPattern.test(dependencies.fingerprint || '')
+    || !shaPattern.test(dependencies.providerFingerprint || '')
+    || dependencies.fingerprint !== intent.review?.dependenciesFingerprint
+    || dependencies.hostingFingerprint !== intent.assessment.observed?.fingerprint
+    || dependencies.envFingerprint !== intent.envFingerprint
+    || dependencies.source?.dirty !== false || !sourceKeys.every(key => dependencies.source[key] === intent.source[key]))) {
+    fail('Hosting dependency retention binding differs');
+  }
   assertSafeMetadata(intent);
 }
 

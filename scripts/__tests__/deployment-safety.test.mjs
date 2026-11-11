@@ -556,6 +556,16 @@ test('forged verification, archive failure, artifact tampering and live drift st
   } finally { await cleanup(); }
 });
 
+test('Hosting publication rejects caller-supplied dependency evidence before retention or deployment', async () => {
+  const { options, state, cleanup } = await hostingFixture();
+  try {
+    await assert.rejects(deployHosting({ ...options, assessment: { ...options.assessment,
+      target: 'hosting', hostingDependencies: { scope: 'hosting-dependencies', readOnly: true } } }), /caller-supplied Hosting dependency/u);
+    assert.equal(state.archive, null);
+    assert.equal(state.deploys, 0);
+  } finally { await cleanup(); }
+});
+
 test('Hosting release messages stay within Firebase limits while changelog records remain detailed', () => {
   const description = 'x'.repeat(278);
   const message = hostingReleaseMessage(description);

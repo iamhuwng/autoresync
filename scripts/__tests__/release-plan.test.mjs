@@ -65,6 +65,8 @@ test('native live baseline is selected automatically; normal source selection do
   assert.equal(result.verification.execution, 'NOT_RUN');
   assert.equal(result.authorization, 'NOT_AUTHORIZED');
   assert.equal(result.deploymentReady, false);
+  assert.equal(result.target, 'hosting');
+  assert.deepEqual(result.convergence, { hotfixReviewPaths: [], preservedLivePaths: [] });
   assert.equal(git(options.cwd, 'status', '--porcelain'), before);
   assert.match(formatPlan(result), /remote\/CI not checked/u);
 });
