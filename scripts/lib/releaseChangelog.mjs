@@ -46,11 +46,19 @@ const binding = value => {
 };
 const sameBinding = (left, right) => CONTENT_KEYS.every(key => left[key] === right[key]);
 const comparableBinding = (saved, published) => CONTENT_KEYS.every(key => !saved[key] || Boolean(published[key]));
+export const normalizeChangeIds = value => {
+  if (!Array.isArray(value) || value.length > 100
+    || value.some(id => typeof id !== 'string' || !/^CL-\d{8}-[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(id))
+    || new Set(value).size !== value.length) fail('changeIds must contain unique CL-YYYYMMDD-SLUG identifiers');
+  return [...value].sort();
+};
+const coversChanges = (saved, published) => (saved.changeIds || []).every(id => published.changeIds?.includes(id));
 const targets = (value, release = false) => {
   if (!Array.isArray(value) || value.length < 1 || value.length > 30) fail('targets must contain between 1 and 30 explicit targets');
   const result = value.map(target => {
-    object(target, release ? ['id', 'operation', 'binding', 'annotation'] : ['id', 'binding'], 'target');
+    object(target, release ? ['id', 'operation', 'binding', 'annotation', 'changeIds'] : ['id', 'binding', 'changeIds'], 'target');
     const result = { id: identity(target.id, 'target id'), binding: binding(target.binding) };
+    if (target.changeIds !== undefined) result.changeIds = normalizeChangeIds(target.changeIds);
     if (release) {
       if (!OPERATIONS.has(target.operation)) fail(`unsupported operation ${target.operation}`);
       result.operation = target.operation;
@@ -78,10 +86,9 @@ const validateDraft = value => {
 };
 const validateRelease = value => {
   object(value, ['id', 'status', 'description', 'targets', 'evidenceRefs', 'origin', 'createdAt', 'updatedAt', 'pendingId', 'supersedesPendingId', 'appliedReceiptHashes', 'changeIds'], 'release');
+  // Historical release-level IDs had no target scope or uniqueness requirement.
   if (value.changeIds !== undefined && (!Array.isArray(value.changeIds) || value.changeIds.length > 100
-    || value.changeIds.some(id => typeof id !== 'string' || !/^CL-\d{8}-[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(id)))) {
-    fail('changeIds must contain CL-YYYYMMDD-SLUG identifiers');
-  }
+    || value.changeIds.some(id => typeof id !== 'string' || !/^CL-\d{8}-[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(id)))) fail('changeIds must contain CL-YYYYMMDD-SLUG identifiers');
   identity(value.id);
   text(value.description, 'description');
   if (!['execution', 'retrospective'].includes(value.origin)) fail('release origin is malformed');
@@ -99,7 +106,7 @@ const validateRelease = value => {
   timestamp(value.updatedAt);
   if (!Array.isArray(value.targets)) fail('release targets are malformed');
   targets(value.targets.map(target => {
-    object(target, ['id', 'binding', 'operation', 'annotation', 'publication', 'verification', 'providerIdentity', 'evidenceRefs'], 'saved target');
+    object(target, ['id', 'binding', 'operation', 'annotation', 'changeIds', 'publication', 'verification', 'providerIdentity', 'evidenceRefs'], 'saved target');
     if (!PUBLICATIONS.has(target.publication) || !VERIFICATIONS.has(target.verification)) fail('saved publication or verification is malformed');
     refs(target.evidenceRefs);
     if (target.providerIdentity !== undefined) providerIdentity(target.providerIdentity);
@@ -181,12 +188,17 @@ export function saveDraft(input, storeDir) {
 }
 
 const select = (description, requested, draft) => {
-  const matching = Boolean(draft && requested.every(target => draft.targets.some(saved => saved.id === target.id && sameBinding(saved.binding, target.binding))));
+  const matching = Boolean(draft && requested.every(target => draft.targets.some(saved => saved.id === target.id && sameBinding(saved.binding, target.binding)
+    && (target.changeIds === undefined || saved.changeIds === undefined || JSON.stringify(target.changeIds) === JSON.stringify(saved.changeIds)))));
   const relevant = draft && requested.some(target => draft.targets.some(saved => saved.id === target.id));
   return {
     description: matching ? draft.description : description,
     pendingId: matching ? draft.id : null,
     matching,
+    targets: requested.map(target => {
+      const saved = matching && draft.targets.find(saved => saved.id === target.id);
+      return target.changeIds === undefined && saved?.changeIds !== undefined ? { ...target, changeIds: saved.changeIds } : target;
+    }),
     reason: !draft ? 'No pending manual entry exists.' : matching ? 'Pending description matches the explicit target scope and content.' : relevant ? 'Pending entry is stale or covers a different target scope.' : 'Pending entry belongs to unrelated targets.',
   };
 };
@@ -196,8 +208,17 @@ export function selectDescription(input, storeDir) {
 }
 
 const intent = release => ({ description: release.description, targets: release.targets.map(({ publication, verification, providerIdentity, evidenceRefs, ...target }) => target), origin: release.origin });
-export function beginRelease(input, storeDir, options = {}) {
+export function validateReleaseRequest(input) {
   object(input, ['id', 'description', 'targets', 'evidenceRefs', 'retrospective'], 'release input');
+  if (input.id !== undefined) identity(input.id);
+  text(input.description, 'description');
+  targets(input.targets, true);
+  refs(input.evidenceRefs);
+  if (input.retrospective !== undefined && typeof input.retrospective !== 'boolean') fail('retrospective must be boolean');
+  if (input.retrospective && !input.evidenceRefs?.length) fail('retrospective record requires explicit historical evidence references');
+}
+export function beginRelease(input, storeDir, options = {}) {
+  validateReleaseRequest(input);
   object(options, ['requireNew'], 'begin options');
   if (options.requireNew !== undefined && typeof options.requireNew !== 'boolean') fail('requireNew must be boolean');
   if (input.retrospective !== undefined && typeof input.retrospective !== 'boolean') fail('retrospective must be boolean');
@@ -207,7 +228,6 @@ export function beginRelease(input, storeDir, options = {}) {
   const evidenceRefs = refs(input.evidenceRefs);
   if (input.retrospective && !evidenceRefs.length) fail('retrospective record requires explicit historical evidence references');
   return updateState(storeDir, state => {
-    const selected = input.retrospective ? { description, pendingId: null } : select(description, requested, state.draft);
     const candidate = { description, targets: requested, origin: input.retrospective ? 'retrospective' : 'execution' };
     const previous = state.releases[id];
     if (previous) {
@@ -216,9 +236,10 @@ export function beginRelease(input, storeDir, options = {}) {
       if (JSON.stringify(intent(previous)) !== JSON.stringify(candidate)) fail(`release id ${id} already has different intent`);
       return previous;
     }
+    const selected = input.retrospective ? { description, pendingId: null, targets: requested } : select(description, requested, state.draft);
     const now = new Date().toISOString();
     const revised = !input.retrospective && state.draft && requested.some(target => state.draft.targets.some(saved => saved.id === target.id && comparableBinding(saved.binding, target.binding) && !sameBinding(saved.binding, target.binding)));
-    const release = { id, status: 'not-live', ...candidate, targets: requested.map(target => ({ ...target, publication: 'unconfirmed', verification: 'unverified', evidenceRefs: [] })), evidenceRefs, createdAt: now, updatedAt: now, pendingId: selected.description === description ? selected.pendingId : null, supersedesPendingId: revised ? state.draft.id : null };
+    const release = { id, status: 'not-live', ...candidate, targets: candidate.targets.map(target => ({ ...target, publication: 'unconfirmed', verification: 'unverified', evidenceRefs: [] })), evidenceRefs, createdAt: now, updatedAt: now, pendingId: selected.description === description ? selected.pendingId : null, supersedesPendingId: revised ? state.draft.id : null };
     state.releases[id] = release;
     return release;
   });
@@ -267,7 +288,7 @@ export function settleRelease(id, input, storeDir) {
     if (draft && [release.pendingId, release.supersedesPendingId].includes(draft.id)
       && draft.targets.every(target => Object.values(state.releases).some(record =>
         [record.pendingId, record.supersedesPendingId].includes(draft.id)
-        && record.targets.some(published => published.id === target.id && published.publication === 'published'
+          && record.targets.some(published => published.id === target.id && published.publication === 'published' && coversChanges(target, published)
           && (record.pendingId === draft.id ? sameBinding(target.binding, published.binding) : comparableBinding(target.binding, published.binding)))))) state.draft = null;
     return release;
   });

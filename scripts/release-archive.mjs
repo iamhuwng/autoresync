@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import * as tar from 'tar';
 import { collectSourceState } from './release-check.mjs';
+import { validateReleaseRequest } from './lib/releaseChangelog.mjs';
 
 const repository = 'iamhuwng/autoresync';
 const manifestPath = '.well-known/luyentap-release.json';
@@ -79,6 +80,9 @@ function validateIntent(intent, id) {
   if (!intent || Object.getPrototypeOf(intent) !== Object.prototype || Object.keys(intent).some(key => !keys.includes(key))
     || intent.schemaVersion !== 1 || intent.id !== id) fail('invalid operation intent');
   validateManifest(intent.expectedManifest);
+  validateReleaseRequest(intent.request);
+  const selectedIds = intent.request.targets[0]?.changeIds;
+  if (selectedIds !== undefined && JSON.stringify(selectedIds) !== JSON.stringify(intent.review?.changeIds)) fail('reviewed change associations differ from retained intent');
   if (intent.source?.revision !== intent.expectedManifest.revision || intent.source?.tree !== intent.expectedManifest.tree) fail('intent source differs from manifest');
   const target = intent.request?.targets?.[0], binding = target?.binding;
   if (intent.request?.id !== id || intent.request.targets.length !== 1 || target.id !== 'firebase:temp-a1437:hosting:kahut1'
@@ -277,8 +281,7 @@ export async function createHostingArchive({ cwd, id, intent, sourceRef, verific
   });
 }
 
-export async function recordHostingArchiveOutcome(archive, outcome, { exec = spawnSync } = {}) {
-  if (!isHostingArchive(archive)) fail('trusted retained archive handle required');
+function validateOutcome(outcome) {
   if (!outcome || Object.getPrototypeOf(outcome) !== Object.prototype || Object.keys(outcome).some(key => !['outcomes', 'evidenceRefs'].includes(key))
     || !Array.isArray(outcome.outcomes) || outcome.outcomes.length !== 1) fail('invalid outcome fields');
   const target = outcome.outcomes[0];
@@ -289,6 +292,26 @@ export async function recordHostingArchiveOutcome(archive, outcome, { exec = spa
     || (target.publication === 'published' && (typeof target.providerIdentity !== 'string' || !target.providerIdentity.trim()))) fail('invalid Hosting outcome');
   for (const refs of [outcome.evidenceRefs, target.evidenceRefs]) if (refs !== undefined && (!Array.isArray(refs) || refs.some(ref => typeof ref !== 'string' || !ref.trim()))) fail('invalid outcome evidence references');
   assertSafeMetadata(outcome);
+}
+
+export function readHostingArchiveOutcomes(archive, { exec = spawnSync } = {}) {
+  if (!isHostingArchive(archive)) fail('trusted retained archive handle required');
+  const assets = releaseFor(archive.id, exec).assets.filter(asset => /^outcome-[a-f0-9]{64}\.json$/u.test(asset.name));
+  if (assets.length > 1000 || new Set(assets.map(asset => asset.name)).size !== assets.length) fail('invalid outcome inventory');
+  return assets.map(asset => {
+    const bytes = download(asset, exec), saved = JSON.parse(bytes);
+    if (!saved || Object.keys(saved).some(key => !['schemaVersion', 'archiveSha256', 'recordedAt', 'outcome'].includes(key))
+      || saved.schemaVersion !== 1 || saved.archiveSha256 !== archive.sha256 || !Number.isFinite(Date.parse(saved.recordedAt))
+      || new Date(saved.recordedAt).toISOString() !== saved.recordedAt
+      || asset.name !== `outcome-${digest(JSON.stringify({ archiveSha256: archive.sha256, outcome: saved.outcome }))}.json`) fail('outcome binding differs');
+    validateOutcome(saved.outcome);
+    return { ...saved, evidenceRef: `${archive.evidenceRef}#${asset.name}` };
+  }).sort((left, right) => left.recordedAt.localeCompare(right.recordedAt) || left.evidenceRef.localeCompare(right.evidenceRef));
+}
+
+export async function recordHostingArchiveOutcome(archive, outcome, { exec = spawnSync } = {}) {
+  if (!isHostingArchive(archive)) fail('trusted retained archive handle required');
+  validateOutcome(outcome);
   return withTemporary(async directory => {
     const name = `outcome-${digest(JSON.stringify({ archiveSha256: archive.sha256, outcome }))}.json`, file = path.join(directory, name);
     const existing = releaseFor(archive.id, exec).assets.filter(asset => asset.name === name);

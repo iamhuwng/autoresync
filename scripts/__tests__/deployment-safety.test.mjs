@@ -421,6 +421,10 @@ async function hostingFixture() {
   git('add', '.'); git('commit', '-qm', 'Website');
   const base = git('rev-parse', 'HEAD');
   await writeFile(path.join(cwd, 'index.html'), 'corrected website');
+  const changeId = 'CL-20261112-CORRECTION';
+  await mkdir(path.join(cwd, 'documentation/architecture/changelog'), { recursive: true });
+  await writeFile(path.join(cwd, 'documentation/architecture/changelog/correction.md'), `# Correction\nChangelog ID: \`${changeId}\`\n`);
+  await writeFile(path.join(cwd, 'documentation/architecture/master_changelog.md'), `| [\`${changeId}\`](changelog/correction.md) | Correction |\n`);
   git('add', '.'); git('commit', '-qm', 'Correction');
   const envFingerprint = 'a'.repeat(64);
   const planPath = path.join(cwd, '.git', 'checks.json');
@@ -430,7 +434,8 @@ async function hostingFixture() {
   await writeFile(path.join(cwd, 'dist', 'index.html'), 'built corrected website');
   const manifest = await writeHostingManifest({ cwd, envFingerprint });
   const source = await collectSourceState(cwd, base);
-  const assessment = { decision: 'PASS', source, observed: { revision: base, fingerprint: 'previous-manifest' }, findings: [] };
+  const assessment = { decision: 'PASS', source, observed: { revision: base, fingerprint: 'previous-manifest' }, findings: [],
+    compatibilityReview: { changeIds: [changeId] } };
   const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false };
   const observeProvider = () => ({ provider: { version: state.deploys ? 'new' : 'old',
     releaseTime: state.deploys ? 'later' : 'before', message: state.message, config: { headers: [] } }, evidenceRef: 'fixture://provider' });
@@ -447,6 +452,7 @@ async function hostingFixture() {
       return state.archive;
     },
     saveOutcome: async (archive, outcome) => state.outcomes.push(outcome),
+    reconcile: async () => {},
     runDeploy: (args, env, selectedCwd) => {
       assert.equal(selectedCwd, cwd);
       assert.equal(args[0], path.join(cwd, 'scripts/tooling-where.mjs'));
@@ -490,11 +496,12 @@ test('publication with failed readback resumes the same operation without anothe
     assert.equal(original.targets[0].publication, 'published');
     assert.equal(original.targets[0].verification, 'unverified');
     state.hashFailure = false;
-    const resume = { id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive,
+    const resume = { id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive, reconcile: options.reconcile,
       saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource };
     const verified = await verifyExistingHosting(resume);
     assert.equal(verified.id, original.id);
     assert.equal(verified.targets[0].verification, 'passed');
+    assert.deepEqual(verified.targets[0].changeIds, ['CL-20261112-CORRECTION']);
     assert.deepEqual(await verifyExistingHosting(resume), verified);
     assert.equal(state.deploys, 1);
     assert.equal(listReleases(options.storeDir).length, 1);

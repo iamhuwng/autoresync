@@ -3,13 +3,15 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rm, writeFile, unlink } from 'node:fs/promises';
 import test from 'node:test';
 import * as tar from 'tar';
 import { collectSourceState } from '../release-check.mjs';
 import { writeHostingManifest } from '../release-evidence.mjs';
 import { assertHostingArtifact, createHostingArchive, isHostingArchive, readHostingArchive, recordHostingArchiveOutcome } from '../release-archive.mjs';
+import { reconcileHostingChangelog } from '../release-changelog.mjs';
+import { beginRelease } from '../lib/releaseChangelog.mjs';
 
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const git = (cwd, ...args) => {
@@ -26,6 +28,10 @@ async function fixture(t) {
   await writeFile(path.join(cwd, 'source.txt'), 'retained exact source');
   await writeFile(path.join(cwd, '.gitattributes'), '*.ps1 text eol=crlf\n');
   await writeFile(path.join(cwd, 'source.ps1'), 'Write-Output retained\n');
+  await mkdir(path.join(cwd, 'documentation/architecture/changelog'), { recursive: true });
+  for (const name of ['FIRST', 'SECOND']) await writeFile(path.join(cwd, `documentation/architecture/changelog/${name}.md`), `# ${name}\nChangelog ID: \`CL-20261112-${name}\`\n\nOriginal implementation note.\n`);
+  await writeFile(path.join(cwd, 'documentation/architecture/master_changelog.md'), '# Master\n\n## Unreleased\n\n'
+    + ['FIRST', 'SECOND'].map(name => `| [\`CL-20261112-${name}\`](changelog/${name}.md) | ${name} |`).join('\n') + '\n');
   git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'candidate');
   const revision = git(cwd, 'rev-parse', 'HEAD');
   await mkdir(path.join(cwd, 'dist'));
@@ -36,7 +42,7 @@ async function fixture(t) {
   const intent = { schemaVersion: 1, id, expectedManifest, source, verification: { decision: 'PASS', source: { ...source }, envFingerprint: expectedManifest.envFingerprint }, config,
     assessment: { decision: 'PASS', source: { ...source }, observed: { revision: source.baseRevision }, compatibilityReview: null },
     before: { identity: 'temp-a1437/kahut1', provider: { version: 'projects/temp-a1437/sites/kahut1/versions/abc123', releaseTime: '2026-11-11T00:00:00.000Z' } },
-    envFingerprint: expectedManifest.envFingerprint, request: { id, targets: [{ id: 'firebase:temp-a1437:hosting:kahut1', operation: 'deploy',
+    envFingerprint: expectedManifest.envFingerprint, request: { id, description: 'Retained candidate', evidenceRefs: [], targets: [{ id: 'firebase:temp-a1437:hosting:kahut1', operation: 'deploy',
       binding: { sourceRevision: source.revision, sourceFingerprint: source.fingerprint,
         artifactSha256: hash(JSON.stringify(expectedManifest)), configSha256: hash(JSON.stringify(config)) } }] } };
   return { cwd, id, intent, sourceRef: 'refs/heads/release-test' };
@@ -95,6 +101,38 @@ function provider(source) {
   };
   return { exec, files, calls, state, get release() { return release; } };
 }
+
+test('retained associations restore in a fresh journal and interrupted documentation settles without publication', async t => {
+  const request = await fixture(t), ids = ['CL-20261112-FIRST', 'CL-20261112-SECOND'];
+  request.intent.request.targets[0].changeIds = ids;
+  request.intent.review = { changeIds: ids };
+  request.intent.assessment.compatibilityReview = { ...request.intent.review };
+  const remote = provider(request.intent.source), archive = await createHostingArchive(request, remote);
+  await recordHostingArchiveOutcome(archive, { outcomes: [{ id: archive.intent.request.targets[0].id,
+    publication: 'published', verification: 'unverified', providerIdentity: 'version-1' }] }, remote);
+  const restored = await readHostingArchive({ id: archive.id, sha256: archive.sha256,
+    restoreDir: path.join(request.cwd, 'fresh-restore') }, remote);
+  const fresh = beginRelease(restored.intent.request, path.join(request.cwd, 'fresh-journal'));
+  assert.deepEqual(fresh.targets[0].changeIds, ids);
+  const lock = path.join(request.cwd, 'documentation/architecture/.changelog-reconcile.lock');
+  await writeFile(lock, 'another-owner\n');
+  await assert.rejects(() => reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec }), /locked/u);
+  await unlink(lock);
+  let writes = 0;
+  // Stop after one detail is saved; restart must finish the other detail and Master link.
+  await assert.rejects(() => reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec,
+    write: (file, content) => { if (++writes === 2) throw new Error('interrupted docs'); writeFileSync(file, content); } }), /interrupted docs/u);
+  await reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec });
+  assert.deepEqual((await reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec })).changed, []);
+  const detail = readFileSync(path.join(request.cwd, 'documentation/architecture/changelog/FIRST.md'), 'utf8');
+  assert.equal(detail.match(/<!-- release-operation:/gu).length, 1);
+  assert.match(detail, /verification: \*\*unverified\*\*/u);
+  assert.match(readFileSync(path.join(request.cwd, 'documentation/architecture/master_changelog.md'), 'utf8'), /## Unreleased/u);
+  assert.equal(remote.calls.filter(args => args[0] === 'release' && args[1] === 'create').length, 1);
+  const savedOutcome = [...remote.files.entries()].find(([name]) => name.startsWith('outcome-'))[1];
+  savedOutcome.bytes = Buffer.from(savedOutcome.bytes.toString().replace('unverified', 'unverifiex'));
+  await assert.rejects(() => reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec }), /outcome binding differs/u);
+});
 
 test('retained Hosting dependency evidence stays bound to the reviewed source and observed provider', async t => {
   const request = await fixture(t), nativeFingerprint = 'b'.repeat(64), hostingFingerprint = 'c'.repeat(64);

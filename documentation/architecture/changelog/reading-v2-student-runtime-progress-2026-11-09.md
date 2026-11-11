@@ -35,3 +35,12 @@ this local runtime correction.
 
 Production release remains pending. The exact release block and receipts are
 recorded in `documentation/release-audits/2026-11-09-reading-v2-release-blocked.md`.
+
+## Release outcome addendum — 12 November 2026
+
+The pending statement above describes the earlier November 9 attempt. The retained
+runtime behavior was subsequently included in the first qualified normal release
+from main `5981a4da`, Hosting version `615014b48c077b09`. See the
+[verified operation and limits](normal-main-release-one-2026-11-12.md).
+This is a retrospective documentation association; the original retained intent
+did not contain change IDs. Only Hosting was published by that operation.

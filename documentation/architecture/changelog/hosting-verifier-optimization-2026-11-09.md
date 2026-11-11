@@ -41,3 +41,13 @@ run the existing release assessment and production build, and inspect the
 Hosting readback as a bounded complete-snapshot verification. Integrating this
 tooling does not authorize publishing the other changes already present on
 `main`.
+
+## Release outcome addendum — 12 November 2026
+
+The integration-only statement above describes the original implementation.
+The verifier subsequently ran for the first qualified normal release from main
+`5981a4da`, including independent readback of all 443 manifest-listed assets and
+resumed verification without republishing. See the
+[recorded operation and measurement limits](normal-main-release-one-2026-11-12.md).
+This later documentation link does not modify the original archive or assert that
+CL associations were retained before publication.
