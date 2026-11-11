@@ -15,6 +15,22 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies website build configuration as Hosting', () => assert.deepEqual(classifyPaths(['postcss.config.cjs','tailwind.config.js','tsconfig.json','tsconfig.app.json']), ['hosting']));
 test('classifies CI and integration result machinery as release tooling', () => assert.deepEqual(classifyPaths(['.github/workflows/release-safety.yml','scripts/integration-check.mjs']), ['tooling']));
+test('shared compiled scoring and contract code affects Hosting and the Homework Worker', () => {
+  assert.deepEqual(classifyPaths(['src/services/reading-v2/readingV2AnswerScoring.ts', 'src/services/reading-v2/readingV2ContractGuards.service.ts']), ['backup-worker', 'hosting']);
+  assert.deepEqual(classifyPaths(['src/components/reading-v2/runtime/ReadingV2RuntimeShell.css']), ['hosting']);
+});
+test('a shared scorer change cannot be described or qualified as a Hosting-only release', async () => {
+  const cwd = await fixture();
+  try {
+    await mkdir(path.join(cwd, 'src/services/reading-v2'), { recursive: true });
+    await writeFile(path.join(cwd, 'src/services/reading-v2/readingV2AnswerScoring.ts'), 'export const score = 1;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'change shared scorer');
+    const result = await assess({ cwd, base: 'HEAD^' });
+    assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Backup Worker active version/u.test(finding.message)));
+    assert(result.deploymentOrder.some(action => /Homework\/backup Worker compatibility before Hosting/u.test(action)));
+    assert(!result.deploymentOrder.includes('Hosting-only deployment.'));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 
 test('fixed Homework Worker observation rejects mixed evidence and missing artifact paths', async () => {
   await assert.rejects(() => assess({ observeHomework: true, observe: true }), /cannot be combined/u);

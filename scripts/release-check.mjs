@@ -17,11 +17,29 @@ export const repoRoot = path.resolve(here, '..');
 export const STATUS = Object.freeze({ PASS: 'PASS', NOT_APPLICABLE: 'NOT_APPLICABLE', REVIEW_REQUIRED: 'REVIEW_REQUIRED', UNVERIFIED: 'UNVERIFIED', BLOCKED: 'BLOCKED' });
 const rank = { PASS: 0, NOT_APPLICABLE: 0, REVIEW_REQUIRED: 1, UNVERIFIED: 2, BLOCKED: 3 };
 const baselineMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
+// Compiled by the Homework Worker; CI checks the real source map against this path map.
+const sharedHomeworkInputs = new Set([
+  'functions/src/readingV2SubmitCore.ts',
+  'src/config/readingV2FeatureFlags.ts',
+  'src/config/scoring.config.ts',
+  'src/services/book-source-delivery/sourceCapacity.service.ts',
+  'src/services/book-source-delivery/sourceDisplayFilename.service.ts',
+  'src/services/book-source-delivery/sourceRecovery.adapter.ts',
+  'src/services/book-source-delivery/sourceUpload.rtdbRepository.ts',
+  'src/services/book-source-delivery/sourceVersion.service.ts',
+  'src/services/reading-v2/readingV2AnswerScoring.ts',
+  'src/services/reading-v2/readingV2ContractGuards.service.ts',
+  'src/services/reading-v2/readingV2FirebaseDocument.service.ts',
+  'src/services/reading-v2/readingV2JudgementAnswers.service.ts',
+  'src/types/bookSource.types.ts',
+  'src/types/readingV2.types.ts',
+  'src/types/readingV2Taxonomy.ts',
+]);
 const rules = [
   ['hosting', p => /^(?:src|public|index\.html|vite\.config|postcss\.config\.cjs|tailwind\.config\.js|tsconfig[^/]*\.json|firebase\.json|\.firebaserc|scripts\/deploy-live\.mjs|package(?:\.json|-lock\.json))/.test(p)],
   ['firebase-rules', p => /^(database\.rules\.json|firestore\.rules|firestore\.indexes\.json|functions\/|scripts\/(?:import-live-firebase|local-firebase)\.mjs)/.test(p)],
   ['worker', p => /^(cloudflare\/|scripts\/local-book-source-worker\.mjs)/.test(p)],
-  ['backup-worker', p => /^r2-backup-worker\//u.test(p)],
+  ['backup-worker', p => /^r2-backup-worker\//u.test(p) || sharedHomeworkInputs.has(p)],
   ['migrations', p => /(^|\/)(migrations?\/|[^/]*(?:migrate|backfill|reconciliation)[^/]*\.(?:mjs|ts|js)$)/iu.test(p)],
   ['backblaze', p => /(backblaze|book-source|wrangler\.book-source|B2)/i.test(p)],
   ['tooling', p => /^(\.github\/workflows\/|package(?:\.json|-lock\.json)|scripts\/(?:tooling|harness|dev-env|branch-doctor|release-|hotfix-|deploy-live|local-dev|integration-check))/.test(p)],
@@ -349,7 +367,12 @@ export async function assess({ cwd = repoRoot, mode = 'release', base, baselineP
   if (services.includes('firebase-rules')) { requiredActions.push('Review rules/indexes and any additive migration prerequisites.'); deploymentOrder.push('Deploy additive rules/indexes before activating dependent clients.'); recovery.push('Record prior rules/indexes; data writes and migrations require separate recovery.'); }
   if (services.includes('backblaze')) { requiredActions.push('Verify production bucket/prefix ownership and least-privilege capabilities.'); recovery.push('Backblaze cleanup and object adoption require provider-specific recovery evidence.'); }
   if (services.includes('backup-worker')) { requiredActions.push('Verify backup Worker version, R2 bindings, schedules and retention policy.'); recovery.push('Record the prior backup Worker version and R2 retention implications.'); }
-  if (services.includes('hosting')) { deploymentOrder.push(services.includes('worker') ? 'Deploy and verify Worker before Hosting.' : 'Hosting-only deployment.'); recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.'); }
+  if (services.includes('hosting')) {
+    deploymentOrder.push(services.includes('worker') ? 'Deploy and verify Worker before Hosting.'
+      : services.includes('backup-worker') ? 'Verify Homework/backup Worker compatibility before Hosting; deploy a qualified Worker artifact first if required.'
+        : 'Hosting-only deployment.');
+    recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.');
+  }
   if (editorObservation?.scope === 'upload-worker-only') deploymentOrder.splice(0, deploymentOrder.length, 'Upload Worker only; Hosting, rules, homework Worker and notifications are excluded.');
   if (['functional-completion', 'private-audio'].includes(editorObservation?.profile)) {
     const privateAudio = editorObservation.profile === 'private-audio';

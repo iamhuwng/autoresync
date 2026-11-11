@@ -57,6 +57,19 @@ files, no failures/skips/TODOs. Relevant coverage remains a review responsibilit
 The build uses disposable acceptance configuration and the existing bundle budget.
 PRs test their merge commit; stale base checks must be blocked by protection.
 
+Formal sessions are being abandoned. Their six specific suites are excluded
+from this new required scope; shared clocks and student practice/homework resume
+checks remain. This does not remove feature code or change the older independent
+workflows. New verification must address a retained workflow or a concrete
+convergence risk, rather than expand into general application QA.
+
+The Homework Worker also compiles shared files from `src/` and `functions/`.
+The shared assessor classifies those exact inputs as `backup-worker` impact in
+addition to their existing scopes. CI checks Wrangler's actual source map against
+that same path map; a newly compiled, unclassified repository input fails the
+integration job. Scoring/contract changes therefore cannot be reported as a
+Hosting-only release. No extra approval store or policy engine is introduced.
+
 The main policy applied and read back on November 11 is:
 
 - Require a pull request and **LuyenTap integration** from GitHub Actions
@@ -106,8 +119,9 @@ release branch. Review and qualify the actual live-to-candidate delta:
 | Deployed answer-processing corrections | All nine `23ae29a7` modules already match main byte for byte | Preserve and exercise their callers; no replay needed |
 | Runtime layout/table/splitter corrections | Runtime CSS matches; forward integrations are recorded | Newer TSX draft/highlight/resume behavior needs semantic regression proof |
 | Legacy Reading retirement and Listening facade removal (`51fe89ba`) | Implemented; historical record lacks completed browser qualification | Authoring/runtime/retired-route tests and authenticated affected flows |
-| RTDB and separately released notification/Listening services | Their own historical releases exist; Hosting ancestry is not service state | Fresh per-service artifact/configuration/rules comparison |
-| Backup Worker normalization (`77e839f6`) and local routing | Genuine source differences | Establish active compatibility or prepare/defer the dependent behavior explicitly |
+| RTDB and Firestore rules | November 11 native provider reads match candidate/main (Firestore after CRLF normalization) | No rules publication indicated; repeat readback for a later authorized release |
+| Upload and notification services | Active modules match their recorded artifacts; relevant source matches main | No service publication indicated by this source delta |
+| Homework/backup Worker | Snapshot normalization is already active; shared scorer/guard differ from the active module | Retained candidate artifact is reviewed below; preserve this separate service obligation |
 
 Focused component/unit tests support qualification; they do not settle the
 browser/provider column. Record a group as finished only with its exact-source
@@ -116,18 +130,66 @@ mark incompatible when an observed contract fails; keep unexplained or untested
 work unresolved. Do not manufacture completion from a difference inventory.
 The deployed-service JSON is a historical index, not current provider truth.
 
-A read-only runtime check found student localhost:5174 serving the old
+A read-only runtime check initially found student localhost:5174 serving the old
 `64e2bd69` production artifact, and teacher localhost:5173 serving Reading
 runtime source different from current main. Backend ownership was unverified.
-Those services were left intact and cannot count as current-main browser proof.
+This could not count as current-main browser proof. The owner later reserved the
+role/Worker ports. A detached candidate runtime was identified against the served
+source map; teacher quick-login and a local Reading draft save/reload/publication
+were observed. An attempted Start Test entered the abandoned session flow and
+failed before creating a session. That path was stopped and supplies no student
+evidence. No session code was changed. The task-owned runtime was then stopped;
+the same Firebase emulator processes and their data were preserved.
 
-For Hosting qualification, test teacher authoring save/reload/publish and student
-draft/highlight/reload/submit/resume, current Listening edit/cancel/runtime and
-retired routes failing closed. Begin at `/login` with dev quick-login on teacher
-localhost:5173 and student localhost:5174. Confirm runtime source/configuration
-and resource ownership before reusing a server. Shared backend/role ports need
-exclusive ownership or the established isolated lane; a port responding is not
-source proof. Do not reset/import an existing local dataset to make this pass.
+Any further browser verification must answer a named release question, such as
+whether the candidate's new student draft state survives reload. Test student
+behavior as Student through the student interface; use teacher authoring only
+for its own behavior or necessary fixture preparation. Begin at `/login` with
+dev quick-login on teacher localhost:5173 or student localhost:5174. Confirm
+source/configuration and resource ownership first. A port responding is not source
+proof. Do not reset/import existing local data or revive sessions for qualification.
+
+## Observed Homework Worker dependency
+
+The November 11 readback identified active Worker version
+`3b966806-0b31-405f-bc33-b7f1ac6a6557` at 100%, module SHA-256
+`fd4d41dac99ac574e8004cf670496747c0f906f4ac0fbcb5e5e9f25e1c3d13cf`.
+The live module includes snapshot normalization, but lacks newer shared scorer
+and paragraph-anchor guard logic. An isolated execution of only its pure scoring
+declarations demonstrated these differences:
+
+| Expected answer / submitted answer | Active Worker score | Candidate score |
+| --- | --- | --- |
+| `1/2` / `12` | 1 | 0 |
+| `1.5` / `15` | 1 | 0 |
+| `1/2` / `1/2` | 1 | 1 |
+| `1,000 km` / `1000 km` | 1 | 1 |
+
+Both main and current Hosting already contain the newer shared scorer/guard
+source. This is a pre-existing cross-service mismatch, not a Phase 2 regression.
+It does not justify publishing a Worker for every unrelated presentation change.
+When changed behavior depends on that service, resolve its actual compatibility
+and publication scope before the dependent Hosting release.
+
+The retained candidate Worker built from the unchanged product source at
+`987599dd` is 455,373 bytes, SHA-256
+`35a2e6264fb9494c162ff2e2cb872059bcf8a0eebd0507e18ca297b9a5ae7a4f`.
+The existing 121 Worker tests passed; the focused scorer/guard suites are included
+in the new required app scope. All 37 compiled repository inputs were compared
+with source; 15 are outside the Worker directory. Bundle comparison, normalizing
+only known historical build-root labels, isolates four differing modules: scorer,
+canonical guard, Firebase auth and homework assignments. The latter two are
+main's local-emulator auth/routing support; deployment review must still account
+for them. Other compiled sections match. Source configuration is unchanged.
+
+This is a reviewable artifact, not deployment approval or full remote runtime
+qualification. A future authorized Worker release must bind its exact source,
+artifact/configuration and current provider state, preserve the old version/module
+above for recovery, and verify publication independently. Do not relax historical
+fixed observers or submit a self-authored approval file to force readiness.
+Sanitized service readbacks, pure-score assertions and artifact comparisons are
+retained with the architecture plan as `phase2-service-observation.json` and
+`phase2-homework-qualification.json`. They are dated evidence, not ongoing live state.
 
 If an observed backend incompatibility requires choosing between a new service
 release and deferring behavior, present that concrete choice to the owner.

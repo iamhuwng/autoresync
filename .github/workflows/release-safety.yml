@@ -108,7 +108,7 @@ jobs:
             echo 'Result governance: explicit event diff is empty.'
           fi
           node scripts/check-prd0062-activity-coverage.mjs
-      - name: Verify shared authoring and session lifecycle app paths
+      - name: Verify shared authoring, practice and homework app paths
         env:
           APP_TEST_FILES: >-
             src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx
@@ -116,18 +116,14 @@ jobs:
             src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx
             src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx
             src/skills/listening/builders/ListeningTestBuilder.test.tsx
-            src/services/sessionLifecycle.test.ts
             src/services/serverClock.test.ts
-            src/services/sessionOwnerIndex.test.ts
-            src/services/sessionOwnerIndexMigration.test.ts
-            src/services/sessionQuery.test.ts
-            src/services/sessionActionError.test.ts
-            src/services/sessionManager.lifecycle.test.ts
             src/pages/TestPageRouter.test.tsx
             src/components/TestEditor.test.tsx
             src/__tests__/readingV2BoundaryImports.test.ts
             src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx
             src/services/reading-v2/readingV2RuntimeDraft.service.test.ts
+            src/services/reading-v2/readingV2AnswerScoring.test.ts
+            src/services/reading-v2/readingV2ContractGuards.service.test.ts
             src/services/studentResume.service.test.ts
             src/__tests__/integration/ListeningTestPage.test.tsx
             src/features/assessment/listening/authoring/listeningTestEditing.test.ts
@@ -203,6 +199,8 @@ jobs:
         run: node ../scripts/tooling-where.mjs --exec r2-wrangler deploy --dry-run --outdir ../tmp/candidate-homework
         env:
           WRANGLER_SEND_METRICS: 'false'
+      - name: Check transitive Worker release impact
+        run: node scripts/integration-check.mjs worker-inputs tmp/candidate-homework/index.js.map
       - name: Record tested candidate source
         id: source
         run: |

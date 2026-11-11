@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { candidateJobs, checkIntegration, integrationCheckName } from '../integration-check.mjs';
+import { candidateJobs, checkHomeworkInputs, checkIntegration, integrationCheckName } from '../integration-check.mjs';
 
 const revision = 'a'.repeat(40);
 const tree = 'b'.repeat(40);
@@ -14,13 +14,25 @@ const successfulNeeds = () => Object.fromEntries([
   ['deployed-homework-rebuild', { result: 'success' }],
 ]);
 
+test('actual Worker inputs must be tracked and covered by the shared release path map', () => {
+  const mapPath = path.resolve('tmp/candidate-homework/index.js.map');
+  const source = file => path.relative(path.dirname(mapPath), path.resolve(file));
+  const selected = ['r2-backup-worker/src/index.ts', 'src/services/reading-v2/readingV2AnswerScoring.ts'];
+  assert.deepEqual(checkHomeworkInputs({ sources: [...selected.map(source), '../../node_modules/example/index.js'] }, mapPath), selected);
+  assert.deepEqual(checkHomeworkInputs({ sourceRoot: '../tmp/candidate-homework', sources: selected.map(source) }, mapPath), selected);
+  assert.throws(() => checkHomeworkInputs({ sourceRoot: '../wrong-output', sources: selected.map(source) }, mapPath), /root differs/u);
+  assert.throws(() => checkHomeworkInputs({ sources: [source('scripts/branch-doctor.mjs')] }, mapPath), /missing from the shared release path map/u);
+  assert.throws(() => checkHomeworkInputs({ sources: [source('src/missing-shared-input.ts')] }, mapPath), /missing\/untracked/u);
+  assert.throws(() => checkHomeworkInputs({ sources: [] }, mapPath), /must identify/u);
+});
+
 test('test report CLI uses shared verification for explicit and discovered tracked scopes', t => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'integration-app-report-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const reportPath = path.join(root, 'report.json');
   const summaryPath = path.join(root, 'summary.md');
   const selectedPath = path.join(root, 'selected.json');
-  const selectedFile = 'src/services/sessionLifecycle.test.ts';
+  const selectedFile = 'src/services/reading-v2/readingV2AnswerScoring.test.ts';
   const report = { success: true, numFailedTestSuites: 0, numPendingTestSuites: 0,
     numTotalTests: 1, numPassedTests: 1, numFailedTests: 0, numPendingTests: 0, numTodoTests: 0,
     testResults: [{ name: path.resolve(selectedFile), status: 'passed' }] };

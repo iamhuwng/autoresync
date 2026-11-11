@@ -2,6 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { classifyPaths } from './release-check.mjs';
 
 export const integrationCheckName = 'LuyenTap integration';
 
@@ -13,6 +14,20 @@ export const candidateJobs = {
 };
 const retentionJob = 'deployed-homework-rebuild';
 const gitId = value => typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
+
+export function checkHomeworkInputs(sourceMap, mapPath, cwd = process.cwd()) {
+  if (!Array.isArray(sourceMap.sources) || !sourceMap.sources.length) throw new Error('Worker source map must identify its compiled inputs');
+  // Wrangler records sourceRoot relative to the Worker package, not the map URL.
+  const sourceBase = sourceMap.sourceRoot ? path.resolve(cwd, 'r2-backup-worker', sourceMap.sourceRoot) : path.dirname(mapPath);
+  if (sourceBase !== path.dirname(mapPath)) throw new Error('Worker source map root differs from its build output directory');
+  const tracked = new Set(execFileSync('git', ['ls-files', '-z'], { cwd, encoding: 'utf8', windowsHide: true }).split('\0'));
+  const files = sourceMap.sources.filter(source => !source.includes('node_modules/')).map(source =>
+    path.relative(cwd, path.resolve(sourceBase, source)).replaceAll('\\', '/'));
+  if (!files.length || files.some(file => !tracked.has(file))) throw new Error('Worker source map includes missing/untracked repository inputs');
+  const missing = files.filter(file => !classifyPaths([file]).includes('backup-worker'));
+  if (missing.length) throw new Error(`Worker inputs missing from the shared release path map: ${missing.join(', ')}`);
+  return [...new Set(files)].sort();
+}
 
 export function checkIntegration(needs, revision, tree) {
   const errors = [];
@@ -47,7 +62,11 @@ export function checkIntegration(needs, revision, tree) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv[2] === 'test-report') {
+  if (process.argv[2] === 'worker-inputs') {
+    const mapPath = path.resolve(process.argv[3]);
+    const files = checkHomeworkInputs(JSON.parse(readFileSync(mapPath, 'utf8')), mapPath);
+    console.log(`Worker release impact covers all ${files.length} compiled repository inputs, including shared source.`);
+  } else if (process.argv[2] === 'test-report') {
     const { parseVitestReport } = await import('./release-verification.mjs');
     const files = process.argv[4] === '--files-file'
       ? JSON.parse(readFileSync(process.argv[5], 'utf8')).map(entry => path.relative(process.cwd(), entry.file))
