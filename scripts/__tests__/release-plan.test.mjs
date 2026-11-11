@@ -28,6 +28,9 @@ async function fixture(t, { file = 'scripts/release-example.mjs', content = 'exp
   await writeFile(path.join(cwd, '.gitignore'), 'tmp/\ndist/\n');
   await writeFile(path.join(cwd, 'src/App.js'), 'export const value = 1;\n');
   await writeFile(path.join(cwd, 'src/App.test.js'), 'test fixture\n');
+  await mkdir(path.join(cwd, 'documentation/architecture/changelog'), { recursive: true });
+  await writeFile(path.join(cwd, 'documentation/architecture/changelog/example.md'), '# Example\nChangelog ID: `CL-20261112-EXAMPLE`\n');
+  await writeFile(path.join(cwd, 'documentation/architecture/master_changelog.md'), '| [`CL-20261112-EXAMPLE`](changelog/example.md) | Example |\n');
   git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'baseline');
   const base = git(cwd, 'rev-parse', 'HEAD'), tree = git(cwd, 'rev-parse', 'HEAD^{tree}');
   await mkdir(path.dirname(path.join(cwd, file)), { recursive: true });
@@ -54,8 +57,16 @@ test('impact inspects changed content and never grants compatibility approval', 
   assert.equal(describeImpact(['src/style.css'], '').presentationCandidate, false);
 });
 
+const withScopeReview = async options => {
+  const review = path.join(options.cwd, 'tmp/review.json');
+  await writeFile(review, JSON.stringify({ schemaVersion: 1, decision: 'verified', reviewer: 'Fixture', reviewedAt: new Date().toISOString(),
+    sourceRevision: git(options.cwd, 'rev-parse', 'HEAD'), baseRevision: options.base, observedFingerprint: options.hostingObservation.fingerprint,
+    scope: ['Fixture source selection'], changeIds: ['CL-20261112-EXAMPLE'] }));
+  return { ...options, compatibilityReviewPath: review };
+};
+
 test('native live baseline is selected automatically; normal source selection does not authorize deployment', async t => {
-  const options = await fixture(t);
+  const options = await withScopeReview(await fixture(t));
   const before = git(options.cwd, 'status', '--porcelain');
   const result = await planRelease(options);
   assert.equal(result.selection, 'NORMAL_CANDIDATE', JSON.stringify(result.blockers));
@@ -94,7 +105,7 @@ test('dirty source, stale explicit baseline and offline comparisons never become
 });
 
 test('unintegrated candidate and missing live Git objects are explained rather than silently reconstructed', async t => {
-  const options = await fixture(t);
+  const options = await withScopeReview(await fixture(t));
   git(options.cwd, 'branch', 'integration', options.base);
   const result = await planRelease({ ...options, integrationRef: 'refs/heads/integration' });
   assert.equal(result.selection, 'INTEGRATION_REQUIRED');

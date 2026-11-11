@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { beginRelease, listReleases, readDraft, readRelease, resolveStoreDir, saveDraft, selectDescription, settleRelease } from '../lib/releaseChangelog.mjs';
+import { executeRecordedOperation, main as recordOperation } from '../release-operation.mjs';
 
 const digest = letter => letter.repeat(64);
 const hosting = { id: 'hosting:kahut1', binding: { sourceRevision: 'a'.repeat(40), sourceFingerprint: digest('b'), configSha256: digest('c') } };
@@ -16,6 +17,50 @@ const fixture = t => {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
 };
+
+test('target-scoped associations survive Hosting enrichment and leave other draft targets pending', async t => {
+  const store = fixture(t), first = 'CL-20261112-FIRST', second = 'CL-20261112-SECOND';
+  const scoped = { ...hosting, changeIds: [second, first] }, other = { ...worker, changeIds: [second] };
+  saveDraft({ description: 'Reviewed scope', targets: [scoped, other] }, store);
+  const selected = selectDescription({ description: 'Git summary', targets: [hosting] }, store);
+  const enriched = { ...selected.targets[0], binding: { ...hosting.binding, artifactSha256: digest('a') } };
+  const release = await executeRecordedOperation({ id: 'scoped', description: selected.description, targets: [releaseTarget(enriched)] }, {
+    storeDir: store, execute: () => {}, observe: () => ({ outcomes: [outcome(hosting)] }),
+  });
+  assert.deepEqual(release.targets[0].changeIds, [first, second]);
+  assert.deepEqual(readDraft(store).targets.find(target => target.id === worker.id).changeIds, [second]);
+  const unrelated = beginRelease({ description: 'Different change on Worker', targets: [releaseTarget({ ...worker, changeIds: [first] })] }, store);
+  settleRelease(unrelated.id, { outcomes: [outcome(worker)] }, store);
+  assert.ok(readDraft(store), 'publishing a different CL must not consume unresolved associations');
+});
+
+test('retained associations are immutable retry intent, independent of newer drafts', t => {
+  const store = fixture(t), ids = ['CL-20261112-FIRST', 'CL-20261112-SECOND'];
+  const input = { id: 'bound', description: 'Bound selection', targets: [releaseTarget({ ...hosting, changeIds: ids })] };
+  beginRelease(input, store);
+  saveDraft({ description: 'Newer description', targets: [hosting] }, store);
+  const file = path.join(store, 'intent.json');
+  writeFileSync(file, JSON.stringify(input));
+  assert.equal(recordOperation(['--intent', file], store).description, input.description);
+  assert.equal(beginRelease({ ...input, targets: [releaseTarget({ ...hosting, changeIds: [...ids].reverse() })] }, store).id, input.id);
+  assert.throws(() => beginRelease({ ...input, targets: [releaseTarget({ ...hosting, changeIds: [ids[0]] })] }, store), /different intent/u);
+  assert.throws(() => beginRelease({ ...input, id: 'duplicate', targets: [releaseTarget({ ...hosting, changeIds: [ids[0], ids[0]] })] }, store), /unique/u);
+  assert.throws(() => settleRelease(input.id, { outcomes: [{ ...outcome(hosting), changeIds: ids }] }, store), /unknown outcome/u);
+});
+
+test('intent storage never inherits mutable draft associations and historical ID read rules stay unchanged', t => {
+  const store = fixture(t), id = 'CL-20261112-HISTORICAL';
+  saveDraft({ description: 'Scoped draft', targets: [{ ...hosting, changeIds: [id] }] }, store);
+  const request = { id: 'explicit-input', description: 'Original request', targets: [releaseTarget(hosting)] };
+  const first = beginRelease(request, store);
+  assert.equal(first.targets[0].changeIds, undefined);
+  assert.deepEqual(beginRelease(request, store), first);
+  const stateFile = path.join(store, 'state.json'), state = JSON.parse(readFileSync(stateFile, 'utf8'));
+  state.releases[first.id].changeIds = [id, id];
+  writeFileSync(stateFile, JSON.stringify(state));
+  beginRelease({ description: 'Unrelated', targets: [releaseTarget(worker)] }, store);
+  assert.deepEqual(readRelease(first.id, store).changeIds, [id, id]);
+});
 
 test('existing reviewed change associations survive another release and settlement', t => {
   const store = fixture(t);

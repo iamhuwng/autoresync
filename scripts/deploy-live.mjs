@@ -9,7 +9,8 @@ import { assess, classifyPaths, collectSourceState } from './release-check.mjs';
 import { isHostingDependenciesObserved, observeHostingDependencies } from './release-hosting-dependencies.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
-import { prepareDeploymentChangelog } from './release-changelog.mjs';
+import { prepareDeploymentChangelog, reconcileHostingChangelog } from './release-changelog.mjs';
+import { reviewedChanges } from './lib/changeRecords.mjs';
 import { executeRecordedOperation } from './release-operation.mjs';
 import { beginRelease, settleRelease } from './lib/releaseChangelog.mjs';
 import { runReleaseVerification, assertReleaseVerification } from './release-verification.mjs';
@@ -289,7 +290,8 @@ async function observeRecordedHosting(archive, { observeSource, observeProvider 
 }
 
 export async function verifyExistingHosting({ id, sha256, storeDir, readArchive = readHostingArchive,
-  saveOutcome = recordHostingArchiveOutcome, observeSource = observeHosting, observeProvider = observeHostingProvider }) {
+  saveOutcome = recordHostingArchiveOutcome, observeSource = observeHosting, observeProvider = observeHostingProvider,
+  cwd = repoRoot, reconcile = reconcileHostingChangelog }) {
   const archive = await readArchive({ id, sha256 });
   const request = archive.intent.request;
   // Remote intent is revalidated independently; a locally edited journal cannot choose verification inputs.
@@ -300,14 +302,21 @@ export async function verifyExistingHosting({ id, sha256, storeDir, readArchive 
   const result = settleRelease(id, outcome, storeDir);
   await saveOutcome(archive, outcome);
   if (outcome.outcomes[0].verification !== 'passed') throw new Error(`Release ${id} was published; verification remains pending. Retry --verify-existing ${id}, not deployment.`);
+  await settleChangelog(archive, cwd, reconcile);
   return result;
 }
 
+const settleChangelog = async (archive, cwd, reconcile) => {
+  try { await reconcile(archive, { cwd }); }
+  catch (error) { console.warn(`[Changelog] Operation ${archive.id} is recorded; documentation pending: ${error.message}. Resume: node scripts/release-changelog.mjs --reconcile ${archive.id}. Do not redeploy.`); }
+};
+
 export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run, storeDir,
   assessment, verification, verificationPlanSha256, sourceRef, revalidate,
-  retainArchive = createHostingArchive, saveOutcome = recordHostingArchiveOutcome,
+  retainArchive = createHostingArchive, saveOutcome = recordHostingArchiveOutcome, reconcile = reconcileHostingChangelog,
   observeSource = observeHosting, observeProvider = observeHostingProvider }) => {
-  const changelog = prepareDeploymentChangelog(base, cwd, storeDir);
+  const changes = reviewedChanges(cwd, (await collectSourceState(cwd, base)).revision, assessment?.compatibilityReview, true);
+  const changelog = prepareDeploymentChangelog(base, cwd, storeDir, { changeIds: changes.changeIds });
   const expected = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
   if (expected.revision !== changelog.targets[0].binding.sourceRevision) throw new Error('Hosting build source differs from the approved changelog source; rebuild before deployment.');
   const source = await collectSourceState(cwd, base);
@@ -381,6 +390,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
       // Preserve local provider identity even if the append-only remote outcome upload is interrupted.
       settleRelease(record.id, outcome, storeDir);
       await saveOutcome(archive, outcome);
+      await settleChangelog(archive, cwd, reconcile);
       return outcome;
     },
   });

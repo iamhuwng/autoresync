@@ -15,6 +15,25 @@ qualification of main.
 
 ## Hosting release foundation
 
+### Change-to-operation associations
+
+The existing exact-source compatibility review selects `changeIds: ["CL-..."]`
+against the candidate's indexed change records. For a release with no meaningful
+change entry, use `changeIds: []` and a concise `changelogNotApplicable` reason.
+These fields describe scope; they establish neither authorized approval nor
+adequate verification. The planner suggests records, and the engineer checks
+the actual source/target applicability. Do not select every ancestor CL record.
+
+The guarded Hosting route retains IDs on its explicit Hosting target; backend
+publication remains excluded. IDs survive archive recovery and are immutable
+retry intent. After retaining an outcome, it reconciles dated CL detail references
+and Master links. A documentation error is reported separately and does not
+undo publication, erase failed verification or request another deployment.
+Resume documentation with `node scripts/release-changelog.mjs --reconcile <id>`;
+this reads authenticated retained evidence, not supplied local receipt JSON.
+It can record partial/unverified outcomes truthfully and performs no deployment,
+commit or push. Preserve task ownership of the documentation checkout.
+
 The guarded Hosting route now executes the reviewed test scope itself and
 retains source, artifact and technical evidence on the existing GitHub
 repository **before** Firebase publication. This is the first implementation

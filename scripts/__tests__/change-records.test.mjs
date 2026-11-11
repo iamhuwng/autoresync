@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { readChangeRecords, reviewedChanges, suggestChanges, validateSourceChanges } from '../lib/changeRecords.mjs';
+
+test('source-bound records validate index identity and suggest changes without selecting release scope', t => {
+  const cwd = mkdtempSync(path.join(os.tmpdir(), 'change-records-'));
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
+  const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
+  const dir = path.join(cwd, 'documentation/architecture/changelog');
+  mkdirSync(dir, { recursive: true });
+  const master = path.join(cwd, 'documentation/architecture/master_changelog.md');
+  const id = 'CL-20261112-FIX';
+  writeFileSync(path.join(dir, 'fix.md'), `# Fix\nChangelog ID: \`${id}\`\n`);
+  writeFileSync(master, `| [\`${id}\`](changelog/fix.md) | Fix |\n`);
+  git('init', '-q'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid');
+  git('add', '.'); git('commit', '-qm', 'baseline');
+  const base = git('rev-parse', 'HEAD');
+  writeFileSync(path.join(dir, 'fix.md'), `# Fix\nChangelog ID: \`${id}\`\nReason and correction.\n`);
+  git('add', '.'); git('commit', '-qm', 'correction');
+  const revision = git('rev-parse', 'HEAD');
+  assert.equal(readChangeRecords(cwd).size, 1);
+  assert.deepEqual(suggestChanges(cwd, base, revision).map(record => record.id), [id]);
+  assert.equal(reviewedChanges(cwd, revision, null), undefined);
+  assert.throws(() => reviewedChanges(cwd, revision, null, true), /exact-source compatibility review/u);
+  assert.deepEqual(reviewedChanges(cwd, revision, { changeIds: [id] }, true), { changeIds: [id] });
+  assert.throws(() => validateSourceChanges(cwd, revision, ['CL-20261112-UNKNOWN']), /unknown/u);
+  assert.throws(() => reviewedChanges(cwd, revision, { changeIds: [] }, true), /reason/u);
+  assert.deepEqual(reviewedChanges(cwd, revision, { changeIds: [], changelogNotApplicable: 'Test formatting only' }, true).changeIds, []);
+  writeFileSync(master, `| [\`${id}\`](changelog/wrong.md) | Wrong |\n`);
+  assert.throws(() => readChangeRecords(cwd), /mismatched/u);
+  assert.deepEqual(validateSourceChanges(cwd, revision, [id]), [id], 'uncommitted document edits do not change candidate associations');
+});

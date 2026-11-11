@@ -1,12 +1,62 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, unlinkSync, writeFileSync, renameSync, rmSync, openSync, closeSync } from 'node:fs';
 import crypto from 'node:crypto';
 import { classifyPaths, repoRoot } from './release-check.mjs';
 import { readDraft, saveDraft, selectDescription, listReleases, resolveStoreDir } from './lib/releaseChangelog.mjs';
+import { readChangeRecords, masterPath } from './lib/changeRecords.mjs';
+import { isHostingArchive, readHostingArchive, readHostingArchiveOutcomes } from './release-archive.mjs';
 
 export const HOSTING_TARGET = 'firebase:temp-a1437:hosting:kahut1';
+
+const writeDocument = (file, content) => {
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+  try { writeFileSync(temporary, content, { flag: 'wx' }); renameSync(temporary, file); }
+  finally { rmSync(temporary, { force: true }); }
+};
+const cell = value => String(value).replace(/[\r\n|]/gu, ' ').replace(/[<>]/gu, '');
+
+export async function reconcileHostingChangelog(archive, { cwd = repoRoot, exec, write = writeDocument } = {}) {
+  if (!isHostingArchive(archive)) throw new Error('Changelog reconciliation requires a native retained archive, not supplied receipt JSON');
+  const lock = path.join(cwd, 'documentation/architecture/.changelog-reconcile.lock');
+  let descriptor;
+  try { descriptor = openSync(lock, 'wx'); }
+  catch (error) {
+    if (error.code === 'EEXIST') throw new Error(`Changelog reconciliation is locked: ${lock}. Retry after the owner finishes; inspect its PID before removing a stale lock.`);
+    throw error;
+  }
+  try {
+    writeFileSync(descriptor, `${process.pid}\n`);
+    const outcomes = readHostingArchiveOutcomes(archive, { exec });
+    const records = readChangeRecords(cwd), changed = [];
+    let master = readFileSync(path.join(cwd, masterPath), 'utf8');
+    for (const target of archive.intent.request.targets) for (const id of target.changeIds || []) {
+      const record = records.get(id);
+      if (!record) throw new Error(`Cannot reconcile missing ${id}; preserve the operation and restore its change record`);
+      const file = path.join(cwd, record.path), original = readFileSync(file, 'utf8');
+      let content = original;
+      for (const receipt of outcomes) {
+        const outcome = receipt.outcome.outcomes.find(outcome => outcome.id === target.id);
+        if (!outcome) continue;
+        const marker = `<!-- release-operation:${archive.id}:${receipt.evidenceRef.split('#')[1]} -->`;
+        if (content.includes(marker)) continue;
+        if (!content.includes('## Recorded release outcomes')) content += '\n\n## Recorded release outcomes\n';
+        content += `\n${marker}\n\n- Recorded: ${receipt.recordedAt}; operation: \`${archive.id}\`.\n- Source: \`${archive.intent.source.revision}\`; target: \`${cell(target.id)}\`; action: ${cell(target.operation)}.\n- Publication: **${outcome.publication}**; verification: **${outcome.verification}**; provider: \`${cell(outcome.providerIdentity || 'unconfirmed')}\`.\n- Retained evidence: [operation outcome](${receipt.evidenceRef}).\n- This is a scoped historical observation; it does not establish current activation or completion of excluded services. Earlier implementation notes remain dated history.\n`;
+      }
+      if (content !== original) { write(file, content); changed.push(record.path); }
+      if (outcomes.some(receipt => receipt.outcome.outcomes.some(outcome => outcome.id === target.id))) {
+        const link = `[Release outcomes](changelog/${path.posix.basename(record.path)}#recorded-release-outcomes)`;
+        master = master.split('\n').map(line => line.includes(`\`${id}\``) && !line.includes(link)
+          ? line.replace(/\|\s*$/u, ` ${link}. |`) : line).join('\n');
+      }
+    }
+    const masterFile = path.join(cwd, masterPath);
+    if (master !== readFileSync(masterFile, 'utf8')) { write(masterFile, master); changed.push(masterPath); }
+    return { id: archive.id, outcomes: outcomes.length, changed,
+      note: 'Documentation only; no publication, provider verification, commit or push performed.' };
+  } finally { closeSync(descriptor); rmSync(lock); }
+}
 
 const git = (cwd, args) => {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
@@ -74,10 +124,20 @@ export function addManualChangelog(base, text, cwd = repoRoot, storeDir) {
   return saveDraft({ description: text, targets: [hostingTarget(base, cwd)] }, storeDir);
 }
 
-export function prepareDeploymentChangelog(base, cwd = repoRoot, storeDir) {
-  const target = hostingTarget(base, cwd);
-  const selected = selectDescription({ description: generateChangelog(base, cwd), targets: [target] }, storeDir);
-  return { description: selected.description, targets: [{ ...target, operation: 'deploy' }],
+export function prepareDeploymentChangelog(base, cwd = repoRoot, storeDir, changes) {
+  const target = { ...hostingTarget(base, cwd), ...changes };
+  let description = generateChangelog(base, cwd);
+  if (target.changeIds?.length) {
+    const records = readChangeRecords(cwd, target.binding.sourceRevision);
+    const lines = target.changeIds.map(id => {
+      if (!records.has(id)) throw new Error(`Unknown change record ${id}`);
+      return `${id}: ${records.get(id).summary}`;
+    });
+    description = `Hosting kahut1 reviewed changes\n${base} -> ${target.binding.sourceRevision}\n\n${lines.join('\n')}`;
+    if (description.length > 1000) description = `${description.slice(0, 930)}\nSummary truncated; complete associations are in the retained target intent.`;
+  }
+  const selected = selectDescription({ description, targets: [target] }, storeDir);
+  return { description: selected.description, targets: [{ ...selected.targets[0], operation: 'deploy' }],
     evidenceRefs: ['https://kahut1.web.app/.well-known/luyentap-release.json'] };
 }
 
@@ -113,16 +173,23 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const options = {};
     for (let index = 0; index < args.length; index += 1) {
       const flag = args[index];
-      if (flag === '--migrate-hosting-draft') options.migrate = true;
-      else if (['--add', '--plan'].includes(flag) && args[index + 1]) options[flag.slice(2)] = args[++index];
-      else throw new Error('Usage: npm run changelog [-- --plan request.json] [--add "description"]');
+      if (flag === '--check') options.check = true;
+      else if (flag === '--migrate-hosting-draft') options.migrate = true;
+      else if (['--add', '--plan', '--reconcile'].includes(flag) && args[index + 1]) options[flag.slice(2)] = args[++index];
+      else throw new Error('Usage: node scripts/release-changelog.mjs [--check | --reconcile <operation-uuid> | --plan request.json] [--add "description"]');
     }
-    if (options.migrate) {
+    if (options.check) {
+      console.log(`Master Changelog: ${readChangeRecords(repoRoot).size} unique indexed CL records.`);
+      process.exit(0);
+    } else if (options.reconcile) {
+      console.log(JSON.stringify(await reconcileHostingChangelog(await readHostingArchive({ id: options.reconcile }))));
+      process.exit(0);
+    } else if (options.migrate) {
       const draft = migrateHostingDraft();
       console.log(`[NOT LIVE] Moved existing draft ${draft.id} to ${resolveStoreDir()}`);
     } else if (options.plan) {
       const plan = JSON.parse(readFileSync(path.resolve(options.plan), 'utf8'));
-      const targets = plan.targets.map(({ id, binding }) => ({ id, binding }));
+      const targets = plan.targets.map(({ id, binding, changeIds }) => ({ id, binding, ...(changeIds === undefined ? {} : { changeIds }) }));
       const result = options.add ? saveDraft({ description: options.add, targets }) : selectDescription({ description: plan.description, targets });
       console.log(`[NOT LIVE] ${result.reason || 'Saved scoped pending entry.'}\n${result.description}\nTargets: ${targets.map(target => target.id).join(', ')}`);
       console.log('Plan preview does not prove a clean or qualified candidate. Use the existing release assessment.');

@@ -4,12 +4,19 @@ import { readFileSync } from 'node:fs';
 import { beginRelease, readRelease, selectDescription, settleRelease, resolveStoreDir } from './lib/releaseChangelog.mjs';
 
 const readJson = file => JSON.parse(readFileSync(path.resolve(file), 'utf8'));
+const selectRequest = (request, storeDir) => {
+  const selected = selectDescription({ description: request.description,
+    targets: request.targets.map(target => ({ id: target.id, binding: target.binding,
+      ...(target.changeIds === undefined ? {} : { changeIds: target.changeIds }) })) }, storeDir);
+  if (selected.targets.some(target => target.changeIds !== undefined
+    && request.targets.find(requested => requested.id === target.id).changeIds === undefined)) {
+    throw new Error('Release intent must explicitly include the selected target changeIds; preserve that request for retries.');
+  }
+  return { ...request, description: selected.description };
+};
 
 export async function executeRecordedOperation(request, { prepare, execute, observe, storeDir } = {}) {
-  const selected = selectDescription({ description: request.description,
-    targets: request.targets.map(({ id, binding }) => ({ id, binding })) }, storeDir);
-  const record = beginRelease({ ...(request.id ? { id: request.id } : {}), description: selected.description,
-    targets: request.targets, evidenceRefs: request.evidenceRefs }, storeDir, { requireNew: true });
+  const record = beginRelease(selectRequest(request, storeDir), storeDir, { requireNew: true });
   console.log(`[Changelog] ${record.id}: ${path.join(storeDir ?? resolveStoreDir(), 'state.json')}`);
   await prepare?.(record);
   let commandError;
@@ -31,9 +38,8 @@ export function main(args = process.argv.slice(2), storeDir) {
   }
   if (args[0] === '--intent' && args.length === 2) {
     const request = readJson(args[1]);
-    const description = request.retrospective ? request.description : selectDescription({ description: request.description,
-      targets: request.targets.map(({ id, binding }) => ({ id, binding })) }, storeDir).description;
-    return beginRelease({ id: request.id, description, targets: request.targets, evidenceRefs: request.evidenceRefs, retrospective: request.retrospective }, storeDir);
+    if (request.id && readRelease(request.id, storeDir)) return beginRelease(request, storeDir);
+    return beginRelease(request.retrospective ? request : selectRequest(request, storeDir), storeDir);
   }
   throw new Error('Use --intent request.json or --finish <id> --evidence outcomes.json. This command records releases; use the existing provider deployment route.');
 }

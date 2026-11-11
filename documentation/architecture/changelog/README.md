@@ -6,9 +6,15 @@ This folder stores detailed change records. It is not the architecture source of
 
 - incident notes and repair records
 - implementation logs and migration histories
-- audits, drift reports, and closure matrices
-- preflight ledgers, verification bundles, and historical evidence
+- historical audits, drift reports, and closure matrices explaining a change
 - release or rollout notes that explain what changed over time
+
+Candidate/attempt-specific technical dossiers belong in `documentation/release-audits/`
+and should be linked from the relevant CL detail. Existing historical files need
+not move. The operational release ledger owns intent and target outcomes; retained
+archives own recoverable source/artifact/evidence. Neither directory is a second
+authority for publication or current activation. Not every routine release needs
+a separate prose audit.
 
 ## Stays In Architecture
 
@@ -43,6 +49,39 @@ Use `Moved from` only when a file was relocated. New detailed records can omit i
 - Slug names the feature or failure class, not a branch.
 - IDs are immutable after publication.
 - One master row links each ID to its detailed file.
+
+## Integration and release lifecycle
+
+Meaningful implementation changes add or update a CL detail during ordinary PR
+work. CI validates record identity and Master consistency. Trivial formatting,
+test-only and documentation corrections need no separate narrative entry.
+
+`release:plan` suggests changed records; an engineer checks applicability against
+the actual source and service scope in the existing compatibility review. Native
+Hosting requires `changeIds`, or `[]` plus `changelogNotApplicable`. The owner
+reviews behavior and release scope, not ledger JSON or identifiers.
+
+One operation can carry several IDs; one ID can appear in several operations.
+Associations belong to explicit targets. Historical release-level `changeIds`
+remain readable and must not be guessed onto individual targets. Repeated
+inclusion preserves the original publication and adds another scoped reference.
+Rollback/correction uses another operation and references the previous evidence;
+neither erases the earlier publication.
+
+After retained outcomes exist, the guarded route appends `Recorded release outcomes`
+blocks to details and links them from the Master row. These are scoped historical
+facts, not assertions that every service in a change shipped, verification passed,
+or the version is still active. Authored release grouping remains curated; a
+Hosting receipt must not promote an unresolved Worker change. Documentation-only
+completion is integration evidence and does not require Hosting publication.
+
+If documentation is interrupted, run `node scripts/release-changelog.mjs --reconcile
+<operation-uuid>` from the intended documentation checkout. This independently
+reads retained archive/outcome assets and can resume partial writes without
+publication or a commit/push. Use a task-owned checkout for document writes.
+Retain earlier observations and append dated corrections; do not rewrite archived
+intent or manufacture historical associations. Research recommendations below
+are historical; the adopted CL rules in this README are authoritative.
 
 ## Source Notes
 

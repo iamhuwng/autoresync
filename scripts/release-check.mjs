@@ -12,6 +12,7 @@ import { assertListeningEditorSource, observeListeningEditor, isListeningEditorO
 import { reviewedListeningPreviewRelease } from './release-listening-preview-pins.mjs';
 import { observeWritingHomework, isWritingHomeworkObserved } from './release-writing-homework-evidence.mjs';
 import { observeHostingDependencies, isHostingDependenciesObserved } from './release-hosting-dependencies.mjs';
+import { reviewedChanges } from './lib/changeRecords.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -358,7 +359,8 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
       if (!valid) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Compatibility review is stale, incomplete, or bound to different source/baseline evidence.' });
       else {
         if (review.hotfixReconciliations !== undefined && !Array.isArray(review.hotfixReconciliations)) throw new Error('Hotfix reconciliations must be an array.');
-        compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope, hotfixReconciliations: review.hotfixReconciliations || [], ...(hostingDependencies ? { dependenciesFingerprint: review.dependenciesFingerprint } : {}) };
+        const changes = reviewedChanges(cwd, source.revision, review);
+        compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope, hotfixReconciliations: review.hotfixReconciliations || [], ...changes, ...(hostingDependencies ? { dependenciesFingerprint: review.dependenciesFingerprint } : {}) };
         findings.push({ status: STATUS.PASS, message: `Compatibility review recorded by ${review.reviewer}.` });
       }
     } catch (error) { findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Compatibility review unavailable: ${error.message}` }); }
