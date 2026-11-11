@@ -48,6 +48,8 @@ did not contain CL associations; a later dated documentation addendum does not
 retroactively change that intent. Rollback/recovery remains a separate operation
 with its own evidence, and does not erase original publication history.
 
-This change has not been remotely integrated or deployed. Phase 2 remains at one
-of two real qualifying normal releases; the second must contain the next useful
-feature/fix, not a synthetic deployment of these release scripts.
+This implementation was remotely integrated through protected PRs before the
+second normal release. The subsequent Material Profile release used the retained
+association path and settled its CL outcome without a duplicate publication. The
+release-safety change itself was not a product deployment; the separate Material
+Profile candidate supplied the genuine second feature/fix.
