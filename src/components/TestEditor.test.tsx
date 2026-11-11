@@ -252,6 +252,7 @@ describe('TestEditor', () => {
     mockListeningSave.mockRejectedValue(new Error('Saved draft; publication blocked.'));
     const close = vi.fn();
     render(<TestEditor test={listening as any} show handleClose={close} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Change title' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Saved draft; publication blocked.'));
     expect(close).not.toHaveBeenCalled();
@@ -291,6 +292,7 @@ describe('TestEditor', () => {
     mockListeningSave.mockReturnValueOnce(pending);
     const close = vi.fn();
     render(<TestEditor test={listening as any} show handleClose={close} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Change title' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save Listening' }));
     const dialog = screen.getByRole('dialog', { hidden: true });
     expect(dialog).toHaveAttribute('aria-busy', 'true');

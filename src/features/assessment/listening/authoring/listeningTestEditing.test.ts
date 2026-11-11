@@ -205,7 +205,7 @@ describe('Listening published-test editing', () => {
     mocks.publish.mockResolvedValue({ ...published, versionId: 'version-legacy', draftId: 'revision-1' });
     mocks.records['listening_authoring/revision_drafts/revision-1'] = { ownerId: 'owner', testId: test.id, state: 'active', conflictToken: 1, document };
     const editable = await loadListeningTestForEditing({ ...test, versionId: undefined });
-    expect(editable.questions).toEqual(document.questions);
+    expect(editable.questions).toEqual(document.questions.map(question => ({ ...question, passageId: '' })));
     expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ legacyTestId: test.id }));
     expect(mocks.save).not.toHaveBeenCalled();
   });

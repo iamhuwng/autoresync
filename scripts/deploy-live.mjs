@@ -5,17 +5,22 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { assess } from './release-check.mjs';
+import { assess, collectSourceState } from './release-check.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
 import { prepareDeploymentChangelog } from './release-changelog.mjs';
 import { executeRecordedOperation } from './release-operation.mjs';
+import { beginRelease, settleRelease } from './lib/releaseChangelog.mjs';
+import { runReleaseVerification, assertReleaseVerification } from './release-verification.mjs';
+import { createHostingArchive, readHostingArchive, recordHostingArchiveOutcome, assertHostingArtifact } from './release-archive.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const expectedProjectId = 'temp-a1437';
 const expectedHostingTarget = 'kahut1';
 export const hostingReleaseMessage = value => value.length <= 255 ? value : `${value.slice(0, 252)}...`;
+const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+const operationMessage = (id, description) => hostingReleaseMessage(`[luyentap:${id}] ${description}`);
 const notificationOrigin = 'https://luyentap-notification-firestore-qa.iamhuwng.workers.dev';
 const notificationEndpointPaths = {
   VITE_HOMEWORK_NOTIFICATION_URL: '/',
@@ -81,7 +86,7 @@ export const assertListeningHostingReady = (result, observeListening = false, ob
   }
 };
 
-export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
+export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, compatibilityReviewSha256, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
   selectReleaseSource({ observeListening, observeListeningEditorRelease, listeningPhase, cwd });
   if (mode === 'acceptance') fail('acceptance assessments cannot invoke the production deployment route.');
   if (!base) fail('missing LUYENTAP_RELEASE_BASE; deployment source must be explicitly compared with a reviewed revision.');
@@ -90,12 +95,15 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!productionEnvFingerprint) fail('missing LUYENTAP_RELEASE_ENV_FINGERPRINT; deployment approval must bind to the exact production environment.');
   if (productionEnvFingerprint !== currentProductionEnvFingerprint) fail('production environment changed since release assessment.');
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
+  if (compatibilityReviewPath && (!/^[a-f0-9]{64}$/u.test(compatibilityReviewSha256 || '')
+    || digest(await readFile(path.resolve(cwd, compatibilityReviewPath))) !== compatibilityReviewSha256)) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
   const result = await assess({ cwd, mode, base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
   assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
   if (result.baseline?.sha256 !== baselineSha256) fail('release assessment baseline fingerprint does not match the approved evidence.');
+  if (result.compatibilityReview && result.compatibilityReview.sha256 !== compatibilityReviewSha256) fail('compatibility review changed during assessment.');
   if (!['PASS', 'NOT_APPLICABLE'].includes(result.decision)) fail(`release assessment is ${result.decision}; deployment is gated.`);
   return result;
 };
@@ -251,29 +259,105 @@ const run = (commandArgs, env, cwd = repoRoot) => {
   }
 };
 
+const providerIdentity = observation => `${observation.provider.version}@${observation.provider.releaseTime}`;
+const archiveReference = id => `https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-${id}`;
+const recordedIntent = record => ({ id: record.id, description: record.description,
+  targets: record.targets.map(({ publication, verification, providerIdentity, evidenceRefs, ...target }) => target),
+  evidenceRefs: record.evidenceRefs });
+
+async function observeRecordedHosting(archive, { observeSource, observeProvider }) {
+  const { id, expectedManifest, before, request } = archive.intent;
+  const provider = await observeProvider();
+  if (providerIdentity(provider) === providerIdentity(before)
+    || !provider.provider.message?.startsWith(`[luyentap:${id}] `)) {
+    throw new Error(`Release ${id} is not confirmed as the current provider release; inspect its recorded operation. No deployment was performed by verification.`);
+  }
+  let verification = 'unverified';
+  let source;
+  try {
+    source = await observeSource();
+    const after = await observeProvider();
+    if (providerIdentity(after) === providerIdentity(provider)
+      && source.fingerprint === digest(JSON.stringify(expectedManifest))) verification = 'passed';
+  } catch (error) {
+    console.error(`[Release ${id}] Publication confirmed; verification pending: ${error.message}`);
+  }
+  return { outcomes: [{ id: request.targets[0].id, publication: 'published', verification,
+    providerIdentity: providerIdentity(provider), evidenceRefs: [archive.evidenceRef, provider.evidenceRef,
+      ...(source?.evidenceRef ? [source.evidenceRef] : [])] }] };
+}
+
+export async function verifyExistingHosting({ id, sha256, storeDir, readArchive = readHostingArchive,
+  saveOutcome = recordHostingArchiveOutcome, observeSource = observeHosting, observeProvider = observeHostingProvider }) {
+  const archive = await readArchive({ id, sha256 });
+  const request = archive.intent.request;
+  // Remote intent is revalidated independently; a locally edited journal cannot choose verification inputs.
+  const record = beginRelease(request, storeDir);
+  const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider });
+  if (record.targets[0].publication === 'published'
+    && record.targets[0].providerIdentity !== outcome.outcomes[0].providerIdentity) throw new Error('The recorded provider identity differs; verification cannot reassign publication.');
+  const result = settleRelease(id, outcome, storeDir);
+  await saveOutcome(archive, outcome);
+  if (outcome.outcomes[0].verification !== 'passed') throw new Error(`Release ${id} was published; verification remains pending. Retry --verify-existing ${id}, not deployment.`);
+  return result;
+}
+
 export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run, storeDir,
+  assessment, verification, verificationPlanSha256, sourceRef, revalidate,
+  retainArchive = createHostingArchive, saveOutcome = recordHostingArchiveOutcome,
   observeSource = observeHosting, observeProvider = observeHostingProvider }) => {
   const changelog = prepareDeploymentChangelog(base, cwd, storeDir);
-  const before = observeProvider();
   const expected = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
   if (expected.revision !== changelog.targets[0].binding.sourceRevision) throw new Error('Hosting build source differs from the approved changelog source; rebuild before deployment.');
-  return executeRecordedOperation(changelog, {
+  const source = await collectSourceState(cwd, base);
+  assertReleaseVerification(verification, { source, envFingerprint: expected.envFingerprint, planSha256: verificationPlanSha256 });
+  if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)
+    || assessment.source.fingerprint !== source.fingerprint || assessment.observed.revision !== base) fail('deployment requires the current exact-source assessment.');
+  const config = { firebase: JSON.parse(await readFile(path.join(cwd, 'firebase.json'), 'utf8')),
+    firebaseRc: JSON.parse(await readFile(path.join(cwd, '.firebaserc'), 'utf8')) };
+  const before = await observeProvider();
+  const priorOperation = before.provider.message?.match(/^\[luyentap:([a-f0-9-]{36})\] /u)?.[1];
+  if (priorOperation && assessment.observed.revision === expected.revision && assessment.observed.tree === expected.tree
+    && assessment.observed.manifest?.envFingerprint === expected.envFingerprint) {
+    fail(`this candidate is already published; use --verify-existing ${priorOperation} instead of publishing it again.`);
+  }
+  const id = crypto.randomUUID();
+  const request = { ...changelog, id, evidenceRefs: [...changelog.evidenceRefs, archiveReference(id)],
+    targets: changelog.targets.map(target => ({ ...target, binding: { ...target.binding,
+      artifactSha256: digest(JSON.stringify(expected)), configSha256: digest(JSON.stringify(config)) } })) };
+  let archive;
+  return executeRecordedOperation(request, {
     storeDir,
+    prepare: async record => {
+      archive = await retainArchive({ cwd, id, sourceRef, verification, intent: {
+        schemaVersion: 1, id, request: recordedIntent(record), expectedManifest: expected, before, source,
+        envFingerprint: expected.envFingerprint, verification, config,
+        assessment: { decision: assessment.decision, source: assessment.source, observed: assessment.observed,
+          findings: assessment.findings, compatibilityReview: assessment.compatibilityReview },
+        review: assessment.compatibilityReview,
+      } });
+      const live = await observeSource();
+      const provider = await observeProvider();
+      if (live.fingerprint !== assessment.observed.fingerprint || providerIdentity(provider) !== providerIdentity(before)) {
+        fail('production changed while preserving the archive; reassess before publication.');
+      }
+      await revalidate?.();
+      const current = await collectSourceState(cwd, base);
+      assertReleaseVerification(verification, { source: current, envFingerprint: expected.envFingerprint, planSha256: verificationPlanSha256 });
+      await assertHostingArtifact(cwd, expected);
+    },
     execute: record => {
       console.log(record.description);
       runDeploy([path.join(cwd, 'scripts/tooling-where.mjs'), '--exec', 'firebase', 'deploy',
         '--only', `hosting:${expectedHostingTarget}`, '--project', expectedProjectId,
-        '--non-interactive', '--message', hostingReleaseMessage(record.targets[0].annotation ?? record.description)], env, cwd);
+        '--non-interactive', '--message', operationMessage(record.id, record.targets[0].annotation ?? record.description)], env, cwd);
     },
     observe: async record => {
-      const source = await observeSource();
-      const provider = observeProvider();
-      const expectedFingerprint = crypto.createHash('sha256').update(JSON.stringify(expected)).digest('hex');
-      const changed = provider.provider.version !== before.provider.version || provider.provider.releaseTime !== before.provider.releaseTime;
-      if (!changed || source.fingerprint !== expectedFingerprint) return null;
-      return { outcomes: [{ id: record.targets[0].id, publication: 'published',
-        providerIdentity: `${provider.provider.version}@${provider.provider.releaseTime}`,
-        verification: 'passed', evidenceRefs: [source.evidenceRef, provider.evidenceRef] }] };
+      const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider });
+      // Preserve local provider identity even if the append-only remote outcome upload is interrupted.
+      settleRelease(record.id, outcome, storeDir);
+      await saveOutcome(archive, outcome);
+      return outcome;
     },
   });
 };
@@ -301,10 +385,16 @@ const assertProductionBundle = async (cwd = repoRoot) => {
 };
 
 const main = async () => {
-  const args = new Set(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs[0] === '--verify-existing' && rawArgs.length === 2) {
+    try { console.log(JSON.stringify(await verifyExistingHosting({ id: rawArgs[1] }))); }
+    catch (error) { console.error(error.message); process.exitCode = 1; }
+    return;
+  }
+  const args = new Set(rawArgs);
   if ([...args].some((arg) => arg !== '--build-only')) fail('only --build-only is supported by this script.');
   const buildOnly = args.has('--build-only');
-  let tempEnvDir, releaseAssessment;
+  let tempEnvDir, releaseAssessment, verification;
   try {
     const listeningOptions = {
       observeListening: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING === 'true',
@@ -322,6 +412,9 @@ const main = async () => {
     const status = spawnSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8', windowsHide: true });
     assertCleanWorkingTree(status);
     if (!buildOnly) {
+      if (!/^refs\/(?:heads|tags)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(process.env.LUYENTAP_RELEASE_SOURCE_REF || '')) {
+        fail('LUYENTAP_RELEASE_SOURCE_REF must name the existing exact GitHub source branch or tag.');
+      }
       releaseAssessment = await assertReleaseAssessment({
         mode: process.env.LUYENTAP_RELEASE_MODE || 'release',
         baselinePath: process.env.LUYENTAP_RELEASE_BASELINE_FILE,
@@ -332,9 +425,20 @@ const main = async () => {
         currentProductionEnvFingerprint: loaded.envFingerprint,
         observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
         compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
+        compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256,
         cwd,
         ...listeningOptions,
       });
+      if (!process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE || !/^[a-f0-9]{64}$/u.test(process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || '')) {
+        fail('reviewed LUYENTAP_RELEASE_TEST_PLAN_FILE and LUYENTAP_RELEASE_TEST_PLAN_SHA256 are required.');
+      }
+      if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256) {
+        fail('verification plan differs from its reviewed digest.');
+      }
+      verification = await runReleaseVerification({ cwd, base: releaseAssessment.source.baseRevision,
+        planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: loaded.envFingerprint });
+      assertReleaseVerification(verification, { source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
+        planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 });
     }
     console.log(`[Production] ${buildOnly ? 'Building' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
     run([path.join(sourceScripts, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env, cwd);
@@ -356,10 +460,20 @@ const main = async () => {
       currentProductionEnvFingerprint: currentEnv,
       observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
       compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
+      compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256,
       cwd,
       ...listeningOptions,
     });
-    await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd });
+    await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd,
+      assessment: releaseAssessment, verification, verificationPlanSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256,
+      sourceRef: process.env.LUYENTAP_RELEASE_SOURCE_REF,
+      revalidate: async () => {
+        if (digest(await readFile(loaded.envFile)) !== loaded.envFingerprint) fail('production environment changed while archiving.');
+        if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== verification.planSha256) fail('verification plan changed while archiving.');
+        if (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE
+          && digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE))) !== process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256) fail('compatibility review changed while archiving.');
+      },
+    });
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -486,6 +486,14 @@ For an authorized Hosting release:
 npm run deploy:hosting
 ```
 
+This guarded route requires the reviewed exact-source verification plan,
+compatibility-review digest and existing remote source ref described in
+[release-safety.md](release-safety.md#hosting-release-foundation). It runs those
+checks and retains the source/artifact/evidence before publication. If a release
+is already published but verification is pending, use
+`npm run release:verify-existing -- <operation-uuid>`; do not deploy again to
+repair verification. Build-only remains non-mutating and is not release proof.
+
 The deploy script:
 
 - isolates the production environment from parent `VITE_*` and emulator vars;

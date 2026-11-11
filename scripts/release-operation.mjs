@@ -5,12 +5,13 @@ import { beginRelease, readRelease, selectDescription, settleRelease, resolveSto
 
 const readJson = file => JSON.parse(readFileSync(path.resolve(file), 'utf8'));
 
-export async function executeRecordedOperation(request, { execute, observe, storeDir } = {}) {
+export async function executeRecordedOperation(request, { prepare, execute, observe, storeDir } = {}) {
   const selected = selectDescription({ description: request.description,
     targets: request.targets.map(({ id, binding }) => ({ id, binding })) }, storeDir);
   const record = beginRelease({ ...(request.id ? { id: request.id } : {}), description: selected.description,
     targets: request.targets, evidenceRefs: request.evidenceRefs }, storeDir, { requireNew: true });
   console.log(`[Changelog] ${record.id}: ${path.join(storeDir ?? resolveStoreDir(), 'state.json')}`);
+  await prepare?.(record);
   let commandError;
   try { await execute(record); } catch (error) { commandError = error; }
   let evidence;
@@ -18,8 +19,8 @@ export async function executeRecordedOperation(request, { execute, observe, stor
   try { evidence = await observe?.(record, commandError); } catch (error) { observationError = error; }
   const result = evidence ? settleRelease(record.id, evidence, storeDir) : readRelease(record.id, storeDir);
   const states = result.targets.map(target => `${target.id}: ${target.publication}, verification ${target.verification}`).join('; ');
-  if (commandError || observationError || result.targets.some(target => target.publication === 'unconfirmed' || target.verification === 'failed')) {
-    throw new Error(`Release ${result.id}: ${states}. ${commandError?.message || observationError?.message || 'Publication requires provider evidence; finish this recorded intent after the existing readback.'}`);
+  if (commandError || observationError || result.targets.some(target => target.publication !== 'published' || target.verification !== 'passed')) {
+    throw new Error(`Release ${result.id}: ${states}. ${commandError?.message || observationError?.message || 'Resume verification of this operation; do not repeat publication.'}`);
   }
   return result;
 }

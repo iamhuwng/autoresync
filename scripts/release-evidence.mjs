@@ -20,7 +20,7 @@ export function parseHostingChannelEvidence(payload) {
   const channel = parsed?.result?.channels?.find(entry => entry.name === 'projects/temp-a1437/sites/kahut1/channels/live');
   const release = channel?.release, version = release?.version;
   if (!channel || !release || !version || version.status !== 'FINALIZED' || !/^projects\/temp-a1437\/sites\/kahut1\/versions\/[a-z0-9]+$/u.test(version.name || '') || !release.releaseTime || !Number.isFinite(Number(version.fileCount))) throw new Error('Firebase Hosting provider evidence lacks a finalized kahut1 live release.');
-  return { channel: channel.name, url: channel.url, version: version.name, releaseTime: release.releaseTime, fileCount: Number(version.fileCount), versionBytes: Number(version.versionBytes || 0), config: version.config || {}, deploymentTool: version.labels?.['deployment-tool'] || null };
+  return { channel: channel.name, url: channel.url, version: version.name, releaseTime: release.releaseTime, message: release.message || '', fileCount: Number(version.fileCount), versionBytes: Number(version.versionBytes || 0), config: version.config || {}, deploymentTool: version.labels?.['deployment-tool'] || null };
 }
 
 function firebaseCliPath() {

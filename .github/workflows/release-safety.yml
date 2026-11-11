@@ -1,20 +1,35 @@
 name: Release Safety
 
+permissions:
+  contents: read
+
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main, 'release/**']
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+      tree: ${{ steps.source.outputs.tree }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Test integration result gate
+        run: node --test scripts/__tests__/integration-check.test.mjs scripts/__tests__/release-plan.test.mjs
+      - name: Check exact-candidate verification and retained Hosting recovery
+        run: node --test scripts/__tests__/release-verification.test.mjs scripts/__tests__/release-archive.test.mjs scripts/__tests__/release-changelog-recorder.test.mjs
       - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs scripts/__tests__/release-notification-worker-evidence.test.mjs scripts/__tests__/release-reading-v2-worker-evidence.test.mjs scripts/__tests__/release-listening-evidence.test.mjs scripts/__tests__/release-listening-editor-evidence.test.mjs
       - run: node --test scripts/__tests__/release-writing-homework-evidence.test.mjs
       - run: node --experimental-strip-types --test scripts/__tests__/repair-teacher-writing-homework-access.test.mjs
@@ -31,7 +46,9 @@ jobs:
         env:
           THCS_RULES_FILE: ${{ github.workspace }}/database.rules.json
       - name: Build clean-clone app with disposable configuration
-        run: node scripts/tooling-where.mjs --exec vite build --mode acceptance --outDir tmp/clone-acceptance-dist
+        run: |
+          node scripts/tooling-where.mjs --exec vite build --mode acceptance
+          node scripts/check-bundle-budget.mjs
         env:
           VITE_FIREBASE_ACCEPTANCE_EMULATORS: 'true'
           VITE_FIREBASE_API_KEY: acceptance-only-key
@@ -45,11 +62,97 @@ jobs:
           VITE_FIREBASE_DATABASE_EMULATOR_HOST: localhost:19000
           VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: localhost:19080
           VITE_R2_UPLOAD_WORKER_URL: http://localhost:19087
+      - name: Record tested candidate source
+        id: source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code HEAD
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+
+  guardrails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+      tree: ${{ steps.source.outputs.tree }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Test shared guardrail implementations
+        run: node --test scripts/__tests__/check-assessment-unification-guardrails.test.mjs scripts/__tests__/check-mantine-boundary.test.mjs scripts/__tests__/check-prd0062-activity-coverage.test.mjs
+      - name: Enforce shared guards against the complete event diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        run: |
+          test -n "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          mkdir -p tmp
+          git diff --name-only --diff-filter=ACDMR -z "$BASE_SHA" HEAD -- > tmp/integration-changed-files
+          mapfile -d '' files < tmp/integration-changed-files
+          args=()
+          for file in "${files[@]}"; do args+=(--changed-file "$file"); done
+          node scripts/check-assessment-unification-guardrails.mjs --changed-files '' "${args[@]}"
+          node scripts/check-mantine-boundary.mjs --files "${files[@]}"
+          if ((${#files[@]})); then
+            node scripts/pre-commit-enforcement.js --check --files "${files[@]}"
+          else
+            echo 'Result governance: explicit event diff is empty.'
+          fi
+          node scripts/check-prd0062-activity-coverage.mjs
+      - name: Verify shared authoring, practice and homework app paths
+        env:
+          APP_TEST_FILES: >-
+            src/features/assessment/shared/components/AssessmentAuthoringSection.test.tsx
+            src/features/assessment/shared/components/AssessmentStatusState.test.tsx
+            src/features/assessment/shared/components/AssessmentValidationSummary.test.tsx
+            src/components/reading-v2/studio/ReadingV2SettingsPanel.test.tsx
+            src/skills/listening/builders/ListeningTestBuilder.test.tsx
+            src/services/serverClock.test.ts
+            src/pages/TestPageRouter.test.tsx
+            src/components/TestEditor.test.tsx
+            src/__tests__/readingV2BoundaryImports.test.ts
+            src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx
+            src/services/reading-v2/readingV2RuntimeDraft.service.test.ts
+            src/services/reading-v2/readingV2AnswerScoring.test.ts
+            src/services/reading-v2/readingV2ContractGuards.service.test.ts
+            src/services/studentResume.service.test.ts
+            src/__tests__/integration/ListeningTestPage.test.tsx
+            src/features/assessment/listening/authoring/listeningTestEditing.test.ts
+            src/features/assessment/listening/authoring/parseListeningQuestionText.test.ts
+            src/skills/listening/components/AudioPlayer.test.tsx
+            src/features/assessment/listening/runtime/listeningSubmissionClient.test.ts
+        run: |
+          read -r -a files <<< "$APP_TEST_FILES"
+          node scripts/tooling-where.mjs --exec vitest run "${files[@]}" --passWithNoTests=false --maxWorkers=2 --reporter=json --outputFile=tmp/integration-app-report.json
+          node scripts/integration-check.mjs test-report tmp/integration-app-report.json "${files[@]}"
+      - name: Record tested candidate source
+        id: source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code HEAD
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
   notification-workflows:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+      tree: ${{ steps.source.outputs.tree }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -59,30 +162,88 @@ jobs:
       - name: Check notification source and retained release module
         working-directory: cloudflare
         run: node ../scripts/tooling-where.mjs --exec cloudflare-vitest run --config=vitest.notifications.config.mjs
+      - name: Record tested candidate source
+        id: source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code HEAD
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
-  deployed-homework-rebuild:
+  candidate-homework:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+      tree: ${{ steps.source.outputs.tree }}
     steps:
       - uses: actions/checkout@v4
-      - name: Read recorded service release
-        id: release
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, appendFileSync } from 'node:fs';
-          const release = JSON.parse(readFileSync('documentation/release-audits/deployed-services.json')).homeworkWorker;
-          appendFileSync(process.env.GITHUB_OUTPUT, `revision=${release.sourceRevision}\nnormalizedSha=${release.normalizedBuildSha256}\n`);
-          NODE
-      - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release.outputs.revision }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: r2-backup-worker/package-lock.json
       - run: npm --prefix r2-backup-worker ci --no-audit --no-fund
+      - name: Verify candidate Homework and backup Worker
+        working-directory: r2-backup-worker
+        run: |
+          mkdir -p ../tmp
+          node ../scripts/tooling-where.mjs --exec r2-vitest list --filesOnly --json > ../tmp/integration-homework-files.json
+          node ../scripts/tooling-where.mjs --exec r2-vitest run --passWithNoTests=false --reporter=json --outputFile=../tmp/integration-homework-report.json
+          node ../scripts/integration-check.mjs test-report ../tmp/integration-homework-report.json --files-file ../tmp/integration-homework-files.json
+      - name: Build candidate Worker without deployment
+        working-directory: r2-backup-worker
+        run: node ../scripts/tooling-where.mjs --exec r2-wrangler deploy --dry-run --outdir ../tmp/candidate-homework
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+      - name: Check transitive Worker release impact
+        run: node scripts/integration-check.mjs worker-inputs tmp/candidate-homework/index.js.map
+      - name: Record tested candidate source
+        id: source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code HEAD
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+
+  deployed-homework-rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read recorded service release
+        id: release
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const release = JSON.parse(readFileSync('documentation/release-audits/deployed-services.json')).homeworkWorker;
+          if (!/^[a-f0-9]{40}$/.test(release.sourceRevision) || !/^[a-f0-9]{64}$/.test(release.normalizedBuildSha256)) throw new Error('Invalid retained Worker source/artifact identity');
+          appendFileSync(process.env.GITHUB_OUTPUT, `revision=${release.sourceRevision}\nnormalizedSha=${release.normalizedBuildSha256}\n`);
+          NODE
+      - name: Extract the exact recorded source without checking out obsolete submodules
+        env:
+          RECORDED_REVISION: ${{ steps.release.outputs.revision }}
+        run: |
+          test "$(git rev-parse "$RECORDED_REVISION^{commit}")" = "$RECORDED_REVISION"
+          mkdir -p tmp/deployed-homework-source
+          git archive --format=tar "$RECORDED_REVISION" | tar -x -C tmp/deployed-homework-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tmp/deployed-homework-source/r2-backup-worker/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: tmp/deployed-homework-source/r2-backup-worker
       - name: Build the recorded Worker without deploying
-        run: node r2-backup-worker/node_modules/wrangler/bin/wrangler.js deploy --config r2-backup-worker/wrangler.toml --dry-run --outdir ../tmp/deployed-homework-rebuild
+        working-directory: tmp/deployed-homework-source/r2-backup-worker
+        run: node node_modules/wrangler/bin/wrangler.js deploy --config wrangler.toml --dry-run --outdir "$GITHUB_WORKSPACE/tmp/deployed-homework-rebuild"
         env:
           WRANGLER_SEND_METRICS: 'false'
       - name: Compare complete rebuilt code to reviewed artifact
@@ -104,3 +265,25 @@ jobs:
           name: deployed-homework-rebuild
           path: tmp/deployed-homework-rebuild/index.js
           retention-days: 1
+
+  integration:
+    name: LuyenTap integration
+    if: ${{ always() }}
+    needs: [verify, guardrails, notification-workflows, candidate-homework, deployed-homework-rebuild]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require successful candidate and retention evidence
+        env:
+          INTEGRATION_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          export INTEGRATION_TREE="$(git rev-parse HEAD^{tree})"
+          node scripts/integration-check.mjs

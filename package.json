@@ -58,6 +58,8 @@
     "firebase:sync-live": "node scripts/import-live-firebase.mjs",
     "build:production": "node scripts/deploy-live.mjs --build-only",
     "release:check": "node scripts/release-check.mjs",
+    "release:plan": "node scripts/release-plan.mjs",
+    "release:verify-existing": "node scripts/deploy-live.mjs --verify-existing",
     "hotfix:prepare": "node scripts/hotfix-prepare.mjs"
   },
   "dependencies": {

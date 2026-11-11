@@ -14,6 +14,23 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies website build configuration as Hosting', () => assert.deepEqual(classifyPaths(['postcss.config.cjs','tailwind.config.js','tsconfig.json','tsconfig.app.json']), ['hosting']));
+test('classifies CI and integration result machinery as release tooling', () => assert.deepEqual(classifyPaths(['.github/workflows/release-safety.yml','scripts/integration-check.mjs']), ['tooling']));
+test('shared compiled scoring and contract code affects Hosting and the Homework Worker', () => {
+  assert.deepEqual(classifyPaths(['src/services/reading-v2/readingV2AnswerScoring.ts', 'src/services/reading-v2/readingV2ContractGuards.service.ts']), ['backup-worker', 'hosting']);
+  assert.deepEqual(classifyPaths(['src/components/reading-v2/runtime/ReadingV2RuntimeShell.css']), ['hosting']);
+});
+test('a shared scorer change cannot be described or qualified as a Hosting-only release', async () => {
+  const cwd = await fixture();
+  try {
+    await mkdir(path.join(cwd, 'src/services/reading-v2'), { recursive: true });
+    await writeFile(path.join(cwd, 'src/services/reading-v2/readingV2AnswerScoring.ts'), 'export const score = 1;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'change shared scorer');
+    const result = await assess({ cwd, base: 'HEAD^' });
+    assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Backup Worker active version/u.test(finding.message)));
+    assert(result.deploymentOrder.some(action => /Homework\/backup Worker compatibility before Hosting/u.test(action)));
+    assert(!result.deploymentOrder.includes('Hosting-only deployment.'));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 
 test('fixed Homework Worker observation rejects mixed evidence and missing artifact paths', async () => {
   await assert.rejects(() => assess({ observeHomework: true, observe: true }), /cannot be combined/u);
@@ -233,6 +250,46 @@ test('acceptance observation can use only an explicit localhost origin', async (
 test('manifest writer binds acceptance artifacts to acceptance environment', async () => { const cwd=await fixture(); try { await mkdir(path.join(cwd,'dist'),{recursive:true}); await writeFile(path.join(cwd,'dist','index.html'),'x'); const manifest=await writeHostingManifest({cwd,envFingerprint:'mock-env',environment:'acceptance'}); assert.equal(manifest.environment,'acceptance'); assert.equal(JSON.parse(await readFile(path.join(cwd,'dist','.well-known','luyentap-release.json'),'utf8')).environment,'acceptance'); } finally { await rm(cwd,{recursive:true,force:true}); } });
 
 test('observed Hosting baseline permits a Hosting-only PASS', async () => { const cwd=await fixture(); try { const base=git(cwd,'rev-parse','HEAD^'); const tree=git(cwd,'rev-parse',`${base}^{tree}`); const contentHash=crypto.createHash('sha256').update('x').digest('hex'); const observation=await observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify({schemaVersion:1,environment:'production',project:'temp-a1437',site:'kahut1',revision:base,tree,compatibility:{worker:'verified'},files:[{path:'/index.html',sha256:contentHash}]}) : 'x')})}); const result=await assess({cwd,base,hostingObservation:observation,productionEnvFingerprint:'env'}); assert.equal(result.decision,STATUS.PASS); assert.ok(result.observed); assert.ok(result.requiredActions.length === 0); } finally { await rm(cwd,{recursive:true,force:true}); } });
+
+test('Hosting observation cannot qualify Firebase rules, indexes or Functions', async t => {
+  for (const file of ['database.rules.json', 'firestore.rules', 'firestore.indexes.json', 'functions/index.js', 'database.rules.json+hosting']) {
+    await t.test(file, async () => {
+      const cwd = await fixture();
+      try {
+        const base = git(cwd, 'rev-parse', 'HEAD');
+        const target = path.join(cwd, file.split('+')[0]);
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, '{}');
+        if (file.endsWith('+hosting')) await writeFile(path.join(cwd, 'public/index.html'), 'mixed change');
+        git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'unsupported service change');
+        const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+          revision: base, tree: git(cwd, 'rev-parse', `${base}^{tree}`),
+          files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('x').digest('hex') }] };
+        const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+          arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'x') }) });
+        const result = await assess({ cwd, base, hostingObservation: observation, productionEnvFingerprint: 'env' });
+        assert.equal(result.source.dirty, false);
+        assert.equal(result.decision, STATUS.UNVERIFIED);
+        assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Hosting observation cannot verify/u.test(finding.message)));
+      } finally { await rm(cwd, { recursive: true, force: true }); }
+    });
+  }
+});
+
+test('Hosting revision match cannot hide a different observed base tree', async () => {
+  const cwd = await fixture();
+  try {
+    const base = git(cwd, 'rev-parse', 'HEAD^');
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+      revision: base, tree: git(cwd, 'rev-parse', 'HEAD^{tree}'),
+      files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('x').digest('hex') }] };
+    const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'x') }) });
+    const result = await assess({ cwd, base, hostingObservation: observation, productionEnvFingerprint: 'env' });
+    assert.equal(result.decision, STATUS.BLOCKED);
+    assert(result.findings.some(finding => /base tree does not match/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 
 test('bound compatibility review clears an application-release review', async () => { const cwd=await fixture(); const reviewPath=path.join(os.tmpdir(),"release-review-49fac8a6-079f-49bd-9513-d6db6c3c2d88.json" ); try { const base=git(cwd,'rev-parse','HEAD'); await writeFile(path.join(cwd,'src','App.jsx'),'export default 2;'); git(cwd,'add','.'); git(cwd,'commit','-qm','application-candidate'); const source=await collectSourceState(cwd,base); const tree=git(cwd,'rev-parse',`${base}^{tree}`); const contentHash=crypto.createHash('sha256').update('x').digest('hex'); const observation=await observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify({schemaVersion:1,environment:'production',project:'temp-a1437',site:'kahut1',revision:base,tree,files:[{path:'/index.html',sha256:contentHash}]}) : 'x')})}); await writeFile(reviewPath,JSON.stringify({schemaVersion:1,decision:'verified',reviewer:'fixture-reviewer',reviewedAt:new Date().toISOString(),sourceRevision:source.revision,baseRevision:source.baseRevision,observedFingerprint:observation.fingerprint,scope:['frontend-worker-contract']})); const result=await assess({cwd,base,hostingObservation:observation,compatibilityReviewPath:reviewPath,productionEnvFingerprint:'env'}); assert.equal(result.decision,STATUS.PASS); assert.equal(result.compatibilityReview.reviewer,'fixture-reviewer'); } finally { await rm(cwd,{recursive:true,force:true}); await rm(reviewPath,{force:true}); } });
 
