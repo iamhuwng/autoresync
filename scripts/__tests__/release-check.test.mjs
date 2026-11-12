@@ -40,6 +40,7 @@ test('Hosting target cannot use caller dependency JSON or fixed service profiles
       tree: git(cwd, 'rev-parse', `${base}^{tree}`), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update('x').digest('hex') }] };
     const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
       arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json') ? JSON.stringify(manifest) : 'x') }) });
+    assert.equal(observation.sourceKnown, true);
     const result = await assess({ cwd, base, target: 'hosting', hostingObservation: observation,
       hostingDependenciesObservation: { scope: 'hosting-dependencies', readOnly: true }, productionEnvFingerprint: 'env' });
     assert.equal(result.target, 'hosting');
