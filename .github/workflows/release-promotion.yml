@@ -70,6 +70,18 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Keep federation credentials outside the checkout
+        run: |
+          set -euo pipefail
+          source="$GOOGLE_APPLICATION_CREDENTIALS"
+          target="$RUNNER_TEMP/gha-creds.json"
+          cp "$source" "$target"
+          rm -f "$source"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
+            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
+            echo "GOOGLE_GHA_CREDS_PATH=$target"
+          } >> "$GITHUB_ENV"
       - name: Prove the preflight identity can read Hosting metadata
         run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
       - name: Materialize the isolated production environment
@@ -193,6 +205,18 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Keep federation credentials outside the checkout
+        run: |
+          set -euo pipefail
+          source="$GOOGLE_APPLICATION_CREDENTIALS"
+          target="$RUNNER_TEMP/gha-creds.json"
+          cp "$source" "$target"
+          rm -f "$source"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
+            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
+            echo "GOOGLE_GHA_CREDS_PATH=$target"
+          } >> "$GITHUB_ENV"
       - name: Materialize the disposable browser environment
         env:
           PRODUCTION_ENV: ${{ secrets.LUYENTAP_PRODUCTION_ENV }}
@@ -332,6 +356,18 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Keep federation credentials outside the checkout
+        run: |
+          set -euo pipefail
+          source="$GOOGLE_APPLICATION_CREDENTIALS"
+          target="$RUNNER_TEMP/gha-creds.json"
+          cp "$source" "$target"
+          rm -f "$source"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
+            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
+            echo "GOOGLE_GHA_CREDS_PATH=$target"
+          } >> "$GITHUB_ENV"
       - name: Prove the pinned Firebase CLI identity before mutation
         run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
       - name: Materialize the isolated production environment
@@ -487,6 +523,18 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Keep federation credentials outside the checkout
+        run: |
+          set -euo pipefail
+          source="$GOOGLE_APPLICATION_CREDENTIALS"
+          target="$RUNNER_TEMP/gha-creds.json"
+          cp "$source" "$target"
+          rm -f "$source"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
+            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
+            echo "GOOGLE_GHA_CREDS_PATH=$target"
+          } >> "$GITHUB_ENV"
       - name: Resume the same operation without rebuilding or redeploying
         env:
           OPERATION_ID: ${{ inputs.operation_id }}
