@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workflow = readFileSync(path.join(root, '.github/workflows/release-promotion.yml'), 'utf8');
+const browserGate = readFileSync(path.join(root, 'scripts/release-browser-gate.mjs'), 'utf8');
 
 test('promotion workflow is manual, protected-main-only and serialized', () => {
   assert.match(workflow, /workflow_dispatch:/u);
@@ -28,6 +29,15 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.match(workflow, /--prepare --objective/u);
   assert.match(workflow, /--export-inputs/u);
   assert.ok(workflow.includes('--require-browser "$card"'));
+  assert.match(workflow, /release-browser-gate\.mjs/u);
+  assert.match(browserGate, /hosting:channel:deploy/u);
+  assert.match(browserGate, /hosting:clone/u);
+  assert.match(browserGate, /hosting:channel:delete/u);
+  assert.match(workflow, /playwright install --with-deps chromium/u);
+  assert.match(workflow, /luyentap-release-browser-evidence-\$\{\{ github\.run_id \}\}/u);
+  assert.match(workflow, /LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE/u);
+  assert.match(workflow, /Open the protected-main Changelog integration PR/u);
+  assert.match(workflow, /pull-requests: write/u);
   assert.match(workflow, /--deploy-retained/u);
   assert.match(workflow, /include-hidden-files: true/u);
   assert.match(workflow, /Validate the exact public artifact before upload/u);
@@ -43,6 +53,7 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.match(workflow, /path: tmp\/release-result/u);
   assert.doesNotMatch(workflow, /path:\s*\|[\s\S]*runner\.temp\/release-card\.json/u);
   for (const upload of workflow.match(/- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n      - uses: actions\/upload-artifact@v4|\n\n  browser-gate:|\n\n  promote:|\n\n  recover:)/gu) || []) {
+    if (upload.includes('luyentap-release-browser-evidence-') || upload.includes('luyentap-approved-release-card-')) continue;
     assert.doesNotMatch(upload, /runner\.temp/u);
   }
   assert.match(workflow, /luyentap-verification-plan-\$\{\{ github\.run_id \}\}/u);

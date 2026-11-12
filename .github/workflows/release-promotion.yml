@@ -146,25 +146,104 @@ jobs:
     needs: prepare
     if: ${{ needs.prepare.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://kahut1.web.app
+    outputs:
+      card_sha256: ${{ steps.final-card.outputs.sha256 }}
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@v4
         with:
           name: luyentap-release-card-${{ github.run_id }}
           path: ${{ runner.temp }}/release-card
-      - name: Require source-bound browser evidence before authorization
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-hosting-artifact-${{ github.run_id }}
+          path: dist
+      - name: Require the production Firebase federation configuration
         env:
-          EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          card="$RUNNER_TEMP/release-card/release-card.json"
+          test -n "$WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$SERVICE_ACCOUNT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - name: Materialize the disposable browser environment
+        env:
+          PRODUCTION_ENV: ${{ secrets.LUYENTAP_PRODUCTION_ENV }}
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCTION_ENV"
+          umask 077
+          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+      - name: Install the pinned Chromium runtime
+        run: node scripts/tooling-where.mjs --exec playwright install --with-deps chromium
+      - name: Run authenticated Playwright against the retained artifact
+        env:
+          RELEASE_BROWSER_OUTPUT_DIR: ${{ runner.temp }}/browser-evidence
+        run: |
+          set -euo pipefail
+          node scripts/release-browser-gate.mjs \
+            --card "$RUNNER_TEMP/release-card/release-card.json" \
+            --production-env-file "$RUNNER_TEMP/.env.production" \
+            --output-dir "$RELEASE_BROWSER_OUTPUT_DIR"
+      - name: Build the final source-bound release card
+        id: final-card
+        env:
+          LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/release-card/promotion-inputs.json
+          LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
+          LUYENTAP_RELEASE_VERIFICATION_FILE: ${{ runner.temp }}/release-card/verification.json
+          LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE: ${{ runner.temp }}/browser-evidence/browser.json
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/approved-release-card.json"
+          node scripts/release-promotion.mjs --assessment "$RUNNER_TEMP/release-card/assessment.json" --output "$card" | tee "$RUNNER_TEMP/approved-release-card-sha256"
+          mkdir -p "$RUNNER_TEMP/approved-release-card"
+          cp "$card" "$RUNNER_TEMP/approved-release-card/release-card.json"
+          cp "$RUNNER_TEMP/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
+          cp "$RUNNER_TEMP/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
+          cp "$RUNNER_TEMP/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
+          echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: luyentap-release-browser-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/browser-evidence
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luyentap-approved-release-card-${{ github.run_id }}
+          path: ${{ runner.temp }}/approved-release-card
+          if-no-files-found: error
+          retention-days: 14
+      - name: Require independently verified browser evidence before authorization
+        env:
+          EXPECTED_CARD_SHA256: ${{ steps.final-card.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/approved-release-card/release-card.json"
           test "$(sha256sum "$card" | cut -d' ' -f1)" = "$EXPECTED_CARD_SHA256"
           node scripts/release-promotion.mjs --require-browser "$card" >/dev/null
 
@@ -178,6 +257,7 @@ jobs:
       url: https://kahut1.web.app
     permissions:
       contents: write
+      pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -199,7 +279,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@v4
         with:
-          name: luyentap-release-card-${{ github.run_id }}
+          name: luyentap-approved-release-card-${{ github.run_id }}
           path: ${{ runner.temp }}/release-card
       - uses: actions/download-artifact@v4
         with:
@@ -209,6 +289,10 @@ jobs:
         with:
           name: luyentap-verification-plan-${{ github.run_id }}
           path: ${{ runner.temp }}/release-plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-release-browser-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/browser-evidence
       - name: Rehydrate the exact generated verification plan
         run: |
           set -euo pipefail
@@ -218,7 +302,7 @@ jobs:
           cp "$plan" tmp/release-receipts/ci-verification-plan.json
       - name: Verify the approved card and retained artifact
         env:
-          EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
+          EXPECTED_CARD_SHA256: ${{ needs.browser-gate.outputs.card_sha256 }}
           EXPECTED_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
         run: |
           set -euo pipefail
@@ -292,7 +376,9 @@ jobs:
           if test -s "$RUNNER_TEMP/operation-id"; then
            operation="$(cat "$RUNNER_TEMP/operation-id")"
             REQUEST="$RUNNER_TEMP/changelog-integration-request.json" OPERATION_ID="$operation" CARD="$RUNNER_TEMP/release-card/release-card.json" PATCH="$RUNNER_TEMP/changelog-reconciliation.patch" node --input-type=module -e 'import fs from "node:fs"; import crypto from "node:crypto"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const patch=fs.readFileSync(process.env.PATCH); fs.writeFileSync(process.env.REQUEST, `${JSON.stringify({schemaVersion:1,status:"pending-protected-main-integration",operationId:process.env.OPERATION_ID,source:card.source,baseline:card.baseline,patchSha256:crypto.createHash("sha256").update(patch).digest("hex"),requiredAction:"Apply the retained patch through the protected-main review/integration path; this record is not canonical reconciliation.",generatedAt:new Date().toISOString()},null,2)}\n`);'
-            gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-reconciliation.patch" --repo "$GITHUB_REPOSITORY"
+            if test -s "$RUNNER_TEMP/changelog-reconciliation.patch"; then
+              gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-reconciliation.patch" --repo "$GITHUB_REPOSITORY"
+            fi
             if test -f "$RUNNER_TEMP/operation.json"; then
               gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/operation.json" --repo "$GITHUB_REPOSITORY"
             fi
@@ -308,6 +394,41 @@ jobs:
            done
            if test -d documentation/architecture/changelog; then cp -R documentation/architecture/changelog tmp/release-result/; fi
            if test -f documentation/architecture/master_changelog.md; then cp documentation/architecture/master_changelog.md tmp/release-result/; fi
+           if test -d "$RUNNER_TEMP/browser-evidence"; then cp -R "$RUNNER_TEMP/browser-evidence" tmp/release-result/; fi
+      - name: Open the protected-main Changelog integration PR
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if test ! -s "$RUNNER_TEMP/operation-id" || test ! -s "$RUNNER_TEMP/changelog-reconciliation.patch"; then
+            echo 'No Changelog patch is waiting for canonical integration.'
+            exit 0
+          fi
+          operation="$(cat "$RUNNER_TEMP/operation-id")"
+          branch="codex/changelog-integration-$operation"
+          git fetch origin main --depth=1
+          git switch -c "$branch" "$GITHUB_SHA"
+          git apply "$RUNNER_TEMP/changelog-reconciliation.patch"
+          git add -- documentation/architecture/changelog documentation/architecture/master_changelog.md
+          if git diff --cached --quiet; then
+            echo 'Changelog patch produced no canonical changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "docs(release): reconcile Hosting operation $operation"
+          git push origin "HEAD:$branch"
+          pr_url="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --json url --jq '.[0].url' | head -1)"
+          if test -z "$pr_url"; then
+            pr_url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "docs(release): reconcile Hosting operation $operation" --body "Publication and live verification completed for Hosting operation `$operation`. Apply this protected-main follow-up to reconcile the retained Master Changelog patch. This PR is documentation reconciliation only and does not authorize another publication.")"
+          fi
+          echo "$pr_url" | tee "$RUNNER_TEMP/changelog-pr-url"
+          echo "Changelog integration PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain Changelog integration PR identity
+        if: ${{ always() }}
+        run: |
+          if test -f "$RUNNER_TEMP/changelog-pr-url"; then cp "$RUNNER_TEMP/changelog-pr-url" tmp/release-result/; fi
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
