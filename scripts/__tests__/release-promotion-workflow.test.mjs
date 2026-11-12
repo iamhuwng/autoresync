@@ -63,6 +63,7 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.match(workflow, /LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER/u);
   assert.match(workflow, /LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER/u);
   assert.equal((workflow.match(/GOOGLE_GHA_CREDS_PATH: \$\{\{ runner\.temp \}\}\/gha-creds\.json/gu) || []).length, 4);
+  assert.equal((workflow.match(/Keep federation credentials outside the checkout/gu) || []).length, 4);
   assert.match(workflow, /LUYENTAP_RELEASE_OPERATION_FILE/u);
   assert.match(workflow, /changelog-reconciliation\.patch/u);
   assert.ok(workflow.includes('gh release upload "hosting-operation-$operation"'));
