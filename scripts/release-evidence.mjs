@@ -110,7 +110,7 @@ const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvir
   await readConcurrent(manifest.files, readConcurrency, async file => {
     if (hash(await get(file.path)) !== file.sha256) throw transientReadError(`Hosting content drift: ${file.path}`);
   });
-  return Object.freeze({ service: 'hosting', identity: 'temp-a1437/kahut1', revision: manifest.revision, tree: manifest.tree, fingerprint: hash(JSON.stringify(manifest)), evidenceRef: `${effectiveOrigin}${manifestPath}`, observedAt: new Date().toISOString(), compatibility: manifest.compatibility || {}, manifest });
+  return Object.freeze({ service: 'hosting', identity: 'temp-a1437/kahut1', revision: manifest.revision, tree: manifest.tree, fingerprint: hash(JSON.stringify(manifest)), evidenceRef: `${effectiveOrigin}${manifestPath}`, observedAt: new Date().toISOString(), compatibility: manifest.compatibility || {}, manifest, sourceKnown: true });
 };
 
 // Only fixed production HTTPS resources are read; supplied JSON never enters this trust boundary.
