@@ -24,9 +24,11 @@ test('target-scoped associations survive Hosting enrichment and leave other draf
   saveDraft({ description: 'Reviewed scope', targets: [scoped, other] }, store);
   const selected = selectDescription({ description: 'Git summary', targets: [hosting] }, store);
   const enriched = { ...selected.targets[0], binding: { ...hosting.binding, artifactSha256: digest('a') } };
+  let started;
   const release = await executeRecordedOperation({ id: 'scoped', description: selected.description, targets: [releaseTarget(enriched)] }, {
-    storeDir: store, execute: () => {}, observe: () => ({ outcomes: [outcome(hosting)] }),
+    storeDir: store, onStarted: record => { started = record; }, execute: () => {}, observe: () => ({ outcomes: [outcome(hosting)] }),
   });
+  assert.equal(started.id, release.id);
   assert.deepEqual(release.targets[0].changeIds, [first, second]);
   assert.deepEqual(readDraft(store).targets.find(target => target.id === worker.id).changeIds, [second]);
   const unrelated = beginRelease({ description: 'Different change on Worker', targets: [releaseTarget({ ...worker, changeIds: [first] })] }, store);

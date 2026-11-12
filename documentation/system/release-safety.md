@@ -143,6 +143,69 @@ release or a remote archive. The foundation is tested with disposable source,
 artifact and provider fixtures; production/rollback qualification must be
 reported separately.
 
+### Phase 3 promotion contract
+
+`scripts/release-promotion.mjs` is the small mechanical boundary for a future
+Actions release card. It binds the protected `refs/heads/main` source, observed
+Hosting baseline, the actual event SHA, verification-plan and compatibility-review
+digests, production environment fingerprint, Firebase configuration digest, and
+retained manifest identity (source revision/tree/environment/file count). The
+card also retains the passing verification result, explicit browser evidence
+status and references, missing proof, impact, scope and recovery limits. The
+browser record must bind its source, environment and configuration; a plan
+digest alone is not verification evidence. The card is presentation and binding
+data; it is not production authorization. Its validator rejects missing event
+context, PR refs, path traversal, incomplete review pairs, source/artifact or
+environment drift, and credential-bearing text, and its exported values are the
+same `LUYENTAP_RELEASE_*` inputs consumed by the guarded executor.
+Browser evidence expires after 24 hours and a release card expires after two
+hours, so stale approval cannot be reused. CI stages each cross-job payload
+under one repository-relative directory before upload and rehydrates that exact
+layout before retained-artifact publication. The Hosting artifact upload opts in
+to hidden files solely so the public `.well-known/luyentap-release.json` manifest
+survives transfer; exact artifact validation rejects unexpected files and
+credential-bearing `.env` material before upload.
+
+The existing executor also accepts `--deploy-retained` for a separately retained
+`dist/` artifact. It verifies the manifest digest, every manifest-listed file,
+bundle budget and forbidden local markers before calling `deployHosting`; it does
+not rebuild. This is the build-once seam needed by a future authorized CI job.
+The normal mutating route remains `npm run deploy:hosting`; the guarded workflow
+supplies production credentials and calls this retained mode only inside the
+protected production job. GitHub
+environment protection, short-lived ADC federation with the pinned Firebase CLI,
+and a disposable Hosting publication/recovery are still external qualification
+work. The guarded workflow is defined in
+`.github/workflows/release-promotion.yml`: its preparer derives technical
+bindings and verification inputs, its browser gate fails closed until evidence is
+verified, its protected `production` environment is the owner authorization
+boundary, and its recovery dispatch resumes one recorded operation without
+rebuilding or publishing. The dependable browser prerequisite is separately
+recorded as unqualified
+in the owner-facing card and gate; the preparer records the missing proof instead
+of asking the owner to calculate a digest or assemble technical JSON. The
+workflow names the federation identities separately: `LUYENTAP_RELEASE_*`
+variables are read-only preflight inputs, while `LUYENTAP_PRODUCTION_*` variables
+are restricted to protected production/recovery jobs. Static workflow tests assert
+the preflight job has `contents: read` and promotion has `contents: write`; actual
+GitHub environment and service-account permissions still require provider readback.
+Preflight uses the separate `LUYENTAP_RELEASE_ENV` preparation secret; the
+protected production job uses `LUYENTAP_PRODUCTION_ENV`, and the executor rejects
+any environment-fingerprint mismatch before publication.
+The
+separate local-development reliability plan remains proposed and is not
+absorbed here. Do not describe the contract test or a local retained-artifact
+check as CI, provider, browser or rollback proof.
+Operation evidence keeps publication, independent live verification and
+documentation reconciliation distinct: a successful Hosting outcome is recorded
+as `published-verified`, while `changelog-pending` or
+`changelog-pending-integration` cannot be overwritten by that publication
+status. The retained patch and integration request are durable handoff evidence;
+they become canonical only after the protected-main integration path completes.
+The executor writes the operation UUID to the protected job's operation evidence
+at intent creation, before provider mutation, so recovery does not depend on
+post-failure log inspection.
+
 Current operational state: the October 18 [Book restoration release](../release-audits/2026-10-18-book-hosting-release.md)
 serves a verified production source manifest. Start with `--observe-hosting` and
 fresh provider evidence. The October 11 rehearsals and missing-manifest statements

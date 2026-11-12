@@ -54,7 +54,7 @@ export async function reconcileHostingChangelog(archive, { cwd = repoRoot, exec,
     const masterFile = path.join(cwd, masterPath);
     if (master !== readFileSync(masterFile, 'utf8')) { write(masterFile, master); changed.push(masterPath); }
     return { id: archive.id, outcomes: outcomes.length, changed,
-      note: 'Documentation only; no publication, provider verification, commit or push performed.' };
+      note: 'Documentation prepared in this checkout only; protected-main integration is still required. No publication, provider verification, commit or push performed.' };
   } finally { closeSync(descriptor); rmSync(lock); }
 }
 

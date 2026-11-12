@@ -23,6 +23,21 @@ const expectedHostingTarget = 'kahut1';
 export const hostingReleaseMessage = value => value.length <= 255 ? value : `${value.slice(0, 252)}...`;
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const operationMessage = (id, description) => hostingReleaseMessage(`[luyentap:${id}] ${description}`);
+const operationIdPattern = /Release ([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}):/u;
+export const writeOperationEvidence = async ({ id, status, error, cwd = repoRoot } = {}) => {
+  if (!id) return;
+  const targets = [...new Set([process.env.LUYENTAP_RELEASE_OPERATION_FILE, process.env.LUYENTAP_RELEASE_OUTCOME_FILE].filter(Boolean))];
+  const bytes = `${JSON.stringify({ schemaVersion: 1, operationId: id, status, error: error || null, recordedAt: new Date().toISOString() })}\n`;
+  for (const target of targets) {
+    const destination = path.resolve(cwd, target);
+    try {
+      const existing = JSON.parse(await readFile(destination, 'utf8'));
+      if (existing.operationId === id && ['changelog-pending', 'changelog-pending-integration', 'changelog-reconciled'].includes(existing.status)
+        && ['published-verified', 'pending-verification-or-failed'].includes(status)) continue;
+    } catch { /* no prior evidence */ }
+    await writeFile(destination, bytes, 'utf8');
+  }
+};
 const notificationOrigin = 'https://luyentap-notification-firestore-qa.iamhuwng.workers.dev';
 const notificationEndpointPaths = {
   VITE_HOMEWORK_NOTIFICATION_URL: '/',
@@ -131,6 +146,13 @@ export const findForbiddenBundleMarker = (content) => {
   if (exact) return exact;
   return forbiddenBundlePatterns.map((pattern) => content.match(pattern)?.[0]).find(Boolean);
 };
+
+export async function assertRetainedArtifact({ cwd = repoRoot, artifactSha256 }) {
+  const manifest = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
+  if (digest(JSON.stringify(manifest)) !== artifactSha256) fail('retained artifact manifest differs from the approved release card.');
+  await assertHostingArtifact(cwd, manifest);
+  return manifest;
+}
 
 const readProductionEnv = async (cwd = repoRoot) => {
   const configuredPath = process.env.LUYENTAP_PRODUCTION_ENV_FILE
@@ -307,8 +329,13 @@ export async function verifyExistingHosting({ id, sha256, storeDir, readArchive 
 }
 
 const settleChangelog = async (archive, cwd, reconcile) => {
-  try { await reconcile(archive, { cwd }); }
-  catch (error) { console.warn(`[Changelog] Operation ${archive.id} is recorded; documentation pending: ${error.message}. Resume: node scripts/release-changelog.mjs --reconcile ${archive.id}. Do not redeploy.`); }
+  try {
+    await reconcile(archive, { cwd });
+    await writeOperationEvidence({ id: archive.id, status: 'changelog-pending-integration', cwd });
+  } catch (error) {
+    await writeOperationEvidence({ id: archive.id, status: 'changelog-pending', error: error.message, cwd });
+    console.warn(`[Changelog] Operation ${archive.id} is recorded; documentation pending: ${error.message}. Resume: node scripts/release-changelog.mjs --reconcile ${archive.id}. Do not redeploy.`);
+  }
 };
 
 export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run, storeDir,
@@ -345,6 +372,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
   let archive;
   return executeRecordedOperation(request, {
     storeDir,
+    onStarted: record => writeOperationEvidence({ id: record.id, status: 'prepared', cwd }),
     prepare: async record => {
       archive = await retainArchive({ cwd, id, sourceRef, verification, intent: {
         schemaVersion: 1, id, request: recordedIntent(record), expectedManifest: expected, before, source,
@@ -426,8 +454,10 @@ const main = async () => {
     return;
   }
   const args = new Set(rawArgs);
-  if ([...args].some((arg) => arg !== '--build-only')) fail('only --build-only is supported by this script.');
+  if ([...args].some((arg) => !['--build-only', '--deploy-retained'].includes(arg))) fail('only --build-only or --deploy-retained is supported by this script.');
   const buildOnly = args.has('--build-only');
+  const retainedArtifact = args.has('--deploy-retained');
+  if (buildOnly && retainedArtifact) fail('--build-only and --deploy-retained are mutually exclusive.');
   let tempEnvDir, releaseAssessment, verification;
   try {
     const listeningOptions = {
@@ -474,11 +504,17 @@ const main = async () => {
       assertReleaseVerification(verification, { source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
         planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 });
     }
-    console.log(`[Production] ${buildOnly ? 'Building' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
-    run([path.join(sourceScripts, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env, cwd);
-    run([path.join(sourceScripts, 'check-bundle-budget.mjs')], loaded.env, cwd);
-    await assertProductionBundle(cwd);
-    await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
+    console.log(`[Production] ${buildOnly ? 'Building' : retainedArtifact ? 'Deploying retained artifact' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
+    if (retainedArtifact) {
+      await assertRetainedArtifact({ cwd, artifactSha256: process.env.LUYENTAP_RELEASE_ARTIFACT_SHA256 });
+      run([path.join(sourceScripts, 'check-bundle-budget.mjs')], loaded.env, cwd);
+      await assertProductionBundle(cwd);
+    } else {
+      run([path.join(sourceScripts, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env, cwd);
+      run([path.join(sourceScripts, 'check-bundle-budget.mjs')], loaded.env, cwd);
+      await assertProductionBundle(cwd);
+      await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
+    }
     if (buildOnly) {
       console.log('[Production] Build and local-value checks passed; no remote mutation was performed.');
       return;
@@ -498,7 +534,7 @@ const main = async () => {
       cwd,
       ...listeningOptions,
     });
-    await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd,
+    const operation = await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd,
       assessment: releaseAssessment, verification, verificationPlanSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256,
       sourceRef: process.env.LUYENTAP_RELEASE_SOURCE_REF,
       revalidate: async () => {
@@ -508,8 +544,13 @@ const main = async () => {
           && digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE))) !== process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256) fail('compatibility review changed while archiving.');
       },
     });
+    console.log(`[Release] operation=${operation.id}`);
+    await writeOperationEvidence({ id: operation.id, status: 'published-verified', cwd });
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    const message = error instanceof Error ? error.message : String(error);
+    const id = message.match(operationIdPattern)?.[1];
+    if (id) await writeOperationEvidence({ id, status: 'pending-verification-or-failed', error: message, cwd });
+    console.error(message);
     process.exitCode = 1;
   } finally {
     if (tempEnvDir) await rm(tempEnvDir, { recursive: true, force: true });

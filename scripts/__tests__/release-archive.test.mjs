@@ -122,7 +122,8 @@ test('retained associations restore in a fresh journal and interrupted documenta
   // Stop after one detail is saved; restart must finish the other detail and Master link.
   await assert.rejects(() => reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec,
     write: (file, content) => { if (++writes === 2) throw new Error('interrupted docs'); writeFileSync(file, content); } }), /interrupted docs/u);
-  await reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec });
+  const reconciled = await reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec });
+  assert.match(reconciled.note, /protected-main integration is still required/u);
   assert.deepEqual((await reconcileHostingChangelog(restored, { cwd: request.cwd, exec: remote.exec })).changed, []);
   const detail = readFileSync(path.join(request.cwd, 'documentation/architecture/changelog/FIRST.md'), 'utf8');
   assert.equal(detail.match(/<!-- release-operation:/gu).length, 1);
@@ -164,6 +165,15 @@ test('inaccessible or mismatched draft identity stops before reading assets', as
     };
     await assert.rejects(readHostingArchive({ id }, { exec }), /not found or not accessible|identity differs/u);
   }
+});
+
+test('recovery rejects a retained archive bound to another Hosting site', async t => {
+  const request = await fixture(t), remote = provider(request.intent.source);
+  const archive = await createHostingArchive(request, remote);
+  const record = JSON.parse(remote.files.get('intent.json').bytes);
+  record.intent.expectedManifest.site = 'another-site';
+  remote.files.get('intent.json').bytes = Buffer.from(JSON.stringify(record));
+  await assert.rejects(() => readHostingArchive({ id: archive.id }, remote), /invalid production manifest|request target\/source\/artifact\/config binding differs/u);
 });
 
 test('retains and restores exact source/artifact, reopens remotely, and appends outcomes', async t => {

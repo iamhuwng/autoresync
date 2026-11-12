@@ -151,6 +151,46 @@ establish enforcement. Never use an empty
 required-check list or a path-filtered workflow as a substitute. See GitHub's
 [protected branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
+## Phase 3 CI promotion boundary
+
+The repository now tests the release-card contract in the existing read-only
+Release Safety workflow. `scripts/release-promotion.mjs` binds the exact main
+source and event SHA, observed baseline, actual passing verification result,
+verification plan, compatibility review, configuration/dependency state,
+environment fingerprint, artifact manifest identity, browser evidence status,
+missing proof, impact and recovery limits. `scripts/deploy-live.mjs --deploy-retained`
+verifies that bound artifact and publishes it through the
+same `deployHosting` route without a second build.
+
+The guarded workflow is now defined in `.github/workflows/release-promotion.yml`.
+It is manual and main-only. Its preparer derives the source, live baseline,
+environment/configuration/artifact bindings, affected verification scope,
+owner-facing impact and missing proof. Its browser gate fails closed until
+source-bound evidence is verified. The protected `production` environment is
+the separate owner authorization boundary; the existing executor remains the
+only publication route, and the recovery dispatch resumes one recorded
+operation without rebuilding or publishing.
+The publish job preserves the operation UUID even when the executor exits after
+provider acceptance, uploads the reconciliation patch and operation evidence to
+the retained Hosting operation when available, and also keeps them in the Action
+artifact. The generated verification plan is retained and rehydrated in the
+promotion job; discovered compatibility reviews are passed to the existing
+assessor with their exact digest.
+All Action transfers use repository-relative staging directories, so the
+artifact root is stable across runner jobs. Changelog and operation-evidence
+upload failures fail the publication job instead of being silently converted to
+a successful release. The workflow also uploads a bounded
+`changelog-integration-request.json`; it records that the temporary checkout
+patch still requires protected-main integration and never marks that handoff as
+canonical reconciliation.
+
+GitHub protection, environment approval, short-lived ADC federation and
+provider publication/recovery remain external qualification decisions. The
+browser prerequisite is currently **unqualified**; see [the Phase 3 browser
+record](../release-audits/2026-11-12-phase3-browser-prerequisite.md). The
+separate local-development reliability plan remains proposed and separately
+authorized; it is not part of this release implementation.
+
 ## Converge content without replaying history
 
 The [November 11 convergence follow-up](../release-audits/2026-11-11-source-convergence.md)

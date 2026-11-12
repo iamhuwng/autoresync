@@ -1,0 +1,373 @@
+name: Release Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Publish a prepared release or resume an existing operation'
+        required: true
+        default: publish
+        type: choice
+        options:
+          - publish
+          - verify-existing
+      operation_id:
+        description: 'Existing Hosting operation UUID when operation=verify-existing'
+        required: false
+        type: string
+      objective:
+        description: 'Product objective for this release; technical bindings are derived automatically'
+        required: true
+        type: string
+
+concurrency:
+  group: luyentap-hosting-production
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      card_sha256: ${{ steps.card.outputs.sha256 }}
+      artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the exact protected event source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git update-ref refs/heads/main "$GITHUB_SHA"
+          test "$(git rev-parse refs/heads/main)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require the read-only Firebase federation configuration
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$SERVICE_ACCOUNT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - name: Prove the preflight identity can read Hosting metadata
+        run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
+      - name: Materialize the isolated production environment
+        env:
+          PRODUCTION_ENV: ${{ secrets.LUYENTAP_RELEASE_ENV }}
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCTION_ENV"
+          umask 077
+          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+      - name: Derive release inputs from the exact source and live Hosting
+        env:
+          OBJECTIVE: ${{ inputs.objective }}
+        run: |
+          set -euo pipefail
+          node scripts/release-promotion.mjs --prepare --objective "$OBJECTIVE" --production-env-file "$RUNNER_TEMP/.env.production" --output "$RUNNER_TEMP/promotion-inputs.json"
+          node scripts/release-promotion.mjs --export-inputs "$RUNNER_TEMP/promotion-inputs.json"
+      - name: Build the candidate once
+        env:
+          LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+        run: npm run build:production -- --build-only
+      - name: Record the retained artifact identity
+        id: artifact
+        run: echo "sha256=$(node scripts/release-promotion.mjs --artifact-digest)" >> "$GITHUB_OUTPUT"
+      - name: Validate the exact public artifact before upload
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
+      - name: Assess the exact source and live baseline
+        run: |
+          set -euo pipefail
+          args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json")
+          if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
+          node scripts/release-check.mjs "${args[@]}"
+      - name: Execute the reviewed verification plan
+        run: node scripts/release-promotion.mjs --run-verification --output "$RUNNER_TEMP/verification.json"
+      - name: Create the owner-facing release card
+        id: card
+        env:
+          LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
+          LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ steps.artifact.outputs.sha256 }}
+          LUYENTAP_RELEASE_VERIFICATION_FILE: ${{ runner.temp }}/verification.json
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/release-card.json"
+          node scripts/release-promotion.mjs --assessment "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" --output "$card" | tee "$RUNNER_TEMP/release-card-sha256"
+          cat "$card" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p tmp/release-card tmp/release-plan
+          cp "$card" tmp/release-card/release-card.json
+          cp "$RUNNER_TEMP/promotion-inputs.json" tmp/release-card/promotion-inputs.json
+          cp "$RUNNER_TEMP/verification.json" tmp/release-card/verification.json
+          cp "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" tmp/release-card/assessment.json
+          cp "tmp/release-receipts/ci-verification-plan.json" tmp/release-plan/ci-verification-plan.json
+          echo "sha256=$(cat "$RUNNER_TEMP/release-card-sha256")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luyentap-release-card-${{ github.run_id }}
+          path: tmp/release-card
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luyentap-hosting-artifact-${{ github.run_id }}
+          path: dist
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luyentap-verification-plan-${{ github.run_id }}
+          path: tmp/release-plan
+          if-no-files-found: error
+          retention-days: 14
+
+  browser-gate:
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-release-card-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-card
+      - name: Require source-bound browser evidence before authorization
+        env:
+          EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/release-card/release-card.json"
+          test "$(sha256sum "$card" | cut -d' ' -f1)" = "$EXPECTED_CARD_SHA256"
+          node scripts/release-promotion.mjs --require-browser "$card" >/dev/null
+
+  promote:
+    needs: [prepare, browser-gate]
+    if: ${{ needs.prepare.result == 'success' && needs.browser-gate.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://kahut1.web.app
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the prepared exact source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git update-ref refs/heads/main "$GITHUB_SHA"
+          test "$(git rev-parse refs/heads/main)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-release-card-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-card
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-hosting-artifact-${{ github.run_id }}
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: luyentap-verification-plan-${{ github.run_id }}
+          path: ${{ runner.temp }}/release-plan
+      - name: Rehydrate the exact generated verification plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/release-plan/ci-verification-plan.json"
+          test -n "$plan"
+          mkdir -p tmp/release-receipts
+          cp "$plan" tmp/release-receipts/ci-verification-plan.json
+      - name: Verify the approved card and retained artifact
+        env:
+          EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
+          EXPECTED_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/release-card/release-card.json"
+          test "$(sha256sum "$card" | cut -d' ' -f1)" = "$EXPECTED_CARD_SHA256"
+          test "$(node scripts/release-promotion.mjs --check-card "$card")" = "$EXPECTED_CARD_SHA256"
+          test "$(node scripts/release-promotion.mjs --require-browser "$card")" = "$EXPECTED_CARD_SHA256"
+          test "$(node scripts/release-promotion.mjs --artifact-digest)" = "$EXPECTED_ARTIFACT_SHA256"
+      - name: Require the production Firebase federation configuration
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$SERVICE_ACCOUNT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - name: Prove the pinned Firebase CLI identity before mutation
+        run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
+      - name: Materialize the isolated production environment
+        env:
+          PRODUCTION_ENV: ${{ secrets.LUYENTAP_PRODUCTION_ENV }}
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCTION_ENV"
+          umask 077
+          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+      - name: Export the release-card bindings
+        run: node scripts/release-promotion.mjs --export-env "$RUNNER_TEMP/release-card/release-card.json"
+      - name: Re-observe the exact Hosting baseline immediately before mutation
+        env:
+          RECEIPT: ${{ runner.temp }}/pre-publish-baseline.json
+        run: |
+          set -euo pipefail
+          args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "$RECEIPT")
+          if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
+          node scripts/release-check.mjs "${args[@]}" >/dev/null
+          node --input-type=module -e 'import fs from "node:fs"; const result=JSON.parse(fs.readFileSync(process.env.RECEIPT,"utf8")); if (!["PASS","NOT_APPLICABLE"].includes(result.decision) || result.observed?.revision !== process.env.LUYENTAP_RELEASE_BASE || result.observed?.fingerprint !== process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT) process.exit(1);'
+      - name: Publish the retained artifact through the existing guarded route
+        env:
+          LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
+          LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/operation.json
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +e
+          npm run deploy:hosting -- --deploy-retained 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          operation=""
+          if test -f "$RUNNER_TEMP/operation.json"; then operation="$(OPERATION_FILE="$RUNNER_TEMP/operation.json" node --input-type=module -e 'import fs from "node:fs"; try { const value=JSON.parse(fs.readFileSync(process.env.OPERATION_FILE,"utf8")); if (/^[0-9a-f-]{36}$/.test(value.operationId || "")) process.stdout.write(value.operationId); } catch {}')"; fi
+          if test -z "$operation"; then operation="$(sed -nE 's/^\[Changelog\] ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):.*/\1/p' "$RUNNER_TEMP/deploy.log" | head -1)"; fi
+          if test -z "$operation"; then operation="$(sed -n 's/^\[Release\] operation=//p' "$RUNNER_TEMP/deploy.log" | tail -1)"; fi
+          if test -z "$operation"; then operation="$(sed -nE 's/^Release ([0-9a-f-]{36}):.*/\1/p' "$RUNNER_TEMP/deploy.log" | tail -1)"; fi
+          if test -n "$operation"; then
+            echo "Hosting operation: $operation" >> "$GITHUB_STEP_SUMMARY"
+            echo "$operation" > "$RUNNER_TEMP/operation-id"
+          fi
+          exit "$status"
+      - name: Capture durable Changelog reconciliation evidence
+        if: ${{ always() }}
+        run: |
+          git diff --binary -- documentation/architecture/changelog documentation/architecture/master_changelog.md > "$RUNNER_TEMP/changelog-reconciliation.patch" || true
+          if test -s "$RUNNER_TEMP/operation-id"; then
+           operation="$(cat "$RUNNER_TEMP/operation-id")"
+            REQUEST="$RUNNER_TEMP/changelog-integration-request.json" OPERATION_ID="$operation" CARD="$RUNNER_TEMP/release-card/release-card.json" PATCH="$RUNNER_TEMP/changelog-reconciliation.patch" node --input-type=module -e 'import fs from "node:fs"; import crypto from "node:crypto"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const patch=fs.readFileSync(process.env.PATCH); fs.writeFileSync(process.env.REQUEST, `${JSON.stringify({schemaVersion:1,status:"pending-protected-main-integration",operationId:process.env.OPERATION_ID,source:card.source,baseline:card.baseline,patchSha256:crypto.createHash("sha256").update(patch).digest("hex"),requiredAction:"Apply the retained patch through the protected-main review/integration path; this record is not canonical reconciliation.",generatedAt:new Date().toISOString()},null,2)}\n`);'
+            gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-reconciliation.patch" --repo "$GITHUB_REPOSITORY"
+            if test -f "$RUNNER_TEMP/operation.json"; then
+              gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/operation.json" --repo "$GITHUB_REPOSITORY"
+            fi
+            gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-integration-request.json" --repo "$GITHUB_REPOSITORY"
+          fi
+           rm -rf tmp/release-result
+           mkdir -p tmp/release-result
+           for file in release-card/release-card.json operation-id operation.json pre-publish-baseline.json changelog-reconciliation.patch changelog-integration-request.json luyentap-changelog/state.json; do
+             if test -f "$RUNNER_TEMP/$file"; then
+               mkdir -p "tmp/release-result/$(dirname "$file")"
+               cp "$RUNNER_TEMP/$file" "tmp/release-result/$file"
+             fi
+           done
+           if test -d documentation/architecture/changelog; then cp -R documentation/architecture/changelog tmp/release-result/; fi
+           if test -f documentation/architecture/master_changelog.md; then cp documentation/architecture/master_changelog.md tmp/release-result/; fi
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: luyentap-release-result-${{ github.run_id }}
+          path: tmp/release-result
+          if-no-files-found: error
+          retention-days: 30
+
+  recover:
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'verify-existing' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://kahut1.web.app
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require a concrete existing operation
+        env:
+          OPERATION_ID: ${{ inputs.operation_id }}
+        run: |
+          set -euo pipefail
+          [[ "$OPERATION_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+      - name: Require the production Firebase federation configuration
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$SERVICE_ACCOUNT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - name: Resume the same operation without rebuilding or redeploying
+        env:
+          OPERATION_ID: ${{ inputs.operation_id }}
+          LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
+          GH_TOKEN: ${{ github.token }}
+        run: npm run release:verify-existing -- "$OPERATION_ID"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: luyentap-release-recovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/luyentap-changelog/state.json
+          if-no-files-found: warn
+          retention-days: 30
