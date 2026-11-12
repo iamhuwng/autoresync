@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import test from 'node:test';
+import * as tar from 'tar';
 import { fileURLToPath } from 'node:url';
 import {
   deployHosting,
@@ -15,6 +16,8 @@ import {
   selectReleaseSource,
   cleanParentEnv,
   findForbiddenBundleMarker,
+  assertRetainedArtifact,
+  writeOperationEvidence,
   hostingReleaseMessage,
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
@@ -223,6 +226,68 @@ test('production route detects local bundle markers', () => {
   assert.equal(findForbiddenBundleMarker('https://demo-project.example'), undefined);
   assert.equal(findForbiddenBundleMarker('https://demo-luyentap-local.example'), 'demo-luyentap-local');
   assert.equal(findForbiddenBundleMarker('https://temp-a1437.web.app'), undefined);
+});
+
+test('retained artifact requires the approved manifest and every listed file', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-retained-artifact-'));
+  try {
+    await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
+    const index = Buffer.from('<!doctype html>');
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update(index).digest('hex') }] };
+    await writeFile(path.join(cwd, 'dist/index.html'), index);
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+    const artifactSha256 = crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
+    assert.deepEqual(await assertRetainedArtifact({ cwd, artifactSha256 }), manifest);
+    await writeFile(path.join(cwd, 'dist/index.html'), '<!doctype html><p>changed</p>');
+    await assert.rejects(() => assertRetainedArtifact({ cwd, artifactSha256 }), /artifact|hash differs/u);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('Hosting artifact upload/download contract preserves the hidden manifest and rejects secrets', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-transfer-'));
+  try {
+    await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
+    const index = Buffer.from('<!doctype html>');
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update(index).digest('hex') }] };
+    await writeFile(path.join(cwd, 'dist/index.html'), index);
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+    const artifactSha256 = crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
+    await writeFile(path.join(cwd, 'dist/.env'), 'VITE_SECRET=must-not-upload');
+    await assert.rejects(() => assertRetainedArtifact({ cwd, artifactSha256 }), /unexpected artifact entry/u);
+    await unlink(path.join(cwd, 'dist/.env'));
+
+    const omitted = path.join(cwd, 'omitted.tar');
+    tar.c({ file: omitted, cwd: path.join(cwd, 'dist'), portable: true, sync: true }, ['index.html']);
+    const omittedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-download-'));
+    await mkdir(path.join(omittedRoot, 'dist'), { recursive: true });
+    tar.x({ file: omitted, cwd: path.join(omittedRoot, 'dist'), sync: true });
+    await assert.rejects(() => assertRetainedArtifact({ cwd: omittedRoot, artifactSha256 }), /manifest|missing|ENOENT/u);
+    await rm(omittedRoot, { recursive: true, force: true });
+
+    const retained = path.join(cwd, 'retained.tar');
+    tar.c({ file: retained, cwd: path.join(cwd, 'dist'), portable: true, sync: true }, ['index.html', '.well-known']);
+    const retainedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-download-'));
+    await mkdir(path.join(retainedRoot, 'dist'), { recursive: true });
+    tar.x({ file: retained, cwd: path.join(retainedRoot, 'dist'), sync: true });
+    assert.deepEqual(await assertRetainedArtifact({ cwd: retainedRoot, artifactSha256 }), manifest);
+    await rm(retainedRoot, { recursive: true, force: true });
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('published verification does not overwrite pending changelog reconciliation', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-operation-evidence-'));
+  try {
+    const file = path.join(cwd, 'operation.json');
+    process.env.LUYENTAP_RELEASE_OPERATION_FILE = file;
+    for (const status of ['changelog-pending', 'changelog-pending-integration']) {
+      await writeOperationEvidence({ id: '00000000-0000-4000-8000-000000000000', status, error: 'locked', cwd });
+      await writeOperationEvidence({ id: '00000000-0000-4000-8000-000000000000', status: 'published-verified', cwd });
+      assert.match(await readFile(file, 'utf8'), new RegExp(status));
+    }
+  } finally {
+    delete process.env.LUYENTAP_RELEASE_OPERATION_FILE;
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test('production deploy blocks a dirty working tree', () => {

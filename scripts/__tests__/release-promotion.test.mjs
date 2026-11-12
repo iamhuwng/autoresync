@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { assertBrowserReady, cardDigest, cardBytes, configurationDigest, createPromotionCard, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+
+const revision = 'a'.repeat(40);
+const tree = 'b'.repeat(40);
+const baseRevision = 'c'.repeat(40);
+const baselineTree = 'd'.repeat(40);
+const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+
+async function fixture() {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'release-promotion-card-'));
+  await writeFile(path.join(cwd, 'firebase.json'), '{"hosting":{"public":"dist"}}\n');
+  await writeFile(path.join(cwd, '.firebaserc'), '{"projects":{"default":"temp-a1437"}}\n');
+  await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
+  await mkdir(path.join(cwd, 'tmp/release-receipts'), { recursive: true });
+  await writeFile(path.join(cwd, 'tmp/release-receipts/plan.json'), '{}\n');
+  const environmentFingerprint = digest('e');
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision, tree, envFingerprint: environmentFingerprint, files: [{ path: '/index.html', sha256: digest('index') }] };
+  await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+  const assessment = {
+    decision: 'PASS', target: 'hosting',
+    productionEnvFingerprint: environmentFingerprint,
+    source: { revision, tree, baseRevision, fingerprint: digest('f'), dirty: false },
+    observed: { revision: baseRevision, tree: baselineTree, fingerprint: digest('o') },
+  };
+  const verification = { schemaVersion: 1, decision: 'PASS', source: { revision, tree, baseRevision, fingerprint: digest('f'), dirty: false }, envFingerprint: environmentFingerprint, planSha256: digest('p'), startedAt: '2026-11-12T00:00:00.000Z', completedAt: '2026-11-12T00:01:00.000Z', suites: [{ runner: 'node', files: ['scripts/example.test.mjs'], counts: { total: 1, passed: 1, failed: 0, skipped: 0 }, outputSha256: digest('output') }] };
+  const browserEvidence = { decision: 'blocked', observedAt: '2026-11-12T00:02:00.000Z', scenario: 'authenticated teacher and student smoke flow', sourceRevision: revision, sourceFingerprint: digest('f'), environmentFingerprint, configurationFingerprint: configurationDigest(cwd), evidenceRefs: [], summary: 'Runtime ownership and dependable browser evidence remain unqualified.' };
+  return { cwd, assessment, environmentFingerprint, manifest, verification, browserEvidence };
+}
+
+test('promotion card binds protected source, baseline, plan, review, artifact and configuration', async () => {
+  const { cwd, assessment, environmentFingerprint, manifest, verification, browserEvidence } = await fixture();
+  try {
+    const card = createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'),
+      sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision,
+      planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), compatibilityReviewFile: 'docs/review.json', compatibilityReviewSha256: digest('r'),
+      artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint,
+      verification, browserEvidence, impact: 'Static Hosting presentation only; backend services are excluded.', missingProof: 'Dependable authenticated browser verification is still blocked by runtime ownership.',
+      includedScope: 'Hosting UI correction',
+      excludedScope: 'Workers, rules, storage and data', recoveryTarget: 'previous verified Hosting version',
+      recoveryLimits: 'Hosting recovery does not revert backend or data state' });
+    assert.equal(card.source.ref, 'refs/heads/main');
+    assert.equal(card.event.sha, revision);
+    assert.equal(card.source.baseRevision, baseRevision);
+    assert.equal(card.baseline.revision, baseRevision);
+    assert.equal(card.baseline.tree, baselineTree);
+    assert.equal(card.verification.compatibilityReview.sha256, digest('r'));
+    assert.equal(card.verification.actual.suites[0].counts.passed, 1);
+    assert.equal(card.browser.decision, 'blocked');
+    assert.throws(() => assertBrowserReady(card), /requires verified browser evidence/u);
+    const browserReady = structuredClone(card);
+    browserReady.browser = { ...browserReady.browser, decision: 'verified', evidenceRefs: ['evidence://browser-proof'] };
+    assert.equal(assertBrowserReady(browserReady).browser.decision, 'verified');
+    assert.equal(card.configuration.firebaseSha256.length, 64);
+    assert.equal(cardDigest(card), cardDigest(JSON.parse(cardBytes(card).toString('utf8'))));
+    assert.deepEqual(promotionEnvironment(card), {
+      LUYENTAP_RELEASE_SOURCE_REF: 'refs/heads/main', LUYENTAP_RELEASE_BASE: baseRevision,
+      LUYENTAP_RELEASE_FINGERPRINT: digest('f'), LUYENTAP_RELEASE_ENV_FINGERPRINT: environmentFingerprint,
+      LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: digest('o'), LUYENTAP_RELEASE_TEST_PLAN_FILE: 'tmp/release-receipts/plan.json',
+      LUYENTAP_RELEASE_TEST_PLAN_SHA256: digest('p'), LUYENTAP_RELEASE_ARTIFACT_SHA256: digest(JSON.stringify(manifest)),
+      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE: 'docs/review.json', LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256: digest('r'),
+    });
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('promotion card rejects source, review, path and credential drift', async () => {
+  const { cwd, assessment, environmentFingerprint, manifest, verification, browserEvidence } = await fixture();
+  try {
+    const makeCard = artifactSha256 => createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256, environmentFingerprint, verification, browserEvidence, impact: 'scope impact', missingProof: 'missing browser proof', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' });
+    const valid = makeCard(digest(JSON.stringify(manifest)));
+    for (const mutate of [
+      card => { card.event.ref = 'refs/heads/codex/untrusted'; },
+      card => { card.event.sha = baseRevision; },
+      card => { card.source.baseRevision = revision; },
+      card => { card.verification.actual.source.baseRevision = revision; },
+      card => { card.source.fingerprint = 'changed'; },
+      card => { card.verification.planFile = '../plan.json'; },
+      card => { card.scope.included = 'https://user:password@example.invalid'; },
+      card => { card.artifact.environmentFingerprint = digest('changed-environment'); },
+      card => { card.browser = { ...card.browser, evidenceRefs: ['https://user:password@example.invalid'] }; },
+    ]) {
+      const changed = structuredClone(valid);
+      mutate(changed);
+      assert.throws(() => validatePromotionCard(changed));
+    }
+    assert.throws(() => makeCard(digest('wrong-artifact')), /artifact manifest digest/u);
+    const mismatchedManifest = { ...manifest, tree: baseRevision };
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(mismatchedManifest));
+    assert.throws(() => makeCard(digest(JSON.stringify(mismatchedManifest))), /artifact manifest does not match/u);
+    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
+    assert.throws(() => createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: undefined, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification, browserEvidence, impact: 'scope', missingProof: 'missing', compatibilityReviewFile: 'docs/review.json', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' }), /event SHA/u);
+    assert.throws(() => createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: undefined, eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification, browserEvidence, impact: 'scope', missingProof: 'missing', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' }), /explicit workflow_dispatch context/u);
+    assert.throws(() => validateTrackedPath('a/../b', 'plan'), /explicit tracked relative path/u);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('automatic verification selection routes frontend tests to Vitest', () => {
+  const plan = createVerificationPlan(['scripts/__tests__/release-promotion.test.mjs', 'src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx']);
+  assert.deepEqual(plan.suites, [
+    { runner: 'node', files: ['scripts/__tests__/release-promotion.test.mjs'] },
+    { runner: 'vitest', config: 'vitest.config.ts', files: ['src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx'] },
+  ]);
+});
+
+test('promotion evidence expires before it can authorize publication', async () => {
+  const { cwd, assessment, environmentFingerprint, manifest, verification, browserEvidence } = await fixture();
+  try {
+    const card = createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification, browserEvidence, impact: 'scope', missingProof: 'missing', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' });
+    const stale = structuredClone(card);
+    stale.generatedAt = '2020-01-01T00:00:00.000Z';
+    assert.throws(() => validatePromotionCard(stale), /card is stale/u);
+    const staleBrowser = structuredClone(card);
+    staleBrowser.browser = { ...staleBrowser.browser, decision: 'verified', evidenceRefs: ['evidence://browser-proof'], observedAt: '2020-01-01T00:00:00.000Z' };
+    assert.throws(() => validatePromotionCard(staleBrowser), /browser evidence is stale/u);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
