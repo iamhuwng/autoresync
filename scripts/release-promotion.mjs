@@ -91,7 +91,7 @@ export function validateVerificationResult(value, { source, environmentFingerpri
 }
 
 export function validateBrowserEvidence(value, { source, environmentFingerprint, configurationFingerprint } = {}) {
-  exactFields(value, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'environmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser evidence');
+  exactFields(value, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'runtimeEnvironmentFingerprint', 'artifactEnvironmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser evidence');
   if (!['verified', 'blocked', 'not-run', 'waived'].includes(value.decision)) fail('browser evidence decision is invalid');
   timestamp(value.observedAt, 'browser evidence observation');
   const observedAt = Date.parse(value.observedAt);
@@ -101,10 +101,11 @@ export function validateBrowserEvidence(value, { source, environmentFingerprint,
   text(value.summary, 'browser evidence summary');
   revisionField(value.sourceRevision, 'browser evidence source revision');
   digestField(value.sourceFingerprint, 'browser evidence source fingerprint');
-  digestField(value.environmentFingerprint, 'browser evidence environment fingerprint');
+  digestField(value.runtimeEnvironmentFingerprint, 'browser runtime environment fingerprint');
+  digestField(value.artifactEnvironmentFingerprint, 'browser artifact environment fingerprint');
   digestField(value.configurationFingerprint, 'browser evidence configuration fingerprint');
   if (!source || value.sourceRevision !== source.revision || value.sourceFingerprint !== source.fingerprint) fail('browser evidence source differs from the assessed source');
-  if (value.environmentFingerprint !== environmentFingerprint || value.configurationFingerprint !== configurationFingerprint) fail('browser evidence environment or configuration differs');
+  if (value.artifactEnvironmentFingerprint !== environmentFingerprint || value.configurationFingerprint !== configurationFingerprint) fail('browser evidence artifact environment or configuration differs');
   const refs = evidenceRefs(value.evidenceRefs);
   if (value.decision === 'verified' && refs.length === 0) fail('verified browser evidence requires evidence references');
   return value;
@@ -182,7 +183,7 @@ export function validatePromotionCard(card) {
   digestField(card.assessment.receiptSha256, 'assessment receipt digest');
   exactFields(card.scope, ['included', 'excluded'], 'scope');
   exactFields(card.recovery, ['target', 'limits'], 'recovery');
-  exactFields(card.browser, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'environmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser');
+  exactFields(card.browser, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'runtimeEnvironmentFingerprint', 'artifactEnvironmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser');
   validateBrowserEvidence(card.browser, { source: card.source, environmentFingerprint: card.environment?.fingerprint, configurationFingerprint: card.configuration?.firebaseSha256 });
   text(card.impact, 'release impact');
   text(card.missingProof, 'missing proof');
@@ -268,7 +269,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
   try {
     browser = JSON.parse(await readFile(browserPath, 'utf8'));
   } catch {
-    browser = { decision: 'blocked', observedAt: new Date().toISOString(), scenario: 'authenticated teacher and student browser verification', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, environmentFingerprint, configurationFingerprint, evidenceRefs: [], summary: 'No source-bound browser evidence was available to the automatic release preparer; dependable runtime ownership remains unqualified.' };
+    browser = { decision: 'blocked', observedAt: new Date().toISOString(), scenario: 'authenticated teacher and student browser verification', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: environmentFingerprint, artifactEnvironmentFingerprint: environmentFingerprint, configurationFingerprint, evidenceRefs: [], summary: 'No source-bound browser evidence was available to the automatic release preparer; dependable runtime ownership remains unqualified.' };
   }
   const missing = browser.decision === 'verified' ? (changedTests.length ? 'No known missing automated evidence.' : 'No directly collocated affected test was discovered; inspect the selected release suites.') : 'Dependable authenticated browser evidence is not available for this candidate.';
   return {
@@ -301,6 +302,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   const source = assessment.source;
   if (!source || source.dirty || !revisionPattern.test(source.revision || '') || !revisionPattern.test(source.tree || '') || !revisionPattern.test(source.baseRevision || '') || !shaPattern.test(source.fingerprint || '')) fail('assessment source is not exact and clean');
   if (source.revision !== eventSha) fail('event SHA differs from the assessed source revision');
+  if (source.baseRevision !== assessment.observed?.revision) fail('assessment source base revision differs from the observed Hosting baseline');
   if (!assessment.observed || assessment.observed.revision !== source.baseRevision || !revisionPattern.test(assessment.observed.tree || '')) fail('assessment source base revision differs from the observed Hosting baseline');
   if (assessment.productionEnvFingerprint !== environmentFingerprint) fail('assessment environment fingerprint differs from the release card');
   const review = optionalReview(compatibilityReviewFile, compatibilityReviewSha256);
@@ -309,6 +311,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   const manifestSha256 = jsonDigest(manifest);
   if (artifactSha256 !== manifestSha256) fail('artifact manifest digest differs from the retained artifact');
   validateVerificationResult(verification, { source, environmentFingerprint, planSha256 });
+  if (verification.source.baseRevision !== source.baseRevision) fail('verification source base revision differs from the assessment source base revision');
   validateBrowserEvidence(browserEvidence, { source, environmentFingerprint, configurationFingerprint: configurationDigest(cwd) });
   const card = {
     schemaVersion: 1,

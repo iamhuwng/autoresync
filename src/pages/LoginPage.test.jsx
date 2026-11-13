@@ -30,6 +30,10 @@ vi.mock('../hooks/useFeatureTracking', () => ({
   }),
 }));
 
+vi.mock('../services/firebaseRuntimeConfig.js', () => ({
+  isQualificationHost: () => true,
+}));
+
 function renderPage() {
   return render(
     <BrowserRouter>
@@ -77,6 +81,16 @@ describe('LoginPage', () => {
 
     expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'google' });
+  });
+
+  it('submits the real email/password login form', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Email'), 'generated.teacher@qualification.invalid');
+    await user.type(screen.getByLabelText('Password'), 'unique-password');
+    await user.click(screen.getByRole('button', { name: /sign in with email/i }));
+    expect(mockLoginWithEmail).toHaveBeenCalledWith('generated.teacher@qualification.invalid', 'unique-password');
+    expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'email' });
   });
 
   it('reveals dev quick-login actions from the settings icon', async () => {

@@ -68,6 +68,17 @@ const requiredFirebaseKeys = [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
 ];
+const qualificationFirebaseKeys = requiredFirebaseKeys.map(key => key.replace('VITE_FIREBASE_', 'VITE_FIREBASE_QUALIFICATION_'));
+export const assertQualificationFirebaseValues = values => {
+  const qualificationPresent = qualificationFirebaseKeys.filter(key => values[key]?.trim()).length;
+  if (qualificationPresent !== 0 && qualificationPresent !== qualificationFirebaseKeys.length) {
+    fail('qualification Firebase configuration must provide all VITE_FIREBASE_QUALIFICATION_* keys or none.');
+  }
+  for (const key of qualificationFirebaseKeys) {
+    if (!values[key]) continue;
+    if (isPlaceholder(values[key]) || isLocalValue(values[key])) fail(`${key} is placeholder or local-only.`);
+  }
+};
 const forbiddenBundleMarkers = [
   'demo-luyentap-local',
   'local-dev-key',
@@ -180,6 +191,7 @@ const readProductionEnv = async (cwd = repoRoot) => {
     const value = values[key]?.trim();
     if (!value || isPlaceholder(value)) fail(`${key} is missing or still a placeholder in ${envFile}.`);
   }
+  assertQualificationFirebaseValues(values);
   if (values.VITE_FIREBASE_PROJECT_ID !== expectedProjectId) {
     fail(`VITE_FIREBASE_PROJECT_ID must be ${expectedProjectId}.`);
   }

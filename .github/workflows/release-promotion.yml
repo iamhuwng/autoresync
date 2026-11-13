@@ -61,9 +61,10 @@ jobs:
           set -euo pipefail
           test -n "$WORKLOAD_IDENTITY_PROVIDER"
           test -n "$SERVICE_ACCOUNT"
+      - uses: ./.github/actions/assert-oidc-cleanup
+        with:
+          path: ${{ runner.temp }}/gha-creds.json
       - uses: google-github-actions/auth@v2
-        env:
-          GOOGLE_GHA_CREDS_PATH: ${{ runner.temp }}/gha-creds.json
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
@@ -71,17 +72,12 @@ jobs:
           export_environment_variables: true
           cleanup_credentials: true
       - name: Keep federation credentials outside the checkout
+        run: node scripts/relocate-oidc-credentials.mjs
+      - name: Verify relocated federation with Google and Firebase CLIs
         run: |
           set -euo pipefail
-          source="$GOOGLE_APPLICATION_CREDENTIALS"
-          target="$RUNNER_TEMP/gha-creds.json"
-          cp "$source" "$target"
-          rm -f "$source"
-          {
-            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
-            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
-            echo "GOOGLE_GHA_CREDS_PATH=$target"
-          } >> "$GITHUB_ENV"
+          gcloud auth print-access-token --quiet >/dev/null
+          node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json >/dev/null
       - name: Prove the preflight identity can read Hosting metadata
         run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
       - name: Materialize the isolated production environment
@@ -162,8 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
-      name: production
-      url: https://kahut1.web.app
+      name: qualification
     outputs:
       card_sha256: ${{ steps.final-card.outputs.sha256 }}
     permissions:
@@ -188,43 +183,34 @@ jobs:
         with:
           name: luyentap-hosting-artifact-${{ github.run_id }}
           path: dist
-      - name: Require the production Firebase federation configuration
+      - name: Require the dedicated qualification Firebase federation configuration
         env:
-          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
-          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           test -n "$WORKLOAD_IDENTITY_PROVIDER"
           test -n "$SERVICE_ACCOUNT"
-      - uses: google-github-actions/auth@v2
-        env:
-          GOOGLE_GHA_CREDS_PATH: ${{ runner.temp }}/gha-creds.json
+      - uses: ./.github/actions/assert-oidc-cleanup
         with:
-          workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          path: ${{ runner.temp }}/gha-creds.json
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_SERVICE_ACCOUNT }}
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
       - name: Keep federation credentials outside the checkout
-        run: |
-          set -euo pipefail
-          source="$GOOGLE_APPLICATION_CREDENTIALS"
-          target="$RUNNER_TEMP/gha-creds.json"
-          cp "$source" "$target"
-          rm -f "$source"
-          {
-            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
-            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
-            echo "GOOGLE_GHA_CREDS_PATH=$target"
-          } >> "$GITHUB_ENV"
-      - name: Materialize the disposable browser environment
+        run: node scripts/relocate-oidc-credentials.mjs
+      - name: Materialize the dedicated qualification environment
         env:
-          PRODUCTION_ENV: ${{ secrets.LUYENTAP_PRODUCTION_ENV }}
+          QUALIFICATION_ENV: ${{ secrets.LUYENTAP_QUALIFICATION_ENV }}
         run: |
           set -euo pipefail
-          test -n "$PRODUCTION_ENV"
+          test -n "$QUALIFICATION_ENV"
           umask 077
-          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+          printf '%s' "$QUALIFICATION_ENV" > "$RUNNER_TEMP/.env.qualification"
       - name: Install the pinned Chromium runtime
         run: node scripts/tooling-where.mjs --exec playwright install --with-deps chromium
       - name: Run authenticated Playwright against the retained artifact
@@ -234,7 +220,7 @@ jobs:
           set -euo pipefail
           node scripts/release-browser-gate.mjs \
             --card "$RUNNER_TEMP/release-card/release-card.json" \
-            --production-env-file "$RUNNER_TEMP/.env.production" \
+            --qualification-env-file "$RUNNER_TEMP/.env.qualification" \
             --output-dir "$RELEASE_BROWSER_OUTPUT_DIR"
       - name: Build the final source-bound release card
         id: final-card
@@ -252,6 +238,7 @@ jobs:
           cp "$RUNNER_TEMP/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
           cp "$RUNNER_TEMP/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
           cp "$RUNNER_TEMP/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
+          cat "$card" >> "$GITHUB_STEP_SUMMARY"
           echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
@@ -347,9 +334,10 @@ jobs:
           set -euo pipefail
           test -n "$WORKLOAD_IDENTITY_PROVIDER"
           test -n "$SERVICE_ACCOUNT"
+      - uses: ./.github/actions/assert-oidc-cleanup
+        with:
+          path: ${{ runner.temp }}/gha-creds.json
       - uses: google-github-actions/auth@v2
-        env:
-          GOOGLE_GHA_CREDS_PATH: ${{ runner.temp }}/gha-creds.json
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
@@ -357,17 +345,7 @@ jobs:
           export_environment_variables: true
           cleanup_credentials: true
       - name: Keep federation credentials outside the checkout
-        run: |
-          set -euo pipefail
-          source="$GOOGLE_APPLICATION_CREDENTIALS"
-          target="$RUNNER_TEMP/gha-creds.json"
-          cp "$source" "$target"
-          rm -f "$source"
-          {
-            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
-            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
-            echo "GOOGLE_GHA_CREDS_PATH=$target"
-          } >> "$GITHUB_ENV"
+        run: node scripts/relocate-oidc-credentials.mjs
       - name: Prove the pinned Firebase CLI identity before mutation
         run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
       - name: Materialize the isolated production environment
@@ -389,6 +367,12 @@ jobs:
           if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
           node scripts/release-check.mjs "${args[@]}" >/dev/null
           node --input-type=module -e 'import fs from "node:fs"; const result=JSON.parse(fs.readFileSync(process.env.RECEIPT,"utf8")); if (!["PASS","NOT_APPLICABLE"].includes(result.decision) || result.observed?.revision !== process.env.LUYENTAP_RELEASE_BASE || result.observed?.fingerprint !== process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT) process.exit(1);'
+      - name: Require protected main to remain the approved source
+        run: |
+          set -euo pipefail
+          remote_main="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$remote_main"
+          test "$remote_main" = "$GITHUB_SHA"
       - name: Publish the retained artifact through the existing guarded route
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
@@ -447,6 +431,15 @@ jobs:
             echo 'No Changelog patch is waiting for canonical integration.'
             exit 0
           fi
+          if test ! -f "$RUNNER_TEMP/operation.json"; then
+            echo 'Publication outcome record is missing; no Changelog integration PR will be opened.'
+            exit 0
+          fi
+          operation_status="$(node --input-type=module -e 'import fs from "node:fs"; const value=JSON.parse(fs.readFileSync(process.env.OPERATION_FILE,"utf8")); process.stdout.write(value.status || "")' OPERATION_FILE="$RUNNER_TEMP/operation.json")"
+          case "$operation_status" in
+            published-verified|changelog-pending|changelog-pending-integration) ;;
+            *) echo "Publication/live verification status is $operation_status; no Changelog integration PR will be opened."; exit 0 ;;
+          esac
           operation="$(cat "$RUNNER_TEMP/operation-id")"
           branch="codex/changelog-integration-$operation"
           git fetch origin main --depth=1
@@ -463,7 +456,7 @@ jobs:
           git push origin "HEAD:$branch"
           pr_url="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --json url --jq '.[0].url' | head -1)"
           if test -z "$pr_url"; then
-            pr_url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "docs(release): reconcile Hosting operation $operation" --body "Publication and live verification completed for Hosting operation `$operation`. Apply this protected-main follow-up to reconcile the retained Master Changelog patch. This PR is documentation reconciliation only and does not authorize another publication.")"
+            pr_url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "docs(release): reconcile Hosting operation $operation" --body "Publication and live verification status: `$operation_status` for Hosting operation `$operation`. Apply this protected-main follow-up to reconcile the retained Master Changelog patch. This PR is documentation reconciliation only and does not authorize another publication.")"
           fi
           echo "$pr_url" | tee "$RUNNER_TEMP/changelog-pr-url"
           echo "Changelog integration PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
@@ -487,7 +480,8 @@ jobs:
       name: production
       url: https://kahut1.web.app
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -514,9 +508,10 @@ jobs:
           set -euo pipefail
           test -n "$WORKLOAD_IDENTITY_PROVIDER"
           test -n "$SERVICE_ACCOUNT"
+      - uses: ./.github/actions/assert-oidc-cleanup
+        with:
+          path: ${{ runner.temp }}/gha-creds.json
       - uses: google-github-actions/auth@v2
-        env:
-          GOOGLE_GHA_CREDS_PATH: ${{ runner.temp }}/gha-creds.json
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
@@ -524,27 +519,56 @@ jobs:
           export_environment_variables: true
           cleanup_credentials: true
       - name: Keep federation credentials outside the checkout
-        run: |
-          set -euo pipefail
-          source="$GOOGLE_APPLICATION_CREDENTIALS"
-          target="$RUNNER_TEMP/gha-creds.json"
-          cp "$source" "$target"
-          rm -f "$source"
-          {
-            echo "GOOGLE_APPLICATION_CREDENTIALS=$target"
-            echo "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$target"
-            echo "GOOGLE_GHA_CREDS_PATH=$target"
-          } >> "$GITHUB_ENV"
+        run: node scripts/relocate-oidc-credentials.mjs
       - name: Resume the same operation without rebuilding or redeploying
         env:
           OPERATION_ID: ${{ inputs.operation_id }}
           LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
+          LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/operation.json
           GH_TOKEN: ${{ github.token }}
         run: npm run release:verify-existing -- "$OPERATION_ID"
+      - name: Open the protected-main Changelog integration PR after recovery
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION_FILE: ${{ runner.temp }}/operation.json
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/recovery-result
+          git diff --binary -- documentation/architecture/changelog documentation/architecture/master_changelog.md > "$RUNNER_TEMP/changelog-reconciliation.patch" || true
+          if test ! -s "$RUNNER_TEMP/changelog-reconciliation.patch" || test ! -f "$RUNNER_TEMP/operation.json"; then
+            echo 'Recovery produced no Changelog patch requiring canonical integration.'
+            exit 0
+          fi
+          operation_status="$(node --input-type=module -e 'import fs from "node:fs"; const value=JSON.parse(fs.readFileSync(process.env.OPERATION_FILE,"utf8")); process.stdout.write(value.status || "")')"
+          case "$operation_status" in
+            published-verified|changelog-pending|changelog-pending-integration) ;;
+            *) echo "Recovery status is $operation_status; no Changelog integration PR will be opened."; exit 0 ;;
+          esac
+          operation="${{ inputs.operation_id }}"
+          branch="codex/changelog-recovery-$operation"
+          git fetch origin main --depth=1
+          git switch -c "$branch" "$GITHUB_SHA"
+          git apply "$RUNNER_TEMP/changelog-reconciliation.patch"
+          git add -- documentation/architecture/changelog documentation/architecture/master_changelog.md
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "docs(release): reconcile recovered Hosting operation $operation"
+          git push origin "HEAD:$branch"
+          pr_url="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --json url --jq '.[0].url' | head -1)"
+          if test -z "$pr_url"; then
+            pr_url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "docs(release): reconcile recovered Hosting operation $operation" --body "Recovered publication/live verification status: `$operation_status`. Apply this protected-main follow-up to reconcile the retained Changelog patch. This PR does not authorize another publication.")"
+          fi
+          echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/changelog-reconciliation.patch" tmp/recovery-result/
+          echo "$pr_url" > tmp/recovery-result/changelog-pr-url
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
           name: luyentap-release-recovery-${{ github.run_id }}
-          path: ${{ runner.temp }}/luyentap-changelog/state.json
+          path: |
+            ${{ runner.temp }}/luyentap-changelog/state.json
+            tmp/recovery-result
           if-no-files-found: warn
           retention-days: 30

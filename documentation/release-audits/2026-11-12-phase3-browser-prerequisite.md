@@ -1,6 +1,6 @@
 # Phase 3 browser-verification prerequisite
 
-Status: **UNQUALIFIED** as of 12 November 2026 (Asia/Bangkok).
+Status: **UNQUALIFIED** as of 13 November 2026 (Asia/Bangkok). This record concerns release-qualification Phase 3, not the product PRD Phase 3.
 
 The original release architecture plan makes a dependable browser-verification
 lane a Phase 3 dependency. Its local-runtime section says a browser result must
@@ -33,3 +33,26 @@ state the browser decision (`verified`, `blocked`, `not-run`, or `waived`), bind
 the evidence to the candidate source/environment/configuration, name the
 scenario and evidence references, and spell out missing proof and impact. A
 plan digest or unit-test result alone cannot clear this prerequisite.
+
+Current implementation boundary (13 November 2026): the workflow now requires
+a separate `qualification` GitHub environment with its own OIDC service
+account and `LUYENTAP_QUALIFICATION_ENV`. The browser lane rejects the
+production environment and refuses to create Auth or RTDB data when the
+retained artifact is still bound to the production environment. The repository
+currently has no `qualification` environment or qualification variables/secrets
+configured, so no browser qualification or backend mutation has been attempted.
+The retained production artifact also cannot be treated as qualification-bound
+without a reviewed environment-neutral or qualification-artifact design.
+The existing production Dev Quick Login panel remains a separate development
+convenience exposure; it is not used by, or evidence for, the generated
+email/password browser flow.
+The email/password form is gated to the controlled qualification host and is
+not exposed on the live production host by this qualification change.
+
+The current implementation now supports one-byte runtime selection: the
+artifact selects the production Firebase web config on the live host and a
+dedicated qualification config only on the controlled `qualification-*`
+Hosting channel host. Qualification remains blocked until the artifact is
+built with the reviewed qualification public web config, the dedicated GitHub
+environment and OIDC identity exist, and browser network evidence confirms the
+selected RTDB host and Auth API key.

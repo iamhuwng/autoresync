@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import test from 'node:test';
+import { accountState, profileState, waitForManifest } from '../release-browser-gate.mjs';
+
+const digest = value => createHash('sha256').update(value).digest('hex');
+
+test('cleanup verification fails closed on Auth and RTDB lookup errors', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response('denied', { status: 403 });
+    await assert.rejects(() => accountState({ project: 'qualification', uid: 'uid', token: 'token' }), /Remote request failed \(403\)/u);
+    await assert.rejects(() => profileState({ databaseUrl: 'https://qualification.invalid', uid: 'uid', token: 'token' }), /RTDB profile lookup failed \(403\)/u);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('browser preview readback verifies every manifest-listed asset', async () => {
+  const originalFetch = globalThis.fetch;
+  const assets = { '/index.html': Buffer.from('index'), '/assets/app.js': Buffer.from('app') };
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: Object.entries(assets).map(([path, bytes]) => ({ path, sha256: digest(bytes) })) };
+  const expected = digest(JSON.stringify(manifest));
+  try {
+    globalThis.fetch = async url => {
+      const parsed = new URL(url);
+      if (parsed.pathname === '/.well-known/luyentap-release.json') return new Response(JSON.stringify(manifest), { status: 200 });
+      const bytes = assets[parsed.pathname];
+      return bytes ? new Response(bytes, { status: 200 }) : new Response('missing', { status: 404 });
+    };
+    await assert.doesNotReject(() => waitForManifest('https://preview.invalid', expected, 100));
+    assets['/assets/app.js'] = Buffer.from('tampered');
+    await assert.rejects(() => waitForManifest('https://preview.invalid', expected, 100), /preview asset differs/u);
+  } finally { globalThis.fetch = originalFetch; }
+});

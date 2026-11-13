@@ -1,0 +1,10 @@
+name: Assert OIDC credential cleanup
+description: Verify the relocated Google credential file is removed by the auth action post-job cleanup.
+inputs:
+  path:
+    required: true
+runs:
+  using: node20
+  main: index.mjs
+  post: index.mjs
+  post-if: always()

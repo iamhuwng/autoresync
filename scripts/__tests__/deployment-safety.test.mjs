@@ -17,6 +17,7 @@ import {
   cleanParentEnv,
   findForbiddenBundleMarker,
   assertRetainedArtifact,
+  assertQualificationFirebaseValues,
   writeOperationEvidence,
   hostingReleaseMessage,
 } from '../deploy-live.mjs';
@@ -29,6 +30,14 @@ import { runReleaseVerification } from '../release-verification.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
+
+test('qualification Firebase configuration is all-or-nothing and rejects local values', () => {
+  const keys = ['API_KEY', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'].map(key => `VITE_FIREBASE_QUALIFICATION_${key}`);
+  const complete = Object.fromEntries(keys.map(key => [key, `qualification-${key.toLowerCase()}`]));
+  assert.doesNotThrow(() => assertQualificationFirebaseValues(complete));
+  assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[0]]: '' }), /all VITE_FIREBASE_QUALIFICATION/u);
+  assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[2]]: 'http://localhost:9000' }), /placeholder or local-only/u);
+});
 
 test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'luyentap-startup-test-'));

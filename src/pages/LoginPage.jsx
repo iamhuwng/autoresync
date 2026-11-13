@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useFeatureTracking } from '../hooks/useFeatureTracking';
+import { isQualificationHost } from '../services/firebaseRuntimeConfig.js';
 
 import { Card, CardBody, Button } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
@@ -17,10 +18,14 @@ const LoginPage = () => {
   const { user, profile, loading, login, loginWithEmail } = useAuth();
   const { trackAction } = useFeatureTracking('authentication');
   const [loginError, setLoginError] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailLoginPending, setEmailLoginPending] = useState(false);
   const [googleLoginPending, setGoogleLoginPending] = useState(false);
   const googleLoginInFlight = useRef(false);
   const [devLoading, setDevLoading] = useState(null); // 'teacher' | 'student' | null
   const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
+  const showQualificationEmailLogin = typeof window !== 'undefined' && isQualificationHost(window.location.hostname);
 
   // Auto-redirect authenticated users to their role-appropriate dashboard
   useEffect(() => {
@@ -73,6 +78,21 @@ const LoginPage = () => {
     } finally {
       googleLoginInFlight.current = false;
       setGoogleLoginPending(false);
+    }
+  };
+
+  const handleEmailLogin = async (event) => {
+    event.preventDefault();
+    setLoginError(null);
+    setEmailLoginPending(true);
+    trackAction('login', { method: 'email' });
+    try {
+      await loginWithEmail(email.trim(), password);
+    } catch (error) {
+      console.error('Email login error:', error);
+      setLoginError(getLoginErrorMessage(error));
+    } finally {
+      setEmailLoginPending(false);
     }
   };
 
@@ -228,6 +248,35 @@ const LoginPage = () => {
             </div>
           ) : (
             <div>
+              {showQualificationEmailLogin && <form onSubmit={handleEmailLogin} style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
+                <label style={{ display: 'grid', gap: '0.35rem', color: '#334155', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  Email
+                  <input
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    style={{ border: '1px solid #cbd5e1', borderRadius: '0.75rem', padding: '0.7rem 0.8rem', font: 'inherit' }}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: '0.35rem', color: '#334155', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  Password
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    style={{ border: '1px solid #cbd5e1', borderRadius: '0.75rem', padding: '0.7rem 0.8rem', font: 'inherit' }}
+                  />
+                </label>
+                <Button type="submit" variant="primary" size="lg" fullWidth disabled={emailLoginPending || googleLoginPending}>
+                  {emailLoginPending ? 'Signing in...' : 'Sign in with email'}
+                </Button>
+              </form>}
               <Button
                 variant="primary"
                 size="lg"
