@@ -93,7 +93,7 @@ test('Firebase bootstrap isolates normal development and preserves acceptance an
     },
     process: { execPath: 'node', argv: ['node', 'local-dev.mjs'], env: {}, on() {} },
   });
-  const source = (await Promise.all(['../../src/services/firebaseCore.js', '../../src/services/firebase.js'].map(readSource)))
+  const source = (await Promise.all(['../../src/services/firebaseRuntimeConfig.js', '../../src/services/firebaseCore.js', '../../src/services/firebase.js'].map(readSource)))
     .join('\n').replaceAll('import.meta.env', 'env').replaceAll('export const ', 'const ')
     .replace(/^export \{[^}]*\};/gmu, '');
   const bootstrap = (overrides = {}) => {

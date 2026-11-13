@@ -17,6 +17,7 @@ import {
   cleanParentEnv,
   findForbiddenBundleMarker,
   assertRetainedArtifact,
+  assertQualificationFirebaseValues,
   writeOperationEvidence,
   hostingReleaseMessage,
 } from '../deploy-live.mjs';
@@ -29,6 +30,14 @@ import { runReleaseVerification } from '../release-verification.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
+
+test('qualification Firebase configuration is all-or-nothing and rejects local values', () => {
+  const keys = ['API_KEY', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'].map(key => `VITE_FIREBASE_QUALIFICATION_${key}`);
+  const complete = Object.fromEntries(keys.map(key => [key, `qualification-${key.toLowerCase()}`]));
+  assert.doesNotThrow(() => assertQualificationFirebaseValues(complete));
+  assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[0]]: '' }), /all VITE_FIREBASE_QUALIFICATION/u);
+  assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[2]]: 'http://localhost:9000' }), /placeholder or local-only/u);
+});
 
 test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'luyentap-startup-test-'));
@@ -501,7 +510,7 @@ async function hostingFixture() {
   const source = await collectSourceState(cwd, base);
   const assessment = { decision: 'PASS', source, observed: { revision: base, fingerprint: 'previous-manifest' }, findings: [],
     compatibilityReview: { changeIds: [changeId] } };
-  const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false };
+  const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false, reconciles: 0, reconcileError: false };
   const observeProvider = () => ({ provider: { version: state.deploys ? 'new' : 'old',
     releaseTime: state.deploys ? 'later' : 'before', message: state.message, config: { headers: [] } }, evidenceRef: 'fixture://provider' });
   const observeSource = async () => {
@@ -517,7 +526,10 @@ async function hostingFixture() {
       return state.archive;
     },
     saveOutcome: async (archive, outcome) => state.outcomes.push(outcome),
-    reconcile: async () => {},
+    reconcile: async () => {
+      state.reconciles += 1;
+      if (state.reconcileError) throw new Error('protected-main integration unavailable');
+    },
     runDeploy: (args, env, selectedCwd) => {
       assert.equal(selectedCwd, cwd);
       assert.equal(args[0], path.join(cwd, 'scripts/tooling-where.mjs'));
@@ -557,6 +569,7 @@ test('publication with failed readback resumes the same operation without anothe
     state.hashFailure = true;
     await assert.rejects(() => deployHosting(options), /verification unverified/u);
     assert.equal(state.deploys, 1);
+    assert.equal(state.reconciles, 0);
     const original = listReleases(options.storeDir)[0];
     assert.equal(original.targets[0].publication, 'published');
     assert.equal(original.targets[0].verification, 'unverified');
@@ -566,6 +579,7 @@ test('publication with failed readback resumes the same operation without anothe
     const verified = await verifyExistingHosting(resume);
     assert.equal(verified.id, original.id);
     assert.equal(verified.targets[0].verification, 'passed');
+    assert.equal(state.reconciles, 1);
     assert.deepEqual(verified.targets[0].changeIds, ['CL-20261112-CORRECTION']);
     assert.deepEqual(await verifyExistingHosting(resume), verified);
     assert.equal(state.deploys, 1);

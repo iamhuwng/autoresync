@@ -1,5 +1,12 @@
 # Integration and normal release selection
 
+This document explains source convergence and normal-release selection. The
+current release operator commands and promotion contract live in
+[release-safety.md](release-safety.md); dated observations below remain
+evidence records and do not duplicate or replace that runbook. “Release
+qualification Phase 3” here refers to the CI promotion architecture, distinct
+from product PRD Phase 3 work.
+
 Phase 2 extends the existing release assessment and Release Safety workflow.
 It does not equate main with production. A passing integration check establishes
 its declared test/build scope; the exact release candidate still needs the

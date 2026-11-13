@@ -29,7 +29,7 @@ async function fixture() {
     observed: { revision: baseRevision, tree: baselineTree, fingerprint: digest('o') },
   };
   const verification = { schemaVersion: 1, decision: 'PASS', source: { revision, tree, baseRevision, fingerprint: digest('f'), dirty: false }, envFingerprint: environmentFingerprint, planSha256: digest('p'), startedAt: '2026-11-12T00:00:00.000Z', completedAt: '2026-11-12T00:01:00.000Z', suites: [{ runner: 'node', files: ['scripts/example.test.mjs'], counts: { total: 1, passed: 1, failed: 0, skipped: 0 }, outputSha256: digest('output') }] };
-  const browserEvidence = { decision: 'blocked', observedAt: '2026-11-12T00:02:00.000Z', scenario: 'authenticated teacher and student smoke flow', sourceRevision: revision, sourceFingerprint: digest('f'), environmentFingerprint, configurationFingerprint: configurationDigest(cwd), evidenceRefs: [], summary: 'Runtime ownership and dependable browser evidence remain unqualified.' };
+  const browserEvidence = { decision: 'blocked', observedAt: new Date().toISOString(), scenario: 'authenticated teacher and student smoke flow', sourceRevision: revision, sourceFingerprint: digest('f'), runtimeEnvironmentFingerprint: digest('qualification-runtime'), artifactEnvironmentFingerprint: environmentFingerprint, configurationFingerprint: configurationDigest(cwd), evidenceRefs: [], summary: 'Runtime ownership and dependable browser evidence remain unqualified.' };
   return { cwd, assessment, environmentFingerprint, manifest, verification, browserEvidence };
 }
 
@@ -52,6 +52,8 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
     assert.equal(card.verification.compatibilityReview.sha256, digest('r'));
     assert.equal(card.verification.actual.suites[0].counts.passed, 1);
     assert.equal(card.browser.decision, 'blocked');
+    assert.equal(card.browser.artifactEnvironmentFingerprint, environmentFingerprint);
+    assert.equal(card.browser.runtimeEnvironmentFingerprint, digest('qualification-runtime'));
     assert.throws(() => assertBrowserReady(card), /requires verified browser evidence/u);
     const browserReady = structuredClone(card);
     browserReady.browser = { ...browserReady.browser, decision: 'verified', evidenceRefs: ['evidence://browser-proof'] };
@@ -89,6 +91,12 @@ test('promotion card rejects source, review, path and credential drift', async (
       assert.throws(() => validatePromotionCard(changed));
     }
     assert.throws(() => makeCard(digest('wrong-artifact')), /artifact manifest digest/u);
+    const mismatchedAssessment = structuredClone(assessment);
+    mismatchedAssessment.source.baseRevision = revision;
+    assert.throws(() => createPromotionCard({ cwd, assessment: mismatchedAssessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification, browserEvidence, impact: 'scope', missingProof: 'missing', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' }), /assessment source base revision/u);
+    const mismatchedVerification = structuredClone(verification);
+    mismatchedVerification.source.baseRevision = revision;
+    assert.throws(() => createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification: mismatchedVerification, browserEvidence, impact: 'scope', missingProof: 'missing', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' }), /verification source base revision/u);
     const mismatchedManifest = { ...manifest, tree: baseRevision };
     await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(mismatchedManifest));
     assert.throws(() => makeCard(digest(JSON.stringify(mismatchedManifest))), /artifact manifest does not match/u);

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { connectDatabaseEmulator, getDatabase, onValue, ref } from 'firebase/database';
 import { acceptanceFirebaseBoundary } from './acceptanceFirebaseBoundary.mjs';
+import { selectFirebaseRuntimeConfig } from './firebaseRuntimeConfig.js';
 
 export const isTestEnvironment = import.meta.env.MODE === 'test';
 export const shouldLogFirebaseBootstrap = import.meta.env.DEV && !isTestEnvironment;
@@ -31,7 +32,7 @@ const localWorkerKeys = [
   'VITE_WRITING_NOTIFICATION_URL',
 ];
 
-export const firebaseConfig = {
+const productionFirebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
@@ -40,6 +41,24 @@ export const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+const qualificationFirebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_QUALIFICATION_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_QUALIFICATION_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_QUALIFICATION_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_QUALIFICATION_APP_ID,
+};
+
+export const firebaseRuntime = selectFirebaseRuntimeConfig({
+  hostname: typeof window === 'undefined' ? '' : window.location?.hostname || '',
+  production: productionFirebaseConfig,
+  qualification: qualificationFirebaseConfig,
+});
+export const firebaseConfig = firebaseRuntime.config;
+export const firebaseRuntimeEnvironment = firebaseRuntime.environment;
 
 const missingFirebaseConfigKeys = Object.entries(firebaseConfig)
   .filter(([, value]) => !value || !String(value).trim())

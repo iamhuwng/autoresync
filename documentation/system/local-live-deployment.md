@@ -1,5 +1,11 @@
 # Local development, provider-backed acceptance, and live deployment
 
+This document covers local runtime ownership and the boundary between local,
+provider-backed acceptance, and live deployment. Release assessment and
+promotion commands are canonical in [release-safety.md](release-safety.md);
+historical measurements here describe evidence and limits, not a second
+production runbook.
+
 This guide is the source of truth for running this repository locally and for
 keeping local Firebase, the local Book Worker, real Backblaze storage, and live
 deployment separate. Read it before changing local environment wiring, copying

@@ -2,6 +2,11 @@
 
 `npm run release:check` is the shared, read-only assessment for normal releases and isolated hotfixes. It reads source and native provider evidence without deploying or changing application data. Every assessment requires an explicit `--base`; a Git branch or `HEAD^` is not production truth.
 
+## Current operator path
+
+This file is the operational runbook. Current release-qualification Phase 3
+status is recorded in the dated [browser prerequisite decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
+
 Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
@@ -328,7 +333,10 @@ observation requirement and the original private-audio transition checks.
 Independent review, fresh native PASS and separate Worker authorization remain
 required; this checker deploys nothing.
 
-## Acceptance rehearsal
+## Historical acceptance evidence
+
+The sections below preserve prior experiments and their limits. They do not
+override the current operator path or authorize a deployment.
 
 ### Fixed Writing Homework authority correction
 
