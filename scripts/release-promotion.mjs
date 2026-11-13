@@ -275,6 +275,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
   return {
     schemaVersion: 1,
     sourceRef: 'refs/heads/main', eventRef, eventName, eventSha,
+    sourceRevision: source.revision, sourceTree: source.tree,
     baseRevision: observed.revision, observedFingerprint: observed.fingerprint,
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
@@ -287,6 +288,24 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     recoveryTarget: 'previous verified Hosting release',
     recoveryLimits: 'Hosting recovery does not reverse Worker, rules, storage, database or application-data changes.',
   };
+}
+
+export function createQualificationBinding({ inputs, artifactManifest, configurationFingerprint } = {}) {
+  if (!inputs || inputs.schemaVersion !== 1) fail('qualification inputs are invalid');
+  revisionField(inputs.eventSha, 'qualification event SHA');
+  if (inputs.eventName !== 'workflow_dispatch' || inputs.eventRef !== 'refs/heads/main') fail('qualification binding requires protected main dispatch');
+  revisionField(inputs.sourceRevision, 'qualification source revision');
+  revisionField(inputs.sourceTree, 'qualification source tree');
+  revisionField(inputs.baseRevision, 'qualification base revision');
+  digestField(inputs.sourceFingerprint, 'qualification source fingerprint');
+  digestField(inputs.environmentFingerprint, 'qualification environment fingerprint');
+  digestField(configurationFingerprint, 'qualification configuration fingerprint');
+  if (!artifactManifest || artifactManifest.schemaVersion !== 1) fail('qualification artifact manifest is invalid');
+  revisionField(artifactManifest.revision, 'qualification artifact revision');
+  revisionField(artifactManifest.tree, 'qualification artifact tree');
+  digestField(artifactManifest.envFingerprint, 'qualification artifact environment fingerprint');
+  if (artifactManifest.revision !== inputs.sourceRevision || artifactManifest.tree !== inputs.sourceTree || artifactManifest.envFingerprint !== inputs.environmentFingerprint) fail('qualification artifact differs from source or production environment');
+  return { schemaVersion: 1, event: { name: inputs.eventName, ref: inputs.eventRef, sha: inputs.eventSha }, source: { revision: inputs.sourceRevision, tree: inputs.sourceTree, baseRevision: inputs.baseRevision, fingerprint: inputs.sourceFingerprint }, artifact: { manifestSha256: jsonDigest(artifactManifest), revision: artifactManifest.revision, tree: artifactManifest.tree, environmentFingerprint: artifactManifest.envFingerprint }, environmentFingerprint: inputs.environmentFingerprint, configurationFingerprint, objective: text(inputs.objective, 'qualification objective') };
 }
 
 export function configurationDigest(cwd = repoRoot) {
@@ -374,6 +393,7 @@ const parseArgs = argv => {
     else if (value === '--run-verification') args.runVerification = true;
     else if (value === '--require-browser') args.requireBrowser = argv[++index];
     else if (value === '--artifact-digest') args.artifactDigest = true;
+    else if (value === '--qualification-binding') args.qualificationBinding = argv[++index];
     else throw new Error(`Unknown argument ${value}`);
   }
   return args;
@@ -420,6 +440,13 @@ const main = async (argv = process.argv.slice(2)) => {
   if (args.artifactDigest) {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'dist/.well-known/luyentap-release.json'), 'utf8'));
     process.stdout.write(`${jsonDigest(manifest)}\n`);
+    return;
+  }
+  if (args.qualificationBinding) {
+    if (!process.env.LUYENTAP_RELEASE_INPUTS_FILE) fail('LUYENTAP_RELEASE_INPUTS_FILE is required for --qualification-binding');
+    const inputs = JSON.parse(await readFile(path.resolve(process.env.LUYENTAP_RELEASE_INPUTS_FILE), 'utf8'));
+    const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'dist/.well-known/luyentap-release.json'), 'utf8'));
+    await writeFile(path.resolve(args.qualificationBinding), `${JSON.stringify(createQualificationBinding({ inputs, artifactManifest: manifest, configurationFingerprint: configurationDigest(process.cwd()) }), null, 2)}\n`);
     return;
   }
   if (args.checkCard) {

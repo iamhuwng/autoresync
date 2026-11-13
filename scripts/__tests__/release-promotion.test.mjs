@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { assertBrowserReady, cardDigest, cardBytes, configurationDigest, createPromotionCard, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+import { assertBrowserReady, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
 
 const revision = 'a'.repeat(40);
 const tree = 'b'.repeat(40);
@@ -67,6 +67,21 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
       LUYENTAP_RELEASE_TEST_PLAN_SHA256: digest('p'), LUYENTAP_RELEASE_ARTIFACT_SHA256: digest(JSON.stringify(manifest)),
       LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE: 'docs/review.json', LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256: digest('r'),
     });
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('qualification binding preserves the exact retained artifact and source without requiring a publishable card', async () => {
+  const { cwd, environmentFingerprint, manifest } = await fixture();
+  try {
+    const binding = createQualificationBinding({
+      inputs: { schemaVersion: 1, eventName: 'workflow_dispatch', eventRef: 'refs/heads/main', eventSha: revision, sourceRevision: revision, sourceTree: tree, baseRevision, sourceFingerprint: digest('f'), environmentFingerprint, objective: 'qualification smoke' },
+      artifactManifest: manifest,
+      configurationFingerprint: configurationDigest(cwd),
+    });
+    assert.equal(binding.source.revision, revision);
+    assert.equal(binding.source.baseRevision, baseRevision);
+    assert.equal(binding.artifact.manifestSha256, digest(JSON.stringify(manifest)));
+    assert.throws(() => createQualificationBinding({ inputs: { ...binding, sourceRevision: baseRevision }, artifactManifest: manifest, configurationFingerprint: configurationDigest(cwd) }), /qualification event SHA/u);
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 

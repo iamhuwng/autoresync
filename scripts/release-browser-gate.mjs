@@ -15,6 +15,7 @@ const parseArgs = argv => {
   for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i];
     if (value === '--card') result.card = argv[++i];
+    else if (value === '--binding') result.binding = argv[++i];
     else if (value === '--qualification-env-file') result.qualificationEnvFile = argv[++i];
     else if (value === '--output-dir') result.outputDir = argv[++i];
     else if (value === '--project') result.project = argv[++i];
@@ -107,14 +108,16 @@ const channelExists = (channel, site, project, env, config) => {
 
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.card || !args.qualificationEnvFile || !args.outputDir) throw new Error('card, qualification environment and output directory are required');
-  const card = JSON.parse(await readFile(path.resolve(args.card), 'utf8'));
+  if ((!args.card && !args.binding) || !args.qualificationEnvFile || !args.outputDir) throw new Error('binding or card, qualification environment and output directory are required');
+  const binding = JSON.parse(await readFile(path.resolve(args.binding || args.card), 'utf8'));
+  const source = binding.source;
+  const artifact = binding.artifact;
   const envBytes = await readFile(path.resolve(args.qualificationEnvFile));
   const env = parseEnv(envBytes.toString('utf8'));
   const project = text(args.project || env.VITE_FIREBASE_PROJECT_ID, 'Firebase qualification project');
   const site = text(args.site || env.VITE_FIREBASE_HOSTING_SITE, 'Firebase qualification site');
   if (project === 'temp-a1437' || env.VITE_FIREBASE_LOCAL_ONLY === 'true') throw new Error('qualification Firebase must be a dedicated non-production project');
-  if (sha256(envBytes) === card.environment.fingerprint) throw new Error('retained production artifact is bound to the production Firebase environment; build a qualification-bound artifact before browser qualification');
+  if (sha256(envBytes) === binding.environmentFingerprint) throw new Error('retained production artifact is bound to the production Firebase environment; build a qualification-bound artifact before browser qualification');
   if (!env.VITE_FIREBASE_DATABASE_URL) throw new Error('qualification environment must include VITE_FIREBASE_DATABASE_URL');
   for (const key of ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_DATABASE_URL', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID']) {
     if (!env[key]) throw new Error(`qualification environment is missing ${key}`);
@@ -142,11 +145,11 @@ const main = async () => {
     const deploy = firebase(['hosting:channel:deploy', channel, '--project', project, '--config', configPath, '--non-interactive'], childEnv);
     previewUrl = outputUrl(`${deploy.stdout}\n${deploy.stderr}`);
     if (!previewUrl) throw new Error('Firebase did not return a qualification preview URL');
-    await waitForManifest(previewUrl, card.artifact.manifestSha256);
+    await waitForManifest(previewUrl, artifact.manifestSha256);
     for (const account of accounts) {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
-      const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: card.source.revision, backendRevision: card.baseline.revision } };
+      const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
       const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
       if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}`);
     }
@@ -156,7 +159,7 @@ const main = async () => {
     const clone = firebase(['hosting:clone', `${site}:${channel}`, `${site}:${recoveryChannel}`, '--project', project, '--non-interactive'], childEnv);
     recoveryUrl = outputUrl(`${clone.stdout}\n${clone.stderr}`);
     if (!recoveryUrl) throw new Error('Firebase did not return a recovery channel URL');
-    await waitForManifest(recoveryUrl, card.artifact.manifestSha256);
+    await waitForManifest(recoveryUrl, artifact.manifestSha256);
   } catch (error) { failure = error; }
   finally {
     for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, databaseUrl }); } catch (error) { cleanupErrors.push(error.message); } }
@@ -171,9 +174,9 @@ const main = async () => {
     }
   }
   await rm(configPath, { force: true });
-  const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: card.source.revision, sourceFingerprint: card.source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: card.environment.fingerprint, configurationFingerprint: card.configuration.firebaseSha256, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
+  const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: artifact.environmentFingerprint, configurationFingerprint: binding.configurationFingerprint, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
   await writeFile(path.join(outputDir, 'browser.json'), `${JSON.stringify(browserEvidence, null, 2)}\n`);
-  await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: card.source.revision }, null, 2)}\n`);
+  await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: source.revision }, null, 2)}\n`);
 };
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { await main(); } catch (error) { console.error(error.message); process.exitCode = 1; }

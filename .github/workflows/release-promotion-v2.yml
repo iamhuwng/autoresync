@@ -34,8 +34,8 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      card_sha256: ${{ steps.card.outputs.sha256 }}
       artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
+      assessment_publishable: ${{ steps.assessment.outputs.publishable }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -134,31 +134,31 @@ jobs:
           set -euo pipefail
           node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Assess the exact source and live baseline
+        id: assessment
         run: |
           set -euo pipefail
           args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json")
           if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
+          set +e
           node scripts/release-check.mjs "${args[@]}"
+          status=$?
+          set -e
+          test "$status" -eq 0 -o "$status" -eq 2
+          decision="$(node --input-type=module -e 'import fs from "node:fs"; process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).decision)' "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json")"
+          echo "publishable=$([ "$decision" = PASS ] || [ "$decision" = NOT_APPLICABLE ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Execute the reviewed verification plan
         run: node scripts/release-promotion.mjs --run-verification --output "$RUNNER_TEMP/verification.json"
-      - name: Create the owner-facing release card
-        id: card
+      - name: Preserve qualification binding and assessment evidence
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
-          LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ steps.artifact.outputs.sha256 }}
-          LUYENTAP_RELEASE_VERIFICATION_FILE: ${{ runner.temp }}/verification.json
         run: |
           set -euo pipefail
-          card="$RUNNER_TEMP/release-card.json"
-          node scripts/release-promotion.mjs --assessment "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" --output "$card" | tee "$RUNNER_TEMP/release-card-sha256"
-          cat "$card" >> "$GITHUB_STEP_SUMMARY"
           mkdir -p tmp/release-card tmp/release-plan
-          cp "$card" tmp/release-card/release-card.json
           cp "$RUNNER_TEMP/promotion-inputs.json" tmp/release-card/promotion-inputs.json
           cp "$RUNNER_TEMP/verification.json" tmp/release-card/verification.json
           cp "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" tmp/release-card/assessment.json
+          node scripts/release-promotion.mjs --qualification-binding tmp/release-card/qualification-binding.json
           cp "tmp/release-receipts/ci-verification-plan.json" tmp/release-plan/ci-verification-plan.json
-          echo "sha256=$(cat "$RUNNER_TEMP/release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: luyentap-release-card-${{ github.run_id }}
@@ -246,11 +246,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/release-browser-gate.mjs \
-            --card "$RUNNER_TEMP/release-card/release-card.json" \
+            --binding "$RUNNER_TEMP/release-card/qualification-binding.json" \
             --qualification-env-file "$RUNNER_TEMP/.env.qualification" \
             --output-dir "$RELEASE_BROWSER_OUTPUT_DIR"
       - name: Build the final source-bound release card
         id: final-card
+        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/release-card/promotion-inputs.json
           LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
@@ -275,12 +276,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@v4
+        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
         with:
           name: luyentap-approved-release-card-${{ github.run_id }}
           path: ${{ runner.temp }}/approved-release-card
           if-no-files-found: error
           retention-days: 14
       - name: Require independently verified browser evidence before authorization
+        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
         env:
           EXPECTED_CARD_SHA256: ${{ steps.final-card.outputs.sha256 }}
         run: |
@@ -291,7 +294,7 @@ jobs:
 
   promote:
     needs: [prepare, browser-gate]
-    if: ${{ needs.prepare.result == 'success' && needs.browser-gate.result == 'success' }}
+    if: ${{ needs.prepare.result == 'success' && needs.browser-gate.result == 'success' && needs.browser-gate.outputs.card_sha256 != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
