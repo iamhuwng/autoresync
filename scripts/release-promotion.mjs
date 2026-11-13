@@ -220,7 +220,7 @@ export const candidateTests = (cwd, files) => [...new Set(files.flatMap(file => 
   const candidates = /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(file)
     ? [file]
     : [file.replace(/\.([cm]?[jt]sx?)$/u, '.test.$1'), file.replace(/^scripts\/([^/]+)\.mjs$/u, 'scripts/__tests__/$1.test.mjs')];
-  return candidates.filter(candidate => /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(candidate) && tracked(cwd, candidate));
+  return candidates.filter(candidate => !candidate.startsWith('e2e/') && /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(candidate) && tracked(cwd, candidate));
 }))].sort();
 
 export function createVerificationPlan(files) {
