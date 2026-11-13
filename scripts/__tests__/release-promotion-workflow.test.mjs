@@ -23,7 +23,6 @@ test('promotion workflow is manual, protected-main-only and serialized', () => {
   assert.match(workflow, /cancel-in-progress: false/u);
   assert.match(workflow, /persist-credentials: false/u);
 });
-
 test('promotion workflow separates card, browser gate, authorization, publication and recovery', () => {
   assert.match(workflow, /LUYENTAP_RELEASE_ENV/u);
   assert.doesNotMatch(workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  browser-gate:')), /environment:\s*name: production/u);
@@ -117,3 +116,4 @@ test('recovery path validates an operation UUID and has no build or deploy comma
   assert.match(recovery, /pull-requests: write/u);
   assert.doesNotMatch(recovery, /build:production|deploy:hosting|firebase deploy/u);
 });
+
