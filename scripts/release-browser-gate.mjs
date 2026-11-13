@@ -114,13 +114,15 @@ const main = async () => {
   const artifact = binding.artifact;
   const envBytes = await readFile(path.resolve(args.qualificationEnvFile));
   const env = parseEnv(envBytes.toString('utf8'));
-  const project = text(args.project || env.VITE_FIREBASE_PROJECT_ID, 'Firebase qualification project');
-  const site = text(args.site || env.VITE_FIREBASE_HOSTING_SITE, 'Firebase qualification site');
+  const project = text(args.project || env.VITE_FIREBASE_QUALIFICATION_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID, 'Firebase qualification project');
+  const site = text(args.site || env.VITE_FIREBASE_QUALIFICATION_HOSTING_SITE || env.VITE_FIREBASE_HOSTING_SITE, 'Firebase qualification site');
   if (project === 'temp-a1437' || env.VITE_FIREBASE_LOCAL_ONLY === 'true') throw new Error('qualification Firebase must be a dedicated non-production project');
   if (sha256(envBytes) === binding.environmentFingerprint) throw new Error('retained production artifact is bound to the production Firebase environment; build a qualification-bound artifact before browser qualification');
-  if (!env.VITE_FIREBASE_DATABASE_URL) throw new Error('qualification environment must include VITE_FIREBASE_DATABASE_URL');
+  const qualificationKey = key => env[`VITE_FIREBASE_QUALIFICATION_${key.replace('VITE_FIREBASE_', '')}`] || env[key];
+  const configuredDatabaseUrl = qualificationKey('VITE_FIREBASE_DATABASE_URL');
+  if (!configuredDatabaseUrl) throw new Error('qualification environment must include VITE_FIREBASE_QUALIFICATION_DATABASE_URL');
   for (const key of ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_DATABASE_URL', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID']) {
-    if (!env[key]) throw new Error(`qualification environment is missing ${key}`);
+    if (!qualificationKey(key)) throw new Error(`qualification environment is missing VITE_FIREBASE_QUALIFICATION_${key.replace('VITE_FIREBASE_', '')}`);
   }
   const outputDir = path.resolve(args.outputDir);
   await mkdir(outputDir, { recursive: true });
@@ -133,7 +135,7 @@ const main = async () => {
     { role: 'student', email: `release.student.${suffix}@qualification.invalid`, uid: `${channel}-student`, displayName: `Release Smoke Student ${suffix}` },
   ];
   const attemptedAccounts = [];
-  const baseUrl = new URL(env.VITE_FIREBASE_DATABASE_URL);
+    const baseUrl = new URL(configuredDatabaseUrl);
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
@@ -153,7 +155,7 @@ const main = async () => {
       const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
       if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}`);
     }
-    const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: env.VITE_FIREBASE_DATABASE_URL, RELEASE_BROWSER_API_KEY: env.VITE_FIREBASE_API_KEY };
+    const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
     const browser = run(['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], browserEnv, { allowFailure: true });
     if (browser.status !== 0) throw new Error('Playwright authenticated release flow failed');
     const clone = firebase(['hosting:clone', `${site}:${channel}`, `${site}:${recoveryChannel}`, '--project', project, '--non-interactive'], childEnv);
