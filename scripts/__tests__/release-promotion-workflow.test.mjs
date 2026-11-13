@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const workflow = readFileSync(path.join(root, '.github/workflows/release-promotion.yml'), 'utf8');
+const workflowFile = ['release-promotion.yml', 'release-promotion-v2.yml']
+  .map(name => path.join(root, '.github/workflows', name))
+  .find(file => existsSync(file));
+const workflow = readFileSync(workflowFile, 'utf8');
 const browserGate = readFileSync(path.join(root, 'scripts/release-browser-gate.mjs'), 'utf8');
 
 test('promotion workflow is manual, protected-main-only and serialized', () => {
