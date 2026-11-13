@@ -510,7 +510,7 @@ async function hostingFixture() {
   const source = await collectSourceState(cwd, base);
   const assessment = { decision: 'PASS', source, observed: { revision: base, fingerprint: 'previous-manifest' }, findings: [],
     compatibilityReview: { changeIds: [changeId] } };
-  const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false };
+  const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false, reconciles: 0, reconcileError: false };
   const observeProvider = () => ({ provider: { version: state.deploys ? 'new' : 'old',
     releaseTime: state.deploys ? 'later' : 'before', message: state.message, config: { headers: [] } }, evidenceRef: 'fixture://provider' });
   const observeSource = async () => {
@@ -526,7 +526,10 @@ async function hostingFixture() {
       return state.archive;
     },
     saveOutcome: async (archive, outcome) => state.outcomes.push(outcome),
-    reconcile: async () => {},
+    reconcile: async () => {
+      state.reconciles += 1;
+      if (state.reconcileError) throw new Error('protected-main integration unavailable');
+    },
     runDeploy: (args, env, selectedCwd) => {
       assert.equal(selectedCwd, cwd);
       assert.equal(args[0], path.join(cwd, 'scripts/tooling-where.mjs'));
@@ -566,6 +569,7 @@ test('publication with failed readback resumes the same operation without anothe
     state.hashFailure = true;
     await assert.rejects(() => deployHosting(options), /verification unverified/u);
     assert.equal(state.deploys, 1);
+    assert.equal(state.reconciles, 0);
     const original = listReleases(options.storeDir)[0];
     assert.equal(original.targets[0].publication, 'published');
     assert.equal(original.targets[0].verification, 'unverified');
@@ -575,6 +579,7 @@ test('publication with failed readback resumes the same operation without anothe
     const verified = await verifyExistingHosting(resume);
     assert.equal(verified.id, original.id);
     assert.equal(verified.targets[0].verification, 'passed');
+    assert.equal(state.reconciles, 1);
     assert.deepEqual(verified.targets[0].changeIds, ['CL-20261112-CORRECTION']);
     assert.deepEqual(await verifyExistingHosting(resume), verified);
     assert.equal(state.deploys, 1);

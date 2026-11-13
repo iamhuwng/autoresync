@@ -14,6 +14,14 @@ test('cleanup verification fails closed on Auth and RTDB lookup errors', async (
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test('cleanup verification accepts only an explicit Auth account absence', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'USER_NOT_FOUND' } }), { status: 400 });
+    await assert.doesNotReject(() => accountState({ project: 'qualification', uid: 'uid', token: 'token' }));
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('browser preview readback verifies every manifest-listed asset', async () => {
   const originalFetch = globalThis.fetch;
   const assets = { '/index.html': Buffer.from('index'), '/assets/app.js': Buffer.from('app') };

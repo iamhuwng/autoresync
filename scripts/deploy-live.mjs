@@ -430,7 +430,9 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
       // Preserve local provider identity even if the append-only remote outcome upload is interrupted.
       settleRelease(record.id, outcome, storeDir);
       await saveOutcome(archive, outcome);
-      await settleChangelog(archive, cwd, reconcile);
+      if (outcome.outcomes.every(target => target.verification === 'passed')) {
+        await settleChangelog(archive, cwd, reconcile);
+      }
       return outcome;
     },
   });

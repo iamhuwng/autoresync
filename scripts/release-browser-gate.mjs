@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,7 +40,7 @@ const requestJson = async (url, init = {}) => {
   const body = await response.text();
   let parsed;
   try { parsed = body ? JSON.parse(body) : null; } catch { parsed = body; }
-  if (!response.ok) { const error = new Error(`Remote request failed (${response.status})`); error.status = response.status; throw error; }
+  if (!response.ok) { const error = new Error(`Remote request failed (${response.status})`); error.status = response.status; error.body = parsed; throw error; }
   return parsed;
 };
 const manifestDigest = manifest => sha256(JSON.stringify(manifest));
@@ -64,8 +64,13 @@ export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) 
 };
 const outputUrl = output => output.match(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/u)?.[0]?.replace(/[.,]+$/u, '') || '';
 export const accountState = async ({ project, uid, token }) => {
-  const result = await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:lookup`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
-  return (result.users || []).some(user => user.localId === uid) ? 'present' : 'absent';
+  try {
+    const result = await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:lookup`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
+    return (result.users || []).some(user => user.localId === uid) ? 'present' : 'absent';
+  } catch (error) {
+    if (error.status === 400 && error.body?.error?.message === 'USER_NOT_FOUND') return 'absent';
+    throw error;
+  }
 };
 export const profileState = async ({ databaseUrl, uid, token }) => {
   const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: { authorization: `Bearer ${token}` }, redirect: 'error' });
@@ -86,12 +91,12 @@ const deleteAccount = async ({ project, uid, token, databaseUrl }) => {
   catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
   if (errors.length) throw new Error(errors.join('; '));
 };
-const deleteChannel = (channel, site, project, env) => {
-  const result = firebase(['hosting:channel:delete', channel, '--site', site, '--project', project, '--force'], env, { allowFailure: true });
+const deleteChannel = (channel, site, project, env, config) => {
+  const result = firebase(['hosting:channel:delete', channel, '--site', site, '--project', project, '--config', config, '--force'], env, { allowFailure: true });
   if (result.status !== 0) throw new Error(`Hosting channel deletion failed for ${channel}`);
 };
-const channelExists = (channel, site, project, env) => {
-  const result = firebase(['hosting:channel:list', '--site', site, '--project', project, '--json', '--non-interactive'], env, { allowFailure: true });
+const channelExists = (channel, site, project, env, config) => {
+  const result = firebase(['hosting:channel:list', '--site', site, '--project', project, '--config', config, '--json', '--non-interactive'], env, { allowFailure: true });
   if (result.status !== 0) return null;
   try { return (JSON.parse(result.stdout).result?.channels || []).some(entry => entry.name?.endsWith(`/channels/${channel}`)); }
   catch { return null; }
@@ -126,10 +131,12 @@ const main = async () => {
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
+  const configPath = path.join(outputDir, 'qualification-firebase.json');
+  await writeFile(configPath, `${JSON.stringify({ hosting: { site, public: 'dist' } }, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
   try {
     token = oauthToken();
-    const deploy = firebase(['hosting:channel:deploy', channel, '--only', `hosting:${site}`, '--project', project, '--non-interactive'], childEnv);
+    const deploy = firebase(['hosting:channel:deploy', channel, '--project', project, '--config', configPath, '--non-interactive'], childEnv);
     previewUrl = outputUrl(`${deploy.stdout}\n${deploy.stderr}`);
     if (!previewUrl) throw new Error('Firebase did not return a qualification preview URL');
     await waitForManifest(previewUrl, card.artifact.manifestSha256);
@@ -151,15 +158,16 @@ const main = async () => {
   finally {
     for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, databaseUrl }); } catch (error) { cleanupErrors.push(error.message); } }
     for (const name of [recoveryChannel, channel]) {
-      const present = channelExists(name, site, project, childEnv);
+      const present = channelExists(name, site, project, childEnv, configPath);
       if (present === null) { cleanupErrors.push(`Unable to verify Hosting channel cleanup: ${name}`); continue; }
       if (!present) continue;
-      try { deleteChannel(name, site, project, childEnv); } catch (error) { cleanupErrors.push(error.message); continue; }
-      const remains = channelExists(name, site, project, childEnv);
+      try { deleteChannel(name, site, project, childEnv, configPath); } catch (error) { cleanupErrors.push(error.message); continue; }
+      const remains = channelExists(name, site, project, childEnv, configPath);
       if (remains === null) cleanupErrors.push(`Unable to verify Hosting channel cleanup after deletion: ${name}`);
       else if (remains) cleanupErrors.push(`Hosting channel remains after deletion: ${name}`);
     }
   }
+  await rm(configPath, { force: true });
   const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: card.source.revision, sourceFingerprint: card.source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: card.environment.fingerprint, configurationFingerprint: card.configuration.firebaseSha256, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
   await writeFile(path.join(outputDir, 'browser.json'), `${JSON.stringify(browserEvidence, null, 2)}\n`);
   await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: card.source.revision }, null, 2)}\n`);
