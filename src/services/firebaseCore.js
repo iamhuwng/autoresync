@@ -43,6 +43,7 @@ const productionFirebaseConfig = {
 };
 
 const qualificationFirebaseConfig = {
+  hostingSite: import.meta.env.VITE_FIREBASE_QUALIFICATION_HOSTING_SITE,
   apiKey: import.meta.env.VITE_FIREBASE_QUALIFICATION_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_QUALIFICATION_DATABASE_URL,

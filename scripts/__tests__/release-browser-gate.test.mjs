@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { accountState, profileState, waitForManifest } from '../release-browser-gate.mjs';
+import path from 'node:path';
+import { accountState, profileState, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 
@@ -38,4 +39,10 @@ test('browser preview readback verifies every manifest-listed asset', async () =
     assets['/assets/app.js'] = Buffer.from('tampered');
     await assert.rejects(() => waitForManifest('https://preview.invalid', expected, 100), /preview asset differs/u);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test('qualification Hosting config points at the retained checkout artifact', () => {
+  const config = qualificationHostingConfig({ site: 'qualification-site', publicDir: 'dist' });
+  assert.equal(config.hosting.site, 'qualification-site');
+  assert.equal(config.hosting.public, path.resolve('dist'));
 });
