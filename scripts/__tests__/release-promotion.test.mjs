@@ -131,7 +131,7 @@ test('automatic verification selection routes frontend tests to Vitest', () => {
 });
 
 test('automatic test discovery excludes changed non-test files', () => {
-  const files = candidateTests(process.cwd(), ['scripts/release-promotion.mjs', 'scripts/release-browser-gate.mjs', 'src/services/firebaseRuntimeConfig.js', 'src/services/firebaseRuntimeConfig.test.js']);
+  const files = candidateTests(process.cwd(), ['scripts/release-promotion.mjs', 'scripts/release-browser-gate.mjs', 'src/services/firebaseRuntimeConfig.js', 'src/services/firebaseRuntimeConfig.test.js', 'e2e/release-promotion-browser.spec.ts']);
   assert.deepEqual(files, ['scripts/__tests__/release-browser-gate.test.mjs', 'scripts/__tests__/release-promotion.test.mjs', 'src/services/firebaseRuntimeConfig.test.js']);
 });
 
