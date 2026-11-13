@@ -1,4 +1,5 @@
 name: Release Promotion
+# Manual dispatch is the protected-main entry point for Phase 3 promotion.
 
 on:
   workflow_dispatch:
