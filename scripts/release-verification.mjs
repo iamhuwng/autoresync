@@ -28,7 +28,7 @@ const execute = (command, args, cwd, allowNonzero = false) => {
 async function trackedPath(cwd, value, test = false) {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$/u.test(value)
     || value.split('/').some(part => !part || part === '.' || part === '..')
-    || (test && !/\.(?:test|spec)\.(?:[cm]?js|[jt]sx?)$/u.test(value))) fail('paths must be explicit relative tracked files');
+    || (test && !/\.(?:test|spec)\.(?:[cm]?js|[jt]sx?)$/u.test(value))) fail(`paths must be explicit relative tracked files: ${String(value)}`);
   const absolute = path.resolve(cwd, value);
   if (!inside(cwd, absolute) || !inside(cwd, await realpath(absolute)) || !(await stat(absolute)).isFile()) fail('path escapes candidate or is not a file');
   if (!value.startsWith('tmp/release-receipts/')) execute('git', ['ls-files', '--error-unmatch', '--', value], cwd);
