@@ -44,6 +44,9 @@ const requestJson = async (url, init = {}) => {
   return parsed;
 };
 const manifestDigest = manifest => sha256(JSON.stringify(manifest));
+export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist') } = {}) => ({
+  hosting: { site: text(site, 'Firebase qualification site'), public: path.resolve(publicDir) },
+});
 export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) => {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'manifest unavailable';
@@ -132,7 +135,7 @@ const main = async () => {
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
   const configPath = path.join(outputDir, 'qualification-firebase.json');
-  await writeFile(configPath, `${JSON.stringify({ hosting: { site, public: 'dist' } }, null, 2)}\n`);
+  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site }), null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
   try {
     token = oauthToken();
