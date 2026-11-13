@@ -32,7 +32,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
 
 test('qualification Firebase configuration is all-or-nothing and rejects local values', () => {
-  const keys = ['API_KEY', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'].map(key => `VITE_FIREBASE_QUALIFICATION_${key}`);
+  const keys = ['API_KEY', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID', 'HOSTING_SITE'].map(key => `VITE_FIREBASE_QUALIFICATION_${key}`);
   const complete = Object.fromEntries(keys.map(key => [key, `qualification-${key.toLowerCase()}`]));
   assert.doesNotThrow(() => assertQualificationFirebaseValues(complete));
   assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[0]]: '' }), /all VITE_FIREBASE_QUALIFICATION/u);

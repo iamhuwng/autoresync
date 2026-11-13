@@ -68,7 +68,7 @@ const requiredFirebaseKeys = [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
 ];
-const qualificationFirebaseKeys = requiredFirebaseKeys.map(key => key.replace('VITE_FIREBASE_', 'VITE_FIREBASE_QUALIFICATION_'));
+const qualificationFirebaseKeys = [...requiredFirebaseKeys.map(key => key.replace('VITE_FIREBASE_', 'VITE_FIREBASE_QUALIFICATION_')), 'VITE_FIREBASE_QUALIFICATION_HOSTING_SITE'];
 export const assertQualificationFirebaseValues = values => {
   const qualificationPresent = qualificationFirebaseKeys.filter(key => values[key]?.trim()).length;
   if (qualificationPresent !== 0 && qualificationPresent !== qualificationFirebaseKeys.length) {

@@ -34,15 +34,16 @@ the evidence to the candidate source/environment/configuration, name the
 scenario and evidence references, and spell out missing proof and impact. A
 plan digest or unit-test result alone cannot clear this prerequisite.
 
-Current implementation boundary (13 November 2026): the workflow now requires
-a separate `qualification` GitHub environment with its own OIDC service
-account and `LUYENTAP_QUALIFICATION_ENV`. The browser lane rejects the
+Current implementation boundary (13 November 2026): the workflow uses a
+separate `qualification` GitHub environment with its own OIDC service account,
+dedicated Firebase project, Hosting site and `LUYENTAP_QUALIFICATION_ENV`.
+Read-only inspection has verified the project, site, RTDB instance, federation
+condition and least-privilege qualification role. The browser lane rejects the
 production environment and refuses to create Auth or RTDB data when the
-retained artifact is still bound to the production environment. The repository
-currently has no `qualification` environment or qualification variables/secrets
-configured, so no browser qualification or backend mutation has been attempted.
-The retained production artifact also cannot be treated as qualification-bound
-without a reviewed environment-neutral or qualification-artifact design.
+retained artifact is still bound to the production environment. The current
+promotion attempt stopped earlier at the source compatibility review gate, so
+no qualification Auth, RTDB or Hosting channel mutation is claimed by this
+record.
 The existing production Dev Quick Login panel remains a separate development
 convenience exposure; it is not used by, or evidence for, the generated
 email/password browser flow.
@@ -50,9 +51,9 @@ The email/password form is gated to the controlled qualification host and is
 not exposed on the live production host by this qualification change.
 
 The current implementation now supports one-byte runtime selection: the
-artifact selects the production Firebase web config on the live host and a
-dedicated qualification config only on the controlled `qualification-*`
-Hosting channel host. Qualification remains blocked until the artifact is
-built with the reviewed qualification public web config, the dedicated GitHub
-environment and OIDC identity exist, and browser network evidence confirms the
-selected RTDB host and Auth API key.
+artifact selects the production Firebase web config on the live host and the
+dedicated qualification config on the qualification site's default host or a
+Firebase preview host in the documented `site--qualification-release-...web.app`
+form. Qualification remains blocked until the retained artifact reaches that
+lane and browser network evidence confirms the selected RTDB host and Auth API
+key.
