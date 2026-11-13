@@ -102,7 +102,7 @@ jobs:
           test -n "$QUALIFICATION_MESSAGING_SENDER_ID"
           test -n "$QUALIFICATION_APP_ID"
           umask 077
-          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+          printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
           cat >> "$RUNNER_TEMP/.env.production" <<EOF
           VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
           VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
@@ -393,7 +393,7 @@ jobs:
           test -n "$QUALIFICATION_MESSAGING_SENDER_ID"
           test -n "$QUALIFICATION_APP_ID"
           umask 077
-          printf '%s' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+          printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
           cat >> "$RUNNER_TEMP/.env.production" <<EOF
           VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
           VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
