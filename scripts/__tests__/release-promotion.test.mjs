@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { assertBrowserReady, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+import { assertBrowserReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
 
 const revision = 'a'.repeat(40);
 const tree = 'b'.repeat(40);
@@ -128,6 +128,11 @@ test('automatic verification selection routes frontend tests to Vitest', () => {
     { runner: 'node', files: ['scripts/__tests__/release-promotion.test.mjs'] },
     { runner: 'vitest', config: 'vitest.config.ts', files: ['src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx'] },
   ]);
+});
+
+test('automatic test discovery excludes changed non-test files', () => {
+  const files = candidateTests(process.cwd(), ['scripts/release-promotion.mjs', 'scripts/release-browser-gate.mjs', 'src/services/firebaseRuntimeConfig.js', 'src/services/firebaseRuntimeConfig.test.js']);
+  assert.deepEqual(files, ['scripts/__tests__/release-browser-gate.test.mjs', 'scripts/__tests__/release-promotion.test.mjs', 'src/services/firebaseRuntimeConfig.test.js']);
 });
 
 test('promotion evidence expires before it can authorize publication', async () => {
