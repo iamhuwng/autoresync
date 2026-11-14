@@ -70,6 +70,40 @@ test('a shared scorer change cannot be described or qualified as a Hosting-only 
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
+test('coordinated frontend/backend candidates require backend-first ordering and preserve rollback limits', async () => {
+  const cwd = await fixture();
+  try {
+    await writeFile(path.join(cwd, 'cloudflare/changed-worker.ts'), 'export const apiVersion = 2;');
+    await writeFile(path.join(cwd, 'database.rules.json'), '{}');
+    await writeFile(path.join(cwd, 'public/index.html'), 'coordinated frontend');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'coordinated frontend backend candidate');
+    const result = await assess({ cwd, base: 'HEAD^' });
+    assert(result.source.services.includes('hosting'));
+    assert(result.source.services.includes('worker'));
+    assert(result.source.services.includes('firebase-rules'));
+    assert(result.deploymentOrder.findIndex(action => /Worker readiness before activating frontend consumers/u.test(action)) < result.deploymentOrder.findIndex(action => /Hosting/u.test(action)));
+    assert(result.deploymentOrder.some(action => /additive rules\/indexes before activating dependent clients/u.test(action)));
+    assert(result.recovery.some(action => /Hosting rollback does not reverse database/u.test(action)));
+    assert(result.findings.some(finding => finding.status === STATUS.REVIEW_REQUIRED && /Frontend and Worker changed together/u.test(finding.message)));
+    assert(result.findings.some(finding => finding.status === STATUS.REVIEW_REQUIRED && /Frontend and Firebase rules changed together/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('frontend rollback is rejected without bound backend compatibility evidence', async () => {
+  const cwd = await fixture();
+  try {
+    await writeFile(path.join(cwd, 'cloudflare/changed-worker.ts'), 'export const apiVersion = 2;');
+    await writeFile(path.join(cwd, 'src/App.jsx'), 'export default 0;');
+    await writeFile(path.join(cwd, 'public/index.html'), 'rollback frontend');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'incompatible frontend rollback candidate');
+    const result = await assess({ cwd, base: 'HEAD^' });
+    assert.notEqual(result.decision, STATUS.PASS);
+    assert(result.findings.some(finding => /Explicit compatibility review is required/u.test(finding.message)));
+    assert(result.findings.some(finding => /Frontend and Worker changed together/u.test(finding.message)));
+    assert(result.recovery.some(action => /Hosting rollback does not reverse database/u.test(action)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('fixed Homework Worker observation rejects mixed evidence and missing artifact paths', async () => {
   await assert.rejects(() => assess({ observeHomework: true, observe: true }), /cannot be combined/u);
   await assert.rejects(() => assess({ observeHomework: true, mode: 'hotfix' }), /cannot be combined/u);

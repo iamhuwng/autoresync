@@ -42,8 +42,8 @@ Local-development reliability is an important parallel/deferred workstream. It m
 | Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency, Git/Hosting baseline checks and promotion tests; no production mutation in Phase 3 yet |
 | Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
 | Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
-| Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Unqualified | Requires a real isolated experiment |
-| Frontend rollback rejection without backend compatibility evidence | Unqualified | Requires a real isolated rejection experiment |
+| Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Verified at the release-orchestration boundary | `documentation/release-audits/2026-11-14-phase3-coordinated-change-rollback.md` records disposable frontend/Worker/rules assessor fixtures, backend-first ordering, negative compatibility checks, recovery limits and no-duplicate operation tests |
+| Frontend rollback rejection without backend compatibility evidence | Verified at the release-orchestration boundary | The same experiment rejects an incompatible frontend/Worker rollback without a source/base/live-bound compatibility review; provider-specific service publication remains separately gated |
 
 ### Verification contract decision
 
@@ -85,7 +85,7 @@ experiment tool; it is not the universal application-verification contract.
 
 1. Land and exercise the source-bound, change-scoped verification contract; Codex chooses application evidence and the release system validates its binding.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
-3. Perform the coordinated service-change and incompatible-rollback experiments on isolated targets.
+3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Reconcile the evidence matrix and present the owner-facing production approval boundary. Do not call Phase 3 complete from local tests or green CI alone.
 5. After completion, measure and remove demonstrated duplication under Phase 4.
 
