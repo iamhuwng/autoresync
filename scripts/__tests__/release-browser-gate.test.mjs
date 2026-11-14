@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, assertBrowserEvidenceVerified, outputUrl, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
+import { accountState, assertBrowserEvidenceVerified, outputUrl, parseJourneyCommand, qualificationDatabaseRules, qualificationHostingConfig, stagingScope, stagingWorkerBindings, waitForManifest } from '../release-browser-gate.mjs';
 
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
@@ -11,6 +11,25 @@ test('selects the channel URL when Firebase reports both site and channel URLs',
 test('blocked browser evidence fails the gate after evidence is written', () => {
   assert.throws(() => assertBrowserEvidenceVerified({ decision: 'blocked', summary: 'RTDB denied' }), /RTDB denied/u);
   assert.doesNotThrow(() => assertBrowserEvidenceVerified({ decision: 'verified', summary: 'passed' }));
+});
+
+test('staging accepts a bounded Codex-selected journey command without prescribing its runner', () => {
+  assert.deepEqual(parseJourneyCommand({ command: ['node', 'scripts/custom-journey.mjs'], label: 'changed dashboard journey', services: ['hosting', 'workers'] }), { command: ['node', 'scripts/custom-journey.mjs'], label: 'changed dashboard journey', services: ['hosting', 'workers'] });
+  assert.throws(() => parseJourneyCommand({ command: 'npx playwright test' }), /bounded argument array/u);
+  assert.throws(() => parseJourneyCommand({ command: ['node'], extra: true }), /only command, label and services/u);
+  assert.throws(() => parseJourneyCommand({ command: ['node'], services: ['backblaze'] }), /supported staging services/u);
+});
+
+test('staging declares excluded services instead of pretending to qualify them', () => {
+  assert.ok(stagingScope.included.includes('hosting'));
+  assert.ok(stagingScope.included.includes('firebase-rtdb'));
+  assert.ok(stagingScope.included.includes('workers'));
+  assert.ok(stagingScope.excluded.includes('backblaze'));
+});
+
+test('worker-scoped journeys require non-production HTTPS Worker bindings', () => {
+  assert.deepEqual(stagingWorkerBindings({ VITE_BOOK_RUNTIME_WORKER_URL: 'https://worker.example', LOCAL_ONLY: 'http://localhost:8787' }, true), { VITE_BOOK_RUNTIME_WORKER_URL: 'https://worker.example' });
+  assert.throws(() => stagingWorkerBindings({ VITE_BOOK_RUNTIME_WORKER_URL: 'http://localhost:8787' }, true), /non-production Worker endpoint bindings/u);
 });
 
 const digest = value => createHash('sha256').update(value).digest('hex');

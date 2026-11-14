@@ -24,6 +24,7 @@ const parseArgs = argv => {
     else if (value === '--output-dir') result.outputDir = argv[++i];
     else if (value === '--project') result.project = argv[++i];
     else if (value === '--site') result.site = argv[++i];
+    else if (value === '--journey-command-file') result.journeyCommandFile = argv[++i];
     else throw new Error(`Unknown argument ${value}`);
   }
   return result;
@@ -36,6 +37,33 @@ const run = (args, env, { allowFailure = false } = {}) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8', windowsHide: true });
   if (!allowFailure && (result.error || result.status !== 0)) throw new Error(`Command failed: ${args.join(' ')}`);
   return { status: result.status ?? 1, stdout: result.stdout || '', stderr: result.stderr || '' };
+};
+const journeyText = (value, label) => text(value, label);
+export const parseJourneyCommand = value => {
+  if (!value || Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).some(key => !['command', 'label', 'services'].includes(key))) throw new Error('journey command must contain only command, label and services');
+  if (!Array.isArray(value.command) || value.command.length < 1 || value.command.length > 32) throw new Error('journey command must be a bounded argument array');
+  value.command.forEach((part, index) => journeyText(part, `journey command argument ${index}`));
+  const services = value.services === undefined ? ['hosting', 'firebase-auth', 'firebase-rtdb', 'firebase-rules'] : value.services;
+  if (!Array.isArray(services) || services.length < 1 || services.length > 5 || services.some(service => !stagingScope.included.includes(service))) throw new Error('journey services must be supported staging services');
+  return { command: value.command, label: value.label === undefined ? 'Codex-selected staging journey' : journeyText(value.label, 'journey label'), services: [...new Set(services)] };
+};
+const readJourneyCommand = async file => {
+  if (!file) return { command: ['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], label: 'optional fixed Playwright experiment', services: ['hosting', 'firebase-auth', 'firebase-rtdb', 'firebase-rules'] };
+  let value;
+  try { value = JSON.parse(await readFile(path.resolve(file), 'utf8')); } catch { throw new Error('journey command file must contain valid JSON'); }
+  return parseJourneyCommand(value);
+};
+const runJourney = async ({ journey, env, outputDir, redactions }) => {
+  const result = spawnSync(journey.command[0], journey.command.slice(1), { cwd: repoRoot, env, encoding: 'utf8', windowsHide: true });
+  const redact = value => redactions.reduce((output, secret) => secret ? output.replaceAll(secret, '[redacted]') : output, String(value || ''));
+  await writeFile(path.join(outputDir, 'journey-command.json'), `${JSON.stringify({ label: journey.label, services: journey.services, command: journey.command }, null, 2)}\n`);
+  await writeFile(path.join(outputDir, 'journey-output.log'), `${redact(result.stdout)}\n${redact(result.stderr)}`);
+  return { status: result.status ?? 1, stdout: result.stdout || '', stderr: result.stderr || '' };
+};
+export const stagingWorkerBindings = (values, required = false) => {
+  const bindings = Object.fromEntries(Object.entries(values).filter(([key, value]) => /^VITE_.*WORKER.*(?:URL|ORIGIN)$/u.test(key) && /^https:\/\//u.test(value || '')));
+  if (required && Object.keys(bindings).length === 0) throw new Error('selected staging journey requires non-production Worker endpoint bindings');
+  return bindings;
 };
 const firebase = (args, env, options) => run(['scripts/tooling-where.mjs', '--exec', 'firebase', ...args], env, options);
 const redactedCliOutput = value => String(value || '')
@@ -84,6 +112,10 @@ export const qualificationDatabaseRules = {
     },
   },
 };
+export const stagingScope = Object.freeze({
+  included: ['hosting', 'firebase-auth', 'firebase-rtdb', 'firebase-rules', 'workers'],
+  excluded: ['backblaze', 'storage', 'functions', 'migrations', 'production-data'],
+});
 export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000, label = 'Hosting preview') => {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'manifest unavailable';
@@ -171,6 +203,7 @@ const main = async () => {
   }
   const outputDir = path.resolve(args.outputDir);
   await mkdir(outputDir, { recursive: true });
+  const journey = await readJourneyCommand(args.journeyCommandFile);
   const channel = `qualification-release-${process.env.GITHUB_RUN_ID || 'local'}-${randomUUID().slice(0, 8)}`;
   const recoveryChannel = `${channel}-recovery`;
   const suffix = randomUUID().replaceAll('-', '').slice(0, 16);
@@ -225,9 +258,10 @@ const main = async () => {
       profileAttempts.add(account.uid);
       await setDatabaseValue(databaseRef(database, `users/${account.uid}`), profile);
     }
-    const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
-    const browser = run(['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], browserEnv, { allowFailure: true });
-    if (browser.status !== 0) throw new Error('Playwright authenticated release flow failed');
+    const stagingWorkerUrls = stagingWorkerBindings(env, journey.services.includes('workers'));
+    const browserEnv = { ...childEnv, RELEASE_STAGING_BASE_URL: previewUrl, RELEASE_STAGING_OUTPUT_DIR: outputDir, RELEASE_STAGING_PROJECT: project, RELEASE_STAGING_SITE: site, RELEASE_STAGING_DATABASE_URL: databaseUrl, RELEASE_STAGING_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY'), RELEASE_STAGING_WORKER_URLS: JSON.stringify(stagingWorkerUrls), RELEASE_STAGING_SOURCE_REVISION: source.revision, RELEASE_STAGING_SOURCE_FINGERPRINT: source.fingerprint, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
+    const browser = await runJourney({ journey, env: browserEnv, outputDir, redactions: [accountPassword, accounts[0].email, accounts[1].email, qualificationKey('VITE_FIREBASE_API_KEY')] });
+    if (browser.status !== 0) throw new Error(`${journey.label} failed`);
     const clone = firebase(['hosting:clone', `${site}:${channel}`, `${site}:${recoveryChannel}`, '--project', project, '--non-interactive'], childEnv);
     recoveryUrl = outputUrl(`${clone.stdout}\n${clone.stderr}`);
     if (!recoveryUrl) throw new Error('Firebase did not return a recovery channel URL');
@@ -247,7 +281,7 @@ const main = async () => {
   }
   await rm(configPath, { force: true });
   await rm(rulesPath, { force: true });
-  const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: artifact.environmentFingerprint, configurationFingerprint: binding.configurationFingerprint, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
+  const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: journey.label, services: journey.services, stagingScope, sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: artifact.environmentFingerprint, configurationFingerprint: binding.configurationFingerprint, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? `Selected staging journey, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed: ${journey.label}.` : `Staging verification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
   await writeFile(path.join(outputDir, 'browser.json'), `${JSON.stringify(browserEvidence, null, 2)}\n`);
   await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: source.revision }, null, 2)}\n`);
   assertBrowserEvidenceVerified(browserEvidence);

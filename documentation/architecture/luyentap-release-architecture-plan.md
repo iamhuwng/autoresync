@@ -54,6 +54,11 @@ checks in proportion to the change. The 14 November disposable experiment
 separately proves Hosting publication, exact readback, native clone recovery and
 cleanup; it does not define application verification.
 
+The qualification lifecycle is reusable for Codex-selected built-site journeys.
+It covers Hosting, Firebase Auth/RTDB/rules, and Workers when non-production
+Worker bindings are supplied. Backblaze/storage, Functions, migrations, and
+production data remain outside that lifecycle and retain service-specific gates.
+
 For application-impacting paths, Codex writes a verification record outside the
 candidate checkout and uses `scripts/release-verification-bundle.mjs` to bind
 that record and retained evidence artifacts to the exact source revision, base,

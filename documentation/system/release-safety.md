@@ -175,6 +175,19 @@ requires GitHub immutable releases to be enabled, and promotion readback
 rejects a mutable prerelease or a tag that points at another commit. The
 repository setting is not changed by this workflow.
 
+For real built-site verification, Codex may run the disposable qualification
+lifecycle in `scripts/release-browser-gate.mjs` with
+`--journey-command-file <json>`. It deploys the exact retained artifact to the
+dedicated non-production project, reads back the full manifest, provisions
+temporary isolated accounts/rules, exposes `RELEASE_STAGING_*` bindings to the
+selected argv command, verifies native Hosting clone recovery, and removes the
+temporary channels/accounts. Worker coverage is included when the qualification
+environment supplies non-production Worker endpoint bindings and the selected
+journey declares that service. Backblaze/storage, Functions, migrations, and
+production data remain outside this lifecycle and retain their service-specific
+gates. The command file is agent-selected; the release system does not require
+Playwright or a fixed teacher/student journey.
+
 The card is presentation and binding data; it is not production authorization.
 Its validator rejects missing event context, PR refs, path traversal, incomplete
 review pairs, source/artifact or environment drift, and credential-bearing text,
