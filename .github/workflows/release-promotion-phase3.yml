@@ -172,9 +172,9 @@ jobs:
           node scripts/release-promotion.mjs --assessment "tmp/release-card/assessment.json" --output "$card" | tee "$RUNNER_TEMP/approved-release-card-sha256"
           mkdir -p "$RUNNER_TEMP/approved-release-card"
           cp "$card" "$RUNNER_TEMP/approved-release-card/release-card.json"
-          cp "$RUNNER_TEMP/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
-          cp "$RUNNER_TEMP/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
-          cp "$RUNNER_TEMP/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
+          cp "tmp/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
+          cp "tmp/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
+          cp "tmp/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
           cat "$card" >> "$GITHUB_STEP_SUMMARY"
           echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
