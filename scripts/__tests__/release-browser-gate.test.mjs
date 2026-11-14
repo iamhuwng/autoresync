@@ -13,6 +13,15 @@ test('uses Firebase auth query tokens for RTDB profile access', async () => {
   assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json?auth=id-token');
 });
 
+test('uses Google OAuth access tokens for administrative RTDB provisioning', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async url => { requestedUrl = String(url); return new Response('null', { status: 200 }); };
+  try { await profileState({ databaseUrl: 'https://qa.example.test', uid: 'user-1', accessToken: 'oauth-token' }); }
+  finally { globalThis.fetch = originalFetch; }
+  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json?access_token=oauth-token');
+});
+
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
 });
