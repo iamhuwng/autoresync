@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1 and Phase 2 complete. Phase 3 orchestration is integrated on protected `main`; the application-verification handoff is implemented and synthetic end-to-end qualified in follow-up PR #250, pending protected integration. Protected-main operational qualification and production authorization remain separate owner decisions. Phase 4 is deferred.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `ba6d1f0052ca640580847b8e7ddbbd82164248d4`. Production authorization remains a separate owner decision. Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -38,8 +38,8 @@ Local-development reliability is an important parallel/deferred workstream. It m
 
 | Criterion | Current status | Evidence / remaining proof |
 |---|---|---|
-| Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Implemented and automatically tested | `scripts/release-promotion.mjs`, release-check/archive tests; final operational qualification remains open |
-| Change-scoped Codex application-verification handoff | Implemented and synthetic end-to-end qualified in follow-up PR #250 | `scripts/release-verification-bundle.mjs`, promotion-card validation, and `release-verification-bundle.test.mjs`; live protected-main operation and production authorization remain separate |
+| Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, release-check/archive tests, and the immutable verification handoff |
+| Change-scoped Codex application-verification handoff | Verified | `documentation/release-audits/2026-11-15-phase3-verification-bundle.md` records actual immutable synthetic publication/readback; promotion-card and bundle tests remain required |
 | Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency, Git/Hosting baseline checks and promotion tests; no production mutation in Phase 3 yet |
 | Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
 | Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
@@ -77,22 +77,22 @@ required.
 
 ## Current implementation and evidence
 
-- Protected `main`: `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10` at the start of follow-up PR #250.
+- Protected `main`: `ba6d1f0052ca640580847b8e7ddbbd82164248d4` after merged PR #250.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
 - PR #246 merged the disposable Hosting publication/recovery evidence as `8da3f49cbfefd24e02f89a51a27aebfa786b6b44`.
-- PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; follow-up PR #250 connects Codex bundles to promotion.
+- PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof on the Phase 3 branch: 68 Node tests, 3 runtime-config tests and x64 RTDB emulator security proof covering initial privilege escalation, immutable role/status, deletion/recreation and cleanup.
 - Production was not deployed or approved. The production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
 
-1. Land and exercise the source-bound, change-scoped verification contract; Codex chooses application evidence and the release system validates its binding. Follow-up PR #250 supplies the external bundle handoff and acceptance matrix.
+1. Completed: PR #250 integrated the source-bound, change-scoped verification contract; Codex chooses application evidence and the release system validates its binding.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
-4. Reconcile the evidence matrix and present the owner-facing production approval boundary. Do not call Phase 3 complete from local tests or green CI alone.
+4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
 5. After completion, measure and remove demonstrated duplication under Phase 4.
 
 ## Historical evidence
