@@ -61,7 +61,6 @@ export const qualificationDatabaseRules = {
       '$uid': {
         '.read': 'auth != null && auth.uid === $uid',
         '.write': "auth != null && auth.uid === $uid && (!newData.exists() || newData.child('status').val() === 'active')",
-        '.validate': "newData.child('role').val() === 'teacher' || newData.child('role').val() === 'student'",
       },
     },
   },
