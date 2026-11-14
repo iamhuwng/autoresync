@@ -61,10 +61,10 @@ test('browser preview readback verifies every manifest-listed asset', async () =
 });
 
 test('qualification Hosting config points at the retained checkout artifact', () => {
-  const config = qualificationHostingConfig({ site: 'qualification-site', publicDir: 'dist', rulesPath: 'tmp/qualification-database.rules.json' });
+  const config = qualificationHostingConfig({ site: 'qualification-site', publicDir: 'dist' });
   assert.equal(config.hosting.site, 'qualification-site');
   assert.equal(config.hosting.public, path.resolve('dist'));
-  assert.equal(config.database.rules, path.resolve('tmp/qualification-database.rules.json'));
+  assert.equal(config.database.rules, 'qualification-database.rules.json');
 });
 
 test('qualification rules allow disposable self-cleanup without role escalation', () => {

@@ -49,9 +49,9 @@ const requestJson = async (url, init = {}) => {
   return parsed;
 };
 const manifestDigest = manifest => sha256(JSON.stringify(manifest));
-export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist'), rulesPath = path.join(path.dirname(path.resolve(publicDir)), 'qualification-database.rules.json') } = {}) => ({
+export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist'), rulesPath = 'qualification-database.rules.json' } = {}) => ({
   hosting: { site: text(site, 'Firebase qualification site'), public: path.resolve(publicDir) },
-  database: { rules: path.resolve(rulesPath) },
+  database: { rules: text(rulesPath, 'Firebase qualification rules path') },
 });
 export const qualificationDatabaseRules = {
   rules: {
@@ -165,7 +165,7 @@ const main = async () => {
   const cleanupErrors = [];
   const configPath = path.join(outputDir, 'qualification-firebase.json');
   const rulesPath = path.join(outputDir, 'qualification-database.rules.json');
-  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, rulesPath }), null, 2)}\n`);
+  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, rulesPath: path.basename(rulesPath) }), null, 2)}\n`);
   await writeFile(rulesPath, `${JSON.stringify(qualificationDatabaseRules, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
   try {
