@@ -60,7 +60,8 @@ export const qualificationDatabaseRules = {
     users: {
       '$uid': {
         '.read': 'auth != null && auth.uid === $uid',
-        '.write': "auth != null && auth.uid === $uid && (!newData.exists() || (newData.child('status').val() === 'active' && ((!data.exists() && (newData.child('role').val() === 'teacher' || newData.child('role').val() === 'student')) || (data.exists() && newData.child('role').val() === data.child('role').val()))))",
+        '.write': "auth != null && auth.uid === $uid && (!newData.exists() || newData.child('status').val() === 'active')",
+        '.validate': "newData.child('role').val() === 'teacher' || newData.child('role').val() === 'student'",
       },
     },
   },
