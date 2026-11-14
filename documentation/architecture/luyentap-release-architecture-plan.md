@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `a57ecf757017a475ede56360097ac407cb287a2c`. Production authorization remains a separate owner decision. Phase 4 is next.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #256. Production authorization remains a separate owner decision. Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -77,7 +77,7 @@ required.
 
 ## Current implementation and evidence
 
-- Protected `main`: `a57ecf757017a475ede56360097ac407cb287a2c` after merged PR #254.
+- Protected `main` is authoritative; PR #256 is the latest plan-status reconciliation. Query the live commit before making current-state claims.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
