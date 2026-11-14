@@ -68,7 +68,7 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.match(workflow, /rm -rf tmp\/release-result/u);
   assert.match(workflow, /path: tmp\/release-result/u);
   assert.doesNotMatch(workflow, /path:\s*\|[\s\S]*runner\.temp\/release-card\.json/u);
-  for (const upload of workflow.match(/- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n      - uses: actions\/upload-artifact@v4|\n\n  browser-gate:|\n\n  promote:|\n\n  recover:)/gu) || []) {
+  for (const upload of workflow.match(/- uses: actions\/upload-artifact@v4[\s\S]*?(?=\n      - uses: actions\/upload-artifact@v4|\n\s*browser-gate:|\n\s*promote:|\n\s*recover:)/gu) || []) {
     if (upload.includes('luyentap-release-browser-evidence-') || upload.includes('luyentap-approved-release-card-')) continue;
     assert.doesNotMatch(upload, /runner\.temp/u);
   }
