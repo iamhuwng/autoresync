@@ -34,6 +34,10 @@ const run = (args, env, { allowFailure = false } = {}) => {
   return { status: result.status ?? 1, stdout: result.stdout || '', stderr: result.stderr || '' };
 };
 const firebase = (args, env, options) => run(['scripts/tooling-where.mjs', '--exec', 'firebase', ...args], env, options);
+const redactedCliOutput = value => String(value || '')
+  .replace(/Bearer\s+\S+/giu, 'Bearer [redacted]')
+  .replace(/AIza[0-9A-Za-z_-]+/gu, '[redacted-api-key]')
+  .slice(-1200);
 const oauthToken = () => process.env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() || execFileSync('gcloud', ['auth', 'print-access-token'], { encoding: 'utf8', windowsHide: true }).trim();
 const authHeaders = token => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json' });
 const requestJson = async (url, init = {}) => {
@@ -170,7 +174,8 @@ const main = async () => {
     previewUrl = outputUrl(`${deploy.stdout}\n${deploy.stderr}`);
     if (!previewUrl) throw new Error('Firebase did not return a qualification preview URL');
     await waitForManifest(previewUrl, artifact.manifestSha256);
-    firebase(['deploy', '--only', 'database', '--project', project, '--config', configPath, '--non-interactive'], childEnv);
+    const rulesDeploy = firebase(['deploy', '--only', 'database', '--project', project, '--config', configPath, '--non-interactive'], childEnv, { allowFailure: true });
+    if (rulesDeploy.status !== 0) throw new Error(`Qualification database rules deployment failed: ${redactedCliOutput(`${rulesDeploy.stderr}\n${rulesDeploy.stdout}`)}`);
     for (const account of accounts) {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
