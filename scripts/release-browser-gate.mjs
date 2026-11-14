@@ -78,7 +78,7 @@ export const accountState = async ({ project, uid, token }) => {
 };
 export const profileState = async ({ databaseUrl, uid, token }) => {
   const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(token)}`, { redirect: 'error' });
-  if (!response.ok) { const error = new Error(`RTDB profile lookup failed (${response.status})`); error.status = response.status; throw error; }
+  if (!response.ok) { const body = (await response.text()).slice(0, 200); const error = new Error(`RTDB profile lookup failed (${response.status}): ${body}`); error.status = response.status; throw error; }
   return (await response.json()) === null ? 'absent' : 'present';
 };
 const deleteAccount = async ({ project, uid, token, profileToken, databaseUrl }) => {
@@ -156,7 +156,7 @@ const main = async () => {
       profileTokens.set(account.uid, signIn.idToken);
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
       const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json?auth=${encodeURIComponent(signIn.idToken)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
-      if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}`);
+      if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
     }
     const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
     const browser = run(['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], browserEnv, { allowFailure: true });
