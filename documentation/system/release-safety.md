@@ -5,7 +5,9 @@
 ## Current operator path
 
 This file is the operational runbook. Current release-qualification Phase 3
-status is recorded in the dated [browser prerequisite decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
+status and architecture direction are recorded in the [canonical architecture
+plan](../architecture/luyentap-release-architecture-plan.md) and the dated
+[browser prerequisite decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
 
 Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
@@ -181,7 +183,7 @@ protected production job. GitHub
 environment protection, short-lived ADC federation with the pinned Firebase CLI,
 and a disposable Hosting publication/recovery are still external qualification
 work. The guarded workflow is defined in
-`.github/workflows/release-promotion.yml`: its preparer derives technical
+`.github/workflows/release-promotion-phase3.yml`: its preparer derives technical
 bindings and verification inputs, its browser gate fails closed until evidence is
 verified, its protected `production` environment is the owner authorization
 boundary, and its recovery dispatch resumes one recorded operation without
