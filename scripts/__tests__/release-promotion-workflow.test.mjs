@@ -78,10 +78,10 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.ok(workflow.includes('--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"'));
   assert.match(workflow, /LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER/u);
   assert.match(workflow, /LUYENTAP_QUALIFICATION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER/u);
-  assert.match(workflow, /LUYENTAP_QUALIFICATION_ENV/u);
+  assert.match(workflow, /LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID/u);
   assert.equal((workflow.match(/VITE_FIREBASE_QUALIFICATION_API_KEY=/gu) || []).length, 2);
   assert.equal((workflow.match(/VITE_FIREBASE_QUALIFICATION_PROJECT_ID=/gu) || []).length, 2);
-  assert.equal((workflow.match(/VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=/gu) || []).length, 1);
+  assert.equal((workflow.match(/VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=/gu) || []).length, 2);
   assert.doesNotMatch(workflow, /GOOGLE_GHA_CREDS_PATH: \$\{\{ runner\.temp \}\}\/gha-creds\.json/u);
   assert.equal((workflow.match(/relocate-oidc-credentials\.mjs/gu) || []).length, 4);
   assert.equal((workflow.match(/assert-oidc-cleanup/gu) || []).length, 4);
