@@ -138,6 +138,7 @@ this pause is an instruction lookup, not a request for user confirmation.
 
 ## Repo Skills
 
+- Canonical LuyenTap release architecture plan: [`documentation/architecture/luyentap-release-architecture-plan.md`](documentation/architecture/luyentap-release-architecture-plan.md). Read it before release-architecture implementation, qualification or handoff work; keep dated evidence in release-audit records rather than extending the active plan.
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
 - Local dependency installation, tool provisioning, tool lookup, Windows ARM64/x64 routing, or worktree cleanup: read `documentation/system/local-tooling-layout.md`. Run `npm run tooling:doctor` before installing anything, and use `npm run tooling:where -- <tool>` to locate the existing repo-owned or shared tool before downloading or invoking a global binary.
 - Before tests, builds, or dev commands in a copied checkout/worktree, inspect that checkout's package script and read `documentation/system/local-tooling-layout.md`; older copies may still launch the retired dependency-installing harness. Resolve the existing tool from the canonical checkout while preserving the selected source/configuration and working directory.

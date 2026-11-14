@@ -1,5 +1,11 @@
 # Integration and normal release selection
 
+The active release-architecture objectives, phase boundaries and Phase 3
+acceptance matrix are maintained in
+[the canonical architecture plan](../architecture/luyentap-release-architecture-plan.md).
+This document is the operational source for integration and release selection;
+dated observations remain evidence records.
+
 This document explains source convergence and normal-release selection. The
 current release operator commands and promotion contract live in
 [release-safety.md](release-safety.md); dated observations below remain
@@ -169,7 +175,7 @@ missing proof, impact and recovery limits. `scripts/deploy-live.mjs --deploy-ret
 verifies that bound artifact and publishes it through the
 same `deployHosting` route without a second build.
 
-The guarded workflow is now defined in `.github/workflows/release-promotion.yml`.
+The guarded workflow is now defined in `.github/workflows/release-promotion-phase3.yml`.
 It is manual and main-only. Its preparer derives the source, live baseline,
 environment/configuration/artifact bindings, affected verification scope,
 owner-facing impact and missing proof. Its browser gate fails closed until
