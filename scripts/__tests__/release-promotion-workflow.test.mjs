@@ -18,8 +18,11 @@ test('promotion workflow is manual, protected-main-only and serialized', () => {
   assert.doesNotMatch(workflow, /browser-gate:|release-browser-gate\.mjs|playwright install/u);
 });
 
-test('prepare binds source-selected verification evidence before production authorization', () => {
+test('prepare binds the retained Codex verification bundle before production authorization', () => {
   const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
+  assert.match(prepare, /LUYENTAP_RELEASE_VERIFICATION_BUNDLE_TAG/u);
+  assert.match(prepare, /LUYENTAP_RELEASE_VERIFICATION_BUNDLE_SHA256/u);
+  assert.match(prepare, /GH_TOKEN:/u);
   assert.match(prepare, /--prepare --objective/u);
   assert.match(prepare, /--run-verification --output/u);
   assert.match(prepare, /Build the source-bound release card/u);

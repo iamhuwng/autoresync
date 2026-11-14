@@ -179,10 +179,10 @@ same `deployHosting` route without a second build.
 The guarded workflow is now defined in `.github/workflows/release-promotion-phase3.yml`.
 It is manual and main-only. Its preparer derives the source, live baseline,
 environment/configuration/artifact bindings, affected verification scope,
-owner-facing impact and missing proof. Codex supplies a source-bound,
-tool-neutral record at `documentation/release-evidence/verification.json` when
-application paths require evidence; the workflow validates its binding without
-running a fixed browser suite. The protected `production` environment is the
+owner-facing impact and missing proof. Codex supplies an external source-keyed
+verification bundle when application paths require evidence; preparation reads
+the retained asset back by tag and digest, and the workflow validates the bundle
+without running a fixed browser suite. The protected `production` environment is the
 separate owner authorization boundary; the existing executor remains the only
 publication route, and the recovery dispatch resumes one recorded operation
 without rebuilding or publishing.
@@ -208,32 +208,37 @@ requirement. Codex chooses any additional browser or tool verification required
 by the actual change. The separate local-development reliability plan remains
 proposed and separately authorized; it is not part of this release implementation.
 
-For an application-impacting candidate, Codex records the selected proof in the
-tracked `documentation/release-evidence/verification.json` record. Its compact
-contract is tool-neutral:
-
-```json
-{
-  "schemaVersion": 1,
-  "requirement": "required",
-  "decision": "verified",
-  "observedAt": "2026-11-14T15:00:00.000Z",
-  "method": "Codex-selected browser",
-  "scenario": "named user journey",
-  "sourceRevision": "<candidate commit>",
-  "sourceFingerprint": "<candidate source fingerprint>",
-  "checks": [{ "name": "journey completed", "result": "passed" }],
-  "evidenceRefs": ["<durable evidence reference>"],
-  "summary": "The selected journey passed against the reviewed source."
-}
-```
+For an application-impacting candidate, Codex records the selected proof outside the
+candidate checkout and creates an external verification-run bundle with
+`scripts/release-verification-bundle.mjs`. Each run receives a unique tag,
+`verification-<source revision>-<run UUID>`, so a later attempt cannot
+overwrite an earlier artifact. The bundle binds the exact revision, base, source
+fingerprint, environment fingerprint, deterministic build-input identity,
+timestamp and a compact tool-neutral record. Evidence references are
+`bundle://artifact/<id>` values; each referenced artifact is embedded with its
+size and SHA-256, so preparation can read the retained bytes back and fail
+closed on missing, fabricated, altered, stale or mismatched proof. Because this
+repository is public, Codex must use synthetic or thoroughly redacted evidence.
 
 Codex may use a browser, emulator, provider tool or focused automated check as
-the method requires. A non-application candidate uses `requirement:
-"not-required"` with an explicit reason. The release system checks the source
-binding, freshness, passing checks and references; it does not infer adequacy
-from the method name and does not accept a blocked or missing record when the
-path classifier requires application evidence.
+the method requires. A non-application candidate gets an explicit
+`not-required` record from the path classifier and does not need a bundle.
+Preparation validates the bundle against the current source and environment,
+and the promotion card carries the validated bundle digest and content. GitHub
+immutable releases must be enabled separately by an owner/admin; publication
+and readback fail closed when that setting or the retained release state is
+unavailable. This implementation does not change the repository setting.
+
+The handoff is reproducible: after Codex finishes its selected checks, it writes
+the compact record and evidence files outside the checkout, then runs:
+
+```powershell
+node scripts/release-verification-bundle.mjs --create --base <reviewed-base> --record <record.json> --environment <environment-file> --environment-identity <identity> --build-identity none --evidence=browser:<evidence-file> --output <verification-bundle.json>
+node scripts/release-verification-bundle.mjs --publish <bundle.json>
+```
+
+The command returns the prerelease tag and bundle digest; supply both as the
+guarded workflow's `verification_tag` and `verification_sha256` inputs.
 
 ## Converge content without replaying history
 
