@@ -62,8 +62,9 @@ references. A small path classifier permits an explicit `not-required` record
 for changes outside application runtime paths. Backend, rules, Worker, storage
 and other service changes remain subject to their own release-safety scopes.
 
-The promotion workflow no longer runs `browser-gate` or depends on
-the source-bound verification contract. It still requires a publishable assessment, exact source
+The promotion workflow no longer runs `browser-gate` or depends on a fixed
+browser suite. It consumes the source-bound verification contract when required.
+It still requires a publishable assessment, exact source
 and artifact bindings, protected-main freshness, production environment
 authorization, serialized publication, independent provider readback and native
 recovery. `scripts/release-browser-gate.mjs` remains an optional operational
