@@ -152,6 +152,7 @@ export function readVerificationBundle({ tag, sha256: expectedSha256, exec = spa
 }
 export function publishVerificationBundle({ bundleFile, exec = spawnSync } = {}) {
   if (!bundleFile) fail('bundle file is required for publication');
+  if (path.basename(bundleFile) !== assetName) fail('bundle file must be named ' + assetName);
   requireImmutableReleasesEnabled(exec);
   const bytes = readFileSync(bundleFile);
   let bundle; try { bundle = JSON.parse(bytes.toString('utf8')); } catch { fail('verification bundle is not valid JSON'); }
