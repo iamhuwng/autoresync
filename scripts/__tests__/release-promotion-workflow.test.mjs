@@ -5,7 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const workflowFile = ['release-promotion.yml', 'release-promotion-v2.yml']
+const workflowFile = ['release-promotion-phase3.yml', 'release-promotion-v2.yml', 'release-promotion.yml']
   .map(name => path.join(root, '.github/workflows', name))
   .find(file => existsSync(file));
 const workflow = readFileSync(workflowFile, 'utf8');
