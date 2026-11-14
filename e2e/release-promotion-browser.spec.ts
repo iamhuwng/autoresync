@@ -1,7 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const loginAs = async (page: Page, email: string, password: string, expectedPath: RegExp) => {
-  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  expect(response, 'Hosting must return a response for /login').not.toBeNull();
+  expect(response?.status(), 'Hosting /login must serve the application shell').toBe(200);
+  await expect(page.getByRole('heading', { name: 'Page Not Found' })).toHaveCount(0);
+  await expect(page.getByLabel('Email')).toBeVisible({ timeout: 15_000 });
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in with email' }).click();
@@ -9,7 +13,7 @@ const loginAs = async (page: Page, email: string, password: string, expectedPath
 };
 
 test('generated teacher and student accounts complete the authenticated release flow', async ({ browser }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(90_000);
   const password = process.env.RELEASE_BROWSER_PASSWORD;
   const teacherEmail = process.env.RELEASE_BROWSER_TEACHER_EMAIL;
   const studentEmail = process.env.RELEASE_BROWSER_STUDENT_EMAIL;

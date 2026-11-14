@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deleteApp, initializeApp } from 'firebase/app';
@@ -52,10 +53,19 @@ const requestJson = async (url, init = {}) => {
   return parsed;
 };
 const manifestDigest = manifest => sha256(JSON.stringify(manifest));
-export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist'), rulesPath = 'qualification-database.rules.json' } = {}) => ({
-  hosting: { site: text(site, 'Firebase qualification site'), public: path.resolve(publicDir) },
-  database: { rules: text(rulesPath, 'Firebase qualification rules path') },
-});
+const canonicalFirebaseConfig = JSON.parse(readFileSync(path.join(repoRoot, 'firebase.json'), 'utf8'));
+const canonicalHostingConfig = (Array.isArray(canonicalFirebaseConfig.hosting) ? canonicalFirebaseConfig.hosting : [canonicalFirebaseConfig.hosting])
+  .find(entry => entry?.target === 'kahut1');
+if (!canonicalHostingConfig) throw new Error('Canonical kahut1 Hosting configuration is missing');
+export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist'), rulesPath = 'qualification-database.rules.json' } = {}) => {
+  const hosting = JSON.parse(JSON.stringify(canonicalHostingConfig));
+  delete hosting.target;
+  hosting.site = text(site, 'Firebase qualification site');
+  hosting.public = path.resolve(publicDir);
+  // The retained manifest is a required hidden artifact; the canonical route and headers remain shared.
+  hosting.ignore = (hosting.ignore || []).filter(pattern => pattern !== '**/.*');
+  return { hosting, database: { rules: text(rulesPath, 'Firebase qualification rules path') } };
+};
 export const qualificationDatabaseRules = {
   rules: {
     '.read': false,
@@ -65,10 +75,10 @@ export const qualificationDatabaseRules = {
         '.read': 'auth != null && auth.uid === $uid',
         '.write': 'auth != null && auth.uid === $uid',
         role: {
-          '.validate': '!data.exists() || newData.val() === data.val()',
+          '.validate': "newData.val() === 'student' && (!data.exists() || newData.val() === data.val())",
         },
         status: {
-          '.validate': "newData.val() === 'active'",
+          '.validate': "newData.val() === 'active' && (!data.exists() || newData.val() === data.val())",
         },
       },
     },
@@ -106,9 +116,9 @@ export const accountState = async ({ project, uid, token }) => {
     throw error;
   }
 };
-const deleteAccount = async ({ project, uid, token, profileSession }) => {
+const deleteAccount = async ({ project, uid, token, databaseUrl, profileSession, profileAttempted }) => {
   const errors = [];
-  if (profileSession) {
+  if (profileAttempted && profileSession) {
     try {
       const profile = databaseRef(profileSession.database, `users/${uid}`);
       await removeDatabaseValue(profile);
@@ -116,6 +126,12 @@ const deleteAccount = async ({ project, uid, token, profileSession }) => {
     } catch (error) { errors.push(`Profile deletion failed for ${uid}: ${error.message}`); }
     try { await signOut(profileSession.auth); } catch (error) { errors.push(`Firebase profile session cleanup failed for ${uid}: ${error.message}`); }
     try { await deleteApp(profileSession.app); } catch (error) { errors.push(`Firebase app cleanup failed for ${uid}: ${error.message}`); }
+  } else if (profileAttempted) {
+    try { await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: authHeaders(token) }); }
+    catch (error) { errors.push(`Administrative profile deletion failed for ${uid}: ${error.message}`); }
+    try {
+      if (await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: authHeaders(token) }) !== null) errors.push(`RTDB profile remains after deletion: ${uid}`);
+    } catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
   }
   try { await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
@@ -129,9 +145,10 @@ const deleteChannel = (channel, site, project, env, config) => {
 };
 const channelExists = (channel, site, project, env, config) => {
   const result = firebase(['hosting:channel:list', '--site', site, '--project', project, '--config', config, '--json', '--non-interactive'], env, { allowFailure: true });
-  if (result.status !== 0) return null;
-  try { return (JSON.parse(result.stdout).result?.channels || []).some(entry => entry.name?.endsWith(`/channels/${channel}`)); }
-  catch { return null; }
+  const detail = redactedCliOutput(`status=${result.status}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+  if (result.status !== 0) return { present: null, detail };
+  try { return { present: (JSON.parse(result.stdout).result?.channels || []).some(entry => entry.name?.endsWith(`/channels/${channel}`)), detail }; }
+  catch { return { present: null, detail: `${detail}\nresponse=invalid-json` }; }
 };
 
 const main = async () => {
@@ -164,7 +181,8 @@ const main = async () => {
   ];
   const attemptedAccounts = [];
   const profileSessions = new Map();
-    const baseUrl = new URL(configuredDatabaseUrl);
+  const profileAttempts = new Set();
+  const baseUrl = new URL(configuredDatabaseUrl);
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
@@ -184,6 +202,12 @@ const main = async () => {
     for (const account of accounts) {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
+      const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
+      if (account.role === 'teacher') {
+        profileAttempts.add(account.uid);
+        await requestJson(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: authHeaders(token), body: JSON.stringify(profile) });
+        continue;
+      }
       const app = initializeApp({
         apiKey: qualificationKey('VITE_FIREBASE_API_KEY'),
         authDomain: qualificationKey('VITE_FIREBASE_AUTH_DOMAIN'),
@@ -198,7 +222,7 @@ const main = async () => {
       const profileSession = { app, auth, database };
       profileSessions.set(account.uid, profileSession);
       await signInWithEmailAndPassword(auth, account.email, accountPassword);
-      const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
+      profileAttempts.add(account.uid);
       await setDatabaseValue(databaseRef(database, `users/${account.uid}`), profile);
     }
     const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
@@ -210,15 +234,15 @@ const main = async () => {
     await waitForManifest(recoveryUrl, artifact.manifestSha256, 120_000, 'Native Hosting clone channel');
   } catch (error) { failure = error; }
   finally {
-    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, profileSession: profileSessions.get(account.uid) }); } catch (error) { cleanupErrors.push(error.message); } }
+    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, databaseUrl, profileSession: profileSessions.get(account.uid), profileAttempted: profileAttempts.has(account.uid) }); } catch (error) { cleanupErrors.push(error.message); } }
     for (const name of [recoveryChannel, channel]) {
-      const present = channelExists(name, site, project, childEnv, configPath);
-      if (present === null) { cleanupErrors.push(`Unable to verify Hosting channel cleanup: ${name}`); continue; }
-      if (!present) continue;
+      const observed = channelExists(name, site, project, childEnv, configPath);
+      if (observed.present === null) { cleanupErrors.push(`Unable to verify Hosting channel cleanup: ${name}; ${observed.detail}`); continue; }
+      if (!observed.present) continue;
       try { deleteChannel(name, site, project, childEnv, configPath); } catch (error) { cleanupErrors.push(error.message); continue; }
       const remains = channelExists(name, site, project, childEnv, configPath);
-      if (remains === null) cleanupErrors.push(`Unable to verify Hosting channel cleanup after deletion: ${name}`);
-      else if (remains) cleanupErrors.push(`Hosting channel remains after deletion: ${name}`);
+      if (remains.present === null) cleanupErrors.push(`Unable to verify Hosting channel cleanup after deletion: ${name}; ${remains.detail}`);
+      else if (remains.present) cleanupErrors.push(`Hosting channel remains after deletion: ${name}`);
     }
   }
   await rm(configPath, { force: true });
