@@ -3,6 +3,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deleteApp, initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getDatabase, get as getDatabaseValue, ref as databaseRef, remove as removeDatabaseValue, set as setDatabaseValue } from 'firebase/database';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
@@ -103,20 +106,16 @@ export const accountState = async ({ project, uid, token }) => {
     throw error;
   }
 };
-export const profileState = async ({ databaseUrl, uid, token }) => {
-  const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: { authorization: `Bearer ${token}` }, redirect: 'error' });
-  if (!response.ok) { const body = (await response.text()).slice(0, 200); const error = new Error(`RTDB profile lookup failed (${response.status}): ${body}`); error.status = response.status; throw error; }
-  return (await response.json()) === null ? 'absent' : 'present';
-};
-const deleteAccount = async ({ project, uid, token, profileToken, databaseUrl }) => {
+const deleteAccount = async ({ project, uid, token, profileSession }) => {
   const errors = [];
-  if (profileToken) {
+  if (profileSession) {
     try {
-      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: { authorization: `Bearer ${profileToken}` }, redirect: 'error' });
-      if (!response.ok) errors.push(`Profile deletion failed for ${uid}: HTTP ${response.status}`);
+      const profile = databaseRef(profileSession.database, `users/${uid}`);
+      await removeDatabaseValue(profile);
+      if ((await getDatabaseValue(profile)).exists()) errors.push(`RTDB profile remains after deletion: ${uid}`);
     } catch (error) { errors.push(`Profile deletion failed for ${uid}: ${error.message}`); }
-    try { if (await profileState({ databaseUrl, uid, token: profileToken }) !== 'absent') errors.push(`RTDB profile remains after deletion: ${uid}`); }
-    catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
+    try { await signOut(profileSession.auth); } catch (error) { errors.push(`Firebase profile session cleanup failed for ${uid}: ${error.message}`); }
+    try { await deleteApp(profileSession.app); } catch (error) { errors.push(`Firebase app cleanup failed for ${uid}: ${error.message}`); }
   }
   try { await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
@@ -164,7 +163,7 @@ const main = async () => {
     { role: 'student', email: `release.student.${suffix}@qualification.invalid`, uid: `${channel}-student`, displayName: `Release Smoke Student ${suffix}` },
   ];
   const attemptedAccounts = [];
-  const profileTokens = new Map();
+  const profileSessions = new Map();
     const baseUrl = new URL(configuredDatabaseUrl);
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
@@ -185,11 +184,22 @@ const main = async () => {
     for (const account of accounts) {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
-      const signIn = await requestJson(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(qualificationKey('VITE_FIREBASE_API_KEY'))}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: account.email, password: accountPassword, returnSecureToken: true }) });
-      profileTokens.set(account.uid, signIn.idToken);
+      const app = initializeApp({
+        apiKey: qualificationKey('VITE_FIREBASE_API_KEY'),
+        authDomain: qualificationKey('VITE_FIREBASE_AUTH_DOMAIN'),
+        databaseURL: qualificationKey('VITE_FIREBASE_DATABASE_URL'),
+        projectId: qualificationKey('VITE_FIREBASE_PROJECT_ID'),
+        storageBucket: qualificationKey('VITE_FIREBASE_STORAGE_BUCKET'),
+        messagingSenderId: qualificationKey('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+        appId: qualificationKey('VITE_FIREBASE_APP_ID'),
+      }, `release-qualification-${account.uid}`);
+      const auth = getAuth(app);
+      const database = getDatabase(app);
+      const profileSession = { app, auth, database };
+      profileSessions.set(account.uid, profileSession);
+      await signInWithEmailAndPassword(auth, account.email, accountPassword);
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
-      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: { authorization: `Bearer ${signIn.idToken}`, 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
-      if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+      await setDatabaseValue(databaseRef(database, `users/${account.uid}`), profile);
     }
     const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
     const browser = run(['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], browserEnv, { allowFailure: true });
@@ -200,7 +210,7 @@ const main = async () => {
     await waitForManifest(recoveryUrl, artifact.manifestSha256, 120_000, 'Native Hosting clone channel');
   } catch (error) { failure = error; }
   finally {
-    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, profileToken: profileTokens.get(account.uid), databaseUrl }); } catch (error) { cleanupErrors.push(error.message); } }
+    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, profileSession: profileSessions.get(account.uid) }); } catch (error) { cleanupErrors.push(error.message); } }
     for (const name of [recoveryChannel, channel]) {
       const present = channelExists(name, site, project, childEnv, configPath);
       if (present === null) { cleanupErrors.push(`Unable to verify Hosting channel cleanup: ${name}`); continue; }
