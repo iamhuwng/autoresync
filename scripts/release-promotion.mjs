@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runReleaseVerification } from './release-verification.mjs';
 import { classifyPaths, collectSourceState } from './release-check.mjs';
 import { observeHosting } from './release-evidence.mjs';
-import { buildIdentityFor, bundleBytes, bundleDigest, validateVerificationBundle, verificationTag } from './release-verification-bundle.mjs';
+import { buildIdentityFor, bundleBytes, bundleDigest, isVerificationTagForSource, validateVerificationBundle } from './release-verification-bundle.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
@@ -196,7 +196,7 @@ export function validatePromotionCard(card) {
   validateVerificationEvidence(card.verificationEvidence.record, { source: card.source, requirement: card.source.verificationRequirement });
   if (card.source.verificationRequirement === 'required') {
     exactFields(card.verificationBundle, ['tag', 'sha256', 'bundle'], 'verification bundle binding');
-    if (card.verificationBundle.tag !== verificationTag(card.source.revision)) fail('verification bundle tag differs from the source');
+    if (!isVerificationTagForSource(card.verificationBundle.tag, card.source.revision)) fail('verification bundle tag differs from the source');
     digestField(card.verificationBundle.sha256, 'verification bundle digest');
     if (bundleDigest(bundleBytes(card.verificationBundle.bundle)) !== card.verificationBundle.sha256) fail('verification bundle digest differs from its retained bytes');
     validateVerificationBundle(card.verificationBundle.bundle, { source: card.source, environmentFingerprint: card.environment.fingerprint, expectedBuildIdentity: buildIdentityFor(card.source, card.environment.fingerprint) });

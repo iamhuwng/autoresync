@@ -57,13 +57,15 @@ cleanup; it does not define application verification.
 For application-impacting paths, Codex writes a verification record outside the
 candidate checkout and uses `scripts/release-verification-bundle.mjs` to bind
 that record and retained evidence artifacts to the exact source revision, base,
-source fingerprint, environment fingerprint, deterministic build-input identity and timestamp. The
-command publishes one source-keyed prerelease asset
-(`verification-<source revision>/verification-bundle.json`) through GitHub's
-existing release storage. Preparation reads the asset back by tag and digest,
-validates every artifact reference and content hash, then carries the full
-bundle into the promotion card. A source-committed evidence file is not used,
-which avoids a self-referential source fingerprint.
+source fingerprint, environment fingerprint, deterministic build-input identity
+and timestamp. Each run receives a unique tag
+(`verification-<source revision>-<run UUID>`), so repeated verification of one
+commit cannot overwrite an earlier artifact. Preparation reads the asset back by
+tag and digest, verifies the published release is immutable, checks the tag
+target, validates every artifact reference and content hash, then carries the
+bundle into the promotion card. The repository setting is an external
+owner/admin prerequisite; this workflow never changes it. A source-committed
+evidence file is not used, which avoids a self-referential source fingerprint.
 
 A path classifier still creates an explicit `not-required` record for changes
 outside application runtime paths. Missing, stale, mismatched, fabricated or

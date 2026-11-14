@@ -209,22 +209,25 @@ by the actual change. The separate local-development reliability plan remains
 proposed and separately authorized; it is not part of this release implementation.
 
 For an application-impacting candidate, Codex records the selected proof outside the
-candidate checkout and creates an external source-keyed bundle with
-`scripts/release-verification-bundle.mjs`. The bundle is retained as the
-published prerelease asset `verification-<source revision>/verification-bundle.json`.
-It binds the exact revision, base, source fingerprint, environment fingerprint,
-deterministic build-input identity, timestamp and a compact tool-neutral record. The `none` CLI value derives that identity from the candidate tree and environment fingerprint. Evidence references
-are `bundle://artifact/<id>` values; each referenced artifact is embedded with
-its size and SHA-256, so preparation can read the retained bytes back and fail
-closed on missing, fabricated, altered, stale or mismatched proof.
-Because this repository is public, Codex must use synthetic or thoroughly redacted evidence artifacts. This keeps the handoff tool-neutral without adding a separate browser or infrastructure gate.
+candidate checkout and creates an external verification-run bundle with
+`scripts/release-verification-bundle.mjs`. Each run receives a unique tag,
+`verification-<source revision>-<run UUID>`, so a later attempt cannot
+overwrite an earlier artifact. The bundle binds the exact revision, base, source
+fingerprint, environment fingerprint, deterministic build-input identity,
+timestamp and a compact tool-neutral record. Evidence references are
+`bundle://artifact/<id>` values; each referenced artifact is embedded with its
+size and SHA-256, so preparation can read the retained bytes back and fail
+closed on missing, fabricated, altered, stale or mismatched proof. Because this
+repository is public, Codex must use synthetic or thoroughly redacted evidence.
 
 Codex may use a browser, emulator, provider tool or focused automated check as
 the method requires. A non-application candidate gets an explicit
 `not-required` record from the path classifier and does not need a bundle.
-Preparation validates the bundle against the current source and environment, and
-the promotion card carries the validated bundle digest and content. This avoids
-a source-committed record whose fingerprint would include itself.
+Preparation validates the bundle against the current source and environment,
+and the promotion card carries the validated bundle digest and content. GitHub
+immutable releases must be enabled separately by an owner/admin; publication
+and readback fail closed when that setting or the retained release state is
+unavailable. This implementation does not change the repository setting.
 
 The handoff is reproducible: after Codex finishes its selected checks, it writes
 the compact record and evidence files outside the checkout, then runs:

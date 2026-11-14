@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { collectSourceState } from '../release-check.mjs';
-import { createVerificationBundle, bundleBytes, bundleDigest, validateVerificationBundle, readVerificationBundle, publishVerificationBundle, verificationTag } from '../release-verification-bundle.mjs';
+import { createVerificationBundle, bundleBytes, bundleDigest, validateVerificationBundle, readVerificationBundle, publishVerificationBundle, verificationTag, isVerificationTagForSource } from '../release-verification-bundle.mjs';
 
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const git = (cwd, ...args) => {
@@ -29,11 +29,12 @@ async function fixture(t) {
   return { cwd, base, source, record, recordPath, environmentPath, artifactPath, output };
 }
 function provider(bytes, tag) {
-  const calls = []; let release = { id: 42, tag_name: tag, draft: false, prerelease: true, assets: [{ name: 'verification-bundle.json', id: 7, size: bytes.length }] };
-  return { calls, exec(command, args, options) {
+  const calls = []; let release = { id: 42, tag_name: tag, draft: false, prerelease: true, immutable: true, assets: [{ name: 'verification-bundle.json', id: 7, size: bytes.length }] };
+  return { calls, setImmutable(value) { release.immutable = value; }, exec(command, args, options) {
     assert.equal(command, 'gh'); calls.push(args);
+    if (args[0] === 'api' && args[1] === 'repos/iamhuwng/autoresync/immutable-releases') return { status: 0, stdout: JSON.stringify({ enabled: true }), stderr: '' };
     if (args[0] === 'api' && args[1] === 'graphql') return { status: 0, stdout: JSON.stringify({ data: { repository: { release: { databaseId: 42 } } } }), stderr: '' };
-    if (args[0] === 'api' && args[1].startsWith('repos/iamhuwng/autoresync/git/ref/tags/')) return { status: 0, stdout: JSON.stringify({ object: { type: 'commit', sha: tag.replace('verification-', '') } }), stderr: '' };
+    if (args[0] === 'api' && args[1].startsWith('repos/iamhuwng/autoresync/git/ref/tags/')) return { status: 0, stdout: JSON.stringify({ object: { type: 'commit', sha: JSON.parse(bytes.toString('utf8')).source.revision } }), stderr: '' };
     if (args[0] === 'api' && args[1] === 'repos/iamhuwng/autoresync/releases/42') return { status: 0, stdout: JSON.stringify(release), stderr: '' };
     if (args[0] === 'api' && args[1].includes('/releases/assets/7')) return { status: 0, stdout: bytes, stderr: '' };
     throw new Error(args.join(' '));
@@ -67,28 +68,46 @@ test('readback validates retained bundle bytes and digest', async t => {
   const remote = provider(result.bytes, result.bundle.tag);
   const readback = readVerificationBundle({ tag: result.bundle.tag, sha256: result.sha256, exec: remote.exec });
   assert.equal(readback.sha256, result.sha256);
+  assert(isVerificationTagForSource(result.bundle.tag, result.bundle.source.revision));
   assert.throws(() => readVerificationBundle({ tag: result.bundle.tag, sha256: hash('wrong'), exec: remote.exec }), /readback digest differs/u);
+  remote.setImmutable(false);
+  assert.throws(() => readVerificationBundle({ tag: result.bundle.tag, sha256: result.sha256, exec: remote.exec }), /immutable prerelease/u);
 });
 test('publishes a source-keyed prerelease and reads back its exact asset', async t => {
   const f = await fixture(t);
   const result = await createVerificationBundle({ cwd: f.cwd, base: f.base, recordPath: f.recordPath, environmentPath: f.environmentPath, environmentIdentity: 'acceptance-emulator', buildIdentity: 'none', evidence: [{ id: 'browser', file: f.artifactPath }], output: f.output });
   const remote = { release: null, calls: [], exec(command, args, options) {
     assert.equal(command, 'gh'); this.calls.push(args);
+    if (args[0] === 'api' && args[1] === 'repos/iamhuwng/autoresync/immutable-releases') return { status: 0, stdout: JSON.stringify({ enabled: true }), stderr: '' };
     if (args[0] === 'api' && args[1] === 'graphql') return { status: 0, stdout: JSON.stringify({ data: { repository: { release: this.release ? { databaseId: 42 } : null } } }), stderr: '' };
     if (args[0] === 'api' && args[1].startsWith('repos/iamhuwng/autoresync/git/ref/tags/')) return { status: 0, stdout: JSON.stringify({ object: { type: 'commit', sha: result.bundle.source.revision } }), stderr: '' };
-    if (args[0] === 'api' && args[1].startsWith('repos/iamhuwng/autoresync/git/ref/tags/')) return { status: 0, stdout: JSON.stringify({ object: { type: 'commit', sha: tag.replace('verification-', '') } }), stderr: '' };
     if (args[0] === 'api' && args[1] === 'repos/iamhuwng/autoresync/releases/42') return { status: 0, stdout: JSON.stringify({ ...this.release, assets: this.release?.assets || [] }), stderr: '' };
-    if (args[0] === 'release' && args[1] === 'create') { this.release = { id: 42, tag_name: result.bundle.tag, draft: true, prerelease: false, assets: [] }; return { status: 0, stdout: '{}', stderr: '' }; }
+    if (args[0] === 'release' && args[1] === 'create') { this.release = { id: 42, tag_name: result.bundle.tag, draft: true, prerelease: false, immutable: false, assets: [] }; return { status: 0, stdout: '{}', stderr: '' }; }
     if (args[0] === 'release' && args[1] === 'upload') { this.release.assets = [{ name: 'verification-bundle.json', id: 7, size: result.bytes.length }]; return { status: 0, stdout: '{}', stderr: '' }; }
-    if (args[0] === 'release' && args[1] === 'edit') { this.release.draft = false; this.release.prerelease = true; return { status: 0, stdout: '{}', stderr: '' }; }
+    if (args[0] === 'release' && args[1] === 'edit') { this.release.draft = false; this.release.prerelease = true; this.release.immutable = true; return { status: 0, stdout: '{}', stderr: '' }; }
     if (args[0] === 'api' && args[1].includes('/releases/assets/7')) return { status: 0, stdout: result.bytes, stderr: '' };
     throw new Error(args.join(' '));
   } };
   const published = publishVerificationBundle({ bundleFile: f.output, exec: remote.exec.bind(remote) });
   assert.equal(published.sha256, result.sha256);
+  assert(isVerificationTagForSource(result.bundle.tag, result.bundle.source.revision));
   assert(remote.calls.some(args => args[0] === 'release' && args[1] === 'edit'));
 });
+test('publishing fails closed when immutable releases are disabled', async t => {
+  const f = await fixture(t);
+  await createVerificationBundle({ cwd: f.cwd, base: f.base, recordPath: f.recordPath, environmentPath: f.environmentPath, environmentIdentity: 'acceptance-emulator', buildIdentity: 'none', evidence: [{ id: 'browser', file: f.artifactPath }], output: f.output });
+  const calls = [];
+  const exec = (command, args) => {
+    calls.push(args);
+    if (args[0] === 'api' && args[1] === 'repos/iamhuwng/autoresync/immutable-releases') return { status: 0, stdout: JSON.stringify({ enabled: false }), stderr: '' };
+    throw new Error(args.join(' '));
+  };
+  assert.throws(() => publishVerificationBundle({ bundleFile: f.output, exec }), /immutable releases must be enabled/u);
+  assert.equal(calls.some(args => args[0] === 'release' && args[1] === 'create'), false);
+});
 test('verification tags are source keyed and cannot be reused for another revision', () => {
-  assert.equal(verificationTag('a'.repeat(40)), 'verification-' + 'a'.repeat(40));
+  const tag = verificationTag('a'.repeat(40));
+  assert.match(tag, /^verification-a{40}-[0-9a-f-]{36}$/u);
+  assert(isVerificationTagForSource(tag, 'a'.repeat(40)));
   assert.throws(() => verificationTag('short'), /full Git revision/u);
 });

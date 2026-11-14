@@ -6,6 +6,7 @@ import path from 'node:path';
 const repository = 'iamhuwng/autoresync';
 const shaPattern = /^[a-f0-9]{64}$/u;
 const revisionPattern = /^[a-f0-9]{40}$/u;
+const runIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const assetName = 'verification-bundle.json';
 const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const fail = message => { throw new Error('Verification bundle: ' + message); };
@@ -25,10 +26,15 @@ const command = (executable, args, options = {}, exec = spawnSync) => {
 };
 const gh = (args, exec) => command('gh', args, {}, exec);
 const api = (endpoint, exec) => JSON.parse(gh(['api', 'repos/' + repository + '/' + endpoint], exec));
-export const verificationTag = revision => {
+export const verificationTag = (revision, runId = crypto.randomUUID()) => {
   if (!revisionPattern.test(revision || '')) fail('source revision must be a full Git revision');
-  return 'verification-' + revision;
+  if (!runIdPattern.test(runId || '')) fail('verification run ID must be a UUID');
+  return `verification-${revision}-${runId}`;
 };
+export const isVerificationTagForSource = (tag, revision) => revisionPattern.test(revision || '')
+  && typeof tag === 'string'
+  && tag.startsWith(`verification-${revision}-`)
+  && runIdPattern.test(tag.slice(`verification-${revision}-`.length));
 export const buildIdentityFor = (source, environmentFingerprint) => {
   if (!source || !revisionPattern.test(source.revision || '') || !revisionPattern.test(source.tree || '') || !shaPattern.test(environmentFingerprint || '')) fail('build identity inputs are invalid');
   return digest(Buffer.from(source.revision + '\n' + source.tree + '\n' + environmentFingerprint));
@@ -44,7 +50,7 @@ function validateArtifact(artifact) {
 }
 export function validateVerificationBundle(bundle, { source, requirement = 'required', environmentFingerprint, expectedBuildIdentity, now = Date.now() } = {}) {
   exactFields(bundle, ['schemaVersion', 'tag', 'asset', 'createdAt', 'source', 'environment', 'build', 'verification', 'artifacts'], 'verification bundle');
-  if (bundle.schemaVersion !== 1 || bundle.asset !== assetName || bundle.tag !== verificationTag(bundle.source?.revision)) fail('verification bundle identity is invalid');
+  if (bundle.schemaVersion !== 1 || bundle.asset !== assetName || !isVerificationTagForSource(bundle.tag, bundle.source?.revision)) fail('verification bundle identity is invalid');
   if (!Number.isFinite(Date.parse(bundle.createdAt)) || new Date(bundle.createdAt).toISOString() !== bundle.createdAt || Date.parse(bundle.createdAt) > now + 600000 || now - Date.parse(bundle.createdAt) > 86400000) fail('verification bundle is stale or dated in the future');
   exactFields(bundle.source, ['revision', 'tree', 'baseRevision', 'fingerprint'], 'verification bundle source');
   for (const [key, pattern] of [['revision', revisionPattern], ['tree', revisionPattern], ['baseRevision', revisionPattern], ['fingerprint', shaPattern]]) if (!pattern.test(bundle.source?.[key] || '')) fail('verification bundle source ' + key + ' is invalid');
@@ -100,7 +106,7 @@ export async function createVerificationBundle({ cwd, base, recordPath, environm
   return { bundle, bytes, sha256: bundleDigest(bytes) };
 }
 function releaseFor(tag, exec) {
-  if (!/^verification-[a-f0-9]{40}$/u.test(tag || '')) fail('verification bundle tag is invalid');
+  if (!/^verification-[a-f0-9]{40}-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(tag || '')) fail('verification bundle tag is invalid');
   const lookup = JSON.parse(gh(['api', 'graphql', '-f', 'query=query($tag: String!) { repository(owner: "iamhuwng", name: "autoresync") { release(tagName: $tag) { databaseId } } }', '-f', 'tag=' + tag], exec));
   const releaseId = lookup.data?.repository?.release?.databaseId;
   if (!Number.isSafeInteger(releaseId) || releaseId < 1) fail('verification bundle release was not found');
@@ -113,6 +119,10 @@ function resolveTag(tag, exec) {
   if (ref.object?.type !== 'commit' || !revisionPattern.test(ref.object.sha || '')) fail('verification bundle tag does not resolve to a commit');
   return ref.object.sha;
 }
+function requireImmutableReleasesEnabled(exec) {
+  const settings = api('immutable-releases', exec);
+  if (settings?.enabled !== true) fail('GitHub immutable releases must be enabled before publishing verification evidence');
+}
 function downloadAsset(asset, exec) {
   if (!Number.isSafeInteger(asset?.id) || !Number.isSafeInteger(asset?.size) || asset.size < 1 || asset.size > 64 * 1024 * 1024) fail('verification asset identity or size is invalid');
   const bytes = command('gh', ['api', 'repos/' + repository + '/releases/assets/' + asset.id, '-H', 'Accept: application/octet-stream'], { encoding: null }, exec);
@@ -121,6 +131,7 @@ function downloadAsset(asset, exec) {
 }
 export function readVerificationBundle({ tag, sha256: expectedSha256, exec = spawnSync } = {}) {
   const release = releaseFor(tag, exec);
+  if (release.draft !== false || release.prerelease !== true || release.immutable !== true) fail('verification bundle release must be a published immutable prerelease');
   if (release.draft === true || release.prerelease !== true) fail('verification bundle release is not an immutable prerelease');
   const matches = (release.assets || []).filter(asset => asset.name === assetName);
   if (matches.length !== 1) fail('verification bundle asset is missing or duplicated');
@@ -135,6 +146,7 @@ export function readVerificationBundle({ tag, sha256: expectedSha256, exec = spa
 }
 export function publishVerificationBundle({ bundleFile, exec = spawnSync } = {}) {
   if (!bundleFile) fail('bundle file is required for publication');
+  requireImmutableReleasesEnabled(exec);
   const bytes = readFileSync(bundleFile);
   let bundle; try { bundle = JSON.parse(bytes.toString('utf8')); } catch { fail('verification bundle is not valid JSON'); }
   validateVerificationBundle(bundle);
@@ -148,6 +160,7 @@ export function publishVerificationBundle({ bundleFile, exec = spawnSync } = {})
   }
   const existing = (release.assets || []).filter(asset => asset.name === assetName);
   if (existing.length > 1) fail('verification bundle asset is duplicated');
+  if (resolveTag(tag, exec) !== bundle.source.revision) fail('verification bundle tag does not point to its recorded source revision');
   if (existing.length) { if (digest(downloadAsset(existing[0], exec)) !== expected) fail('an existing verification bundle cannot be replaced'); if (release.draft === true) gh(['release', 'edit', tag, '--repo', repository, '--draft=false', '--prerelease'], exec); if (readVerificationBundle({ tag, sha256: expected, exec }).sha256 !== expected) fail('verification bundle readback differs'); }
   else { gh(['release', 'upload', tag, bundleFile, '--repo', repository], exec); gh(['release', 'edit', tag, '--repo', repository, '--draft=false', '--prerelease'], exec); if (readVerificationBundle({ tag, sha256: expected, exec }).sha256 !== expected) fail('verification bundle upload readback differs'); }
   return { tag, asset: assetName, sha256: expected };
