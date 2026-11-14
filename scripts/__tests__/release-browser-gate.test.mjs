@@ -69,6 +69,7 @@ test('qualification Hosting config points at the retained checkout artifact', ()
 
 test('qualification rules allow disposable self-cleanup without role escalation', () => {
   const write = qualificationDatabaseRules.rules.users.$uid['.write'];
-  assert.match(write, /!newData\.exists\(\)/u);
-  assert.match(write, /newData\.child\('status'\)\.val\(\) === 'active'/u);
+  assert.match(write, /auth\.uid === \$uid/u);
+  assert.match(qualificationDatabaseRules.rules.users.$uid.role['.validate'], /data\.val\(\)/u);
+  assert.match(qualificationDatabaseRules.rules.users.$uid.status['.validate'], /active/u);
 });
