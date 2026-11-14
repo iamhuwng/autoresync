@@ -232,6 +232,46 @@ immutable releases must be enabled separately by an owner/admin; publication
 and readback fail closed when that setting or the retained release state is
 unavailable. This implementation does not change the repository setting.
 
+When a real built-site check is useful, Codex may use the existing disposable
+qualification project and Hosting-channel lifecycle in
+`scripts/release-browser-gate.mjs`. The lifecycle deploys the exact retained
+artifact, reads back every manifest-listed file, applies isolated rules,
+creates temporary test accounts, exposes the staging URL and bindings through
+`RELEASE_STAGING_*` variables, runs a caller-selected command, performs native
+Hosting clone readback, deletes the temporary accounts/channels, and fails
+closed when cleanup cannot be verified. Supply a JSON command file such as:
+
+```json
+{
+  "label": "teacher settings and student dashboard journey",
+  "services": ["hosting", "firebase-auth", "firebase-rtdb", "firebase-rules", "workers"],
+  "command": ["node", "scripts/custom-staging-journey.mjs"]
+}
+```
+
+Run it with:
+
+```powershell
+node scripts/release-browser-gate.mjs --binding <qualification-binding.json> --qualification-env-file <qualification-env-file> --journey-command-file <file> --output-dir <evidence-directory>
+```
+
+The command is an argv array, not
+a shell string, so Codex can choose Playwright, another browser tool, an
+emulator check, or a repository-owned script without turning one framework or
+journey into a universal gate. Retain its redacted output and cleanup evidence
+inside the external source-bound verification bundle. This staging lifecycle
+supports application verification; it is separate from production publication
+qualification.
+
+The staging scope includes Hosting, Firebase Auth/RTDB/rules, and Workers when
+the qualification environment supplies non-production Worker endpoint bindings
+and the selected journey declares `"workers"` in its `services` array. It does
+not mirror Backblaze/storage, Functions, migrations, or production data. A
+change confined to an excluded service skips this staging check and follows its
+existing service-specific release evidence. A frontend journey that depends on
+an excluded service cannot claim full staging coverage without separate
+compatibility evidence.
+
 The handoff is reproducible: after Codex finishes its selected checks, it writes
 the compact record and evidence files outside the checkout, then runs:
 
