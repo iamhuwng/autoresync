@@ -252,7 +252,7 @@ closed when cleanup cannot be verified. Supply a JSON command file such as:
 Run it with:
 
 ```powershell
-node scripts/release-browser-gate.mjs --binding <qualification-binding.json> --qualification-env-file <qualification-env-file> --journey-command-file <file> --output-dir <evidence-directory>
+node scripts/release-browser-gate.mjs --binding <qualification-binding.json> --artifact-dir <retained-dist-directory> --qualification-env-file <qualification-env-file> --journey-command-file <file> --output-dir <evidence-directory>
 ```
 
 The command is an argv array, not

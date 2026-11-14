@@ -20,6 +20,7 @@ const parseArgs = argv => {
     const value = argv[i];
     if (value === '--card') result.card = argv[++i];
     else if (value === '--binding') result.binding = argv[++i];
+    else if (value === '--artifact-dir') result.artifactDir = argv[++i];
     else if (value === '--qualification-env-file') result.qualificationEnvFile = argv[++i];
     else if (value === '--output-dir') result.outputDir = argv[++i];
     else if (value === '--project') result.project = argv[++i];
@@ -221,7 +222,7 @@ const main = async () => {
   const cleanupErrors = [];
   const configPath = path.join(outputDir, 'qualification-firebase.json');
   const rulesPath = path.join(outputDir, 'qualification-database.rules.json');
-  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, rulesPath: path.basename(rulesPath) }), null, 2)}\n`);
+  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, publicDir: args.artifactDir || path.join(repoRoot, 'dist'), rulesPath: path.basename(rulesPath) }), null, 2)}\n`);
   await writeFile(rulesPath, `${JSON.stringify(qualificationDatabaseRules, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
   try {
