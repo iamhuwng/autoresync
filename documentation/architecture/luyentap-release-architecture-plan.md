@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `1d71db8794730e4c9f256061edef0f23ea923a67`. Production authorization remains a separate owner decision. Phase 4 is current.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `1d71db8794730e4c9f256061edef0f23ea923a67`. Production authorization remains a separate owner decision. Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -93,7 +93,7 @@ required.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. In progress: audit the proven Phase 3 paths for duplication. The current audit finds one verification-bundle implementation and no promotion-workflow dependency on the browser gate; the browser gate remains only as an optional disposable experiment with focused rule/evidence tests.
+5. Next: after Phase 3 is exercised through an authorized release, measure and remove only demonstrated duplication. The current inspection found one verification-bundle implementation and no promotion-workflow dependency on the browser gate; it did not justify deleting the optional disposable experiment.
 
 ## Historical evidence
 
