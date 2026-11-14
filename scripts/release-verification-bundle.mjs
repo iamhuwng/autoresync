@@ -39,6 +39,12 @@ export const buildIdentityFor = (source, environmentFingerprint) => {
   if (!source || !revisionPattern.test(source.revision || '') || !revisionPattern.test(source.tree || '') || !shaPattern.test(environmentFingerprint || '')) fail('build identity inputs are invalid');
   return digest(Buffer.from(source.revision + '\n' + source.tree + '\n' + environmentFingerprint));
 };
+export const parseEvidenceArgument = value => {
+  if (typeof value !== 'string') fail('evidence arguments must use --evidence=<id>:<file>');
+  const separator = value.indexOf(':');
+  if (separator < 1 || separator === value.length - 1) fail('evidence arguments must use --evidence=<id>:<file>');
+  return { id: value.slice(0, separator), file: value.slice(separator + 1) };
+};
 function validateArtifact(artifact) {
   exactFields(artifact, ['id', 'mediaType', 'size', 'sha256', 'contentBase64'], 'verification artifact');
   if (!safeId(artifact.id)) fail('verification artifact id is invalid');
@@ -171,10 +177,8 @@ if (process.argv[1] && process.argv[1].replaceAll('\\', '/').endsWith('/scripts/
   const value = name => { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; };
   try {
     if (args.includes('--create')) {
-      const evidence = args.filter(arg => arg.startsWith('--evidence=')).map(arg => {
-        const [id, file] = arg.slice('--evidence='.length).split(':');
-        return { id, file };
-      });
+      const evidence = args.filter(arg => arg.startsWith('--evidence='))
+        .map(arg => parseEvidenceArgument(arg.slice('--evidence='.length)));
       const result = await createVerificationBundle({
         cwd: process.cwd(), base: value('--base'), recordPath: value('--record'), environmentPath: value('--environment'),
         environmentIdentity: value('--environment-identity'), buildIdentity: value('--build-identity') || 'none',
