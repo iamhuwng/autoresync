@@ -1,19 +1,25 @@
 name: Release Promotion
 # Manual dispatch is the protected-main entry point for Phase 3 promotion.
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       operation:
         description: 'Publish a prepared release or resume an existing operation'
         required: true
         default: publish
+        type: choice
+        options:
+          - publish
+          - verify-existing
       operation_id:
         description: 'Existing Hosting operation UUID when operation=verify-existing'
         required: false
+        type: string
       objective:
         description: 'Product objective for this release; technical bindings are derived automatically'
         required: true
+        type: string
 
 concurrency:
   group: luyentap-hosting-production
