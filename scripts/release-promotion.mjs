@@ -199,7 +199,7 @@ export function validatePromotionCard(card) {
     if (!isVerificationTagForSource(card.verificationBundle.tag, card.source.revision)) fail('verification bundle tag differs from the source');
     digestField(card.verificationBundle.sha256, 'verification bundle digest');
     if (bundleDigest(bundleBytes(card.verificationBundle.bundle)) !== card.verificationBundle.sha256) fail('verification bundle digest differs from its retained bytes');
-    validateVerificationBundle(card.verificationBundle.bundle, { source: card.source, environmentFingerprint: card.environment.fingerprint, expectedBuildIdentity: buildIdentityFor(card.source, card.environment.fingerprint) });
+    validateVerificationBundle(card.verificationBundle.bundle, { source: card.source });
     if (JSON.stringify(card.verificationEvidence.record) !== JSON.stringify(card.verificationBundle.bundle.verification)) fail('promotion verification record differs from the retained bundle');
   } else if (card.verificationBundle !== null && card.verificationBundle !== undefined) fail('non-application card cannot carry a verification bundle');
   text(card.impact, 'release impact');
@@ -291,7 +291,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     if (!bundleTag || !bundleSha256) fail('source-bound application verification bundle is required for application paths');
     const { readVerificationBundle } = await import('./release-verification-bundle.mjs');
     const readback = readVerificationBundle({ tag: bundleTag, sha256: bundleSha256 });
-    validateVerificationBundle(readback.bundle, { source, environmentFingerprint, expectedBuildIdentity: buildIdentityFor(source, environmentFingerprint) });
+    validateVerificationBundle(readback.bundle, { source });
     verificationBundle = readback.bundle;
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;

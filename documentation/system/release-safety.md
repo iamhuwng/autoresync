@@ -158,7 +158,10 @@ Hosting baseline, the actual event SHA, verification-plan and compatibility-revi
 digests, production environment fingerprint, Firebase configuration digest, and
 retained manifest identity (source revision/tree/environment/file count). The
 The card also retains the passing automated verification result and, when
-application paths require it, the validated external verification bundle. Codex
+application paths require it, the validated external verification bundle. The
+bundle's environment is the environment where Codex performed verification;
+the retained production artifact is separately bound to the production
+environment fingerprint. Codex
 chooses the browser, runner, journeys and depth; the release system checks the
 bundle's exact source/base/fingerprint, environment identity, freshness, tag
 target, resolved artifact references and content digests. It does not require

@@ -213,7 +213,7 @@ candidate checkout and creates an external verification-run bundle with
 `scripts/release-verification-bundle.mjs`. Each run receives a unique tag,
 `verification-<source revision>-<run UUID>`, so a later attempt cannot
 overwrite an earlier artifact. The bundle binds the exact revision, base, source
-fingerprint, environment fingerprint, deterministic build-input identity,
+fingerprint, verification-environment fingerprint, deterministic build-input identity,
 timestamp and a compact tool-neutral record. Evidence references are
 `bundle://artifact/<id>` values; each referenced artifact is embedded with its
 size and SHA-256, so preparation can read the retained bytes back and fail
@@ -223,8 +223,11 @@ repository is public, Codex must use synthetic or thoroughly redacted evidence.
 Codex may use a browser, emulator, provider tool or focused automated check as
 the method requires. A non-application candidate gets an explicit
 `not-required` record from the path classifier and does not need a bundle.
-Preparation validates the bundle against the current source and environment,
-and the promotion card carries the validated bundle digest and content. GitHub
+Preparation validates the bundle against the current source and its recorded
+verification environment. The retained production artifact remains separately
+bound to the production environment fingerprint; Codex verification may use a
+qualification or local environment when that is the appropriate test surface.
+The promotion card carries the validated bundle digest and content. GitHub
 immutable releases must be enabled separately by an owner/admin; publication
 and readback fail closed when that setting or the retained release state is
 unavailable. This implementation does not change the repository setting.
