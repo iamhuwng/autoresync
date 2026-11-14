@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `1d71db8794730e4c9f256061edef0f23ea923a67`. Production authorization remains a separate owner decision. Phase 4 is next.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `a57ecf757017a475ede56360097ac407cb287a2c`. Production authorization remains a separate owner decision. Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -77,7 +77,7 @@ required.
 
 ## Current implementation and evidence
 
-- Protected `main`: `1d71db8794730e4c9f256061edef0f23ea923a67` after merged PR #252.
+- Protected `main`: `a57ecf757017a475ede56360097ac407cb287a2c` after merged PR #254.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
@@ -93,7 +93,7 @@ required.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. Next: after Phase 3 is exercised through an authorized release, measure and remove only demonstrated duplication. The current inspection found one verification-bundle implementation and no promotion-workflow dependency on the browser gate; it did not justify deleting the optional disposable experiment.
+5. Next: rerun the guarded promotion after PR #254, then measure and remove only demonstrated duplication. The current inspection found one verification-bundle implementation and no promotion-workflow dependency on the browser gate; it did not justify deleting the optional disposable experiment.
 
 ## Historical evidence
 
