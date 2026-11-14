@@ -40,7 +40,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 |---|---|---|
 | Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Implemented and automatically tested | `scripts/release-promotion.mjs`, release-check/archive tests; final operational qualification remains open |
 | Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency, Git/Hosting baseline checks and promotion tests; no production mutation in Phase 3 yet |
-| Authorized disposable publication, exact readback and native Hosting recovery | Partially demonstrated | Run 43595251093 deployed the retained artifact to isolated Hosting and reached authenticated flows; successful browser/clone/cleanup end-to-end evidence is still unqualified |
+| Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
 | Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
 | Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Unqualified | Requires a real isolated experiment |
 | Frontend rollback rejection without backend compatibility evidence | Unqualified | Requires a real isolated rejection experiment |
@@ -50,6 +50,14 @@ Local-development reliability is an important parallel/deferred workstream. It m
 The browser lane is an operational qualification experiment, not a universal requirement for Codex application verification. The latest run [43595251093](https://github.com/iamhuwng/autoresync/actions/runs/43595251093) proved canonical Hosting routing far enough for `/login` and generated teacher/student authentication to reach final checks. It failed the specific qualification-network assertion and cleanup verification because temporary Firebase configuration was placed inside Playwright's output directory, which Playwright clears. No browser qualification claim follows from that run.
 
 The next bounded decision is to determine whether a simpler agent-selected verification and a separate disposable publication/recovery experiment can provide the required Phase 3 evidence. If an automated browser gate remains necessary, document the exact property it enforces and keep its scope risk-proportionate. Do not repair and rerun the current lane merely to make its fixed suite green.
+
+The 14 November disposable experiment now proves the publication, exact readback,
+native clone recovery and cleanup property without Playwright. The current
+authenticated teacher/student suite therefore does not establish criterion 3;
+application journeys remain Codex-selected evidence, while any retained release
+browser step should be limited to a named runtime-binding property. The current
+workflow still requires `browser.json=verified`, so promotion remains gated until
+that boundary is deliberately simplified or a bounded runtime proof is selected.
 
 ## Current implementation and evidence
 
@@ -62,8 +70,8 @@ The next bounded decision is to determine whether a simpler agent-selected verif
 
 ## Recommended milestones
 
-1. From protected `main`, decide the smallest browser/recovery evidence route that proves the missing Phase 3 properties; do not assume the current Playwright lane is the answer.
-2. Exercise one disposable exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup, recording each status separately.
+1. From protected `main`, decide the smallest browser evidence route for the remaining application/runtime question; do not assume the current Playwright lane is the answer.
+2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Perform the coordinated service-change and incompatible-rollback experiments on isolated targets.
 4. Reconcile the evidence matrix and present the owner-facing production approval boundary. Do not call Phase 3 complete from local tests or green CI alone.
 5. After completion, measure and remove demonstrated duplication under Phase 4.
