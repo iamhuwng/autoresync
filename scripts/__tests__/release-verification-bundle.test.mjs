@@ -24,7 +24,7 @@ async function fixture(t) {
   const source = await collectSourceState(cwd, base);
   const record = { schemaVersion: 1, requirement: 'required', decision: 'verified', observedAt: new Date().toISOString(), method: 'Codex browser', scenario: 'application journey', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [{ name: 'journey', result: 'passed' }], evidenceRefs: ['bundle://artifact/browser'], summary: 'journey passed' };
   const evidenceDir = await mkdtemp(path.join(os.tmpdir(), 'verification-evidence-')); t.after(() => rm(evidenceDir, { recursive: true, force: true }));
-  const recordPath = path.join(evidenceDir, 'record.json'), environmentPath = path.join(evidenceDir, 'environment.env'), artifactPath = path.join(evidenceDir, 'browser.json'), output = path.join(evidenceDir, 'bundle.json');
+  const recordPath = path.join(evidenceDir, 'record.json'), environmentPath = path.join(evidenceDir, 'environment.env'), artifactPath = path.join(evidenceDir, 'browser.json'), output = path.join(evidenceDir, 'verification-bundle.json');
   await writeFile(recordPath, JSON.stringify(record)); await writeFile(environmentPath, 'ENV=fixture\n'); await writeFile(artifactPath, '{"journey":"passed"}\n');
   return { cwd, base, source, record, recordPath, environmentPath, artifactPath, output };
 }

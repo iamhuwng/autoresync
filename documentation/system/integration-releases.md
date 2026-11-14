@@ -234,7 +234,7 @@ the compact record and evidence files outside the checkout, then runs:
 
 ```powershell
 node scripts/release-verification-bundle.mjs --create --base <reviewed-base> --record <record.json> --environment <environment-file> --environment-identity <identity> --build-identity none --evidence=browser:<evidence-file> --output <verification-bundle.json>
-node scripts/release-verification-bundle.mjs --publish <bundle.json>
+node scripts/release-verification-bundle.mjs --publish <verification-bundle.json>
 ```
 
 The command returns the prerelease tag and bundle digest; supply both as the
