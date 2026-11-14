@@ -2,17 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, assertBrowserEvidenceVerified, outputUrl, profileState, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
-
-test('uses Firebase auth headers for RTDB profile access', async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = '';
-  globalThis.fetch = async url => { requestedUrl = String(url); return new Response('null', { status: 200 }); };
-  try { await profileState({ databaseUrl: 'https://qa.example.test', uid: 'user-1', token: 'id-token' }); }
-  finally { globalThis.fetch = originalFetch; }
-  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json');
-});
-
+import { accountState, assertBrowserEvidenceVerified, outputUrl, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
 
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
@@ -25,12 +15,11 @@ test('blocked browser evidence fails the gate after evidence is written', () => 
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 
-test('cleanup verification fails closed on Auth and RTDB lookup errors', async () => {
+test('cleanup verification fails closed on Auth lookup errors', async () => {
   const originalFetch = globalThis.fetch;
   try {
     globalThis.fetch = async () => new Response('denied', { status: 403 });
     await assert.rejects(() => accountState({ project: 'qualification', uid: 'uid', token: 'token' }), /Remote request failed \(403\)/u);
-    await assert.rejects(() => profileState({ databaseUrl: 'https://qualification.invalid', uid: 'uid', token: 'token' }), /RTDB profile lookup failed \(403\)/u);
   } finally { globalThis.fetch = originalFetch; }
 });
 
@@ -69,6 +58,7 @@ test('qualification Hosting config points at the retained checkout artifact', ()
 
 test('qualification rules allow disposable self-cleanup without role escalation', () => {
   const write = qualificationDatabaseRules.rules.users.$uid['.write'];
-  assert.match(write, /!newData\.exists\(\)/u);
-  assert.match(write, /newData\.child\('status'\)\.val\(\) === 'active'/u);
+  assert.match(write, /auth\.uid === \$uid/u);
+  assert.match(qualificationDatabaseRules.rules.users.$uid.role['.validate'], /data\.val\(\)/u);
+  assert.match(qualificationDatabaseRules.rules.users.$uid.status['.validate'], /active/u);
 });
