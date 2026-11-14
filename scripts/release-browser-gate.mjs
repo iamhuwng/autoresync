@@ -45,9 +45,22 @@ const requestJson = async (url, init = {}) => {
   return parsed;
 };
 const manifestDigest = manifest => sha256(JSON.stringify(manifest));
-export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist') } = {}) => ({
+export const qualificationHostingConfig = ({ site, publicDir = path.join(repoRoot, 'dist'), rulesPath = path.join(path.dirname(path.resolve(publicDir)), 'qualification-database.rules.json') } = {}) => ({
   hosting: { site: text(site, 'Firebase qualification site'), public: path.resolve(publicDir) },
+  database: { rules: path.resolve(rulesPath) },
 });
+export const qualificationDatabaseRules = {
+  rules: {
+    '.read': false,
+    '.write': false,
+    users: {
+      '$uid': {
+        '.read': 'auth != null && auth.uid === $uid',
+        '.write': "auth != null && auth.uid === $uid && (!newData.exists() || (newData.child('status').val() === 'active' && ((!data.exists() && (newData.child('role').val() === 'teacher' || newData.child('role').val() === 'student')) || (data.exists() && newData.child('role').val() === data.child('role').val()))))",
+      },
+    },
+  },
+};
 export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) => {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'manifest unavailable';
@@ -67,6 +80,10 @@ export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) 
   throw new Error(lastError);
 };
 export const outputUrl = output => [...output.matchAll(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/gu)].at(-1)?.[0]?.replace(/[.,]+$/u, '') || '';
+export const assertBrowserEvidenceVerified = evidence => {
+  if (evidence?.decision !== 'verified') throw new Error(evidence?.summary || `Browser qualification is ${evidence?.decision || 'invalid'}`);
+  return evidence;
+};
 export const accountState = async ({ project, uid, token }) => {
   try {
     const result = await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:lookup`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
@@ -77,22 +94,24 @@ export const accountState = async ({ project, uid, token }) => {
   }
 };
 export const profileState = async ({ databaseUrl, uid, token }) => {
-  const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(token)}`, { redirect: 'error' });
+  const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: { authorization: `Bearer ${token}` }, redirect: 'error' });
   if (!response.ok) { const body = (await response.text()).slice(0, 200); const error = new Error(`RTDB profile lookup failed (${response.status}): ${body}`); error.status = response.status; throw error; }
   return (await response.json()) === null ? 'absent' : 'present';
 };
 const deleteAccount = async ({ project, uid, token, profileToken, databaseUrl }) => {
   const errors = [];
+  if (profileToken) {
+    try {
+      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: { authorization: `Bearer ${profileToken}` }, redirect: 'error' });
+      if (!response.ok) errors.push(`Profile deletion failed for ${uid}: HTTP ${response.status}`);
+    } catch (error) { errors.push(`Profile deletion failed for ${uid}: ${error.message}`); }
+    try { if (await profileState({ databaseUrl, uid, token: profileToken }) !== 'absent') errors.push(`RTDB profile remains after deletion: ${uid}`); }
+    catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
+  }
   try { await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
-  try {
-    const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(profileToken || token)}`, { method: 'DELETE', redirect: 'error' });
-    if (!response.ok) errors.push(`Profile deletion failed for ${uid}: HTTP ${response.status}`);
-  } catch (error) { errors.push(`Profile deletion failed for ${uid}: ${error.message}`); }
   try { if (await accountState({ project, uid, token }) !== 'absent') errors.push(`Auth account remains after deletion: ${uid}`); }
   catch (error) { errors.push(`Unable to verify Auth account deletion for ${uid}: ${error.message}`); }
-  try { if (await profileState({ databaseUrl, uid, token: profileToken || token }) !== 'absent') errors.push(`RTDB profile remains after deletion: ${uid}`); }
-  catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
   if (errors.length) throw new Error(errors.join('; '));
 };
 const deleteChannel = (channel, site, project, env, config) => {
@@ -141,7 +160,9 @@ const main = async () => {
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
   const configPath = path.join(outputDir, 'qualification-firebase.json');
-  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site }), null, 2)}\n`);
+  const rulesPath = path.join(outputDir, 'qualification-database.rules.json');
+  await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, rulesPath }), null, 2)}\n`);
+  await writeFile(rulesPath, `${JSON.stringify(qualificationDatabaseRules, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
   try {
     token = oauthToken();
@@ -149,13 +170,14 @@ const main = async () => {
     previewUrl = outputUrl(`${deploy.stdout}\n${deploy.stderr}`);
     if (!previewUrl) throw new Error('Firebase did not return a qualification preview URL');
     await waitForManifest(previewUrl, artifact.manifestSha256);
+    firebase(['deploy', '--only', 'database', '--project', project, '--config', configPath, '--non-interactive'], childEnv);
     for (const account of accounts) {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
       const signIn = await requestJson(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(qualificationKey('VITE_FIREBASE_API_KEY'))}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: account.email, password: accountPassword, returnSecureToken: true }) });
       profileTokens.set(account.uid, signIn.idToken);
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
-      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json?auth=${encodeURIComponent(signIn.idToken)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
+      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: { authorization: `Bearer ${signIn.idToken}`, 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
       if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
     }
     const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };
@@ -179,9 +201,11 @@ const main = async () => {
     }
   }
   await rm(configPath, { force: true });
+  await rm(rulesPath, { force: true });
   const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: artifact.environmentFingerprint, configurationFingerprint: binding.configurationFingerprint, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
   await writeFile(path.join(outputDir, 'browser.json'), `${JSON.stringify(browserEvidence, null, 2)}\n`);
   await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: source.revision }, null, 2)}\n`);
+  assertBrowserEvidenceVerified(browserEvidence);
 };
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { await main(); } catch (error) { console.error(error.message); process.exitCode = 1; }

@@ -13,6 +13,7 @@ const browserGate = readFileSync(path.join(root, 'scripts/release-browser-gate.m
 
 test('promotion workflow is manual, protected-main-only and serialized', () => {
   assert.match(workflow, /workflow_dispatch:/u);
+  assert.doesNotMatch(workflow, /repository_dispatch:/u);
   assert.match(workflow, /objective:/u);
   assert.doesNotMatch(workflow, /base_revision:|environment_fingerprint:|verification_plan_file:|browser_evidence_file:/u);
   assert.match(workflow, /github\.repository == 'iamhuwng\/autoresync'/u);
@@ -39,12 +40,14 @@ test('promotion workflow separates card, browser gate, authorization, publicatio
   assert.match(browserGate, /hosting:channel:deploy/u);
   assert.match(browserGate, /hosting:clone/u);
   assert.match(browserGate, /hosting:channel:delete/u);
+  assert.match(browserGate, /deploy.*--only.*database/u);
   assert.doesNotMatch(browserGate, /teacher@test\.com|student@test\.com/u);
   assert.match(browserGate, /allowOverwrite: false/u);
   assert.match(browserGate, /identitytoolkit\.googleapis\.com[^`]+accounts:batchCreate/u);
   assert.doesNotMatch(browserGate, /access_token=/u);
   assert.match(browserGate, /cleanupErrors/u);
   assert.match(browserGate, /decision: !failure && cleanupErrors\.length === 0/u);
+  assert.match(browserGate, /assertBrowserEvidenceVerified/u);
   assert.match(workflow, /playwright install --with-deps chromium/u);
   assert.match(workflow, /luyentap-release-browser-evidence-\$\{\{ github\.run_id \}\}/u);
   assert.match(workflow, /LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE/u);

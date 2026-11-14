@@ -576,6 +576,10 @@ test('publication with failed readback resumes the same operation without anothe
     state.hashFailure = false;
     const resume = { id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive, reconcile: options.reconcile,
       saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource };
+    const evidence = [];
+    await assert.rejects(() => verifyExistingHosting({ ...resume, observeSource: async () => { throw new Error('source observation interrupted'); }, writeEvidence: value => { evidence.push(value); } }), /verification remains pending/u);
+    assert.equal(evidence[0].status, 'pending-verification-or-failed');
+    assert.match(evidence[0].error, /verification remains pending/u);
     const verified = await verifyExistingHosting(resume);
     assert.equal(verified.id, original.id);
     assert.equal(verified.targets[0].verification, 'passed');
