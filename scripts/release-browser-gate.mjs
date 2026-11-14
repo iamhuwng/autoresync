@@ -65,7 +65,7 @@ export const qualificationDatabaseRules = {
     },
   },
 };
-export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) => {
+export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000, label = 'Hosting preview') => {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'manifest unavailable';
   while (Date.now() < deadline) {
@@ -81,7 +81,7 @@ export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) 
       return manifest;
     } catch (error) { lastError = error.message; await new Promise(resolve => setTimeout(resolve, 1500)); }
   }
-  throw new Error(lastError);
+  throw new Error(`${label} manifest readback failed at ${url}: ${lastError}`);
 };
 export const outputUrl = output => [...output.matchAll(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/gu)].at(-1)?.[0]?.replace(/[.,]+$/u, '') || '';
 export const assertBrowserEvidenceVerified = evidence => {
@@ -173,7 +173,7 @@ const main = async () => {
     const deploy = firebase(['hosting:channel:deploy', channel, '--project', project, '--config', configPath, '--non-interactive'], childEnv);
     previewUrl = outputUrl(`${deploy.stdout}\n${deploy.stderr}`);
     if (!previewUrl) throw new Error('Firebase did not return a qualification preview URL');
-    await waitForManifest(previewUrl, artifact.manifestSha256);
+    await waitForManifest(previewUrl, artifact.manifestSha256, 120_000, 'Disposable Hosting channel');
     const rulesDeploy = firebase(['deploy', '--only', 'database', '--project', project, '--config', configPath, '--non-interactive'], childEnv, { allowFailure: true });
     if (rulesDeploy.status !== 0) throw new Error(`Qualification database rules deployment failed: ${redactedCliOutput(`${rulesDeploy.stderr}\n${rulesDeploy.stdout}`)}`);
     for (const account of accounts) {
@@ -191,7 +191,7 @@ const main = async () => {
     const clone = firebase(['hosting:clone', `${site}:${channel}`, `${site}:${recoveryChannel}`, '--project', project, '--non-interactive'], childEnv);
     recoveryUrl = outputUrl(`${clone.stdout}\n${clone.stderr}`);
     if (!recoveryUrl) throw new Error('Firebase did not return a recovery channel URL');
-    await waitForManifest(recoveryUrl, artifact.manifestSha256);
+    await waitForManifest(recoveryUrl, artifact.manifestSha256, 120_000, 'Native Hosting clone channel');
   } catch (error) { failure = error; }
   finally {
     for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, profileToken: profileTokens.get(account.uid), databaseUrl }); } catch (error) { cleanupErrors.push(error.message); } }
