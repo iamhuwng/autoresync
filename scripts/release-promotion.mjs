@@ -191,13 +191,7 @@ export function validatePromotionCard(card) {
   digestField(card.assessment.receiptSha256, 'assessment receipt digest');
   exactFields(card.scope, ['included', 'excluded'], 'scope');
   exactFields(card.recovery, ['target', 'limits'], 'recovery');
-  exactFields(card.verificationEvidence, ['record', 'file', 'sha256'], 'verification evidence binding');
-  if (card.verificationEvidence.file === null || card.verificationEvidence.file === undefined) {
-    if (card.verificationEvidence.sha256 !== null) fail('verification evidence digest must be null when no evidence file is bound');
-  } else {
-    validateTrackedPath(card.verificationEvidence.file, 'verification evidence file');
-    digestField(card.verificationEvidence.sha256, 'verification evidence digest');
-  }
+  exactFields(card.verificationEvidence, ['record'], 'verification evidence binding');
   if (card.verificationEvidence.record.requirement !== card.source.verificationRequirement) fail('verification evidence requirement differs from the source requirement');
   validateVerificationEvidence(card.verificationEvidence.record, { source: card.source, requirement: card.source.verificationRequirement });
   if (card.source.verificationRequirement === 'required') {
@@ -206,6 +200,7 @@ export function validatePromotionCard(card) {
     digestField(card.verificationBundle.sha256, 'verification bundle digest');
     if (bundleDigest(bundleBytes(card.verificationBundle.bundle)) !== card.verificationBundle.sha256) fail('verification bundle digest differs from its retained bytes');
     validateVerificationBundle(card.verificationBundle.bundle, { source: card.source, environmentFingerprint: card.environment.fingerprint, expectedBuildIdentity: buildIdentityFor(card.source, card.environment.fingerprint) });
+    if (JSON.stringify(card.verificationEvidence.record) !== JSON.stringify(card.verificationBundle.bundle.verification)) fail('promotion verification record differs from the retained bundle');
   } else if (card.verificationBundle !== null && card.verificationBundle !== undefined) fail('non-application card cannot carry a verification bundle');
   text(card.impact, 'release impact');
   text(card.missingProof, 'missing proof');
@@ -312,7 +307,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
     artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256,
-    verificationEvidence, verificationBundle, verificationBundleSha256, verificationEvidenceFile: null, verificationEvidenceSha256: null,
+    verificationEvidence, verificationBundle, verificationBundleSha256,
     configurationFingerprint, objective: text(objective, 'release objective'),
     includedScope: `${objective}; affected services: ${classifyPaths(source.files).join(', ') || 'none identified'}`,
     excludedScope: 'Workers, rules, storage, database and application data unless separately qualified and authorized.',
@@ -347,7 +342,7 @@ export function configurationDigest(cwd = repoRoot) {
   return jsonDigest({ firebase, firebaseRc });
 }
 
-export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, verificationEvidenceFile = null, verificationEvidenceSha256 = null, impact, missingProof } = {}) {
+export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) fail('assessment must be PASS or NOT_APPLICABLE');
   if (!sourceRefPattern.test(sourceRef) || eventName !== 'workflow_dispatch' || eventRef !== 'refs/heads/main') fail('promotion requires explicit workflow_dispatch context on protected main');
   revisionField(eventSha, 'event SHA');
@@ -366,7 +361,6 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   if (verification.source.baseRevision !== source.baseRevision) fail('verification source base revision differs from the assessment source base revision');
   const evidenceRequirement = verificationRequirement(source.files || []);
   validateVerificationEvidence(verificationEvidence, { source, requirement: evidenceRequirement });
-  if (verificationEvidenceFile !== null || verificationEvidenceSha256 !== null) fail('source-bound application verification must use an external bundle');
   const card = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -382,7 +376,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
     assessment: { decision: assessment.decision, target: assessment.target, receiptSha256: digestField(assessmentSha256, 'assessment receipt digest') },
     scope: { included: text(includedScope, 'included scope'), excluded: text(excludedScope, 'excluded scope') },
     recovery: { target: text(recoveryTarget, 'recovery target'), limits: text(recoveryLimits, 'recovery limits') },
-    verificationEvidence: { record: verificationEvidence, file: verificationEvidenceFile, sha256: verificationEvidenceSha256 },
+    verificationEvidence: { record: verificationEvidence },
     verificationBundle,
     impact: text(impact, 'release impact'),
     missingProof: text(missingProof, 'missing proof'),
@@ -542,8 +536,6 @@ const main = async (argv = process.argv.slice(2)) => {
       verification: await readEvidence('LUYENTAP_RELEASE_VERIFICATION_FILE', 'actual verification evidence'),
       verificationEvidence: await readEvidence('LUYENTAP_RELEASE_EVIDENCE_FILE', 'source-bound application verification evidence'),
       verificationBundle: discovered.verificationBundle || null,
-      verificationEvidenceFile: null,
-      verificationEvidenceSha256: null,
       impact: process.env.LUYENTAP_RELEASE_IMPACT || discovered.impact,
       missingProof: process.env.LUYENTAP_RELEASE_MISSING_PROOF || discovered.missingProof,
     });

@@ -217,6 +217,7 @@ deterministic build-input identity, timestamp and a compact tool-neutral record.
 are `bundle://artifact/<id>` values; each referenced artifact is embedded with
 its size and SHA-256, so preparation can read the retained bytes back and fail
 closed on missing, fabricated, altered, stale or mismatched proof.
+Because this repository is public, Codex must use synthetic or thoroughly redacted evidence artifacts. This keeps the handoff tool-neutral without adding a separate browser or infrastructure gate.
 
 Codex may use a browser, emulator, provider tool or focused automated check as
 the method requires. A non-application candidate gets an explicit
