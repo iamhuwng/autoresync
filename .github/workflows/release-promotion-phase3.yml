@@ -20,6 +20,8 @@ name: Release Promotion
         description: 'Product objective for this release; technical bindings are derived automatically'
         required: true
         type: string
+  repository_dispatch:
+    types: [release-promotion]
 
 concurrency:
   group: luyentap-hosting-production
@@ -27,7 +29,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'publish' }}
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation || github.event.client_payload.operation) == 'publish' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -117,7 +119,7 @@ jobs:
           EOF
       - name: Derive release inputs from the exact source and live Hosting
         env:
-          OBJECTIVE: ${{ inputs.objective }}
+          OBJECTIVE: ${{ inputs.objective || github.event.client_payload.objective }}
         run: |
           set -euo pipefail
           node scripts/release-promotion.mjs --prepare --objective "$OBJECTIVE" --production-env-file "$RUNNER_TEMP/.env.production" --output "$RUNNER_TEMP/promotion-inputs.json"
@@ -519,7 +521,7 @@ EOF
           retention-days: 30
 
   recover:
-    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'verify-existing' }}
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation || github.event.client_payload.operation) == 'verify-existing' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -542,7 +544,7 @@ EOF
       - run: npm ci --no-audit --no-fund
       - name: Require a concrete existing operation
         env:
-          OPERATION_ID: ${{ inputs.operation_id }}
+          OPERATION_ID: ${{ inputs.operation_id || github.event.client_payload.operation_id }}
         run: |
           set -euo pipefail
           [[ "$OPERATION_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
@@ -568,7 +570,7 @@ EOF
         run: node scripts/relocate-oidc-credentials.mjs
       - name: Resume the same operation without rebuilding or redeploying
         env:
-          OPERATION_ID: ${{ inputs.operation_id }}
+          OPERATION_ID: ${{ inputs.operation_id || github.event.client_payload.operation_id }}
           LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
           LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/operation.json
           GH_TOKEN: ${{ github.token }}
@@ -591,7 +593,7 @@ EOF
             published-verified|changelog-pending|changelog-pending-integration) ;;
             *) echo "Recovery status is $operation_status; no Changelog integration PR will be opened."; exit 0 ;;
           esac
-          operation="${{ inputs.operation_id }}"
+          operation="${{ inputs.operation_id || github.event.client_payload.operation_id }}"
           branch="codex/changelog-recovery-$operation"
           git fetch origin main --depth=1
           git switch -c "$branch" "$GITHUB_SHA"
