@@ -170,19 +170,22 @@ The repository now tests the release-card contract in the existing read-only
 Release Safety workflow. `scripts/release-promotion.mjs` binds the exact main
 source and event SHA, observed baseline, actual passing verification result,
 verification plan, compatibility review, configuration/dependency state,
-environment fingerprint, artifact manifest identity, browser evidence status,
-missing proof, impact and recovery limits. `scripts/deploy-live.mjs --deploy-retained`
+environment fingerprint, artifact manifest identity, source-bound application
+verification evidence when required by changed paths, missing proof, impact and
+recovery limits. `scripts/deploy-live.mjs --deploy-retained`
 verifies that bound artifact and publishes it through the
 same `deployHosting` route without a second build.
 
 The guarded workflow is now defined in `.github/workflows/release-promotion-phase3.yml`.
 It is manual and main-only. Its preparer derives the source, live baseline,
 environment/configuration/artifact bindings, affected verification scope,
-owner-facing impact and missing proof. Its browser gate fails closed until
-source-bound evidence is verified. The protected `production` environment is
-the separate owner authorization boundary; the existing executor remains the
-only publication route, and the recovery dispatch resumes one recorded
-operation without rebuilding or publishing.
+owner-facing impact and missing proof. Codex supplies a source-bound,
+tool-neutral record at `documentation/release-evidence/verification.json` when
+application paths require evidence; the workflow validates its binding without
+running a fixed browser suite. The protected `production` environment is the
+separate owner authorization boundary; the existing executor remains the only
+publication route, and the recovery dispatch resumes one recorded operation
+without rebuilding or publishing.
 The publish job preserves the operation UUID even when the executor exits after
 provider acceptance, uploads the reconciliation patch and operation evidence to
 the retained Hosting operation when available, and also keeps them in the Action
@@ -199,10 +202,38 @@ canonical reconciliation.
 
 GitHub protection, environment approval, short-lived ADC federation and
 provider publication/recovery remain external qualification decisions. The
-browser prerequisite is currently **unqualified**; see [the Phase 3 browser
-record](../release-audits/2026-11-12-phase3-browser-prerequisite.md). The
-separate local-development reliability plan remains proposed and separately
-authorized; it is not part of this release implementation.
+14 November Hosting experiment is infrastructure evidence for publication,
+readback, native clone recovery and cleanup; it is not an application browser
+requirement. Codex chooses any additional browser or tool verification required
+by the actual change. The separate local-development reliability plan remains
+proposed and separately authorized; it is not part of this release implementation.
+
+For an application-impacting candidate, Codex records the selected proof in the
+tracked `documentation/release-evidence/verification.json` record. Its compact
+contract is tool-neutral:
+
+```json
+{
+  "schemaVersion": 1,
+  "requirement": "required",
+  "decision": "verified",
+  "observedAt": "2026-11-14T15:00:00.000Z",
+  "method": "Codex-selected browser",
+  "scenario": "named user journey",
+  "sourceRevision": "<candidate commit>",
+  "sourceFingerprint": "<candidate source fingerprint>",
+  "checks": [{ "name": "journey completed", "result": "passed" }],
+  "evidenceRefs": ["<durable evidence reference>"],
+  "summary": "The selected journey passed against the reviewed source."
+}
+```
+
+Codex may use a browser, emulator, provider tool or focused automated check as
+the method requires. A non-application candidate uses `requirement:
+"not-required"` with an explicit reason. The release system checks the source
+binding, freshness, passing checks and references; it does not infer adequacy
+from the method name and does not accept a blocked or missing record when the
+path classifier requires application evidence.
 
 ## Converge content without replaying history
 
