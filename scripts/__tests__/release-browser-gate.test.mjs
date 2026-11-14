@@ -2,28 +2,25 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, outputUrl, profileState, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
+import { accountState, assertBrowserEvidenceVerified, outputUrl, profileState, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
 
-test('uses Firebase auth query tokens for RTDB profile access', async () => {
+test('uses Firebase auth headers for RTDB profile access', async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = '';
   globalThis.fetch = async url => { requestedUrl = String(url); return new Response('null', { status: 200 }); };
   try { await profileState({ databaseUrl: 'https://qa.example.test', uid: 'user-1', token: 'id-token' }); }
   finally { globalThis.fetch = originalFetch; }
-  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json?auth=id-token');
+  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json');
 });
 
-test('uses Google OAuth access tokens for administrative RTDB provisioning', async () => {
-  const originalFetch = globalThis.fetch;
-  let requestedUrl = '';
-  globalThis.fetch = async url => { requestedUrl = String(url); return new Response('null', { status: 200 }); };
-  try { await profileState({ databaseUrl: 'https://qa.example.test', uid: 'user-1', accessToken: 'oauth-token' }); }
-  finally { globalThis.fetch = originalFetch; }
-  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json?access_token=oauth-token');
-});
 
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
+});
+
+test('blocked browser evidence fails the gate after evidence is written', () => {
+  assert.throws(() => assertBrowserEvidenceVerified({ decision: 'blocked', summary: 'RTDB denied' }), /RTDB denied/u);
+  assert.doesNotThrow(() => assertBrowserEvidenceVerified({ decision: 'verified', summary: 'passed' }));
 });
 
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -64,7 +61,14 @@ test('browser preview readback verifies every manifest-listed asset', async () =
 });
 
 test('qualification Hosting config points at the retained checkout artifact', () => {
-  const config = qualificationHostingConfig({ site: 'qualification-site', publicDir: 'dist' });
+  const config = qualificationHostingConfig({ site: 'qualification-site', publicDir: 'dist', rulesPath: 'tmp/qualification-database.rules.json' });
   assert.equal(config.hosting.site, 'qualification-site');
   assert.equal(config.hosting.public, path.resolve('dist'));
+  assert.equal(config.database.rules, path.resolve('tmp/qualification-database.rules.json'));
+});
+
+test('qualification rules allow disposable self-cleanup without role escalation', () => {
+  const write = qualificationDatabaseRules.rules.users.$uid['.write'];
+  assert.match(write, /!newData\.exists\(\)/u);
+  assert.match(write, /newData\.child\('role'\)\.val\(\) === data\.child\('role'\)\.val\(\)/u);
 });

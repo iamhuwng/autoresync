@@ -325,7 +325,7 @@ async function observeRecordedHosting(archive, { observeSource, observeProvider 
 
 export async function verifyExistingHosting({ id, sha256, storeDir, readArchive = readHostingArchive,
   saveOutcome = recordHostingArchiveOutcome, observeSource = observeHosting, observeProvider = observeHostingProvider,
-  cwd = repoRoot, reconcile = reconcileHostingChangelog }) {
+  cwd = repoRoot, reconcile = reconcileHostingChangelog, writeEvidence = writeOperationEvidence }) {
   const archive = await readArchive({ id, sha256 });
   const request = archive.intent.request;
   // Remote intent is revalidated independently; a locally edited journal cannot choose verification inputs.
@@ -335,7 +335,11 @@ export async function verifyExistingHosting({ id, sha256, storeDir, readArchive 
     && record.targets[0].providerIdentity !== outcome.outcomes[0].providerIdentity) throw new Error('The recorded provider identity differs; verification cannot reassign publication.');
   const result = settleRelease(id, outcome, storeDir);
   await saveOutcome(archive, outcome);
-  if (outcome.outcomes[0].verification !== 'passed') throw new Error(`Release ${id} was published; verification remains pending. Retry --verify-existing ${id}, not deployment.`);
+  if (outcome.outcomes[0].verification !== 'passed') {
+    const error = `Release ${id} was published; verification remains pending. Retry --verify-existing ${id}, not deployment.`;
+    await writeEvidence({ id, status: 'pending-verification-or-failed', error, cwd });
+    throw new Error(error);
+  }
   await settleChangelog(archive, cwd, reconcile);
   return result;
 }
