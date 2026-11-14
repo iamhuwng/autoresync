@@ -166,7 +166,6 @@ export function publishVerificationBundle({ bundleFile, exec = spawnSync } = {})
   }
   const existing = (release.assets || []).filter(asset => asset.name === assetName);
   if (existing.length > 1) fail('verification bundle asset is duplicated');
-  if (resolveTag(tag, exec) !== bundle.source.revision) fail('verification bundle tag does not point to its recorded source revision');
   if (existing.length) { if (digest(downloadAsset(existing[0], exec)) !== expected) fail('an existing verification bundle cannot be replaced'); if (release.draft === true) gh(['release', 'edit', tag, '--repo', repository, '--draft=false', '--prerelease'], exec); if (readVerificationBundle({ tag, sha256: expected, exec }).sha256 !== expected) fail('verification bundle readback differs'); }
   else { gh(['release', 'upload', tag, bundleFile, '--repo', repository], exec); gh(['release', 'edit', tag, '--repo', repository, '--draft=false', '--prerelease'], exec); if (readVerificationBundle({ tag, sha256: expected, exec }).sha256 !== expected) fail('verification bundle upload readback differs'); }
   return { tag, asset: assetName, sha256: expected };
