@@ -2,10 +2,19 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, assertBrowserEvidenceVerified, outputUrl, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
+import { accountState, assertBrowserEvidenceVerified, outputUrl, qualificationConfigPaths, qualificationDatabaseRules, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
 
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
+});
+
+test('keeps provider config outside Playwright output directory', () => {
+  const outputDir = path.resolve('tmp/release-browser');
+  const paths = qualificationConfigPaths(outputDir);
+  assert.notEqual(paths.configDir, outputDir);
+  assert.equal(paths.configDir, path.join(path.dirname(outputDir), 'release-browser-config'));
+  assert.equal(path.dirname(paths.configPath), paths.configDir);
+  assert.equal(path.dirname(paths.rulesPath), paths.configDir);
 });
 
 test('blocked browser evidence fails the gate after evidence is written', () => {

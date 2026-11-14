@@ -103,6 +103,11 @@ export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000, 
   throw new Error(`${label} manifest readback failed at ${url}: ${lastError}`);
 };
 export const outputUrl = output => [...output.matchAll(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/gu)].at(-1)?.[0]?.replace(/[.,]+$/u, '') || '';
+export const qualificationConfigPaths = outputDir => {
+  const resolvedOutputDir = path.resolve(outputDir);
+  const configDir = path.join(path.dirname(resolvedOutputDir), `${path.basename(resolvedOutputDir)}-config`);
+  return { configDir, configPath: path.join(configDir, 'qualification-firebase.json'), rulesPath: path.join(configDir, 'qualification-database.rules.json') };
+};
 export const assertBrowserEvidenceVerified = evidence => {
   if (evidence?.decision !== 'verified') throw new Error(evidence?.summary || `Browser qualification is ${evidence?.decision || 'invalid'}`);
   return evidence;
@@ -186,8 +191,9 @@ const main = async () => {
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
-  const configPath = path.join(outputDir, 'qualification-firebase.json');
-  const rulesPath = path.join(outputDir, 'qualification-database.rules.json');
+  // Keep provider config outside Playwright's output directory, which it clears before running.
+  const { configDir, configPath, rulesPath } = qualificationConfigPaths(outputDir);
+  await mkdir(configDir, { recursive: true });
   await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, rulesPath: path.basename(rulesPath) }), null, 2)}\n`);
   await writeFile(rulesPath, `${JSON.stringify(qualificationDatabaseRules, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
@@ -247,6 +253,7 @@ const main = async () => {
   }
   await rm(configPath, { force: true });
   await rm(rulesPath, { force: true });
+  await rm(configDir, { recursive: true, force: true });
   const browserEvidence = { decision: !failure && cleanupErrors.length === 0 ? 'verified' : 'blocked', observedAt: new Date().toISOString(), scenario: 'generated unique teacher and student accounts on a dedicated qualification Firebase project with disposable Hosting preview and native clone recovery', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: sha256(envBytes), artifactEnvironmentFingerprint: artifact.environmentFingerprint, configurationFingerprint: binding.configurationFingerprint, evidenceRefs: [`github-actions://run/${process.env.GITHUB_RUN_ID || 'local'}/artifacts/release-browser-evidence`, ...(previewUrl ? [previewUrl] : []), ...(recoveryUrl ? [recoveryUrl] : [])], summary: !failure && cleanupErrors.length === 0 ? 'Email/password Playwright flow, retained-artifact manifest readback, native clone recovery, and independently verified cleanup passed.' : `Browser qualification blocked: ${[failure?.message, ...cleanupErrors].filter(Boolean).join('; ') || 'unknown failure'}` };
   await writeFile(path.join(outputDir, 'browser.json'), `${JSON.stringify(browserEvidence, null, 2)}\n`);
   await writeFile(path.join(outputDir, 'coordinated-change.json'), `${JSON.stringify({ schemaVersion: 1, decision: 'unqualified', reason: 'No coordinated frontend/backend deployment experiment or rollback rejection was performed by this browser lane.', sourceRevision: source.revision }, null, 2)}\n`);
