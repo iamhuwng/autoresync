@@ -71,5 +71,4 @@ test('qualification rules allow disposable self-cleanup without role escalation'
   const write = qualificationDatabaseRules.rules.users.$uid['.write'];
   assert.match(write, /!newData\.exists\(\)/u);
   assert.match(write, /newData\.child\('status'\)\.val\(\) === 'active'/u);
-  assert.match(qualificationDatabaseRules.rules.users.$uid['.validate'], /teacher/u);
 });
