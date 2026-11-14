@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, profileState, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
+import { accountState, outputUrl, profileState, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
+
+test('selects the channel URL when Firebase reports both site and channel URLs', () => {
+  assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
+});
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 

@@ -66,7 +66,7 @@ export const waitForManifest = async (url, expectedDigest, timeoutMs = 120_000) 
   }
   throw new Error(lastError);
 };
-const outputUrl = output => output.match(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/u)?.[0]?.replace(/[.,]+$/u, '') || '';
+export const outputUrl = output => [...output.matchAll(/https:\/\/[^\s)]+(?:\.web\.app|\.firebaseapp\.com)[^\s)]*/gu)].at(-1)?.[0]?.replace(/[.,]+$/u, '') || '';
 export const accountState = async ({ project, uid, token }) => {
   try {
     const result = await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:lookup`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
