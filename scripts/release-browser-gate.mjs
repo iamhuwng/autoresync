@@ -77,7 +77,7 @@ export const accountState = async ({ project, uid, token }) => {
   }
 };
 export const profileState = async ({ databaseUrl, uid, token }) => {
-  const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: { authorization: `Bearer ${token}` }, redirect: 'error' });
+  const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(token)}`, { redirect: 'error' });
   if (!response.ok) { const error = new Error(`RTDB profile lookup failed (${response.status})`); error.status = response.status; throw error; }
   return (await response.json()) === null ? 'absent' : 'present';
 };
@@ -86,7 +86,7 @@ const deleteAccount = async ({ project, uid, token, profileToken, databaseUrl })
   try { await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
   try {
-    const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: { authorization: `Bearer ${profileToken || token}` }, redirect: 'error' });
+    const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(uid)}.json?auth=${encodeURIComponent(profileToken || token)}`, { method: 'DELETE', redirect: 'error' });
     if (!response.ok) errors.push(`Profile deletion failed for ${uid}: HTTP ${response.status}`);
   } catch (error) { errors.push(`Profile deletion failed for ${uid}: ${error.message}`); }
   try { if (await accountState({ project, uid, token }) !== 'absent') errors.push(`Auth account remains after deletion: ${uid}`); }
@@ -155,7 +155,7 @@ const main = async () => {
       const signIn = await requestJson(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(qualificationKey('VITE_FIREBASE_API_KEY'))}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: account.email, password: accountPassword, returnSecureToken: true }) });
       profileTokens.set(account.uid, signIn.idToken);
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
-      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: { authorization: `Bearer ${signIn.idToken}`, 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
+      const response = await fetch(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json?auth=${encodeURIComponent(signIn.idToken)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(profile), redirect: 'error' });
       if (!response.ok) throw new Error(`Qualification profile creation failed for ${account.uid}`);
     }
     const browserEnv = { ...childEnv, RELEASE_BROWSER_BASE_URL: previewUrl, RELEASE_BROWSER_OUTPUT_DIR: outputDir, RELEASE_BROWSER_TEACHER_EMAIL: accounts[0].email, RELEASE_BROWSER_STUDENT_EMAIL: accounts[1].email, RELEASE_BROWSER_PASSWORD: accountPassword, RELEASE_BROWSER_DATABASE_URL: databaseUrl, RELEASE_BROWSER_API_KEY: qualificationKey('VITE_FIREBASE_API_KEY') };

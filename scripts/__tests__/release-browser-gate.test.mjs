@@ -4,6 +4,15 @@ import test from 'node:test';
 import path from 'node:path';
 import { accountState, outputUrl, profileState, qualificationHostingConfig, waitForManifest } from '../release-browser-gate.mjs';
 
+test('uses Firebase auth query tokens for RTDB profile access', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async url => { requestedUrl = String(url); return new Response('null', { status: 200 }); };
+  try { await profileState({ databaseUrl: 'https://qa.example.test', uid: 'user-1', token: 'id-token' }); }
+  finally { globalThis.fetch = originalFetch; }
+  assert.equal(requestedUrl, 'https://qa.example.test/users/user-1.json?auth=id-token');
+});
+
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
 });
