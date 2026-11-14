@@ -20,6 +20,14 @@ on:
         description: 'Product objective for this release; technical bindings are derived automatically'
         required: true
         type: string
+      verification_tag:
+        description: 'GitHub prerelease verification bundle tag produced by Codex for application changes'
+        required: false
+        type: string
+      verification_sha256:
+        description: 'SHA-256 of the retained verification bundle asset'
+        required: false
+        type: string
 
 concurrency:
   group: luyentap-hosting-production
@@ -118,7 +126,10 @@ jobs:
           EOF
       - name: Derive release inputs from the exact source and live Hosting
         env:
+          GH_TOKEN: ${{ github.token }}
           OBJECTIVE: ${{ inputs.objective }}
+          LUYENTAP_RELEASE_VERIFICATION_BUNDLE_TAG: ${{ inputs.verification_tag }}
+          LUYENTAP_RELEASE_VERIFICATION_BUNDLE_SHA256: ${{ inputs.verification_sha256 }}
         run: |
           set -euo pipefail
           node scripts/release-promotion.mjs --prepare --objective "$OBJECTIVE" --production-env-file "$RUNNER_TEMP/.env.production" --output "$RUNNER_TEMP/promotion-inputs.json"

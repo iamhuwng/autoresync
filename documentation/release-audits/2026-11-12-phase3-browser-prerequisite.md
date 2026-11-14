@@ -64,13 +64,14 @@ The fixed authenticated Playwright lane is no longer part of the universal
 promotion contract. It remains a disposable operational experiment when that
 specific infrastructure property is useful. Application verification belongs
 to Codex: the agent selects the browser/tool, journeys and depth for the actual
-change and records source-bound evidence in
-`documentation/release-evidence/verification.json` when application paths
-require it. The release card validates the source revision/fingerprint,
-freshness, passing checks and evidence references without requiring Playwright,
-generated accounts, a dedicated Firebase project or a teacher/student smoke
-flow. Non-application changes may carry an explicit `not-required` decision;
-backend, rules, Worker and storage changes retain their service-specific gates.
+change and records source-bound evidence outside the checkout, then publishes
+a source-keyed bundle with `scripts/release-verification-bundle.mjs` when
+application paths require it. The release card validates the source/base and
+fingerprints, freshness, resolved artifact references and content digests
+without requiring Playwright, generated accounts, a dedicated Firebase project
+or a teacher/student smoke flow. Non-application changes may carry an explicit
+`not-required` decision; backend, rules, Worker and storage changes retain
+their service-specific gates.
 
 The 14 November Hosting experiment separately verified disposable publication,
 exact asset readback, native clone recovery and cleanup. It is infrastructure

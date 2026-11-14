@@ -157,16 +157,15 @@ Actions release card. It binds the protected `refs/heads/main` source, observed
 Hosting baseline, the actual event SHA, verification-plan and compatibility-review
 digests, production environment fingerprint, Firebase configuration digest, and
 retained manifest identity (source revision/tree/environment/file count). The
-card also retains the passing verification result, source-bound application
-verification record (when application paths require one), missing proof, impact,
-scope and recovery limits. The record at
-`documentation/release-evidence/verification.json` is deliberately tool-neutral:
-Codex chooses the browser, runner, journeys and depth. The validator binds its
-source revision/fingerprint, freshness, passing checks and evidence references;
-it does not require Playwright, generated accounts, a qualification Firebase
-project or a fixed teacher/student flow. A path classifier permits an explicit
-`not-required` record for non-application changes. Backend, rules, Worker,
-storage and other service changes retain their separate release-safety gates.
+The card also retains the passing automated verification result and, when
+application paths require it, the validated external verification bundle. Codex
+chooses the browser, runner, journeys and depth; the release system only checks
+the bundle's exact source/base/fingerprint, environment identity, freshness,
+resolved artifact references and content digests. It does not require Playwright,
+generated accounts, a qualification Firebase project or a fixed teacher/student
+flow. A path classifier permits an explicit `not-required` record for
+non-application changes. Backend, rules, Worker, storage and other service
+changes retain their separate release-safety gates.
 The card is presentation and binding data; it is not production authorization.
 Its validator rejects missing event context, PR refs, path traversal, incomplete
 review pairs, source/artifact or environment drift, and credential-bearing text,
