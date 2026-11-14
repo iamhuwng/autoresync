@@ -123,6 +123,8 @@ this pause is an instruction lookup, not a request for user confirmation.
 | Adding or modifying create/save/update/publish/assign/enroll/restore/archive/remove/delete announcements | [`rules/announcements.md`](documentation/rules/announcements.md) |
 | Reporting test, build, emulator, Worker, or verification failure as product behavior | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
 | Making deployed/current-state claims for Firebase, Hosting, Cloudflare Workers, Wrangler, R2, or remote data | [`rules/infrastructure.md`](documentation/rules/infrastructure.md) |
+| Preparing or assessing a release, publishing, deploying, recovering, or verifying a live service | [`.agents/skills/release-safety/SKILL.md`](.agents/skills/release-safety/SKILL.md) |
+| Reconciling main with deployed source, or selecting or integrating changes intended for production | [`documentation/system/integration-releases.md`](documentation/system/integration-releases.md) |
 | Packet/taskbox/findings/traceability reconciliation, exact-path staging, remote-state proof, or formal milestone/packet closure (including its commit or handoff) | [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) |
 | Renaming, moving, or deleting a feature/page | [`rules/observability.md`](documentation/rules/observability.md) |
 | Writing `localStorage`, `sessionStorage`, or `IndexedDB` | [`rules/mobile-portability.md`](documentation/rules/mobile-portability.md) |
