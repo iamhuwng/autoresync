@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `ba6d1f0052ca640580847b8e7ddbbd82164248d4`. Production authorization remains a separate owner decision. Phase 4 is next.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` at `1d71db8794730e4c9f256061edef0f23ea923a67`. Production authorization remains a separate owner decision. Phase 4 is current.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -20,8 +20,8 @@ This is the concise, version-controlled source of truth for objectives, boundari
 
 1. **Phase 1 — Reliable release foundation (complete).** Exact source and artifact identity, durable retention, provider observation, truthful per-service scope, operation identity and interrupted verification recovery.
 2. **Phase 2 — Protected integration and convergence (complete).** Protected `main`, required integration checks, source convergence, normal release evidence and two qualified normal production releases from protected `main`.
-3. **Phase 3 — Guarded CI promotion, publication, verification and recovery (current).** Select exact protected source, verify relevant scope, build once, retain the artifact/evidence, bind authorization, serialize publication, independently verify and recover without duplicate publication.
-4. **Phase 4 — Operational simplification (later).** Remove demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured.
+3. **Phase 3 — Guarded CI promotion, publication, verification and recovery (complete).** Select exact protected source, verify relevant scope, build once, retain the artifact/evidence, bind authorization, serialize publication, independently verify and recover without duplicate publication.
+4. **Phase 4 — Operational simplification (current).** Remove demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured.
 
 Local-development reliability is an important parallel/deferred workstream. It must not expand Phase 3 into a repository-wide tooling overhaul.
 
@@ -77,12 +77,12 @@ required.
 
 ## Current implementation and evidence
 
-- Protected `main`: `ba6d1f0052ca640580847b8e7ddbbd82164248d4` after merged PR #250.
+- Protected `main`: `1d71db8794730e4c9f256061edef0f23ea923a67` after merged PR #252.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
 - PR #246 merged the disposable Hosting publication/recovery evidence as `8da3f49cbfefd24e02f89a51a27aebfa786b6b44`.
-- PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`.
+- PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof on the Phase 3 branch: 68 Node tests, 3 runtime-config tests and x64 RTDB emulator security proof covering initial privilege escalation, immutable role/status, deletion/recreation and cleanup.
 - Production was not deployed or approved. The production GitHub environment remains the owner-controlled boundary.
@@ -93,7 +93,7 @@ required.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. After completion, measure and remove demonstrated duplication under Phase 4.
+5. In progress: audit the proven Phase 3 paths for duplication. The current audit finds one verification-bundle implementation and no promotion-workflow dependency on the browser gate; the browser gate remains only as an optional disposable experiment with focused rule/evidence tests.
 
 ## Historical evidence
 
