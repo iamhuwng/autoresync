@@ -42,6 +42,16 @@ test('cleanup verification fails closed on Auth lookup errors', async () => {
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test('Auth cleanup binds qualification API-key context when supplied', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  try {
+    globalThis.fetch = async url => { requestedUrl = String(url); return new Response(JSON.stringify({ error: { message: 'USER_NOT_FOUND' } }), { status: 400 }); };
+    await accountState({ project: 'qualification', uid: 'uid', token: 'token', apiKey: 'qualification-key' });
+    assert.match(requestedUrl, /accounts:lookup\?key=qualification-key/u);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('cleanup verification accepts only an explicit Auth account absence', async () => {
   const originalFetch = globalThis.fetch;
   try {

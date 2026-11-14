@@ -140,16 +140,17 @@ export const assertBrowserEvidenceVerified = evidence => {
   if (evidence?.decision !== 'verified') throw new Error(evidence?.summary || `Browser qualification is ${evidence?.decision || 'invalid'}`);
   return evidence;
 };
-export const accountState = async ({ project, uid, token }) => {
+const identityEndpoint = ({ project, operation, apiKey }) => `https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:${operation}${apiKey ? `?key=${encodeURIComponent(apiKey)}` : ''}`;
+export const accountState = async ({ project, uid, token, apiKey }) => {
   try {
-    const result = await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:lookup`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
+    const result = await requestJson(identityEndpoint({ project, operation: 'lookup', apiKey }), { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
     return (result.users || []).some(user => user.localId === uid) ? 'present' : 'absent';
   } catch (error) {
     if (error.status === 400 && error.body?.error?.message === 'USER_NOT_FOUND') return 'absent';
     throw error;
   }
 };
-const deleteAccount = async ({ project, uid, token, databaseUrl, profileSession, profileAttempted }) => {
+const deleteAccount = async ({ project, uid, token, apiKey, databaseUrl, profileSession, profileAttempted }) => {
   const errors = [];
   if (profileAttempted && profileSession) {
     try {
@@ -166,9 +167,9 @@ const deleteAccount = async ({ project, uid, token, databaseUrl, profileSession,
       if (await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: authHeaders(token) }) !== null) errors.push(`RTDB profile remains after deletion: ${uid}`);
     } catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
   }
-  try { await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:delete`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
+  try { await requestJson(identityEndpoint({ project, operation: 'delete', apiKey }), { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
-  try { if (await accountState({ project, uid, token }) !== 'absent') errors.push(`Auth account remains after deletion: ${uid}`); }
+  try { if (await accountState({ project, uid, token, apiKey }) !== 'absent') errors.push(`Auth account remains after deletion: ${uid}`); }
   catch (error) { errors.push(`Unable to verify Auth account deletion for ${uid}: ${error.message}`); }
   if (errors.length) throw new Error(errors.join('; '));
 };
@@ -269,7 +270,7 @@ const main = async () => {
     await waitForManifest(recoveryUrl, artifact.manifestSha256, 120_000, 'Native Hosting clone channel');
   } catch (error) { failure = error; }
   finally {
-    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, databaseUrl, profileSession: profileSessions.get(account.uid), profileAttempted: profileAttempts.has(account.uid) }); } catch (error) { cleanupErrors.push(error.message); } }
+    for (const account of attemptedAccounts) { try { await deleteAccount({ project, uid: account.uid, token, apiKey: qualificationKey('VITE_FIREBASE_API_KEY'), databaseUrl, profileSession: profileSessions.get(account.uid), profileAttempted: profileAttempts.has(account.uid) }); } catch (error) { cleanupErrors.push(error.message); } }
     for (const name of [recoveryChannel, channel]) {
       const observed = channelExists(name, site, project, childEnv, configPath);
       if (observed.present === null) { cleanupErrors.push(`Unable to verify Hosting channel cleanup: ${name}; ${observed.detail}`); continue; }
