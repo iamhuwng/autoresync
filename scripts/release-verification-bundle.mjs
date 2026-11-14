@@ -160,7 +160,7 @@ export function publishVerificationBundle({ bundleFile, exec = spawnSync } = {})
   const tag = bundle.tag;
   let release;
   try { release = releaseFor(tag, exec); } catch (error) {
-    if (!/was not found/u.test(error.message)) throw error;
+    if (!/(?:was not found|not found|HTTP 404)/iu.test(error.message)) throw error;
     gh(['release', 'create', tag, '--repo', repository, '--target', bundle.source.revision, '--draft', '--title', 'Codex verification ' + bundle.source.revision, '--notes', 'Source-bound application verification evidence; not deployment authorization.'], exec);
     release = releaseFor(tag, exec);
   }
