@@ -7,7 +7,7 @@
 This file is the operational runbook. Current release-qualification Phase 3
 status and architecture direction are recorded in the [canonical architecture
 plan](../architecture/luyentap-release-architecture-plan.md) and the dated
-[browser prerequisite decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
+[verification contract decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
 
 Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
@@ -157,21 +157,28 @@ Actions release card. It binds the protected `refs/heads/main` source, observed
 Hosting baseline, the actual event SHA, verification-plan and compatibility-review
 digests, production environment fingerprint, Firebase configuration digest, and
 retained manifest identity (source revision/tree/environment/file count). The
-card also retains the passing verification result, explicit browser evidence
-status and references, missing proof, impact, scope and recovery limits. The
-browser record must bind its source, environment and configuration; a plan
-digest alone is not verification evidence. The card is presentation and binding
-data; it is not production authorization. Its validator rejects missing event
-context, PR refs, path traversal, incomplete review pairs, source/artifact or
-environment drift, and credential-bearing text, and its exported values are the
-same `LUYENTAP_RELEASE_*` inputs consumed by the guarded executor.
-Browser evidence expires after 24 hours and a release card expires after two
-hours, so stale approval cannot be reused. CI stages each cross-job payload
-under one repository-relative directory before upload and rehydrates that exact
-layout before retained-artifact publication. The Hosting artifact upload opts in
-to hidden files solely so the public `.well-known/luyentap-release.json` manifest
-survives transfer; exact artifact validation rejects unexpected files and
-credential-bearing `.env` material before upload.
+card also retains the passing verification result, source-bound application
+verification record (when application paths require one), missing proof, impact,
+scope and recovery limits. The record at
+`documentation/release-evidence/verification.json` is deliberately tool-neutral:
+Codex chooses the browser, runner, journeys and depth. The validator binds its
+source revision/fingerprint, freshness, passing checks and evidence references;
+it does not require Playwright, generated accounts, a qualification Firebase
+project or a fixed teacher/student flow. A path classifier permits an explicit
+`not-required` record for non-application changes. Backend, rules, Worker,
+storage and other service changes retain their separate release-safety gates.
+The card is presentation and binding data; it is not production authorization.
+Its validator rejects missing event context, PR refs, path traversal, incomplete
+review pairs, source/artifact or environment drift, and credential-bearing text,
+and its exported values are the same `LUYENTAP_RELEASE_*` inputs consumed by the
+guarded executor. Verification evidence expires after 24 hours and a release
+card expires after two hours, so stale approval cannot be reused. CI stages each
+cross-job payload under one repository-relative directory before upload and
+rehydrates that exact layout before retained-artifact publication. The Hosting
+artifact upload opts in to hidden files solely so the public
+`.well-known/luyentap-release.json` manifest survives transfer; exact artifact
+validation rejects unexpected files and credential-bearing `.env` material before
+upload.
 
 The existing executor also accepts `--deploy-retained` for a separately retained
 `dist/` artifact. It verifies the manifest digest, every manifest-listed file,
@@ -184,14 +191,10 @@ environment protection, short-lived ADC federation with the pinned Firebase CLI,
 and a disposable Hosting publication/recovery are still external qualification
 work. The guarded workflow is defined in
 `.github/workflows/release-promotion-phase3.yml`: its preparer derives technical
-bindings and verification inputs, its browser gate fails closed until evidence is
-verified, its protected `production` environment is the owner authorization
-boundary, and its recovery dispatch resumes one recorded operation without
-rebuilding or publishing. The dependable browser prerequisite is separately
-recorded as unqualified
-in the owner-facing card and gate; the preparer records the missing proof instead
-of asking the owner to calculate a digest or assemble technical JSON. The
-workflow names the federation identities separately: `LUYENTAP_RELEASE_*`
+bindings and source-bound verification inputs, its protected `production`
+environment is the owner authorization boundary, and its recovery dispatch
+resumes one recorded operation without rebuilding or publishing. The workflow
+does not run a universal browser job. The workflow names the federation identities separately: `LUYENTAP_RELEASE_*`
 variables are read-only preflight inputs, while `LUYENTAP_PRODUCTION_*` variables
 are restricted to protected production/recovery jobs. Static workflow tests assert
 the preflight job has `contents: read` and promotion has `contents: write`; actual

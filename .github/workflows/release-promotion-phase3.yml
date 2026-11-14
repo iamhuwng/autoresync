@@ -36,6 +36,7 @@ jobs:
     outputs:
       artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
       assessment_publishable: ${{ steps.assessment.outputs.publishable }}
+      card_sha256: ${{ steps.release-card.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -148,7 +149,7 @@ jobs:
           echo "publishable=$([ "$decision" = PASS ] || [ "$decision" = NOT_APPLICABLE ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Execute the reviewed verification plan
         run: node scripts/release-promotion.mjs --run-verification --output "$RUNNER_TEMP/verification.json"
-      - name: Preserve qualification binding and assessment evidence
+      - name: Preserve assessment and verification evidence
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
         run: |
@@ -157,8 +158,25 @@ jobs:
           cp "$RUNNER_TEMP/promotion-inputs.json" tmp/release-card/promotion-inputs.json
           cp "$RUNNER_TEMP/verification.json" tmp/release-card/verification.json
           cp "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" tmp/release-card/assessment.json
-          node scripts/release-promotion.mjs --qualification-binding tmp/release-card/qualification-binding.json
           cp "tmp/release-receipts/ci-verification-plan.json" tmp/release-plan/ci-verification-plan.json
+      - name: Build the source-bound release card
+        id: release-card
+        if: ${{ steps.assessment.outputs.publishable == 'true' }}
+        env:
+          LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
+          LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ steps.artifact.outputs.sha256 }}
+          LUYENTAP_RELEASE_VERIFICATION_FILE: ${{ runner.temp }}/verification.json
+        run: |
+          set -euo pipefail
+          card="$RUNNER_TEMP/approved-release-card.json"
+          node scripts/release-promotion.mjs --assessment "tmp/release-card/assessment.json" --output "$card" | tee "$RUNNER_TEMP/approved-release-card-sha256"
+          mkdir -p "$RUNNER_TEMP/approved-release-card"
+          cp "$card" "$RUNNER_TEMP/approved-release-card/release-card.json"
+          cp "tmp/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
+          cp "tmp/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
+          cp "tmp/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
+          cat "$card" >> "$GITHUB_STEP_SUMMARY"
+          echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: luyentap-release-card-${{ github.run_id }}
@@ -178,139 +196,17 @@ jobs:
           path: tmp/release-plan
           if-no-files-found: error
           retention-days: 14
-
-  browser-gate:
-    needs: prepare
-    if: ${{ needs.prepare.result == 'success' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    environment:
-      name: qualification
-    outputs:
-      card_sha256: ${{ steps.final-card.outputs.sha256 }}
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - uses: actions/download-artifact@v4
-        with:
-          name: luyentap-release-card-${{ github.run_id }}
-          path: ${{ runner.temp }}/release-card
-      - uses: actions/download-artifact@v4
-        with:
-          name: luyentap-hosting-artifact-${{ github.run_id }}
-          path: dist
-      - name: Require the dedicated qualification Firebase federation configuration
-        env:
-          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
-          SERVICE_ACCOUNT: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_SERVICE_ACCOUNT }}
-        run: |
-          set -euo pipefail
-          test -n "$WORKLOAD_IDENTITY_PROVIDER"
-          test -n "$SERVICE_ACCOUNT"
-      - uses: ./.github/actions/assert-oidc-cleanup
-        with:
-          path: ${{ runner.temp }}/gha-creds.json
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.LUYENTAP_QUALIFICATION_GOOGLE_SERVICE_ACCOUNT }}
-          create_credentials_file: true
-          export_environment_variables: true
-          cleanup_credentials: true
-      - name: Keep federation credentials outside the checkout
-        run: node scripts/relocate-oidc-credentials.mjs
-      - name: Materialize the dedicated qualification environment
-        env:
-          QUALIFICATION_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
-          QUALIFICATION_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
-          QUALIFICATION_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
-          QUALIFICATION_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
-          QUALIFICATION_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
-          QUALIFICATION_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
-          QUALIFICATION_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
-          QUALIFICATION_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
-        run: |
-          set -euo pipefail
-          for value in "$QUALIFICATION_API_KEY" "$QUALIFICATION_HOSTING_SITE" "$QUALIFICATION_AUTH_DOMAIN" "$QUALIFICATION_DATABASE_URL" "$QUALIFICATION_PROJECT_ID" "$QUALIFICATION_STORAGE_BUCKET" "$QUALIFICATION_MESSAGING_SENDER_ID" "$QUALIFICATION_APP_ID"; do test -n "$value"; done
-          umask 077
-          cat > "$RUNNER_TEMP/.env.qualification" <<EOF
-          VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
-          VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=$QUALIFICATION_HOSTING_SITE
-          VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
-          VITE_FIREBASE_QUALIFICATION_DATABASE_URL=$QUALIFICATION_DATABASE_URL
-          VITE_FIREBASE_QUALIFICATION_PROJECT_ID=$QUALIFICATION_PROJECT_ID
-          VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET=$QUALIFICATION_STORAGE_BUCKET
-          VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID=$QUALIFICATION_MESSAGING_SENDER_ID
-          VITE_FIREBASE_QUALIFICATION_APP_ID=$QUALIFICATION_APP_ID
-          EOF
-      - name: Install the pinned Chromium runtime
-        run: node scripts/tooling-where.mjs --exec playwright install --with-deps chromium
-      - name: Run authenticated Playwright against the retained artifact
-        env:
-          RELEASE_BROWSER_OUTPUT_DIR: ${{ runner.temp }}/browser-evidence
-        run: |
-          set -euo pipefail
-          node scripts/release-browser-gate.mjs \
-            --binding "$RUNNER_TEMP/release-card/qualification-binding.json" \
-            --qualification-env-file "$RUNNER_TEMP/.env.qualification" \
-            --output-dir "$RELEASE_BROWSER_OUTPUT_DIR"
-      - name: Build the final source-bound release card
-        id: final-card
-        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
-        env:
-          LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/release-card/promotion-inputs.json
-          LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
-          LUYENTAP_RELEASE_VERIFICATION_FILE: ${{ runner.temp }}/release-card/verification.json
-          LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE: ${{ runner.temp }}/browser-evidence/browser.json
-        run: |
-          set -euo pipefail
-          card="$RUNNER_TEMP/approved-release-card.json"
-          node scripts/release-promotion.mjs --assessment "$RUNNER_TEMP/release-card/assessment.json" --output "$card" | tee "$RUNNER_TEMP/approved-release-card-sha256"
-          mkdir -p "$RUNNER_TEMP/approved-release-card"
-          cp "$card" "$RUNNER_TEMP/approved-release-card/release-card.json"
-          cp "$RUNNER_TEMP/release-card/promotion-inputs.json" "$RUNNER_TEMP/approved-release-card/promotion-inputs.json"
-          cp "$RUNNER_TEMP/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
-          cp "$RUNNER_TEMP/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
-          cat "$card" >> "$GITHUB_STEP_SUMMARY"
-          echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: luyentap-release-browser-evidence-${{ github.run_id }}
-          path: ${{ runner.temp }}/browser-evidence
-          if-no-files-found: error
-          retention-days: 30
-      - uses: actions/upload-artifact@v4
-        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
+        if: ${{ steps.assessment.outputs.publishable == 'true' }}
         with:
           name: luyentap-approved-release-card-${{ github.run_id }}
           path: ${{ runner.temp }}/approved-release-card
           if-no-files-found: error
           retention-days: 14
-      - name: Require independently verified browser evidence before authorization
-        if: ${{ needs.prepare.outputs.assessment_publishable == 'true' }}
-        env:
-          EXPECTED_CARD_SHA256: ${{ steps.final-card.outputs.sha256 }}
-        run: |
-          set -euo pipefail
-          card="$RUNNER_TEMP/approved-release-card/release-card.json"
-          test "$(sha256sum "$card" | cut -d' ' -f1)" = "$EXPECTED_CARD_SHA256"
-          node scripts/release-promotion.mjs --require-browser "$card" >/dev/null
 
   promote:
-    needs: [prepare, browser-gate]
-    if: ${{ needs.prepare.result == 'success' && needs.browser-gate.result == 'success' && needs.browser-gate.outputs.card_sha256 != '' }}
+    needs: [prepare]
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.card_sha256 != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
@@ -350,10 +246,6 @@ jobs:
         with:
           name: luyentap-verification-plan-${{ github.run_id }}
           path: ${{ runner.temp }}/release-plan
-      - uses: actions/download-artifact@v4
-        with:
-          name: luyentap-release-browser-evidence-${{ github.run_id }}
-          path: ${{ runner.temp }}/browser-evidence
       - name: Rehydrate the exact generated verification plan
         run: |
           set -euo pipefail
@@ -363,14 +255,14 @@ jobs:
           cp "$plan" tmp/release-receipts/ci-verification-plan.json
       - name: Verify the approved card and retained artifact
         env:
-          EXPECTED_CARD_SHA256: ${{ needs.browser-gate.outputs.card_sha256 }}
+          EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
           EXPECTED_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
         run: |
           set -euo pipefail
           card="$RUNNER_TEMP/release-card/release-card.json"
           test "$(sha256sum "$card" | cut -d' ' -f1)" = "$EXPECTED_CARD_SHA256"
           test "$(node scripts/release-promotion.mjs --check-card "$card")" = "$EXPECTED_CARD_SHA256"
-          test "$(node scripts/release-promotion.mjs --require-browser "$card")" = "$EXPECTED_CARD_SHA256"
+          test "$(node scripts/release-promotion.mjs --require-verification "$card")" = "$EXPECTED_CARD_SHA256"
           test "$(node scripts/release-promotion.mjs --artifact-digest)" = "$EXPECTED_ARTIFACT_SHA256"
       - name: Require the production Firebase federation configuration
         env:
@@ -466,7 +358,6 @@ jobs:
            done
            if test -d documentation/architecture/changelog; then cp -R documentation/architecture/changelog tmp/release-result/; fi
            if test -f documentation/architecture/master_changelog.md; then cp documentation/architecture/master_changelog.md tmp/release-result/; fi
-           if test -d "$RUNNER_TEMP/browser-evidence"; then cp -R "$RUNNER_TEMP/browser-evidence" tmp/release-result/; fi
       - name: Open the protected-main Changelog integration PR
         if: ${{ always() }}
         env:

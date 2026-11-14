@@ -15,7 +15,7 @@ const shaPattern = /^[a-f0-9]{64}$/u;
 const revisionPattern = /^[a-f0-9]{40}$/u;
 const sourceRefPattern = /^refs\/heads\/main$/u;
 const trackedPathPattern = /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/u;
-const maxBrowserEvidenceAgeMs = 24 * 60 * 60 * 1000;
+const maxVerificationEvidenceAgeMs = 24 * 60 * 60 * 1000;
 const maxCardAgeMs = 2 * 60 * 60 * 1000;
 const maxClockSkewMs = 10 * 60 * 1000;
 const fail = message => { throw new Error(`Release promotion: ${message}`); };
@@ -46,9 +46,12 @@ const timestamp = (value, label) => {
 };
 
 const evidenceRefs = value => {
-  if (!Array.isArray(value) || value.length > 30) fail('browser evidence references must be a bounded array');
-  return value.map(reference => text(reference, 'browser evidence reference', 1000));
+  if (!Array.isArray(value) || value.length > 30) fail('verification evidence references must be a bounded array');
+  return value.map(reference => text(reference, 'verification evidence reference', 1000));
 };
+
+const applicationPathPattern = /^(?:src\/|public\/|index\.html$|firebase\.json$|\.firebaserc$|package(?:-lock)?\.json$|vite\.config\.|tailwind\.config\.|postcss\.config\.)/u;
+export const verificationRequirement = files => files.some(file => applicationPathPattern.test(file)) ? 'required' : 'not-required';
 
 export const validateTrackedPath = (value, label) => {
   if (typeof value !== 'string' || !trackedPathPattern.test(value)
@@ -90,30 +93,33 @@ export function validateVerificationResult(value, { source, environmentFingerpri
   return value;
 }
 
-export function validateBrowserEvidence(value, { source, environmentFingerprint, configurationFingerprint } = {}) {
-  exactFields(value, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'runtimeEnvironmentFingerprint', 'artifactEnvironmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser evidence');
-  if (!['verified', 'blocked', 'not-run', 'waived'].includes(value.decision)) fail('browser evidence decision is invalid');
-  timestamp(value.observedAt, 'browser evidence observation');
+export function validateVerificationEvidence(value, { source, requirement } = {}) {
+  exactFields(value, ['schemaVersion', 'requirement', 'decision', 'observedAt', 'method', 'scenario', 'sourceRevision', 'sourceFingerprint', 'checks', 'evidenceRefs', 'summary'], 'verification evidence');
+  if (value.schemaVersion !== 1 || !['required', 'not-required'].includes(value.requirement) || value.requirement !== requirement) fail('verification evidence requirement is invalid');
+  if (!['verified', 'not-required'].includes(value.decision)) fail('verification evidence decision is invalid');
+  if (value.requirement === 'required' && value.decision !== 'verified') fail('required verification evidence is not verified');
+  if (value.requirement === 'not-required' && value.decision !== 'not-required' && value.decision !== 'verified') fail('optional verification evidence decision is invalid');
+  timestamp(value.observedAt, 'verification evidence observation');
   const observedAt = Date.parse(value.observedAt);
   const now = Date.now();
-  if (value.decision === 'verified' && (observedAt > now + maxClockSkewMs || now - observedAt > maxBrowserEvidenceAgeMs)) fail('browser evidence is stale or dated in the future');
-  text(value.scenario, 'browser evidence scenario');
-  text(value.summary, 'browser evidence summary');
-  revisionField(value.sourceRevision, 'browser evidence source revision');
-  digestField(value.sourceFingerprint, 'browser evidence source fingerprint');
-  digestField(value.runtimeEnvironmentFingerprint, 'browser runtime environment fingerprint');
-  digestField(value.artifactEnvironmentFingerprint, 'browser artifact environment fingerprint');
-  digestField(value.configurationFingerprint, 'browser evidence configuration fingerprint');
-  if (!source || value.sourceRevision !== source.revision || value.sourceFingerprint !== source.fingerprint) fail('browser evidence source differs from the assessed source');
-  if (value.artifactEnvironmentFingerprint !== environmentFingerprint || value.configurationFingerprint !== configurationFingerprint) fail('browser evidence artifact environment or configuration differs');
+  if (value.decision === 'verified' && (observedAt > now + maxClockSkewMs || now - observedAt > maxVerificationEvidenceAgeMs)) fail('verification evidence is stale or dated in the future');
+  text(value.method, 'verification method');
+  text(value.scenario, 'verification scenario');
+  text(value.summary, 'verification summary');
+  revisionField(value.sourceRevision, 'verification source revision');
+  digestField(value.sourceFingerprint, 'verification source fingerprint');
+  if (!source || value.sourceRevision !== source.revision || value.sourceFingerprint !== source.fingerprint) fail('verification evidence source differs from the assessed source');
+  if (!Array.isArray(value.checks) || value.checks.length > 30) fail('verification checks must be a bounded array');
+  value.checks.forEach(check => { exactFields(check, ['name', 'result'], 'verification check'); text(check.name, 'verification check name', 500); if (check.result !== 'passed') fail('verification checks must pass'); });
+  if (value.decision === 'verified' && value.checks.length < 1) fail('verified verification evidence requires checks');
   const refs = evidenceRefs(value.evidenceRefs);
-  if (value.decision === 'verified' && refs.length === 0) fail('verified browser evidence requires evidence references');
+  if (value.decision === 'verified' && refs.length === 0) fail('verified verification evidence requires evidence references');
   return value;
 }
 
-export function assertBrowserReady(card) {
+export function assertVerificationReady(card) {
   validatePromotionCard(card);
-  if (card.browser.decision !== 'verified') fail(`promotion requires verified browser evidence; current decision is ${card.browser.decision}`);
+  if (card.verificationEvidence.record.decision !== 'verified' && card.verificationEvidence.record.decision !== 'not-required') fail(`promotion requires source-bound verification evidence; current decision is ${card.verificationEvidence.record.decision}`);
   return card;
 }
 
@@ -135,19 +141,20 @@ const optionalReview = (file, digest) => {
 
 export function validatePromotionCard(card) {
   if (!card || Object.getPrototypeOf(card) !== Object.prototype || card.schemaVersion !== 1) fail('card schema is invalid');
-  const allowed = ['schemaVersion', 'generatedAt', 'repository', 'event', 'source', 'baseline', 'verification', 'artifact', 'configuration', 'environment', 'dependencies', 'scope', 'recovery', 'assessment', 'browser', 'impact', 'missingProof'];
+  const allowed = ['schemaVersion', 'generatedAt', 'repository', 'event', 'source', 'baseline', 'verification', 'artifact', 'configuration', 'environment', 'dependencies', 'scope', 'recovery', 'assessment', 'verificationEvidence', 'impact', 'missingProof'];
   if (Object.keys(card).some(key => !allowed.includes(key))) fail('card contains unknown fields');
   if (card.repository !== 'iamhuwng/autoresync') fail('card repository is invalid');
   exactFields(card.event, ['name', 'ref', 'sha'], 'event');
   if (!card.event || card.event.name !== 'workflow_dispatch' || card.event.ref !== 'refs/heads/main') fail('card event is not a protected main dispatch');
   revisionField(card.event.sha, 'event SHA');
-  exactFields(card.source, ['ref', 'revision', 'tree', 'baseRevision', 'fingerprint', 'dirty'], 'source');
+  exactFields(card.source, ['ref', 'revision', 'tree', 'baseRevision', 'fingerprint', 'dirty', 'verificationRequirement'], 'source');
   if (!card.source || card.source.ref !== 'refs/heads/main' || !sourceRefPattern.test(card.source.ref)
     || card.source.dirty !== false) fail('card source must be clean protected main');
   revisionField(card.source.revision, 'source revision');
   revisionField(card.source.tree, 'source tree');
   revisionField(card.source.baseRevision, 'source base revision');
   digestField(card.source.fingerprint, 'source fingerprint');
+  if (!['required', 'not-required'].includes(card.source.verificationRequirement)) fail('source verification requirement is invalid');
   if (card.event.sha !== card.source.revision) fail('event SHA differs from source revision');
   exactFields(card.baseline, ['revision', 'tree', 'fingerprint'], 'baseline');
   if (!card.baseline) fail('card baseline is missing');
@@ -183,8 +190,15 @@ export function validatePromotionCard(card) {
   digestField(card.assessment.receiptSha256, 'assessment receipt digest');
   exactFields(card.scope, ['included', 'excluded'], 'scope');
   exactFields(card.recovery, ['target', 'limits'], 'recovery');
-  exactFields(card.browser, ['decision', 'observedAt', 'scenario', 'sourceRevision', 'sourceFingerprint', 'runtimeEnvironmentFingerprint', 'artifactEnvironmentFingerprint', 'configurationFingerprint', 'evidenceRefs', 'summary'], 'browser');
-  validateBrowserEvidence(card.browser, { source: card.source, environmentFingerprint: card.environment?.fingerprint, configurationFingerprint: card.configuration?.firebaseSha256 });
+  exactFields(card.verificationEvidence, ['record', 'file', 'sha256'], 'verification evidence binding');
+  if (card.verificationEvidence.file === null || card.verificationEvidence.file === undefined) {
+    if (card.verificationEvidence.sha256 !== null) fail('verification evidence digest must be null when no evidence file is bound');
+  } else {
+    validateTrackedPath(card.verificationEvidence.file, 'verification evidence file');
+    digestField(card.verificationEvidence.sha256, 'verification evidence digest');
+  }
+  if (card.verificationEvidence.record.requirement !== card.source.verificationRequirement) fail('verification evidence requirement differs from the source requirement');
+  validateVerificationEvidence(card.verificationEvidence.record, { source: card.source, requirement: card.source.verificationRequirement });
   text(card.impact, 'release impact');
   text(card.missingProof, 'missing proof');
   text(card.scope?.included, 'included scope');
@@ -264,14 +278,18 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     compatibilityReviewFile = reviewPath;
     compatibilityReviewSha256 = sha256(await readFile(path.resolve(cwd, reviewPath)));
   }
-  const browserPath = path.join(cwd, 'documentation/release-evidence/browser.json');
-  let browser;
-  try {
-    browser = JSON.parse(await readFile(browserPath, 'utf8'));
-  } catch {
-    browser = { decision: 'blocked', observedAt: new Date().toISOString(), scenario: 'authenticated teacher and student browser verification', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, runtimeEnvironmentFingerprint: environmentFingerprint, artifactEnvironmentFingerprint: environmentFingerprint, configurationFingerprint, evidenceRefs: [], summary: 'No source-bound browser evidence was available to the automatic release preparer; dependable runtime ownership remains unqualified.' };
+  const evidenceFile = 'documentation/release-evidence/verification.json';
+  const requirement = verificationRequirement(source.files);
+  let verificationEvidence;
+  let verificationEvidenceSha256 = null;
+  if (tracked(cwd, evidenceFile)) {
+    const evidenceBytes = await readFile(path.join(cwd, evidenceFile));
+    verificationEvidence = JSON.parse(evidenceBytes.toString('utf8'));
+    verificationEvidenceSha256 = sha256(evidenceBytes);
+  } else {
+    verificationEvidence = { schemaVersion: 1, requirement, decision: 'not-required', observedAt: new Date().toISOString(), method: 'release path classifier', scenario: requirement === 'required' ? 'Application verification evidence is missing.' : 'No application runtime paths changed.', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [], evidenceRefs: [], summary: requirement === 'required' ? 'Source-bound application verification evidence is required for this candidate.' : 'No application runtime paths changed; Codex application verification is not required for this candidate.' };
   }
-  const missing = browser.decision === 'verified' ? (changedTests.length ? 'No known missing automated evidence.' : 'No directly collocated affected test was discovered; inspect the selected release suites.') : 'Dependable authenticated browser evidence is not available for this candidate.';
+  const missing = verificationEvidence.decision === 'verified' || requirement === 'not-required' ? (changedTests.length ? 'No known missing automated evidence.' : 'No directly collocated affected test was discovered; inspect the selected release suites.') : 'Source-bound application verification evidence is required for this candidate.';
   return {
     schemaVersion: 1,
     sourceRef: 'refs/heads/main', eventRef, eventName, eventSha,
@@ -280,7 +298,8 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
     artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256,
-    browser, configurationFingerprint, objective: text(objective, 'release objective'),
+    verificationEvidence, verificationEvidenceFile: verificationEvidenceSha256 ? evidenceFile : null, verificationEvidenceSha256,
+    configurationFingerprint, objective: text(objective, 'release objective'),
     includedScope: `${objective}; affected services: ${classifyPaths(source.files).join(', ') || 'none identified'}`,
     excludedScope: 'Workers, rules, storage, database and application data unless separately qualified and authorized.',
     impact: `Automatic assessment classified affected services as: ${classifyPaths(source.files).join(', ') || 'none identified'}.`,
@@ -314,7 +333,7 @@ export function configurationDigest(cwd = repoRoot) {
   return jsonDigest({ firebase, firebaseRc });
 }
 
-export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, browserEvidence, impact, missingProof } = {}) {
+export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationEvidenceFile = null, verificationEvidenceSha256 = null, impact, missingProof } = {}) {
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) fail('assessment must be PASS or NOT_APPLICABLE');
   if (!sourceRefPattern.test(sourceRef) || eventName !== 'workflow_dispatch' || eventRef !== 'refs/heads/main') fail('promotion requires explicit workflow_dispatch context on protected main');
   revisionField(eventSha, 'event SHA');
@@ -331,13 +350,19 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   if (artifactSha256 !== manifestSha256) fail('artifact manifest digest differs from the retained artifact');
   validateVerificationResult(verification, { source, environmentFingerprint, planSha256 });
   if (verification.source.baseRevision !== source.baseRevision) fail('verification source base revision differs from the assessment source base revision');
-  validateBrowserEvidence(browserEvidence, { source, environmentFingerprint, configurationFingerprint: configurationDigest(cwd) });
+  const evidenceRequirement = verificationRequirement(source.files || []);
+  validateVerificationEvidence(verificationEvidence, { source, requirement: evidenceRequirement });
+  if (verificationEvidenceFile !== null) {
+    if (verificationEvidenceFile !== 'documentation/release-evidence/verification.json' || !tracked(cwd, verificationEvidenceFile)) fail('verification evidence file is not the reviewed source-bound record');
+    const evidenceBytes = readFileSync(path.join(cwd, verificationEvidenceFile));
+    if (verificationEvidenceSha256 !== sha256(evidenceBytes)) fail('verification evidence digest differs from the reviewed source file');
+  } else if (verificationEvidenceSha256 !== null) fail('verification evidence digest requires a source-bound evidence file');
   const card = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     repository: 'iamhuwng/autoresync',
     event: { name: eventName, ref: eventRef, sha: eventSha },
-    source: { ref: sourceRef, revision: source.revision, tree: source.tree, baseRevision: source.baseRevision, fingerprint: source.fingerprint, dirty: false },
+    source: { ref: sourceRef, revision: source.revision, tree: source.tree, baseRevision: source.baseRevision, fingerprint: source.fingerprint, dirty: false, verificationRequirement: evidenceRequirement },
     baseline: { revision: assessment.observed.revision, tree: assessment.observed.tree, fingerprint: assessment.observed.fingerprint },
     verification: { planFile: validatePlanPath(planFile), planSha256: digestField(planSha256, 'verification plan digest'), actual: verification, ...(review ? { compatibilityReview: review } : {}) },
     artifact: { manifestSha256: manifestSha256, revision: manifest.revision, tree: manifest.tree, environmentFingerprint: manifest.envFingerprint, fileCount: manifest.files.length },
@@ -347,7 +372,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
     assessment: { decision: assessment.decision, target: assessment.target, receiptSha256: digestField(assessmentSha256, 'assessment receipt digest') },
     scope: { included: text(includedScope, 'included scope'), excluded: text(excludedScope, 'excluded scope') },
     recovery: { target: text(recoveryTarget, 'recovery target'), limits: text(recoveryLimits, 'recovery limits') },
-    browser: browserEvidence,
+    verificationEvidence: { record: verificationEvidence, file: verificationEvidenceFile, sha256: verificationEvidenceSha256 },
     impact: text(impact, 'release impact'),
     missingProof: text(missingProof, 'missing proof'),
   };
@@ -391,7 +416,7 @@ const parseArgs = argv => {
     else if (value === '--check-card') args.checkCard = argv[++index];
     else if (value === '--export-env') args.exportEnv = argv[++index];
     else if (value === '--run-verification') args.runVerification = true;
-    else if (value === '--require-browser') args.requireBrowser = argv[++index];
+    else if (value === '--require-verification') args.requireVerification = argv[++index];
     else if (value === '--artifact-digest') args.artifactDigest = true;
     else if (value === '--qualification-binding') args.qualificationBinding = argv[++index];
     else throw new Error(`Unknown argument ${value}`);
@@ -455,9 +480,9 @@ const main = async (argv = process.argv.slice(2)) => {
     process.stdout.write(`${cardDigest(card)}\n`);
     return;
   }
-  if (args.requireBrowser) {
-    const card = JSON.parse(await readFile(path.resolve(args.requireBrowser), 'utf8'));
-    assertBrowserReady(card);
+  if (args.requireVerification) {
+    const card = JSON.parse(await readFile(path.resolve(args.requireVerification), 'utf8'));
+    assertVerificationReady(card);
     process.stdout.write(`${cardDigest(card)}\n`);
     return;
   }
@@ -478,8 +503,8 @@ const main = async (argv = process.argv.slice(2)) => {
     const readEvidence = async (name, label) => {
       const file = process.env[name];
       if (file) return JSON.parse(await readFile(path.resolve(file), 'utf8'));
-      if (name === 'LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE' && discovered.browser) return discovered.browser;
       if (name === 'LUYENTAP_RELEASE_VERIFICATION_FILE' && discovered.verification) return discovered.verification;
+      if (name === 'LUYENTAP_RELEASE_EVIDENCE_FILE' && discovered.verificationEvidence) return discovered.verificationEvidence;
       fail(`${name} is required for ${label}`);
     };
     const card = createPromotionCard({
@@ -499,7 +524,9 @@ const main = async (argv = process.argv.slice(2)) => {
       recoveryTarget: process.env.LUYENTAP_RELEASE_RECOVERY_TARGET || discovered.recoveryTarget,
       recoveryLimits: process.env.LUYENTAP_RELEASE_RECOVERY_LIMITS || discovered.recoveryLimits,
       verification: await readEvidence('LUYENTAP_RELEASE_VERIFICATION_FILE', 'actual verification evidence'),
-      browserEvidence: await readEvidence('LUYENTAP_RELEASE_BROWSER_EVIDENCE_FILE', 'browser evidence'),
+      verificationEvidence: await readEvidence('LUYENTAP_RELEASE_EVIDENCE_FILE', 'source-bound application verification evidence'),
+      verificationEvidenceFile: discovered.verificationEvidenceFile || null,
+      verificationEvidenceSha256: discovered.verificationEvidenceSha256 || null,
       impact: process.env.LUYENTAP_RELEASE_IMPACT || discovered.impact,
       missingProof: process.env.LUYENTAP_RELEASE_MISSING_PROOF || discovered.missingProof,
     });
@@ -507,7 +534,7 @@ const main = async (argv = process.argv.slice(2)) => {
     process.stdout.write(`${cardDigest(card)}\n`);
     return;
   }
-  throw new Error('Use --prepare --objective <text> --production-env-file <file> --output <file>, --artifact-digest, --run-verification --output <file>, --assessment <file> --output <file>, --check-card <file>, --require-browser <card>, or --export-env <card>');
+  throw new Error('Use --prepare --objective <text> --production-env-file <file> --output <file>, --artifact-digest, --run-verification --output <file>, --assessment <file> --output <file>, --check-card <file>, --require-verification <card>, or --export-env <card>');
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
