@@ -34,6 +34,14 @@ test('direct Node execution produces frozen in-process candidate evidence', asyn
   assert.throws(() => assertReleaseVerification(value, { ...binding, source: { ...value.source, revision: 'b'.repeat(40) } }), /stale/u);
 });
 
+test('retained serialized verification cannot bypass the in-process trust marker', async t => {
+  const value = await runReleaseVerification(await fixture(t, "import test from 'node:test'; test('retained proof', () => {});"));
+  const retained = JSON.parse(JSON.stringify(value));
+  assert.throws(() => assertReleaseVerification(retained, {
+    source: retained.source, envFingerprint, planSha256: retained.planSha256,
+  }), /untrusted/u);
+});
+
 test('accepts tracked JSX test paths without bypassing test execution', async t => {
   const value = await runReleaseVerification(await fixture(t,
     "const test = require('node:test'); test('tracked JSX path', () => {});", 'sample.test.jsx'));

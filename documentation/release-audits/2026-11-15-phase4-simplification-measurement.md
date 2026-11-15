@@ -39,5 +39,13 @@ run. The proof must show:
 If that proof passes, remove only the redundant execution and retain the
 source-bound result validation. If it does not, leave both executions in place.
 
+The first rehearsal now records the current result: a serialized verification
+result cannot satisfy `assertReleaseVerification` because that validator also
+requires its in-process trust marker. Therefore the second execution remains
+justified today. The next Phase 4 candidate is a separately designed retained
+result validator, followed by the same rehearsal; no duplicate execution is
+removed until that validator preserves the source, plan, environment, counts,
+and mutation-detection invariants.
+
 This is the next Phase 4 action. Local-development reliability remains a
 separate workstream, and no fixed browser journey is introduced.
