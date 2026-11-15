@@ -150,7 +150,7 @@ jobs:
         run: |
           set -euo pipefail
           args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json")
-          if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
+          if test -f tmp/release-receipts/compatibility-review.json; then args+=(--compatibility-review tmp/release-receipts/compatibility-review.json); fi
           set +e
           node scripts/release-check.mjs "${args[@]}"
           status=$?
