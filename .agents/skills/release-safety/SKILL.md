@@ -68,6 +68,33 @@ Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and
 separate explicit production authorization may reach `npm run deploy:hosting`.
 The deployment script is the only supported mutating route. It requires the canonical checkout (or a checkout with `tooling:doctor` green) because Firebase CLI and build dependencies are intentionally not installed into managed worktrees.
 
+## Codex application-verification duty
+
+For an application-impacting candidate, Codex owns the verification decision and
+must complete the handoff before treating the release as ready for promotion:
+
+1. Inspect the changed surfaces and choose proportionate proof. Codex may use
+   focused tests, a browser, an emulator, provider checks, or a disposable
+   qualification journey. No framework, browser, account scheme, or journey is
+   prescribed here.
+2. Run the selected checks against the exact candidate source and record why
+   that scope is sufficient. Cover each changed runtime boundary or state the
+   concrete reason a boundary is outside the candidate's behavior.
+3. Retain the redacted results and create the source-bound verification bundle
+   with the exact source, base, environment, build identity and evidence
+   references. A pre-merge result cannot be reused for a different protected
+   merge commit.
+4. If a required check cannot run, investigate the available tools, access and
+   environments first. Report the exact missing external resource and affected
+   evidence; do not end with a generic `UNVERIFIED` report when the work is
+   still actionable.
+
+The release checker remains conservative: `UNVERIFIED`, `REVIEW_REQUIRED`, and
+`BLOCKED` are machine decisions requiring preparation or evidence, not approval.
+This duty gives Codex authority over test selection and execution while leaving
+source integrity, provenance, freshness, concurrency, publication, recovery and
+production authorization to the release system and owner boundary.
+
 ## Isolated Homework Worker release
 
 For the pinned October 18 Homework Worker artifact, follow

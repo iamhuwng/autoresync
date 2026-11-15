@@ -247,6 +247,29 @@ The
 separate local-development reliability plan remains proposed and is not
 absorbed here. Do not describe the contract test or a local retained-artifact
 check as CI, provider, browser or rollback proof.
+
+### Codex verification handoff
+
+For application-impacting changes, Codex is responsible for choosing and
+executing proportionate application verification. It may select focused tests,
+browser journeys, emulator checks, provider checks, or the disposable
+qualification lifecycle based on the changed surfaces and risk. The release
+system does not prescribe a framework or user journey; it validates the resulting
+source-bound bundle.
+
+Before treating the candidate as ready, Codex must run the selected checks,
+retain redacted results, and create the immutable bundle for the exact protected
+candidate source. A result from a pre-merge branch cannot authorize a different
+post-merge commit. If a check cannot run, Codex must investigate available tools,
+permissions and environments and report the exact external dependency and
+affected evidence. A generic `UNVERIFIED` report is a preparation state, not a
+completed handoff.
+
+This preserves Codex autonomy over test choice and execution. The release system
+continues to own only the properties that require consistent enforcement:
+source/artifact identity, evidence provenance, freshness, concurrency,
+publication, recovery and the production authorization boundary.
+
 Operation evidence keeps publication, independent live verification and
 documentation reconciliation distinct: a successful Hosting outcome is recorded
 as `published-verified`, while `changelog-pending` or
