@@ -41,7 +41,6 @@ describe('featureRegistry', () => {
       expect(resolveFeatureFromRoute('/guest-results')).toBe('results');
       expect(resolveFeatureFromRoute('/teacher/results')).toBe('results');
       expect(resolveFeatureFromRoute('/submission-complete')).toBe('results');
-      expect(resolveFeatureFromRoute('/profile/complete')).toBe('results');
     });
 
     it('maps generic unavailable material routes to materials', () => {
@@ -267,12 +266,13 @@ describe('featureRegistry', () => {
       ]));
     });
 
-    it('tracks guest claim completion under results rather than profile', () => {
+    it('removes the retired profile completion route from feature tracking', () => {
       const profile = FEATURE_REGISTRY.find((feature) => feature.id === 'profile');
       const results = FEATURE_REGISTRY.find((feature) => feature.id === 'results');
 
       expect(profile?.routes).not.toContain('/profile/complete');
-      expect(results?.routes).toContain('/profile/complete');
+      expect(results?.routes).not.toContain('/profile/complete');
+      expect(resolveFeatureFromRoute('/profile/complete')).toBeNull();
     });
 
     it('keeps Reading V2 review ownership inside existing result surfaces', () => {

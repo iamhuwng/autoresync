@@ -3,7 +3,6 @@ import { Navigate, type RouteObject } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
-import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
 import { buildRoute, ROUTES } from '../constants/routes.ts';
 import {
   isMaterialBookEditorEnabled,
@@ -56,11 +55,7 @@ function asTeacherProfilePage(
   featureName?: string,
   allowedRoles: string[] = ['teacher']
 ) {
-  return asTeacherPage(
-    <ProfileCompletionGuard>{children}</ProfileCompletionGuard>,
-    featureName,
-    allowedRoles
-  );
+  return asTeacherPage(children, featureName, allowedRoles);
 }
 
 function asTeacherErrorBoundaryPage(

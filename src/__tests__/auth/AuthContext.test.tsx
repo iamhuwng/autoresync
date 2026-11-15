@@ -10,13 +10,15 @@ vi.mock('firebase/auth');
 vi.mock('firebase/database');
 vi.mock('../../services/firebaseCore', () => ({
   auth: {},
+  app: {},
   database: {},
-  googleProvider: {}
+  googleProvider: {},
+  isLocalDevelopment: false,
 }));
 
 // Test component to access auth context
 const TestComponent = () => {
-  const { user, profile, loading, login, logout } = useAuth();
+  const { user, profile, loading, login, loginWithEmail, loginWithStudentId, registerWithEmail, sendPasswordReset, logout } = useAuth();
   
   return (
     <div>
@@ -24,6 +26,11 @@ const TestComponent = () => {
       <div data-testid="user">{user ? user.email : 'no-user'}</div>
       <div data-testid="profile">{profile ? profile.role : 'no-profile'}</div>
       <button onClick={login} data-testid="login-btn">Login</button>
+      <button onClick={() => loginWithEmail('student@test.com', 'student')} data-testid="email-login-btn">Email login</button>
+      <button onClick={() => loginWithEmail('unverified@student.test', 'password123').catch(() => {})} data-testid="unverified-login-btn">Unverified login</button>
+      <button onClick={() => loginWithStudentId('student-7', 'password123')} data-testid="student-id-login-btn">Student ID login</button>
+      <button onClick={() => registerWithEmail('new@student.test', 'password123', 'New Student', 'new-student-7')} data-testid="register-btn">Register</button>
+      <button onClick={() => sendPasswordReset('student@test.com')} data-testid="reset-btn">Reset password</button>
       <button onClick={logout} data-testid="logout-btn">Logout</button>
     </div>
   );
@@ -33,8 +40,13 @@ describe('AuthContext', () => {
   let mockOnAuthStateChanged: any;
   let mockOnValue: any;
   let mockSignInWithPopup: any;
+  let mockSignInWithEmailAndPassword: any;
+  let mockSignInWithCustomToken: any;
+  let mockSendEmailVerification: any;
+  let mockSendPasswordResetEmail: any;
   let mockSignOut: any;
   let mockSet: any;
+  let mockRemove: any;
   let mockGet: any;
   
   beforeEach(() => {
@@ -49,26 +61,38 @@ describe('AuthContext', () => {
     });
     
     mockSignInWithPopup = vi.fn();
+    mockSignInWithEmailAndPassword = vi.fn();
+    mockSignInWithCustomToken = vi.fn();
+    mockSendEmailVerification = vi.fn().mockResolvedValue(undefined);
+    mockSendPasswordResetEmail = vi.fn().mockResolvedValue(undefined);
     mockSignOut = vi.fn();
     
     vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation(mockOnAuthStateChanged);
     vi.mocked(firebaseAuth.signInWithPopup).mockImplementation(mockSignInWithPopup);
+    vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockImplementation(mockSignInWithEmailAndPassword);
+    vi.mocked(firebaseAuth.signInWithCustomToken).mockImplementation(mockSignInWithCustomToken);
+    vi.mocked(firebaseAuth.sendEmailVerification).mockImplementation(mockSendEmailVerification);
+    vi.mocked(firebaseAuth.sendPasswordResetEmail).mockImplementation(mockSendPasswordResetEmail);
     vi.mocked(firebaseAuth.signOut).mockImplementation(mockSignOut);
     
     // Mock Firebase Database functions
     mockOnValue = vi.fn();
     mockSet = vi.fn().mockResolvedValue(undefined);
+    mockRemove = vi.fn().mockResolvedValue(undefined);
     mockGet = vi.fn();
     
     vi.mocked(firebaseDatabase.ref).mockReturnValue({} as any);
     vi.mocked(firebaseDatabase.onValue).mockImplementation(mockOnValue);
     vi.mocked(firebaseDatabase.set).mockImplementation(mockSet);
+    vi.mocked(firebaseDatabase.remove).mockImplementation(mockRemove);
     vi.mocked(firebaseDatabase.get).mockImplementation(mockGet);
     vi.mocked(firebaseDatabase.serverTimestamp).mockReturnValue({} as any);
   });
   
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it('should initialize with loading state', async () => {
@@ -150,6 +174,93 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(mockSet).toHaveBeenCalled();
     });
+  });
+
+  it('supports email/password sign-in and creates a safe student profile when one is missing', async () => {
+    const mockUser = {
+      uid: 'email-student-uid',
+      email: 'student@test.com',
+      displayName: 'Email Student',
+      photoURL: null,
+    };
+    mockSignInWithEmailAndPassword.mockResolvedValue({ user: mockUser });
+    mockGet.mockResolvedValue({ exists: () => false, val: () => null });
+    mockOnValue.mockImplementation((ref, callback) => {
+      callback({ exists: () => false, val: () => null });
+      return vi.fn();
+    });
+
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+
+    await act(async () => screen.getByTestId('email-login-btn').click());
+
+    expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith({}, 'student@test.com', 'student');
+    expect(mockSet).toHaveBeenCalledWith({}, expect.objectContaining({ role: 'student', status: 'active' }));
+  });
+
+  it('uses a Firebase custom token for student-ID sign-in without returning the email to the browser', async () => {
+    const mockUser = {
+      uid: 'student-id-uid',
+      email: 'student@test.com',
+      displayName: 'Student',
+      photoURL: null,
+      getIdToken: vi.fn().mockResolvedValue('firebase-id-token'),
+    };
+    mockSignInWithCustomToken.mockResolvedValue({ user: mockUser });
+    mockGet.mockResolvedValue({
+      exists: () => true,
+      val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }),
+    });
+    mockOnValue.mockImplementation((ref, callback) => {
+      callback({ exists: () => true, val: () => ({ uid: mockUser.uid, email: mockUser.email, role: 'student', status: 'active' }) });
+      return vi.fn();
+    });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    vi.stubGlobal('fetch', vi.fn(async (url) => ({
+      ok: true,
+      json: async () => String(url).endsWith('/auth/student/login')
+        ? { customToken: 'one-time-custom-token' }
+        : { studentId: 'student-7' },
+    })));
+
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('student-id-login-btn').click());
+
+    expect(mockSignInWithCustomToken).toHaveBeenCalledWith({}, 'one-time-custom-token');
+  });
+
+  it('uses Firebase password-reset email without requiring a Cloud Function', async () => {
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('reset-btn').click());
+
+    expect(mockSendPasswordResetEmail).toHaveBeenCalledWith({}, 'student@test.com', {
+      url: `${window.location.origin}/login`,
+      handleCodeInApp: false,
+    });
+  });
+
+  it('sends verification and blocks unverified password accounts', async () => {
+    mockSignInWithEmailAndPassword.mockResolvedValue({
+      user: {
+        uid: 'unverified-uid',
+        email: 'unverified@student.test',
+        emailVerified: false,
+        getIdToken: vi.fn(),
+      },
+    });
+
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('unverified-login-btn').click());
+
+    expect(mockSendEmailVerification).toHaveBeenCalledWith(expect.objectContaining({ email: 'unverified@student.test' }), {
+      url: `${window.location.origin}/login`,
+      handleCodeInApp: false,
+    });
+    expect(mockSignOut).toHaveBeenCalled();
   });
 
   it('does not grant super admin from a public environment variable', async () => {

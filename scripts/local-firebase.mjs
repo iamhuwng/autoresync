@@ -21,9 +21,9 @@ const snapshotMetadataPath = path.join(snapshotDir, 'firebase-export-metadata.js
 const adminHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer owner' };
 
 const accounts = [
-  { email: 'teacher@test.com', password: 'password123', role: 'teacher', displayName: 'Teacher' },
+  { email: 'teacher@test.com', password: 'teacher', role: 'teacher', displayName: 'Teacher' },
   { email: 'teacher2@test.com', password: 'password123', role: 'teacher', displayName: 'Teacher Two' },
-  { email: 'student@test.com', password: 'password123', role: 'student', displayName: 'Student' },
+  { email: 'student@test.com', password: 'student', role: 'student', displayName: 'Student' },
 ];
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));

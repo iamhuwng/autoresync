@@ -72,7 +72,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
 
         // Login as Teacher
         await page.fill('input[type="email"]', 'teacher@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'teacher');
         await page.click('button[type="submit"]');
 
         // Wait for teacher dashboard
@@ -147,7 +147,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
 
         // Login as Teacher again
         await page.fill('input[type="email"]', 'teacher@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'teacher');
         await page.click('button[type="submit"]');
 
         await expect(page.locator('text=Teacher').first()).toBeVisible({ timeout: 10000 });
@@ -194,7 +194,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
 
             await teacherPage.goto('/');
             await teacherPage.fill('input[type="email"]', 'teacher@test.com');
-            await teacherPage.fill('input[type="password"]', 'password123');
+            await teacherPage.fill('input[type="password"]', 'teacher');
             await teacherPage.click('button[type="submit"]');
 
             await expect(teacherPage.locator('text=Teacher').first()).toBeVisible({ timeout: 10000 });
@@ -312,7 +312,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
 
         // Login as Teacher
         await page.fill('input[type="email"]', 'teacher@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'teacher');
         await page.click('button[type="submit"]');
 
         await expect(page.locator('text=Teacher').first()).toBeVisible({ timeout: 10000 });
@@ -345,7 +345,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
         // Login as Teacher
         await page.goto('/');
         await page.fill('input[type="email"]', 'teacher@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'teacher');
         await page.click('button[type="submit"]');
 
         await expect(page.locator('text=Teacher').first()).toBeVisible({ timeout: 10000 });
@@ -399,7 +399,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
         await page.waitForLoadState('networkidle');
 
         await page.fill('input[type="email"]', 'teacher@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'teacher');
         await page.click('button[type="submit"]');
 
         await expect(page.locator('text=Teacher').first()).toBeVisible({ timeout: 10000 });
@@ -452,7 +452,7 @@ test.describe('Access Control: Unassignment Revokes Access (PRD-0016 Task 6.9)',
 
         // Login as the student to verify their results still exist
         await page.fill('input[type="email"]', 'student@test.com');
-        await page.fill('input[type="password"]', 'password123');
+        await page.fill('input[type="password"]', 'student');
         await page.click('button[type="submit"]');
 
         await expect(page.locator('text=Student, text=Dashboard').first()).toBeVisible({ timeout: 10000 });

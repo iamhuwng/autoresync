@@ -50,6 +50,9 @@ export interface AuthContextValue {
     /** User profile from database */
     profile: UserProfile | null;
 
+    /** Private student login identifier, readable only by the account owner and administrators */
+    studentId: string | null;
+
     /** Loading state during initial auth check */
     loading: boolean;
 
@@ -62,13 +65,20 @@ export interface AuthContextValue {
     /** Login with email and password */
     loginWithEmail: (email: string, password: string) => Promise<UserCredential>;
 
+    /** Login with a student's assigned ID and password */
+    loginWithStudentId: (studentId: string, password: string) => Promise<UserCredential>;
+
     /** Register new user with email and password */
     registerWithEmail: (
         email: string,
         password: string,
-        role?: 'student' | 'teacher',
-        displayName?: string
+        displayName: string,
+        studentId: string
     ) => Promise<UserCredential>;
+
+    /** Send a password-reset email through Firebase Authentication */
+    sendPasswordReset: (email: string) => Promise<void>;
+    setupStudentCredentials: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
 
     /** Logout current user */
     logout: () => Promise<void>;

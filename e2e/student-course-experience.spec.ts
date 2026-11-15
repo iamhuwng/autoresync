@@ -14,9 +14,9 @@ import { test, expect, Page } from '@playwright/test';
 
 // Test data
 const TEACHER_EMAIL = 'teacher@test.com';
-const TEACHER_PASSWORD = 'password123';
+const TEACHER_PASSWORD = 'teacher';
 const STUDENT_EMAIL = 'student@test.com';
-const STUDENT_PASSWORD = 'password123';
+const STUDENT_PASSWORD = 'student';
 
 // Helper functions
 async function loginAsTeacher(page: Page) {

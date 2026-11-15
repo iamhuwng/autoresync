@@ -5,11 +5,15 @@ import { UserRole } from '../types/security.types';
 export interface AuthContextType {
     user: User | null;
     profile: any;
+    studentId: string | null;
     loading: boolean;
     error: Error | null;
     login: () => Promise<any>;
     loginWithEmail: (email: string, password: string) => Promise<any>;
-    registerWithEmail: (email: string, password: string, displayName: string) => Promise<any>;
+    loginWithStudentId: (studentId: string, password: string) => Promise<any>;
+    registerWithEmail: (email: string, password: string, displayName: string, studentId: string) => Promise<any>;
+    sendPasswordReset: (email: string) => Promise<void>;
+    setupStudentCredentials: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
     logout: () => Promise<void>;
     updateProfile?: (data: any) => Promise<void>;
 

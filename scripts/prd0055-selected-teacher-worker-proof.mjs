@@ -221,7 +221,7 @@ let teacher2;
 let flagEnabled = false;
 
 try {
-  teacher = await signIn('teacher@test.com', 'password123');
+  teacher = await signIn('teacher@test.com', 'teacher');
   teacher2 = await signIn('teacher2@test.com', 'password123');
   result.selectedTeacher = { uid: teacher.uid, email: teacher.email };
   result.crossOwnerTeacher = { uid: teacher2.uid, email: teacher2.email };

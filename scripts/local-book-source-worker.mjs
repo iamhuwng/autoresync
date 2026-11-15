@@ -49,6 +49,8 @@ const localConfig = `{
     "FIREBASE_PROJECT_ID": "demo-luyentap-local",
     "FIREBASE_DB_URL": "http://localhost:9000?ns=demo-luyentap-local",
     "LOCAL_EMULATOR_AUTH": "true",
+    "STUDENT_AUTH_ROUTES_ENABLED": "enabled",
+    "STUDENT_AUTH_ALLOWED_ORIGINS": ${JSON.stringify(localViteOrigin)},
     "BOOK_SOURCE_UPLOAD_ACCOUNT_ID": "book_b2_primary",
     "BOOK_SOURCE_UPLOAD_SERVICE_IDENTITY": "book-source-worker-runtime@demo-luyentap-local.iam.gserviceaccount.com",
     "BOOK_SUBMISSION_ROUTES_ENABLED": "enabled",

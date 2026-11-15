@@ -14,7 +14,7 @@ import path from 'path';
 
 // Test data for existing user with completed profile
 const EXISTING_USER_EMAIL = 'student@test.com';
-const EXISTING_USER_PASSWORD = 'password123';
+const EXISTING_USER_PASSWORD = 'student';
 
 // Updated profile data
 const UPDATED_PROFILE = {

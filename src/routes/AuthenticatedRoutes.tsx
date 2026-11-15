@@ -6,10 +6,8 @@ import { auth, database } from '../services/firebaseCore';
 import { reportingService } from '../services/reportingService';
 import { useDeferredIdleTask } from '../core/platform/hooks/useDeferredIdleTask.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
-import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
 import { withTrackedRoute } from './routeHelpers.tsx';
 
-const ProfileCompletionPage = lazyWithRetry(() => import('../pages/ProfileCompletionPage.tsx'));
 const ProfilePage = lazyWithRetry(() => import('../components/profile/ProfilePage.tsx'));
 const ResultDetailPage = lazyWithRetry(() => import('../pages/ResultDetailPage.tsx'));
 const AuthenticatedChrome = lazyWithRetry(() => import('./AuthenticatedChrome.tsx'));
@@ -66,17 +64,8 @@ export default function AuthenticatedRoutes() {
 
   const routes: RouteObject[] = [
     {
-      path: '/profile/complete',
-      element: asProtectedPage(<ProfileCompletionPage />, 'results'),
-    },
-    {
       path: '/profile',
-      element: asProtectedPage(
-        <ProfileCompletionGuard>
-          <ProfilePage />
-        </ProfileCompletionGuard>,
-        'profile'
-      ),
+      element: asProtectedPage(<ProfilePage />, 'profile'),
     },
     {
       path: '/result/:resultId',
