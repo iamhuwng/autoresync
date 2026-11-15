@@ -44,6 +44,8 @@ test('promote verifies the source-bound card and retains guarded publication/rec
   assert.match(promote, /--deploy-retained/u);
   assert.match(promote, /environment:\s*name: production/u);
   assert.match(promote, /luyentap-release-result-/u);
+  assert.doesNotMatch(promote, /COMPATIBILITY_REVIEW_FILE|COMPATIBILITY_REVIEW_SHA256|compatibility-review\.json/u);
+  assert.match(promote, /release-result\/operation\.json/u);
 });
 
 test('recovery validates an operation UUID and never rebuilds or redeploys', () => {

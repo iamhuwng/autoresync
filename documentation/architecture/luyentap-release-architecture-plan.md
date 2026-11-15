@@ -38,7 +38,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 
 | Criterion | Current status | Evidence / remaining proof |
 |---|---|---|
-| Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, release-check/archive tests, and the immutable verification handoff |
+| Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, inline compatibility-review negative tests (missing, altered, stale and mismatched), release-check/archive tests, and the immutable verification handoff |
 | Change-scoped Codex application-verification handoff | Verified | `documentation/release-audits/2026-11-15-phase3-verification-bundle.md` records actual immutable synthetic publication/readback; promotion-card and bundle tests remain required |
 | Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency plus one final exact Hosting-manifest snapshot; no production mutation in Phase 3 yet |
 | Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
@@ -98,6 +98,7 @@ behavior proof, while the snapshot protects against live drift during approval.
 - PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof on the Phase 3 branch: 68 Node tests, 3 runtime-config tests and x64 RTDB emulator security proof covering initial privilege escalation, immutable role/status, deletion/recreation and cleanup.
+- PR #272 (single promotion package) removes compatibility-review file/path transport. The promotion card now carries the canonical review object with its digest, deploy-live validates that binding directly, and the promote job no longer copies or rehydrates a review file. Deploy-live owns operation-result writes; Actions only retains/uploads the generated result files. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; this change does not redeploy.
 - Production was not deployed or approved. The production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
