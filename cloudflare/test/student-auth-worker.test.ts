@@ -304,5 +304,3 @@ describe('student authentication Worker', () => {
     expect(databaseFactory).not.toHaveBeenCalled();
   });
 });
-
-\n

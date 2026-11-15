@@ -729,5 +729,3 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
     },
   };
 };
-
-\n

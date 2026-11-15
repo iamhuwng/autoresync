@@ -81,5 +81,3 @@ describeEmulator('student login identifier RTDB security rules', () => {
     }));
   });
 });
-
-\n
