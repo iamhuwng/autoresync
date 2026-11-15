@@ -371,6 +371,8 @@ jobs:
           exit "$status"
       - name: Capture durable Changelog reconciliation evidence
         if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git diff --binary -- documentation/architecture/changelog documentation/architecture/master_changelog.md > "$RUNNER_TEMP/changelog-reconciliation.patch" || true
           if test -s "$RUNNER_TEMP/operation-id"; then

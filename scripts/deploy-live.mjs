@@ -476,6 +476,7 @@ const main = async () => {
   const buildOnly = args.has('--build-only');
   const retainedArtifact = args.has('--deploy-retained');
   if (buildOnly && retainedArtifact) fail('--build-only and --deploy-retained are mutually exclusive.');
+  let cwd = repoRoot;
   let tempEnvDir, releaseAssessment, verification;
   try {
     const listeningOptions = {
@@ -487,7 +488,7 @@ const main = async () => {
       listeningHomeworkBundle: process.env.LUYENTAP_LISTENING_HOMEWORK_BUNDLE,
       listeningHomeworkConfig: process.env.LUYENTAP_LISTENING_HOMEWORK_CONFIG,
     };
-    const cwd = selectReleaseSource({ sourceCwd: process.env.LUYENTAP_RELEASE_SOURCE_CWD, ...listeningOptions });
+    cwd = selectReleaseSource({ sourceCwd: process.env.LUYENTAP_RELEASE_SOURCE_CWD, ...listeningOptions });
     const sourceScripts = path.join(cwd, 'scripts');
     const loaded = await readProductionEnv(cwd);
     tempEnvDir = loaded.tempEnvDir;
