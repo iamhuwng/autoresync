@@ -238,11 +238,6 @@ const main = async () => {
       attemptedAccounts.push(account);
       await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
-      if (account.role === 'teacher') {
-        profileAttempts.add(account.uid);
-        await requestJson(`${databaseUrl}/users/${encodeURIComponent(account.uid)}.json`, { method: 'PUT', headers: authHeaders(token), body: JSON.stringify(profile) });
-        continue;
-      }
       const app = initializeApp({
         apiKey: qualificationKey('VITE_FIREBASE_API_KEY'),
         authDomain: qualificationKey('VITE_FIREBASE_AUTH_DOMAIN'),
