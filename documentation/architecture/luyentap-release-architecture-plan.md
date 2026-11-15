@@ -107,7 +107,7 @@ invariant remain optional or are removed.
 
 ## Current implementation and evidence
 
-- Protected `main` is authoritative; PR #273 (`aabd0dbf61cf8793d84d4ba945503aad20d8a541`) is the current Phase 3 corrective merge. Query the live commit before making current-state claims.
+- Protected `main` is authoritative; PR #277 (`a8021930dbdc04adac67eedd38a0e5dc176e6a71`) is the current Phase 4 simplification merge. Query the live commit before making current-state claims.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
@@ -115,8 +115,8 @@ invariant remain optional or are removed.
 - PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof for the Phase 3 promotion package: 272 Node script tests passed, including the synthetic application-review rehearsal; the earlier runtime-config and x64 RTDB emulator security proof remains valid for its separate scope.
-- PR #272 (single promotion package) removes compatibility-review file/path transport. The promotion card now carries the canonical review object with its digest, deploy-live validates that binding directly, and the promote job no longer copies or rehydrates a review file. Deploy-live owns operation-result writes; Actions only retains/uploads the generated result files. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; this change does not redeploy.
-- Production was not deployed or approved by PR #272/#273. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
+- PR #272 (single promotion package) and PR #273 (corrective handoff hardening) remove compatibility-review file/path transport, validate the canonical review object, bound summary output, and centralize operation evidence. PR #277 adds the retained verification validator and removes duplicate verification execution when the source-bound result is present; callers without retained evidence keep the fallback rerun. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; these changes do not redeploy.
+- Production was not deployed or approved by PR #272/#273/#277. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
 
@@ -124,7 +124,7 @@ invariant remain optional or are removed.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. In progress: [`2026-11-15-phase4-simplification-measurement.md`](../release-audits/2026-11-15-phase4-simplification-measurement.md) inventories repeated work. The first candidate is duplicate verification execution; no deletion is justified until a retained-card rehearsal proves the same invariant with measurable savings.
+5. Completed: PR #277 removed duplicate verification execution behind a retained-result trust validator. The measurement packet records why cross-job transfer, baseline snapshots, operation-result retention, and provenance checks remain; no further deletion is justified without new evidence.
 
 ## Historical evidence
 

@@ -48,5 +48,12 @@ retained-card path passes that result directly into deploy-live and no longer
 reruns the same verification plan; callers without retained evidence keep the
 old rerun fallback. The rehearsal proves altered retained counts still fail.
 
+This simplification merged through PR #277 as `a8021930dbdc04adac67eedd38a0e5dc176e6a71`.
+The remaining repetition candidates were measured and kept: cross-job transfer
+crosses a trust boundary, the two baseline observations protect different time
+windows, operation-result upload is transport after executor ownership, and
+provenance checks repeat at distinct trust boundaries. No further deletion is
+currently justified.
+
 This is the next Phase 4 action. Local-development reliability remains a
 separate workstream, and no fixed browser journey is introduced.
