@@ -12,6 +12,9 @@ covers that invariant.
 - The release script suite passed 272 tests with zero failures.
 - The synthetic application-review rehearsal passed the positive handoff and
   altered, stale, mismatched, oversized, and credential-like negative cases.
+- The retained-verification rehearsal now drives deploy-live's selection branch:
+  a valid serialized result skips the rerun, while stale, altered, path-escaping
+  and plan/environment-mismatched results fail closed.
 - No new production promotion was authorized or performed, so this packet does
   not claim production timing or live-operator frequency measurements.
 
@@ -19,7 +22,7 @@ covers that invariant.
 
 | Candidate repetition | Current locations | Invariant protected | Measurement decision |
 |---|---|---|---|
-| Verification plan executes in both prepare and promote | `release-promotion.mjs --run-verification`; `deploy-live.mjs` retained-route verification | The test result is bound to source, plan, environment and retained artifact before publication | **Removed by PR #277.** The retained-card rehearsal proved deploy-live can trust the exact serialized result after source, plan, environment, timestamp, suite-count and output-digest validation. |
+| Verification plan executes in both prepare and promote | `release-promotion.mjs --run-verification`; `deploy-live.mjs` retained-route verification | The test result is bound to source, plan, environment and retained artifact before publication | **Removed by PR #277 and hardened in the Phase 4 closure follow-up.** The branch-level rehearsal proves deploy-live skips the rerun for valid serialized evidence and rejects stale, altered, path-escaping or plan-mismatched results. |
 | Verification plan, card, and Hosting artifact cross-job transfer | Prepare uploads; promote downloads and validates each package | Cross-job source/artifact handoff and independent retained-artifact readback | **Keep.** These are separate job-boundary transfers, not duplicate checks. |
 | Approval-time baseline and pre-mutation baseline snapshot | Prepare observes the approved Hosting baseline; promote performs the final snapshot | Approval freshness versus concurrency drift immediately before mutation | **Keep.** The observations protect different time windows. |
 | Operation result creation and result-artifact upload | `deploy-live.mjs` writes operation evidence; Actions copies/uploads result files | Durable operation identity and recovery evidence retention | **Keep.** Ownership is already centralized; the workflow is only the transport boundary. |
@@ -43,12 +46,14 @@ retained-result validation remains mandatory.
 
 The first rehearsal recorded that a serialized verification result could not
 satisfy `assertReleaseVerification` because that validator also required its
-in-process trust marker. Phase 4 now adds `assertRetainedReleaseVerification`,
-which validates the serialized source, plan, environment, timestamps, suite
-counts, and output digests before marking the result trusted. The guarded
-retained-card path passes that result directly into deploy-live and no longer
-reruns the same verification plan; callers without retained evidence keep the
-old rerun fallback. The rehearsal proves altered retained counts still fail.
+in-process trust marker. Phase 4 adds `assertRetainedReleaseVerification`,
+which validates the serialized source, plan, environment, canonical timestamps,
+freshness, safe paths, exact suite shape, counts and output digests before
+marking the result trusted. The guarded retained-card path passes that result
+directly into deploy-live and no longer reruns the same verification plan;
+callers without retained evidence keep the old rerun fallback. The branch-level
+rehearsal proves valid retained evidence skips execution and stale, altered,
+path-escaping and mismatched inputs fail closed.
 
 This simplification merged through PR #277 as `a8021930dbdc04adac67eedd38a0e5dc176e6a71`.
 The remaining repetition candidates were measured and kept: cross-job transfer

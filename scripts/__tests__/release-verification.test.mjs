@@ -5,6 +5,7 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { runReleaseVerification, isReleaseVerification, assertReleaseVerification, assertRetainedReleaseVerification, parseVitestReport } from '../release-verification.mjs';
+import { resolveReleaseVerification } from '../deploy-live.mjs';
 
 const envFingerprint = 'a'.repeat(64);
 async function fixture(t, content, filename = 'sample.test.mjs') {
@@ -15,8 +16,9 @@ async function fixture(t, content, filename = 'sample.test.mjs') {
   git('init', '-q'); git('config', 'user.name', 'Verification Test'); git('config', 'user.email', 'test@example.invalid');
   await writeFile(path.join(cwd, filename), content);
   git('add', '--', filename); git('commit', '-qm', 'Fixture');
-  await writeFile(planPath, JSON.stringify({ schemaVersion: 1, suites: [{ runner: 'node', files: [filename] }] }));
-  return { cwd, base: git('rev-parse', 'HEAD'), planPath, envFingerprint };
+  const plan = { schemaVersion: 1, suites: [{ runner: 'node', files: [filename] }] };
+  await writeFile(planPath, JSON.stringify(plan));
+  return { cwd, base: git('rev-parse', 'HEAD'), planPath, plan, envFingerprint };
 }
 
 test('direct Node execution produces frozen in-process candidate evidence', async t => {
@@ -35,19 +37,53 @@ test('direct Node execution produces frozen in-process candidate evidence', asyn
 });
 
 test('retained serialized verification cannot bypass the in-process trust marker', async t => {
-  const value = await runReleaseVerification(await fixture(t, "import test from 'node:test'; test('retained proof', () => {});"));
+  const options = await fixture(t, "import test from 'node:test'; test('retained proof', () => {});");
+  const value = await runReleaseVerification(options);
   const retained = JSON.parse(JSON.stringify(value));
   assert.throws(() => assertReleaseVerification(retained, {
     source: retained.source, envFingerprint, planSha256: retained.planSha256,
   }), /untrusted/u);
   assert.equal(assertRetainedReleaseVerification(retained, {
-    source: retained.source, envFingerprint, planSha256: retained.planSha256,
+    source: retained.source, envFingerprint, planSha256: retained.planSha256, plan: options.plan,
   }), retained);
   const altered = structuredClone(retained);
   altered.suites[0].counts.passed = 0;
   assert.throws(() => assertRetainedReleaseVerification(altered, {
-    source: retained.source, envFingerprint, planSha256: retained.planSha256,
+    source: retained.source, envFingerprint, planSha256: retained.planSha256, plan: options.plan,
   }));
+  const stale = structuredClone(retained);
+  stale.completedAt = '2020-01-01T00:01:00.000Z';
+  assert.throws(() => assertRetainedReleaseVerification(stale, {
+    source: retained.source, envFingerprint, planSha256: retained.planSha256, plan: options.plan,
+  }), /stale/u);
+  const mismatched = structuredClone(retained);
+  mismatched.suites[0].files = ['../../outside.test.mjs'];
+  assert.throws(() => assertRetainedReleaseVerification(mismatched, {
+    source: retained.source, envFingerprint, planSha256: retained.planSha256, plan: options.plan,
+  }), /suite|plan|path/u);
+});
+
+test('deploy-live trusts the serialized retained result without rerunning and rejects stale or mismatched input', async t => {
+  const options = await fixture(t, "import test from 'node:test'; test('deploy branch', () => {});");
+  const value = await runReleaseVerification(options);
+  const retained = JSON.parse(JSON.stringify(value));
+  let reruns = 0;
+  const resolved = await resolveReleaseVerification({ retainedResult: retained, source: retained.source,
+    envFingerprint, planSha256: retained.planSha256, plan: options.plan,
+    runVerification: async () => { reruns += 1; return value; } });
+  assert.equal(resolved.source.revision, retained.source.revision);
+  assert.equal(reruns, 0);
+  const stale = structuredClone(retained);
+  stale.completedAt = '2020-01-01T00:01:00.000Z';
+  await assert.rejects(() => resolveReleaseVerification({ retainedResult: stale, source: retained.source,
+    envFingerprint, planSha256: retained.planSha256, plan: options.plan,
+    runVerification: async () => { reruns += 1; return value; } }), /stale/u);
+  const mismatched = structuredClone(retained);
+  mismatched.planSha256 = 'b'.repeat(64);
+  await assert.rejects(() => resolveReleaseVerification({ retainedResult: mismatched, source: retained.source,
+    envFingerprint, planSha256: retained.planSha256, plan: options.plan,
+    runVerification: async () => { reruns += 1; return value; } }), /stale|binding/u);
+  assert.equal(reruns, 0);
 });
 
 test('accepts tracked JSX test paths without bypassing test execution', async t => {

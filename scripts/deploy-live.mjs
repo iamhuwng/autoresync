@@ -175,6 +175,14 @@ export async function assertRetainedArtifact({ cwd = repoRoot, artifactSha256 })
   return manifest;
 }
 
+export async function resolveReleaseVerification({ retainedResult, source, envFingerprint, planSha256, plan, runVerification }) {
+  if (retainedResult !== undefined) {
+    return assertRetainedReleaseVerification(retainedResult, { source, envFingerprint, planSha256, plan });
+  }
+  const verification = await runVerification();
+  return assertReleaseVerification(verification, { source, envFingerprint, planSha256 });
+}
+
 const readProductionEnv = async (cwd = repoRoot) => {
   const configuredPath = process.env.LUYENTAP_PRODUCTION_ENV_FILE
     || path.join(os.homedir(), '.luyentap', 'env', '.env.production');
@@ -525,20 +533,19 @@ const main = async () => {
       if (!process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE || !/^[a-f0-9]{64}$/u.test(process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || '')) {
         fail('reviewed LUYENTAP_RELEASE_TEST_PLAN_FILE and LUYENTAP_RELEASE_TEST_PLAN_SHA256 are required.');
       }
-      if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256) {
+      const planBytes = await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE));
+      if (digest(planBytes) !== process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256) {
         fail('verification plan differs from its reviewed digest.');
       }
-      if (process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT) {
-        verification = assertRetainedReleaseVerification(JSON.parse(process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT), {
-          source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
-          planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256,
-        });
-      } else {
-        verification = await runReleaseVerification({ cwd, base: releaseAssessment.source.baseRevision,
-          planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: loaded.envFingerprint });
-        assertReleaseVerification(verification, { source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
-          planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 });
-      }
+      const plan = JSON.parse(planBytes.toString('utf8'));
+      verification = await resolveReleaseVerification({
+        retainedResult: process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT
+          ? JSON.parse(process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT) : undefined,
+        source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
+        planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256, plan,
+        runVerification: () => runReleaseVerification({ cwd, base: releaseAssessment.source.baseRevision,
+          planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: loaded.envFingerprint }),
+      });
     }
     console.log(`[Production] ${buildOnly ? 'Building' : retainedArtifact ? 'Deploying retained artifact' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
     if (retainedArtifact) {
