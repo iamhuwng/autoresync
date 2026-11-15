@@ -460,12 +460,6 @@ export const ROUTE_SECURITY_CONFIG: Record<string, RouteSecurityConfig> = {
     // =========================================================================
     // SHARED ROUTES - Multiple roles
     // =========================================================================
-    '/profile/complete': {
-        path: '/profile/complete',
-        accessLevel: 'authenticated',
-        allowedRoles: ['student', 'teacher', 'super_admin'],
-        description: 'Profile completion (any authenticated user)'
-    },
     '/profile': {
         path: '/profile',
         accessLevel: 'authenticated',

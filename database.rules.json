@@ -23,6 +23,16 @@
         "status"
       ]
     },
+    "student_login_ids": {
+      ".read": false,
+      ".write": false
+    },
+    "student_identifiers": {
+      "$uid": {
+        ".read": "auth != null && ($uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+        ".write": false
+      }
+    },
     "listening_authoring": {
       "drafts": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || (query.orderByChild === 'ownerId' && query.equalTo === auth.uid))",

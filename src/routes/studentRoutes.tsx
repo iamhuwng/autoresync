@@ -2,7 +2,6 @@ import React from 'react';
 import type { RouteObject } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry.ts';
 import PrivateRoute from '../components/PrivateRoute.jsx';
-import { ProfileCompletionGuard } from '../components/ProfileCompletionGuard.tsx';
 import { ROUTES } from '../constants/routes.ts';
 import { withTrackedRoute } from './routeHelpers.tsx';
 import StudentShellRoute from './StudentShellRoute.tsx';
@@ -32,10 +31,7 @@ function asStudentPage(children: React.ReactNode, featureName?: string) {
 }
 
 function asStudentProfilePage(children: React.ReactNode, featureName?: string) {
-  return asStudentPage(
-    <ProfileCompletionGuard>{children}</ProfileCompletionGuard>,
-    featureName
-  );
+  return asStudentPage(children, featureName);
 }
 
 export const studentRoutes: RouteObject[] = [

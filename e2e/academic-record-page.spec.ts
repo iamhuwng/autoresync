@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
 
 // Test data setup
 const STUDENT_EMAIL = 'student@test.com';
-const STUDENT_PASSWORD = 'password123';
+const STUDENT_PASSWORD = 'student';
 const BASE_URL = 'http://localhost:5173';
 
 test.describe('Academic Record Page', () => {

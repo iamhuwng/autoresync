@@ -122,6 +122,10 @@ For homework detail result modals, RTDB read access to `test_results/{resultId}`
 - Analytics and teacher-owned reporting must exclude solo-practice and unresolved rows.
 - If teacher result detail loses access mid-view, clear sensitive data and show access-lost UI; repair belongs in canonical visibility/reindex code, not shell-local fallback logic.
 
+## 2026-11-16 Authentication route retirement
+
+Removing `/profile/complete` from route security does not change result visibility, ownership, or teacher/student access policy.
+
 
 ## 2026-10-18 Reading backend source reconciliation
 

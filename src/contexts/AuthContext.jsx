@@ -4,10 +4,67 @@ import {
   signInWithPopup,
   signOut as firebaseSignOut,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  signInWithCustomToken,
+  sendEmailVerification,
+  updatePassword,
+  updateProfile as updateAuthProfile,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { ref, get, set, serverTimestamp, onValue, remove } from 'firebase/database';
-import { auth, database, googleProvider } from '../services/firebaseCore';
+import { auth, database, googleProvider, isLocalDevelopment } from '../services/firebaseCore';
+
+const studentAuthWorkerUrl = () => String(import.meta.env.VITE_R2_UPLOAD_WORKER_URL || '').trim().replace(/\/$/u, '');
+
+const DEV_VERIFIED_EMAILS = new Set(['teacher@test.com', 'teacher2@test.com', 'student@test.com']);
+const isDevVerifiedAccount = (email) => import.meta.env.DEV && DEV_VERIFIED_EMAILS.has(String(email || '').trim().toLowerCase());
+
+const createAuthError = (code, message) => Object.assign(new Error(message), { code });
+
+const studentAuthError = (code) => {
+  const errors = {
+    invalid_credentials: ['auth/invalid-credential', 'The email or student ID and password do not match.'],
+    email_or_password_invalid: ['auth/invalid-credential', 'The email or password is incorrect, or this account uses Google sign-in.'],
+    student_id_unavailable: ['auth/student-id-unavailable', 'That student ID is already in use. Please choose another.'],
+    student_id_already_assigned: ['auth/student-id-unavailable', 'This account already has a different student ID.'],
+    invalid_student_id: ['auth/invalid-argument', 'Use 3–32 letters, numbers, dots, underscores or hyphens for the student ID.'],
+    invalid_email: ['auth/invalid-email', 'Enter a valid email address.'],
+    weak_password: ['auth/weak-password', 'Choose a password with at least 6 characters.'],
+    invalid_display_name: ['auth/invalid-argument', 'Enter your name.'],
+    account_unavailable: ['auth/user-disabled', 'This account is unavailable. Please contact an administrator.'],
+    rate_limited: ['auth/too-many-requests', 'Too many attempts. Please wait a moment and try again.'],
+    unauthorized: ['auth/unauthorized', 'Please sign in again and retry.'],
+    registration_unavailable: ['auth/student-auth-unavailable', 'Student registration is temporarily unavailable. Please try again later.'],
+    student_auth_unavailable: ['auth/student-auth-unavailable', 'Student ID authentication is temporarily unavailable. Please try again later.'],
+  };
+  const [firebaseCode, message] = errors[code] || errors.student_auth_unavailable;
+  return createAuthError(firebaseCode, message);
+};
+
+const callStudentAuthWorker = async (path, body, authorization) => {
+  const baseUrl = studentAuthWorkerUrl();
+  if (!baseUrl) throw studentAuthError('student_auth_unavailable');
+  let response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw studentAuthError('student_auth_unavailable');
+  }
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch {
+    // Keep a stable auth error when the Worker returns a non-JSON response.
+  }
+  if (!response.ok) throw studentAuthError(payload?.code || 'student_auth_unavailable');
+  return payload;
+};
 
 let securityLoggerPromise = null;
 
@@ -47,6 +104,7 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [studentId, setStudentId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -92,6 +150,7 @@ export function AuthProvider({ children }) {
       // Clear local state
       setUser(null);
       setProfile(null);
+      setStudentId(null);
       setIsBlocked(reason === 'blocked');
 
       // Clear session storage
@@ -117,14 +176,30 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let unsubscribeProfile = null;
+    let unsubscribeStudentIdentifier = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       try {
+        if (unsubscribeProfile) {
+          unsubscribeProfile();
+          unsubscribeProfile = null;
+        }
+        if (unsubscribeStudentIdentifier) {
+          unsubscribeStudentIdentifier();
+          unsubscribeStudentIdentifier = null;
+        }
         if (authUser) {
           setUser(authUser);
+          setStudentId(null);
 
           // Check for existing profile
           const userRef = ref(database, `users/${authUser.uid}`);
+          const studentIdentifierRef = ref(database, `student_identifiers/${authUser.uid}`);
+
+          unsubscribeStudentIdentifier = onValue(studentIdentifierRef, (snapshot) => {
+            const identifier = snapshot.val();
+            setStudentId(typeof identifier?.studentId === 'string' ? identifier.studentId : null);
+          });
 
           // Real-time listener for profile changes (including security flags)
           unsubscribeProfile = onValue(userRef, async (snapshot) => {
@@ -134,7 +209,7 @@ export function AuthProvider({ children }) {
               // ===== SECURITY CHECKS (Task 5.0) =====
 
               // Task 5.7: Check if user is blocked - immediate logout
-              if (data.status === 'blocked') {
+              if (['blocked', 'disabled', 'inactive', 'suspended'].includes(String(data.status ?? 'active'))) {
                 console.warn('[Security] User is blocked, triggering force logout');
                 setIsBlocked(true);
                 await handleForceLogout('blocked', authUser.uid);
@@ -154,7 +229,7 @@ export function AuthProvider({ children }) {
               const mergedProfile = {
                 ...data,
                 uid: authUser.uid,
-                email: authUser.email, // Ensure email is up to date from Auth
+                email: authUser.email || data.email, // Custom-token sign-in may not expose email on the client user object.
               };
               setProfile(mergedProfile);
               setIsBlocked(false);
@@ -169,6 +244,7 @@ export function AuthProvider({ children }) {
         } else {
           setUser(null);
           setProfile(null);
+          setStudentId(null);
           setLoading(false);
         }
       } catch (err) {
@@ -183,59 +259,149 @@ export function AuthProvider({ children }) {
       if (unsubscribeProfile) {
         unsubscribeProfile();
       }
+      if (unsubscribeStudentIdentifier) {
+        unsubscribeStudentIdentifier();
+      }
     };
   }, [handleForceLogout]);
 
-  /**
-   * Google OAuth login
-   * Task 5.10: Prevent login for blocked users
-   */
+  const ensureStudentId = useCallback(async (authUser) => {
+    if (!studentAuthWorkerUrl() || !authUser?.getIdToken) return null;
+    try {
+      const idToken = await authUser.getIdToken();
+      const payload = await callStudentAuthWorker('/auth/student/ensure-id', null, idToken);
+      return typeof payload.studentId === 'string' ? payload.studentId : null;
+    } catch (ensureError) {
+      // Existing Google/email sign-in must remain available if the optional ID
+      // assignment endpoint has not yet been deployed or is temporarily down.
+      console.warn('[Auth] Student ID assignment could not be completed:', ensureError?.code || 'unavailable');
+      return null;
+    }
+  }, []);
+
+  const finalizeAuthenticatedLogin = useCallback(async (result) => {
+    const authUser = result.user;
+
+    if (result.requireVerifiedEmail && authUser.email && !authUser.emailVerified && !isDevVerifiedAccount(authUser.email)) {
+      try {
+        await sendEmailVerification(authUser, {
+          url: `${window.location.origin}/login`,
+          handleCodeInApp: false,
+        });
+      } catch (verificationError) {
+        console.warn('[Auth] Verification email could not be sent:', verificationError?.code || 'unavailable');
+      }
+      await firebaseSignOut(auth);
+      throw createAuthError('auth/email-not-verified', 'Check your email and verify your address before signing in.');
+    }
+
+    const userRef = ref(database, `users/${authUser.uid}`);
+    const snapshot = await get(userRef);
+    let userData = snapshot.exists() ? snapshot.val() : null;
+
+    if (userData && ['blocked', 'disabled', 'inactive', 'suspended'].includes(String(userData.status ?? 'active'))) {
+      console.warn('[Security] Unavailable user attempted to login');
+      setIsBlocked(true);
+      await firebaseSignOut(auth);
+      throw createAuthError('auth/user-disabled', 'Your account is unavailable. Please contact an administrator.');
+    }
+
+    if (!userData) {
+      // Accounts without a profile default to student. Privileged roles are
+      // assigned only by the existing trusted administration workflows.
+      userData = {
+        uid: authUser.uid,
+        email: authUser.email,
+        displayName: authUser.displayName,
+        photoURL: authUser.photoURL,
+        role: 'student',
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+        status: 'active',
+        forceReauth: false,
+      };
+      await set(userRef, userData);
+    } else {
+      await set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp());
+      await Promise.resolve(remove(ref(database, `users/${authUser.uid}/forceReauth`))).catch(() => { });
+    }
+
+    if ((userData.role || 'student') === 'student') {
+      const assignedStudentId = await ensureStudentId(authUser);
+      if (assignedStudentId) setStudentId(assignedStudentId);
+    }
+
+    logSecurityEventAsync('login', authUser.uid, userData.role || 'student', authUser.email || userData.email);
+    return result;
+  }, [ensureStudentId]);
+
+  /** Google OAuth login. */
   const login = async () => {
     try {
       setError(null);
       setForceLogoutReason(null);
-
       const result = await signInWithPopup(auth, googleProvider);
-      const authUser = result.user;
+      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: false });
+    } catch (err) {
+      setError(err);
+      throw err;
+    }
+  };
 
-      // Check if user is blocked BEFORE proceeding (Task 5.10)
-      const userRef = ref(database, `users/${authUser.uid}`);
-      const snapshot = await get(userRef);
+  /** Email/password login for existing accounts. */
+  const loginWithEmail = async (email, password) => {
+    try {
+      setError(null);
+      setForceLogoutReason(null);
+      const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true });
+    } catch (err) {
+      setError(err);
+      throw err;
+    }
+  };
 
-      if (snapshot.exists()) {
-        const userData = snapshot.val();
-
-        // Block login for blocked users
-        if (userData.status === 'blocked') {
-          console.warn('[Security] Blocked user attempted to login');
-          setIsBlocked(true);
-          await firebaseSignOut(auth);
-          throw new Error('Your account has been blocked. Please contact support.');
-        }
-
-        // Update last login and clear any stale forceReauth flag
-        await set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp());
-        await remove(ref(database, `users/${authUser.uid}/forceReauth`)).catch(() => { });
+  /** Student ID login. The Worker resolves the private ID index without exposing account email addresses. */
+  const loginWithStudentId = async (studentId, password) => {
+    try {
+      setError(null);
+      setForceLogoutReason(null);
+      const payload = await callStudentAuthWorker('/auth/student/login', { studentId, password });
+      let result;
+      if (typeof payload.customToken === 'string') {
+        result = await signInWithCustomToken(auth, payload.customToken);
+      } else if (isLocalDevelopment && typeof payload.email === 'string') {
+        // The local emulator returns the resolved email only inside the isolated demo project.
+        result = await signInWithEmailAndPassword(auth, payload.email, password);
       } else {
-        // Create a student profile; administrator promotion requires trusted administration.
-        const newProfile = {
-          uid: authUser.uid,
-          email: authUser.email,
-          displayName: authUser.displayName,
-          photoURL: authUser.photoURL,
-          role: 'student',
-          createdAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp(),
-          status: 'active',
-          forceReauth: false
-        };
-        await set(userRef, newProfile);
+        throw studentAuthError('student_auth_unavailable');
       }
+      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true });
+    } catch (err) {
+      setError(err);
+      throw err;
+    }
+  };
 
-      // Log successful login (Task 6.8)
-      const userRole = snapshot.exists() ? snapshot.val().role : 'student';
-      logSecurityEventAsync('login', authUser.uid, userRole, authUser.email);
-
+  /** Student-only email/password registration with a unique student ID. */
+  const registerWithEmail = async (email, password, displayName, studentId) => {
+    try {
+      setError(null);
+      const payload = await callStudentAuthWorker('/auth/student/register', {
+        email: email.trim().toLowerCase(),
+        password,
+        displayName: displayName.trim(),
+        studentId: studentId.trim(),
+      });
+      let result;
+      if (typeof payload.customToken === 'string') {
+        result = await signInWithCustomToken(auth, payload.customToken);
+      } else if (isLocalDevelopment && typeof payload.email === 'string') {
+        result = await signInWithEmailAndPassword(auth, payload.email, password);
+      } else {
+        throw studentAuthError('student_auth_unavailable');
+      }
+      await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: true });
       return result;
     } catch (err) {
       setError(err);
@@ -243,46 +409,33 @@ export function AuthProvider({ children }) {
     }
   };
 
-  /**
-   * Email/Password login
-   * Task 5.10: Prevent login for blocked users
-   */
-  const loginWithEmail = async (email, password) => {
+  /** Send a Firebase-managed password reset email. */
+  const sendPasswordReset = async (email) => {
     try {
       setError(null);
-      setForceLogoutReason(null);
-
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const authUser = result.user;
-
-      // Check if user is blocked BEFORE proceeding (Task 5.10)
-      const userRef = ref(database, `users/${authUser.uid}`);
-      const snapshot = await get(userRef);
-
-      if (snapshot.exists()) {
-        const userData = snapshot.val();
-
-        // Block login for blocked users
-        if (userData.status === 'blocked') {
-          console.warn('[Security] Blocked user attempted to login via email');
-          setIsBlocked(true);
-          await firebaseSignOut(auth);
-          throw new Error('Your account has been blocked. Please contact support.');
-        }
-
-        // Update last login and clear any stale forceReauth flag
-        await set(ref(database, `users/${authUser.uid}/lastLoginAt`), serverTimestamp());
-        await remove(ref(database, `users/${authUser.uid}/forceReauth`)).catch(() => { });
-
-        // Log successful login (Task 6.8)
-        logSecurityEventAsync('login', authUser.uid, userData.role, authUser.email);
-      }
-
-      return result;
+      await sendPasswordResetEmail(auth, email.trim(), {
+        url: `${window.location.origin}/login`,
+        handleCodeInApp: false,
+      });
     } catch (err) {
+      // Do not reveal whether an email address has an account.
+      if (err?.code === 'auth/user-not-found') return;
       setError(err);
       throw err;
     }
+  };
+
+  const setupStudentCredentials = async ({ studentId, password, firstName, familyName }) => {
+    if (!auth.currentUser?.getIdToken) throw studentAuthError('unauthorized');
+    await updatePassword(auth.currentUser, password);
+    const idToken = await auth.currentUser.getIdToken();
+    await callStudentAuthWorker('/auth/student/ensure-id', {
+      studentId,
+      firstName,
+      familyName,
+      displayName: `${firstName} ${familyName}`.trim(),
+    }, idToken);
+    await updateAuthProfile(auth.currentUser, { displayName: `${firstName} ${familyName}`.trim() });
   };
 
   /**
@@ -290,16 +443,6 @@ export function AuthProvider({ children }) {
    */
   const logout = async () => {
     try {
-      // Revoke Google OAuth token to force fresh login
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        if (token) {
-          await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`);
-        }
-      } catch (revokeError) {
-        console.warn('Token revocation failed (non-critical):', revokeError);
-      }
-
       // Log logout event before signing out (Task 6.9)
       if (user?.uid && profile?.role) {
         logSecurityEventAsync('logout', user.uid, profile.role, 'manual');
@@ -310,12 +453,13 @@ export function AuthProvider({ children }) {
       // Clear local state immediately
       setUser(null);
       setProfile(null);
+      setStudentId(null);
       setForceLogoutReason(null);
 
       // Clear all session storage
       sessionStorage.clear();
 
-      // Clear any cached Google auth data
+      // Clear any cached Firebase auth data
       try {
         localStorage.removeItem('firebase:authUser:' + import.meta.env.VITE_FIREBASE_API_KEY + ':[DEFAULT]');
         Object.keys(localStorage).forEach(key => {
@@ -328,35 +472,6 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.error("Logout error:", err);
-      throw err;
-    }
-  };
-
-  /**
-   * Email/Password registration
-   */
-  const registerWithEmail = async (email, password, role = 'student', displayName = 'Test User') => {
-    try {
-      setError(null);
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const authUser = result.user;
-
-      const userRef = ref(database, `users/${authUser.uid}`);
-      const newProfile = {
-        uid: authUser.uid,
-        email: authUser.email,
-        displayName: displayName,
-        role: role,
-        createdAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp(),
-        status: 'active',
-        forceReauth: false
-      };
-
-      await set(userRef, newProfile);
-      return result;
-    } catch (err) {
-      setError(err);
       throw err;
     }
   };
@@ -465,11 +580,15 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     profile,
+    studentId,
     loading,
     error,
     login,
     loginWithEmail,
+    loginWithStudentId,
     registerWithEmail,
+    sendPasswordReset,
+    setupStudentCredentials,
     logout,
 
     // Security state (Task 5.0)

@@ -21,6 +21,7 @@ export interface FeatureDefinition {
 }
 
 export const FEATURE_IDS = {
+  authentication: 'authentication',
   notifications: 'notifications',
   adminPanel: 'adminPanel',
   antiCheat: 'antiCheat',
@@ -828,7 +829,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'AI-powered operations across features',
   },
   {
-    id: 'authentication',
+    id: FEATURE_IDS.authentication,
     name: 'Authentication',
     routes: ['/', '/login'],
     actions: [
@@ -837,6 +838,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       'register',
       'resetPassword',
       'toggleDevQuickLogin',
+      'openRegistration',
+      'openPasswordReset',
+      'returnToLogin',
+      'togglePasswordVisibility',
       'roleSwitch',
     ],
     description: 'User authentication and authorization',
@@ -948,7 +953,6 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       '/student/results/:sessionCode',
       '/submission-complete',
       '/result/:resultId',
-      '/profile/complete',
     ],
     actions: [
       'viewResults',

@@ -212,8 +212,8 @@ const result = {
 };
 
 try {
-  const teacher = await signIn('teacher@test.com', 'password123');
-  const student = await signIn('student@test.com', 'password123');
+  const teacher = await signIn('teacher@test.com', 'teacher');
+  const student = await signIn('student@test.com', 'student');
   const crossOwnerTeacher = await signIn('teacher2@test.com', 'password123');
 
   result.selectedTeacher = { uid: teacher.uid, email: teacher.email };

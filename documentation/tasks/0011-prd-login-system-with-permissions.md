@@ -2,10 +2,25 @@
 
 **Document ID:** 0011-prd-login-system-with-permissions  
 **Created:** January 14, 2026  
-**Status:** Draft - Pending Approval  
+**Status:** Draft - Pending Approval; Authentication Expansion Approved 2026-11-13
 **Author:** AI Assistant (Cascade)
 
 ---
+
+## Approved Authentication Expansion (2026-11-13)
+
+The authentication scope is expanded without changing the Firebase billing plan:
+
+- Keep Google sign-in available.
+- Support email/password sign-in for existing accounts.
+- Let students sign themselves up with an email address, password, display name, and unique student ID/username.
+- Let students sign in using either their email address or student ID plus password.
+- Keep password recovery on Firebase Authentication's built-in email action.
+- Public registration must always create the `student` role. Teacher and super-admin roles remain administrator-controlled.
+- Store student IDs in the owner-readable `student_identifiers/{uid}` node and a private SHA-256 lookup index at `student_login_ids/{hash}`. Clients must not read or write the lookup index or assign their own IDs.
+- Resolve student IDs through the existing Cloudflare Worker, using the existing Firebase service-account integration. Do not introduce Firebase Cloud Functions, Blaze billing, a payment card, or another paid Firebase service.
+
+Existing Google-only students receive a generated student ID on their next successful sign-in after the Worker endpoint is deployed. Google sign-in remains available throughout the expansion.
 
 ## 1. Introduction/Overview
 
@@ -32,7 +47,7 @@ Enable secure, role-based access to the application while preserving the ability
 
 | Goal | Metric | Target |
 |------|--------|--------|
-| Secure authentication | All users authenticate via Google Sign-In | 100% |
+| Secure authentication | Users authenticate via Google or email/password; students may use email or student ID | 100% |
 | Role separation | Each role has distinct permissions | 4 roles defined |
 | Student tracking | Registered students can view test history | History page functional |
 | Teacher content ownership | Teachers can only edit their own content | Ownership enforced |
@@ -70,6 +85,9 @@ Enable secure, role-based access to the application while preserving the ability
 - **S-4:** As a Student, I want to see available sessions in my class so that I can join a test/quiz.
 - **S-5:** As a Student, I want to view my test history so that I can track my progress.
 - **S-6:** As a Student, I want to access self-study materials (if teacher allows) so that I can practice on my own.
+- **S-7:** As a Student, I want to register with my email address, password, and a unique student ID so that I can create my own account.
+- **S-8:** As a Student, I want to sign in with either my email address or student ID and password so that I can use the identifier I remember.
+- **S-9:** As a Student, I want to request a password-reset email so that I can recover access without contacting an administrator.
 
 ### Anonymous Guest
 - **G-1:** As a Guest, I want to join a session via a special link/QR code so that I can participate without signing in.
@@ -84,11 +102,18 @@ Enable secure, role-based access to the application while preserving the ability
 
 | ID | Requirement |
 |----|-------------|
-| FR-AUTH-01 | The system must use Firebase Authentication with Google Sign-In as the only authentication method. |
+| FR-AUTH-01 | The system must retain Firebase Google Sign-In and support Firebase email/password authentication. |
 | FR-AUTH-02 | The system must identify Super Admin by matching the signed-in user's email against `VITE_SUPER_ADMIN_EMAIL` environment variable. |
 | FR-AUTH-03 | The system must store user roles in Firebase Custom Claims (`role: 'super_admin' | 'teacher' | 'student'`). |
 | FR-AUTH-04 | The system must create a user profile in `users/{uid}` upon first sign-in. |
 | FR-AUTH-05 | The system must redirect users to their appropriate dashboard based on role after sign-in. |
+| FR-AUTH-06 | Public registration must be student-only; clients must never choose or submit a privileged role. |
+| FR-AUTH-07 | Student registration must require a valid email address, password, display name, and unique 3–32 character student ID/username. |
+| FR-AUTH-08 | Students must be able to sign in with either their email address or student ID plus password. Student-ID resolution must not disclose the linked email address to the browser. |
+| FR-AUTH-09 | Student-ID lookup records must be stored in a private hashed index and written only by the trusted Worker. A student may read their own identifier but cannot read or modify the lookup index. |
+| FR-AUTH-10 | Password recovery must use Firebase Authentication's built-in password-reset email flow. |
+| FR-AUTH-11 | Student-ID assignment and resolution must use the existing Cloudflare Worker and service-account integration; Firebase Cloud Functions are not required. |
+| FR-AUTH-12 | The authentication expansion must remain deployable on Firebase Spark without enabling billing or adding a payment card. |
 
 ### 4.2 Teacher Invitation System
 
@@ -171,7 +196,8 @@ Enable secure, role-based access to the application while preserving the ability
 
 | Item | Reason |
 |------|--------|
-| Email/password authentication | Google Sign-In is simpler and more secure |
+| Student self-registration as a teacher or super admin | Privileged roles remain administrator-controlled |
+| Public email/student-ID directory or client-readable login index | Account identifiers must not be enumerable through public lookup data |
 | School/organization hierarchy | Deferred to future version |
 | Multiple Super Admins | Single Super Admin is sufficient for now |
 | Teacher-to-teacher content transfer | Can be added later |
@@ -197,7 +223,7 @@ All UI must follow the existing **glassmorphic design system**:
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Login Page (Updated) | `/` | Google Sign-In + Guest join option |
+| Login Page (Updated) | `/login` | Google sign-in, email/student-ID password login, student registration, password recovery |
 | Student Dashboard | `/student` | Enrolled classes, join class, history |
 | Teacher Results | `/teacher/results` | Dedicated results review page |
 | Admin Users | `/admin/users` | User management for Super Admin |
@@ -220,9 +246,11 @@ All UI must follow the existing **glassmorphic design system**:
 
 ```javascript
 // Required Firebase services
-- Firebase Authentication (Google provider)
+- Firebase Authentication (Google and Email/Password providers)
 - Firebase Realtime Database (existing)
 - Firebase Custom Claims (for roles)
+// Student ID lookup and privileged profile writes use the existing Cloudflare Worker.
+// Firebase Cloud Functions and Blaze billing are not required for this flow.
 ```
 
 ### 7.2 Database Schema Changes
@@ -237,6 +265,20 @@ users/{uid}/
 ├── createdBy: uid | null (for teachers)
 ├── status: 'active' | 'disabled'
 └── enrolledClasses: { classCode: true, ... } (for students)
+
+student_identifiers/{uid}/
+├── uid: string
+├── studentId: string
+├── normalizedStudentId: string
+└── createdAt: number
+
+student_login_ids/{sha256(normalizedStudentId)}/
+├── uid: string
+└── createdAt: number
+
+// student_identifiers/{uid} is readable by its owner and super admins only.
+// student_login_ids is not readable or writable by Firebase clients.
+// The trusted Cloudflare Worker writes both paths using the service account.
 
 teacher_invites/{inviteCode}/
 ├── createdBy: uid

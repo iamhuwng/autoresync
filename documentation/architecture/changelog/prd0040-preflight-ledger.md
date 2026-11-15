@@ -966,3 +966,9 @@ See [the dated remaining-work record](../../release-audits/2026-10-18-remaining-
 ## 2026-10-20 Reading V2 multi-slot result label
 
 The Reading V2 review adapter preserves a shared prompt's displayed number range, while saved scoring rows remain per answer slot. Existing saved-result shells, entry ownership, release-state answer withholding, and PRD-0040 closure status are unchanged. Regression coverage: `ReadingV2ReviewContentAdapter.test.tsx` and `readingV2ResultAdapter.service.test.ts`.
+
+## 2026-11-16 Authentication route retirement
+
+The login expansion removed the retired /profile/complete route from authentication tracking. No PRD-0040 result contract or closure status changed.
+
+\n

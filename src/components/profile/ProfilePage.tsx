@@ -621,7 +621,7 @@ function renderFieldGrid(
 /* ═══════════════════════════════════════════════════════════════ */
 
 export function ProfilePage() {
-    const { user } = useAuth();
+    const { user, studentId, setupStudentCredentials } = useAuth();
     const { navigateTo } = useNavigation('student');
     const navigate = useNavigate();
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -636,6 +636,11 @@ export function ProfilePage() {
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [inviteSuccess, setInviteSuccess] = useState(false);
     const [processingInvite, setProcessingInvite] = useState(false);
+    const [credentialSetupOpen, setCredentialSetupOpen] = useState(false);
+    const [credentialSetup, setCredentialSetup] = useState({ firstName: '', familyName: '', studentId: '', password: '', confirmPassword: '' });
+    const [credentialPasswordVisible, setCredentialPasswordVisible] = useState({ password: false, confirmPassword: false });
+    const [credentialSetupError, setCredentialSetupError] = useState<string | null>(null);
+    const [credentialSetupSaving, setCredentialSetupSaving] = useState(false);
 
     const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -766,6 +771,25 @@ export function ProfilePage() {
             setInviteError('An error occurred while redeeming the code');
         } finally {
             setProcessingInvite(false);
+        }
+    };
+
+    const handleCredentialSetup = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (credentialSetup.password !== credentialSetup.confirmPassword) {
+            setCredentialSetupError('Passwords do not match.');
+            return;
+        }
+        setCredentialSetupSaving(true);
+        setCredentialSetupError(null);
+        try {
+            await setupStudentCredentials(credentialSetup);
+            setCredentialSetupOpen(false);
+            await loadProfile();
+        } catch (error) {
+            setCredentialSetupError(error instanceof Error ? error.message : 'Could not set up login credentials.');
+        } finally {
+            setCredentialSetupSaving(false);
         }
     };
 
@@ -927,6 +951,15 @@ export function ProfilePage() {
                                     <h4 style={ps.sectionLabel}>Account Details</h4>
                                 </div>
                                 <div style={ps.accountGrid}>
+                                    {profile.role === 'student' ? (
+                                        <div style={ps.accountItem}>
+                                            <div style={ps.accountIcon}><SvgKey size={20} /></div>
+                                            <div>
+                                                <label style={ps.fieldLabel}>Student ID</label>
+                                                <p style={ps.fieldValue}>{studentId || 'Being assigned...'}</p>
+                                            </div>
+                                        </div>
+                                    ) : null}
                                     <div style={ps.accountItem}>
                                         <div style={ps.accountIcon}><SvgKey size={20} /></div>
                                         <div>
@@ -1000,6 +1033,13 @@ export function ProfilePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+                {!studentId ? (
+                    <div style={ps.rightCard}>
+                        <h3 style={S.widgetTitle}>Set up student login</h3>
+                        <p style={ps.infoText}>Choose a one-time student ID and password. Your Google email stays linked.</p>
+                        <button type="button" style={ps.primaryButton} onClick={() => setCredentialSetupOpen(true)}>Set up ID and password</button>
+                    </div>
+                ) : null}
                 {/* Teacher Invitation */}
                 <div style={ps.rightCard}>
                     <h3 style={S.widgetTitle}>Teacher Invitation</h3>
@@ -1101,6 +1141,51 @@ export function ProfilePage() {
             ) : null}
 
             {renderCenterContent()}
+            {credentialSetupOpen ? (
+                <div role="dialog" aria-modal="true" aria-labelledby="student-credential-setup-title" style={{ position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15,23,42,0.45)' }}>
+                    <form onSubmit={handleCredentialSetup} style={{ width: 'min(440px, 100%)', background: '#fff', borderRadius: 16, padding: 24, display: 'grid', gap: 14 }}>
+                        <h2 id="student-credential-setup-title" style={{ margin: 0 }}>Set up student login</h2>
+                        <p style={ps.infoText}>Your Google email is already connected. Add the name, ID, and password for student login.</p>
+                        {(['firstName', 'familyName', 'studentId', 'password', 'confirmPassword'] as const).map((field) => {
+                            const passwordField = field === 'password' || field === 'confirmPassword' ? field : null;
+                            const isVisible = passwordField ? credentialPasswordVisible[passwordField] : false;
+                            const input = (
+                                <input
+                                    key={field}
+                                    required
+                                    minLength={field.includes('password') ? 6 : field === 'studentId' ? 3 : 1}
+                                    type={passwordField && isVisible ? 'text' : passwordField ? 'password' : 'text'}
+                                    autoComplete={passwordField ? 'new-password' : undefined}
+                                    placeholder={field === 'firstName' ? 'First name' : field === 'familyName' ? 'Last name' : field === 'studentId' ? 'Student ID / Username' : field === 'password' ? 'Password' : 'Confirm password'}
+                                    value={credentialSetup[field]}
+                                    onChange={(event) => setCredentialSetup({ ...credentialSetup, [field]: event.target.value })}
+                                    style={ps.inviteInput}
+                                />
+                            );
+                            if (!passwordField) return input;
+                            return (
+                                <div key={field} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    {input}
+                                    <button
+                                        type="button"
+                                        style={ps.outlineButton}
+                                        aria-pressed={isVisible}
+                                        aria-label={isVisible ? `Hide ${field === 'password' ? 'password' : 'confirmation password'}` : `Show ${field === 'password' ? 'password' : 'confirmation password'}`}
+                                        onClick={() => setCredentialPasswordVisible((current) => ({ ...current, [passwordField]: !current[passwordField] }))}
+                                    >
+                                        {isVisible ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                        {credentialSetupError ? <div role="alert" style={{ color: '#9e3f4e' }}>{credentialSetupError}</div> : null}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button type="button" style={ps.outlineButton} onClick={() => setCredentialSetupOpen(false)} disabled={credentialSetupSaving}>Cancel</button>
+                            <button type="submit" style={ps.primaryButton} disabled={credentialSetupSaving}>{credentialSetupSaving ? 'Saving...' : 'Save login'}</button>
+                        </div>
+                    </form>
+                </div>
+            ) : null}
 
             {/* ── Native Delete Confirmation Dialog ── */}
             <dialog

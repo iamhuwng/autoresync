@@ -18,7 +18,7 @@ import { test, expect, Page } from '@playwright/test';
 
 const TEST_TEACHER = {
     email: 'teacher@test.com',
-    password: 'password123',
+    password: 'teacher',
 };
 
 /**

@@ -25,6 +25,7 @@ import { createListeningDeliveryWorkerHandlers } from './src/upload-worker/liste
 import { createListeningSubmitWorkerHandlers } from './src/upload-worker/listening-submit.ts';
 import { createBookRouter } from './src/upload-worker/book-router.ts';
 import { createProductionBookAssemblyRouteOptions } from './src/upload-worker/book-assembly/production-composition.ts';
+import { createStudentAuthWorkerHandlers } from './src/upload-worker/student-auth/worker.ts';
 
 /**
  * R2 Upload Worker with Smart Cleanup Support
@@ -126,13 +127,23 @@ export function createUploadWorker({
   listeningSubmitHandlers = createListeningSubmitWorkerHandlers(),
   bookRouter,
   bookRouteHandlers,
+  studentAuthHandlers,
 } = {}) {
   const canonicalBookRouter = bookRouter ?? createBookRouter({
     firebaseVerifier,
     routeHandlers: bookRouteHandlers ?? createProductionBookAssemblyRouteOptions(),
   });
+  const canonicalStudentAuthHandlers = studentAuthHandlers ?? createStudentAuthWorkerHandlers({
+    firebaseVerifier,
+    now,
+  });
   return {
     async fetch(request, env, ctx) {
+      const url = new URL(request.url);
+      if (url.pathname.startsWith('/auth/student/')) {
+        return canonicalStudentAuthHandlers.fetch(request, env);
+      }
+
       const bookResponse = await canonicalBookRouter.fetch(request, env, ctx);
       if (bookResponse) return bookResponse;
 
@@ -143,7 +154,6 @@ export function createUploadWorker({
       const corsRejection = rejectDisallowedActualOrigin(request);
       if (corsRejection) return corsRejection;
 
-      const url = new URL(request.url);
       const corsHeaders = corsResponseHeaders(request);
       const json = (body, init = {}) => jsonResponse(body, withHeaders(init, corsHeaders));
       const text = (body, init = {}) => textResponse(body, withHeaders(init, corsHeaders));
