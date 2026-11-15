@@ -315,7 +315,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     schemaVersion: 1,
     sourceRef: 'refs/heads/main', eventRef, eventName, eventSha,
     sourceRevision: source.revision, sourceTree: source.tree,
-    baseRevision: observed.revision, observedFingerprint: observed.fingerprint,
+    baseRevision: observed.revision, observedTree: observed.tree, observedFingerprint: observed.fingerprint,
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
     artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256,
@@ -352,6 +352,22 @@ export function configurationDigest(cwd = repoRoot) {
   const firebase = JSON.parse(readFileSync(path.join(cwd, 'firebase.json'), 'utf8'));
   const firebaseRc = JSON.parse(readFileSync(path.join(cwd, '.firebaserc'), 'utf8'));
   return jsonDigest({ firebase, firebaseRc });
+}
+
+export function assertHostingBaseline(observed, expected) {
+  if (!observed || observed.service !== 'hosting' || observed.sourceKnown !== true) fail('production Hosting baseline observation is unavailable');
+  for (const field of ['revision', 'tree', 'fingerprint']) {
+    if (typeof expected?.[field] !== 'string' || observed[field] !== expected[field]) fail(`production Hosting baseline ${field} changed since approval`);
+  }
+  return observed;
+}
+
+export async function verifyHostingBaseline({ expected, receipt } = {}) {
+  const observed = await observeHosting();
+  assertHostingBaseline(observed, expected);
+  const result = { schemaVersion: 1, decision: 'PASS', verifiedAt: new Date().toISOString(), expected, observed: { revision: observed.revision, tree: observed.tree, fingerprint: observed.fingerprint, evidenceRef: observed.evidenceRef, observedAt: observed.observedAt } };
+  if (receipt) await writeFile(path.resolve(receipt), `${JSON.stringify(result, null, 2)}\n`);
+  return result;
 }
 
 export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
@@ -406,6 +422,7 @@ export function promotionEnvironment(card) {
   const values = {
     LUYENTAP_RELEASE_SOURCE_REF: card.source.ref,
     LUYENTAP_RELEASE_BASE: card.baseline.revision,
+    LUYENTAP_RELEASE_BASE_TREE: card.baseline.tree,
     LUYENTAP_RELEASE_FINGERPRINT: card.source.fingerprint,
     LUYENTAP_RELEASE_ENV_FINGERPRINT: card.environment.fingerprint,
     LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: card.baseline.fingerprint,
@@ -436,6 +453,7 @@ const parseArgs = argv => {
     else if (value === '--require-verification') args.requireVerification = argv[++index];
     else if (value === '--artifact-digest') args.artifactDigest = true;
     else if (value === '--qualification-binding') args.qualificationBinding = argv[++index];
+    else if (value === '--verify-baseline') args.verifyBaseline = true;
     else throw new Error(`Unknown argument ${value}`);
   }
   return args;
@@ -455,6 +473,7 @@ const main = async (argv = process.argv.slice(2)) => {
     if (!output) fail('GITHUB_ENV is required for --export-inputs');
     const values = {
       LUYENTAP_RELEASE_BASE: inputs.baseRevision,
+      LUYENTAP_RELEASE_BASE_TREE: inputs.observedTree,
       LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: inputs.observedFingerprint,
       LUYENTAP_RELEASE_FINGERPRINT: inputs.sourceFingerprint,
       LUYENTAP_RELEASE_ENV_FINGERPRINT: inputs.environmentFingerprint,
@@ -513,6 +532,18 @@ const main = async (argv = process.argv.slice(2)) => {
     await writeFile(output, `${lines.join('\n')}\n`, { flag: 'a' });
     return;
   }
+  if (args.verifyBaseline) {
+    const result = await verifyHostingBaseline({
+      expected: {
+        revision: process.env.LUYENTAP_RELEASE_BASE,
+        tree: process.env.LUYENTAP_RELEASE_BASE_TREE,
+        fingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
+      },
+      receipt: args.output,
+    });
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
   if (args.assessment && args.output) {
     const assessmentBytes = await readFile(path.resolve(args.assessment));
     const assessment = JSON.parse(assessmentBytes.toString('utf8'));
@@ -555,7 +586,7 @@ const main = async (argv = process.argv.slice(2)) => {
     process.stdout.write(`${cardDigest(card)}\n`);
     return;
   }
-  throw new Error('Use --prepare --objective <text> --production-env-file <file> --output <file>, --artifact-digest, --run-verification --output <file>, --assessment <file> --output <file>, --check-card <file>, --require-verification <card>, or --export-env <card>');
+  throw new Error('Use --prepare --objective <text> --production-env-file <file> --output <file>, --artifact-digest, --run-verification --output <file>, --assessment <file> --output <file>, --check-card <file>, --require-verification <card>, --export-env <card>, or --verify-baseline --output <receipt>');
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { assertVerificationReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, extractCompatibilityReview, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+import { assertHostingBaseline, assertVerificationReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, extractCompatibilityReview, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
 import { buildIdentityFor, bundleBytes, bundleDigest, verificationTag } from '../release-verification-bundle.mjs';
 
 const revision = 'a'.repeat(40);
@@ -12,6 +12,13 @@ const tree = 'b'.repeat(40);
 const baseRevision = 'c'.repeat(40);
 const baselineTree = 'd'.repeat(40);
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+
+test('final Hosting observation only accepts the exact approved baseline snapshot', () => {
+  const observed = { service: 'hosting', sourceKnown: true, revision: revision, tree, fingerprint: digest('manifest') };
+  assert.equal(assertHostingBaseline(observed, observed), observed);
+  assert.throws(() => assertHostingBaseline(observed, { ...observed, fingerprint: digest('changed') }), /baseline fingerprint changed/u);
+  assert.throws(() => assertHostingBaseline({ ...observed, sourceKnown: false }, observed), /observation is unavailable/u);
+});
 
 async function fixture() {
   const cwd = await mkdtemp(path.join(os.tmpdir(), 'release-promotion-card-'));
@@ -60,7 +67,7 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
     assert.equal(card.configuration.firebaseSha256.length, 64);
     assert.equal(cardDigest(card), cardDigest(JSON.parse(cardBytes(card).toString('utf8'))));
     assert.deepEqual(promotionEnvironment(card), {
-      LUYENTAP_RELEASE_SOURCE_REF: 'refs/heads/main', LUYENTAP_RELEASE_BASE: baseRevision,
+      LUYENTAP_RELEASE_SOURCE_REF: 'refs/heads/main', LUYENTAP_RELEASE_BASE: baseRevision, LUYENTAP_RELEASE_BASE_TREE: baselineTree,
       LUYENTAP_RELEASE_FINGERPRINT: digest('f'), LUYENTAP_RELEASE_ENV_FINGERPRINT: environmentFingerprint,
       LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: digest('o'), LUYENTAP_RELEASE_TEST_PLAN_FILE: 'tmp/release-receipts/plan.json',
       LUYENTAP_RELEASE_TEST_PLAN_SHA256: digest('p'), LUYENTAP_RELEASE_ARTIFACT_SHA256: digest(JSON.stringify(manifest)),

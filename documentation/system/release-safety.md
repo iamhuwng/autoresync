@@ -201,6 +201,13 @@ artifact upload opts in to hidden files solely so the public
 validation rejects unexpected files and credential-bearing `.env` material before
 upload.
 
+Immediately before publication, the protected job performs one final Hosting
+snapshot with `scripts/release-promotion.mjs --verify-baseline`. It compares the
+approved baseline revision, tree and manifest fingerprint and verifies the
+manifest-listed asset hashes. This is a drift/concurrency check, not a second
+application review: application behavior is established by Codex's retained
+preview evidence, and compatibility review is not rerun at the mutation point.
+
 The existing executor also accepts `--deploy-retained` for a separately retained
 `dist/` artifact. It verifies the manifest digest, every manifest-listed file,
 bundle budget and forbidden local markers before calling `deployHosting`; it does
