@@ -13,6 +13,13 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+When hardening one coupled release or staging contract, keep the work on one
+hardening branch and run the complete provider-backed rehearsal before merging.
+Batch failures that belong to that contract and merge only after the rehearsal
+passes. Split work only for an independent change or an urgent post-merge
+correction; a focused unit-test fix is not evidence that the next provider
+assumption has been exercised.
+
 Start routine preparation with `npm run release:plan -- --json`. It observes
 the live source/assets, selects that base automatically and reuses this assessor.
 It runs no build or tests and creates no approval. See
