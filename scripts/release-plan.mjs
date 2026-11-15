@@ -61,6 +61,19 @@ function integrationState(cwd, ref, revision, baseline) {
   }
 }
 
+export function protectedMainState(cwd, revision) {
+  try { git(cwd, ['remote', 'get-url', 'origin']); }
+  catch { return { checked: false, revision: null, matches: null, note: 'No origin remote is configured; protected-main state is not observable.' }; }
+  try {
+    const remoteRevision = git(cwd, ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/u)[0] || null;
+    return { checked: true, revision: remoteRevision, matches: remoteRevision === revision,
+      note: 'Read directly from origin; this is a source-selection check, not GitHub protection or required-CI evidence.' };
+  } catch (error) {
+    return { checked: true, revision: null, matches: false, error: error.message,
+      note: 'Protected-main state could not be read from origin.' };
+  }
+}
+
 export async function planRelease({ cwd = repoRoot, base, offline = false,
   target = 'hosting',
   integrationRef = 'refs/heads/main', envFile = process.env.LUYENTAP_PRODUCTION_ENV_FILE
@@ -73,11 +86,16 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
   }
   if (offline && hostingObservation) throw new Error('Offline planning cannot include a live observation.');
   if (offline && !base) throw new Error('Offline planning requires an explicit --base; it cannot establish live state.');
-  if (!offline) {
+  const revision = git(cwd, ['rev-parse', 'HEAD']);
+  const protectedMain = offline ? { checked: false, revision: null, matches: null, note: 'Offline planning does not observe protected main.' } : protectedMainState(cwd, revision);
+  if (protectedMain.checked && !protectedMain.matches) blockers.push(protectedMain.revision
+    ? `Candidate ${revision} is not the protected origin/main revision ${protectedMain.revision}; integrate through the protected PR path before release planning.`
+    : `Protected origin/main could not be read; refresh the remote source before release planning.${protectedMain.error ? ` ${protectedMain.error}` : ''}`);
+  const protectedMainMismatch = protectedMain.checked && !protectedMain.matches;
+  if (!offline && !protectedMainMismatch) {
     try { observed = hostingObservation || await observeHosting(); }
     catch (error) { blockers.push(`Live baseline unavailable: ${error.message}`); }
-  } else blockers.push('Offline comparison: live baseline and deployed assets are unverified.');
-  const revision = git(cwd, ['rev-parse', 'HEAD']);
+  } else if (offline) blockers.push('Offline comparison: live baseline and deployed assets are unverified.');
   const selectedBase = base || observed?.revision;
   let assessment = null, impact = null, suggestedTests = [], envFingerprint = null;
   try { envFingerprint = crypto.createHash('sha256').update(await readFile(path.resolve(cwd, envFile))).digest('hex'); }
@@ -117,8 +135,9 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
       assessment.source.fingerprint, 'Candidate changed during planning; rerun against a stable source.');
   } catch (error) { blockers.push(error.message); }
   const qualified = assessment && observed && [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(assessment.decision) && !blockers.length;
-  const selection = !assessment ? 'SOURCE_EVIDENCE_REQUIRED' : assessment.source.dirty ? 'CLEAN_CANDIDATE_REQUIRED'
-    : !qualified ? 'QUALIFICATION_REQUIRED' : !integration.containsCandidate ? 'INTEGRATION_REQUIRED' : 'NORMAL_CANDIDATE';
+  const selection = protectedMainMismatch ? 'INTEGRATION_REQUIRED'
+    : !assessment ? 'SOURCE_EVIDENCE_REQUIRED' : assessment.source.dirty ? 'CLEAN_CANDIDATE_REQUIRED'
+      : !qualified ? 'QUALIFICATION_REQUIRED' : !integration.containsCandidate ? 'INTEGRATION_REQUIRED' : 'NORMAL_CANDIDATE';
   const hotfixComparisons = assessment?.hotfixComparison || [];
   const convergence = {
     hotfixReviewPaths: [...new Set(hotfixComparisons.filter(entry => !entry.reviewed).flatMap(entry => entry.reviewRequiredPaths))].sort(),
@@ -129,7 +148,7 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
     source: assessment?.source || { revision },
     live: observed ? { revision: observed.revision, tree: observed.tree, fingerprint: observed.fingerprint,
       observedAt: observed.observedAt, evidenceRef: observed.evidenceRef, verifiedAssets: observed.manifest.files.length } : null,
-    integration, impact, assessment, changelog,
+    integration: { ...integration, protectedMain }, impact, assessment, changelog,
     verification: { execution: 'NOT_RUN', suggestedTests,
       limitation: 'Changed and collocated test paths are suggestions only. Review imports, callers, negative cases and affected browser flows before selecting the executable verification plan.' },
     blockers,
@@ -142,7 +161,7 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
 export const formatPlan = plan => [
   `Release plan: ${plan.selection}`, `Candidate: ${plan.source.revision}${plan.source.dirty ? ' (DIRTY)' : ''}`,
   `Live: ${plan.live ? `${plan.live.revision} (${plan.live.verifiedAssets} assets verified)` : 'UNVERIFIED'}`,
-  `Integration: ${plan.integration.ref} @ ${plan.integration.revision || 'unavailable'} (local ref; remote/CI not checked)`,
+  `Integration: ${plan.integration.ref} @ ${plan.integration.revision || 'unavailable'}; protected origin/main ${plan.integration.protectedMain?.revision || 'unavailable'} (${plan.integration.protectedMain?.matches === true ? 'matches' : 'does not match or is unverified'})`,
   `Impact: ${plan.impact?.signals.map(signal => signal.category).join(', ') || 'unclassified'} (advisory)`,
   `Services: ${plan.assessment?.source.services.join(', ') || 'unverified/none identified'}`,
   `Publication target: ${plan.target}; this does not qualify excluded backend deployments.`,

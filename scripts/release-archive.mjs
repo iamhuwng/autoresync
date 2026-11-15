@@ -38,6 +38,7 @@ function validateManifest(manifest) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.environment !== 'production'
     || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1'
     || !/^[a-f0-9]{40}$/u.test(manifest.revision || '') || !/^[a-f0-9]{40}$/u.test(manifest.tree || '')
+    || (manifest.buildInputFingerprint !== undefined && !shaPattern.test(manifest.buildInputFingerprint))
     || !Array.isArray(manifest.files) || !manifest.files.length || manifest.files.length > 2000) fail('invalid production manifest');
   const paths = new Set();
   for (const file of manifest.files) {

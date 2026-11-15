@@ -236,7 +236,13 @@ the preflight job has `contents: read` and promotion has `contents: write`; actu
 GitHub environment and service-account permissions still require provider readback.
 Preflight uses the separate `LUYENTAP_RELEASE_ENV` preparation secret; the
 protected production job uses `LUYENTAP_PRODUCTION_ENV`, and the executor rejects
-any environment-fingerprint mismatch before publication.
+any environment-fingerprint mismatch before publication. Production values are
+written to `.env.production` alone and qualification values are written to a
+separate `.env.qualification`; `envFingerprint` is the production-only digest,
+while the retained artifact records a separate `buildInputFingerprint` for the
+combined build inputs. A candidate planner also checks the authoritative
+`origin/main` revision before doing the live assessment; the final promotion
+job repeats that check immediately before mutation.
 The
 separate local-development reliability plan remains proposed and is not
 absorbed here. Do not describe the contract test or a local retained-artifact

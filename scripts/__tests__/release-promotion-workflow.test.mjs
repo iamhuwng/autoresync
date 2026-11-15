@@ -27,6 +27,10 @@ test('prepare binds the retained Codex verification bundle before production aut
   assert.match(prepare, /--run-verification --output/u);
   assert.match(prepare, /Build the source-bound release card/u);
   assert.match(prepare, /luyentap-approved-release-card-/u);
+  assert.match(prepare, /Require protected main before preparation/u);
+  assert.match(prepare, /cat > "\$RUNNER_TEMP\/\.env\.qualification"/u);
+  assert.doesNotMatch(prepare, /cat >> "\$RUNNER_TEMP\/\.env\.production"/u);
+  assert.match(prepare, /LUYENTAP_QUALIFICATION_ENV_FILE/u);
   assert.match(prepare, /card_sha256/u);
   assert.match(prepare, /contents: read/u);
   assert.doesNotMatch(prepare, /environment:\s*name: production/u);
@@ -44,6 +48,7 @@ test('promote verifies the source-bound card and retains guarded publication/rec
   assert.match(promote, /Require protected main to remain the approved source/u);
   assert.match(promote, /--deploy-retained/u);
   assert.match(promote, /environment:\s*name: production/u);
+  assert.match(promote, /LUYENTAP_QUALIFICATION_ENV_FILE/u);
   assert.match(promote, /luyentap-release-result-/u);
   assert.doesNotMatch(promote, /COMPATIBILITY_REVIEW_FILE|COMPATIBILITY_REVIEW_SHA256|compatibility-review\.json/u);
   assert.match(promote, /release-result\/operation\.json/u);

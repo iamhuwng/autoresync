@@ -58,6 +58,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git update-ref refs/heads/main "$GITHUB_SHA"
           test "$(git rev-parse refs/heads/main)" = "$GITHUB_SHA"
+      - name: Require protected main before preparation
+        run: |
+          set -euo pipefail
+          remote_main="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$remote_main"
+          test "$remote_main" = "$GITHUB_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -114,7 +120,7 @@ jobs:
           test -n "$QUALIFICATION_APP_ID"
           umask 077
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
-          cat >> "$RUNNER_TEMP/.env.production" <<EOF
+          cat > "$RUNNER_TEMP/.env.qualification" <<EOF
           VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
           VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=$QUALIFICATION_HOSTING_SITE
           VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
@@ -137,6 +143,7 @@ jobs:
       - name: Build the candidate once
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_QUALIFICATION_ENV_FILE: ${{ runner.temp }}/.env.qualification
         run: npm run build:production -- --build-only
       - name: Record the retained artifact identity
         id: artifact
@@ -319,7 +326,7 @@ jobs:
           test -n "$QUALIFICATION_APP_ID"
           umask 077
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
-          cat >> "$RUNNER_TEMP/.env.production" <<EOF
+          cat > "$RUNNER_TEMP/.env.qualification" <<EOF
           VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
           VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=$QUALIFICATION_HOSTING_SITE
           VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
@@ -346,6 +353,7 @@ jobs:
       - name: Publish the retained artifact through the existing guarded route
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_QUALIFICATION_ENV_FILE: ${{ runner.temp }}/.env.qualification
           LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
           LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/release-result/operation.json
           GH_TOKEN: ${{ github.token }}

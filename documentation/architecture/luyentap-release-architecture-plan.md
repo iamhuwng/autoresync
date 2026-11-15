@@ -33,6 +33,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 - Use existing platform capabilities and repository tools before adding services, approval stores, frameworks or permanent infrastructure.
 - Apply evidence in proportion to risk: presentation, functional, contract/security and stateful/coordinated changes need different proof. Hosting evidence cannot qualify Workers, rules, storage, Functions or application-data changes.
 - Preserve production approval, source/artifact integrity, independent live verification and native recovery. Never bypass protection or turn uncertain evidence into success.
+- Keep production environment identity separate from qualification/build inputs: the live manifest binds the production-only digest, while the retained artifact records the combined build-input digest. Reject a candidate that is not the current protected `origin/main` revision before doing expensive release assessment.
 
 ## Phase 3 acceptance matrix
 
@@ -116,6 +117,7 @@ invariant remain optional or are removed.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof for the Phase 3 promotion package: 272 Node script tests passed, including the synthetic application-review rehearsal; the earlier runtime-config and x64 RTDB emulator security proof remains valid for its separate scope.
 - PR #272 (single promotion package) and PR #273 (corrective handoff hardening) remove compatibility-review file/path transport, validate the canonical review object, bound summary output, and centralize operation evidence. PR #277 adds the retained verification validator and removes duplicate verification execution when the source-bound result is present; callers without retained evidence keep the fallback rerun. The Phase 4 closure follow-up also validates the serialized branch against the reviewed plan, canonical timestamps, freshness, safe paths, exact suite shape and source/environment bindings. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; these changes do not redeploy.
+- The guarded Login Expansion rehearsal exposed one release-procedure defect: qualification variables had been appended to the production environment file before fingerprinting. The correction keeps the files and identities separate and adds an early protected-`origin/main` source check; no application or production state is changed by that correction.
 - Production was not deployed or approved by PR #272/#273/#277 or the Phase 4 closure follow-up. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
