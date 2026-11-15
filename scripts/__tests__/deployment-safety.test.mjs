@@ -39,6 +39,12 @@ test('qualification Firebase configuration is all-or-nothing and rejects local v
   assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[2]]: 'http://localhost:9000' }), /placeholder or local-only/u);
 });
 
+test('deployment forwards inline compatibility reviews to the shared assessor', async () => {
+  const source = await readFile(deploymentScript, 'utf8');
+  assert.match(source, /inlineCompatibilityReview:\s*compatibilityReview\.review/u);
+  assert.doesNotMatch(source, /assess\(\{[^}]*compatibilityReview:\s*compatibilityReview\?\.review/su);
+});
+
 test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'luyentap-startup-test-'));
   try {

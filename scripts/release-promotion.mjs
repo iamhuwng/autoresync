@@ -5,7 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runReleaseVerification } from './release-verification.mjs';
-import { classifyPaths, collectSourceState } from './release-check.mjs';
+import { classifyPaths, collectSourceState, compatibilityReviewDigest, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { observeHosting } from './release-evidence.mjs';
 import { buildIdentityFor, bundleBytes, bundleDigest, isVerificationTagForSource, validateVerificationBundle } from './release-verification-bundle.mjs';
 
@@ -138,7 +138,18 @@ const inlineReview = (review, digest) => {
   if (review === undefined && digest === undefined) return undefined;
   if (!review || Object.getPrototypeOf(review) !== Object.prototype || typeof digest !== 'string') fail('inline compatibility review and digest must be supplied together');
   digestField(digest, 'compatibility review digest');
-  if (sha256(JSON.stringify(review)) !== digest) fail('compatibility review digest differs from its inline object');
+  exactFields(review, ['schemaVersion', 'decision', 'reviewer', 'reviewedAt', 'sourceRevision', 'baseRevision', 'observedFingerprint', 'dependenciesFingerprint', 'scope', 'changeIds', 'changelogNotApplicable', 'hotfixReconciliations'], 'compatibility review object');
+  if (Buffer.byteLength(JSON.stringify(review), 'utf8') > 32 * 1024) fail('compatibility review object exceeds 32 KiB');
+  for (const key of ['reviewer', 'changelogNotApplicable']) if (review[key] !== undefined) text(review[key], `compatibility review ${key}`, 1000);
+  if (!Array.isArray(review.scope) || review.scope.length < 1 || review.scope.length > 30) fail('compatibility review scope is invalid');
+  review.scope.forEach(value => text(value, 'compatibility review scope', 500));
+  if (review.changeIds !== undefined) {
+    if (!Array.isArray(review.changeIds) || review.changeIds.length > 100) fail('compatibility review changeIds are invalid');
+    review.changeIds.forEach(value => text(value, 'compatibility review change id', 100));
+  }
+  if (review.hotfixReconciliations !== undefined && (!Array.isArray(review.hotfixReconciliations) || review.hotfixReconciliations.length > 30)) fail('compatibility review hotfix reconciliations are invalid');
+  if (/[?&](?:key|token|secret|password|authorization)=|:\/\/[^/\s]*@/iu.test(JSON.stringify(review))) fail('compatibility review object cannot contain credentials');
+  if (compatibilityReviewDigest(review) !== digest) fail('compatibility review digest differs from its inline object');
   return { review, sha256: digest };
 };
 
@@ -182,7 +193,7 @@ export function validatePromotionCard(card) {
       || binding.review.sourceRevision !== card.source.revision || binding.review.baseRevision !== card.baseline.revision
       || binding.review.observedFingerprint !== card.baseline.fingerprint || !Array.isArray(binding.review.scope) || binding.review.scope.length < 1
       || !binding.review.reviewedAt || !Number.isFinite(Date.parse(binding.review.reviewedAt))
-      || Date.parse(binding.review.reviewedAt) > Date.now() || Date.now() - Date.parse(binding.review.reviewedAt) > 24 * 60 * 60 * 1000
+      || Date.parse(binding.review.reviewedAt) > Date.now() + maxClockSkewMs || Date.now() - Date.parse(binding.review.reviewedAt) > 7 * 24 * 60 * 60 * 1000
       || (card.dependencies && binding.review.dependenciesFingerprint !== card.dependencies.fingerprint)) fail('compatibility review is stale, incomplete, or bound to different source/baseline evidence');
   }
   exactFields(card.artifact, ['manifestSha256', 'revision', 'tree', 'environmentFingerprint', 'fileCount'], 'artifact');
@@ -574,8 +585,8 @@ const main = async (argv = process.argv.slice(2)) => {
       eventSha: process.env.GITHUB_SHA || discovered.eventSha,
       planFile: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE || discovered.planFile,
       planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || discovered.planSha256,
-      compatibilityReviewSha256: discovered.compatibilityReviewSha256,
-      compatibilityReview: discovered.compatibilityReview,
+      compatibilityReviewSha256: discovered.compatibilityReviewSha256 || (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING).sha256 : undefined),
+      compatibilityReview: discovered.compatibilityReview || (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING).review : undefined),
       artifactSha256: process.env.LUYENTAP_RELEASE_ARTIFACT_SHA256 || discovered.artifactSha256,
       environmentFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT || discovered.environmentFingerprint,
       includedScope: process.env.LUYENTAP_RELEASE_SCOPE || discovered.includedScope,

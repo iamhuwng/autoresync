@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #256. Production authorization remains a separate owner decision. Phase 4 is next.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #272. A corrective follow-up preserves the same production authorization boundary; Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 

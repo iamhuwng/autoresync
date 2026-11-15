@@ -36,6 +36,14 @@ test('target-scoped associations survive Hosting enrichment and leave other draf
   assert.ok(readDraft(store), 'publishing a different CL must not consume unresolved associations');
 });
 
+test('prepare failure invokes durable operation failure handling before rethrowing', async t => {
+  const store = fixture(t); let failed;
+  await assert.rejects(() => executeRecordedOperation({ id: 'prepare-failure', description: 'Prepare failure', targets: [releaseTarget(hosting)] }, {
+    storeDir: store, onPrepareFailed: (record, error) => { failed = { id: record.id, message: error.message }; }, prepare: async () => { throw new Error('baseline drift'); },
+  }), /baseline drift/u);
+  assert.deepEqual(failed, { id: 'prepare-failure', message: 'baseline drift' });
+});
+
 test('retained associations are immutable retry intent, independent of newer drafts', t => {
   const store = fixture(t), ids = ['CL-20261112-FIRST', 'CL-20261112-SECOND'];
   const input = { id: 'bound', description: 'Bound selection', targets: [releaseTarget({ ...hosting, changeIds: ids })] };
