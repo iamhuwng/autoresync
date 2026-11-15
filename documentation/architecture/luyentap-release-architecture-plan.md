@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #273. The production authorization boundary remains separate; Phase 4 is next.
+Status: Phase 1, Phase 2, Phase 3 release-orchestration capability, and the measured Phase 4 simplification are complete on protected `main` after PR #278. The production authorization boundary remains separate; local-development reliability remains a parallel workstream.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -21,7 +21,7 @@ This is the concise, version-controlled source of truth for objectives, boundari
 1. **Phase 1 — Reliable release foundation (complete).** Exact source and artifact identity, durable retention, provider observation, truthful per-service scope, operation identity and interrupted verification recovery.
 2. **Phase 2 — Protected integration and convergence (complete).** Protected `main`, required integration checks, source convergence, normal release evidence and two qualified normal production releases from protected `main`.
 3. **Phase 3 — Guarded CI promotion, publication, verification and recovery (complete).** Select exact protected source, verify relevant scope, build once, retain the artifact/evidence, bind authorization, serialize publication, independently verify and recover without duplicate publication.
-4. **Phase 4 — Operational simplification (later).** Remove demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured.
+4. **Phase 4 — Operational simplification (complete).** Remove only demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured. The retained-verification rehearsal justified removing duplicate verification execution; the remaining candidates remain because they protect distinct trust boundaries or freshness windows.
 
 Local-development reliability is an important parallel/deferred workstream. It must not expand Phase 3 into a repository-wide tooling overhaul.
 
@@ -107,7 +107,7 @@ invariant remain optional or are removed.
 
 ## Current implementation and evidence
 
-- Protected `main` is authoritative; PR #277 (`a8021930dbdc04adac67eedd38a0e5dc176e6a71`) is the current Phase 4 simplification merge. Query the live commit before making current-state claims.
+- Protected `main` is authoritative; PR #278 (`7eae54177d8687115158ca985795ae3a55658ef9`) is the current Phase 4 closure merge, following the PR #277 simplification implementation. Query the live commit before making current-state claims.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
