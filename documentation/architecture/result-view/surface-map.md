@@ -117,6 +117,10 @@ ownership boundary. The canonical result-view surface map below is unchanged.
 - Shared services own storage shape, ownership resolution, and feedback generation.
 - History pages and analytics consume the shared visibility verdict; they do not redefine it.
 
+## 2026-11-16 Authentication route retirement
+
+The student login expansion removed the retired `/profile/complete` route from authentication route tracking. No result surface, result owner, or saved-result data path changed.
+
 
 ## 2026-10-18 Reading backend source reconciliation
 

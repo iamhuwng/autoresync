@@ -120,6 +120,10 @@ Status keys:
 | `FR-068` to `FR-074` | Shared consumer adoption, teacher shell, result-detail shell, filter derivation, and solo-practice analytics exclusion | `src/pages/TeacherStudentHistoryPage.tsx`, `src/pages/ResultDetailPage.tsx`, `src/components/results/LegacyResultDetailView.tsx`, `src/components/results/ResultFilters.tsx`, `src/pages/TeacherStudentsPage.tsx` | `src/pages/TeacherStudentHistoryPage.test.tsx`, `src/pages/ResultDetailPage.test.tsx`, `src/components/results/LegacyResultDetailView.test.tsx`, `src/components/results/ResultFilters.test.tsx` | verified |
 | `FR-075` to `FR-080` | Governance deliverables and review law | `documentation/architecture/result-visibility-ownership-governance.md`, `documentation/result-visibility-producer-consumer-contract.md`, `documentation/rules/result-visibility-review-checklist.md`, `documentation/architecture/changelog/result-view-permission-matrix.md` | doc review plus task-list completion | verified |
 
+## 2026-11-16 Authentication route retirement
+
+The login expansion removed the retired `/profile/complete` route from authentication tracking. PRD-0040 closure status and all result-view contracts remain unchanged.
+
 ## Locked Test Matrix
 
 Later-phase policy-surface changes must update this matrix in the same change set as the governance doc, permission matrix, producer-consumer contract, and reviewer checklist.
