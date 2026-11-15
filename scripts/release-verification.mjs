@@ -9,6 +9,14 @@ const verified = new WeakSet();
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const fail = message => { throw new Error(`Release verification: ${message}`); };
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+const revision = value => typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
+const isoTimestamp = value => typeof value === 'string'
+  && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+const retainedPath = (value, test = false) => typeof value === 'string'
+  && /^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$/u.test(value)
+  && !value.startsWith('/') && !value.endsWith('/')
+  && !value.split('/').some(part => !part || part === '.' || part === '..')
+  && (!test || /\.(?:test|spec)\.(?:[cm]?js|[jt]sx?)$/u.test(value));
 const fields = (value, allowed) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).some(key => !allowed.includes(key))) fail('invalid plan fields');
@@ -78,23 +86,39 @@ export function assertReleaseVerification(value, { source, envFingerprint, planS
   return value;
 }
 
-export function assertRetainedReleaseVerification(value, { source, envFingerprint, planSha256 } = {}) {
+export function assertRetainedReleaseVerification(value, { source, envFingerprint, planSha256, plan, now = Date.now() } = {}) {
   fields(value, ['schemaVersion', 'decision', 'source', 'envFingerprint', 'planSha256', 'startedAt', 'completedAt', 'suites']);
+  fields(value.source, ['revision', 'tree', 'baseRevision', 'fingerprint', 'dirty']);
   if (value.schemaVersion !== 1 || value.decision !== 'PASS' || !source || source.dirty
-    || !value.source || Object.keys(value.source).some(key => !['revision', 'tree', 'baseRevision', 'fingerprint', 'dirty'].includes(key))
-    || !['revision', 'tree', 'baseRevision', 'fingerprint'].every(key => value.source[key] === source[key])
+    || !revision(value.source?.revision) || !revision(value.source?.tree) || !revision(value.source?.baseRevision)
+    || !digest(value.source?.fingerprint) || !['revision', 'tree', 'baseRevision', 'fingerprint'].every(key => value.source[key] === source[key])
     || value.source.dirty !== false || value.envFingerprint !== envFingerprint || value.planSha256 !== planSha256
-    || typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))
-    || typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt))
-    || Date.parse(value.completedAt) < Date.parse(value.startedAt)
-    || !Array.isArray(value.suites) || value.suites.length < 1 || value.suites.length > 30) fail('retained verification result is invalid or stale');
+    || !digest(value.envFingerprint) || !digest(value.planSha256) || !isoTimestamp(value.startedAt) || !isoTimestamp(value.completedAt)
+    || Date.parse(value.completedAt) < Date.parse(value.startedAt) || Date.parse(value.completedAt) > now + 10 * 60 * 1000
+    || now - Date.parse(value.completedAt) > 24 * 60 * 60 * 1000
+    || !plan || typeof plan !== 'object' || Array.isArray(plan) || plan.schemaVersion !== 1
+    || !Array.isArray(plan.suites) || plan.suites.length < 1 || plan.suites.length > 30
+    || !Array.isArray(value.suites) || value.suites.length !== plan.suites.length) fail('retained verification result is invalid or stale');
+  const expectedSuites = [];
+  for (const suite of plan.suites) {
+    fields(suite, ['runner', 'files', 'config']);
+    if (!['node', 'vitest'].includes(suite.runner) || !Array.isArray(suite.files) || suite.files.length < 1
+      || suite.files.length > 200 || new Set(suite.files).size !== suite.files.length
+      || suite.files.some(file => !retainedPath(file, true)) || (suite.runner === 'node' && suite.config !== undefined)
+      || (suite.config !== undefined && !retainedPath(suite.config))) fail('retained verification plan is invalid');
+    expectedSuites.push({ runner: suite.runner, files: suite.files, ...(suite.config === undefined ? {} : { config: suite.config }) });
+  }
   for (const suite of value.suites) {
     fields(suite, ['runner', 'files', 'config', 'counts', 'outputSha256']);
     if (!['node', 'vitest'].includes(suite.runner) || !Array.isArray(suite.files) || suite.files.length < 1 || suite.files.length > 200
-      || suite.files.some(file => typeof file !== 'string') || (suite.runner === 'node' && suite.config !== undefined)) fail('retained verification suite is invalid');
+      || new Set(suite.files).size !== suite.files.length || suite.files.some(file => !retainedPath(file, true))
+      || (suite.runner === 'node' && suite.config !== undefined) || (suite.config !== undefined && !retainedPath(suite.config))) fail('retained verification suite is invalid');
+    fields(suite.counts, ['total', 'passed', 'failed', 'skipped']);
     if (!digest(suite.outputSha256)) fail('retained verification output digest is invalid');
     validCounts(suite.counts);
   }
+  const actualSuites = value.suites.map(suite => ({ runner: suite.runner, files: suite.files, ...(suite.config === undefined ? {} : { config: suite.config }) }));
+  if (JSON.stringify(actualSuites) !== JSON.stringify(expectedSuites)) fail('retained verification suites differ from the reviewed plan');
   verified.add(value);
   return value;
 }

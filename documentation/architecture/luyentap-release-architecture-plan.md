@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #273. The production authorization boundary remains separate; Phase 4 is next.
+Status: Phase 1, Phase 2, Phase 3 release-orchestration capability, and the measured Phase 4 simplification are complete on protected `main` after PR #278. The production authorization boundary remains separate; local-development reliability remains a parallel workstream.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -21,7 +21,7 @@ This is the concise, version-controlled source of truth for objectives, boundari
 1. **Phase 1 — Reliable release foundation (complete).** Exact source and artifact identity, durable retention, provider observation, truthful per-service scope, operation identity and interrupted verification recovery.
 2. **Phase 2 — Protected integration and convergence (complete).** Protected `main`, required integration checks, source convergence, normal release evidence and two qualified normal production releases from protected `main`.
 3. **Phase 3 — Guarded CI promotion, publication, verification and recovery (complete).** Select exact protected source, verify relevant scope, build once, retain the artifact/evidence, bind authorization, serialize publication, independently verify and recover without duplicate publication.
-4. **Phase 4 — Operational simplification (later).** Remove demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured.
+4. **Phase 4 — Operational simplification (complete).** Remove only demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured. The retained-verification rehearsal justified removing duplicate verification execution; the remaining candidates remain because they protect distinct trust boundaries or freshness windows.
 
 Local-development reliability is an important parallel/deferred workstream. It must not expand Phase 3 into a repository-wide tooling overhaul.
 
@@ -107,7 +107,7 @@ invariant remain optional or are removed.
 
 ## Current implementation and evidence
 
-- Protected `main` is authoritative; PR #277 (`a8021930dbdc04adac67eedd38a0e5dc176e6a71`) is the current Phase 4 simplification merge. Query the live commit before making current-state claims.
+- Protected `main` is authoritative; PR #278 (`7eae54177d8687115158ca985795ae3a55658ef9`) is the current Phase 4 closure merge, following the PR #277 simplification implementation. Query the live commit before making current-state claims.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
@@ -115,8 +115,8 @@ invariant remain optional or are removed.
 - PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
 - Focused local proof for the Phase 3 promotion package: 272 Node script tests passed, including the synthetic application-review rehearsal; the earlier runtime-config and x64 RTDB emulator security proof remains valid for its separate scope.
-- PR #272 (single promotion package) and PR #273 (corrective handoff hardening) remove compatibility-review file/path transport, validate the canonical review object, bound summary output, and centralize operation evidence. PR #277 adds the retained verification validator and removes duplicate verification execution when the source-bound result is present; callers without retained evidence keep the fallback rerun. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; these changes do not redeploy.
-- Production was not deployed or approved by PR #272/#273/#277. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
+- PR #272 (single promotion package) and PR #273 (corrective handoff hardening) remove compatibility-review file/path transport, validate the canonical review object, bound summary output, and centralize operation evidence. PR #277 adds the retained verification validator and removes duplicate verification execution when the source-bound result is present; callers without retained evidence keep the fallback rerun. The Phase 4 closure follow-up also validates the serialized branch against the reviewed plan, canonical timestamps, freshness, safe paths, exact suite shape and source/environment bindings. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; these changes do not redeploy.
+- Production was not deployed or approved by PR #272/#273/#277 or the Phase 4 closure follow-up. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
 
