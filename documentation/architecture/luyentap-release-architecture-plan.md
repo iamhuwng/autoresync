@@ -124,7 +124,7 @@ invariant remain optional or are removed.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. Completed: PR #272 and corrective PR #273 completed the single-package handoff and evidence hardening. Next is Phase 4 measurement: observe duplicate verification, manual inputs, and retained artifacts across promotions, then remove only demonstrated duplication without weakening a concrete invariant.
+5. In progress: [`2026-11-15-phase4-simplification-measurement.md`](../release-audits/2026-11-15-phase4-simplification-measurement.md) inventories repeated work. The first candidate is duplicate verification execution; no deletion is justified until a retained-card rehearsal proves the same invariant with measurable savings.
 
 ## Historical evidence
 
