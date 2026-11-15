@@ -303,7 +303,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     const { readVerificationBundle } = await import('./release-verification-bundle.mjs');
     const readback = readVerificationBundle({ tag: bundleTag, sha256: bundleSha256 });
     validateVerificationBundle(readback.bundle, { source });
-    verificationBundle = readback.bundle;
+    verificationBundle = { tag: readback.tag, sha256: readback.sha256, bundle: readback.bundle };
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;
     if (!compatibilityReviewFile) ({ file: compatibilityReviewFile, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
