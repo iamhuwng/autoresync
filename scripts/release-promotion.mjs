@@ -127,6 +127,7 @@ export function assertVerificationReady(card) {
 const readArtifactManifest = cwd => {
   const manifest = JSON.parse(readFileSync(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
   if (manifest?.schemaVersion !== 1 || manifest.environment !== 'production' || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1'
+    || (manifest.buildInputFingerprint !== undefined && !shaPattern.test(manifest.buildInputFingerprint))
     || !Array.isArray(manifest.files) || manifest.files.length < 1 || manifest.files.length > 2000) fail('artifact manifest identity is invalid');
   revisionField(manifest.revision, 'artifact manifest revision');
   revisionField(manifest.tree, 'artifact manifest tree');
@@ -196,11 +197,12 @@ export function validatePromotionCard(card) {
       || Date.parse(binding.review.reviewedAt) > Date.now() + maxClockSkewMs || Date.now() - Date.parse(binding.review.reviewedAt) > 7 * 24 * 60 * 60 * 1000
       || (card.dependencies && binding.review.dependenciesFingerprint !== card.dependencies.fingerprint)) fail('compatibility review is stale, incomplete, or bound to different source/baseline evidence');
   }
-  exactFields(card.artifact, ['manifestSha256', 'revision', 'tree', 'environmentFingerprint', 'fileCount'], 'artifact');
+  exactFields(card.artifact, ['manifestSha256', 'revision', 'tree', 'environmentFingerprint', 'buildInputFingerprint', 'fileCount'], 'artifact');
   digestField(card.artifact?.manifestSha256, 'artifact manifest digest');
   revisionField(card.artifact?.revision, 'artifact revision');
   revisionField(card.artifact?.tree, 'artifact tree');
   digestField(card.artifact?.environmentFingerprint, 'artifact environment fingerprint');
+  if (card.artifact?.buildInputFingerprint !== undefined) digestField(card.artifact.buildInputFingerprint, 'artifact build-input fingerprint');
   if (!Number.isSafeInteger(card.artifact?.fileCount) || card.artifact.fileCount < 1 || card.artifact.fileCount > 2000) fail('artifact file count is invalid');
   if (card.artifact.revision !== card.source.revision || card.artifact.tree !== card.source.tree || card.artifact.environmentFingerprint !== card.environment.fingerprint) fail('artifact identity differs from source or environment');
   if (card.dependencies !== undefined) exactFields(card.dependencies, ['fingerprint'], 'dependencies');
@@ -416,7 +418,8 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
     source: { ref: sourceRef, revision: source.revision, tree: source.tree, baseRevision: source.baseRevision, fingerprint: source.fingerprint, dirty: false, verificationRequirement: evidenceRequirement },
     baseline: { revision: assessment.observed.revision, tree: assessment.observed.tree, fingerprint: assessment.observed.fingerprint },
     verification: { planFile: validatePlanPath(planFile), planSha256: digestField(planSha256, 'verification plan digest'), actual: verification, ...(review ? { compatibilityReview: review } : {}) },
-    artifact: { manifestSha256: manifestSha256, revision: manifest.revision, tree: manifest.tree, environmentFingerprint: manifest.envFingerprint, fileCount: manifest.files.length },
+    artifact: { manifestSha256: manifestSha256, revision: manifest.revision, tree: manifest.tree, environmentFingerprint: manifest.envFingerprint,
+      ...(manifest.buildInputFingerprint ? { buildInputFingerprint: manifest.buildInputFingerprint } : {}), fileCount: manifest.files.length },
     configuration: { firebaseSha256: configurationDigest(cwd) },
     environment: { fingerprint: digestField(environmentFingerprint, 'production environment fingerprint') },
     ...(assessment.hostingDependencies ? { dependencies: { fingerprint: digestField(assessment.hostingDependencies.fingerprint, 'dependency fingerprint') } } : {}),

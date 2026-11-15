@@ -12,6 +12,7 @@ const defaultReadAttempts = 3;
 const defaultRetryDelayMs = 250;
 const retryableHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+const digestPattern = /^[a-f0-9]{64}$/u;
 const observations = new WeakSet();
 export const isObserved = value => observations.has(value);
 
@@ -102,7 +103,7 @@ const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvir
   } catch {
     throw new Error('Invalid production Hosting manifest: response is not JSON.');
   }
-  if (manifest.schemaVersion !== 1 || manifest.environment !== expectedEnvironment || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1' || !/^[a-f0-9]{40}$/u.test(manifest.revision || '') || !/^[a-f0-9]{40}$/u.test(manifest.tree || '') || !Array.isArray(manifest.files) || !manifest.files.length || manifest.files.length > 2000) throw new Error(`Invalid ${expectedEnvironment} Hosting manifest.`);
+  if (manifest.schemaVersion !== 1 || manifest.environment !== expectedEnvironment || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1' || !/^[a-f0-9]{40}$/u.test(manifest.revision || '') || !/^[a-f0-9]{40}$/u.test(manifest.tree || '') || (manifest.buildInputFingerprint !== undefined && !digestPattern.test(manifest.buildInputFingerprint)) || !Array.isArray(manifest.files) || !manifest.files.length || manifest.files.length > 2000) throw new Error(`Invalid ${expectedEnvironment} Hosting manifest.`);
   if (!manifest.files.some(file => file.path === '/index.html')) throw new Error('Hosting evidence lacks index.html.');
   for (const file of manifest.files) {
     if (!/^\/[a-zA-Z0-9_./-]+$/u.test(file.path) || file.path.includes('..') || !/^[a-f0-9]{64}$/u.test(file.sha256 || '')) throw new Error('Unsafe Hosting evidence path or hash.');
@@ -142,8 +143,9 @@ export async function observeHosting({ fetchImpl = fetch, originOverride, expect
   throw lastError;
 }
 
-export async function writeHostingManifest({ cwd, envFingerprint, environment = 'production', hotfixes = [] }) {
+export async function writeHostingManifest({ cwd, envFingerprint, buildInputFingerprint, environment = 'production', hotfixes = [] }) {
   if (!['production', 'acceptance'].includes(environment)) throw new Error('Hosting manifest environment must be production or acceptance.');
+  if (buildInputFingerprint !== undefined && !digestPattern.test(buildInputFingerprint)) throw new Error('Hosting manifest build-input identity is invalid.');
   const git = expression => {
     const result = spawnSync('git', ['rev-parse', '--verify', expression], { cwd, encoding: 'utf8', windowsHide: true });
     if (result.status !== 0) throw new Error('Cannot bind Hosting bundle to Git source.');
@@ -160,7 +162,8 @@ export async function writeHostingManifest({ cwd, envFingerprint, environment = 
   };
   await visit(dist);
   files.sort((a, b) => a.path.localeCompare(b.path));
-  const manifest = { schemaVersion: 1, environment, project: 'temp-a1437', site: 'kahut1', revision: git('HEAD^{commit}'), tree: git('HEAD^{tree}'), envFingerprint, files, hotfixes };
+  const manifest = { schemaVersion: 1, environment, project: 'temp-a1437', site: 'kahut1', revision: git('HEAD^{commit}'), tree: git('HEAD^{tree}'), envFingerprint,
+    ...(buildInputFingerprint ? { buildInputFingerprint } : {}), files, hotfixes };
   const target = path.join(dist, manifestPath.slice(1));
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, `${JSON.stringify(manifest)}\n`);

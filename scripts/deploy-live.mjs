@@ -183,21 +183,32 @@ export async function resolveReleaseVerification({ retainedResult, source, envFi
   return assertReleaseVerification(verification, { source, envFingerprint, planSha256 });
 }
 
-const readProductionEnv = async (cwd = repoRoot) => {
+export const readProductionEnv = async (cwd = repoRoot) => {
   const configuredPath = process.env.LUYENTAP_PRODUCTION_ENV_FILE
     || path.join(os.homedir(), '.luyentap', 'env', '.env.production');
   const envFile = path.resolve(configuredPath);
-  let raw;
+  let raw, qualificationRaw = '';
   try {
     raw = await readFile(envFile, 'utf8');
   } catch {
     fail(`missing ${envFile}. Create this machine-local file with the reviewed production VITE_* values; do not reuse .env.local.`);
   }
+  const configuredQualificationPath = process.env.LUYENTAP_QUALIFICATION_ENV_FILE;
+  if (configuredQualificationPath) {
+    const qualificationFile = path.resolve(configuredQualificationPath);
+    try {
+      qualificationRaw = await readFile(qualificationFile, 'utf8');
+    } catch {
+      fail(`missing ${qualificationFile}. Provide the separate qualification environment when qualification settings are required.`);
+    }
+  }
 
   const dotenv = createRequire(path.join(cwd, 'package.json'))('dotenv');
-  const values = dotenv.parse(raw);
-  for (const [key, value] of Object.entries(values)) {
+  const productionValues = dotenv.parse(raw);
+  const qualificationValues = dotenv.parse(qualificationRaw);
+  for (const [key, value] of Object.entries(productionValues)) {
     if (!key.startsWith('VITE_')) fail(`${key} is not a VITE_* production setting.`);
+    if (qualificationFirebaseKeys.includes(key)) fail(`${key} belongs in LUYENTAP_QUALIFICATION_ENV_FILE, not the production environment.`);
     if (/^VITE_(?:GEMINI|GROQ)_API_KEY(?:_\d+)?$/iu.test(key)) {
       fail(`${key} is a provider credential setting; keep provider secrets in the AI gateway.`);
     }
@@ -205,6 +216,10 @@ const readProductionEnv = async (cwd = repoRoot) => {
     if (key.endsWith('_EMULATOR_HOST') && value.trim()) fail(`${key} is present in the production environment.`);
     if (isLocalValue(value)) fail(`${key} contains a local/demo endpoint.`);
   }
+  for (const key of Object.keys(qualificationValues)) {
+    if (!qualificationFirebaseKeys.includes(key)) fail(`${key} is not a supported qualification Firebase setting.`);
+  }
+  const values = { ...productionValues, ...qualificationValues };
   for (const key of requiredFirebaseKeys) {
     const value = values[key]?.trim();
     if (!value || isPlaceholder(value)) fail(`${key} is missing or still a placeholder in ${envFile}.`);
@@ -297,6 +312,9 @@ const readProductionEnv = async (cwd = repoRoot) => {
     },
     envFile,
     envFingerprint: crypto.createHash('sha256').update(raw).digest('hex'),
+    buildInputFingerprint: qualificationRaw
+      ? crypto.createHash('sha256').update(Buffer.concat([Buffer.from(raw), Buffer.from('\0'), Buffer.from(qualificationRaw)])).digest('hex')
+      : crypto.createHash('sha256').update(raw).digest('hex'),
   };
 };
 
@@ -556,7 +574,7 @@ const main = async () => {
       run([path.join(sourceScripts, 'tooling-where.mjs'), '--exec', 'vite', 'build', '--mode', 'production'], loaded.env, cwd);
       run([path.join(sourceScripts, 'check-bundle-budget.mjs')], loaded.env, cwd);
       await assertProductionBundle(cwd);
-      await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
+      await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, buildInputFingerprint: loaded.buildInputFingerprint, hotfixes: releaseAssessment?.hotfixes || [] });
     }
     if (buildOnly) {
       console.log('[Production] Build and local-value checks passed; no remote mutation was performed.');

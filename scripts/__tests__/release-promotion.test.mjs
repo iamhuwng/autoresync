@@ -29,7 +29,7 @@ async function fixture() {
   await mkdir(path.join(cwd, 'tmp/release-receipts'), { recursive: true });
   await writeFile(path.join(cwd, 'tmp/release-receipts/plan.json'), '{}\n');
   const environmentFingerprint = digest('e');
-  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision, tree, envFingerprint: environmentFingerprint, files: [{ path: '/index.html', sha256: digest('index') }] };
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision, tree, envFingerprint: environmentFingerprint, buildInputFingerprint: digest('build-input'), files: [{ path: '/index.html', sha256: digest('index') }] };
   await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
   const assessment = {
     decision: 'PASS', target: 'hosting',

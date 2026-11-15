@@ -5,7 +5,7 @@ import path from 'node:path';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { describeImpact, formatPlan, planRelease } from '../release-plan.mjs';
+import { describeImpact, formatPlan, planRelease, protectedMainState } from '../release-plan.mjs';
 import { observeHosting } from '../release-evidence.mjs';
 
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -79,7 +79,21 @@ test('native live baseline is selected automatically; normal source selection do
   assert.equal(result.target, 'hosting');
   assert.deepEqual(result.convergence, { hotfixReviewPaths: [], preservedLivePaths: [] });
   assert.equal(git(options.cwd, 'status', '--porcelain'), before);
-  assert.match(formatPlan(result), /remote\/CI not checked/u);
+  assert.match(formatPlan(result), /protected origin\/main unavailable/u);
+});
+
+test('candidate ahead of protected origin/main is rejected as integration-required', async t => {
+  const options = await withScopeReview(await fixture(t));
+  const remote = await mkdtemp(path.join(os.tmpdir(), 'luyentap-plan-remote-'));
+  t.after(async () => { await rm(remote, { recursive: true, force: true }); });
+  git(remote, 'init', '-q', '--bare');
+  git(options.cwd, 'remote', 'add', 'origin', remote);
+  git(options.cwd, 'push', '-q', 'origin', `${options.base}:refs/heads/main`);
+  const result = await planRelease(options);
+  assert.equal(result.selection, 'INTEGRATION_REQUIRED', JSON.stringify(result.blockers));
+  assert.equal(result.integration.protectedMain.matches, false);
+  assert(result.blockers.some(message => /not the protected origin\/main revision/u.test(message)));
+  assert.equal(protectedMainState(options.cwd, git(options.cwd, 'rev-parse', 'HEAD')).matches, false);
 });
 
 test('presentation hints cannot clear existing frontend compatibility gates', async t => {

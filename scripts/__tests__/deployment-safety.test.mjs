@@ -18,6 +18,7 @@ import {
   findForbiddenBundleMarker,
   assertRetainedArtifact,
   assertQualificationFirebaseValues,
+  readProductionEnv,
   writeOperationEvidence,
   hostingReleaseMessage,
 } from '../deploy-live.mjs';
@@ -102,6 +103,42 @@ VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION=disabled
 VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION=disabled
 VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION=disabled
 `;
+
+test('production and qualification environment identities stay separate', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-env-identity-test-'));
+  const productionPath = path.join(tempDir, '.env.production');
+  const qualificationPath = path.join(tempDir, '.env.qualification');
+  const qualification = `VITE_FIREBASE_QUALIFICATION_API_KEY=qualification-key
+VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=qualification-site
+VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=qualification-project.firebaseapp.com
+VITE_FIREBASE_QUALIFICATION_DATABASE_URL=https://qualification-project-default-rtdb.firebaseio.com
+VITE_FIREBASE_QUALIFICATION_PROJECT_ID=qualification-project
+VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET=qualification-project.firebasestorage.app
+VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID=987654321
+VITE_FIREBASE_QUALIFICATION_APP_ID=1:987654321:web:qualification
+`;
+  const previousProduction = process.env.LUYENTAP_PRODUCTION_ENV_FILE;
+  const previousQualification = process.env.LUYENTAP_QUALIFICATION_ENV_FILE;
+  try {
+    await writeFile(productionPath, validFirebaseEnv);
+    await writeFile(qualificationPath, qualification);
+    process.env.LUYENTAP_PRODUCTION_ENV_FILE = productionPath;
+    process.env.LUYENTAP_QUALIFICATION_ENV_FILE = qualificationPath;
+    const loaded = await readProductionEnv(repositoryRoot);
+    assert.equal(loaded.envFingerprint, crypto.createHash('sha256').update(validFirebaseEnv).digest('hex'));
+    assert.notEqual(loaded.buildInputFingerprint, loaded.envFingerprint);
+    assert.equal(loaded.env.VITE_FIREBASE_QUALIFICATION_PROJECT_ID, 'qualification-project');
+    await rm(loaded.tempEnvDir, { recursive: true, force: true });
+    await writeFile(productionPath, `${validFirebaseEnv}\n${qualification}`);
+    await assert.rejects(() => readProductionEnv(repositoryRoot), /belongs in LUYENTAP_QUALIFICATION_ENV_FILE/u);
+  } finally {
+    if (previousProduction === undefined) delete process.env.LUYENTAP_PRODUCTION_ENV_FILE;
+    else process.env.LUYENTAP_PRODUCTION_ENV_FILE = previousProduction;
+    if (previousQualification === undefined) delete process.env.LUYENTAP_QUALIFICATION_ENV_FILE;
+    else process.env.LUYENTAP_QUALIFICATION_ENV_FILE = previousQualification;
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 const assertBlocked = async (suffix, expectedMessage, baseEnv = validFirebaseEnv) => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-deploy-test-'));
