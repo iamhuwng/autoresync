@@ -140,6 +140,13 @@ const optionalReview = (file, digest) => {
   return { file: validateTrackedPath(file, 'compatibility review file'), sha256: digestField(digest, 'compatibility review digest') };
 };
 
+const inlineReview = (review, digest) => {
+  if (review === undefined && digest === undefined) return undefined;
+  if (!review || typeof review !== 'object' || typeof digest !== 'string') fail('inline compatibility review and digest must be supplied together');
+  digestField(digest, 'compatibility review digest');
+  return { review, sha256: digest };
+};
+
 export function validatePromotionCard(card) {
   if (!card || Object.getPrototypeOf(card) !== Object.prototype || card.schemaVersion !== 1) fail('card schema is invalid');
   const allowed = ['schemaVersion', 'generatedAt', 'repository', 'event', 'source', 'baseline', 'verification', 'artifact', 'configuration', 'environment', 'dependencies', 'scope', 'recovery', 'assessment', 'verificationEvidence', 'verificationBundle', 'impact', 'missingProof'];
@@ -288,9 +295,12 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
   const reviewPath = 'documentation/release-evidence/compatibility-review.json';
   let compatibilityReviewFile = '';
   let compatibilityReviewSha256 = '';
+  let compatibilityReview;
   if (tracked(cwd, reviewPath)) {
     compatibilityReviewFile = reviewPath;
-    compatibilityReviewSha256 = sha256(await readFile(path.resolve(cwd, reviewPath)));
+    const bytes = await readFile(path.resolve(cwd, reviewPath));
+    compatibilityReviewSha256 = sha256(bytes);
+    compatibilityReview = JSON.parse(bytes.toString('utf8'));
   }
   const requirement = verificationRequirement(source.files);
   let verificationEvidence;
@@ -306,7 +316,10 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     verificationBundle = { tag: readback.tag, sha256: readback.sha256, bundle: readback.bundle };
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;
-    if (!compatibilityReviewFile) ({ file: compatibilityReviewFile, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
+    if (!compatibilityReviewFile) {
+      ({ file: compatibilityReviewFile, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
+      compatibilityReview = JSON.parse(await readFile(path.resolve(cwd, compatibilityReviewFile), 'utf8'));
+    }
   } else {
     verificationEvidence = { schemaVersion: 1, requirement, decision: 'not-required', observedAt: new Date().toISOString(), method: 'release path classifier', scenario: 'No application runtime paths changed.', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [], evidenceRefs: [], summary: 'No application runtime paths changed; Codex application verification is not required for this candidate.' };
   }
@@ -318,7 +331,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     baseRevision: observed.revision, observedTree: observed.tree, observedFingerprint: observed.fingerprint,
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
-    artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256,
+    artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256, compatibilityReview,
     verificationEvidence, verificationBundle, verificationBundleSha256,
     configurationFingerprint, objective: text(objective, 'release objective'),
     includedScope: `${objective}; affected services: ${classifyPaths(source.files).join(', ') || 'none identified'}`,
@@ -370,7 +383,7 @@ export async function verifyHostingBaseline({ expected, receipt } = {}) {
   return result;
 }
 
-export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
+export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, compatibilityReview, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) fail('assessment must be PASS or NOT_APPLICABLE');
   if (!sourceRefPattern.test(sourceRef) || eventName !== 'workflow_dispatch' || eventRef !== 'refs/heads/main') fail('promotion requires explicit workflow_dispatch context on protected main');
   revisionField(eventSha, 'event SHA');
@@ -380,7 +393,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   if (source.baseRevision !== assessment.observed?.revision) fail('assessment source base revision differs from the observed Hosting baseline');
   if (!assessment.observed || assessment.observed.revision !== source.baseRevision || !revisionPattern.test(assessment.observed.tree || '')) fail('assessment source base revision differs from the observed Hosting baseline');
   if (assessment.productionEnvFingerprint !== environmentFingerprint) fail('assessment environment fingerprint differs from the release card');
-  const review = optionalReview(compatibilityReviewFile, compatibilityReviewSha256);
+  const review = inlineReview(compatibilityReview, compatibilityReviewSha256) || optionalReview(compatibilityReviewFile, compatibilityReviewSha256);
   const manifest = readArtifactManifest(cwd);
   if (manifest.revision !== source.revision || manifest.tree !== source.tree || manifest.envFingerprint !== environmentFingerprint) fail('artifact manifest does not match the assessed source or environment');
   const manifestSha256 = jsonDigest(manifest);
@@ -570,6 +583,7 @@ const main = async (argv = process.argv.slice(2)) => {
       planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || discovered.planSha256,
       compatibilityReviewFile: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE || discovered.compatibilityReviewFile,
       compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256 || discovered.compatibilityReviewSha256,
+      compatibilityReview: discovered.compatibilityReview,
       artifactSha256: process.env.LUYENTAP_RELEASE_ARTIFACT_SHA256 || discovered.artifactSha256,
       environmentFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT || discovered.environmentFingerprint,
       includedScope: process.env.LUYENTAP_RELEASE_SCOPE || discovered.includedScope,
