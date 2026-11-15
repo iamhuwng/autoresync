@@ -141,7 +141,7 @@ const optionalReview = (file, digest) => {
 };
 
 const inlineReview = (review, digest) => {
-  if (review === undefined && digest === undefined) return undefined;
+  if (review === undefined) return undefined;
   if (!review || typeof review !== 'object' || typeof digest !== 'string') fail('inline compatibility review and digest must be supplied together');
   digestField(digest, 'compatibility review digest');
   return { review, sha256: digest };
