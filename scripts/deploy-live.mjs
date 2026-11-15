@@ -13,7 +13,7 @@ import { prepareDeploymentChangelog, reconcileHostingChangelog } from './release
 import { reviewedChanges } from './lib/changeRecords.mjs';
 import { executeRecordedOperation } from './release-operation.mjs';
 import { beginRelease, settleRelease } from './lib/releaseChangelog.mjs';
-import { runReleaseVerification, assertReleaseVerification } from './release-verification.mjs';
+import { runReleaseVerification, assertReleaseVerification, assertRetainedReleaseVerification } from './release-verification.mjs';
 import { createHostingArchive, readHostingArchive, recordHostingArchiveOutcome, assertHostingArtifact } from './release-archive.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -528,10 +528,17 @@ const main = async () => {
       if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256) {
         fail('verification plan differs from its reviewed digest.');
       }
-      verification = await runReleaseVerification({ cwd, base: releaseAssessment.source.baseRevision,
-        planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: loaded.envFingerprint });
-      assertReleaseVerification(verification, { source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
-        planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 });
+      if (process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT) {
+        verification = assertRetainedReleaseVerification(JSON.parse(process.env.LUYENTAP_RELEASE_VERIFICATION_RESULT), {
+          source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
+          planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256,
+        });
+      } else {
+        verification = await runReleaseVerification({ cwd, base: releaseAssessment.source.baseRevision,
+          planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: loaded.envFingerprint });
+        assertReleaseVerification(verification, { source: releaseAssessment.source, envFingerprint: loaded.envFingerprint,
+          planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 });
+      }
     }
     console.log(`[Production] ${buildOnly ? 'Building' : retainedArtifact ? 'Deploying retained artifact' : 'Building and deploying'} ${expectedProjectId}/${expectedHostingTarget} with ${loaded.envFile}`);
     if (retainedArtifact) {
