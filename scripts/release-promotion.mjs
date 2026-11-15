@@ -134,16 +134,11 @@ const readArtifactManifest = cwd => {
   return manifest;
 };
 
-const optionalReview = (file, digest) => {
-  if ((file === undefined || file === '') && (digest === undefined || digest === '')) return undefined;
-  if (typeof file !== 'string' || typeof digest !== 'string') fail('compatibility review path and digest must be supplied together');
-  return { file: validateTrackedPath(file, 'compatibility review file'), sha256: digestField(digest, 'compatibility review digest') };
-};
-
 const inlineReview = (review, digest) => {
-  if (review === undefined) return undefined;
-  if (!review || typeof review !== 'object' || typeof digest !== 'string') fail('inline compatibility review and digest must be supplied together');
+  if (review === undefined && digest === undefined) return undefined;
+  if (!review || Object.getPrototypeOf(review) !== Object.prototype || typeof digest !== 'string') fail('inline compatibility review and digest must be supplied together');
   digestField(digest, 'compatibility review digest');
+  if (sha256(JSON.stringify(review)) !== digest) fail('compatibility review digest differs from its inline object');
   return { review, sha256: digest };
 };
 
@@ -181,8 +176,14 @@ export function validatePromotionCard(card) {
   validateVerificationResult(card.verification.actual, { source: card.source, environmentFingerprint: card.environment?.fingerprint, planSha256: card.verification.planSha256 });
   if (card.verification.actual.source.baseRevision !== card.baseline.revision) fail('verification source base revision differs from observed Hosting baseline');
   if (card.verification.compatibilityReview) {
-    exactFields(card.verification.compatibilityReview, ['file', 'sha256'], 'compatibility review');
-    optionalReview(card.verification.compatibilityReview.file, card.verification.compatibilityReview.sha256);
+    exactFields(card.verification.compatibilityReview, ['review', 'sha256'], 'compatibility review');
+    const binding = inlineReview(card.verification.compatibilityReview.review, card.verification.compatibilityReview.sha256);
+    if (!binding.review || binding.review.schemaVersion !== 1 || binding.review.decision !== 'verified'
+      || binding.review.sourceRevision !== card.source.revision || binding.review.baseRevision !== card.baseline.revision
+      || binding.review.observedFingerprint !== card.baseline.fingerprint || !Array.isArray(binding.review.scope) || binding.review.scope.length < 1
+      || !binding.review.reviewedAt || !Number.isFinite(Date.parse(binding.review.reviewedAt))
+      || Date.parse(binding.review.reviewedAt) > Date.now() || Date.now() - Date.parse(binding.review.reviewedAt) > 24 * 60 * 60 * 1000
+      || (card.dependencies && binding.review.dependenciesFingerprint !== card.dependencies.fingerprint)) fail('compatibility review is stale, incomplete, or bound to different source/baseline evidence');
   }
   exactFields(card.artifact, ['manifestSha256', 'revision', 'tree', 'environmentFingerprint', 'fileCount'], 'artifact');
   digestField(card.artifact?.manifestSha256, 'artifact manifest digest');
@@ -261,13 +262,11 @@ export function createVerificationPlan(files) {
 
 export async function extractCompatibilityReview({ cwd = repoRoot, bundle } = {}) {
   const artifact = bundle?.artifacts?.find(value => value?.id === 'compatibility-review');
-  if (!artifact) return { file: '', sha256: '' };
+  if (!artifact) return { review: undefined, sha256: '' };
   const bytes = Buffer.from(artifact.contentBase64 || '', 'base64');
   if (bytes.length !== artifact.size || sha256(bytes) !== artifact.sha256) fail('verification bundle compatibility review artifact digest differs');
-  const file = 'tmp/release-receipts/compatibility-review.json';
-  await mkdir(path.dirname(path.resolve(cwd, file)), { recursive: true });
-  await writeFile(path.resolve(cwd, file), bytes);
-  return { file, sha256: sha256(bytes) };
+  const review = JSON.parse(bytes.toString('utf8'));
+  return { review, sha256: sha256(JSON.stringify(review)) };
 }
 
 export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile, objective } = {}) {
@@ -293,14 +292,11 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
   await writeFile(path.resolve(cwd, planFile), `${JSON.stringify(plan, null, 2)}\n`);
   const configurationFingerprint = configurationDigest(cwd);
   const reviewPath = 'documentation/release-evidence/compatibility-review.json';
-  let compatibilityReviewFile = '';
   let compatibilityReviewSha256 = '';
   let compatibilityReview;
   if (tracked(cwd, reviewPath)) {
-    compatibilityReviewFile = reviewPath;
     const bytes = await readFile(path.resolve(cwd, reviewPath));
-    compatibilityReviewSha256 = sha256(bytes);
-    compatibilityReview = JSON.parse(bytes.toString('utf8'));
+    compatibilityReviewSha256 = sha256(JSON.stringify(compatibilityReview = JSON.parse(bytes.toString('utf8'))));
   }
   const requirement = verificationRequirement(source.files);
   let verificationEvidence;
@@ -316,9 +312,8 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     verificationBundle = { tag: readback.tag, sha256: readback.sha256, bundle: readback.bundle };
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;
-    if (!compatibilityReviewFile) {
-      ({ file: compatibilityReviewFile, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
-      compatibilityReview = JSON.parse(await readFile(path.resolve(cwd, compatibilityReviewFile), 'utf8'));
+    if (!compatibilityReview) {
+      ({ review: compatibilityReview, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
     }
   } else {
     verificationEvidence = { schemaVersion: 1, requirement, decision: 'not-required', observedAt: new Date().toISOString(), method: 'release path classifier', scenario: 'No application runtime paths changed.', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [], evidenceRefs: [], summary: 'No application runtime paths changed; Codex application verification is not required for this candidate.' };
@@ -331,7 +326,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     baseRevision: observed.revision, observedTree: observed.tree, observedFingerprint: observed.fingerprint,
     sourceFingerprint: source.fingerprint, environmentFingerprint,
     planFile, planSha256: sha256(Buffer.from(`${JSON.stringify(plan, null, 2)}\n`)),
-    artifactSha256: null, compatibilityReviewFile, compatibilityReviewSha256, compatibilityReview,
+    artifactSha256: null, compatibilityReviewSha256, compatibilityReview,
     verificationEvidence, verificationBundle, verificationBundleSha256,
     configurationFingerprint, objective: text(objective, 'release objective'),
     includedScope: `${objective}; affected services: ${classifyPaths(source.files).join(', ') || 'none identified'}`,
@@ -383,7 +378,7 @@ export async function verifyHostingBaseline({ expected, receipt } = {}) {
   return result;
 }
 
-export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewFile, compatibilityReviewSha256, compatibilityReview, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
+export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha256, sourceRef, eventRef, eventName, eventSha, planFile, planSha256, compatibilityReviewSha256, compatibilityReview, artifactSha256, environmentFingerprint, includedScope, excludedScope, recoveryTarget, recoveryLimits, verification, verificationEvidence, verificationBundle = null, impact, missingProof } = {}) {
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) fail('assessment must be PASS or NOT_APPLICABLE');
   if (!sourceRefPattern.test(sourceRef) || eventName !== 'workflow_dispatch' || eventRef !== 'refs/heads/main') fail('promotion requires explicit workflow_dispatch context on protected main');
   revisionField(eventSha, 'event SHA');
@@ -393,7 +388,7 @@ export function createPromotionCard({ cwd = repoRoot, assessment, assessmentSha2
   if (source.baseRevision !== assessment.observed?.revision) fail('assessment source base revision differs from the observed Hosting baseline');
   if (!assessment.observed || assessment.observed.revision !== source.baseRevision || !revisionPattern.test(assessment.observed.tree || '')) fail('assessment source base revision differs from the observed Hosting baseline');
   if (assessment.productionEnvFingerprint !== environmentFingerprint) fail('assessment environment fingerprint differs from the release card');
-  const review = inlineReview(compatibilityReview, compatibilityReviewSha256) || optionalReview(compatibilityReviewFile, compatibilityReviewSha256);
+  const review = inlineReview(compatibilityReview, compatibilityReviewSha256);
   const manifest = readArtifactManifest(cwd);
   if (manifest.revision !== source.revision || manifest.tree !== source.tree || manifest.envFingerprint !== environmentFingerprint) fail('artifact manifest does not match the assessed source or environment');
   const manifestSha256 = jsonDigest(manifest);
@@ -444,8 +439,7 @@ export function promotionEnvironment(card) {
     LUYENTAP_RELEASE_ARTIFACT_SHA256: card.artifact.manifestSha256,
   };
   if (card.verification.compatibilityReview) {
-    values.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE = card.verification.compatibilityReview.file;
-    values.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256 = card.verification.compatibilityReview.sha256;
+    values.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING = JSON.stringify(card.verification.compatibilityReview);
   }
   return values;
 }
@@ -493,8 +487,7 @@ const main = async (argv = process.argv.slice(2)) => {
       LUYENTAP_RELEASE_TEST_PLAN_FILE: inputs.planFile,
       LUYENTAP_RELEASE_TEST_PLAN_SHA256: inputs.planSha256,
       LUYENTAP_RELEASE_SOURCE_REF: inputs.sourceRef,
-      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE: inputs.compatibilityReviewFile,
-      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256: inputs.compatibilityReviewSha256,
+      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING: inputs.compatibilityReview ? JSON.stringify({ review: inputs.compatibilityReview, sha256: inputs.compatibilityReviewSha256 }) : '',
       LUYENTAP_RELEASE_SCOPE: inputs.includedScope,
       LUYENTAP_RELEASE_EXCLUDED: inputs.excludedScope,
       LUYENTAP_RELEASE_IMPACT: inputs.impact,
@@ -581,8 +574,7 @@ const main = async (argv = process.argv.slice(2)) => {
       eventSha: process.env.GITHUB_SHA || discovered.eventSha,
       planFile: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE || discovered.planFile,
       planSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || discovered.planSha256,
-      compatibilityReviewFile: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE || discovered.compatibilityReviewFile,
-      compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256 || discovered.compatibilityReviewSha256,
+      compatibilityReviewSha256: discovered.compatibilityReviewSha256,
       compatibilityReview: discovered.compatibilityReview,
       artifactSha256: process.env.LUYENTAP_RELEASE_ARTIFACT_SHA256 || discovered.artifactSha256,
       environmentFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT || discovered.environmentFingerprint,

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -35,6 +35,7 @@ export const writeOperationEvidence = async ({ id, status, error, cwd = repoRoot
       if (existing.operationId === id && ['changelog-pending', 'changelog-pending-integration', 'changelog-reconciled'].includes(existing.status)
         && ['published-verified', 'pending-verification-or-failed'].includes(status)) continue;
     } catch { /* no prior evidence */ }
+    await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, bytes, 'utf8');
   }
 };
@@ -114,7 +115,7 @@ export const assertListeningHostingReady = (result, observeListening = false, ob
   }
 };
 
-export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReviewPath, compatibilityReviewSha256, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
+export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReview, compatibilityReviewPath, compatibilityReviewSha256, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
   selectReleaseSource({ observeListening, observeListeningEditorRelease, listeningPhase, cwd });
   if (mode === 'acceptance') fail('acceptance assessments cannot invoke the production deployment route.');
   if (!base) fail('missing LUYENTAP_RELEASE_BASE; deployment source must be explicitly compared with a reviewed revision.');
@@ -123,15 +124,20 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!productionEnvFingerprint) fail('missing LUYENTAP_RELEASE_ENV_FINGERPRINT; deployment approval must bind to the exact production environment.');
   if (productionEnvFingerprint !== currentProductionEnvFingerprint) fail('production environment changed since release assessment.');
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
-  if (compatibilityReviewPath && (!/^[a-f0-9]{64}$/u.test(compatibilityReviewSha256 || '')
-    || digest(await readFile(path.resolve(cwd, compatibilityReviewPath))) !== compatibilityReviewSha256)) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
-  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, compatibilityReviewPath, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
+  if (!compatibilityReview && compatibilityReviewPath) {
+    if (!/^[a-f0-9]{64}$/u.test(compatibilityReviewSha256 || '')) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
+    const review = JSON.parse(await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8'));
+    if (digest(JSON.stringify(review)) !== compatibilityReviewSha256) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
+    compatibilityReview = { review, sha256: compatibilityReviewSha256 };
+  }
+  if (compatibilityReview !== undefined && (!compatibilityReview || typeof compatibilityReview !== 'object' || !compatibilityReview.review || digest(JSON.stringify(compatibilityReview.review)) !== compatibilityReview.sha256)) fail('compatibility review is missing, altered, or lacks its inline digest.');
+  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, compatibilityReview: compatibilityReview?.review, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
   assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
   if (result.baseline?.sha256 !== baselineSha256) fail('release assessment baseline fingerprint does not match the approved evidence.');
-  if (result.compatibilityReview && result.compatibilityReview.sha256 !== compatibilityReviewSha256) fail('compatibility review changed during assessment.');
+  if (result.compatibilityReview && (!compatibilityReview || result.compatibilityReview.sha256 !== compatibilityReview.sha256)) fail('compatibility review changed during assessment.');
   if (!['PASS', 'NOT_APPLICABLE'].includes(result.decision)) fail(`release assessment is ${result.decision}; deployment is gated.`);
   return result;
 };
@@ -507,8 +513,7 @@ const main = async () => {
         productionEnvFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT,
         currentProductionEnvFingerprint: loaded.envFingerprint,
         observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
-        compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
-        compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256,
+        compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
         cwd,
         ...listeningOptions,
       });
@@ -548,8 +553,7 @@ const main = async () => {
       productionEnvFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT,
       currentProductionEnvFingerprint: currentEnv,
       observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
-      compatibilityReviewPath: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE,
-      compatibilityReviewSha256: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256,
+      compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
       cwd,
       ...listeningOptions,
     });
@@ -559,8 +563,10 @@ const main = async () => {
       revalidate: async () => {
         if (digest(await readFile(loaded.envFile)) !== loaded.envFingerprint) fail('production environment changed while archiving.');
         if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== verification.planSha256) fail('verification plan changed while archiving.');
-        if (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE
-          && digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE))) !== process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256) fail('compatibility review changed while archiving.');
+        if (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) {
+          const binding = JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING);
+          if (!binding.review || digest(JSON.stringify(binding.review)) !== binding.sha256) fail('compatibility review changed while archiving.');
+        }
       },
     });
     console.log(`[Release] operation=${operation.id}`);

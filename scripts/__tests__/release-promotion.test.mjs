@@ -44,9 +44,10 @@ async function fixture() {
 test('promotion card binds protected source, baseline, plan, review, artifact and configuration', async () => {
   const { cwd, assessment, environmentFingerprint, manifest, verification, verificationEvidence } = await fixture();
   try {
+    const review = { schemaVersion: 1, decision: 'verified', reviewer: 'fixture reviewer', reviewedAt: new Date().toISOString(), sourceRevision: revision, baseRevision, observedFingerprint: digest('o'), scope: ['hosting'] };
     const card = createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'),
       sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision,
-      planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), compatibilityReviewFile: 'docs/review.json', compatibilityReviewSha256: digest('r'),
+      planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), compatibilityReview: review, compatibilityReviewSha256: digest(JSON.stringify(review)),
       artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint,
       verification, verificationEvidence, impact: 'Static Hosting presentation only; backend services are excluded.', missingProof: 'No application runtime paths changed.',
       includedScope: 'Hosting UI correction',
@@ -57,7 +58,7 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
     assert.equal(card.source.baseRevision, baseRevision);
     assert.equal(card.baseline.revision, baseRevision);
     assert.equal(card.baseline.tree, baselineTree);
-    assert.equal(card.verification.compatibilityReview.sha256, digest('r'));
+    assert.deepEqual(card.verification.compatibilityReview.review, review);
     assert.equal(card.verification.actual.suites[0].counts.passed, 1);
     assert.equal(card.verificationEvidence.record.decision, 'not-required');
     assert.doesNotThrow(() => assertVerificationReady(card));
@@ -71,7 +72,7 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
       LUYENTAP_RELEASE_FINGERPRINT: digest('f'), LUYENTAP_RELEASE_ENV_FINGERPRINT: environmentFingerprint,
       LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: digest('o'), LUYENTAP_RELEASE_TEST_PLAN_FILE: 'tmp/release-receipts/plan.json',
       LUYENTAP_RELEASE_TEST_PLAN_SHA256: digest('p'), LUYENTAP_RELEASE_ARTIFACT_SHA256: digest(JSON.stringify(manifest)),
-      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE: 'docs/review.json', LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256: digest('r'),
+      LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING: JSON.stringify({ review, sha256: digest(JSON.stringify(review)) }),
     });
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
@@ -146,8 +147,8 @@ test('compatibility review can be carried by the immutable verification bundle',
   try {
     const bytes = Buffer.from('{"schemaVersion":1,"decision":"verified"}\n');
     const result = await extractCompatibilityReview({ cwd, bundle: { artifacts: [{ id: 'compatibility-review', size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') }] } });
-    assert.equal(result.sha256, digest(bytes));
-    assert.equal(await readFile(path.join(cwd, result.file), 'utf8'), bytes.toString('utf8'));
+    assert.equal(result.sha256, digest(JSON.stringify(JSON.parse(bytes.toString('utf8')))));
+    assert.deepEqual(result.review, JSON.parse(bytes.toString('utf8')));
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
@@ -179,5 +180,19 @@ test('promotion evidence expires before it can authorize publication', async () 
     const staleEvidence = structuredClone(card);
     staleEvidence.verificationEvidence.record = { ...staleEvidence.verificationEvidence.record, decision: 'verified', checks: [{ name: 'agent-selected check', result: 'passed' }], evidenceRefs: ['evidence://verification-proof'], observedAt: '2020-01-01T00:00:00.000Z' };
     assert.throws(() => validatePromotionCard(staleEvidence), /verification evidence is stale/u);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('inline compatibility review rejects missing, altered, stale and mismatched bindings', async () => {
+  const { cwd, assessment, environmentFingerprint, manifest, verification, verificationEvidence } = await fixture();
+  const review = { schemaVersion: 1, decision: 'verified', reviewer: 'fixture reviewer', reviewedAt: new Date().toISOString(), sourceRevision: revision, baseRevision, observedFingerprint: digest('o'), scope: ['hosting'] };
+  const make = (value = review, sha = digest(JSON.stringify(value))) => createPromotionCard({ cwd, assessment, assessmentSha256: digest('a'), sourceRef: 'refs/heads/main', eventRef: 'refs/heads/main', eventName: 'workflow_dispatch', eventSha: revision, planFile: 'tmp/release-receipts/plan.json', planSha256: digest('p'), compatibilityReview: value, compatibilityReviewSha256: sha, artifactSha256: digest(JSON.stringify(manifest)), environmentFingerprint, verification, verificationEvidence, impact: 'scope', missingProof: 'none', includedScope: 'scope', excludedScope: 'excluded', recoveryTarget: 'version', recoveryLimits: 'hosting only' });
+  try {
+    const valid = make();
+    assert.throws(() => validatePromotionCard({ ...valid, verification: { ...valid.verification, compatibilityReview: { sha256: valid.verification.compatibilityReview.sha256 } } }), /compatibility review/u);
+    const altered = structuredClone(valid); altered.verification.compatibilityReview.review.scope = ['altered'];
+    assert.throws(() => validatePromotionCard(altered), /digest/u);
+    assert.throws(() => make({ ...review, reviewedAt: '2020-01-01T00:00:00.000Z' }), /stale|bound/u);
+    assert.throws(() => make({ ...review, sourceRevision: baseRevision }), /different source|bound/u);
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
