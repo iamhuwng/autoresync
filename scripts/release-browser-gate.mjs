@@ -78,7 +78,7 @@ const redactedCliOutput = value => String(value || '')
   .replace(/AIza[0-9A-Za-z_-]+/gu, '[redacted-api-key]')
   .slice(-1200);
 const oauthToken = () => process.env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() || execFileSync('gcloud', ['auth', 'print-access-token'], { encoding: 'utf8', windowsHide: true }).trim();
-const authHeaders = token => ({ authorization: `Bearer ${token}`, 'content-type': 'application/json' });
+const authHeaders = (token, project) => ({ authorization: `Bearer ${token}`, 'x-goog-user-project': project, 'content-type': 'application/json' });
 const requestJson = async (url, init = {}) => {
   const response = await fetch(url, { redirect: 'error', ...init });
   const body = await response.text();
@@ -149,7 +149,7 @@ export const assertBrowserEvidenceVerified = evidence => {
 const identityEndpoint = ({ project, operation, apiKey }) => `https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:${operation}${apiKey ? `?key=${encodeURIComponent(apiKey)}` : ''}`;
 export const accountState = async ({ project, uid, token, apiKey }) => {
   try {
-    const result = await requestJson(identityEndpoint({ project, operation: 'lookup', apiKey }), { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: [uid] }) });
+    const result = await requestJson(identityEndpoint({ project, operation: 'lookup', apiKey }), { method: 'POST', headers: authHeaders(token, project), body: JSON.stringify({ localId: [uid] }) });
     return (result.users || []).some(user => user.localId === uid) ? 'present' : 'absent';
   } catch (error) {
     if (error.status === 400 && error.body?.error?.message === 'USER_NOT_FOUND') return 'absent';
@@ -167,13 +167,13 @@ const deleteAccount = async ({ project, uid, token, apiKey, databaseUrl, profile
     try { await signOut(profileSession.auth); } catch (error) { errors.push(`Firebase profile session cleanup failed for ${uid}: ${error.message}`); }
     try { await deleteApp(profileSession.app); } catch (error) { errors.push(`Firebase app cleanup failed for ${uid}: ${error.message}`); }
   } else if (profileAttempted) {
-    try { await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: authHeaders(token) }); }
+    try { await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { method: 'DELETE', headers: authHeaders(token, project) }); }
     catch (error) { errors.push(`Administrative profile deletion failed for ${uid}: ${error.message}`); }
     try {
-      if (await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: authHeaders(token) }) !== null) errors.push(`RTDB profile remains after deletion: ${uid}`);
+      if (await requestJson(`${databaseUrl}/users/${encodeURIComponent(uid)}.json`, { headers: authHeaders(token, project) }) !== null) errors.push(`RTDB profile remains after deletion: ${uid}`);
     } catch (error) { errors.push(`Unable to verify RTDB profile deletion for ${uid}: ${error.message}`); }
   }
-  try { await requestJson(identityEndpoint({ project, operation: 'delete', apiKey }), { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ localId: uid }) }); }
+  try { await requestJson(identityEndpoint({ project, operation: 'delete', apiKey }), { method: 'POST', headers: authHeaders(token, project), body: JSON.stringify({ localId: uid }) }); }
   catch (error) { errors.push(`Auth deletion failed for ${uid}: ${error.message}`); }
   try { if (await accountState({ project, uid, token, apiKey }) !== 'absent') errors.push(`Auth account remains after deletion: ${uid}`); }
   catch (error) { errors.push(`Unable to verify Auth account deletion for ${uid}: ${error.message}`); }
@@ -224,8 +224,8 @@ const main = async () => {
   const databaseUrl = `${baseUrl.protocol}//${baseUrl.host}`;
   let previewUrl = '', recoveryUrl = '', token = '', failure;
   const cleanupErrors = [];
-  const configPath = path.join(outputDir, 'qualification-firebase.json');
-  const rulesPath = path.join(outputDir, 'qualification-database.rules.json');
+  const configPath = path.join(path.dirname(outputDir), `${path.basename(outputDir)}-qualification-firebase.json`);
+  const rulesPath = path.join(path.dirname(outputDir), `${path.basename(outputDir)}-qualification-database.rules.json`);
   await writeFile(configPath, `${JSON.stringify(qualificationHostingConfig({ site, publicDir: args.artifactDir || path.join(repoRoot, 'dist'), rulesPath: path.basename(rulesPath) }), null, 2)}\n`);
   await writeFile(rulesPath, `${JSON.stringify(qualificationDatabaseRules, null, 2)}\n`);
   const childEnv = { ...process.env, CI: 'true' };
@@ -239,7 +239,7 @@ const main = async () => {
     if (rulesDeploy.status !== 0) throw new Error(`Qualification database rules deployment failed: ${redactedCliOutput(`${rulesDeploy.stderr}\n${rulesDeploy.stdout}`)}`);
     for (const account of accounts) {
       attemptedAccounts.push(account);
-      await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
+      await requestJson(`https://identitytoolkit.googleapis.com/v1/projects/${project}/accounts:batchCreate`, { method: 'POST', headers: authHeaders(token, project), body: JSON.stringify({ allowOverwrite: false, users: [{ localId: account.uid, email: account.email, rawPassword: accountPassword, displayName: account.displayName, emailVerified: true }] }) });
       const profile = { uid: account.uid, email: account.email, displayName: account.displayName, firstName: account.displayName, familyName: 'Release Smoke', role: account.role, status: 'active', createdAt: Date.now(), lastLoginAt: Date.now(), profileCompletedAt: Date.now(), forceReauth: false, releaseSmoke: { sourceRevision: source.revision, backendRevision: source.baseRevision } };
       const app = initializeApp({
         apiKey: qualificationKey('VITE_FIREBASE_API_KEY'),
