@@ -40,7 +40,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 |---|---|---|
 | Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, release-check/archive tests, and the immutable verification handoff |
 | Change-scoped Codex application-verification handoff | Verified | `documentation/release-audits/2026-11-15-phase3-verification-bundle.md` records actual immutable synthetic publication/readback; promotion-card and bundle tests remain required |
-| Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency, Git/Hosting baseline checks and promotion tests; no production mutation in Phase 3 yet |
+| Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency plus one final exact Hosting-manifest snapshot; no production mutation in Phase 3 yet |
 | Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
 | Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
 | Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Verified at the release-orchestration boundary | `documentation/release-audits/2026-11-14-phase3-coordinated-change-rollback.md` records disposable frontend/Worker/rules assessor fixtures, backend-first ordering, negative compatibility checks, recovery limits and no-duplicate operation tests |
@@ -79,6 +79,14 @@ changes retain their own release-safety scopes. The promotion workflow no longer
 runs `browser-gate` or depends on a fixed browser suite; it requires the
 source-bound bundle only when the classifier says application evidence is
 required.
+
+The protected workflow concurrency group serializes its own writer. It is not a
+claim that an administrator cannot deploy outside Actions, so the production
+job keeps one final read-only Hosting snapshot immediately before mutation.
+That snapshot compares the approved revision, tree and manifest fingerprint and
+reads every manifest-listed asset. It does not rerun compatibility review or
+historical reconciliation; the disposable preview bundle is the application
+behavior proof, while the snapshot protects against live drift during approval.
 
 ## Current implementation and evidence
 

@@ -13,6 +13,13 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+When hardening one coupled release or staging contract, keep the work on one
+hardening branch and run the complete provider-backed rehearsal before merging.
+Batch failures that belong to that contract and merge only after the rehearsal
+passes. Split work only for an independent change or an urgent post-merge
+correction; a focused unit-test fix is not evidence that the next provider
+assumption has been exercised.
+
 Start routine preparation with `npm run release:plan -- --json`. It observes
 the live source/assets, selects that base automatically and reuses this assessor.
 It runs no build or tests and creates no approval. See
@@ -200,6 +207,13 @@ artifact upload opts in to hidden files solely so the public
 `.well-known/luyentap-release.json` manifest survives transfer; exact artifact
 validation rejects unexpected files and credential-bearing `.env` material before
 upload.
+
+Immediately before publication, the protected job performs one final Hosting
+snapshot with `scripts/release-promotion.mjs --verify-baseline`. It compares the
+approved baseline revision, tree and manifest fingerprint and verifies the
+manifest-listed asset hashes. This is a drift/concurrency check, not a second
+application review: application behavior is established by Codex's retained
+preview evidence, and compatibility review is not rerun at the mutation point.
 
 The existing executor also accepts `--deploy-retained` for a separately retained
 `dist/` artifact. It verifies the manifest digest, every manifest-listed file,

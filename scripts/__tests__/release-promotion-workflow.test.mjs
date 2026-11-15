@@ -37,7 +37,9 @@ test('promote verifies the source-bound card and retains guarded publication/rec
   assert.match(promote, /needs: \[prepare\]/u);
   assert.match(promote, /--check-card/u);
   assert.match(promote, /--require-verification/u);
-  assert.match(promote, /Re-observe the exact Hosting baseline immediately before mutation/u);
+  assert.match(promote, /Verify the approved Hosting baseline immediately before mutation/u);
+  assert.match(promote, /--verify-baseline --output/u);
+  assert.doesNotMatch(promote, /release-check\.mjs .*--observe-hosting/u);
   assert.match(promote, /Require protected main to remain the approved source/u);
   assert.match(promote, /--deploy-retained/u);
   assert.match(promote, /environment:\s*name: production/u);

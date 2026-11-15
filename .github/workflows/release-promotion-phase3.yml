@@ -307,15 +307,12 @@ jobs:
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
       - name: Export the release-card bindings
         run: node scripts/release-promotion.mjs --export-env "$RUNNER_TEMP/release-card/release-card.json"
-      - name: Re-observe the exact Hosting baseline immediately before mutation
+      - name: Verify the approved Hosting baseline immediately before mutation
         env:
           RECEIPT: tmp/release-receipts/pre-publish-baseline.json
         run: |
           set -euo pipefail
-          args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "$RECEIPT")
-          if test -n "${LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE:-}"; then args+=(--compatibility-review "$LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_FILE"); fi
-          node scripts/release-check.mjs "${args[@]}" >/dev/null
-          node --input-type=module -e 'import fs from "node:fs"; const result=JSON.parse(fs.readFileSync(process.env.RECEIPT,"utf8")); if (!["PASS","NOT_APPLICABLE"].includes(result.decision) || result.observed?.revision !== process.env.LUYENTAP_RELEASE_BASE || result.observed?.fingerprint !== process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT) process.exit(1);'
+          node scripts/release-promotion.mjs --verify-baseline --output "$RECEIPT" >/dev/null
       - name: Require protected main to remain the approved source
         run: |
           set -euo pipefail
