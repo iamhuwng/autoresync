@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
-import { runReleaseVerification, isReleaseVerification, assertReleaseVerification, parseVitestReport } from '../release-verification.mjs';
+import { runReleaseVerification, isReleaseVerification, assertReleaseVerification, assertRetainedReleaseVerification, parseVitestReport } from '../release-verification.mjs';
 
 const envFingerprint = 'a'.repeat(64);
 async function fixture(t, content, filename = 'sample.test.mjs') {
@@ -40,6 +40,14 @@ test('retained serialized verification cannot bypass the in-process trust marker
   assert.throws(() => assertReleaseVerification(retained, {
     source: retained.source, envFingerprint, planSha256: retained.planSha256,
   }), /untrusted/u);
+  assert.equal(assertRetainedReleaseVerification(retained, {
+    source: retained.source, envFingerprint, planSha256: retained.planSha256,
+  }), retained);
+  const altered = structuredClone(retained);
+  altered.suites[0].counts.passed = 0;
+  assert.throws(() => assertRetainedReleaseVerification(altered, {
+    source: retained.source, envFingerprint, planSha256: retained.planSha256,
+  }));
 });
 
 test('accepts tracked JSX test paths without bypassing test execution', async t => {

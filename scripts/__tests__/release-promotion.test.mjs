@@ -73,6 +73,7 @@ test('promotion card binds protected source, baseline, plan, review, artifact an
       LUYENTAP_RELEASE_FINGERPRINT: digest('f'), LUYENTAP_RELEASE_ENV_FINGERPRINT: environmentFingerprint,
       LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: digest('o'), LUYENTAP_RELEASE_TEST_PLAN_FILE: 'tmp/release-receipts/plan.json',
       LUYENTAP_RELEASE_TEST_PLAN_SHA256: digest('p'), LUYENTAP_RELEASE_ARTIFACT_SHA256: digest(JSON.stringify(manifest)),
+      LUYENTAP_RELEASE_VERIFICATION_RESULT: JSON.stringify(verification),
       LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING: JSON.stringify({ review, sha256: digest(JSON.stringify(review)) }),
     });
   } finally { await rm(cwd, { recursive: true, force: true }); }

@@ -448,6 +448,7 @@ export function promotionEnvironment(card) {
     LUYENTAP_RELEASE_TEST_PLAN_FILE: card.verification.planFile,
     LUYENTAP_RELEASE_TEST_PLAN_SHA256: card.verification.planSha256,
     LUYENTAP_RELEASE_ARTIFACT_SHA256: card.artifact.manifestSha256,
+    LUYENTAP_RELEASE_VERIFICATION_RESULT: JSON.stringify(card.verification.actual),
   };
   if (card.verification.compatibilityReview) {
     values.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING = JSON.stringify(card.verification.compatibilityReview);

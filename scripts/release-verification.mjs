@@ -78,6 +78,27 @@ export function assertReleaseVerification(value, { source, envFingerprint, planS
   return value;
 }
 
+export function assertRetainedReleaseVerification(value, { source, envFingerprint, planSha256 } = {}) {
+  fields(value, ['schemaVersion', 'decision', 'source', 'envFingerprint', 'planSha256', 'startedAt', 'completedAt', 'suites']);
+  if (value.schemaVersion !== 1 || value.decision !== 'PASS' || !source || source.dirty
+    || !value.source || Object.keys(value.source).some(key => !['revision', 'tree', 'baseRevision', 'fingerprint', 'dirty'].includes(key))
+    || !['revision', 'tree', 'baseRevision', 'fingerprint'].every(key => value.source[key] === source[key])
+    || value.source.dirty !== false || value.envFingerprint !== envFingerprint || value.planSha256 !== planSha256
+    || typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt))
+    || typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt))
+    || Date.parse(value.completedAt) < Date.parse(value.startedAt)
+    || !Array.isArray(value.suites) || value.suites.length < 1 || value.suites.length > 30) fail('retained verification result is invalid or stale');
+  for (const suite of value.suites) {
+    fields(suite, ['runner', 'files', 'config', 'counts', 'outputSha256']);
+    if (!['node', 'vitest'].includes(suite.runner) || !Array.isArray(suite.files) || suite.files.length < 1 || suite.files.length > 200
+      || suite.files.some(file => typeof file !== 'string') || (suite.runner === 'node' && suite.config !== undefined)) fail('retained verification suite is invalid');
+    if (!digest(suite.outputSha256)) fail('retained verification output digest is invalid');
+    validCounts(suite.counts);
+  }
+  verified.add(value);
+  return value;
+}
+
 export async function runReleaseVerification({ cwd, base, planPath, envFingerprint }) {
   if (!digest(envFingerprint)) fail('environment fingerprint must be a SHA-256 digest');
   cwd = await realpath(cwd);

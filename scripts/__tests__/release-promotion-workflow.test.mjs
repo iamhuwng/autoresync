@@ -47,6 +47,7 @@ test('promote verifies the source-bound card and retains guarded publication/rec
   assert.match(promote, /luyentap-release-result-/u);
   assert.doesNotMatch(promote, /COMPATIBILITY_REVIEW_FILE|COMPATIBILITY_REVIEW_SHA256|compatibility-review\.json/u);
   assert.match(promote, /release-result\/operation\.json/u);
+  assert.match(promote, /--export-env/u);
   assert.match(promote, /tmp\/release-receipts\/pre-publish-baseline\.json/u);
 });
 

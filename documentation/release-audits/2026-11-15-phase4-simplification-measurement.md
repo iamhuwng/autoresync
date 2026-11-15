@@ -39,13 +39,14 @@ run. The proof must show:
 If that proof passes, remove only the redundant execution and retain the
 source-bound result validation. If it does not, leave both executions in place.
 
-The first rehearsal now records the current result: a serialized verification
-result cannot satisfy `assertReleaseVerification` because that validator also
-requires its in-process trust marker. Therefore the second execution remains
-justified today. The next Phase 4 candidate is a separately designed retained
-result validator, followed by the same rehearsal; no duplicate execution is
-removed until that validator preserves the source, plan, environment, counts,
-and mutation-detection invariants.
+The first rehearsal recorded that a serialized verification result could not
+satisfy `assertReleaseVerification` because that validator also required its
+in-process trust marker. Phase 4 now adds `assertRetainedReleaseVerification`,
+which validates the serialized source, plan, environment, timestamps, suite
+counts, and output digests before marking the result trusted. The guarded
+retained-card path passes that result directly into deploy-live and no longer
+reruns the same verification plan; callers without retained evidence keep the
+old rerun fallback. The rehearsal proves altered retained counts still fail.
 
 This is the next Phase 4 action. Local-development reliability remains a
 separate workstream, and no fixed browser journey is introduced.
