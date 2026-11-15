@@ -30,6 +30,7 @@ test('prepare binds the retained Codex verification bundle before production aut
   assert.match(prepare, /card_sha256/u);
   assert.match(prepare, /contents: read/u);
   assert.doesNotMatch(prepare, /environment:\s*name: production/u);
+  assert.doesNotMatch(prepare, /cat "\$card" >> "\$GITHUB_STEP_SUMMARY"/u);
 });
 
 test('promote verifies the source-bound card and retains guarded publication/recovery', () => {
@@ -46,6 +47,7 @@ test('promote verifies the source-bound card and retains guarded publication/rec
   assert.match(promote, /luyentap-release-result-/u);
   assert.doesNotMatch(promote, /COMPATIBILITY_REVIEW_FILE|COMPATIBILITY_REVIEW_SHA256|compatibility-review\.json/u);
   assert.match(promote, /release-result\/operation\.json/u);
+  assert.match(promote, /tmp\/release-receipts\/pre-publish-baseline\.json/u);
 });
 
 test('recovery validates an operation UUID and never rebuilds or redeploys', () => {

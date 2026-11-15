@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { assertHostingBaseline, assertVerificationReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, extractCompatibilityReview, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+import { parseCompatibilityReviewBinding } from '../release-check.mjs';
 import { buildIdentityFor, bundleBytes, bundleDigest, verificationTag } from '../release-verification-bundle.mjs';
 
 const revision = 'a'.repeat(40);
@@ -194,5 +195,14 @@ test('inline compatibility review rejects missing, altered, stale and mismatched
     assert.throws(() => validatePromotionCard(altered), /digest/u);
     assert.throws(() => make({ ...review, reviewedAt: '2020-01-01T00:00:00.000Z' }), /stale|bound/u);
     assert.throws(() => make({ ...review, sourceRevision: baseRevision }), /different source|bound/u);
+    assert.throws(() => make({ ...review, scope: ['https://user:password@example.invalid'] }), /credentials/u);
+    assert.throws(() => make({ ...review, scope: ['x'.repeat(50000)] }), /32 KiB|scope/u);
   } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('inline review binding rejects altered envelopes, secrets and oversized objects', () => {
+  const review = { schemaVersion: 1, decision: 'verified', reviewer: 'fixture reviewer', reviewedAt: new Date().toISOString(), sourceRevision: revision, baseRevision, observedFingerprint: digest('o'), scope: ['hosting'] };
+  const binding = { review, sha256: digest(JSON.stringify(review)) };
+  assert.deepEqual(parseCompatibilityReviewBinding(binding), binding);
+  assert.throws(() => parseCompatibilityReviewBinding({ ...binding, sha256: digest('altered') }), /altered|digest/u);
 });

@@ -15,11 +15,12 @@ const selectRequest = (request, storeDir) => {
   return { ...request, description: selected.description };
 };
 
-export async function executeRecordedOperation(request, { prepare, execute, observe, onStarted, storeDir } = {}) {
+export async function executeRecordedOperation(request, { prepare, execute, observe, onStarted, onPrepareFailed, storeDir } = {}) {
   const record = beginRelease(selectRequest(request, storeDir), storeDir, { requireNew: true });
   console.log(`[Changelog] ${record.id}: ${path.join(storeDir ?? resolveStoreDir(), 'state.json')}`);
   await onStarted?.(record);
-  await prepare?.(record);
+  try { await prepare?.(record); }
+  catch (error) { await onPrepareFailed?.(record, error); throw error; }
   let commandError;
   try { await execute(record); } catch (error) { commandError = error; }
   let evidence;

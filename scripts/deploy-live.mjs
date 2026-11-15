@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { assess, classifyPaths, collectSourceState } from './release-check.mjs';
+import { assess, classifyPaths, collectSourceState, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { isHostingDependenciesObserved, observeHostingDependencies } from './release-hosting-dependencies.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
@@ -124,20 +124,24 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
   if (!productionEnvFingerprint) fail('missing LUYENTAP_RELEASE_ENV_FINGERPRINT; deployment approval must bind to the exact production environment.');
   if (productionEnvFingerprint !== currentProductionEnvFingerprint) fail('production environment changed since release assessment.');
   if (!observedFingerprint) fail('missing LUYENTAP_RELEASE_OBSERVED_FINGERPRINT; reviewed remote state must be bound to preflight.');
+  let compatibilityReviewExpectedSha256 = compatibilityReview?.sha256;
   if (!compatibilityReview && compatibilityReviewPath) {
     if (!/^[a-f0-9]{64}$/u.test(compatibilityReviewSha256 || '')) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
-    const review = JSON.parse(await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8'));
-    if (digest(JSON.stringify(review)) !== compatibilityReviewSha256) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
-    compatibilityReview = { review, sha256: compatibilityReviewSha256 };
+    const raw = await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8');
+    if (digest(raw) !== compatibilityReviewSha256) fail('compatibility review changed or lacks LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256.');
+    compatibilityReviewExpectedSha256 = compatibilityReviewSha256;
   }
-  if (compatibilityReview !== undefined && (!compatibilityReview || typeof compatibilityReview !== 'object' || !compatibilityReview.review || digest(JSON.stringify(compatibilityReview.review)) !== compatibilityReview.sha256)) fail('compatibility review is missing, altered, or lacks its inline digest.');
-  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, compatibilityReview: compatibilityReview?.review, observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
+  if (compatibilityReview !== undefined) {
+    try { compatibilityReview = parseCompatibilityReviewBinding(compatibilityReview); }
+    catch (error) { fail(error.message); }
+  }
+  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, ...(compatibilityReview ? { inlineCompatibilityReview: compatibilityReview.review } : { ...(compatibilityReviewPath ? { compatibilityReviewPath } : {}) }), observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
   assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
   if (result.baseline?.sha256 !== baselineSha256) fail('release assessment baseline fingerprint does not match the approved evidence.');
-  if (result.compatibilityReview && (!compatibilityReview || result.compatibilityReview.sha256 !== compatibilityReview.sha256)) fail('compatibility review changed during assessment.');
+  if (result.compatibilityReview && compatibilityReviewExpectedSha256 && result.compatibilityReview.sha256 !== compatibilityReviewExpectedSha256) fail('compatibility review changed during assessment.');
   if (!['PASS', 'NOT_APPLICABLE'].includes(result.decision)) fail(`release assessment is ${result.decision}; deployment is gated.`);
   return result;
 };
@@ -395,6 +399,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
   return executeRecordedOperation(request, {
     storeDir,
     onStarted: record => writeOperationEvidence({ id: record.id, status: 'prepared', cwd }),
+    onPrepareFailed: (record, error) => writeOperationEvidence({ id: record.id, status: 'pending-verification-or-failed', error: error.message, cwd }),
     prepare: async record => {
       archive = await retainArchive({ cwd, id, sourceRef, verification, intent: {
         schemaVersion: 1, id, request: recordedIntent(record), expectedManifest: expected, before, source,
@@ -513,7 +518,7 @@ const main = async () => {
         productionEnvFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT,
         currentProductionEnvFingerprint: loaded.envFingerprint,
         observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
-        compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
+        compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
         cwd,
         ...listeningOptions,
       });
@@ -553,7 +558,7 @@ const main = async () => {
       productionEnvFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT,
       currentProductionEnvFingerprint: currentEnv,
       observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
-      compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
+      compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
       cwd,
       ...listeningOptions,
     });
@@ -564,8 +569,7 @@ const main = async () => {
         if (digest(await readFile(loaded.envFile)) !== loaded.envFingerprint) fail('production environment changed while archiving.');
         if (digest(await readFile(path.resolve(cwd, process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE))) !== verification.planSha256) fail('verification plan changed while archiving.');
         if (process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) {
-          const binding = JSON.parse(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING);
-          if (!binding.review || digest(JSON.stringify(binding.review)) !== binding.sha256) fail('compatibility review changed while archiving.');
+          parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING);
         }
       },
     });
