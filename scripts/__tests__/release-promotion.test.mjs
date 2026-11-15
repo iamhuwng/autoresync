@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { assertVerificationReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
+import { assertVerificationReady, candidateTests, cardDigest, cardBytes, configurationDigest, createPromotionCard, createQualificationBinding, createVerificationPlan, extractCompatibilityReview, promotionEnvironment, validatePromotionCard, validateTrackedPath } from '../release-promotion.mjs';
 import { buildIdentityFor, bundleBytes, bundleDigest, verificationTag } from '../release-verification-bundle.mjs';
 
 const revision = 'a'.repeat(40);
@@ -132,6 +132,16 @@ test('automatic verification selection routes frontend tests to Vitest', () => {
 test('automatic test discovery excludes changed non-test files', () => {
   const files = candidateTests(process.cwd(), ['scripts/release-promotion.mjs', 'scripts/release-browser-gate.mjs', 'src/services/firebaseRuntimeConfig.js', 'src/services/firebaseRuntimeConfig.test.js', 'e2e/release-promotion-browser.spec.ts']);
   assert.deepEqual(files, ['scripts/__tests__/release-browser-gate.test.mjs', 'scripts/__tests__/release-promotion.test.mjs', 'src/services/firebaseRuntimeConfig.test.js']);
+});
+
+test('compatibility review can be carried by the immutable verification bundle', async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'release-review-extract-'));
+  try {
+    const bytes = Buffer.from('{"schemaVersion":1,"decision":"verified"}\n');
+    const result = await extractCompatibilityReview({ cwd, bundle: { artifacts: [{ id: 'compatibility-review', size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') }] } });
+    assert.equal(result.sha256, digest(bytes));
+    assert.equal(await readFile(path.join(cwd, result.file), 'utf8'), bytes.toString('utf8'));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
 test('application paths require agent-selected source-bound verification', async () => {

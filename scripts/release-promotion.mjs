@@ -252,6 +252,17 @@ export function createVerificationPlan(files) {
   };
 }
 
+export async function extractCompatibilityReview({ cwd = repoRoot, bundle } = {}) {
+  const artifact = bundle?.artifacts?.find(value => value?.id === 'compatibility-review');
+  if (!artifact) return { file: '', sha256: '' };
+  const bytes = Buffer.from(artifact.contentBase64 || '', 'base64');
+  if (bytes.length !== artifact.size || sha256(bytes) !== artifact.sha256) fail('verification bundle compatibility review artifact digest differs');
+  const file = 'tmp/release-receipts/compatibility-review.json';
+  await mkdir(path.dirname(path.resolve(cwd, file)), { recursive: true });
+  await writeFile(path.resolve(cwd, file), bytes);
+  return { file, sha256: sha256(bytes) };
+}
+
 export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile, objective } = {}) {
   if (!productionEnvFile) fail('production environment file is required for automatic preparation');
   if (!objective) fail('release objective is required; technical inputs are derived automatically');
@@ -295,6 +306,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     verificationBundle = readback.bundle;
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;
+    if (!compatibilityReviewFile) ({ file: compatibilityReviewFile, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
   } else {
     verificationEvidence = { schemaVersion: 1, requirement, decision: 'not-required', observedAt: new Date().toISOString(), method: 'release path classifier', scenario: 'No application runtime paths changed.', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [], evidenceRefs: [], summary: 'No application runtime paths changed; Codex application verification is not required for this candidate.' };
   }
