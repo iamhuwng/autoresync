@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import path from 'node:path';
-import { accountState, assertBrowserEvidenceVerified, outputUrl, parseJourneyCommand, qualificationDatabaseRules, qualificationHostingConfig, stagingScope, stagingWorkerBindings, waitForManifest } from '../release-browser-gate.mjs';
+import { accountState, assertBrowserEvidenceVerified, outputUrl, parseJourneyCommand, parseQualificationEnvironment, qualificationDatabaseRules, qualificationHostingConfig, stagingScope, stagingWorkerBindings, waitForManifest } from '../release-browser-gate.mjs';
 
 test('selects the channel URL when Firebase reports both site and channel URLs', () => {
   assert.equal(outputUrl('Hosting URL: https://qa-site.web.app\nChannel URL: https://qa-site--release-123.web.app'), 'https://qa-site--release-123.web.app');
@@ -30,6 +30,13 @@ test('staging declares excluded services instead of pretending to qualify them',
 test('worker-scoped journeys require non-production HTTPS Worker bindings', () => {
   assert.deepEqual(stagingWorkerBindings({ VITE_BOOK_RUNTIME_WORKER_URL: 'https://worker.example', LOCAL_ONLY: 'http://localhost:8787' }, true), { VITE_BOOK_RUNTIME_WORKER_URL: 'https://worker.example' });
   assert.throws(() => stagingWorkerBindings({ VITE_BOOK_RUNTIME_WORKER_URL: 'http://localhost:8787' }, true), /non-production Worker endpoint bindings/u);
+});
+
+test('qualification environment contract validates the requested services', () => {
+  const values = { VITE_FIREBASE_QUALIFICATION_API_KEY: 'key', VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN: 'qa.example', VITE_FIREBASE_QUALIFICATION_DATABASE_URL: 'https://qa.example', VITE_FIREBASE_QUALIFICATION_PROJECT_ID: 'qa-project', VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET: 'qa-bucket', VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID: 'sender', VITE_FIREBASE_QUALIFICATION_APP_ID: 'app', VITE_FIREBASE_QUALIFICATION_HOSTING_SITE: 'qa-site', VITE_BOOK_RUNTIME_WORKER_URL: 'https://worker.example' };
+  assert.equal(parseQualificationEnvironment(values, ['workers']).project, 'qa-project');
+  assert.throws(() => parseQualificationEnvironment({ ...values, VITE_BOOK_RUNTIME_WORKER_URL: '' }, ['workers']), /Worker endpoint bindings/u);
+  assert.throws(() => parseQualificationEnvironment({ ...values, VITE_FIREBASE_QUALIFICATION_PROJECT_ID: 'temp-a1437' }, []), /dedicated non-production/u);
 });
 
 const digest = value => createHash('sha256').update(value).digest('hex');

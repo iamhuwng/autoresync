@@ -49,7 +49,7 @@ export const parseJourneyCommand = value => {
   return { command: value.command, label: value.label === undefined ? 'Codex-selected staging journey' : journeyText(value.label, 'journey label'), services: [...new Set(services)] };
 };
 const readJourneyCommand = async file => {
-  if (!file) return { command: ['scripts/tooling-where.mjs', '--exec', 'playwright', 'test', 'e2e/release-promotion-browser.spec.ts', '--config', 'playwright.release-promotion.config.mjs'], label: 'optional fixed Playwright experiment', services: ['hosting', 'firebase-auth', 'firebase-rtdb', 'firebase-rules'] };
+  if (!file) throw new Error('journey command file is required; Codex must select the staging verification command');
   let value;
   try { value = JSON.parse(await readFile(path.resolve(file), 'utf8')); } catch { throw new Error('journey command file must contain valid JSON'); }
   return parseJourneyCommand(value);
@@ -65,6 +65,12 @@ export const stagingWorkerBindings = (values, required = false) => {
   const bindings = Object.fromEntries(Object.entries(values).filter(([key, value]) => /^VITE_.*WORKER.*(?:URL|ORIGIN)$/u.test(key) && /^https:\/\//u.test(value || '')));
   if (required && Object.keys(bindings).length === 0) throw new Error('selected staging journey requires non-production Worker endpoint bindings');
   return bindings;
+};
+export const parseQualificationEnvironment = (values, services = []) => {
+  const required = ['VITE_FIREBASE_QUALIFICATION_API_KEY', 'VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN', 'VITE_FIREBASE_QUALIFICATION_DATABASE_URL', 'VITE_FIREBASE_QUALIFICATION_PROJECT_ID', 'VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET', 'VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID', 'VITE_FIREBASE_QUALIFICATION_APP_ID', 'VITE_FIREBASE_QUALIFICATION_HOSTING_SITE'];
+  required.forEach(key => text(values[key], key));
+  if (values.VITE_FIREBASE_QUALIFICATION_PROJECT_ID === 'temp-a1437' || values.VITE_FIREBASE_LOCAL_ONLY === 'true') throw new Error('qualification Firebase must be a dedicated non-production project');
+  return { project: values.VITE_FIREBASE_QUALIFICATION_PROJECT_ID, site: values.VITE_FIREBASE_QUALIFICATION_HOSTING_SITE, databaseUrl: values.VITE_FIREBASE_QUALIFICATION_DATABASE_URL, workerBindings: stagingWorkerBindings(values, services.includes('workers')) };
 };
 const firebase = (args, env, options) => run(['scripts/tooling-where.mjs', '--exec', 'firebase', ...args], env, options);
 const redactedCliOutput = value => String(value || '')
@@ -193,19 +199,16 @@ const main = async () => {
   const artifact = binding.artifact;
   const envBytes = await readFile(path.resolve(args.qualificationEnvFile));
   const env = parseEnv(envBytes.toString('utf8'));
-  const project = text(args.project || env.VITE_FIREBASE_QUALIFICATION_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID, 'Firebase qualification project');
-  const site = text(args.site || env.VITE_FIREBASE_QUALIFICATION_HOSTING_SITE || env.VITE_FIREBASE_HOSTING_SITE, 'Firebase qualification site');
-  if (project === 'temp-a1437' || env.VITE_FIREBASE_LOCAL_ONLY === 'true') throw new Error('qualification Firebase must be a dedicated non-production project');
+  const journey = await readJourneyCommand(args.journeyCommandFile);
+  const qualification = parseQualificationEnvironment(env, journey.services);
+  const project = text(args.project || qualification.project, 'Firebase qualification project');
+  const site = text(args.site || qualification.site, 'Firebase qualification site');
   if (sha256(envBytes) === binding.environmentFingerprint) throw new Error('retained production artifact is bound to the production Firebase environment; build a qualification-bound artifact before browser qualification');
   const qualificationKey = key => env[`VITE_FIREBASE_QUALIFICATION_${key.replace('VITE_FIREBASE_', '')}`] || env[key];
-  const configuredDatabaseUrl = qualificationKey('VITE_FIREBASE_DATABASE_URL');
-  if (!configuredDatabaseUrl) throw new Error('qualification environment must include VITE_FIREBASE_QUALIFICATION_DATABASE_URL');
-  for (const key of ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_DATABASE_URL', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID']) {
-    if (!qualificationKey(key)) throw new Error(`qualification environment is missing VITE_FIREBASE_QUALIFICATION_${key.replace('VITE_FIREBASE_', '')}`);
-  }
+  const configuredDatabaseUrl = qualification.databaseUrl;
   const outputDir = path.resolve(args.outputDir);
   await mkdir(outputDir, { recursive: true });
-  const journey = await readJourneyCommand(args.journeyCommandFile);
+  await writeFile(path.join(outputDir, 'qualification-contract.json'), `${JSON.stringify({ project, site, services: journey.services, includedServices: stagingScope.included, excludedServices: stagingScope.excluded, workerBindings: qualification.workerBindings, source: source.revision, artifact: artifact.manifestSha256 }, null, 2)}\n`);
   const channel = `qualification-release-${process.env.GITHUB_RUN_ID || 'local'}-${randomUUID().slice(0, 8)}`;
   const recoveryChannel = `${channel}-recovery`;
   const suffix = randomUUID().replaceAll('-', '').slice(0, 16);
