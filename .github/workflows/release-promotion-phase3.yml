@@ -309,7 +309,7 @@ jobs:
         run: node scripts/release-promotion.mjs --export-env "$RUNNER_TEMP/release-card/release-card.json"
       - name: Re-observe the exact Hosting baseline immediately before mutation
         env:
-          RECEIPT: ${{ runner.temp }}/pre-publish-baseline.json
+          RECEIPT: tmp/release-receipts/pre-publish-baseline.json
         run: |
           set -euo pipefail
           args=(--mode release --target hosting --base "$LUYENTAP_RELEASE_BASE" --observe-hosting --env-fingerprint "$LUYENTAP_RELEASE_ENV_FINGERPRINT" --json --receipt "$RECEIPT")
