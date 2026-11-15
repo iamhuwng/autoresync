@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #272. A corrective follow-up preserves the same production authorization boundary; Phase 4 is next.
+Status: Phase 1, Phase 2, and Phase 3 release-orchestration capability are complete on protected `main` after PR #273. The production authorization boundary remains separate; Phase 4 is next.
 
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
@@ -40,7 +40,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 |---|---|---|
 | Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, inline compatibility-review negative tests (missing, altered, stale and mismatched), release-check/archive tests, and the immutable verification handoff |
 | Change-scoped Codex application-verification handoff | Verified | `documentation/release-audits/2026-11-15-phase3-verification-bundle.md` records actual immutable synthetic publication/readback; promotion-card and bundle tests remain required |
-| Serialized promotion and stale production freshness protection | Implemented and automatically tested | Workflow concurrency plus one final exact Hosting-manifest snapshot; no production mutation in Phase 3 yet |
+| Serialized promotion and stale production freshness protection | Verified at the release boundary | Workflow concurrency plus one final exact Hosting-manifest snapshot; production mutation remains separately authorized |
 | Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
 | Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
 | Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Verified at the release-orchestration boundary | `documentation/release-audits/2026-11-14-phase3-coordinated-change-rollback.md` records disposable frontend/Worker/rules assessor fixtures, backend-first ordering, negative compatibility checks, recovery limits and no-duplicate operation tests |
@@ -88,18 +88,35 @@ reads every manifest-listed asset. It does not rerun compatibility review or
 historical reconciliation; the disposable preview bundle is the application
 behavior proof, while the snapshot protects against live drift during approval.
 
+### Change-impact routing
+
+Phase 3 is a router, not a fixed deployment ceremony. The planner and
+promotion package select the lightest route that protects the changed surface:
+
+| Change impact | Required route | Evidence boundary |
+|---|---|---|
+| Routine frontend or static Hosting change | Focused automated checks plus proportionate preview/browser evidence | Source/artifact/config binding and change-scoped application evidence when runtime paths change |
+| Backend, rules, configuration, Worker, storage, or provider change | Service-specific emulator, runtime, or provider checks | Native service observation, compatibility, ordering, and recovery limits |
+| Coordinated frontend plus Worker/Firebase change | Spare-environment journeys and compatibility checks | Coordinated source/base/live bindings, backend-first ordering, and rollback evidence |
+| Release-infrastructure-only change | Infrastructure tests and artifact/readback/recovery qualification | Promotion-card, operation, publication, independent readback, and recovery contracts |
+
+Codex chooses the browser, provider, test depth, deployment order, and recovery
+evidence from actual risk. A route fails closed only when its selected evidence
+is missing, stale, altered, or mismatched. Fixed ceremonies without a concrete
+invariant remain optional or are removed.
+
 ## Current implementation and evidence
 
-- Protected `main` is authoritative; PR #256 is the latest plan-status reconciliation. Query the live commit before making current-state claims.
+- Protected `main` is authoritative; PR #273 (`aabd0dbf61cf8793d84d4ba945503aad20d8a541`) is the current Phase 3 corrective merge. Query the live commit before making current-state claims.
 - PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
 - PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
 - PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
 - PR #246 merged the disposable Hosting publication/recovery evidence as `8da3f49cbfefd24e02f89a51a27aebfa786b6b44`.
 - PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
 - The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
-- Focused local proof on the Phase 3 branch: 68 Node tests, 3 runtime-config tests and x64 RTDB emulator security proof covering initial privilege escalation, immutable role/status, deletion/recreation and cleanup.
+- Focused local proof for the Phase 3 promotion package: 272 Node script tests passed, including the synthetic application-review rehearsal; the earlier runtime-config and x64 RTDB emulator security proof remains valid for its separate scope.
 - PR #272 (single promotion package) removes compatibility-review file/path transport. The promotion card now carries the canonical review object with its digest, deploy-live validates that binding directly, and the promote job no longer copies or rehydrates a review file. Deploy-live owns operation-result writes; Actions only retains/uploads the generated result files. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; this change does not redeploy.
-- Production was not deployed or approved. The production GitHub environment remains the owner-controlled boundary.
+- Production was not deployed or approved by PR #272/#273. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
 
 ## Recommended milestones
 
@@ -107,7 +124,7 @@ behavior proof, while the snapshot protects against live drift during approval.
 2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
 3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
 4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. Next: rerun the guarded promotion after PR #254, then measure and remove only demonstrated duplication. The current inspection found one verification-bundle implementation and no promotion-workflow dependency on the browser gate; it did not justify deleting the optional disposable experiment.
+5. Completed: PR #272 and corrective PR #273 completed the single-package handoff and evidence hardening. Next is Phase 4 measurement: observe duplicate verification, manual inputs, and retained artifacts across promotions, then remove only demonstrated duplication without weakening a concrete invariant.
 
 ## Historical evidence
 
