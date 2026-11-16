@@ -188,6 +188,14 @@ export function AuthProvider({ children }) {
           unsubscribeStudentIdentifier();
           unsubscribeStudentIdentifier = null;
         }
+        // Firebase publishes sign-in before the verification-email request finishes.
+        if (authUser && !authUser.emailVerified && !isDevVerifiedAccount(authUser.email)) {
+          setUser(null);
+          setProfile(null);
+          setStudentId(null);
+          setLoading(false);
+          return;
+        }
         if (authUser) {
           setUser(authUser);
           setStudentId(null);
