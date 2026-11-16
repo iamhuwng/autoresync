@@ -121,6 +121,8 @@ ownership boundary. The canonical result-view surface map below is unchanged.
 
 The student login expansion removed the retired `/profile/complete` route from authentication route tracking. No result surface, result owner, or saved-result data path changed.
 
+The Google-student password setup correction adds profile action tracking only; the mapped result surfaces and entry owners are unchanged.
+
 
 ## 2026-10-18 Reading backend source reconciliation
 

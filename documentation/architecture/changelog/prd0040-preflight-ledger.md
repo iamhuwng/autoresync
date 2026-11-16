@@ -971,4 +971,6 @@ The Reading V2 review adapter preserves a shared prompt's displayed number range
 
 The login expansion removed the retired /profile/complete route from authentication tracking. No PRD-0040 result contract or closure status changed.
 
+The Google-student password setup correction preserves the assigned ID and adds profile action tracking. Result routes, reads, writes, permissions and closure status remain unchanged; focused profile/auth tests cover the correction.
+
 \n

@@ -427,6 +427,11 @@ export function AuthProvider({ children }) {
 
   const setupStudentCredentials = async ({ studentId, password, firstName, familyName }) => {
     if (!auth.currentUser?.getIdToken) throw studentAuthError('unauthorized');
+    const currentIdentifier = await get(ref(database, `student_identifiers/${auth.currentUser.uid}`));
+    const assignedId = currentIdentifier.val()?.studentId;
+    if (assignedId && assignedId.trim().normalize('NFKC').toLowerCase() !== studentId.trim().normalize('NFKC').toLowerCase()) {
+      throw studentAuthError('student_id_already_assigned');
+    }
     await updatePassword(auth.currentUser, password);
     const idToken = await auth.currentUser.getIdToken();
     await callStudentAuthWorker('/auth/student/ensure-id', {

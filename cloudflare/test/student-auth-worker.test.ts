@@ -222,6 +222,25 @@ describe('student authentication Worker', () => {
     expect(database.values.get('student_identifiers/google-student')).toMatchObject({ studentId: 'STU-ABCD2345' });
   });
 
+  it('rejects changing an assigned student ID without mutating the profile or identifier', async () => {
+    const database = createMemoryDatabase({
+      'users/google-student': { uid: 'google-student', role: 'student', status: 'active' },
+      'student_identifiers/google-student': { studentId: 'STU-ASSIGNED' },
+    });
+    const before = [...database.values.entries()];
+    const worker = createStudentAuthWorkerHandlers({
+      firebaseVerifier: { verifyAuthorizationHeader: async () => ({ valid: true, uid: 'google-student' }) },
+      databaseFactory: () => database,
+      rateLimit: async () => true,
+    });
+    const response = await worker.fetch(makeRequest('/auth/student/ensure-id', {
+      studentId: 'DIFFERENT-ID', firstName: 'Changed',
+    }, { authorization: 'Bearer firebase-id-token' }), makeEnv());
+    expect(response.status).toBe(409);
+    expect(await readJson(response)).toEqual({ code: 'student_id_already_assigned' });
+    expect([...database.values.entries()]).toEqual(before);
+  });
+
   it('rejects a malformed requested ID instead of silently generating another one', async () => {
     const database = createMemoryDatabase({
       'users/google-student': {
