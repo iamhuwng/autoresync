@@ -34,6 +34,42 @@ test('a nested source checkout reuses only matching ancestor dependency contract
   }
 });
 
+test('a fresh sibling worktree reuses a matching registered dependency owner', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-sibling-owner-'));
+  let owner;
+  const git = (...args) => { const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8', windowsHide: true }); assert.equal(result.status, 0, result.stderr); };
+  try {
+    fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ dependencies: { vite: '1' } }));
+    fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
+    fs.copyFileSync(path.resolve(import.meta.dirname, '../tooling-where.mjs'), path.join(repo, 'scripts/tooling-where.mjs'));
+    git('init', '-q'); git('config', 'core.autocrlf', 'false'); git('config', 'user.name', 'Tooling Test'); git('config', 'user.email', 'tooling@example.invalid'); git('add', '.'); git('commit', '-qm', 'baseline');
+    owner = path.join(path.dirname(repo), `${path.basename(repo)}-owner`);
+    const add = spawnSync('git', ['worktree', 'add', owner, 'HEAD'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+    assert.equal(add.status, 0, add.stderr);
+    fs.mkdirSync(path.join(owner, 'node_modules', 'vite', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'package.json'), '{"name":"vite"}\n');
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), '');
+    const result = spawnSync(process.execPath, [path.join(repo, 'scripts/tooling-where.mjs'), 'vite'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.includes(path.basename(owner)));
+    assert.match(result.stdout, /node_modules[\\/]vite[\\/]bin[\\/]vite\.js/u);
+    fs.mkdirSync(path.join(owner, 'node_modules', 'fixture-dependency'), { recursive: true });
+    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'package.json'), '{"name":"fixture-dependency","main":"index.cjs"}\n');
+    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'index.cjs'), "module.exports = { value: 'owner' };\n");
+    fs.writeFileSync(path.join(repo, 'config.cjs'), "module.exports = require('fixture-dependency');\n");
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), "const config = require(require('node:path').join(process.cwd(), 'config.cjs')); if (config.value !== 'owner') process.exit(2); console.log('overlay-ok');\n");
+    const executed = spawnSync(process.execPath, [path.join(repo, 'scripts/tooling-where.mjs'), '--exec', 'vite', '--config', 'config.cjs'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+    assert.equal(executed.status, 0, executed.stderr);
+    assert.match(executed.stdout, /overlay-ok/u);
+    assert.equal(fs.existsSync(path.join(repo, 'node_modules')), false);
+    spawnSync('git', ['worktree', 'remove', '--force', owner], { cwd: repo, encoding: 'utf8', windowsHide: true });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (owner) fs.rmSync(owner, { recursive: true, force: true });
+  }
+});
+
 test('Worker resolver selects Windows x64 only on ARM64 and refuses WSL', () => {
   const canonicalX64Node = path.join(
     process.env.CODEX_WINDOWS_TOOLS_ROOT || path.join(os.homedir(), '.codex', 'tools', 'windows-arm64'),
