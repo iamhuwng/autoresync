@@ -9,3 +9,12 @@ test('qualification health command is read-only and fail-closed for missing Work
   assert.match(source, /identitytoolkit.googleapis.com/u);
   assert.doesNotMatch(source, /firebase deploy|database:set|database:remove|hosting:deploy/u);
 });
+
+test('qualification Worker config is isolated from production resources', async () => {
+  const source = await readFile(new URL('../../cloudflare/wrangler.qualification.jsonc', import.meta.url), 'utf8');
+  assert.match(source, /luyentap-qualification-upload-signer/u);
+  assert.match(source, /luyentap-qualification-media/u);
+  assert.match(source, /luyentap-qualification-listening-audio/u);
+  assert.match(source, /luyentap-pdf-qa-20261021/u);
+  assert.doesNotMatch(source, /kahoot-media|luyentap-listening-audio-private|name": "r2-upload-signer"/u);
+});
