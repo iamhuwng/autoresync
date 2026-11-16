@@ -151,6 +151,12 @@ byte-identical and dependency declarations match. This preserves the selected
 source/configuration/cwd without installing or linking another dependency tree.
 Different locks or declarations remain missing-tool errors.
 
+The same resolver may reuse an existing repository-owned dependency tree from a
+registered sibling Git worktree when that package's lockfile and dependency
+declarations match byte-for-byte. This keeps fresh release or assessment
+checkouts stateless while avoiding a duplicate install; unregistered locations,
+different contracts and missing tools still fail closed.
+
 Retained Wrangler audits run Windows x64 against the live checkout and the
 selected package's existing dependencies. They create evidence/run receipts,
 but no source snapshot, dependency installation, or WSL environment. Other

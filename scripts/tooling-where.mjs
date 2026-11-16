@@ -3,22 +3,48 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRequire } from 'node:module';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-let rootToolOwner = repoRoot;
-if (!fs.existsSync(path.join(repoRoot, 'node_modules', 'vite', 'package.json'))) {
+const dependencyFields = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+const packageFilesMatch = (sourceRoot, ownerRoot, relativePackage) => {
   try {
-    const owner = path.dirname(path.dirname(path.dirname(createRequire(import.meta.url).resolve('vite/package.json'))));
-    const ownPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-    const installedPackage = JSON.parse(fs.readFileSync(path.join(owner, 'package.json'), 'utf8'));
-    const fields = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
-    if (fs.readFileSync(path.join(repoRoot, 'package-lock.json')).equals(fs.readFileSync(path.join(owner, 'package-lock.json')))
-      && fields.every(field => JSON.stringify(ownPackage[field]) === JSON.stringify(installedPackage[field]))) rootToolOwner = owner;
+    const sourcePackage = JSON.parse(fs.readFileSync(path.join(sourceRoot, relativePackage, 'package.json'), 'utf8'));
+    const ownerPackage = JSON.parse(fs.readFileSync(path.join(ownerRoot, relativePackage, 'package.json'), 'utf8'));
+    return dependencyFields.every((field) => JSON.stringify(sourcePackage[field]) === JSON.stringify(ownerPackage[field]))
+      && fs.readFileSync(path.join(sourceRoot, relativePackage, 'package-lock.json')).equals(fs.readFileSync(path.join(ownerRoot, relativePackage, 'package-lock.json')));
   } catch {
-    // Missing or incompatible ancestor dependencies remain an ordinary missing-tool error.
+    return false;
   }
+};
+const worktreeRoots = () => {
+  try {
+    const result = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot, encoding: 'utf8', windowsHide: true });
+    if (result.status !== 0) return [repoRoot];
+    return [...new Set([repoRoot, ...result.stdout.split(/\r?\n/u).filter(line => line.startsWith('worktree ')).map(line => path.resolve(line.slice(9)))])];
+  } catch {
+    return [repoRoot];
+  }
+};
+const findPackageOwner = (relativePackage, packageName) => worktreeRoots().find(root =>
+  packageFilesMatch(repoRoot, root, relativePackage)
+  && fs.existsSync(path.join(root, relativePackage, 'node_modules', packageName, 'package.json'))
+) || repoRoot;
+const findAncestorPackageOwner = (relativePackage, packageName) => {
+  let current = path.dirname(repoRoot);
+  while (current && current !== path.dirname(current)) {
+    if (packageFilesMatch(repoRoot, current, relativePackage)
+      && fs.existsSync(path.join(current, relativePackage, 'node_modules', packageName, 'package.json'))) return current;
+    current = path.dirname(current);
+  }
+  return null;
+};
+let rootToolOwner = findPackageOwner('', 'vite');
+if (rootToolOwner === repoRoot && !fs.existsSync(path.join(repoRoot, 'node_modules', 'vite', 'package.json'))) {
+  rootToolOwner = findAncestorPackageOwner('', 'vite') || rootToolOwner;
 }
+const cloudflareToolOwner = findPackageOwner('cloudflare', 'wrangler');
+const r2ToolOwner = findPackageOwner('r2-backup-worker', 'wrangler');
+const functionsToolOwner = findPackageOwner('functions', 'typescript');
 const home = os.homedir();
 const sharedToolsRoot =
   process.env.CODEX_WINDOWS_TOOLS_ROOT ||
@@ -82,27 +108,27 @@ const entries = {
   },
   'cloudflare-vitest': {
     owner: 'cloudflare package',
-    path: path.join(repoRoot, 'cloudflare', 'node_modules', 'vitest', 'vitest.mjs'),
+    path: path.join(cloudflareToolOwner, 'cloudflare', 'node_modules', 'vitest', 'vitest.mjs'),
     runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
   },
   'cloudflare-wrangler': {
     owner: 'cloudflare package',
-    path: path.join(repoRoot, 'cloudflare', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
+    path: path.join(cloudflareToolOwner, 'cloudflare', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
     runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
   },
   'r2-wrangler': {
     owner: 'r2-backup-worker package',
-    path: path.join(repoRoot, 'r2-backup-worker', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
+    path: path.join(r2ToolOwner, 'r2-backup-worker', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
     runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
   },
   'r2-vitest': {
     owner: 'r2-backup-worker package',
-    path: path.join(repoRoot, 'r2-backup-worker', 'node_modules', 'vitest', 'vitest.mjs'),
+    path: path.join(r2ToolOwner, 'r2-backup-worker', 'node_modules', 'vitest', 'vitest.mjs'),
     runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
   },
   'functions-tsc': {
     owner: 'functions package',
-    path: path.join(repoRoot, 'functions', 'node_modules', 'typescript', 'bin', 'tsc'),
+    path: path.join(functionsToolOwner, 'functions', 'node_modules', 'typescript', 'bin', 'tsc'),
     runtime: 'package declares Node 18; do not provision another runtime unless this package requires execution',
   },
   'firebase-emulators': {
