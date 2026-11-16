@@ -32,6 +32,11 @@ configuration as `LUYENTAP_QUALIFICATION_ENV`, plus its existing OIDC identity;
 `LUYENTAP_QUALIFICATION_WORKER_URL` records the stable endpoint. Reuse these
 settings instead of recreating the foundation for every deployment.
 
+Git-triggered Cloudflare builds on this QA Worker are disabled. Publish selected
+QA Worker source through the explicit `wrangler.qualification.jsonc` route;
+the old repository-root app build/default deploy command had no QA build
+configuration and must not silently replace the tested Worker version.
+
 Run the read-only health check before a release attempt:
 
 ```powershell

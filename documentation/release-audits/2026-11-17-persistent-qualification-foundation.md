@@ -50,6 +50,10 @@ hardening branch; they do not change the compiled frontend code.
    `markingStatus ASC, studentId ASC, submittedAt DESC`. All seven remaining
    composite definitions deployed successfully; the new index reached READY.
    The checked-in Firestore rules were also released to QA.
+5. Publishing the hardening branch exposed an existing Git-triggered Cloudflare
+   build using the repository-root app build, a default preview/deploy command
+   and no build variables. Disabled automatic builds on the QA Worker so later
+   pushes cannot replace its explicitly selected and tested QA deployment.
 
 ## Results
 
