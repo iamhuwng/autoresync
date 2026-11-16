@@ -122,6 +122,8 @@ Status keys:
 
 ## 2026-11-16 Authentication route retirement
 
+The Google-student password setup correction adds profile tracking only and changes no PRD-0040 FR status or closure evidence.
+
 The login expansion removed the retired `/profile/complete` route from authentication tracking. PRD-0040 closure status and all result-view contracts remain unchanged.
 
 ## Locked Test Matrix

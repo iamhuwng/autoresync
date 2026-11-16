@@ -7,7 +7,7 @@ Master entry: [Master Changelog](../master_changelog.md)
 
 Expanded authentication so students can register and sign in with email/password or student ID/password while retaining Google sign-in. Public registration remains student-only and requires first name, last name, email, student ID, password, and Firebase email verification; the development teacher and student fixtures remain available as verified exceptions.
 
-Google-only students receive a generated student ID on successful sign-in and can use the one-time setup flow in `/profile` to choose their name, ID, and password. Login, registration, and profile setup expose accessible password visibility controls. The retired `/profile/complete` route, guard, page, and obsolete E2E suite were removed.
+Google-only students receive a generated student ID on successful sign-in and can use the one-time setup flow in `/profile` to keep their assigned ID, confirm their name, and add a password. Login, registration, and profile setup expose accessible password visibility controls. The retired `/profile/complete` route, guard, page, and obsolete E2E suite were removed.
 
 ## Verification
 
