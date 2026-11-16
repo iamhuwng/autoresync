@@ -43,7 +43,9 @@ const rules = [
   ['worker', p => /^(cloudflare\/|scripts\/local-book-source-worker\.mjs)/.test(p)],
   ['backup-worker', p => /^r2-backup-worker\//u.test(p) || sharedHomeworkInputs.includes(p)],
   ['migrations', p => !/^(?:documentation|\.knowns)\//u.test(p) && /(^|\/)(migrations?\/|[^/]*(?:migrate|backfill|reconciliation)[^/]*\.(?:mjs|ts|js)$)/iu.test(p)],
-  ['backblaze', p => /(backblaze|book-source|wrangler\.book-source|B2)/i.test(p)],
+  // The local launcher generates a disposable Worker config; its filename does
+  // not mean that a production B2 bucket or prefix changed.
+  ['backblaze', p => p !== 'scripts/local-book-source-worker.mjs' && /(backblaze|book-source|wrangler\.book-source|B2)/i.test(p)],
   ['tooling', p => /^(\.github\/workflows\/|package(?:\.json|-lock\.json)|scripts\/(?:tooling|harness|dev-env|branch-doctor|release-|hotfix-|deploy-live|local-dev|integration-check))/.test(p)],
 ];
 const git = (args, cwd) => { const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }); if (result.error || result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.error?.message || result.stderr?.trim() || result.status}`); return result.stdout; };
@@ -292,6 +294,8 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
     editorObservation = null;
     findings.push({ status: STATUS.UNVERIFIED, message: `Editor release readback: ${error.message}` });
   }
+  if (editorObservation?.profile === 'private-audio' && source.files.includes('scripts/local-book-source-worker.mjs')) services.push('backblaze');
+  services.sort();
   if (editorWorkerOnly) return {
     schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: 'upload-worker-only',
     source: { ...source, services: ['worker'], changedServices: services }, baseline: null, observed: null,

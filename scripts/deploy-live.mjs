@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { assess, classifyPaths, collectSourceState, parseCompatibilityReviewBinding } from './release-check.mjs';
+import { assess, collectSourceState, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { isHostingDependenciesObserved, observeHostingDependencies } from './release-hosting-dependencies.mjs';
 import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
@@ -403,7 +403,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)
     || assessment.source.fingerprint !== source.fingerprint || assessment.observed.revision !== base) fail('deployment requires the current exact-source assessment.');
   if (assessment.hostingDependencies && !isHostingDependenciesObserved(assessment.hostingDependencies)) fail('deployment rejects caller-supplied Hosting dependency evidence.');
-  if (assessment.target === 'hosting' && classifyPaths(source.files).some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service))
+  if (assessment.target === 'hosting' && assessment.source.services?.some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service))
     && (!isHostingDependenciesObserved(assessment.hostingDependencies)
       || assessment.hostingDependencies.source.fingerprint !== source.fingerprint
       || assessment.compatibilityReview?.dependenciesFingerprint !== assessment.hostingDependencies.fingerprint)) {

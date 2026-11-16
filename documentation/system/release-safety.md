@@ -328,6 +328,15 @@ A JSON file passed with `--baseline` is recorded as caller-supplied assertion an
 
 The checker identifies Hosting, Firebase rules/indexes, Worker, backup Worker, Backblaze, migrations, and tooling impact from a small maintained path map. It reports required actions, deployment ordering, and recovery limitations in the receipt. It deliberately reports cross-service changes for review instead of claiming runtime compatibility. It also flags the current Worker rollout expiry, local allowed origin, staging environment, and preview Backblaze prefix when those configuration files are in scope.
 
+The path map distinguishes local development launchers from production storage
+configuration. `scripts/local-book-source-worker.mjs` is a local Worker launcher;
+changes there route through Worker/local-development verification and do not, by
+filename alone, require production Backblaze ownership evidence. Real Book Worker
+code, Wrangler Book configuration, B2 bindings, prefixes, or an explicit
+private-audio qualification still retain the Backblaze gate. Codex must use the
+changed content and selected route to decide which service evidence is needed;
+the classifier must not turn a local helper name into a production mutation scope.
+
 A `BLOCKED` or `UNVERIFIED` result gates deployment preparation. Deployment still uses the existing reviewed `npm run build:production` and `npm run deploy:hosting` routes only after separate authorization and fresh verification. No command in this workflow imports emulator data, changes live Firebase, mutates Backblaze, changes Worker bindings, or pushes branches.
 
 The bootstrap boundary was regression-tested on 2026-10-11: a disposable
