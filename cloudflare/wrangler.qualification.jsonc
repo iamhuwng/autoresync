@@ -1,0 +1,61 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luyentap-qualification-upload-signer",
+  "main": "worker.js",
+  "compatibility_date": "2026-01-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "ai": { "binding": "AI" },
+  "r2_buckets": [
+    { "binding": "R2_BUCKET", "bucket_name": "luyentap-qualification-media" },
+    { "binding": "LISTENING_AUDIO_BUCKET", "bucket_name": "luyentap-qualification-listening-audio" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "UPLOAD_GRANT_REPLAY_LEDGER", "class_name": "UploadGrantReplayLedger" }]
+  },
+  "migrations": [
+    { "tag": "v1-upload-grant-replay-ledger", "new_sqlite_classes": ["UploadGrantReplayLedger"] },
+    { "tag": "v4-prd0062-prd0062b-retirement" }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "luyentap-pdf-qa-20261021",
+    "FIREBASE_DB_URL": "https://luyentap-pdf-qa-20261021-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "PUBLIC_URL": "https://luyentap-qualification-media.r2.dev",
+    "STUDENT_AUTH_ROUTES_ENABLED": "enabled",
+    "STUDENT_AUTH_ALLOWED_ORIGINS": "https://luyentap-pdf-qa-20261021.web.app,https://luyentap-pdf-qa-20261021--qualification.web.app",
+    "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "disabled",
+    "BOOK_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_DELIVERY_READ_ROUTES_ENABLED": "disabled",
+    "BOOK_PUBLIC_ROUTES_ENABLED": "disabled",
+    "BOOK_ACTIVITY_AUTHORING_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_MIGRATIONS_ROUTES_ENABLED": "disabled",
+    "BOOK_ASSEMBLY_MIGRATIONS_ENABLED": "false",
+    "BOOK_SOURCE_STRATEGY_SUCCESSOR_ROUTES_ENABLED": "disabled",
+    "BOOK_MAPPING_REVISION_ROUTES_ENABLED": "disabled",
+    "BOOK_FULL_PDF_PUBLICATION_ROUTES_ENABLED": "disabled",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ROUTES_ENABLED": "disabled",
+    "BOOK_FULL_PDF_PUBLICATION_ENABLED": "false",
+    "BOOK_COMPONENT_PDF_PUBLICATION_ENABLED": "false",
+    "BOOK_RUNTIME_ROUTES_ENABLED": "disabled",
+    "BOOK_DOCUMENT_DELIVERY_ROUTES_ENABLED": "disabled",
+    "BOOK_HISTORICAL_DOCUMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_TEACHER_ASSEMBLY_DOCUMENT_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_READ_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_ROUTES_ENABLED": "disabled",
+    "BOOK_HOMEWORK_COMPLETION_PROJECTION_ENABLED": "disabled",
+    "BOOK_RESULT_READ_ROUTES_ENABLED": "disabled",
+    "BOOK_EVALUATION_HISTORY_ROUTES_ENABLED": "disabled",
+    "BOOK_INTEGRITY_ROUTES_ENABLED": "disabled",
+    "BOOK_INTEGRITY_REPORT_ROUTES_ENABLED": "disabled",
+    "BOOK_INTEGRITY_LINKAGE_ENABLED": "disabled",
+    "BOOK_NOTIFICATIONS_ROUTES_ENABLED": "disabled",
+    "BOOK_IMPACT_SNAPSHOT_ROUTES_ENABLED": "disabled",
+    "BOOK_UPDATES_ROUTES_ENABLED": "disabled",
+    "BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED": "disabled"
+  },
+  "secrets": { "required": ["FIREBASE_WEB_API_KEY", "BOOK_HOMEWORK_GOOGLE_SA_KEY"] }
+}
