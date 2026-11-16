@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     track: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
+    fetchProfile: vi.fn((_key: string, load: () => unknown) => load()),
 }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mocks.user, studentId: 'STU-ASSIGNED', setupStudentCredentials: mocks.setup }) }));
 vi.mock('@/hooks/useNavigation', () => ({ useNavigation: () => ({ navigateTo: vi.fn() }) }));
@@ -18,7 +19,7 @@ vi.mock('@/components/modern/ToastNotification', () => ({ toast: { success: mock
 vi.mock('@/services/profileService', () => ({ getProfile: async () => ({ uid: 'google-student', role: 'student', firstName: 'QA', familyName: 'Student', email: 'qa@example.test' }), updateProfile: vi.fn() }));
 vi.mock('@/services/accountDeletionService', () => ({ hasPendingDeletion: async () => false, getDaysUntilDeletion: vi.fn(), requestDeletion: vi.fn(), cancelDeletion: vi.fn() }));
 vi.mock('@/services/invitationService', () => ({ redeemTeacherInvite: vi.fn() }));
-vi.mock('@/utils/errorHandling', () => ({ fetchWithCache: (_key: string, load: () => unknown) => load(), retryWithFeedback: vi.fn(), showSuccessToast: mocks.success, showErrorToast: mocks.error }));
+vi.mock('@/utils/errorHandling', () => ({ fetchWithCache: mocks.fetchProfile, retryWithFeedback: vi.fn(), showSuccessToast: mocks.success, showErrorToast: mocks.error }));
 vi.mock('@/context/StudentShellDataContext', () => ({ useResolvedStudentHomeworkList: () => ({ notStarted: [] }) }));
 vi.mock('@/components/layout/StudentLayout', () => ({ StudentLayout: ({ children, rightPanel }: { children: React.ReactNode; rightPanel: React.ReactNode }) => <>{children}{rightPanel}</> }));
 vi.mock('@/components/layout/StudentSidebar', () => ({ StudentSidebar: () => null }));
@@ -56,6 +57,7 @@ describe('student password setup', () => {
         expect(mocks.setup).toHaveBeenLastCalledWith({ firstName: 'QA', familyName: 'Student', studentId: 'STU-ASSIGNED', password: 'password123', confirmPassword: 'password123' });
         expect(mocks.success).toHaveBeenCalledWith('Student login saved. You can now sign in with your student ID and password.');
         expect(mocks.track).toHaveBeenCalledWith('saveCredentialSetup');
+        expect(mocks.fetchProfile).toHaveBeenLastCalledWith('profile-google-student', expect.any(Function), { ttl: 300000, forceRefresh: true });
         cleanup();
         mocks.user.providerData.push({ providerId: 'password' });
         render(<MemoryRouter><ProfilePage /></MemoryRouter>);

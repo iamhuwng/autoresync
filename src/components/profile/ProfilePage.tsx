@@ -668,14 +668,14 @@ export function ProfilePage() {
         }
     }, [deletionModalOpen]);
 
-    const loadProfile = async () => {
+    const loadProfile = async (forceRefresh = false) => {
         if (!user?.uid) return;
         setLoading(true);
         try {
             const data = await fetchWithCache(
                 `profile-${user.uid}`,
                 () => getProfile(user.uid),
-                { ttl: 300000 },
+                { ttl: 300000, forceRefresh },
             );
             if (data) setProfile(data);
         } catch (error) {
@@ -711,7 +711,7 @@ export function ProfilePage() {
                 'Save Profile',
                 { maxAttempts: 3, delayMs: 1000 },
             );
-            await loadProfile();
+            await loadProfile(true);
             setEditMode(false);
             showSuccessToast('Profile saved', 'Your changes have been saved successfully');
         } catch (error) {
@@ -794,7 +794,7 @@ export function ProfilePage() {
             await setupStudentCredentials(credentialSetup);
             setCredentialsSavedFor(user?.uid ?? null);
             setCredentialSetupOpen(false);
-            await loadProfile();
+            await loadProfile(true);
             toast.success('Student login saved. You can now sign in with your student ID and password.');
         } catch (error) {
             toast.error(`Could not save student login. ${error instanceof Error ? error.message : 'Please try again.'}`);
