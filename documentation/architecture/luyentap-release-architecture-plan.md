@@ -2,6 +2,12 @@
 
 Status: Phase 1, Phase 2, Phase 3 release-orchestration capability, and the measured Phase 4 simplification are complete on protected `main` after PR #278. The production authorization boundary remains separate; local-development reliability remains a parallel workstream.
 
+The 17 November spare-site rehearsal additionally exposed an exact-built-artifact
+handoff gap: its separately configured QA build did not prove the bytes CI would
+build later. [The improvement plan](release-procedure-improvements.md) tracks the
+bounded correction and deferred operational work. Earlier orchestration proof
+does not establish this handoff or qualify a production application release.
+
 This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
 
 ## Objectives
@@ -92,6 +98,20 @@ historical reconciliation; the disposable preview bundle is the application
 behavior proof, while the snapshot protects against live drift during approval.
 
 ### Change-impact routing
+
+For built-site proof, bundle creation accepts `--hosting-artifact` and retains
+the exact validated production-format `dist/` archive. Prepare restores it
+instead of rebuilding, and the promotion card checks its source, manifest,
+production environment and build-input bindings. Source-level verification may
+omit it when proportionate; that route makes no exact-built-site proof claim.
+QA inputs are optional prebuild inputs, not a universal promotion dependency.
+
+Hosting dependency assessment can also reconcile the historical combined-input
+manifest identity by exact reconstruction from production bytes, public QA
+configuration and the observed live workflow. It does not edit production or
+waive drift. Changed composite-index declarations use native READY evidence for
+the newly required indexes rather than source-file equality; field overrides and
+unrelated historical index gaps retain separate review/qualification boundaries.
 
 Phase 3 is a router, not a fixed deployment ceremony. The planner and
 promotion package select the lightest route that protects the changed surface:

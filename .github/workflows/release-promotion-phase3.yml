@@ -33,6 +33,18 @@ concurrency:
   group: luyentap-hosting-production
   cancel-in-progress: false
 
+# Optional public inputs used only to prove a historical combined manifest hash.
+# They are not build inputs or a requirement for a production-only baseline.
+env:
+  LUYENTAP_QUALIFICATION_FIREBASE_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
+  LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
+  LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
+  LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
+  LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
+  LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
+  LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
+  LUYENTAP_QUALIFICATION_FIREBASE_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
+
 jobs:
   prepare:
     if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'publish' }}
@@ -99,37 +111,11 @@ jobs:
       - name: Materialize the isolated production environment
         env:
           PRODUCTION_ENV: ${{ secrets.LUYENTAP_RELEASE_ENV }}
-          QUALIFICATION_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
-          QUALIFICATION_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
-          QUALIFICATION_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
-          QUALIFICATION_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
-          QUALIFICATION_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
-          QUALIFICATION_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
-          QUALIFICATION_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
-          QUALIFICATION_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
         run: |
           set -euo pipefail
           test -n "$PRODUCTION_ENV"
-          test -n "$QUALIFICATION_HOSTING_SITE"
-          test -n "$QUALIFICATION_API_KEY"
-          test -n "$QUALIFICATION_AUTH_DOMAIN"
-          test -n "$QUALIFICATION_DATABASE_URL"
-          test -n "$QUALIFICATION_PROJECT_ID"
-          test -n "$QUALIFICATION_STORAGE_BUCKET"
-          test -n "$QUALIFICATION_MESSAGING_SENDER_ID"
-          test -n "$QUALIFICATION_APP_ID"
           umask 077
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
-          cat > "$RUNNER_TEMP/.env.qualification" <<EOF
-          VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
-          VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=$QUALIFICATION_HOSTING_SITE
-          VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
-          VITE_FIREBASE_QUALIFICATION_DATABASE_URL=$QUALIFICATION_DATABASE_URL
-          VITE_FIREBASE_QUALIFICATION_PROJECT_ID=$QUALIFICATION_PROJECT_ID
-          VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET=$QUALIFICATION_STORAGE_BUCKET
-          VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID=$QUALIFICATION_MESSAGING_SENDER_ID
-          VITE_FIREBASE_QUALIFICATION_APP_ID=$QUALIFICATION_APP_ID
-          EOF
       - name: Derive release inputs from the exact source and live Hosting
         env:
           GH_TOKEN: ${{ github.token }}
@@ -140,10 +126,13 @@ jobs:
           set -euo pipefail
           node scripts/release-promotion.mjs --prepare --objective "$OBJECTIVE" --production-env-file "$RUNNER_TEMP/.env.production" --output "$RUNNER_TEMP/promotion-inputs.json"
           node scripts/release-promotion.mjs --export-inputs "$RUNNER_TEMP/promotion-inputs.json"
-      - name: Build the candidate once
+      - name: Restore the artifact retained with Codex verification
+        id: tested-artifact
+        run: node scripts/release-promotion.mjs --restore-artifact "$RUNNER_TEMP/promotion-inputs.json" >> "$GITHUB_OUTPUT"
+      - name: Build once when verification used source-level checks
+        if: ${{ steps.tested-artifact.outputs.restored != 'true' }}
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
-          LUYENTAP_QUALIFICATION_ENV_FILE: ${{ runner.temp }}/.env.qualification
         run: npm run build:production -- --build-only
       - name: Record the retained artifact identity
         id: artifact
@@ -154,6 +143,8 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Assess the exact source and live baseline
         id: assessment
+        env:
+          LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
         run: |
           set -euo pipefail
           set +e
@@ -305,37 +296,11 @@ jobs:
       - name: Materialize the isolated production environment
         env:
           PRODUCTION_ENV: ${{ secrets.LUYENTAP_PRODUCTION_ENV }}
-          QUALIFICATION_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
-          QUALIFICATION_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
-          QUALIFICATION_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
-          QUALIFICATION_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
-          QUALIFICATION_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
-          QUALIFICATION_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
-          QUALIFICATION_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
-          QUALIFICATION_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
         run: |
           set -euo pipefail
           test -n "$PRODUCTION_ENV"
-          test -n "$QUALIFICATION_HOSTING_SITE"
-          test -n "$QUALIFICATION_API_KEY"
-          test -n "$QUALIFICATION_AUTH_DOMAIN"
-          test -n "$QUALIFICATION_DATABASE_URL"
-          test -n "$QUALIFICATION_PROJECT_ID"
-          test -n "$QUALIFICATION_STORAGE_BUCKET"
-          test -n "$QUALIFICATION_MESSAGING_SENDER_ID"
-          test -n "$QUALIFICATION_APP_ID"
           umask 077
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
-          cat > "$RUNNER_TEMP/.env.qualification" <<EOF
-          VITE_FIREBASE_QUALIFICATION_API_KEY=$QUALIFICATION_API_KEY
-          VITE_FIREBASE_QUALIFICATION_HOSTING_SITE=$QUALIFICATION_HOSTING_SITE
-          VITE_FIREBASE_QUALIFICATION_AUTH_DOMAIN=$QUALIFICATION_AUTH_DOMAIN
-          VITE_FIREBASE_QUALIFICATION_DATABASE_URL=$QUALIFICATION_DATABASE_URL
-          VITE_FIREBASE_QUALIFICATION_PROJECT_ID=$QUALIFICATION_PROJECT_ID
-          VITE_FIREBASE_QUALIFICATION_STORAGE_BUCKET=$QUALIFICATION_STORAGE_BUCKET
-          VITE_FIREBASE_QUALIFICATION_MESSAGING_SENDER_ID=$QUALIFICATION_MESSAGING_SENDER_ID
-          VITE_FIREBASE_QUALIFICATION_APP_ID=$QUALIFICATION_APP_ID
-          EOF
       - name: Export the release-card bindings
         run: node scripts/release-promotion.mjs --export-env "$RUNNER_TEMP/release-card/release-card.json"
       - name: Verify the approved Hosting baseline immediately before mutation
@@ -353,7 +318,6 @@ jobs:
       - name: Publish the retained artifact through the existing guarded route
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
-          LUYENTAP_QUALIFICATION_ENV_FILE: ${{ runner.temp }}/.env.qualification
           LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
           LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/release-result/operation.json
           GH_TOKEN: ${{ github.token }}

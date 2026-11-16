@@ -177,6 +177,19 @@ teacher/student flow. A path classifier permits an explicit `not-required`
 record for non-application changes. Backend, rules, Worker, storage and other
 service changes retain their separate release-safety gates.
 
+When Codex verifies a built site, build the production-format artifact first,
+verify those exact bytes, then add `--hosting-artifact` to bundle creation.
+The existing bundle retains the compressed `dist/` tree, manifest digest,
+production environment fingerprint and build-input fingerprint. Prepare restores
+and validates those bytes instead of rebuilding. The card checks the same
+bindings. Invalid retained content stops the job; it never triggers a fallback
+rebuild. Limits remain 32 MiB per compressed artifact and 64 MiB per bundle.
+
+Source-level verification remains appropriate where Codex judges it sufficient.
+Without a retained Hosting artifact, CI builds once and the bundle establishes
+source-level evidence only. A separately configured QA build, different minifier
+or later rebuild must not be presented as proof of the production bytes.
+
 Each verification run uses a unique source-keyed release tag. The publisher
 requires GitHub immutable releases to be enabled, and promotion readback
 rejects a mutable prerelease or a tag that points at another commit. The
@@ -237,16 +250,45 @@ GitHub environment and service-account permissions still require provider readba
 Preflight uses the separate `LUYENTAP_RELEASE_ENV` preparation secret; the
 protected production job uses `LUYENTAP_PRODUCTION_ENV`, and the executor rejects
 any environment-fingerprint mismatch before publication. Production values are
-written to `.env.production` alone and qualification values are written to a
-separate `.env.qualification`; `envFingerprint` is the production-only digest,
-while the retained artifact records a separate `buildInputFingerprint` for the
-combined build inputs. A candidate planner also checks the authoritative
+written to `.env.production` alone. Promotion does not require QA variables.
+For a selected preview prebuild, `LUYENTAP_QUALIFICATION_ENV_FILE` optionally
+provides the separate, complete qualification Firebase configuration;
+`envFingerprint` is the production-only digest, while the retained artifact
+records a separate `buildInputFingerprint` for the combined build inputs.
+A candidate planner also checks the authoritative
 `origin/main` revision before doing the live assessment; the final promotion
 job repeats that check immediately before mutation.
 The
 separate local-development reliability plan remains proposed and is not
 absorbed here. Do not describe the contract test or a local retained-artifact
 check as CI, provider, browser or rollback proof.
+
+### Read-only baseline reconciliation
+
+A mismatch between a production-only environment fingerprint and an old combined
+build-input fingerprint does not automatically require a live metadata repair.
+Hosting dependency observation reads the selected production file, obtains the
+eight public qualification Firebase inputs, and checks the materialization block
+in the observed live source. It accepts the old identity only when the exact
+concatenation reproduces the live manifest hash. The dependency receipt carries
+both identities and is freshly reobserved before publication; live bytes and the
+final baseline snapshot are unchanged. Missing inputs or any actual drift stop
+the operation. CLI callers may select `--production-env-file`; the planner forwards
+its `--env-file`, and the executor uses `LUYENTAP_PRODUCTION_ENV_FILE`.
+
+Local observation reads the existing GitHub repository variables automatically;
+Actions receives the same optional public values directly. They are used for this
+proof only and are not required when the live manifest already uses production-only
+identity. No secret edits, provider writes or manually reconstructed hash/path
+inputs are required. The next normally authorized release replaces the old
+manifest as part of publication rather than publishing a metadata-only repair.
+
+When the index declarations differ from live source, observation additionally
+reads the native Firestore index inventory. Every newly declared composite must
+be `READY` with matching scope and ordered fields. It does not delete existing
+indexes or qualify unchanged historical gaps. Field-override changes remain
+separately gated. The compatibility review still covers application behavior and
+any broader service coordination.
 
 ### Codex verification handoff
 
@@ -256,6 +298,30 @@ browser journeys, emulator checks, provider checks, or the disposable
 qualification lifecycle based on the changed surfaces and risk. The release
 system does not prescribe a framework or user journey; it validates the resulting
 source-bound bundle.
+
+For built-site verification, use a clean candidate and an explicit observed
+base. Build with `npm run build:production` (build-only), optionally selecting
+`LUYENTAP_QUALIFICATION_ENV_FILE`. Before opening a preview, verify that every
+service the journey can call resolves to the isolated QA service. The existing
+hostname selector isolates Firebase; that alone does not isolate every Worker
+or external provider. Never use production as a fallback for missing QA bindings.
+
+After the selected checks, create/publish the existing bundle with the artifact:
+
+```powershell
+node scripts/release-verification-bundle.mjs --create --base <observed-base> `
+  --record <external-record.json> --environment <verification-environment-file> `
+  --environment-identity <isolated-environment-description> --hosting-artifact `
+  --evidence=checks:<redacted-results.json> --output <external-dir>/verification-bundle.json
+node scripts/release-verification-bundle.mjs --publish <external-dir>/verification-bundle.json
+```
+
+Retain the compatibility review as an artifact named `compatibility-review`
+when required. Prepare extracts that object from the bundle; no source-committed
+review fallback is used. Dispatch with the returned tag and digest. Source-only
+checks omit `--hosting-artifact`; their build identity describes inputs, not
+tested bytes. An oversized artifact requires a reviewed retention change, not
+silently dropping exact-artifact evidence.
 
 Before treating the candidate as ready, Codex must run the selected checks,
 retain redacted results, and create the immutable bundle for the exact protected

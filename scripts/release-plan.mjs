@@ -105,7 +105,7 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
   if (selectedBase) {
     try {
       assessment = await assess({ cwd, base: selectedBase, mode: 'release', target, hostingObservation: observed,
-        productionEnvFingerprint: envFingerprint, compatibilityReviewPath });
+        productionEnvFingerprint: envFingerprint, productionEnvFile: path.resolve(cwd, envFile), compatibilityReviewPath });
       const patch = git(cwd, ['diff', '--no-ext-diff', '--no-renames', '--unified=0', assessment.source.baseRevision, '--']);
       impact = describeImpact(assessment.source.files, patch);
       const tracked = new Set(git(cwd, ['ls-files', '-z']).split('\0'));
