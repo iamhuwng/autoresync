@@ -46,7 +46,7 @@ and exports the unchanged artifact digest to the executor boundary. It rejects
 missing/altered archives, stale evidence, another source/environment and changed
 manifest/build bindings. This is local integration proof, not a remote publication.
 
-The focused Node suite passed **292 tests**, zero failed/skipped, covering release
+The initial handoff suite passed **292 tests**, zero failed/skipped, covering release
 assessment, dependency observation, bundles, archives, cards/workflow, verification,
 deployment safety, operation journals, selected service qualifications and QA
 health contracts. The synthetic handoff is part of that run. UTF-8 checks and
@@ -112,6 +112,18 @@ QA inputs, wrong historical workflow, non-READY/missing/foreign/scope/field-orde
 index results and changed field overrides. The actual live identities and index
 inventory also passed the new pure validators in a read-only provider rehearsal,
 retained locally as `tmp/recovery-diagnosis.json`.
+
+The complete native `observeHostingDependencies` rehearsal then **verified** from
+clean commit `216b796e4745c529d3ddf12ed5c37a31b58ada36`, using the current
+production services, with repeated provider/source reads. It observed nine
+indexes and retained the old/new environment binding. Provider fingerprint:
+`ec30ea0038e3ee4ad67c8fcb51fb660931f46ed69037c4542af4316505c2baa1`;
+source-bound dependency fingerprint:
+`c1720ba9e34237c4cd0d297497969f92d864364e38215633484a215ca9c43550`.
+The redacted result is `tmp/native-recovery-rehearsal.json`. A subsequent
+executor-safety rerun passed 49 tests. This is native read-only integration proof
+for that source/observation window, not a receipt reusable for a later merge or
+production deployment. The release operator must refresh the exact final candidate.
 
 These corrections clear two demonstrated procedure mismatches; they do not
 qualify candidate rules/Workers, grant IAM or authorize a production publication.
