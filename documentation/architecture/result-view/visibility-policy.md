@@ -124,6 +124,8 @@ For homework detail result modals, RTDB read access to `test_results/{resultId}`
 
 ## 2026-11-16 Authentication route retirement
 
+The Google-student password setup correction changes profile credentials and tracking only; result visibility and ownership checks are unchanged.
+
 Removing `/profile/complete` from route security does not change result visibility, ownership, or teacher/student access policy.
 
 
