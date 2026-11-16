@@ -32,6 +32,13 @@ configuration as `LUYENTAP_QUALIFICATION_ENV`, plus its existing OIDC identity;
 `LUYENTAP_QUALIFICATION_WORKER_URL` records the stable endpoint. Reuse these
 settings instead of recreating the foundation for every deployment.
 
+For exact-built-artifact proof, use the production build route with the separate
+qualification Firebase inputs, verify isolation for every service the selected
+journey calls, and retain `dist/` with `--hosting-artifact` in the existing
+verification bundle. Promotion restores those bytes. A QA-only build is useful
+source/behavior evidence but cannot qualify a different production artifact.
+See [release-safety.md](release-safety.md#codex-verification-handoff).
+
 Git-triggered Cloudflare builds on this QA Worker are disabled. Publish selected
 QA Worker source through the explicit `wrangler.qualification.jsonc` route;
 the old repository-root app build/default deploy command had no QA build
@@ -72,6 +79,12 @@ There are no permanent shared journey passwords. Provision temporary QA
 accounts, open `/login`, and delete their Auth accounts, profiles and private
 student-ID mappings in cleanup. Local dev quick-login accounts are not remote
 QA fixtures. Keep credentials out of logs and Git.
+
+Write the run identity, project, temporary account UIDs and namespace/channel
+cleanup targets before creating those resources. Retain that ledger through
+failures; resume cleanup using the same project-bound Auth credentials and
+confirm deletion by readback. Keep a failed attempt's log when retrying instead
+of overwriting it with a later successful run.
 
 Health PASS establishes the checked inventory, not every application flow.
 Codex selects proportionate browser/provider tests. Synchronize only affected

@@ -63,9 +63,25 @@ active dependencies. When backend paths differ, native readback must establish
 candidate rules equal active RTDB/Firestore rules, stable Worker versions,
 bindings/routing, and private-audio access/lifecycle constraints. All 15 compiled
 shared Homework inputs must equal the verified live Hosting source. Changes to
-those inputs, Functions, indexes, Firebase configuration or Vite configuration
+those inputs, Functions, Firebase configuration or Vite configuration
 cannot use this qualification path. They require their own substantive review
 and service qualification; there is no override flag.
+
+For a changed `firestore.indexes.json`, Hosting-only qualification compares the
+candidate declarations with the live-source declarations. Each added or changed
+composite index must independently exist as `READY` in the production database.
+Existing unrelated indexes may remain; this route creates/deletes no indexes and
+does not claim readiness for an unchanged historical index. Changed field
+overrides or unsupported index options require separate qualification.
+
+Historical live manifests may fingerprint production and qualification inputs
+together. The assessor can reconcile this without rewriting production only when
+the current production file plus the exact eight qualification values reproduces
+the live hash and the observed live source contains that materialization scheme.
+Changed production values, unavailable inputs or another workflow fail closed.
+The receipt records both identities; the next normally authorized publication
+writes a production-only manifest. This is diagnosis of an old identity scheme,
+not a general environment-drift waiver.
 
 The observation describes active backend code; it does not certify candidate
 Worker code or repair the pre-existing scorer mismatch. The compatibility review

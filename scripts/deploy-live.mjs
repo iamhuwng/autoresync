@@ -435,6 +435,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
           target: assessment.target, hostingDependencies: assessment.hostingDependencies ? {
             scope: assessment.hostingDependencies.scope, source: assessment.hostingDependencies.source,
             envFingerprint: assessment.hostingDependencies.envFingerprint,
+            environmentBinding: assessment.hostingDependencies.environmentBinding,
             hostingFingerprint: assessment.hostingDependencies.hostingFingerprint,
             providerFingerprint: assessment.hostingDependencies.providerFingerprint,
             fingerprint: assessment.hostingDependencies.fingerprint,

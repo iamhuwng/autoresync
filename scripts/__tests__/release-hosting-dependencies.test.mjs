@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sharedHomeworkInputs } from '../release-check.mjs';
 import { canonical } from '../release-listening-evidence.mjs';
-import { isHostingDependenciesObserved, observeHostingDependencies, validateHostingDependencies } from '../release-hosting-dependencies.mjs';
+import { isHostingDependenciesObserved, observeHostingDependencies, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
 function fixture() {
@@ -15,7 +15,7 @@ function fixture() {
   const local = { source, actualSource: structuredClone(source),
     hosting: { revision: source.baseRevision, tree: 'f'.repeat(40), baseTree: 'f'.repeat(40), environment: 'production', fingerprint: '0'.repeat(64), envFingerprint: '1'.repeat(64) },
     envFingerprint: '1'.repeat(64), sharedInputs: [...sharedHomeworkInputs].map(input),
-    unchangedPaths: ['.firebaserc', 'firebase.json', 'firestore.indexes.json'].map(input),
+    unchangedPaths: ['.firebaserc', 'firebase.json'].map(input),
     rulesSha256: '2'.repeat(64), firestoreRulesSha256s: ['3'.repeat(64), '4'.repeat(64)], lifecycleSha256: digest(lifecycle) };
   const provider = { rulesSha256: local.rulesSha256,
     firestoreRules: { release: { name: 'projects/temp-a1437/releases/cloud.firestore' }, sourceSha256: '3'.repeat(64) },
@@ -95,4 +95,39 @@ test('Hosting dependency validation rejects provider configuration, storage and 
 
 test('caller-supplied Hosting JSON never reaches native dependency reads or creates trusted evidence', async () => {
   await assert.rejects(observeHostingDependencies({ hostingObservation: { revision: 'a'.repeat(40), readOnly: true } }), /Untrusted Hosting/);
+});
+
+test('historical combined fingerprint requires exact production bytes, QA suffix and live workflow', () => {
+  const hash = value => createHash('sha256').update(value).digest('hex');
+  const keys = ['API_KEY', 'HOSTING_SITE', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'];
+  const qualification = Object.fromEntries(keys.map(key => [key, 'fixture-' + key]));
+  const productionRaw = 'VITE_FIREBASE_PROJECT_ID=production\n';
+  const workflow = 'cat >> "$RUNNER_TEMP/.env.production" <<EOF\n' + keys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=$QUALIFICATION_${key}\n`).join('') + 'EOF';
+  const suffix = keys.map(key => `VITE_FIREBASE_QUALIFICATION_${key}=${qualification[key]}\n`).join('');
+  const options = { productionRaw, qualification, workflow, envFingerprint: hash(productionRaw), manifestFingerprint: hash(productionRaw + suffix) };
+  const binding = reconcileLegacyEnvironment(options);
+  const { local, provider } = fixture();
+  local.envFingerprint = binding.productionFingerprint; local.hosting.envFingerprint = binding.buildInputFingerprint; local.environmentBinding = binding;
+  validateHostingDependencies(local, provider);
+  for (const change of [
+    { productionRaw: productionRaw + 'VITE_CHANGED=true\n' },
+    { manifestFingerprint: 'a'.repeat(64) },
+    { qualification: { ...qualification, API_KEY: 'changed' } },
+    { qualification: {} },
+    { workflow: workflow.replace('cat >>', 'cat >') },
+  ]) assert.throws(() => reconcileLegacyEnvironment({ ...options, ...change }));
+  local.environmentBinding.productionFingerprint = 'f'.repeat(64);
+  assert.throws(() => validateHostingDependencies(local, provider), /production environment differs/u);
+});
+
+test('Hosting index qualification checks added requirements against native READY indexes without deleting extras', () => {
+  const existing = { collectionGroup: 'existing', queryScope: 'COLLECTION', fields: [{ fieldPath: 'userId', order: 'ASCENDING' }, { fieldPath: 'time', order: 'DESCENDING' }] };
+  const added = { ...existing, collectionGroup: 'new' };
+  const config = { base: { indexes: [existing] }, candidate: { indexes: [existing, added] } };
+  const actual = { name: 'projects/temp-a1437/databases/(default)/collectionGroups/new/indexes/native', queryScope: 'COLLECTION', state: 'READY', fields: [...added.fields, { fieldPath: '__name__', order: 'DESCENDING' }] };
+  validateHostingIndexes(config, [actual]);
+  validateHostingIndexes({ ...config, candidate: { indexes: [added] } }, [actual]);
+  for (const indexes of [[], [{ ...actual, state: 'CREATING' }], [{ ...actual, queryScope: 'COLLECTION_GROUP' }], [{ ...actual, name: actual.name.replace('temp-a1437', 'foreign') }], [{ ...actual, fields: [...added.fields, { fieldPath: '__name__', order: 'ASCENDING' }] }]]) assert.throws(() => validateHostingIndexes(config, indexes), /missing or not READY/u);
+  assert.throws(() => validateHostingIndexes({ ...config, candidate: { ...config.candidate, fieldOverrides: [{ collectionGroup: 'new' }] } }, [actual]), /field overrides/u);
+  assert.throws(() => validateHostingIndexes({ ...config, candidate: { indexes: [{ ...added, fields: [{ fieldPath: 'single', order: 'ASCENDING' }] }] } }, [actual]), /Unsupported/u);
 });

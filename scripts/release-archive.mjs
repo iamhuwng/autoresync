@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import * as tar from 'tar';
 import { collectSourceState } from './release-check.mjs';
 import { validateReleaseRequest } from './lib/releaseChangelog.mjs';
@@ -169,6 +169,38 @@ function inspectTar(file, maximum, totalLimit = 256 * 1024 * 1024) {
     if (++count > maximum || entry.size > 32 * 1024 * 1024 || total > totalLimit) fail('archive exceeds extraction bounds');
   } });
   return { files, paths };
+}
+
+export async function packHostingArtifact(cwd) {
+  const manifest = JSON.parse(await readFile(path.join(cwd, 'dist', manifestPath), 'utf8'));
+  await assertHostingArtifact(cwd, manifest);
+  const bytes = await withTemporary(async directory => {
+    const file = path.join(directory, 'artifact.tar.gz');
+    tar.c({ file, cwd: path.join(cwd, 'dist'), gzip: true, sync: true, portable: true }, await readdir(path.join(cwd, 'dist')));
+    return readFile(file);
+  });
+  return { manifest, bytes };
+}
+
+export async function restoreHostingArtifact({ cwd, bytes, manifestSha256, expected }) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 32 * 1024 * 1024 || !shaPattern.test(manifestSha256 || '')) fail('invalid verification artifact input');
+  // Validate in isolation before exposing any retained bytes to the build/publish path.
+  return withTemporary(async directory => {
+    const file = path.join(directory, 'artifact.tar.gz');
+    await writeFile(file, bytes);
+    inspectTar(file, 4000);
+    await mkdir(path.join(directory, 'dist'));
+    tar.x({ file, cwd: path.join(directory, 'dist'), sync: true, strict: true });
+    const manifest = JSON.parse(await readFile(path.join(directory, 'dist', manifestPath), 'utf8'));
+    if (digest(JSON.stringify(manifest)) !== manifestSha256) fail('verification artifact manifest digest differs');
+    await assertHostingArtifact(directory, manifest);
+    for (const [key, value] of Object.entries(expected)) if (manifest[key] !== value) fail('verification artifact ' + key + ' binding differs');
+    // An existing output is ambiguous; never replace it or fall back to a rebuild.
+    try { await lstat(path.join(cwd, 'dist')); fail('dist already exists before verification artifact restore'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    await rename(path.join(directory, 'dist'), path.join(cwd, 'dist'));
+    return manifest;
+  });
 }
 
 function validateGitlinks(gitlinks) {
