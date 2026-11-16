@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mocks.user, studentId: 'STU-ASSIGNED', setupStudentCredentials: mocks.setup }) }));
 vi.mock('@/hooks/useNavigation', () => ({ useNavigation: () => ({ navigateTo: vi.fn() }) }));
 vi.mock('@/hooks/useFeatureTracking', () => ({ useFeatureTracking: () => ({ trackAction: mocks.track }) }));
+vi.mock('@/components/modern/ToastNotification', () => ({ toast: { success: mocks.success, error: mocks.error } }));
 vi.mock('@/services/profileService', () => ({ getProfile: async () => ({ uid: 'google-student', role: 'student', firstName: 'QA', familyName: 'Student', email: 'qa@example.test' }), updateProfile: vi.fn() }));
 vi.mock('@/services/accountDeletionService', () => ({ hasPendingDeletion: async () => false, getDaysUntilDeletion: vi.fn(), requestDeletion: vi.fn(), cancelDeletion: vi.fn() }));
 vi.mock('@/services/invitationService', () => ({ redeemTeacherInvite: vi.fn() }));
@@ -53,7 +54,7 @@ describe('student password setup', () => {
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         expect(screen.queryByRole('button', { name: 'Set up ID and password' })).not.toBeInTheDocument();
         expect(mocks.setup).toHaveBeenLastCalledWith({ firstName: 'QA', familyName: 'Student', studentId: 'STU-ASSIGNED', password: 'password123', confirmPassword: 'password123' });
-        expect(mocks.success).toHaveBeenCalledWith('Student login saved', expect.any(String));
+        expect(mocks.success).toHaveBeenCalledWith('Student login saved. You can now sign in with your student ID and password.');
         expect(mocks.track).toHaveBeenCalledWith('saveCredentialSetup');
         cleanup();
         mocks.user.providerData.push({ providerId: 'password' });

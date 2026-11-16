@@ -26,6 +26,7 @@ import { S, studentTokens } from '@/components/layout/studentLayoutStyles';
 import { useResolvedStudentHomeworkList } from '@/context/StudentShellDataContext';
 import { useFeatureTracking } from '@/hooks/useFeatureTracking';
 import { FEATURE_IDS } from '@/config/featureRegistry';
+import { toast } from '@/components/modern/ToastNotification';
 
 /* ─── SVG Icon Helpers (replacing @tabler/icons-react) ─── */
 
@@ -794,9 +795,9 @@ export function ProfilePage() {
             setCredentialsSavedFor(user?.uid ?? null);
             setCredentialSetupOpen(false);
             await loadProfile();
-            showSuccessToast('Student login saved', 'You can now sign in with your student ID and password.');
+            toast.success('Student login saved. You can now sign in with your student ID and password.');
         } catch (error) {
-            showErrorToast('Could not save student login', error instanceof Error ? error.message : 'Please try again.');
+            toast.error(`Could not save student login. ${error instanceof Error ? error.message : 'Please try again.'}`);
         } finally {
             setCredentialSetupSaving(false);
         }
