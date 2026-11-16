@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runReleaseVerification } from './release-verification.mjs';
 import { classifyPaths, collectSourceState, compatibilityReviewDigest, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { observeHosting } from './release-evidence.mjs';
-import { buildIdentityFor, bundleBytes, bundleDigest, isVerificationTagForSource, validateVerificationBundle } from './release-verification-bundle.mjs';
+import { bundleBytes, bundleDigest, isVerificationTagForSource, validateVerificationBundle, validateHostingArtifactBinding, restoreVerifiedHostingArtifact } from './release-verification-bundle.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
@@ -221,6 +221,7 @@ export function validatePromotionCard(card) {
     digestField(card.verificationBundle.sha256, 'verification bundle digest');
     if (bundleDigest(bundleBytes(card.verificationBundle.bundle)) !== card.verificationBundle.sha256) fail('verification bundle digest differs from its retained bytes');
     validateVerificationBundle(card.verificationBundle.bundle, { source: card.source });
+    validateHostingArtifactBinding(card.verificationBundle.bundle, card.artifact);
     if (JSON.stringify(card.verificationEvidence.record) !== JSON.stringify(card.verificationBundle.bundle.verification)) fail('promotion verification record differs from the retained bundle');
   } else if (card.verificationBundle !== null && card.verificationBundle !== undefined) fail('non-application card cannot carry a verification bundle');
   text(card.impact, 'release impact');
@@ -304,13 +305,8 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
   await mkdir(path.dirname(path.resolve(cwd, planFile)), { recursive: true });
   await writeFile(path.resolve(cwd, planFile), `${JSON.stringify(plan, null, 2)}\n`);
   const configurationFingerprint = configurationDigest(cwd);
-  const reviewPath = 'documentation/release-evidence/compatibility-review.json';
   let compatibilityReviewSha256 = '';
   let compatibilityReview;
-  if (tracked(cwd, reviewPath)) {
-    const bytes = await readFile(path.resolve(cwd, reviewPath));
-    compatibilityReviewSha256 = sha256(JSON.stringify(compatibilityReview = JSON.parse(bytes.toString('utf8'))));
-  }
   const requirement = verificationRequirement(source.files);
   let verificationEvidence;
   let verificationBundle = null;
@@ -325,9 +321,7 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     verificationBundle = { tag: readback.tag, sha256: readback.sha256, bundle: readback.bundle };
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;
-    if (!compatibilityReview) {
-      ({ review: compatibilityReview, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
-    }
+    ({ review: compatibilityReview, sha256: compatibilityReviewSha256 } = await extractCompatibilityReview({ cwd, bundle: readback.bundle }));
   } else {
     verificationEvidence = { schemaVersion: 1, requirement, decision: 'not-required', observedAt: new Date().toISOString(), method: 'release path classifier', scenario: 'No application runtime paths changed.', sourceRevision: source.revision, sourceFingerprint: source.fingerprint, checks: [], evidenceRefs: [], summary: 'No application runtime paths changed; Codex application verification is not required for this candidate.' };
   }
@@ -474,6 +468,7 @@ const parseArgs = argv => {
     else if (value === '--run-verification') args.runVerification = true;
     else if (value === '--require-verification') args.requireVerification = argv[++index];
     else if (value === '--artifact-digest') args.artifactDigest = true;
+    else if (value === '--restore-artifact') args.restoreArtifact = argv[++index];
     else if (value === '--qualification-binding') args.qualificationBinding = argv[++index];
     else if (value === '--verify-baseline') args.verifyBaseline = true;
     else throw new Error(`Unknown argument ${value}`);
@@ -519,6 +514,14 @@ const main = async (argv = process.argv.slice(2)) => {
     if (!args.output) fail('--output is required for --run-verification');
     const result = await runReleaseVerification({ cwd: process.cwd(), base: process.env.LUYENTAP_RELEASE_BASE, planPath: process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE, envFingerprint: process.env.LUYENTAP_RELEASE_ENV_FINGERPRINT });
     await writeFile(path.resolve(args.output), `${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  if (args.restoreArtifact) {
+    const inputs = JSON.parse(await readFile(path.resolve(args.restoreArtifact), 'utf8'));
+    const source = await collectSourceState(process.cwd(), inputs.baseRevision);
+    if (source.dirty) fail('candidate source must be clean before artifact restoration');
+    const restored = await restoreVerifiedHostingArtifact({ cwd: process.cwd(), bundle: inputs.verificationBundle?.bundle, source, environmentFingerprint: inputs.environmentFingerprint });
+    process.stdout.write(`restored=${restored}\n`);
     return;
   }
   if (args.artifactDigest) {

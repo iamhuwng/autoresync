@@ -64,7 +64,7 @@ export function validateVerificationBundle(bundle, { source, requirement = 'requ
   if (!shaPattern.test(bundle.environment?.fingerprint || '')) fail('verification environment fingerprint is invalid');
   if (environmentFingerprint !== undefined && bundle.environment.fingerprint !== environmentFingerprint) fail('verification environment differs from the assessed environment');
   text(bundle.environment.identity, 'verification environment identity', 500);
-  exactFields(bundle.build, ['identity'], 'verification bundle build');
+  exactFields(bundle.build, ['identity', 'hostingArtifact'], 'verification bundle build');
   if (!shaPattern.test(bundle.build?.identity || '')) fail('verification build identity is invalid');
   if (expectedBuildIdentity !== undefined && bundle.build.identity !== expectedBuildIdentity) fail('verification build identity differs from the assessed inputs');
   exactFields(bundle.verification, ['schemaVersion', 'requirement', 'decision', 'observedAt', 'method', 'scenario', 'sourceRevision', 'sourceFingerprint', 'checks', 'evidenceRefs', 'summary'], 'verification bundle record');
@@ -77,6 +77,13 @@ export function validateVerificationBundle(bundle, { source, requirement = 'requ
   if (!Array.isArray(refs) || refs.length < 1 || refs.length > 30 || new Set(refs).size !== refs.length) fail('verification evidence references are invalid');
   if (!Array.isArray(bundle.artifacts) || bundle.artifacts.length < 1 || bundle.artifacts.length > 30 || new Set(bundle.artifacts.map(a => a.id)).size !== bundle.artifacts.length) fail('verification artifacts are invalid');
   bundle.artifacts.forEach(validateArtifact);
+  if (bundle.build.hostingArtifact !== undefined) {
+    const hosting = bundle.build.hostingArtifact;
+    exactFields(hosting, ['archiveId', 'manifestSha256', 'environmentFingerprint', 'buildInputFingerprint'], 'Hosting artifact binding');
+    if (hosting.archiveId !== 'hosting-artifact' || !bundle.artifacts.some(artifact => artifact.id === hosting.archiveId)) fail('retained Hosting artifact is missing');
+    for (const key of ['manifestSha256', 'environmentFingerprint', 'buildInputFingerprint']) if (!shaPattern.test(hosting[key] || '')) fail('Hosting artifact ' + key + ' is invalid');
+    if (bundle.build.identity !== hosting.manifestSha256) fail('Hosting build identity differs from its manifest');
+  }
   const ids = new Set(bundle.artifacts.map(a => 'bundle://artifact/' + a.id));
   if (refs.some(ref => typeof ref !== 'string' || !ids.has(ref))) fail('verification evidence reference does not resolve to a retained artifact');
   if (source) for (const key of ['revision', 'tree', 'baseRevision', 'fingerprint']) if (bundle.source[key] !== source[key]) fail('verification bundle source differs from the assessed source');
@@ -88,7 +95,29 @@ export const bundleBytes = bundle => {
   return bytes;
 };
 export const bundleDigest = bytes => digest(bytes);
-export async function createVerificationBundle({ cwd, base, recordPath, environmentPath, environmentIdentity, buildIdentity, evidence = [], output } = {}) {
+export function validateHostingArtifactBinding(bundle, artifact) {
+  const hosting = bundle.build.hostingArtifact;
+  if (!hosting) return;
+  for (const key of ['manifestSha256', 'environmentFingerprint', 'buildInputFingerprint']) {
+    if (hosting[key] !== artifact[key]) fail('tested Hosting artifact ' + key + ' differs from the promotion artifact');
+  }
+}
+
+export async function restoreVerifiedHostingArtifact({ cwd, bundle, source, environmentFingerprint } = {}) {
+  if (!bundle) return false;
+  validateVerificationBundle(bundle, { source });
+  const hosting = bundle.build.hostingArtifact;
+  if (!hosting) return false;
+  if (hosting.environmentFingerprint !== environmentFingerprint) fail('tested Hosting artifact environment differs from production');
+  const archive = bundle.artifacts.find(artifact => artifact.id === hosting.archiveId);
+  const { restoreHostingArtifact } = await import('./release-archive.mjs');
+  await restoreHostingArtifact({ cwd, bytes: Buffer.from(archive.contentBase64, 'base64'), manifestSha256: hosting.manifestSha256, expected: {
+    revision: bundle.source.revision, tree: bundle.source.tree, envFingerprint: environmentFingerprint, buildInputFingerprint: hosting.buildInputFingerprint,
+  } });
+  return true;
+}
+
+export async function createVerificationBundle({ cwd, base, recordPath, environmentPath, environmentIdentity, buildIdentity, hostingArtifact = false, evidence = [], output } = {}) {
   if (!cwd || !base || !recordPath || !environmentPath || !environmentIdentity || !buildIdentity || !output) fail('bundle creation requires source, base, record, environment, build and output inputs');
   const { collectSourceState } = await import('./release-check.mjs');
   const source = await collectSourceState(cwd, base);
@@ -97,15 +126,24 @@ export async function createVerificationBundle({ cwd, base, recordPath, environm
   const record = JSON.parse(await read(path.resolve(recordPath), 'utf8'));
   if (record.sourceRevision !== source.revision || record.sourceFingerprint !== source.fingerprint || record.requirement !== 'required' || record.decision !== 'verified') fail('verification record is not bound to the clean candidate');
   const environmentBytes = await read(path.resolve(environmentPath));
-  const build = buildIdentity === 'none' ? buildIdentityFor(source, digest(environmentBytes)) : buildIdentity;
-  if (!shaPattern.test(build)) fail('build identity must be a SHA-256 digest or none');
+  let build = { identity: buildIdentity === 'none' ? buildIdentityFor(source, digest(environmentBytes)) : buildIdentity };
+  if (!shaPattern.test(build.identity)) fail('build identity must be a SHA-256 digest or none');
   const artifacts = [];
   for (const entry of evidence) {
     if (!entry || !safeId(entry.id) || !entry.file) fail('verification evidence input is invalid');
     const bytes = await read(path.resolve(entry.file));
     artifacts.push({ id: entry.id, mediaType: text(entry.mediaType || 'application/octet-stream', 'verification artifact media type', 200), size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') });
   }
-  const bundle = { schemaVersion: 1, tag: verificationTag(source.revision), asset: assetName, createdAt: new Date().toISOString(), source: { revision: source.revision, tree: source.tree, baseRevision: source.baseRevision, fingerprint: source.fingerprint }, environment: { fingerprint: digest(environmentBytes), identity: text(environmentIdentity, 'verification environment identity', 500) }, build: { identity: build }, verification: record, artifacts };
+  if (hostingArtifact) {
+    const { packHostingArtifact } = await import('./release-archive.mjs');
+    const { manifest, bytes } = await packHostingArtifact(cwd);
+    if (manifest.revision !== source.revision || manifest.tree !== source.tree) fail('Hosting artifact source differs from the candidate');
+    const manifestSha256 = digest(JSON.stringify(manifest));
+    if (buildIdentity !== 'none' && buildIdentity !== manifestSha256) fail('explicit build identity differs from the Hosting manifest');
+    build = { identity: manifestSha256, hostingArtifact: { archiveId: 'hosting-artifact', manifestSha256, environmentFingerprint: manifest.envFingerprint, buildInputFingerprint: manifest.buildInputFingerprint } };
+    artifacts.push({ id: 'hosting-artifact', mediaType: 'application/gzip', size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') });
+  }
+  const bundle = { schemaVersion: 1, tag: verificationTag(source.revision), asset: assetName, createdAt: new Date().toISOString(), source: { revision: source.revision, tree: source.tree, baseRevision: source.baseRevision, fingerprint: source.fingerprint }, environment: { fingerprint: digest(environmentBytes), identity: text(environmentIdentity, 'verification environment identity', 500) }, build, verification: record, artifacts };
   validateVerificationBundle(bundle, { source });
   const bytes = bundleBytes(bundle);
   await write(path.resolve(output), bytes);
@@ -182,7 +220,7 @@ if (process.argv[1] && process.argv[1].replaceAll('\\', '/').endsWith('/scripts/
       const result = await createVerificationBundle({
         cwd: process.cwd(), base: value('--base'), recordPath: value('--record'), environmentPath: value('--environment'),
         environmentIdentity: value('--environment-identity'), buildIdentity: value('--build-identity') || 'none',
-        evidence, output: value('--output'),
+        hostingArtifact: args.includes('--hosting-artifact'), evidence, output: value('--output'),
       });
       process.stdout.write(result.sha256 + '\n');
     } else if (args.includes('--publish')) {
