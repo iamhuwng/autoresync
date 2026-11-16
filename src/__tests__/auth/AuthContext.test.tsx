@@ -128,6 +128,7 @@ describe('AuthContext', () => {
   it('should create user profile in RTDB on first login', async () => {
     const mockUser = {
       uid: 'test-uid-123',
+      emailVerified: true,
       email: 'student@test.com',
       displayName: 'Test Student',
       photoURL: 'https://example.com/photo.jpg'
@@ -180,6 +181,7 @@ describe('AuthContext', () => {
   it('supports email/password sign-in and creates a safe student profile when one is missing', async () => {
     const mockUser = {
       uid: 'email-student-uid',
+      emailVerified: true,
       email: 'student@test.com',
       displayName: 'Email Student',
       photoURL: null,
@@ -203,6 +205,7 @@ describe('AuthContext', () => {
   it('uses a Firebase custom token for student-ID sign-in without returning the email to the browser', async () => {
     const mockUser = {
       uid: 'student-id-uid',
+      emailVerified: true,
       email: 'student@test.com',
       displayName: 'Student',
       photoURL: null,
@@ -258,6 +261,45 @@ describe('AuthContext', () => {
     });
   });
 
+  it('withholds unverified auth state and profile listeners while verification is pending, including restored sessions', async () => {
+    const unverifiedUser = {
+      uid: 'unverified-uid', email: 'unverified@student.test', emailVerified: false,
+      getIdToken: vi.fn(),
+    };
+    let authCallback: (user: unknown) => void;
+    let finishVerification: () => void;
+    mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
+      authCallback = callback;
+      callback(unverifiedUser);
+      return vi.fn();
+    });
+    mockSignInWithEmailAndPassword.mockImplementation(async () => {
+      authCallback(unverifiedUser);
+      return { user: unverifiedUser };
+    });
+    mockSendEmailVerification.mockImplementation(() => new Promise<void>(resolve => { finishVerification = resolve; }));
+    mockOnValue.mockImplementation((_ref, callback) => {
+      callback({ val: () => ({ role: 'student', status: 'active' }) });
+      return vi.fn();
+    });
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    expect(screen.getByTestId('user').textContent).toBe('no-user');
+    expect(screen.getByTestId('profile').textContent).toBe('no-profile');
+    expect(mockOnValue).not.toHaveBeenCalled();
+    await act(async () => screen.getByTestId('unverified-login-btn').click());
+    expect(mockSendEmailVerification).toHaveBeenCalled();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(screen.getByTestId('user').textContent).toBe('no-user');
+    expect(screen.getByTestId('profile').textContent).toBe('no-profile');
+    expect(mockOnValue).not.toHaveBeenCalled();
+    await act(async () => finishVerification());
+    expect(mockSignOut).toHaveBeenCalled();
+    await act(async () => authCallback({ ...unverifiedUser, emailVerified: true }));
+    expect(screen.getByTestId('user').textContent).toBe(unverifiedUser.email);
+    expect(screen.getByTestId('profile').textContent).toBe('student');
+  });
+
   it('sends verification and blocks unverified password accounts', async () => {
     mockSignInWithEmailAndPassword.mockResolvedValue({
       user: {
@@ -287,6 +329,7 @@ describe('AuthContext', () => {
     
     const mockUser = {
       uid: 'admin-uid',
+      emailVerified: true,
       email: superAdminEmail,
       displayName: 'Super Admin',
       photoURL: null
@@ -322,6 +365,7 @@ describe('AuthContext', () => {
   it('should clear user state on logout', async () => {
     const mockUser = {
       uid: 'test-uid',
+      emailVerified: true,
       email: 'test@example.com',
       displayName: 'Test User',
       photoURL: null
@@ -389,6 +433,7 @@ describe('AuthContext', () => {
   it('should update profile when RTDB changes', async () => {
     const mockUser = {
       uid: 'test-uid',
+      emailVerified: true,
       email: 'test@example.com',
       displayName: 'Test User',
       photoURL: null
