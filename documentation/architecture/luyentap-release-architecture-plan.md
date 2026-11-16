@@ -33,6 +33,7 @@ Local-development reliability is an important parallel/deferred workstream. It m
 - For application-impacting candidates, Codex must select and execute proportionate verification, explain the scope, and create the source-bound evidence bundle before promotion readiness. A machine `UNVERIFIED` result is a preparation state; it is not a reason to stop while actionable application verification remains undone.
 - Use existing platform capabilities and repository tools before adding services, approval stores, frameworks or permanent infrastructure.
 - Apply evidence in proportion to risk: presentation, functional, contract/security and stateful/coordinated changes need different proof. Hosting evidence cannot qualify Workers, rules, storage, Functions or application-data changes.
+- Service routing is content-aware: local development launchers are not production storage changes by filename alone, while real Worker, binding, prefix, rules, and provider configuration changes retain their service-specific gates.
 - Preserve production approval, source/artifact integrity, independent live verification and native recovery. Never bypass protection or turn uncertain evidence into success.
 - Keep production environment identity separate from qualification/build inputs: the live manifest binds the production-only digest, while the retained artifact records the combined build-input digest. Reject a candidate that is not the current protected `origin/main` revision before doing expensive release assessment.
 
