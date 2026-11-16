@@ -29,6 +29,11 @@ production build. Cleanup also needed ad hoc recovery after registration.
 4. Update the runbook, canonical plan and evidence record together. Exercise the
    bundle-to-card workflow with synthetic sources/artifacts and negative cases,
    then obtain an independent sol-loop review before handoff.
+5. Batch the proven shared recovery correction here: recognize an old combined
+   environment identity only by exact reconstruction from current production
+   bytes, public QA inputs and observed live workflow; qualify newly declared
+   indexes through native READY readback. Neither correction mutates production
+   or waives actual configuration/service drift.
 
 Acceptance: exact retained artifact restored and card accepted; altered archive,
 missing archive, another source, environment, manifest or build binding rejected;
@@ -37,7 +42,7 @@ authorization, live snapshot, executor validation, readback and recovery retaine
 
 Branch implementation and local integration proof are recorded in
 [the dated audit](../release-audits/2026-11-17-tested-artifact-handoff.md).
-All 292 focused Node tests passed. Remote execution of the changed workflow and
+All 294 focused Node tests passed after the batched recovery correction. Remote execution of the changed workflow and
 production publication are not established by that local result.
 
 ## Operational follow-through and deferred changes
@@ -54,9 +59,10 @@ production publication are not established by that local result.
 - Keep the final baseline snapshot: Actions concurrency is a run mutex, not a
   production-wide lock. IAM/sole-writer changes and relaxing latest-main policy
   need separate evidence and are outside this correction.
-- Interrupted publication already has verification-only resumption. Stale baseline
-  metadata reconciliation is a different recovery task; no production repair is
-  authorized here.
+- Interrupted publication already has verification-only resumption. Read-only
+  baseline identity reconciliation now recognizes the demonstrated old workflow
+  without rewriting live metadata; actual configuration changes still require
+  qualified publication. No production repair is authorized here.
 - Do not change the production minifier merely because the QA run used a cheaper
   one. Schedule large checks serially and preserve the first failing build log.
 - Fixed Playwright-gate removal and persistent foundation setup are already done;

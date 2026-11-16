@@ -33,6 +33,18 @@ concurrency:
   group: luyentap-hosting-production
   cancel-in-progress: false
 
+# Optional public inputs used only to prove a historical combined manifest hash.
+# They are not build inputs or a requirement for a production-only baseline.
+env:
+  LUYENTAP_QUALIFICATION_FIREBASE_API_KEY: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_API_KEY }}
+  LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_HOSTING_SITE }}
+  LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_AUTH_DOMAIN }}
+  LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_DATABASE_URL }}
+  LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_PROJECT_ID }}
+  LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_STORAGE_BUCKET }}
+  LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_MESSAGING_SENDER_ID }}
+  LUYENTAP_QUALIFICATION_FIREBASE_APP_ID: ${{ vars.LUYENTAP_QUALIFICATION_FIREBASE_APP_ID }}
+
 jobs:
   prepare:
     if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'publish' }}
@@ -131,6 +143,8 @@ jobs:
           node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Assess the exact source and live baseline
         id: assessment
+        env:
+          LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
         run: |
           set -euo pipefail
           set +e

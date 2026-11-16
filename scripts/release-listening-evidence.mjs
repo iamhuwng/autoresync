@@ -149,7 +149,7 @@ export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
 }
 
 // Fixed native provider GETs only; no caller transport or evidence injection.
-export async function readListeningProvider(cwd, { firestore = false, privateAudio = false } = {}) {
+export async function readListeningProvider(cwd, { firestore = false, privateAudio = false, firestoreIndexes = false } = {}) {
   // Wrangler refreshes the existing session; copying its cached access token fails after expiry.
   const credentialOutput = command(process.execPath, [fileURLToPath(new URL('./tooling-where.mjs', import.meta.url)),
     '--exec', 'cloudflare-wrangler', 'auth', 'token', '--json'], cwd);
@@ -223,6 +223,12 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
     firestoreRules = validateFirestoreRulesReadback(release, ruleset, await get(releaseUrl, googleToken));
   }
   let privateAudioBucket;
+  let indexes;
+  if (firestoreIndexes) {
+    const result = await get('https://firestore.googleapis.com/v1/projects/temp-a1437/databases/(default)/collectionGroups/-/indexes', googleToken);
+    assert(!result.nextPageToken, 'Firestore index pagination requires review');
+    indexes = (result.indexes || []).sort((a, b) => a.name.localeCompare(b.name));
+  }
   if (privateAudio) {
     const bucketName = 'luyentap-listening-audio-private';
     const bucket = `${account}/r2/buckets/${bucketName}`;
@@ -236,6 +242,7 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
     writesEnabled: await get(`${database}/system_flags/listening_authoring_writes_enabled.json`, googleToken),
     restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken),
     ...(firestore ? { firestoreRules } : {}),
+    ...(firestoreIndexes ? { firestoreIndexes: indexes } : {}),
     ...(privateAudio ? { privateAudioBucket } : {}) };
 }
 

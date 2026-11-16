@@ -64,14 +64,63 @@ artifacts fail closed. No dependency, service or storage system was added.
 
 The feature thread separately reports stale live environment metadata and a
 changed-index source equality gate despite native READY index evidence. Those
-reports require current native configuration/provider comparison before changing
-the shared baseline or index qualification. They are not repaired by this handoff.
-Full production qualification, production baseline reconciliation and a true
-provider-wide sole-writer policy remain separately scoped/authorized.
+reports were subsequently investigated directly and batched in the same PR.
 
-Sol-loop: one round with GPT-6.1 Sol on medium, verdict APPROVE, no blocker or
-should findings. Usage was not exposed. The reviewer read the connected callers
-and plan/audit, checked the diff, and did not rerun the suite or remote publication.
-The reviewed behavior diff was unchanged after approval. This correction is
+### Read-only recovery diagnosis and correction
+
+The live manifest was independently reread with all 443 asset hashes. Its
+revision remains `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b`, manifest digest
+`5cce60adb13f8e90ac2ae018032f132bc85fa9ee6c3d0fd45d499285ba2f89f8`.
+The retained prior operation is
+`hosting-operation-32118ca3-0810-4fd7-84b3-7ca1a122169e`; its expected manifest
+matches the observed live manifest. Recovery does not depend on trusting the
+supplied local intent file.
+
+The production file SHA-256 is
+`8ec86efb1aa5967b5aa05d1a901bf7bd99244c3d34fafc0998bd3be113a8ea57`.
+The historical workflow in that exact live Git revision appended eight
+qualification Firebase values to the production file before fingerprinting.
+Current GitHub public qualification variables matched the local QA per-key
+digests. Appending that exact ordered suffix to the current production bytes
+reproduced **exactly** the live fingerprint
+`634fcdaa3757191f38e43c0119cd417e78937a08a1a548869973a3ace90f4f73`.
+The suffix digest is
+`69ec2af9fc045ba4ce9f7f90084456c36907bd811043dedbe4b2b256a49e32c5`.
+No values were logged. This is the old identity scheme, not evidence of changed
+production behavior or a reason to replace a protected secret.
+
+The assessor now performs that same read-only reconstruction automatically only
+for mismatched identities, validates the observed source workflow, retains both
+identities, and reobserves them before publication. Unknown or changed inputs
+fail closed. Live metadata is left intact; a normally authorized successor
+publication naturally writes its production-only identity. No separate baseline
+repair, exception flag or manual hash/path reconstruction is necessary.
+
+Native `gcloud firestore indexes composite list` observed nine production indexes,
+all `READY`. The newly declared `writing_submissions` index (`markingStatus ASC`,
+`studentId ASC`, `submittedAt DESC`) exists as `CICAgNiav4AK`. An unrelated
+unchanged `drafts` index is absent; this correction does not claim the whole
+index file is deployed. The shared observer replaces file-blob equality with
+native READY proof for added/changed composite declarations and preserves the
+field-override gate. Extra active indexes remain untouched. The native REST
+endpoint requires default page size; explicitly requesting 100 returned 400,
+so the production observer uses the supported default and rejects pagination.
+
+Focused recovery/assessor/workflow tests passed **86 tests**, and the complete
+release suite rerun passed **294 tests**, zero failed/skipped. Negative cases include actual environment changes, missing
+QA inputs, wrong historical workflow, non-READY/missing/foreign/scope/field-order
+index results and changed field overrides. The actual live identities and index
+inventory also passed the new pure validators in a read-only provider rehearsal,
+retained locally as `tmp/recovery-diagnosis.json`.
+
+These corrections clear two demonstrated procedure mismatches; they do not
+qualify candidate rules/Workers, grant IAM or authorize a production publication.
+A provider-wide sole-writer policy remains separately scoped/authorized.
+
+Sol-loop: two rounds with GPT-6.1 Sol on medium, both verdict APPROVE, no blocker
+or should findings. Round two covered the batched recovery correction. Usage was
+not exposed. The reviewer read the connected callers and plan/audit, checked the
+diff, and did not rerun the suite or remote publication. The reviewed behavior
+diff was unchanged after approval. This correction is
 prepared as one PR; it is not merged or remotely deployed by this record and
 does not declare a new production release or unconditional Phase 3 closure.

@@ -106,6 +106,13 @@ production environment and build-input bindings. Source-level verification may
 omit it when proportionate; that route makes no exact-built-site proof claim.
 QA inputs are optional prebuild inputs, not a universal promotion dependency.
 
+Hosting dependency assessment can also reconcile the historical combined-input
+manifest identity by exact reconstruction from production bytes, public QA
+configuration and the observed live workflow. It does not edit production or
+waive drift. Changed composite-index declarations use native READY evidence for
+the newly required indexes rather than source-file equality; field overrides and
+unrelated historical index gaps retain separate review/qualification boundaries.
+
 Phase 3 is a router, not a fixed deployment ceremony. The planner and
 promotion package select the lightest route that protects the changed surface:
 

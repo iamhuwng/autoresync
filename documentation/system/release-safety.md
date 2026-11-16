@@ -263,6 +263,33 @@ separate local-development reliability plan remains proposed and is not
 absorbed here. Do not describe the contract test or a local retained-artifact
 check as CI, provider, browser or rollback proof.
 
+### Read-only baseline reconciliation
+
+A mismatch between a production-only environment fingerprint and an old combined
+build-input fingerprint does not automatically require a live metadata repair.
+Hosting dependency observation reads the selected production file, obtains the
+eight public qualification Firebase inputs, and checks the materialization block
+in the observed live source. It accepts the old identity only when the exact
+concatenation reproduces the live manifest hash. The dependency receipt carries
+both identities and is freshly reobserved before publication; live bytes and the
+final baseline snapshot are unchanged. Missing inputs or any actual drift stop
+the operation. CLI callers may select `--production-env-file`; the planner forwards
+its `--env-file`, and the executor uses `LUYENTAP_PRODUCTION_ENV_FILE`.
+
+Local observation reads the existing GitHub repository variables automatically;
+Actions receives the same optional public values directly. They are used for this
+proof only and are not required when the live manifest already uses production-only
+identity. No secret edits, provider writes or manually reconstructed hash/path
+inputs are required. The next normally authorized release replaces the old
+manifest as part of publication rather than publishing a metadata-only repair.
+
+When the index declarations differ from live source, observation additionally
+reads the native Firestore index inventory. Every newly declared composite must
+be `READY` with matching scope and ordered fields. It does not delete existing
+indexes or qualify unchanged historical gaps. Field-override changes remain
+separately gated. The compatibility review still covers application behavior and
+any broader service coordination.
+
 ### Codex verification handoff
 
 For application-impacting changes, Codex is responsible for choosing and
