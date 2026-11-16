@@ -13,15 +13,36 @@ config binds only `luyentap-qualification-media` and
 It must never bind `kahoot-media`, `luyentap-listening-audio-private`, the
 production Firebase project, or the production Worker name.
 
-The Cloudflare Worker name now exists as a QA-only shell because the public QA
-Firebase web key was uploaded through Wrangler. It has no source deployment or
-public endpoint yet; this is intentional until the rate-limit namespace and
-QA service-account secret are ready.
+Stable QA website: `https://luyentap-pdf-qa-20261021.web.app`.
+Stable QA Worker: `https://luyentap-qualification-upload-signer.iamhuwng.workers.dev`.
+Firestore uses the QA project's `(default)` Standard-edition database in
+`asia-southeast1`. No production users, credentials or data are copied as part
+of routine qualification setup.
+
+The Worker uses `UPLOAD_RATE_LIMITER`, namespace `205514`, at 30 requests per
+60 seconds. Cloudflare accepts this integer ID directly in the binding form;
+an independently provisioned namespace resource is not required. The variable
+name matches the Worker code rather than a descriptive namespace label.
+
+The local QA configuration is `%USERPROFILE%\.luyentap\qualification\.env`.
+Build with `LUYENTAP_ENV_DIR` set to that directory so shared development or
+production env files are not loaded. A QA-only build is not a retained
+production artifact. GitHub environment `qualification` retains the same
+configuration as `LUYENTAP_QUALIFICATION_ENV`, plus its existing OIDC identity;
+`LUYENTAP_QUALIFICATION_WORKER_URL` records the stable endpoint. Reuse these
+settings instead of recreating the foundation for every deployment.
 
 Run the read-only health check before a release attempt:
 
 ```powershell
-npm run qualification:health -- --env-file <qualification-env-file> --require-workers --json
+$env:GOOGLE_OAUTH_ACCESS_TOKEN = gcloud auth print-access-token
+try {
+  node scripts/qualification-foundation-health.mjs `
+    --env-file "$env:USERPROFILE\.luyentap\qualification\.env" `
+    --require-workers --json
+} finally {
+  Remove-Item Env:\GOOGLE_OAUTH_ACCESS_TOKEN
+}
 ```
 
 The command verifies the dedicated project/site identity and active RTDB
@@ -34,11 +55,42 @@ production endpoints. Set `GOOGLE_OAUTH_ACCESS_TOKEN` when Auth API
 configuration readback is required. Worker deployment/version/binding proof
 remains a separate read-only provider observation.
 
-Current external prerequisites: (1) an owner must create a distinct Cloudflare
-Rate Limit namespace for the QA Worker and add its namespace ID to the config;
-the production IDs cannot be reused; (2) an owner must provide the QA Firebase
-web API key and a QA-only `book-homework@luyentap-pdf-qa-20261021` service-account
-key through the protected secret path, then upload them as Worker secrets; and
-(3) after deployment, add only the QA Worker endpoint URL(s) to the protected
-qualification environment. These actions do not touch production routes,
-credentials, or data.
+Worker secrets are `FIREBASE_WEB_API_KEY` and `BOOK_HOMEWORK_GOOGLE_SA_KEY`.
+The latter belongs only to
+`book-homework@luyentap-pdf-qa-20261021.iam.gserviceaccount.com`; the same email
+is configured as `BOOK_HOMEWORK_SERVICE_IDENTITY`. Its owner-authorized
+`roles/firebasedatabase.admin` grant is restricted to the separate QA project.
+Do not export the private key or grant production permissions. A secret-name
+listing does not prove that its runtime value is usable.
+
+There are no permanent shared journey passwords. Provision temporary QA
+accounts, open `/login`, and delete their Auth accounts, profiles and private
+student-ID mappings in cleanup. Local dev quick-login accounts are not remote
+QA fixtures. Keep credentials out of logs and Git.
+
+Health PASS establishes the checked inventory, not every application flow.
+Codex selects proportionate browser/provider tests. Synchronize only affected
+QA source, rules, indexes or Worker configuration with the selected candidate;
+read back the result. Firestore composite indexes must be READY before dependent
+queries. Ordinary single-field indexes are automatic and must not be listed as
+composite indexes.
+
+Full-app qualification uses the candidate's `database.rules.json`,
+`firestore.rules` and `firestore.indexes.json`. The optional historical Hosting
+smoke harness deploys fixture-only RTDB rules: do not run that fixture-rules lane
+over this foundation or mistake it for full-app qualification. Use a selected
+journey with actual candidate rules and trusted fixture provisioning instead.
+
+Preview channels isolate frontend versions, not shared rules or Worker
+versions. Serialize changes to those shared backends. For a unique preview
+URL, add its exact origin to the QA Worker's `STUDENT_AUTH_ALLOWED_ORIGINS` for
+that run, then remove it in cleanup. Do not allow arbitrary `web.app` origins.
+The stable QA site's origin is already allowed. Preserve the stable site and
+foundation when deleting run resources.
+
+R2 bindings alone do not prove object delivery. Public R2 delivery, Backblaze,
+external AI services, Functions and migrations retain scoped setup and evidence;
+never use production endpoints as a fallback for missing QA services.
+
+Setup evidence and limits:
+`documentation/release-audits/2026-11-17-persistent-qualification-foundation.md`.

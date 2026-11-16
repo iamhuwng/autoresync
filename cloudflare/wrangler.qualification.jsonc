@@ -11,6 +11,13 @@
     { "binding": "R2_BUCKET", "bucket_name": "luyentap-qualification-media" },
     { "binding": "LISTENING_AUDIO_BUCKET", "bucket_name": "luyentap-qualification-listening-audio" }
   ],
+  "ratelimits": [
+    {
+      "name": "UPLOAD_RATE_LIMITER",
+      "namespace_id": "205514",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
   "durable_objects": {
     "bindings": [{ "name": "UPLOAD_GRANT_REPLAY_LEDGER", "class_name": "UploadGrantReplayLedger" }]
   },
@@ -20,6 +27,7 @@
   ],
   "vars": {
     "FIREBASE_PROJECT_ID": "luyentap-pdf-qa-20261021",
+    "BOOK_HOMEWORK_SERVICE_IDENTITY": "book-homework@luyentap-pdf-qa-20261021.iam.gserviceaccount.com",
     "FIREBASE_DB_URL": "https://luyentap-pdf-qa-20261021-default-rtdb.asia-southeast1.firebasedatabase.app",
     "PUBLIC_URL": "https://luyentap-qualification-media.r2.dev",
     "STUDENT_AUTH_ROUTES_ENABLED": "enabled",
