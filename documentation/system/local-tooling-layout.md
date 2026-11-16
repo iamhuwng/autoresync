@@ -157,6 +157,12 @@ declarations match byte-for-byte. This keeps fresh release or assessment
 checkouts stateless while avoiding a duplicate install; unregistered locations,
 different contracts and missing tools still fail closed.
 
+During `--exec`, when the selected owner is outside the source checkout, the
+resolver temporarily exposes that validated package's `node_modules` at the
+source package root for the child process, then removes it in a `finally`
+cleanup. It never copies or installs dependencies, and a failed overlay or
+cleanup fails the command.
+
 Retained Wrangler audits run Windows x64 against the live checkout and the
 selected package's existing dependencies. They create evidence/run receipts,
 but no source snapshot, dependency installation, or WSL environment. Other

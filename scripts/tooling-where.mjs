@@ -45,6 +45,18 @@ if (rootToolOwner === repoRoot && !fs.existsSync(path.join(repoRoot, 'node_modul
 const cloudflareToolOwner = findPackageOwner('cloudflare', 'wrangler');
 const r2ToolOwner = findPackageOwner('r2-backup-worker', 'wrangler');
 const functionsToolOwner = findPackageOwner('functions', 'typescript');
+const dependencyScopes = new Map([
+  ['vite', { relativePackage: '', ownerRoot: rootToolOwner }],
+  ['vitest', { relativePackage: '', ownerRoot: rootToolOwner }],
+  ['vite-node', { relativePackage: '', ownerRoot: rootToolOwner }],
+  ['playwright', { relativePackage: '', ownerRoot: rootToolOwner }],
+  ['firebase', { relativePackage: '', ownerRoot: rootToolOwner }],
+  ['cloudflare-vitest', { relativePackage: 'cloudflare', ownerRoot: cloudflareToolOwner }],
+  ['cloudflare-wrangler', { relativePackage: 'cloudflare', ownerRoot: cloudflareToolOwner }],
+  ['r2-wrangler', { relativePackage: 'r2-backup-worker', ownerRoot: r2ToolOwner }],
+  ['r2-vitest', { relativePackage: 'r2-backup-worker', ownerRoot: r2ToolOwner }],
+  ['functions-tsc', { relativePackage: 'functions', ownerRoot: functionsToolOwner }],
+]);
 const home = os.homedir();
 const sharedToolsRoot =
   process.env.CODEX_WINDOWS_TOOLS_ROOT ||
@@ -187,6 +199,25 @@ function commandFor(name, entry) {
   return [execution.command, ...execution.args].map(q).join(' ');
 }
 
+function prepareDependencyOverlay(name) {
+  const scope = dependencyScopes.get(name);
+  if (!scope || scope.ownerRoot === repoRoot) return () => {};
+  const target = path.join(repoRoot, scope.relativePackage, 'node_modules');
+  if (fs.existsSync(target)) return () => {};
+  const ownerModules = path.join(scope.ownerRoot, scope.relativePackage, 'node_modules');
+  if (!fs.existsSync(ownerModules)) throw new Error(`Missing validated dependency owner: ${ownerModules}`);
+  let created = false;
+  try {
+    fs.symlinkSync(ownerModules, target, process.platform === 'win32' ? 'junction' : 'dir');
+    created = true;
+  } catch (error) {
+    if (!fs.existsSync(target)) throw error;
+  }
+  return () => {
+    if (created) fs.unlinkSync(target);
+  };
+}
+
 function printEntry(name) {
   const entry = entries[name];
   if (!entry) {
@@ -236,19 +267,33 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
         console.error(`Missing tool: ${entry.path}`);
         process.exitCode = 1;
       } else {
-        const environment = { ...process.env };
-        if (execution.command !== process.execPath) {
-          const pathKey = Object.keys(environment).find((key) => key.toUpperCase() === 'PATH') || 'PATH';
-          environment[pathKey] = `${path.dirname(execution.command)}${path.delimiter}${environment[pathKey] || ''}`;
+        let cleanupOverlay;
+        try {
+          cleanupOverlay = prepareDependencyOverlay(name);
+          const environment = { ...process.env };
+          if (execution.command !== process.execPath) {
+            const pathKey = Object.keys(environment).find((key) => key.toUpperCase() === 'PATH') || 'PATH';
+            environment[pathKey] = `${path.dirname(execution.command)}${path.delimiter}${environment[pathKey] || ''}`;
+          }
+          const result = spawnSync(execution.command, [...execution.args, ...toolArguments], {
+            cwd: process.cwd(),
+            env: environment,
+            stdio: 'inherit',
+            shell: false,
+          });
+          if (result.error) console.error(result.error.message);
+          process.exitCode = result.status ?? 1;
+        } catch (error) {
+          console.error(`Cannot expose validated dependencies for ${name}: ${error.message}`);
+          process.exitCode = 1;
+        } finally {
+          try {
+            cleanupOverlay?.();
+          } catch (error) {
+            console.error(`Cannot remove temporary dependency overlay: ${error.message}`);
+            process.exitCode = 1;
+          }
         }
-        const result = spawnSync(execution.command, [...execution.args, ...toolArguments], {
-          cwd: process.cwd(),
-          env: environment,
-          stdio: 'inherit',
-          shell: false,
-        });
-        if (result.error) console.error(result.error.message);
-        process.exitCode = result.status ?? 1;
       }
     }
   } else if (requested.length === 0 || requested.includes('--all')) {

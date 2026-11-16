@@ -54,6 +54,15 @@ test('a fresh sibling worktree reuses a matching registered dependency owner', (
     assert.equal(result.status, 0, result.stderr);
     assert.ok(result.stdout.includes(path.basename(owner)));
     assert.match(result.stdout, /node_modules[\\/]vite[\\/]bin[\\/]vite\.js/u);
+    fs.mkdirSync(path.join(owner, 'node_modules', 'fixture-dependency'), { recursive: true });
+    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'package.json'), '{"name":"fixture-dependency","main":"index.cjs"}\n');
+    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'index.cjs'), "module.exports = { value: 'owner' };\n");
+    fs.writeFileSync(path.join(repo, 'config.cjs'), "module.exports = require('fixture-dependency');\n");
+    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), "const config = require(require('node:path').join(process.cwd(), 'config.cjs')); if (config.value !== 'owner') process.exit(2); console.log('overlay-ok');\n");
+    const executed = spawnSync(process.execPath, [path.join(repo, 'scripts/tooling-where.mjs'), '--exec', 'vite', '--config', 'config.cjs'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+    assert.equal(executed.status, 0, executed.stderr);
+    assert.match(executed.stdout, /overlay-ok/u);
+    assert.equal(fs.existsSync(path.join(repo, 'node_modules')), false);
     spawnSync('git', ['worktree', 'remove', '--force', owner], { cwd: repo, encoding: 'utf8', windowsHide: true });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
