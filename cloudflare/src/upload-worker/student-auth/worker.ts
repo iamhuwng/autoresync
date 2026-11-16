@@ -613,6 +613,9 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       const requestedId = normalizeStudentId(body.studentId);
       if (suppliedStudentId && !requestedId) return workerError('invalid_student_id', 400);
       const currentId = normalizeStudentId(currentIdentifier?.studentId);
+      if (currentId && requestedId && currentId.normalized !== requestedId.normalized) {
+        return workerError('student_id_already_assigned', 409);
+      }
       for (let attempt = 0; attempt < 12; attempt += 1) {
         const candidate = currentId ?? requestedId ?? normalizeStudentId((options.generateStudentId ?? generateStudentId)());
         if (!candidate) continue;

@@ -18,7 +18,7 @@ vi.mock('../../services/firebaseCore', () => ({
 
 // Test component to access auth context
 const TestComponent = () => {
-  const { user, profile, loading, login, loginWithEmail, loginWithStudentId, registerWithEmail, sendPasswordReset, logout } = useAuth();
+  const { user, profile, loading, login, loginWithEmail, loginWithStudentId, registerWithEmail, sendPasswordReset, setupStudentCredentials, logout } = useAuth();
   
   return (
     <div>
@@ -31,6 +31,7 @@ const TestComponent = () => {
       <button onClick={() => loginWithStudentId('student-7', 'password123')} data-testid="student-id-login-btn">Student ID login</button>
       <button onClick={() => registerWithEmail('new@student.test', 'password123', 'New Student', 'new-student-7')} data-testid="register-btn">Register</button>
       <button onClick={() => sendPasswordReset('student@test.com')} data-testid="reset-btn">Reset password</button>
+      <button onClick={() => setupStudentCredentials({ studentId: 'DIFFERENT-ID', password: 'password123', firstName: 'QA', familyName: 'Student' }).catch(() => {})} data-testid="setup-btn">Set up credentials</button>
       <button onClick={logout} data-testid="logout-btn">Logout</button>
     </div>
   );
@@ -229,6 +230,21 @@ describe('AuthContext', () => {
     await act(async () => screen.getByTestId('student-id-login-btn').click());
 
     expect(mockSignInWithCustomToken).toHaveBeenCalledWith({}, 'one-time-custom-token');
+  });
+
+  it('rejects changing an assigned ID before updating the password', async () => {
+    const { auth } = await import('../../services/firebaseCore');
+    Object.assign(auth, { currentUser: { uid: 'google-student', getIdToken: vi.fn() } });
+    mockGet.mockResolvedValue({ val: () => ({ studentId: 'STU-ASSIGNED' }) });
+    try {
+      render(<AuthProvider><TestComponent /></AuthProvider>);
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+      await act(async () => screen.getByTestId('setup-btn').click());
+      expect(mockGet).toHaveBeenCalled();
+      expect(firebaseAuth.updatePassword).not.toHaveBeenCalled();
+    } finally {
+      delete (auth as unknown as { currentUser?: unknown }).currentUser;
+    }
   });
 
   it('uses Firebase password-reset email without requiring a Cloud Function', async () => {

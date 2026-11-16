@@ -23,6 +23,7 @@ export interface FeatureDefinition {
 export const FEATURE_IDS = {
   authentication: 'authentication',
   notifications: 'notifications',
+  profile: 'profile',
   adminPanel: 'adminPanel',
   antiCheat: 'antiCheat',
   classes: 'classes',
@@ -1003,13 +1004,17 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     description: 'Session feedback collection and viewing',
   },
   {
-    id: 'profile',
+    id: FEATURE_IDS.profile,
     name: 'Profile',
     routes: ['/profile'],
     actions: [
       'editProfile',
       'changePassword',
       'updateAvatar',
+      'openCredentialSetup',
+      'saveCredentialSetup',
+      'cancelCredentialSetup',
+      'toggleCredentialPasswordVisibility',
     ],
     description: 'User profile management',
   },
