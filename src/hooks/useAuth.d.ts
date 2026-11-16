@@ -14,6 +14,7 @@ export interface AuthContextType {
     registerWithEmail: (email: string, password: string, displayName: string, studentId: string) => Promise<any>;
     sendPasswordReset: (email: string) => Promise<void>;
     setupStudentCredentials: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
+    completeGoogleRegistration: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
     logout: () => Promise<void>;
     updateProfile?: (data: any) => Promise<void>;
 

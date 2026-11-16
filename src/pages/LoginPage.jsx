@@ -78,6 +78,7 @@ const LoginPage = () => {
     loginWithEmail,
     loginWithStudentId,
     registerWithEmail,
+    completeGoogleRegistration,
     sendPasswordReset,
   } = useAuth();
   const { trackAction } = useFeatureTracking(FEATURE_IDS.authentication);
@@ -95,6 +96,7 @@ const LoginPage = () => {
   const [loginError, setLoginError] = useState(null);
   const [formPending, setFormPending] = useState(false);
   const [googleLoginPending, setGoogleLoginPending] = useState(false);
+  const [googleRegistration, setGoogleRegistration] = useState(false);
   const [devLoading, setDevLoading] = useState(null);
   const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
   const googleLoginInFlight = useRef(false);
@@ -163,6 +165,7 @@ const LoginPage = () => {
     setConfirmPassword('');
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setGoogleRegistration(false);
     if (nextView === 'reset' && identifier.includes('@')) setEmail(identifier.trim());
     if (nextView === 'register' && identifier.includes('@')) setEmail(identifier.trim());
     setView(nextView);
@@ -178,7 +181,13 @@ const LoginPage = () => {
     setLoginError(null);
     trackAction('login', { method: 'google' });
     try {
-      await login();
+      const result = await login();
+      if (result?.needsStudentRegistration) {
+        setEmail(result.user?.email || '');
+        setGoogleRegistration(true);
+        setView('register');
+        trackAction('openRegistration', { method: 'google' });
+      }
     } catch (error) {
       console.error('Google login error:', error);
       setLoginError(getAuthErrorMessage(error));
@@ -240,9 +249,13 @@ const LoginPage = () => {
     }
 
     setFormPending(true);
-    trackAction('register', { method: 'email_password', role: 'student' });
+    trackAction('register', { method: googleRegistration ? 'google_password' : 'email_password', role: 'student' });
     try {
-      await registerWithEmail(normalizedEmail, password, `${firstName.trim()} ${familyName.trim()}`, normalizedStudentId);
+      if (googleRegistration) {
+        await completeGoogleRegistration({ studentId: normalizedStudentId, password, firstName: firstName.trim(), familyName: familyName.trim() });
+      } else {
+        await registerWithEmail(normalizedEmail, password, `${firstName.trim()} ${familyName.trim()}`, normalizedStudentId);
+      }
       toast.success(`Student account created. Your student ID is ${normalizedStudentId}. You can use it or your email to sign in.`);
     } catch (error) {
       console.error('Student registration error:', error);
@@ -346,7 +359,7 @@ const LoginPage = () => {
             </div>
           )}
 
-          {user ? (
+          {user && !googleRegistration ? (
             <div style={{ textAlign: 'center', padding: '1rem 0' }}>
               <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>Redirecting...</p>
             </div>
@@ -414,7 +427,7 @@ const LoginPage = () => {
                   </div>
                   <div style={{ marginBottom: '0.9rem' }}>
                     <label htmlFor="register-email" style={labelStyle}>Email address</label>
-                    <input id="register-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required style={inputStyle} />
+                    <input id="register-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" readOnly={googleRegistration} aria-readonly={googleRegistration} required style={{ ...inputStyle, ...(googleRegistration ? { background: '#f8fafc', color: '#64748b' } : {}) }} />
                   </div>
                   <div style={{ marginBottom: '0.9rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
