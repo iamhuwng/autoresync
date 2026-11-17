@@ -49,6 +49,7 @@ function renderPage() {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     mockUseAuth.mockReturnValue({
       user: null,
       profile: null,
@@ -96,8 +97,11 @@ describe('LoginPage', () => {
   });
 
   it('resumes the registration form for an authenticated Google account without a profile', async () => {
+    sessionStorage.setItem('google-registration-draft:google-resume-1', JSON.stringify({
+      firstName: 'Saved', familyName: 'Student', studentId: 'saved-7', password: 'password123', confirmPassword: 'password123',
+    }));
     mockUseAuth.mockReturnValue({
-      user: { email: 'resume.google@example.com', providerData: [{ providerId: 'google.com' }] },
+      user: { uid: 'google-resume-1', email: 'resume.google@example.com', providerData: [{ providerId: 'google.com' }] },
       profile: null,
       loading: false,
       login: mockLogin,
@@ -111,6 +115,8 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('heading', { name: /create your account/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toHaveValue('resume.google@example.com');
     expect(screen.getByLabelText(/email address/i)).toHaveAttribute('readonly');
+    expect(await screen.findByLabelText(/first name/i)).toHaveValue('Saved');
+    expect(screen.getByLabelText(/student id \/ username/i)).toHaveValue('saved-7');
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
