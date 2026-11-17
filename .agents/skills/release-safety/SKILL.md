@@ -8,6 +8,46 @@ description: Use this skill when preparing, assessing, or hotfixing a LuyenTap r
 Use the executable scripts as the authority. This skill is an agent-facing
 recipe, not a second validation implementation.
 
+## When the user says “deploy”
+
+Treat the request as permission to prepare and execute the appropriate release
+route, subject to the repository's production-authorization boundary. Do not
+replay the full release ceremony by habit. Inspect the candidate and live state,
+then choose the smallest route that proves the changed behavior and protects the
+publication:
+
+| Change shape | Codex-selected route |
+| --- | --- |
+| Documentation, tests or tooling only | PR checks and integration evidence; no application preview unless the change affects a live service |
+| Routine frontend or static Hosting change | Focused checks and a browser/preview journey only when behavior can regress |
+| Worker, rules, configuration, index or provider change | The affected native emulator/provider check and its ordering/recovery evidence |
+| Coordinated frontend plus backend change | Persistent qualification foundation, disposable run state and a coordinated journey |
+| Release-infrastructure change | Source/artifact, operation, publication, readback and recovery checks |
+
+These shapes are not overlapping shortcuts: tooling that changes release,
+deployment or recovery machinery is release infrastructure. When more than one
+shape matches, choose the strictest route.
+
+Before running a selected route, check the capabilities it needs: repository
+tools, the persistent qualification foundation, non-production bindings and
+provider credentials. If a capability is absent, investigate the approved
+recovery path before reporting a blocker. Do not require QA inputs, browser
+frameworks, accounts or provider checks that the selected route does not use.
+
+Codex owns test choice, browser choice, depth, sequencing and technical
+diagnosis. The owner supplies the objective and genuine production authorization;
+the mechanical helpers derive hashes, paths, evidence bindings and operation
+identities. Reuse an existing retained artifact or operation when it matches the
+candidate. If publication is ambiguous, resume and verify that operation; never
+start a second publication to solve a readback delay.
+
+The route is complete when the exact selected evidence, source/artifact identity,
+authorization, freshness check, live readback and cleanup agree. A route that
+does not need application evidence may use the explicit `not-required` decision;
+an application route needs the source-bound bundle, and a built-site route adds
+the exact tested artifact. These are conditional evidence boundaries, not extra
+human approval steps.
+
 ## Start from current state
 
 Read `documentation/system/release-safety.md`,

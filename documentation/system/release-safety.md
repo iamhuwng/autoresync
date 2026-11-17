@@ -13,6 +13,55 @@ Future autonomous agents should load the model-invoked repository Skill at
 `.agents/skills/release-safety/SKILL.md`. It supplies the short operating
 recipe; this document and the executable scripts remain the authority.
 
+## Codex deployment guide
+
+When a user asks Codex to deploy, Codex selects the route from the actual change
+and current live state. The route is not a fixed checklist:
+
+1. Inspect the clean candidate, protected integration state and deployed baseline.
+2. Classify the changed surface: documentation/tooling, frontend, backend/provider,
+   coordinated services or release infrastructure.
+3. Check only the capabilities needed by that route. Reuse the persistent
+   qualification foundation and retained evidence; create only disposable
+   channels, accounts, data and run records when a preview is useful.
+4. Choose and run proportionate checks. Codex may use focused tests, a browser,
+   an emulator, native provider observation or a coordinated preview. No fixed
+   browser framework, account scheme or journey is required.
+5. Bind evidence to the exact protected source. Retain the exact built artifact
+   only when the selected proof depends on built-site bytes; source-level proof
+   remains sufficient when Codex judges it so.
+6. Use the guarded publisher only after technical evidence, authorization and
+   freshness agree. The existing scripts derive mechanical metadata and retain
+   the operation; the owner does not supply hashes or paths.
+7. Read back the live result independently. If the provider is delayed or the
+   process is interrupted, poll briefly or resume the recorded operation. Never
+   publish twice to solve an ambiguous readback.
+8. Remove only temporary run state and report what was proved, what was skipped
+   and any remaining external dependency.
+
+The persistent foundation, exact artifact retention, immutable evidence, final
+freshness snapshot, publication journal, provider readback and recovery helpers
+protect concrete boundaries. They are conditional helpers behind this guide,
+not separate ceremonies for every change.
+
+### Route selection at a glance
+
+| Candidate shape | Minimum route |
+| --- | --- |
+| Documentation, tests or tooling only | Protected integration and relevant checks |
+| Routine frontend/static Hosting | Focused checks; preview/browser only when user behavior is at risk |
+| Worker, rules, configuration, index or provider | Affected native service checks and recovery/order evidence |
+| Frontend plus Worker/Firebase | Persistent qualification foundation plus a selected coordinated journey |
+| Release infrastructure | Artifact/source integrity, operation, publication, readback and recovery qualification |
+
+Route precedence is strict: tooling that changes release, deployment or recovery
+machinery is release infrastructure. When several rows match, use the strictest
+route rather than the lighter tooling route.
+
+Do not turn a missing capability into a universal gate. Investigate the
+capability, use the supported recovery path, or record the exact affected proof
+as unavailable while preserving fail-closed publication.
+
 When hardening one coupled release or staging contract, keep the work on one
 hardening branch and run the complete provider-backed rehearsal before merging.
 Batch failures that belong to that contract and merge only after the rehearsal
