@@ -30,3 +30,11 @@ Committed and merged locally into `main` on 2026-11-16. Production publication i
 - Publication: **published**; verification: **passed**; provider: `projects/temp-a1437/sites/kahut1/versions/e67bbace411e37c9@2026-11-16T20:52:41.706Z`.
 - Retained evidence: [operation outcome](https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-d6a77949-5e94-4d58-a9b3-2a56dc296e1a#outcome-048201a39abbae800a6db53aa91a83f793cffca0e2dc940d5cb005ba9db38e3a.json).
 - This is a scoped historical observation; it does not establish current activation or completion of excluded services. Earlier implementation notes remain dated history.
+
+<!-- release-operation:ab901bc2-34b7-459f-b2af-93026b6a617b:outcome-daf76272b3c7c4b232f6cf595c306f9d674809c44a63a9dbb1ea433c0900733b.json -->
+
+- Recorded: 2026-11-17T00:32:08.484Z; operation: `ab901bc2-34b7-459f-b2af-93026b6a617b`.
+- Source: `eda9c90fc57aa99912e76ef4efdac537049b0c6a`; target: `firebase:temp-a1437:hosting:kahut1`; action: deploy.
+- Publication: **published**; verification: **passed**; provider: `projects/temp-a1437/sites/kahut1/versions/acf1ababfaa1c81d@2026-11-17T00:30:03.076Z`.
+- Retained evidence: [operation outcome](https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-ab901bc2-34b7-459f-b2af-93026b6a617b#outcome-daf76272b3c7c4b232f6cf595c306f9d674809c44a63a9dbb1ea433c0900733b.json).
+- This is a scoped historical observation; it does not establish current activation or completion of excluded services. Earlier implementation notes remain dated history.
