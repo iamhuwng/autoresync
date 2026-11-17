@@ -125,7 +125,7 @@ describe('AuthContext', () => {
     });
   });
 
-  it('should create user profile in RTDB on first login', async () => {
+  it('defers first-time Google profile creation until student registration is completed', async () => {
     const mockUser = {
       uid: 'test-uid-123',
       emailVerified: true,
@@ -172,10 +172,7 @@ describe('AuthContext', () => {
       expect(mockSignInWithPopup).toHaveBeenCalled();
     });
     
-    // Verify profile creation was attempted
-    await waitFor(() => {
-      expect(mockSet).toHaveBeenCalled();
-    });
+    expect(mockSet).not.toHaveBeenCalled();
   });
 
   it('supports email/password sign-in and creates a safe student profile when one is missing', async () => {

@@ -60,7 +60,7 @@ export interface AuthContextValue {
     error: Error | null;
 
     /** Login with Google popup */
-    login: () => Promise<UserCredential>;
+    login: () => Promise<UserCredential & { needsStudentRegistration?: boolean }>;
 
     /** Login with email and password */
     loginWithEmail: (email: string, password: string) => Promise<UserCredential>;
@@ -79,6 +79,7 @@ export interface AuthContextValue {
     /** Send a password-reset email through Firebase Authentication */
     sendPasswordReset: (email: string) => Promise<void>;
     setupStudentCredentials: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
+    completeGoogleRegistration: (input: { studentId: string; password: string; firstName: string; familyName: string }) => Promise<void>;
 
     /** Logout current user */
     logout: () => Promise<void>;

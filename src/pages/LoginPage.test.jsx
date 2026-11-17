@@ -10,6 +10,7 @@ const mockLogin = vi.fn();
 const mockLoginWithEmail = vi.fn();
 const mockLoginWithStudentId = vi.fn();
 const mockRegisterWithEmail = vi.fn();
+const mockCompleteGoogleRegistration = vi.fn();
 const mockSendPasswordReset = vi.fn();
 const mockUseAuth = vi.fn();
 const mockTrackAction = vi.fn();
@@ -56,6 +57,7 @@ describe('LoginPage', () => {
       loginWithEmail: mockLoginWithEmail,
       loginWithStudentId: mockLoginWithStudentId,
       registerWithEmail: mockRegisterWithEmail,
+      completeGoogleRegistration: mockCompleteGoogleRegistration,
       sendPasswordReset: mockSendPasswordReset,
     });
   });
@@ -80,6 +82,35 @@ describe('LoginPage', () => {
 
     expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'google' });
+  });
+
+  it('opens the student registration form for a new Google account with a fixed email', async () => {
+    mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: { email: 'new.google@example.com' } });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /sign in with google/i }));
+    expect(screen.getByRole('heading', { name: /create your account/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/email address/i)).toHaveValue('new.google@example.com');
+    expect(screen.getByLabelText(/email address/i)).toHaveAttribute('readonly');
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('completes a new Google account through the student registration submit path', async () => {
+    mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: { email: 'new.google@example.com' } });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /sign in with google/i }));
+    await user.type(screen.getByLabelText(/first name/i), 'New');
+    await user.type(screen.getByLabelText(/last name/i), 'Google');
+    await user.type(screen.getByLabelText(/student id \/ username/i), 'new-google-7');
+    await user.type(screen.getByLabelText(/^password$/i), 'password123');
+    await user.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /create student account/i }));
+    await waitFor(() => expect(mockCompleteGoogleRegistration).toHaveBeenCalledWith({
+      studentId: 'new-google-7', password: 'password123', firstName: 'New', familyName: 'Google',
+    }));
+    expect(mockRegisterWithEmail).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('prevents duplicate Google popup requests while sign-in is already in flight', async () => {

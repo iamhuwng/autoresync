@@ -314,6 +314,10 @@ export function AuthProvider({ children }) {
       throw createAuthError('auth/user-disabled', 'Your account is unavailable. Please contact an administrator.');
     }
 
+    if (!userData && result.deferNewGoogleProfile) {
+      return { ...result, needsStudentRegistration: true };
+    }
+
     if (!userData) {
       // Accounts without a profile default to student. Privileged roles are
       // assigned only by the existing trusted administration workflows.
@@ -349,7 +353,7 @@ export function AuthProvider({ children }) {
       setError(null);
       setForceLogoutReason(null);
       const result = await signInWithPopup(auth, googleProvider);
-      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: false });
+      return await finalizeAuthenticatedLogin({ ...result, requireVerifiedEmail: false, deferNewGoogleProfile: true });
     } catch (err) {
       setError(err);
       throw err;
@@ -449,6 +453,28 @@ export function AuthProvider({ children }) {
       displayName: `${firstName} ${familyName}`.trim(),
     }, idToken);
     await updateAuthProfile(auth.currentUser, { displayName: `${firstName} ${familyName}`.trim() });
+  };
+
+  const completeGoogleRegistration = async ({ studentId, password, firstName, familyName }) => {
+    if (!auth.currentUser?.uid || !auth.currentUser.email) throw studentAuthError('unauthorized');
+    const userRef = ref(database, `users/${auth.currentUser.uid}`);
+    const snapshot = await get(userRef);
+    if (!snapshot.exists()) {
+      await set(userRef, {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        displayName: `${firstName.trim()} ${familyName.trim()}`.trim(),
+        photoURL: auth.currentUser.photoURL || null,
+        role: 'student',
+        firstName: firstName.trim(),
+        familyName: familyName.trim(),
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+        status: 'active',
+        forceReauth: false,
+      });
+    }
+    await setupStudentCredentials({ studentId, password, firstName, familyName });
   };
 
   /**
@@ -602,6 +628,7 @@ export function AuthProvider({ children }) {
     registerWithEmail,
     sendPasswordReset,
     setupStudentCredentials,
+    completeGoogleRegistration,
     logout,
 
     // Security state (Task 5.0)
