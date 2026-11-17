@@ -5,6 +5,7 @@ import { useFeatureTracking } from '../hooks/useFeatureTracking';
 import { FEATURE_IDS } from '../config/featureRegistry';
 import { Card, CardBody, Button, toast } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
+import { sessionStore } from '../core/platform/storage';
 
 const DEV_LOGIN_CREDENTIALS = {
   teacher: { id: 'teacher', email: 'teacher@test.com', password: 'teacher' },
@@ -100,12 +101,25 @@ const LoginPage = () => {
   const [devLoading, setDevLoading] = useState(null);
   const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
   const googleLoginInFlight = useRef(false);
+  const loadedGoogleDraft = useRef('');
 
   useEffect(() => {
     if (!loading && user && !profile && user.providerData?.some((provider) => provider.providerId === 'google.com')) {
       setEmail(user.email || '');
       setGoogleRegistration(true);
       setView('register');
+      const draftKey = `google-registration-draft:${user.uid}`;
+      if (loadedGoogleDraft.current !== draftKey) {
+        loadedGoogleDraft.current = draftKey;
+        void sessionStore.get(draftKey).then((draft) => {
+          if (!draft || typeof draft !== 'object') return;
+          setFirstName(draft.firstName || '');
+          setFamilyName(draft.familyName || '');
+          setStudentId(draft.studentId || '');
+          setPassword(draft.password || '');
+          setConfirmPassword(draft.confirmPassword || '');
+        });
+      }
       return;
     }
     if (!loading && user && profile) {
@@ -118,6 +132,13 @@ const LoginPage = () => {
       }
     }
   }, [loading, user, profile, navigate]);
+
+  useEffect(() => {
+    if (!googleRegistration || !user?.uid) return;
+    void sessionStore.set(`google-registration-draft:${user.uid}`, {
+      firstName, familyName, studentId, password, confirmPassword,
+    });
+  }, [googleRegistration, user?.uid, firstName, familyName, studentId, password, confirmPassword]);
 
   const getAuthErrorMessage = (error) => {
     const errorCode = error?.code || '';
@@ -259,6 +280,7 @@ const LoginPage = () => {
     try {
       if (googleRegistration) {
         await completeGoogleRegistration({ studentId: normalizedStudentId, password, firstName: firstName.trim(), familyName: familyName.trim() });
+        await sessionStore.remove(`google-registration-draft:${user.uid}`);
       } else {
         await registerWithEmail(normalizedEmail, password, `${firstName.trim()} ${familyName.trim()}`, normalizedStudentId);
       }
@@ -457,7 +479,7 @@ const LoginPage = () => {
                     {formPending ? 'Creating account...' : 'Create student account'}
                   </button>
                   <div style={{ textAlign: 'center', marginTop: '0.8rem' }}>
-                    <button type="button" style={linkButtonStyle} onClick={() => changeView('login')}>Back to sign in</button>
+                    {!googleRegistration && <button type="button" style={linkButtonStyle} onClick={() => changeView('login')}>Back to sign in</button>}
                   </div>
                 </form>
               )}
