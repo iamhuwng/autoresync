@@ -102,6 +102,12 @@ const LoginPage = () => {
   const googleLoginInFlight = useRef(false);
 
   useEffect(() => {
+    if (!loading && user && !profile && user.providerData?.some((provider) => provider.providerId === 'google.com')) {
+      setEmail(user.email || '');
+      setGoogleRegistration(true);
+      setView('register');
+      return;
+    }
     if (!loading && user && profile) {
       if (profile.role === 'super_admin') {
         navigate('/admin/dashboard', { replace: true });
