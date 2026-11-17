@@ -18,7 +18,7 @@ vi.mock('../../services/firebaseCore', () => ({
 
 // Test component to access auth context
 const TestComponent = () => {
-  const { user, profile, loading, login, loginWithEmail, loginWithStudentId, registerWithEmail, sendPasswordReset, setupStudentCredentials, logout } = useAuth();
+  const { user, profile, loading, login, loginWithEmail, loginWithStudentId, registerWithEmail, sendPasswordReset, setupStudentCredentials, completeGoogleRegistration, logout } = useAuth();
   
   return (
     <div>
@@ -32,6 +32,7 @@ const TestComponent = () => {
       <button onClick={() => registerWithEmail('new@student.test', 'password123', 'New Student', 'new-student-7')} data-testid="register-btn">Register</button>
       <button onClick={() => sendPasswordReset('student@test.com')} data-testid="reset-btn">Reset password</button>
       <button onClick={() => setupStudentCredentials({ studentId: 'DIFFERENT-ID', password: 'password123', firstName: 'QA', familyName: 'Student' }).catch(() => {})} data-testid="setup-btn">Set up credentials</button>
+      <button onClick={() => completeGoogleRegistration({ studentId: 'google-7', password: 'password123', firstName: 'Google', familyName: 'Student' }).catch(() => {})} data-testid="google-complete-btn">Complete Google registration</button>
       <button onClick={logout} data-testid="logout-btn">Logout</button>
     </div>
   );
@@ -46,6 +47,7 @@ describe('AuthContext', () => {
   let mockSendEmailVerification: any;
   let mockSendPasswordResetEmail: any;
   let mockSignOut: any;
+  let mockReauthenticateWithPopup: any;
   let mockSet: any;
   let mockRemove: any;
   let mockGet: any;
@@ -67,6 +69,7 @@ describe('AuthContext', () => {
     mockSendEmailVerification = vi.fn().mockResolvedValue(undefined);
     mockSendPasswordResetEmail = vi.fn().mockResolvedValue(undefined);
     mockSignOut = vi.fn();
+    mockReauthenticateWithPopup = vi.fn().mockResolvedValue(undefined);
     
     vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation(mockOnAuthStateChanged);
     vi.mocked(firebaseAuth.signInWithPopup).mockImplementation(mockSignInWithPopup);
@@ -75,6 +78,7 @@ describe('AuthContext', () => {
     vi.mocked(firebaseAuth.sendEmailVerification).mockImplementation(mockSendEmailVerification);
     vi.mocked(firebaseAuth.sendPasswordResetEmail).mockImplementation(mockSendPasswordResetEmail);
     vi.mocked(firebaseAuth.signOut).mockImplementation(mockSignOut);
+    vi.mocked(firebaseAuth.reauthenticateWithPopup).mockImplementation(mockReauthenticateWithPopup);
     
     // Mock Firebase Database functions
     mockOnValue = vi.fn();
@@ -245,6 +249,32 @@ describe('AuthContext', () => {
     } finally {
       delete (auth as unknown as { currentUser?: unknown }).currentUser;
     }
+  });
+
+  it('reauthenticates before Google password setup and creates the profile only after credentials succeed', async () => {
+    const mockUser = {
+      uid: 'google-new-uid', email: 'google-new@example.com', emailVerified: true,
+      photoURL: null, getIdToken: vi.fn().mockResolvedValue('token'), reload: vi.fn().mockResolvedValue(undefined),
+    };
+    const { auth, googleProvider } = await import('../../services/firebaseCore');
+    Object.assign(auth, { currentUser: mockUser });
+    mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
+    mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
+    mockOnValue.mockImplementation((_ref, callback) => {
+      callback({ exists: () => false, val: () => null });
+      return vi.fn();
+    });
+    vi.mocked(firebaseAuth.updatePassword)
+      .mockRejectedValueOnce(Object.assign(new Error('recent login required'), { code: 'auth/requires-recent-login' }))
+      .mockResolvedValueOnce(undefined);
+
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+    await act(async () => screen.getByTestId('google-complete-btn').click());
+
+    expect(mockReauthenticateWithPopup).toHaveBeenCalledWith(mockUser, googleProvider);
+    expect(firebaseAuth.updatePassword).toHaveBeenCalledTimes(2);
+    expect(mockSet.mock.invocationCallOrder.at(-1)).toBeGreaterThan(firebaseAuth.updatePassword.mock.invocationCallOrder.at(-1));
   });
 
   it('uses Firebase password-reset email without requiring a Cloud Function', async () => {
