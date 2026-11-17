@@ -95,6 +95,25 @@ describe('LoginPage', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('resumes the registration form for an authenticated Google account without a profile', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: 'resume.google@example.com', providerData: [{ providerId: 'google.com' }] },
+      profile: null,
+      loading: false,
+      login: mockLogin,
+      loginWithEmail: mockLoginWithEmail,
+      loginWithStudentId: mockLoginWithStudentId,
+      registerWithEmail: mockRegisterWithEmail,
+      completeGoogleRegistration: mockCompleteGoogleRegistration,
+      sendPasswordReset: mockSendPasswordReset,
+    });
+    renderPage();
+    expect(await screen.findByRole('heading', { name: /create your account/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/email address/i)).toHaveValue('resume.google@example.com');
+    expect(screen.getByLabelText(/email address/i)).toHaveAttribute('readonly');
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it('completes a new Google account through the student registration submit path', async () => {
     mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: { email: 'new.google@example.com' } });
     const user = userEvent.setup();
