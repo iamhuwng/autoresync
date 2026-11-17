@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import {
   onAuthStateChanged,
   signInWithPopup,
+  reauthenticateWithPopup,
   signOut as firebaseSignOut,
   signInWithEmailAndPassword,
   signInWithCustomToken,
@@ -444,7 +445,16 @@ export function AuthProvider({ children }) {
     if (assignedId && assignedId.trim().normalize('NFKC').toLowerCase() !== studentId.trim().normalize('NFKC').toLowerCase()) {
       throw studentAuthError('student_id_already_assigned');
     }
-    await updatePassword(auth.currentUser, password);
+    try {
+      await updatePassword(auth.currentUser, password);
+    } catch (error) {
+      if (error?.code !== 'auth/requires-recent-login') throw error;
+      await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      await updatePassword(auth.currentUser, password);
+    }
+    await auth.currentUser.reload?.();
+    setUser(auth.currentUser);
+    setProfile((currentProfile) => currentProfile ? { ...currentProfile } : currentProfile);
     const idToken = await auth.currentUser.getIdToken();
     await callStudentAuthWorker('/auth/student/ensure-id', {
       studentId,
@@ -459,6 +469,7 @@ export function AuthProvider({ children }) {
     if (!auth.currentUser?.uid || !auth.currentUser.email) throw studentAuthError('unauthorized');
     const userRef = ref(database, `users/${auth.currentUser.uid}`);
     const snapshot = await get(userRef);
+    await setupStudentCredentials({ studentId, password, firstName, familyName });
     if (!snapshot.exists()) {
       await set(userRef, {
         uid: auth.currentUser.uid,
@@ -474,7 +485,6 @@ export function AuthProvider({ children }) {
         forceReauth: false,
       });
     }
-    await setupStudentCredentials({ studentId, password, firstName, familyName });
   };
 
   /**
