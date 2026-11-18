@@ -16,8 +16,8 @@
     "acceptedTimerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842",
     "currentSource": {
       "commit": "7b2e7f3b74c1cabb78e12f4e28a7ff6a49d1ee04",
-      "adapterManifestSha256": "2e1dd559172c6750c53c82cd4fb0cb7bcc68589805c3451cfaaa5be3111f488c",
-      "timerSourceSha256": "41a863d4ac96dd8b921dd683d9d34d00fc56dff8e75dd13c16726c1f11b38842"
+      "adapterManifestSha256": "960ca32812d120fec5e9403a122c30e6661fbbb53baf08cd82a004f47094e953",
+      "timerSourceSha256": "5e7adf2f748ba2ff72e3d2768696e2515853017699fd94207fc5904682359b06"
     },
     "personalTimer": {
       "status": "accepted-ui-only",

@@ -3,6 +3,7 @@ import { access, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { observeHosting, observeHostingProvider, isObserved } from './release-evidence.mjs';
 import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObserved } from './release-homework-worker-evidence.mjs';
 import { assertNotificationWorkerSource, observeNotificationWorker, isNotificationWorkerObserved } from './release-notification-worker-evidence.mjs';
@@ -65,6 +66,44 @@ const jsonc = source => JSON.parse(source.replace(/\/\*[\s\S]*?\*\//gu, '').repl
 
 export const classifyPaths = files => { const services = new Set(); for (const file of files) for (const [service, matches] of rules) if (matches(file)) services.add(service); return [...services].sort(); };
 
+const localBackendFiles = new Set([
+  'scripts/local-firebase.mjs',
+  'cloudflare/vitest.config.mjs',
+  'cloudflare/vitest.security.config.mjs',
+  'cloudflare/wrangler.qualification.jsonc',
+]);
+
+function hostingImpactPaths(cwd, source) {
+  if (source.dirty) return source.files;
+  const tooling = new Set(localBackendFiles);
+  const readAt = (revision, file) => JSON.parse(git(['show', `${revision}:${file}`], cwd));
+  for (const project of ['cloudflare', 'r2-backup-worker']) {
+    const manifest = `${project}/package.json`;
+    const lockfile = `${project}/package-lock.json`;
+    if (!source.files.some(file => file === manifest || file === lockfile)) continue;
+    try {
+      const manifestRuntime = revision => {
+        const { devDependencies, ...production } = readAt(revision, manifest);
+        return production;
+      };
+      const lockRuntime = revision => {
+        const { packages, lockfileVersion } = readAt(revision, lockfile);
+        const { devDependencies, ...root } = packages[''];
+        const installed = Object.entries(packages).filter(([file, metadata]) => file && metadata.dev !== true);
+        return { lockfileVersion, root, installed: Object.fromEntries(installed) };
+      };
+      if (isDeepStrictEqual(manifestRuntime(source.baseRevision), manifestRuntime(source.revision))
+          && isDeepStrictEqual(lockRuntime(source.baseRevision), lockRuntime(source.revision))) {
+        tooling.add(manifest);
+        tooling.add(lockfile);
+      }
+    } catch {
+      // Unreadable production dependencies still require native readback.
+    }
+  }
+  return source.files.filter(file => !tooling.has(file));
+}
+
 // Technical binding only; the operator must separately establish authorized review.
 export function compatibilityReviewBindingsMatch(review, source, observation, hostingDependencies) {
   return review.schemaVersion === 1 && review.decision === 'verified'
@@ -88,7 +127,8 @@ export async function collectSourceState(cwd = repoRoot, base) {
   const changed = new Set(names(git(['diff-tree', '--no-commit-id', '--name-only', '-r', baseRevision, revision], cwd)));
   for (const file of dirtyFiles) changed.add(file);
   const dirty = Boolean(statusOutput.trim());
-  const fileState = await Promise.all([...changed].sort().map(async file => { try { return `${file}\0${sha256(await readFile(path.join(cwd, file)))}`; } catch { return `${file}\0missing`; } }));
+  // A clean Git tree binds every committed file independently of checkout line endings.
+  const fileState = dirty ? await Promise.all([...changed].sort().map(async file => { try { return `${file}\0${sha256(await readFile(path.join(cwd, file)))}`; } catch { return `${file}\0missing`; } })) : [];
   const fingerprint = sha256(`${baseRevision}\n${revision}\n${tree}\n${statusOutput}\n${fileState.join('\n')}`);
   return { revision, baseRevision, branch, tree, dirty, files: [...changed].sort(), fingerprint };
 }
@@ -279,7 +319,12 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
   if (!['release', 'hotfix', 'acceptance'].includes(mode)) throw new Error(`Unsupported mode ${mode}.`);
   const source = await collectSourceState(cwd, base), findings = [];
   findings.push(source.dirty ? { status: STATUS.BLOCKED, message: 'Candidate worktree is dirty; isolate and review exact changes before release.' } : { status: STATUS.PASS, message: 'Candidate worktree is clean.' });
-  const services = classifyPaths(source.files);
+  const impactPaths = target === 'hosting' ? hostingImpactPaths(cwd, source) : source.files;
+  const services = classifyPaths(impactPaths);
+  if (impactPaths.length !== source.files.length) findings.push({
+    status: STATUS.PASS,
+    message: 'Local Firebase and qualification tooling changes fall outside production backend publication. Changed Worker manifests and lockfiles were compared for production dependency changes.',
+  });
   let listeningObservation = null;
   let editorObservation = null;
   if (observeListeningEditorRelease) try {

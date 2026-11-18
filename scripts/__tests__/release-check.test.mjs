@@ -16,6 +16,54 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies website build configuration as Hosting', () => assert.deepEqual(classifyPaths(['postcss.config.cjs','tailwind.config.js','tsconfig.json','tsconfig.app.json']), ['hosting']));
 test('classifies CI and integration result machinery as release tooling', () => assert.deepEqual(classifyPaths(['.github/workflows/release-safety.yml','scripts/integration-check.mjs']), ['tooling']));
+test('Hosting isolates local tooling only while Worker runtime packages stay identical', async () => {
+  const cwd = await fixture();
+  try {
+    const packageFile = 'cloudflare/package.json';
+    const lockFile = 'cloudflare/package-lock.json';
+    const writePackages = async (tool, runtime) => {
+      const manifest = { dependencies: { runtime: '^1.0.0' }, devDependencies: { tool } };
+      await writeFile(path.join(cwd, packageFile), JSON.stringify(manifest));
+      await writeFile(path.join(cwd, lockFile), JSON.stringify({ lockfileVersion: 3, packages: {
+        '': manifest,
+        'node_modules/runtime': { version: runtime },
+        'node_modules/tool': { version: tool, dev: true },
+      } }));
+    };
+    await writePackages('1.0.0', '1.0.0');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'backend dependency baseline');
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    await writePackages('2.0.0', '1.0.0');
+    await writeFile(path.join(cwd, 'cloudflare/wrangler.qualification.jsonc'), '{}');
+    await writeFile(path.join(cwd, 'public/index.html'), 'hosting candidate');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'local-only package and qualification changes');
+    const initial = await assess({ cwd, base, target: 'hosting' });
+    assert.deepEqual(initial.source.services, ['hosting']);
+    assert(initial.source.files.includes(lockFile));
+    assert((await assess({ cwd, base })).source.services.includes('worker'));
+
+    await writePackages('2.0.0', '1.0.1');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'runtime resolution changes');
+    const changed = await assess({ cwd, base, target: 'hosting' });
+    assert(changed.source.services.includes('worker'));
+    assert(changed.findings.some(finding => /Hosting dependencies:/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('a clean release fingerprint binds Git objects while a dirty fingerprint binds local edits', async () => {
+  const cwd = await fixture();
+  try {
+    const clean = await collectSourceState(cwd, 'HEAD^');
+    assert.equal(clean.dirty, false);
+    assert.equal(clean.fingerprint, digest([clean.baseRevision, clean.revision, clean.tree, '', ''].join('\n')));
+    await writeFile(path.join(cwd, 'public/index.html'), 'different source\n');
+    const dirty = await collectSourceState(cwd, 'HEAD^');
+    assert.equal(dirty.dirty, true);
+    assert.equal(dirty.tree, clean.tree);
+    assert.notEqual(dirty.fingerprint, clean.fingerprint);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('historical migration documentation is not an executable migration requirement', () => {
   assert.deepEqual(classifyPaths(['documentation/migration/backup-tests-collection.js', '.knowns/docs/migration/hooks.md']), []);
   assert(classifyPaths(['scripts/backfill-reading.mjs']).includes('migrations'));
