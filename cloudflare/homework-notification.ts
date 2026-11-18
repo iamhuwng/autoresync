@@ -1,9 +1,29 @@
 import { buildRoute } from '../src/constants/routes.ts';
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/u;
+const DISPLAY_TEXT_MAX_BYTES = 160;
+const textEncoder = new TextEncoder();
 const row = (value: unknown): Record<string, unknown> | null => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const deny = (): never => { throw Error('homework_denied'); };
 const time = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
+const displayText = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  const normalized = value.replace(/[\u0000-\u001F\u007F\u2028\u2029"]+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  let bytes = 0;
+  let bounded = '';
+  for (const character of normalized) {
+    const characterBytes = textEncoder.encode(character).byteLength;
+    if (bytes + characterBytes > DISPLAY_TEXT_MAX_BYTES) break;
+    bounded += character;
+    bytes += characterBytes;
+  }
+  return bounded;
+};
+const homeworkSubmittedMessage = (studentName: unknown, homeworkTitle: unknown, sourceNameSnapshot: unknown): string => {
+  const safeStudentName = displayText(studentName) || 'A student';
+  const safeHomeworkTitle = displayText(homeworkTitle) || displayText(sourceNameSnapshot) || 'Homework';
+  return `${safeStudentName} submitted "${safeHomeworkTitle}".`;
+};
 export const HOMEWORK_KINDS = ['homework-submitted', 'thcs-homework-assigned', 'homework-reminder', 'homework-reset'] as const;
 export type HomeworkKind = typeof HOMEWORK_KINDS[number];
 type Source = { data: Record<string, unknown>; createTime?: unknown; exists?: boolean };
@@ -26,6 +46,9 @@ export async function deliverHomeworkNotice(input: {
   let resetSubmissionId: unknown;
   let source: Record<string, unknown> | undefined;
   let sourceCreatedAt: unknown;
+  let studentName: unknown;
+  let homeworkTitle: unknown;
+  let sourceNameSnapshot: unknown;
   let proof: Record<string, unknown> | undefined;
   if (kind === 'homework-submitted' || kind === 'thcs-homework-assigned') {
     proof = (await input.readSource('homework_notification_proofs', eventId,
@@ -98,7 +121,13 @@ export async function deliverHomeworkNotice(input: {
     if (typeof resultId !== 'string' || !ID.test(resultId)) return deny();
     const path = `test_results/${resultId}`;
     const [savedId, student, contextType] = await Promise.all([db.read(`${path}/resultId`), db.read(`${path}/studentId`), db.read(`${path}/context/type`)]);
-    const [sourceId, material, submittedAt] = await Promise.all([db.read(`${path}/context/source/id`), db.read(`${path}/testId`), db.read(`${path}/submittedAt`)]);
+    const [sourceId, material, submittedAt, resolvedStudentName, resolvedHomeworkTitle, resolvedSourceNameSnapshot] = await Promise.all([
+      db.read(`${path}/context/source/id`), db.read(`${path}/testId`), db.read(`${path}/submittedAt`),
+      db.read(`${path}/studentName`), db.read(`${path}/testTitle`), db.read(`${path}/visibility/sourceNameSnapshot`),
+    ]);
+    studentName = resolvedStudentName;
+    homeworkTitle = resolvedHomeworkTitle;
+    sourceNameSnapshot = resolvedSourceNameSnapshot;
     if (savedId !== resultId || student !== studentId || contextType !== 'homework'
       || sourceId !== homeworkId || material !== assignment.materialId
       || !time(submittedAt) || submittedAt > Number(occurredAt)) return deny();
@@ -140,7 +169,7 @@ export async function deliverHomeworkNotice(input: {
     id: noticeId, type: kind === 'homework-reminder' ? 'homework_reminder' : 'info',
     title: kind === 'homework-submitted' ? 'Homework submitted' : kind === 'homework-reset' ? 'Homework reset'
       : kind === 'homework-reminder' ? 'Homework reminder' : 'New THCS homework',
-    message: kind === 'homework-submitted' ? 'A student submitted homework for review.' : kind === 'homework-reset'
+    message: kind === 'homework-submitted' ? homeworkSubmittedMessage(studentName, homeworkTitle, sourceNameSnapshot) : kind === 'homework-reset'
       ? 'Your teacher removed a homework attempt. Open Homework to check your current status.' : kind === 'homework-reminder'
         ? 'Your teacher reminded you to complete your homework.' : 'Your teacher assigned new THCS homework.',
     link: buildRoute(kind === 'homework-submitted' ? 'TEACHER_HOMEWORK_DETAIL' : 'STUDENT_HOMEWORK_DETAIL', { homeworkId }),

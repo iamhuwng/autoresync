@@ -2229,6 +2229,9 @@ async function deliverHomeworkNotice(input) {
   let resetSubmissionId;
   let source;
   let sourceCreatedAt;
+  let studentName;
+  let homeworkTitle;
+  let sourceNameSnapshot;
   let proof;
   if (kind === "homework-submitted" || kind === "thcs-homework-assigned") {
     proof = (await input.readSource(
@@ -2317,7 +2320,13 @@ async function deliverHomeworkNotice(input) {
     if (typeof resultId !== "string" || !ID.test(resultId)) return deny();
     const path2 = `test_results/${resultId}`;
     const [savedId, student, contextType] = await Promise.all([db.read(`${path2}/resultId`), db.read(`${path2}/studentId`), db.read(`${path2}/context/type`)]);
-    const [sourceId, material, submittedAt] = await Promise.all([db.read(`${path2}/context/source/id`), db.read(`${path2}/testId`), db.read(`${path2}/submittedAt`)]);
+    const [sourceId, material, submittedAt, resolvedStudentName, resolvedHomeworkTitle, resolvedSourceNameSnapshot] = await Promise.all([
+      db.read(`${path2}/context/source/id`), db.read(`${path2}/testId`), db.read(`${path2}/submittedAt`),
+      db.read(`${path2}/studentName`), db.read(`${path2}/testTitle`), db.read(`${path2}/visibility/sourceNameSnapshot`)
+    ]);
+    studentName = resolvedStudentName;
+    homeworkTitle = resolvedHomeworkTitle;
+    sourceNameSnapshot = resolvedSourceNameSnapshot;
     if (savedId !== resultId || student !== studentId || contextType !== "homework" || sourceId !== homeworkId || material !== assignment.materialId || !time(submittedAt) || submittedAt > Number(occurredAt)) return deny();
     if (assignment.materialType === "thcs-test") {
       const cutoff = input.sourceRulesCutoff;
@@ -2376,11 +2385,26 @@ async function deliverHomeworkNotice(input) {
   }
   const recipient = kind === "homework-submitted" ? owner : studentId;
   const noticeId = `ordinary_${kind.replaceAll("-", "_")}_${eventId}_${recipient}`;
+  const normalizeNoticeText = (value) => {
+    if (typeof value !== "string") return "";
+    const normalized = value.replace(/[\u0000-\u001F\u007F\u2028\u2029"]+/gu, " ").replace(/\s+/gu, " ").trim();
+    const encoder = new TextEncoder();
+    let bytes = 0;
+    let bounded = "";
+    for (const character of normalized) {
+      const characterBytes = encoder.encode(character).byteLength;
+      if (bytes + characterBytes > 160) break;
+      bounded += character;
+      bytes += characterBytes;
+    }
+    return bounded;
+  };
+  const submittedMessage = `${normalizeNoticeText(studentName) || "A student"} submitted \"${normalizeNoticeText(homeworkTitle) || normalizeNoticeText(sourceNameSnapshot) || "Homework"}\".`;
   const notice = {
     id: noticeId,
     type: kind === "homework-reminder" ? "homework_reminder" : "info",
     title: kind === "homework-submitted" ? "Homework submitted" : kind === "homework-reset" ? "Homework reset" : kind === "homework-reminder" ? "Homework reminder" : "New THCS homework",
-    message: kind === "homework-submitted" ? "A student submitted homework for review." : kind === "homework-reset" ? "Your teacher removed a homework attempt. Open Homework to check your current status." : kind === "homework-reminder" ? "Your teacher reminded you to complete your homework." : "Your teacher assigned new THCS homework.",
+    message: kind === "homework-submitted" ? submittedMessage : kind === "homework-reset" ? "Your teacher removed a homework attempt. Open Homework to check your current status." : kind === "homework-reminder" ? "Your teacher reminded you to complete your homework." : "Your teacher assigned new THCS homework.",
     link: buildRoute(kind === "homework-submitted" ? "TEACHER_HOMEWORK_DETAIL" : "STUDENT_HOMEWORK_DETAIL", { homeworkId }),
     createdAt: occurredAt,
     read: false

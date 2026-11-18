@@ -19,6 +19,8 @@ const fixture = (kind: HomeworkKind = 'homework-submitted') => {
     'test_results/result/resultId': 'result', 'test_results/result/studentId': 'student',
     'test_results/result/context/type': 'homework', 'test_results/result/context/source/id': 'homework',
     'test_results/result/testId': 'test', 'test_results/result/submittedAt': occurredAt,
+    'test_results/result/studentName': 'Student One', 'test_results/result/testTitle': 'Class Writing Homework',
+    'test_results/result/visibility/sourceNameSnapshot': 'Class Writing Homework',
     'classes/class/createdBy': 'teacher', 'classes/class/status': 'active', 'classes/class/students/student/status': 'active',
   };
   const database = { read: vi.fn(async (path: string) => values[path] ?? null), create: vi.fn(async (path: string, value: unknown) => {
@@ -51,6 +53,46 @@ const thcsFixture = () => {
 };
 
 describe('homework committed notice authority', () => {
+  it('uses canonical student and homework display fields without exposing result data', async () => {
+    const f = fixture();
+    expect(await f.deliver()).toBe('created');
+    const notice = f.values['notifications/teacher/ordinary_homework_submitted_event_teacher'] as Record<string, unknown>;
+    expect(notice).toMatchObject({
+      title: 'Homework submitted',
+      message: 'Student One submitted "Class Writing Homework".',
+      link: '/teacher/homework/homework',
+    });
+    expect(JSON.stringify(notice)).not.toMatch(/result|answer|score|student-1/u);
+  });
+
+  it('falls back to bounded safe display text when canonical labels are missing or unsafe', async () => {
+    const f = fixture();
+    f.values['test_results/result/studentName'] = '  Student\nOne "quoted"  ';
+    f.values['test_results/result/testTitle'] = '  ';
+    f.values['test_results/result/visibility/sourceNameSnapshot'] = '  Homework\u0000 Title  ';
+    expect(await f.deliver()).toBe('created');
+    expect((f.values['notifications/teacher/ordinary_homework_submitted_event_teacher'] as Record<string, unknown>).message)
+      .toBe('Student One quoted submitted "Homework Title".');
+
+    const fallback = fixture();
+    delete fallback.values['test_results/result/studentName'];
+    delete fallback.values['test_results/result/testTitle'];
+    delete fallback.values['test_results/result/visibility/sourceNameSnapshot'];
+    expect(await fallback.deliver()).toBe('created');
+    expect((fallback.values['notifications/teacher/ordinary_homework_submitted_event_teacher'] as Record<string, unknown>).message)
+      .toBe('A student submitted "Homework".');
+  });
+
+  it('keeps wide Unicode labels inside the existing notice byte limit', async () => {
+    const f = fixture();
+    f.values['test_results/result/studentName'] = '学'.repeat(160);
+    f.values['test_results/result/testTitle'] = '題'.repeat(160);
+    expect(await f.deliver()).toBe('created');
+    const notice = f.values['notifications/teacher/ordinary_homework_submitted_event_teacher'] as Record<string, unknown>;
+    expect(new TextEncoder().encode(JSON.stringify(notice)).byteLength).toBeLessThan(1024);
+    expect(notice.message).toContain('submitted');
+  });
+
   it('creates an exact THCS read receipt before its notice, and replays both without replacing read state', async () => {
     const f = thcsFixture();
     expect(await f.deliver()).toBe('created');
