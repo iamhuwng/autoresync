@@ -139,7 +139,5 @@ this pause is an instruction lookup, not a request for user confirmation.
 ## Repo Skills
 
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
-- Local dependency installation, tool provisioning, tool lookup, Windows ARM64/x64 routing, or worktree cleanup: read `documentation/system/local-tooling-layout.md`. Run `npm run tooling:doctor` before installing anything, and use `npm run tooling:where -- <tool>` to locate the existing repo-owned or shared tool before downloading or invoking a global binary.
-- Before tests, builds, or dev commands in a copied checkout/worktree, inspect that checkout's package script and read `documentation/system/local-tooling-layout.md`; older copies may still launch the retired dependency-installing harness. Resolve the existing tool from the canonical checkout while preserving the selected source/configuration and working directory.
-- Prefer Codex Local for ordinary implementation and verification. Use a worktree only for concurrent source isolation; never install dependencies into a managed worktree just to run checks. Hand off to Local and use the canonical checkout's dependencies instead.
+- Local development and testing use native Node and the active checkout's own lockfile and dependencies. See [native development](documentation/system/native-development.md) for commands.
 - With the DevSpace plugin, open the canonical checkout using `mode="checkout"` and reuse the returned `workspaceId`. Use `mode="worktree"` only when the user explicitly needs parallel isolation.

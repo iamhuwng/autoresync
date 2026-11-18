@@ -67,8 +67,9 @@ production endpoints. Set `GOOGLE_OAUTH_ACCESS_TOKEN` when Auth API
 configuration readback is required. Worker deployment/version/binding proof
 remains a separate read-only provider observation.
 
-Worker secrets are `FIREBASE_WEB_API_KEY` and `BOOK_HOMEWORK_GOOGLE_SA_KEY`.
-The latter belongs only to
+Worker secrets are `FIREBASE_WEB_API_KEY`, `BOOK_HOMEWORK_GOOGLE_SA_KEY`, and
+`UPLOAD_GRANT_SECRET`. The upload-grant secret is generated for this spare
+Worker and stored in Cloudflare. The service account key belongs only to
 `book-homework@luyentap-pdf-qa-20261021.iam.gserviceaccount.com`; the same email
 is configured as `BOOK_HOMEWORK_SERVICE_IDENTITY`. Its owner-authorized
 `roles/firebasedatabase.admin` grant is restricted to the separate QA project.

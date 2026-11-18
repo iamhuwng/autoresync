@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { HARNESS_CONTRACT } from '../harness/contract.mjs';
-import { dependencyCacheState, linkDependencies, wslPrerequisiteCode } from '../harness/run-isolated.mjs';
+import { dependencyCacheState, linkDependencies } from '../harness/run-isolated.mjs';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -17,11 +17,6 @@ test('audit contract keeps explicit architecture and source boundaries', () => {
   assert.equal(HARNESS_CONTRACT.tools.vitest.auditSourceMode, 'snapshot');
   assert.equal(HARNESS_CONTRACT.tools.wrangler.runtime, 'windows-x64');
   assert.equal(HARNESS_CONTRACT.tools.wrangler.auditSourceMode, 'live');
-});
-
-test('WSL permission failures are reported as blocked probes instead of missing WSL', () => {
-  assert.equal(wslPrerequisiteCode({ status: 1, error: { code: 'EPERM' } }), 'WSL_PREREQUISITE_BLOCKED');
-  assert.equal(wslPrerequisiteCode({ status: 1, stderr: 'The Windows Subsystem for Linux is not installed.' }), 'WSL_PREREQUISITE_MISSING');
 });
 
 test('contract introspection is available without the active Codex skill probe', () => {

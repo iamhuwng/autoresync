@@ -53,19 +53,18 @@ git switch --detach deployed-reading-v2-worker-2026-10-20
 git rev-parse HEAD
 ```
 
-Require the exact recorded commit above. Provision the selected package's
-lock-owned dependencies with approval, following [the tooling guide](local-tooling-layout.md).
-Use Windows x64 Node for this package on Windows ARM64; CI uses Node 22 on
-Linux. Do not install another dependency tree into a managed worktree.
+Require the exact recorded commit above. Use the selected package's lockfile
+and the runtime from the recorded build when reproducing its historical hash.
+The original Linux CI rebuild used Node 22. For current development, see the
+[native development guide](native-development.md).
 
 ```powershell
 npm --prefix r2-backup-worker ci --no-audit --no-fund
 node r2-backup-worker/node_modules/wrangler/bin/wrangler.js deploy --config r2-backup-worker/wrangler.toml --dry-run --outdir ../tmp/deployed-homework-rebuild
 ```
 
-On Windows ARM64, invoke both npm and Wrangler through the existing x64 helper;
-the historical tag's package scripts can still use the retired installing
-harness, so use the declared local binaries above rather than those scripts.
+The historical tag's package scripts can invoke a retired dependency-installing
+harness. The commands above select the package's own binaries directly.
 This is a dry-run only. Deployment needs current provider/configuration proof
 and separate authorization. The tag's source TOML is not the reviewed live
 deployment JSON; do not turn the dry-run command into a release command.

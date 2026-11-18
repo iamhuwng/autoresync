@@ -1,5 +1,7 @@
 # Local development, provider-backed acceptance, and live deployment
 
+> The [native development guide](native-development.md) describes the current Windows x64 development path. The older local setup below is retained as operational history.
+
 This document covers local runtime ownership and the boundary between local,
 provider-backed acceptance, and live deployment. Release assessment and
 promotion commands are canonical in [release-safety.md](release-safety.md);
@@ -38,8 +40,7 @@ this order:
    copying.
 5. `scripts/deploy-live.mjs` — isolated production build/Hosting safeguards.
 6. `scripts/tooling-where.mjs` and
-   [local-tooling-layout.md](local-tooling-layout.md) — executable/runtime
-   ownership, especially Windows ARM64 versus x64 Worker tooling.
+   [local-tooling-layout.md](local-tooling-layout.md) — checkout-owned tools and the native runtime.
 7. Checked-in production configuration such as
    `cloudflare/wrangler.book-source.jsonc` — production Worker configuration
    only. Never use it as the localhost config.
@@ -116,11 +117,9 @@ Test-Path cloudflare\tmp\.dev.vars
 ```
 
 Git does not carry this file, shared environment files, emulator snapshots or
-machine runtimes. Install both root and Cloudflare package dependencies using
-the lockfiles and approved tooling route before startup. On Windows ARM64 the
-existing Java helper also needs WSL Java plus its exact cached RTDB/Firestore
-JARs; Auth uses the installed Firebase CLI. Another checkout's successful run
-does not provision a fresh machine.
+machine runtimes. Install dependencies from the root and Cloudflare lockfiles
+for this checkout. The optional Firebase emulators use the checkout's Firebase
+CLI and native Java 21.
 
 The orchestrator checks the Worker secret file before Firebase validation. The
 local Worker script validates the keys it actually needs. Do not echo,
@@ -417,27 +416,10 @@ Diagnose environment/authority failures before editing product behavior.
 For Worker/runtime failures also read Rule 16 and Rule 17 in
 [infrastructure.md](../rules/infrastructure.md).
 
-## 9. Tool/runtime boundary on Windows ARM64
+## 9. Native tooling
 
-Before installing or replacing any dependency:
-
-```powershell
-npm run tooling:doctor
-npm run tooling:where -- cloudflare-wrangler
-npm run tooling:where -- cloudflare-vitest
-```
-
-On Windows ARM64 the repository routes Cloudflare Wrangler/Vitest through the
-shared Windows x64 Node helper. Use that resolver. Do not run global Wrangler,
-do not copy a new dependency tree into a worktree, and do not treat WSL as the
-dependency authority.
-
-`tooling:doctor` may report cleanup candidates as warnings. A warning is not a
-missing required runtime; do not turn ordinary feature work into dependency or
-disk cleanup unless the task actually needs it.
-
-See [local-tooling-layout.md](local-tooling-layout.md) for the complete
-ownership rules.
+See the [native development guide](native-development.md) for setup. Use
+`npm run tooling:doctor -- --workers` to check the installed frontend and Worker tools.
 
 ## 10. What local acceptance proves
 

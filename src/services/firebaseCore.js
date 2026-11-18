@@ -5,11 +5,12 @@ import { acceptanceFirebaseBoundary } from './acceptanceFirebaseBoundary.mjs';
 import { selectFirebaseRuntimeConfig } from './firebaseRuntimeConfig.js';
 
 export const isTestEnvironment = import.meta.env.MODE === 'test';
+export const isSpareDevelopment = import.meta.env.MODE === 'spare';
 export const shouldLogFirebaseBootstrap = import.meta.env.DEV && !isTestEnvironment;
 // Acceptance builds may target disposable emulators while remaining production-like.
 export const acceptanceEmulatorPorts = acceptanceFirebaseBoundary(import.meta.env);
 export const isAcceptanceEmulatorBuild = acceptanceEmulatorPorts !== null;
-export const isLocalDevelopment = import.meta.env.DEV && !isTestEnvironment && !isAcceptanceEmulatorBuild;
+export const isLocalDevelopment = import.meta.env.DEV && !isTestEnvironment && !isAcceptanceEmulatorBuild && !isSpareDevelopment;
 const localProjectId = 'demo-luyentap-local';
 const localDatabaseUrl = 'http://localhost:9000?ns=demo-luyentap-local';
 const localWorkerOrigin = 'http://localhost:8787';
@@ -53,6 +54,13 @@ const qualificationFirebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_QUALIFICATION_APP_ID,
 };
 
+if (isSpareDevelopment && (
+  import.meta.env.VITE_SPARE_ENV_VALIDATED !== 'true'
+  || productionFirebaseConfig.projectId !== 'luyentap-pdf-qa-20261021'
+)) {
+  throw new Error('[Firebase] Start spare development with npm run dev.');
+}
+
 export const firebaseRuntime = selectFirebaseRuntimeConfig({
   hostname: typeof window === 'undefined' ? '' : window.location?.hostname || '',
   production: productionFirebaseConfig,
@@ -92,7 +100,7 @@ if (isLocalDevelopment && (
 
 if (isLocalDevelopment && import.meta.env.VITE_LOCAL_DEV_BOOTSTRAP !== 'true') {
   throw new Error(
-    '[Firebase] Use npm run dev for local development so worker endpoints are isolated from live services.'
+    '[Firebase] Use npm run dev:emulators to start the isolated local Worker endpoints.'
   );
 }
 

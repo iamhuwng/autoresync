@@ -1,229 +1,156 @@
-# Local Tooling Layout
+# Local tooling layout
 
-This repository uses one predictable placement model so DevSpace, Codex, and
-human shells do not create a new toolchain or dependency cache for every task.
+The [native development guide](native-development.md) covers first-time setup
+and running the spare site. This reference explains where tools and settings
+live, how to diagnose a worktree, and what the cleanup commands do.
 
-## Placement contract
+## Package ownership
 
-Repository-owned JavaScript dependencies live with the package whose lockfile
-owns them:
+Each package installs dependencies from its own `package-lock.json`. Git ignores
+the resulting `node_modules` directories.
 
-- `node_modules/` — app, Vite, Vitest, Playwright package, and Firebase CLI.
-- `cloudflare/node_modules/` — Cloudflare Worker test/runtime dependencies and
-  the locked Wrangler version for that package.
-- `r2-backup-worker/node_modules/` — backup Worker dependencies and its locked
-  Wrangler version.
-- `functions/node_modules/` — deprecated Firebase Functions package
-  dependencies. Only exercise this package when the task actually touches it.
+| Package directory | Installed tools and dependencies |
+| --- | --- |
+| Repository root | Web app, Vite, Vitest, Playwright CLI, and Firebase CLI |
+| `cloudflare/` | Upload Worker, Wrangler, and its Worker tests |
+| `r2-backup-worker/` | Backup Worker, its Wrangler version, and its tests |
+| `functions/` | Legacy Firebase Functions. This package declares Node 18 and is used for work on those Functions. |
 
-These directories are generated and ignored by Git. Their source of truth is
-the matching `package.json` + `package-lock.json`, not an arbitrary global
-installation.
+From the repository root, install the root package for web app work. Install
+the relevant nested package for Worker work.
 
-Machine-level runtimes and reusable downloads stay outside the repo in one
-shared location:
-
-- Native Node: the machine installation selected by `PATH`.
-- Windows ARM64 compatibility Node x64:
-  `%CODEX_WINDOWS_TOOLS_ROOT%` when set, otherwise
-  `%USERPROFILE%\.codex\tools\windows-arm64`.
-- npm content cache: npm's normal user cache (currently
-  `%LOCALAPPDATA%\npm-cache` on Windows).
-- Firebase emulator JARs: `%USERPROFILE%\.cache\firebase\emulators`.
-- Codex managed runtime: `%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime`.
-
-Do not copy those shared runtimes into the repository or a worktree.
-
-## DevSpace / ChatGPT agent access
-
-When ChatGPT is working through the DevSpace plugin, the opened workspace is the
-source checkout, but the DevSpace shell can also invoke approved machine-level
-tools by absolute path. Do not make the agent guess those paths or use `npx` as
-a discovery mechanism.
-
-Call DevSpace `open_workspace` with `mode="checkout"` and reuse its returned
-`workspaceId` for the conversation. `mode="worktree"` creates a fresh detached
-checkout each time and is reserved for explicit parallel isolation.
-
-From the opened repo workspace, use:
-
-```text
-npm run tooling:where -- node-x64
-npm run tooling:where -- vite
-npm run tooling:where -- vitest
-npm run tooling:where -- cloudflare-vitest
-npm run tooling:where -- cloudflare-wrangler
-npm run tooling:where -- r2-vitest
-npm run tooling:where -- r2-wrangler
-npm run tooling:where -- firebase
+```powershell
+npm.cmd ci --no-audit --no-fund
+npm.cmd --prefix cloudflare ci --no-audit --no-fund
+npm.cmd --prefix r2-backup-worker ci --no-audit --no-fund
 ```
 
-`tooling:where` reports the owner, exact absolute path, expected runtime, whether
-the target exists, and an invocation prefix. The agent should execute that path
-through the DevSpace shell. DevSpace file `read` is for repository files and
-advertised skill files; it is not the mechanism for locating arbitrary machine
-binaries.
+## Native runtime and worktree identity
 
-Repository scripts use the same stateless resolver in execution mode:
+The pinned Node version is recorded in .node-version and used by GitHub Actions.
+Confirm the active checkout and runtime before provisioning or testing.
 
-```text
+    git rev-parse --show-toplevel
+    git status --short --branch
+    git worktree list --porcelain
+    node -p "process.execPath + ' ' + process.version + ' ' + process.arch"
+    npm.cmd --version
+    npm.cmd run tooling:doctor
+
+A worktree owns its source, manifests, lockfiles, and generated package
+directories. It can share the native runtime and npm download cache. Install a
+package in a worktree only when that isolated dependency tree is required and
+authorized. Preserve source changes and evidence before removing the worktree
+through Git.
+
+## Tool lookup and execution
+
+`tooling:where` prints the owning package, absolute path, and whether the tool
+exists. With `--exec` it launches the installed tool with native Node and passes
+through the arguments and exit code. It preserves the calling directory.
+
+```powershell
+npm.cmd run tooling:where -- node-native vite vitest firebase
+npm.cmd run tooling:where -- cloudflare-wrangler cloudflare-vitest
+npm.cmd run tooling:where -- r2-wrangler r2-vitest
 node scripts/tooling-where.mjs --exec vitest run
-node scripts/tooling-where.mjs --exec cloudflare-vitest run
+npm.cmd --prefix cloudflare test
+npm.cmd --prefix r2-backup-worker test
 ```
 
-Execution mode only launches an existing declared tool. It never installs a
-runtime, creates a dependency cache, writes evidence, or copies source into a
-harness run. The historical `scripts/harness/run-tool.mjs` is stateful and is
-reserved for explicit audit/deployment/security workflows that require its
-evidence machinery; it is not part of ordinary resolver execution.
+For tests limited to a particular package, its own npm script supplies the
+working directory and picks up its own test configuration. For a running
+local app, check the actual HTTP route as well as whether a port is listening.
 
-Guarded Hosting deployment uses this same stateless Firebase CLI route after
-its source, environment, bundle and remote-state checks. It must not install a
-second dependency tree merely to publish the checked build.
-
-If a tool is not listed, inspect the owning package manifest/lockfile and extend
-`tooling:where` rather than installing a one-off global copy or creating a new
-cache root.
-
-## Before installing anything
-
-Run:
-
-```text
-npm run tooling:doctor
+```powershell
+(Invoke-WebRequest http://localhost:5173/login).StatusCode
 ```
 
-The doctor is read-only. It reports missing repo-owned dependencies and flags
-known duplicate/stale locations.
+## Settings, builds, and shared downloads
 
-`npm ci --no-audit --no-fund` is approved provisioning, not ordinary tool
-resolution. Run it only after explicit approval, from this canonical
-Windows-authoritative checkout, for a missing dependency tree whose selected
-runtime supports the package. Do not run it from a managed worktree or from a
-WSL copy of the checkout.
+- `npm run dev` loads public settings for the configured spare Firebase
+  project. `npm run build:spare` writes `dist-spare/` for local previews.
+  Production Hosting uses `dist/` through the release workflow.
+- The optional emulator-based app uses native Java 21, the checkout's Firebase
+  CLI, and the ignored `cloudflare/tmp/.dev.vars` for its local Workers.
+  Local Firebase snapshots live under `tmp/local-firebase/` in the checkout.
+- Shared app environment files default to `%USERPROFILE%\.luyentap\env`, with
+  `LUYENTAP_ENV_DIR` available to select another directory. The spare
+  launcher uses an isolated configuration. The guarded production build reads
+  its own `.env.production` or the file designated by
+  `LUYENTAP_PRODUCTION_ENV_FILE`. Keep private configuration out of Git.
+- npm's reusable download cache is shown by `npm.cmd config get cache`.
+  Firebase emulator downloads use `%USERPROFILE%\.cache\firebase\emulators`.
+  Playwright downloads browsers into its user cache by default and supports
+  `PLAYWRIGHT_BROWSERS_PATH` for a separate location. These are shared
+  downloads, separate from each checkout's installed packages.
 
-On this Windows ARM64 project, Cloudflare/workerd packages require the approved
-Windows x64 Node helper. Put that helper directory first on `PATH` and invoke
-its npm CLI when materializing `cloudflare/node_modules` or
-`r2-backup-worker/node_modules`. Do not create a second x64 Node distribution
-or a new per-run dependency cache. A legacy `CODEX_X64_NODE` override that
-points elsewhere should be repointed to the canonical helper or removed before
-that older directory is deleted.
+## Operational ownership and agent access
 
-This route is version-bound: the Cloudflare lockfile pins workerd 1.20260617.1
-and the R2 lockfile pins 1.20260617.1; the inspected Cloudflare loader for the
-locked package does not select a Windows ARM64 binary. Reassess this exception
-when either lockfile changes, using a representative Worker test before
-retiring the x64 route.
+The package layout is also the toolchain boundary. An agent or shell working through Codex or DevSpace must open the checkout that owns the source being tested. Checkout mode is the normal mode. Worktree mode is reserved for parallel source isolation.
 
-WSL may map this checkout for inspection, but it is only an execution adapter.
-Cloudflare Worker/Vitest/Wrangler commands must execute from the Windows shell
-with the approved Windows x64 Node helper against this Windows-authoritative
-checkout. Do not install Linux dependencies or run those Worker commands from
-WSL; the stateless resolver refuses that boundary instead of inventing a
-`/home/...` runtime.
+The active checkout must own the package manifest, lockfile, and installed package directory used by the command. Do not make an agent guess a machine binary path, use npx as discovery, or borrow a global CLI. Use tooling:where to report the package-owned absolute entry point.
 
-For ordinary local execution, do not use a package script merely because it
-routes through the historical `scripts/harness/run-tool.mjs` cache layer.
-Resolve the tool with `npm run tooling:where -- <tool>` and invoke the declared
-local entry directly (or with the canonical x64 Node path reported by the
-locator when this repository declares that route). Load the user-scoped
-`run-windows-arm64-tools` skill only for an actual architecture boundary: a
-repository-declared architecture-specific route or an architecture/native-
-binding/loader failure. The historical harness can recreate
-`%LOCALAPPDATA%\\codex-harness-v3` dependency copies.
+## Provisioning boundary
 
-Ordinary package scripts use `tooling-where.mjs --exec`. The evidence dispatcher
-requires an explicit `--audit` for execution; contract inspection and doctor
-remain available without running a product command. Generic skill revisions
-are informational and do not gate repository evidence.
+The tooling doctor is read-only. It reports missing tools and does not install anything. npm ci is provisioning. Run it only for the package that needs the dependency tree and only after reviewing the manifest and lockfile.
 
-Copied checkouts and older worktrees can retain the retired dispatcher even
-after the canonical checkout is updated. Inspect the actual package script
-before execution there. Reuse the canonical resolver with the selected
-checkout's cwd/configuration and compatible lockfile; do not assume that an
-`npm test` script is stateless. If a failed command starts installing a harness
-dependency tree, stop that route and classify the failure before retrying.
+A fresh checkout may have no node_modules. That is a missing dependency tree, not permission to install a global replacement. A nested package has its own provisioning command and its own lockfile. Do not use a root package to satisfy a Cloudflare or R2 package.
 
-For a nested source checkout without its own root dependencies, the stateless
-resolver can use Node's installed ancestor packages only when the lockfile is
-byte-identical and dependency declarations match. This preserves the selected
-source/configuration/cwd without installing or linking another dependency tree.
-Different locks or declarations remain missing-tool errors.
+The legacy Functions package remains a separate Node 18 boundary. Do not change its engine or install it as part of frontend or Worker work.
 
-The same resolver may reuse an existing repository-owned dependency tree from a
-registered sibling Git worktree when that package's lockfile and dependency
-declarations match byte-for-byte. This keeps fresh release or assessment
-checkouts stateless while avoiding a duplicate install; unregistered locations,
-different contracts and missing tools still fail closed.
+## Worktree safety
 
-During `--exec`, when the selected owner is outside the source checkout, the
-resolver temporarily exposes that validated package's `node_modules` at the
-source package root for the child process, then removes it in a `finally`
-cleanup. It never copies or installs dependencies, and a failed overlay or
-cleanup fails the command.
+Before a command in a worktree, record:
 
-Retained Wrangler audits run Windows x64 against the live checkout and the
-selected package's existing dependencies. They create evidence/run receipts,
-but no source snapshot, dependency installation, or WSL environment. Other
-explicit audit tools retain their declared snapshot/cache requirements.
+    git rev-parse --show-toplevel
+    git status --short --branch
+    git worktree list --porcelain
 
-Audit evidence fingerprints source before execution and checks protected
-package/lockfile/dependency-path state afterward. It does not compare all source
-again afterward or recursively hash live Wrangler dependencies. Keep the
-forwarded command output with its sidecar; validated failure evidence is not a
-successful command outcome. This establishes local proof, not remote state.
+Do not install a dependency tree into a worktree merely to make an ordinary check runnable. If the worktree is the selected source for an isolated audit, the package and lockfile must be checked there and its generated dependency tree must remain inside that package. Preserve source changes and evidence before removing the worktree through Git.
 
-The legacy `functions/package.json` still declares Node 18. Treat that as a
-legacy package constraint; do not silently change its engine or provision a
-new runtime unless work on that package requires it.
+## Audit boundary
 
-## Worktrees
+Ordinary commands use the stateless resolver. Audit commands use the evidence dispatcher. The audit runner can snapshot source for tools that require a snapshot and can retain a live source path for Wrangler audits. It records the source revision, dirty state, runtime, package state, execution workspace, proof counts, exit code, classification, and sidecar path.
 
-A worktree is source isolation, not a reason to retain another permanent
-toolchain.
+An audit sidecar is local proof. It does not prove a deployed Worker, Firebase project, R2 object, or Hosting state. Provider readback and the release workflow supply those claims. Validate a retained sidecar with:
 
-- Remove task worktrees when the task is finished.
-- Prefer Codex Local for ordinary implementation and verification. Use a
-  worktree only when concurrent source isolation is required.
-- Do not install dependencies into a managed worktree just to make an ordinary
-  check runnable. If the task must run in an isolated worktree and its
-  manifests/lockfiles differ from the canonical checkout, keep its dependency
-  tree isolated and provision it only when applicable repository or user
-  authorization explicitly covers that installation; otherwise use Local when
-  its dependencies are valid or report the missing prerequisite.
-- Prefer a junction/symlink to an existing dependency tree only when the
-  relevant `package.json` and `package-lock.json` are byte-for-byte
-  compatible.
-- Remove any authorized isolated dependency tree with its worktree when the
-  task is finished.
-- Retire task-owned release/verification copies and their generated caches
-  after the owning task preserves its source and unique evidence. Dependency
-  junctions save package space, but retained source/build copies still occupy
-  disk. Keep candidates belonging to active tasks.
-- Never borrow a global Wrangler/Firebase binary to make a worktree pass.
-  Resolve the locked repo dependency instead.
+    node scripts/harness/validate-evidence.mjs evidence-sidecar.json
 
-## Cleanup policy
+Do not treat a successful command with zero collected tests, a startup failure, or a stale sidecar as product proof. Keep command output and the sidecar together when the evidence is used in a review.
 
-For unexplained disk, memory/process, WSL, crash-dump, or cross-tool cache pressure,
-use the user-scoped `recover-windows-dev-resources` skill to attribute the host
-pressure before deleting anything. This section remains the repository-specific
-placement/cleanup policy.
+## Audit invocation
 
-High-confidence cleanup candidates are generated locations, not source:
+Inspect the audit contract before using the evidence dispatcher.
 
-- Legacy `%LOCALAPPDATA%\codex-harness-v3` dependency caches after confirming
-  there is no active harness owner.
-- Leftover
-  `%USERPROFILE%\.cache\codex-runtimes\codex-runtime-install-*` directories
-  after closing Codex/DevSpace sessions that could still be installing.
-- Inactive Codex/DevSpace worktrees, especially those containing real
-  `node_modules` trees instead of links.
-- Global `wrangler` and `firebase-tools` installations when this repository
-  is the only reason they were installed; the repo already pins local versions.
+    npm.cmd run harness:contract
+    node scripts/harness/run-tool.mjs --audit --doctor cloudflare wrangler
+    node scripts/harness/run-tool.mjs --audit wrangler cloudflare --version
+    node scripts/harness/validate-evidence.mjs evidence-sidecar.json
 
-Keep the npm cache and Firebase emulator cache unless disk pressure is severe:
-they are shared caches that prevent repeated downloads. Keep
-`codex-primary-runtime`, the Windows x64 compatibility Node helper, and the
-global Codex installation.
+Ordinary commands use tooling-where --exec. Audit commands record source
+identity, runtime, package state, execution workspace, proof counts, exit code,
+classification, and a sidecar. Wrangler audits use the active checkout and its
+Cloudflare package. A sidecar is local evidence. Provider readback and the
+release workflow are required for deployed-state claims.
+
+## Configuration and shared downloads
+
+The spare launcher obtains the public Firebase configuration from the isolated spare site and rejects a different project. It discards inherited VITE values. The emulator launcher uses the ignored Worker secret file and local Firebase snapshots. Production configuration remains in the separate production environment file.
+
+The npm cache, Firebase emulator downloads, Playwright browser downloads, and Codex runtime are shared machine resources. They are not package dependencies and must not be copied into a checkout.
+
+## Cleanup
+
+Cleanup is for generated audit runs, dependency caches, timeout artifacts, build output, emulator snapshots, and inactive worktrees. It is not for source, manifests, lockfiles, secrets, or evidence still needed by an active release.
+
+The cleanup command defaults to a dry run and uses a 48-hour age threshold:
+
+    npm.cmd run harness:cleanup
+    npm.cmd run harness:cleanup -- --runs-only
+
+Review the dry-run report before applying cleanup. The default age threshold is 48 hours. Active or locked dependency caches are protected.
+
+    npm.cmd run harness:cleanup:apply
+
+Keep operation records, release receipts, verification bundles, and sidecars until their owning review or release is complete.

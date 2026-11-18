@@ -209,12 +209,11 @@ artifact. The generated verification plan is retained and rehydrated in the
 promotion job; discovered compatibility reviews are passed to the existing
 assessor with their exact digest.
 All Action transfers use repository-relative staging directories, so the
-artifact root is stable across runner jobs. Changelog and operation-evidence
-upload failures fail the publication job instead of being silently converted to
-a successful release. The workflow also uploads a bounded
-`changelog-integration-request.json`; it records that the temporary checkout
-patch still requires protected-main integration and never marks that handoff as
-canonical reconciliation.
+artifact root is stable across runner jobs. The Hosting operation record and
+baseline evidence remain required. Changelog uploads and the integration PR
+are optional follow-up steps. When the workflow generates a patch, it retains a
+bounded `changelog-integration-request.json` with the operation and source
+details for protected-main integration.
 
 GitHub protection, environment approval, short-lived ADC federation and
 provider publication/recovery remain external qualification decisions. The

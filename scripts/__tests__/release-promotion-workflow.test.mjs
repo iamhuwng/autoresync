@@ -61,5 +61,26 @@ test('recovery validates an operation UUID and never rebuilds or redeploys', () 
   const recovery = workflow.slice(workflow.indexOf('  recover:'));
   assert.match(recovery, /\[\[ "\$OPERATION_ID" =~ \^\[0-9a-f\]/u);
   assert.match(recovery, /release:verify-existing/u);
+  assert.match(recovery, /Confirm recovery wrote the operation outcome/u);
+  assert.match(recovery, /path: \|\s*\$\{\{ runner\.temp \}\}\/operation\.json/u);
   assert.doesNotMatch(recovery, /build:production|deploy:hosting|firebase deploy/u);
+});
+
+test('documentation follow-up is optional and retains required recovery evidence separately', () => {
+  const steps = workflow.split(/(?=^      - (?:name|uses):)/mu);
+  const namedStep = (name) => steps.find((step) => step.startsWith(`      - name: ${name}\n`));
+  const operationEvidence = namedStep('Retain durable Hosting operation evidence');
+  assert.match(operationEvidence, /gh release upload .*release-result\/operation\.json/u);
+  assert.match(operationEvidence, /pre-publish-baseline\.json/u);
+  assert.doesNotMatch(operationEvidence, /continue-on-error|changelog/iu);
+  const optional = steps.filter((step) => /^        continue-on-error: true$/mu.test(step));
+  assert.deepEqual(optional.map((step) => step.split('\n')[0].slice('      - name: '.length)), [
+    'Capture optional Changelog follow-up files',
+    'Open the protected-main Changelog integration PR',
+    'Retain Changelog integration PR identity',
+    'Open the protected-main Changelog integration PR after recovery',
+  ]);
+  const integration = namedStep('Open the protected-main Changelog integration PR');
+  assert.match(integration, /^          OPERATION_FILE: .*\/release-result\/operation\.json$/mu);
+  assert.match(integration, /published-verified\|changelog-pending\|changelog-pending-integration/u);
 });
