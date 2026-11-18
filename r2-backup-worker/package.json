@@ -15,12 +15,12 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.996.0",
     "@aws-sdk/s3-request-presigner": "^3.996.0",
-    "@cloudflare/workers-types": "^4.20260303.0",
+    "@cloudflare/workers-types": "5.20261118.1",
     "fflate": "^0.8.2",
     "jose": "6.2.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7",
-    "wrangler": "4.103.0"
+    "wrangler": "4.164.0"
   },
   "dependencies": {
     "aws4fetch": "^1.0.20"

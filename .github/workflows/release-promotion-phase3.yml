@@ -78,7 +78,7 @@ jobs:
           test "$remote_main" = "$GITHUB_SHA"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Require the read-only Firebase federation configuration
@@ -238,7 +238,7 @@ jobs:
           test "$(git rev-parse refs/heads/main)" = "$GITHUB_SHA"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@v4
@@ -338,38 +338,51 @@ jobs:
             echo "$operation" > "$RUNNER_TEMP/operation-id"
           fi
           exit "$status"
-      - name: Capture durable Changelog reconciliation evidence
+      - name: Retain durable Hosting operation evidence
         if: ${{ always() }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git diff --binary -- documentation/architecture/changelog documentation/architecture/master_changelog.md > "$RUNNER_TEMP/changelog-reconciliation.patch" || true
-          if test -s "$RUNNER_TEMP/operation-id"; then
-           operation="$(cat "$RUNNER_TEMP/operation-id")"
-            REQUEST="$RUNNER_TEMP/changelog-integration-request.json" OPERATION_ID="$operation" CARD="$RUNNER_TEMP/release-card/release-card.json" PATCH="$RUNNER_TEMP/changelog-reconciliation.patch" node --input-type=module -e 'import fs from "node:fs"; import crypto from "node:crypto"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const patch=fs.readFileSync(process.env.PATCH); fs.writeFileSync(process.env.REQUEST, `${JSON.stringify({schemaVersion:1,status:"pending-protected-main-integration",operationId:process.env.OPERATION_ID,source:card.source,baseline:card.baseline,patchSha256:crypto.createHash("sha256").update(patch).digest("hex"),requiredAction:"Apply the retained patch through the protected-main review/integration path; this record is not canonical reconciliation.",generatedAt:new Date().toISOString()},null,2)}\n`);'
-            if test -s "$RUNNER_TEMP/changelog-reconciliation.patch"; then
-              gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-reconciliation.patch" --repo "$GITHUB_REPOSITORY"
+          set -euo pipefail
+          rm -rf tmp/release-result
+          mkdir -p tmp/release-result
+          for file in release-card/release-card.json operation-id release-result/operation.json pre-publish-baseline.json; do
+            if test -f "$RUNNER_TEMP/$file"; then
+              mkdir -p "tmp/release-result/$(dirname "$file")"
+              cp "$RUNNER_TEMP/$file" "tmp/release-result/$file"
             fi
-            if test -f "$RUNNER_TEMP/release-result/operation.json"; then
-              gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/release-result/operation.json" --repo "$GITHUB_REPOSITORY"
-            fi
-            gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-integration-request.json" --repo "$GITHUB_REPOSITORY"
+          done
+          if test -f tmp/release-receipts/pre-publish-baseline.json; then cp tmp/release-receipts/pre-publish-baseline.json tmp/release-result/pre-publish-baseline.json; fi
+          if test -s "$RUNNER_TEMP/operation-id" && test -f "$RUNNER_TEMP/release-result/operation.json"; then
+            operation="$(cat "$RUNNER_TEMP/operation-id")"
+            gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/release-result/operation.json" --repo "$GITHUB_REPOSITORY"
           fi
-           rm -rf tmp/release-result
-           mkdir -p tmp/release-result
-           for file in release-card/release-card.json operation-id release-result/operation.json pre-publish-baseline.json changelog-reconciliation.patch changelog-integration-request.json luyentap-changelog/state.json; do
-             if test -f "$RUNNER_TEMP/$file"; then
-               mkdir -p "tmp/release-result/$(dirname "$file")"
-               cp "$RUNNER_TEMP/$file" "tmp/release-result/$file"
-             fi
-           done
-           if test -f tmp/release-receipts/pre-publish-baseline.json; then cp tmp/release-receipts/pre-publish-baseline.json tmp/release-result/pre-publish-baseline.json; fi
-           if test -d documentation/architecture/changelog; then cp -R documentation/architecture/changelog tmp/release-result/; fi
-           if test -f documentation/architecture/master_changelog.md; then cp documentation/architecture/master_changelog.md tmp/release-result/; fi
-      - name: Open the protected-main Changelog integration PR
+      - name: Capture optional Changelog follow-up files
         if: ${{ always() }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git diff --binary -- documentation/architecture/changelog documentation/architecture/master_changelog.md > "$RUNNER_TEMP/changelog-reconciliation.patch"
+          if test ! -s "$RUNNER_TEMP/operation-id" || test ! -s "$RUNNER_TEMP/changelog-reconciliation.patch"; then exit 0; fi
+          operation="$(cat "$RUNNER_TEMP/operation-id")"
+          REQUEST="$RUNNER_TEMP/changelog-integration-request.json" OPERATION_ID="$operation" CARD="$RUNNER_TEMP/release-card/release-card.json" PATCH="$RUNNER_TEMP/changelog-reconciliation.patch" node --input-type=module -e 'import fs from "node:fs"; import crypto from "node:crypto"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const patch=fs.readFileSync(process.env.PATCH); fs.writeFileSync(process.env.REQUEST, `${JSON.stringify({schemaVersion:1,status:"pending-protected-main-integration",operationId:process.env.OPERATION_ID,source:card.source,baseline:card.baseline,patchSha256:crypto.createHash("sha256").update(patch).digest("hex"),requiredAction:"Apply the retained patch through the protected-main review/integration path; this record is not canonical reconciliation.",generatedAt:new Date().toISOString()},null,2)}\n`);'
+          mkdir -p tmp/release-result
+          cp "$RUNNER_TEMP/changelog-reconciliation.patch" "$RUNNER_TEMP/changelog-integration-request.json" tmp/release-result/
+          if test -f "$RUNNER_TEMP/luyentap-changelog/state.json"; then
+            mkdir -p tmp/release-result/luyentap-changelog
+            cp "$RUNNER_TEMP/luyentap-changelog/state.json" tmp/release-result/luyentap-changelog/
+          fi
+          if test -d documentation/architecture/changelog; then cp -R documentation/architecture/changelog tmp/release-result/; fi
+          if test -f documentation/architecture/master_changelog.md; then cp documentation/architecture/master_changelog.md tmp/release-result/; fi
+          gh release upload "hosting-operation-$operation" "$RUNNER_TEMP/changelog-reconciliation.patch" "$RUNNER_TEMP/changelog-integration-request.json" --repo "$GITHUB_REPOSITORY"
+      - name: Open the protected-main Changelog integration PR
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION_FILE: ${{ runner.temp }}/release-result/operation.json
         run: |
           set -euo pipefail
           if test ! -s "$RUNNER_TEMP/operation-id" || test ! -s "$RUNNER_TEMP/changelog-reconciliation.patch"; then
@@ -380,7 +393,7 @@ jobs:
             echo 'Publication outcome record is missing; no Changelog integration PR will be opened.'
             exit 0
           fi
-          operation_status="$(node --input-type=module -e 'import fs from "node:fs"; const value=JSON.parse(fs.readFileSync(process.env.OPERATION_FILE,"utf8")); process.stdout.write(value.status || "")' OPERATION_FILE="$RUNNER_TEMP/release-result/operation.json")"
+          operation_status="$(node --input-type=module -e 'import fs from "node:fs"; const value=JSON.parse(fs.readFileSync(process.env.OPERATION_FILE,"utf8")); process.stdout.write(value.status || "")')"
           case "$operation_status" in
             published-verified|changelog-pending|changelog-pending-integration) ;;
             *) echo "Publication/live verification status is $operation_status; no Changelog integration PR will be opened."; exit 0 ;;
@@ -407,6 +420,7 @@ jobs:
           echo "Changelog integration PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain Changelog integration PR identity
         if: ${{ always() }}
+        continue-on-error: true
         run: |
           if test -f "$RUNNER_TEMP/changelog-pr-url"; then cp "$RUNNER_TEMP/changelog-pr-url" tmp/release-result/; fi
       - uses: actions/upload-artifact@v4
@@ -436,7 +450,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Require a concrete existing operation
@@ -472,8 +486,11 @@ jobs:
           LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/operation.json
           GH_TOKEN: ${{ github.token }}
         run: npm run release:verify-existing -- "$OPERATION_ID"
+      - name: Confirm recovery wrote the operation outcome
+        run: test -s "$RUNNER_TEMP/operation.json"
       - name: Open the protected-main Changelog integration PR after recovery
         if: ${{ always() }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           OPERATION_FILE: ${{ runner.temp }}/operation.json
@@ -513,6 +530,7 @@ jobs:
         with:
           name: luyentap-release-recovery-${{ github.run_id }}
           path: |
+            ${{ runner.temp }}/operation.json
             ${{ runner.temp }}/luyentap-changelog/state.json
             tmp/recovery-result
           if-no-files-found: warn

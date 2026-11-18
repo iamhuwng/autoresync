@@ -7,6 +7,7 @@ import {
   googleProvider,
   isAcceptanceEmulatorBuild,
   isLocalDevelopment,
+  isSpareDevelopment,
   isTestEnvironment,
   parseEmulatorHost,
   shouldLogFirebaseBootstrap,
@@ -39,7 +40,7 @@ if (firestoreEmulatorHost && (import.meta.env.DEV || isTestEnvironment || isAcce
 
 let analytics = null;
 
-if (!isTestEnvironment && !isLocalDevelopment && !isAcceptanceEmulatorBuild && typeof window !== "undefined") {
+if (!isTestEnvironment && !isLocalDevelopment && !isSpareDevelopment && !isAcceptanceEmulatorBuild && typeof window !== "undefined") {
   try {
     analytics = getAnalytics(app);
 

@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { access, cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertLocalEmulators } from './import-live-firebase.mjs';
@@ -12,10 +11,6 @@ const repoRoot = path.resolve(scriptDir, '..');
 const projectId = 'demo-luyentap-local';
 const emulatorPorts = { auth: 9099, database: 9000, firestore: 8080 };
 const firebaseCli = path.join(repoRoot, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js');
-const emulatorCache = path.join(os.homedir(), '.cache', 'firebase', 'emulators');
-const firestoreJar = path.join(emulatorCache, 'cloud-firestore-emulator-v1.20.4.jar');
-const databaseJar = path.join(emulatorCache, 'firebase-database-emulator-v4.11.2.jar');
-const isWindowsArm64 = process.platform === 'win32' && process.arch === 'arm64';
 const snapshotDir = path.join(repoRoot, 'tmp', 'local-firebase');
 const snapshotMetadataPath = path.join(snapshotDir, 'firebase-export-metadata.json');
 const adminHeaders = { 'Content-Type': 'application/json', Authorization: 'Bearer owner' };
@@ -66,31 +61,6 @@ const startFirebaseCli = (only, restoreSnapshot) => {
   ]);
 };
 
-const startWindowsArm64JavaEmulator = (name, jar, port) => {
-  const helper = path.join(repoRoot, 'scripts', 'start-local-java-emulator.ps1');
-  const helperArgs = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    helper,
-    '-Name',
-    name,
-    '-Jar',
-    jar,
-    '-Port',
-    String(port),
-    '-ProjectId',
-    projectId,
-    '-Rules',
-    path.join(repoRoot, 'firestore.rules'),
-  ];
-  if (name === 'firestore' && hasSnapshot) {
-    helperArgs.push('-ImportMetadata', path.join(snapshotDir, 'firestore_export', 'firestore_export.overall_export_metadata'));
-  }
-  spawn('powershell.exe', helperArgs, { windowsHide: true });
-  console.log(`[Firebase] Starting local ${name} emulator through WSL.`);
-};
 const startEmulators = async () => {
   hasSnapshot = await access(snapshotMetadataPath).then(() => true, () => false);
   const missing = [];
@@ -98,32 +68,13 @@ const startEmulators = async () => {
     if (!(await isPortOpen(port))) missing.push(name);
   }
 
-  if (missing.length > 0) {
-    if (isWindowsArm64) {
-      if (missing.includes('auth')) startFirebaseCli(['auth'], hasSnapshot);
-
-      if (missing.includes('database')) {
-        await access(databaseJar);
-        startWindowsArm64JavaEmulator('database', databaseJar, emulatorPorts.database);
-      }
-
-      if (missing.includes('firestore')) {
-        await access(firestoreJar);
-        startWindowsArm64JavaEmulator('firestore', firestoreJar, emulatorPorts.firestore);
-      }
-    } else {
-      startFirebaseCli(missing, hasSnapshot);
-    }
-  }
+  if (missing.length > 0) startFirebaseCli(missing, hasSnapshot);
 
   await Promise.all(Object.values(emulatorPorts).map((port) => waitForPort(port)));
   await assertLocalEmulators();
   await readResponse(await fetch(`http://localhost:9000/.settings/rules.json?ns=${projectId}`, {
     method: 'PUT', redirect: 'error', headers: adminHeaders, body: await readFile(path.join(repoRoot, 'database.rules.json'), 'utf8'),
   }));
-  if (isWindowsArm64 && hasSnapshot && missing.includes('database')) {
-    await importRtdbSnapshot(path.join(snapshotDir, 'database_export', `${projectId}.json`), false);
-  }
   console.log(`[Firebase] Local emulators ready for project ${projectId}.`);
 };
 
@@ -272,12 +223,9 @@ const saveSnapshot = async () => {
     await writeFile(path.join(stagingDir, 'auth_export', 'accounts.json'), JSON.stringify(authSnapshot));
     const authConfig = await readResponse(await fetch(`http://localhost:9099/emulator/v1/projects/${projectId}/config`, { redirect: 'error', headers: adminHeaders }));
     await writeFile(path.join(stagingDir, 'auth_export', 'config.json'), JSON.stringify(authConfig));
-    const exportDirectory = isWindowsArm64
-      ? `/mnt/${stagingDir[0].toLowerCase()}/${stagingDir.slice(3).replaceAll('\\', '/')}`
-      : stagingDir;
     await readResponse(await fetch(`http://localhost:8080/emulator/v1/projects/${projectId}:export`, {
       method: 'POST', redirect: 'error', headers: adminHeaders,
-      body: JSON.stringify({ database: `projects/${projectId}/databases/(default)`, export_directory: exportDirectory, export_name: 'firestore_export' }),
+      body: JSON.stringify({ database: `projects/${projectId}/databases/(default)`, export_directory: stagingDir, export_name: 'firestore_export' }),
     }));
     const { version } = JSON.parse(await readFile(path.join(repoRoot, 'node_modules', 'firebase-tools', 'package.json'), 'utf8'));
     await writeFile(path.join(stagingDir, 'firebase-export-metadata.json'), JSON.stringify({

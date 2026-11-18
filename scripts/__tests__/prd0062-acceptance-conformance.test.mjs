@@ -13,7 +13,7 @@ const matrixPath = path.join(repoRoot, 'documentation/tasks/PRD0062/supporting/p
 const checkerArgument = 'scripts/lib/prd0062-acceptance-conformance.ts';
 const resolverPath = path.join(repoRoot, 'scripts/tooling-where.mjs');
 const dispatcherPath = path.join(repoRoot, 'scripts/harness/run-tool.mjs');
-const x64WrapperPath = path.join(repoRoot, 'scripts/harness/run-x64.ps1');
+const runnerPath = path.join(repoRoot, 'scripts/harness/run-isolated.mjs');
 
 const parseJsonRecord = (stdout) => {
   try {
@@ -110,7 +110,6 @@ test('semantic authority rejects direct npx, vite, vitest, and wrangler command 
 
 test('harness contract retains audit-only tools and canonical Playwright entrypoint', () => {
   const dispatcher = fs.readFileSync(dispatcherPath, 'utf8');
-  const x64Wrapper = fs.readFileSync(x64WrapperPath, 'utf8');
   assert.ok(toolNames.includes('playwright'));
   assert.ok(toolNames.includes('vite-node'));
   assert.equal(HARNESS_CONTRACT.version, '5.0.0');
@@ -119,10 +118,10 @@ test('harness contract retains audit-only tools and canonical Playwright entrypo
   assert.equal(HARNESS_CONTRACT.tools.playwright.entry, '@playwright/test/cli.js');
   assert.equal(HARNESS_CONTRACT.tools['vite-node'].entry, 'vite-node/vite-node.mjs');
   assert.match(dispatcher, /HARNESS_CONTRACT/u);
-  assert.doesNotMatch(x64Wrapper, /run-normal\.mjs/u);
-  assert.match(x64Wrapper, /run-isolated\.mjs/u);
+  assert.match(dispatcher, /run-isolated\.mjs/u);
+  assert.match(dispatcher, /spawnSync\(process\.execPath,/u);
   assert.equal(fs.existsSync(dispatcherPath), true);
-  assert.equal(fs.existsSync(x64WrapperPath), true);
+  assert.equal(fs.existsSync(runnerPath), true);
   assert.equal(execFileSync(process.execPath, ['--version'], { encoding: 'utf8' }).startsWith('v'), true);
 });
 
@@ -133,7 +132,7 @@ test('harness contract validation fails closed when dispatchers are absent or om
     assert.equal(missing.filter((issue) => issue.code === 'harness-contract-missing').length, 2);
     fs.mkdirSync(path.join(temporaryRoot, 'scripts/harness'), { recursive: true });
     fs.writeFileSync(path.join(temporaryRoot, 'scripts/harness/run-tool.mjs'), "const tools = new Set(['vitest']);\n", 'utf8');
-    fs.writeFileSync(path.join(temporaryRoot, 'scripts/harness/run-x64.ps1'), "[ValidateSet('vitest')]\n", 'utf8');
+    fs.writeFileSync(path.join(temporaryRoot, 'scripts/harness/run-isolated.mjs'), 'export {};\n', 'utf8');
     const unsupported = validateHarnessContract({ rootDir: temporaryRoot });
     assert.ok(unsupported.some((issue) => issue.code === 'harness-playwright-unsupported'));
   } finally {
@@ -178,6 +177,6 @@ test('browser acceptance enables mutation controls only in its local Vite server
 test('semantic checker and stateless resolver dependencies are present', () => {
   assert.equal(fs.existsSync(resolverPath), true);
   assert.equal(fs.existsSync(dispatcherPath), true);
-  assert.equal(fs.existsSync(x64WrapperPath), true);
+  assert.equal(fs.existsSync(runnerPath), true);
   assert.equal(execFileSync(process.execPath, ['--version'], { encoding: 'utf8' }).startsWith('v'), true);
 });

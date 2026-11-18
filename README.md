@@ -266,83 +266,17 @@ When working on anything result-related, start with [PRD-0040](./documentation/t
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Development setup
 
-- **Node.js 22.12+** and npm; the checked lockfile uses Vite 7
-- Local Firebase Auth, Realtime Database, and Firestore emulators for development
-- Reviewed AI gateway configuration for extraction; provider secrets stay server-side
-- Reviewed local Worker secrets in ignored `cloudflare/tmp/.dev.vars`; the normal
-  development command starts the Book Worker even for ordinary browser work
-- On Windows ARM64, the shared x64 Node helper, WSL Java and cached Firebase
-  emulator JARs described in [the tooling guide](documentation/system/local-tooling-layout.md)
-
-### Installation
-
-Use an owner-reviewed published revision. Check the current
-[maintenance status](documentation/system/maintenance-baseline-20261017.md)
-before selecting the base for new work. Use the synchronized stable `main` for
-new feature branches; keep the separate PDF Book branch out of maintenance work.
-
-1. Clone the repository:
-   ```bash
-   git clone <repository-url> luyentap
-   cd luyentap
-   ```
-
-2. Inspect tools, then provision the root and Cloudflare packages with approval:
-   ```bash
-   npm run tooling:doctor
-   npm ci --no-audit --no-fund
-   npm --prefix cloudflare ci --no-audit --no-fund
-   ```
-   On Windows ARM64, replace the Cloudflare install command with
-   `node scripts/tooling-where.mjs --exec npm-x64 --prefix cloudflare ci --no-audit --no-fund`.
-   Reuse the configured machine's shared runtimes; do not install dependencies
-   into a managed worktree. Backup Worker work additionally needs its own
-   lock-owned `r2-backup-worker` dependencies.
-
-3. Configure the machine-local development environment using
-   `npm run env:bootstrap` and [the local development guide](documentation/system/local-live-deployment.md).
-   Firebase's public configuration has these names:
-   ```env
-   # Firebase
-   VITE_FIREBASE_API_KEY=
-   VITE_FIREBASE_AUTH_DOMAIN=
-   VITE_FIREBASE_DATABASE_URL=
-   VITE_FIREBASE_PROJECT_ID=
-   VITE_FIREBASE_STORAGE_BUCKET=
-   VITE_FIREBASE_MESSAGING_SENDER_ID=
-   VITE_FIREBASE_APP_ID=
-
-   ```
-
-   Supply the reviewed local Worker secrets in this clone's ignored
-   `cloudflare/tmp/.dev.vars` before starting development; cloning Git does not
-   copy that file or emulator snapshots. Never paste or commit secrets. Startup
-   rejects a missing secret file before environment/Firebase setup.
-
-   Keep production settings in the separate reviewed `.env.production` described
-   in that guide. Local Firebase uses `demo-luyentap-local`, but Book PDF
-   acceptance can upload to the real restricted B2 prefix. Normal startup checks
-   existing local Firebase services without changing their rules or accounts.
-   Explicit `npm run firebase:bootstrap-local` creates/seeds a disposable setup;
-   use the owning checkout's recovery workflow for an existing rich dataset.
-   Reusing its running emulators is not isolated data. On a fresh machine, follow
-   the tooling guide before provisioning missing runtimes or dependencies.
-
-4. Start development server:
-   ```bash
-   npm run dev -- 5173
-   ```
-
-5. Open `http://localhost:5173/login`. Reveal the dev quick-login buttons with
-   the bottom-right settings icon. Student verification uses port 5174.
+Follow the [native development guide](documentation/system/native-development.md) for installation, local testing against spare services, and the built-site preview.
 
 ### Available Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev -- 5173` | Check prepared local Firebase, then start the app/Book Worker |
+| `npm run dev` | Start the local site against the spare Firebase project and upload Worker |
+| `npm run dev:emulators` | Start the emulator-based app and local Workers |
+| `npm run build:spare` and `npm run preview:spare` | Build and preview the site against the spare services |
 | `npm run firebase:bootstrap-local` | Explicit emulator/rules/account setup for disposable local data |
 | `npm run build` | Direct Vite production build plus bundle-budget check |
 | `npm run build:production` | Checked production build; no remote mutation |

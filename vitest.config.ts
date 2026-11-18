@@ -12,11 +12,12 @@ const maxWorkers = Number.isFinite(configuredWorkerCount) && configuredWorkerCou
   : 2;
 
 export default defineConfig({
+  root: import.meta.dirname,
   plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/__tests__/setup.ts',
+    setupFiles: path.join(import.meta.dirname, 'src/__tests__/setup.ts'),
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: enableFileParallelism,

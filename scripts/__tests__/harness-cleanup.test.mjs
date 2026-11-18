@@ -215,7 +215,7 @@ test('cleanup validates roots and arguments before any deletion', () => {
     json: true,
     minAgeHours: 72,
   });
-  assert.equal(parseCleanupArguments(['--wsl']).includeWsl, true);
+  assert.throws(() => parseCleanupArguments(['--wsl']), /unknown cleanup argument/);
   assert.deepEqual(parseCleanupArguments(['--runs-only']).kinds, ['run']);
   assert.throws(() => parseCleanupArguments(['--min-age-hours', '0']), /number >= 0\.25/);
   assert.throws(() => parseCleanupArguments(['--unknown']), /unknown cleanup argument/);

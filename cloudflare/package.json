@@ -19,11 +19,11 @@
     "rollback": "node ../scripts/harness/run-tool.mjs --audit wrangler . rollback"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.16.18",
-    "@cloudflare/workers-types": "^4.20260620.1",
+    "@cloudflare/vitest-pool-workers": "0.23.0",
+    "@cloudflare/workers-types": "5.20261118.1",
     "@firebase/rules-unit-testing": "^5.0.0",
     "vitest": "^4.1.9",
-    "wrangler": "^4.103.0"
+    "wrangler": "4.164.0"
   },
   "dependencies": {
     "jose": "^6.2.3"

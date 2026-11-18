@@ -20,8 +20,10 @@ const envDir = sharedEnvFiles.some((name) => fs.existsSync(path.join(sharedEnvDi
 export default defineConfig(({ mode, command, isPreview }) => {
   const sharedEnvRoot = mode === 'acceptance' ? acceptanceEnvDir : sharedEnvDir;
   const bookEnv = {
-    ...loadEnv(mode, sharedEnvRoot, 'VITE_BOOK_'),
-    ...loadEnv(mode, mode === 'acceptance' ? acceptanceEnvDir : repoRoot, 'VITE_BOOK_'),
+    ...(mode === 'spare' ? {} : {
+      ...loadEnv(mode, sharedEnvRoot, 'VITE_BOOK_'),
+      ...loadEnv(mode, mode === 'acceptance' ? acceptanceEnvDir : repoRoot, 'VITE_BOOK_'),
+    }),
     ...Object.fromEntries(
       Object.entries(process.env).filter(([key]) => key.startsWith('VITE_BOOK_')),
     ),
@@ -36,7 +38,7 @@ export default defineConfig(({ mode, command, isPreview }) => {
 
   return {
     // Keep machine-local secrets/config outside Git worktrees so every checkout loads the same values.
-    envDir: sharedEnvRoot,
+    envDir: mode === 'spare' ? false : sharedEnvRoot,
     define: bookEnvDefinitions,
   // IMPORTANT: Fixed port for OAuth compatibility with Google Drive
   // The OAuth credentials in Google Cloud Console must include this exact origin

@@ -48,22 +48,23 @@ const environment = {
     mode: doctorMode ? 'doctor' : 'run', audit: auditMode, tool, relativeProjectPath, toolArguments,
   }), 'utf8').toString('base64'),
 };
-const selectedRunner = path.join(harnessDirectory, 'run-isolated.mjs');
-let command = process.execPath;
-let args = [selectedRunner];
-let cwd = repositoryRoot;
-
-const doctorNeedsX64 = doctorMode && (toolArguments.length === 0 || toolArguments.some((name) => HARNESS_CONTRACT.tools[name]?.runtime === 'windows-x64'));
-if (process.platform === 'win32' && (doctorNeedsX64 || HARNESS_CONTRACT.tools[tool]?.runtime === 'windows-x64')) {
-  const powershell = process.env.ComSpec
-    ? path.join(path.dirname(process.env.ComSpec), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-    : 'powershell.exe';
-  command = powershell;
-  args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(harnessDirectory, 'run-x64.ps1')];
-  environment.CODEX_HARNESS_RUNNER = path.basename(selectedRunner);
+if (process.platform === 'win32') {
+  if (process.arch !== 'x64') {
+    process.stderr.write('HARNESS_FAILURE X64_NODE_PREREQUISITE_MISSING\nStart the audit with native Windows x64 Node.\n');
+    process.exit(2);
+  }
+  const pathKey = Object.keys(environment).find((key) => key.toUpperCase() === 'PATH') || 'Path';
+  environment[pathKey] = [path.dirname(process.execPath), environment[pathKey]].filter(Boolean).join(path.delimiter);
+  environment.CODEX_HARNESS_X64_DISCOVERY_B64 = Buffer.from(JSON.stringify({
+    selected: process.execPath,
+    reason: 'native-windows-x64-runtime',
+  }), 'utf8').toString('base64');
 }
 
-const result = spawnSync(command, args, { cwd, env: environment, stdio: 'inherit', shell: false });
+const selectedRunner = path.join(harnessDirectory, 'run-isolated.mjs');
+const result = spawnSync(process.execPath, [selectedRunner], {
+  cwd: repositoryRoot, env: environment, stdio: 'inherit', shell: false,
+});
 if (result.error) {
   process.stderr.write(`harness dispatcher: ${result.error.message}\n`);
   process.exit(1);

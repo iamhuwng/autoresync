@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: npm ci
       - run: node --test scripts/__tests__/check-prd0062-activity-coverage.test.mjs
       - run: node scripts/check-prd0062-activity-coverage.mjs
