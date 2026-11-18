@@ -18,7 +18,7 @@ try {
     ? ['--outDir', 'dist-spare']
     : ['--host', 'localhost', '--port', port, '--strictPort', ...(operation === 'preview' ? ['--outDir', 'dist-spare'] : [])];
   console.log(`[${operation}] Using spare Firebase project ${spareFirebaseProject}.`);
-  const result = spawnSync(process.execPath, [vite, operation, '--mode', 'spare', ...options], {
+  const result = spawnSync(process.execPath, [vite, operation, '--mode', 'spare', '--config', 'scripts/spare-vite.config.mjs', ...options], {
     cwd: repoRoot, env, stdio: 'inherit',
   });
   if (result.error) throw result.error;
