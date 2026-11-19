@@ -704,36 +704,40 @@ test('ordinary package scripts use the stateless resolver while audit scripts re
   assert.equal(rootScripts['deploy:hosting'], 'node scripts/deploy-live.mjs');
 });
 
-const nativeWranglerAvailable = process.platform === 'win32' && process.arch === 'x64'
-  && fs.existsSync(path.join(repositoryRoot, 'cloudflare/node_modules/wrangler/bin/wrangler.js'));
-test('Windows x64 audits keep native Node and finalize runtime evidence', { skip: !nativeWranglerAvailable, timeout: 30_000 }, async () => {
-  const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'native-x64-audit-'));
-  try {
-    const result = await run(process.execPath, [
-      path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--audit', '--doctor', 'cloudflare', 'wrangler',
-    ], repositoryRoot, {
-      CODEX_WINDOWS_TOOLS_ROOT: path.join(cache, 'unused-compatibility-tools'),
-      CODEX_HARNESS_ROOT: cache,
-    });
-    assert.equal(result.status, 0, result.stderr);
-    const report = JSON.parse(result.stdout.trim().split(/\r?\n/u).at(-1));
-    const evidence = JSON.parse(fs.readFileSync(report.evidence, 'utf8'));
-    assert.equal(evidence.runtime.executable, process.execPath);
-    assert.equal(evidence.runtime.architecture, 'x64');
-    assert.equal(evidence.discovery.x64Node.reason, 'native-windows-x64-runtime');
-    assert.equal(evidence.lifecycle.status, 'final');
-    assert.equal(evidence.classification, 'completed');
-  } finally {
-    fs.rmSync(cache, { recursive: true, force: true });
-  }
-});
+// Register these checks on the platforms whose native behavior they exercise.
+if (process.platform === 'win32' && process.arch === 'x64') {
+  const nativeWranglerAvailable = fs.existsSync(path.join(repositoryRoot, 'cloudflare/node_modules/wrangler/bin/wrangler.js'));
+  test('Windows x64 audits keep native Node and finalize runtime evidence', { skip: !nativeWranglerAvailable, timeout: 30_000 }, async () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'native-x64-audit-'));
+    try {
+      const result = await run(process.execPath, [
+        path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--audit', '--doctor', 'cloudflare', 'wrangler',
+      ], repositoryRoot, {
+        CODEX_WINDOWS_TOOLS_ROOT: path.join(cache, 'unused-compatibility-tools'),
+        CODEX_HARNESS_ROOT: cache,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const report = JSON.parse(result.stdout.trim().split(/\r?\n/u).at(-1));
+      const evidence = JSON.parse(fs.readFileSync(report.evidence, 'utf8'));
+      assert.equal(evidence.runtime.executable, process.execPath);
+      assert.equal(evidence.runtime.architecture, 'x64');
+      assert.equal(evidence.discovery.x64Node.reason, 'native-windows-x64-runtime');
+      assert.equal(evidence.lifecycle.status, 'final');
+      assert.equal(evidence.classification, 'completed');
+    } finally {
+      fs.rmSync(cache, { recursive: true, force: true });
+    }
+  });
+}
 
-test('ordinary Windows dispatcher rejects calls before creating audit state', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
-  const cache = path.join(os.tmpdir(), 'rejected-harness-' + crypto.randomUUID());
-  const result = await run(process.execPath, [
-    path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', 'value with spaces',
-  ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
-  assert.equal(result.status, 2, result.stderr);
-  assert.match(result.stderr, /requires --audit/u);
-  assert.equal(fs.existsSync(cache), false);
-});
+if (process.platform === 'win32') {
+  test('ordinary Windows dispatcher rejects calls before creating audit state', { timeout: 30_000 }, async () => {
+    const cache = path.join(os.tmpdir(), 'rejected-harness-' + crypto.randomUUID());
+    const result = await run(process.execPath, [
+      path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', 'value with spaces',
+    ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /requires --audit/u);
+    assert.equal(fs.existsSync(cache), false);
+  });
+}
