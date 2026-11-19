@@ -2,6 +2,9 @@ import crypto from 'node:crypto';
 import { readFile, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { spareBrowserOrigins } from './release-spare-readback.mjs';
+import { assertSpareBuildIdentity } from './spare-preview-identity.mjs';
+import { isQualificationChannelOrigin } from './release-evidence.mjs';
 
 const repository = 'iamhuwng/autoresync';
 const shaPattern = /^[a-f0-9]{64}$/u;
@@ -45,6 +48,108 @@ export const parseEvidenceArgument = value => {
   if (separator < 1 || separator === value.length - 1) fail('evidence arguments must use --evidence=<id>:<file>');
   return { id: value.slice(0, separator), file: value.slice(separator + 1) };
 };
+const mediaTypes = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.mp4': 'video/mp4', '.webm': 'video/webm' };
+const isBrowserCapture = artifact => {
+  const bytes = Buffer.from(artifact.contentBase64, 'base64');
+  switch (artifact.mediaType) {
+    case 'image/png': return bytes.length > 24 && bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
+    case 'image/jpeg': return bytes.length > 4 && bytes.subarray(0, 3).toString('hex') === 'ffd8ff';
+    case 'video/mp4': return bytes.length > 12 && bytes.subarray(4, 8).toString('ascii') === 'ftyp';
+    case 'video/webm': return bytes.length > 8 && bytes.subarray(0, 4).toString('hex') === '1a45dfa3';
+    default: return false;
+  }
+};
+
+export function requireBrowserEvidence(bundle, files) {
+  const browserPaths = /^(?:src\/|public\/|index\.html$|firebase\.json$|\.firebaserc$|package(?:-lock)?\.json$|vite\.config\.|tailwind\.config\.|postcss\.config\.)/u;
+  if (files.some(file => browserPaths.test(file) && !/(?:\/__tests__\/|\.(?:test|spec)\.)/u.test(file))
+    && !['localhost-spare-browser', 'deployed-origin-browser'].includes(bundle.verification.method)) {
+    fail('browser-impacting changes require localhost spare browser evidence or deployed-origin browser evidence');
+  }
+}
+
+export function requireReleaseReview(bundle, now = Date.now()) {
+  const ref = 'bundle://artifact/release-review';
+  const refs = new Set(bundle.verification.evidenceRefs);
+  const artifact = bundle.artifacts.find(entry => entry.id === 'release-review');
+  if (!artifact || !refs.delete(ref)) fail('promotion requires a referenced release-review evidence artifact');
+  let review;
+  try { review = JSON.parse(Buffer.from(artifact.contentBase64, 'base64').toString('utf8')); }
+  catch { fail('release-review must contain valid JSON'); }
+  exactFields(review, ['decision', 'reviewer', 'reviewedAt', 'criteria', 'findings'], 'release review');
+  if (!['codex', 'another-agent'].includes(review.reviewer)) fail('release review must identify the reviewer mode');
+  if (review.decision !== 'pass' || !Array.isArray(review.findings) || review.findings.length) {
+    fail('release review has unresolved findings or lacks a pass; return the candidate for correction');
+  }
+  const time = Date.parse(review.reviewedAt);
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== review.reviewedAt
+    || time < Date.parse(bundle.verification.observedAt) || time > now + 600000 || now - time > 86400000) {
+    fail('release review must be current and follow the verification');
+  }
+  if (!Array.isArray(review.criteria) || review.criteria.length < 1 || review.criteria.length > 30) fail('release review requires bounded acceptance criteria');
+  const reviewed = new Set();
+  for (const criterion of review.criteria) {
+    exactFields(criterion, ['expectation', 'judgment', 'evidenceRefs'], 'release review criterion');
+    text(criterion.expectation, 'user expectation', 1000);
+    text(criterion.judgment, 'review judgment', 1500);
+    if (!Array.isArray(criterion.evidenceRefs) || !criterion.evidenceRefs.length || criterion.evidenceRefs.length > 30
+      || criterion.evidenceRefs.some(evidence => !refs.has(evidence))) {
+      fail('each reviewed expectation must cite retained verification evidence');
+    }
+    for (const evidence of criterion.evidenceRefs) reviewed.add(evidence);
+  }
+  if ([...refs].some(evidence => evidence.endsWith('-capture') && !reviewed.has(evidence))) {
+    fail('release review must evaluate every retained browser capture');
+  }
+}
+
+function validateBrowserArtifacts(bundle, now) {
+  const { method, evidenceRefs, observedAt } = bundle.verification;
+  if (!['localhost-spare-browser', 'deployed-origin-browser'].includes(method)) return;
+  const referenced = new Map(bundle.artifacts.filter(artifact =>
+    evidenceRefs.includes('bundle://artifact/' + artifact.id)).map(artifact => [artifact.id, artifact]));
+  const captures = [...referenced.values()].filter(artifact => artifact.id.endsWith('-capture'));
+  if (!captures.length || captures.some(artifact => !isBrowserCapture(artifact))) {
+    fail('browser evidence requires referenced PNG, JPEG, MP4 or WebM captures with <journey>-capture IDs');
+  }
+  let hasChannel = false;
+  const readReceipt = id => {
+    const artifact = referenced.get(id);
+    if (!artifact) fail('missing spare preview readback ' + id);
+    try { return JSON.parse(Buffer.from(artifact.contentBase64, 'base64').toString('utf8')); }
+    catch { fail('invalid spare preview readback ' + id); }
+  };
+  for (const { id } of captures) {
+    const journey = id.slice(0, -'-capture'.length);
+    const before = readReceipt(journey + '-before');
+    const after = readReceipt(journey + '-after');
+    for (const receipt of [before, after]) {
+      if (method === 'deployed-origin-browser' && isQualificationChannelOrigin(receipt?.origin)) {
+        hasChannel = true;
+        exactFields(receipt, ['origin', 'observedAt', 'revision', 'tree', 'manifestSha256'], 'spare Hosting readback');
+        if (!bundle.build.hostingArtifact || receipt.revision !== bundle.source.revision || receipt.tree !== bundle.source.tree
+          || receipt.manifestSha256 !== bundle.build.hostingArtifact.manifestSha256) {
+          fail('spare Hosting readback differs from the tested candidate artifact');
+        }
+      } else {
+        exactFields(receipt, ['origin', 'observedAt', 'identity'], 'spare preview readback');
+        if (!spareBrowserOrigins.includes(receipt.origin)) fail('invalid spare browser origin');
+        exactFields(receipt.identity, ['revision', 'tree', 'clean', 'buildId', 'environmentSha256', 'firebaseProject',
+          'workerOrigin', 'publicMediaOrigin'], 'spare preview identity');
+        assertSpareBuildIdentity(receipt.identity, bundle.source);
+      }
+      const time = Date.parse(receipt.observedAt);
+      if (!Number.isFinite(time) || new Date(time).toISOString() !== receipt.observedAt
+        || time > now + 600000 || now - time > 86400000) fail('spare preview readback is stale or invalid');
+    }
+    if (before.origin !== after.origin || JSON.stringify(before.identity) !== JSON.stringify(after.identity)
+      || Date.parse(before.observedAt) >= Date.parse(after.observedAt) || Date.parse(after.observedAt) > Date.parse(observedAt)) {
+      fail('spare preview changed during the browser journey or readbacks are out of order');
+    }
+  }
+  if (method === 'deployed-origin-browser' && !hasChannel) fail('deployed-origin browser evidence requires a spare Hosting channel readback');
+}
 function validateArtifact(artifact) {
   exactFields(artifact, ['id', 'mediaType', 'size', 'sha256', 'contentBase64'], 'verification artifact');
   if (!safeId(artifact.id)) fail('verification artifact id is invalid');
@@ -86,6 +191,8 @@ export function validateVerificationBundle(bundle, { source, requirement = 'requ
   }
   const ids = new Set(bundle.artifacts.map(a => 'bundle://artifact/' + a.id));
   if (refs.some(ref => typeof ref !== 'string' || !ids.has(ref))) fail('verification evidence reference does not resolve to a retained artifact');
+  validateBrowserArtifacts(bundle, now);
+  if (refs.includes('bundle://artifact/release-review')) requireReleaseReview(bundle, now);
   if (source) for (const key of ['revision', 'tree', 'baseRevision', 'fingerprint']) if (bundle.source[key] !== source[key]) fail('verification bundle source differs from the assessed source');
   return bundle;
 }
@@ -132,7 +239,8 @@ export async function createVerificationBundle({ cwd, base, recordPath, environm
   for (const entry of evidence) {
     if (!entry || !safeId(entry.id) || !entry.file) fail('verification evidence input is invalid');
     const bytes = await read(path.resolve(entry.file));
-    artifacts.push({ id: entry.id, mediaType: text(entry.mediaType || 'application/octet-stream', 'verification artifact media type', 200), size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') });
+    const mediaType = entry.mediaType || mediaTypes[path.extname(entry.file).toLowerCase()] || 'application/octet-stream';
+    artifacts.push({ id: entry.id, mediaType: text(mediaType, 'verification artifact media type', 200), size: bytes.length, sha256: digest(bytes), contentBase64: bytes.toString('base64') });
   }
   if (hostingArtifact) {
     const { packHostingArtifact } = await import('./release-archive.mjs');

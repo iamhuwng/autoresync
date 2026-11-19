@@ -195,6 +195,7 @@ jobs:
           cp "tmp/release-card/verification.json" "$RUNNER_TEMP/approved-release-card/verification.json"
           cp "tmp/release-card/assessment.json" "$RUNNER_TEMP/approved-release-card/assessment.json"
           CARD="$card" node --input-type=module -e 'import fs from "node:fs"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const review=card.verification.compatibilityReview; fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Release card\n- source: \`${card.source.revision}\`\n- artifact: \`${card.artifact.manifestSha256}\`\n- assessment: \`${card.assessment.decision}\`\n- verification: \`${card.verificationEvidence.record.decision}\`\n- compatibility review digest: \`${review?.sha256 || "none"}\`\n`);'
+          CARD="$card" node --input-type=module -e 'import fs from "node:fs"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const tag=card.verificationBundle?.tag; if (tag) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- [Source-bound verification evidence](https://github.com/${card.repository}/releases/tag/${tag})\n`);'
           echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:

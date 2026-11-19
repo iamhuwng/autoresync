@@ -346,6 +346,49 @@ qualification lifecycle based on the changed surfaces and risk. The release
 system does not prescribe a framework or user journey; it validates the resulting
 source-bound bundle.
 
+Browser-impacting changes require screenshots or short videos of successful
+journeys. Use screenshots for visible states and short videos when sequence,
+motion, or timing matters. The repository's
+verification releases are public. Attach only synthetic or redacted captures and
+keep account identifiers, private data, credentials, and tokens out of them.
+
+For localhost evidence, use the exact clean candidate checkout. Stop the previous
+preview on the selected role port, run `npm.cmd run build:spare`, and start
+`npm.cmd run preview:spare` for the teacher or
+`npm.cmd run preview:spare -- --port 5174` for the student. On each new candidate,
+rebuild and restart even if a previous release is still open in the browser.
+Open the role's `/login` URL in a fresh browser session. Confirm the scenario uses
+spare Firebase and Worker endpoints and the expected refreshed state. Check shared
+media reads where the journey needs them.
+
+Run the identity readback from the candidate checkout immediately before and
+after each recorded journey (use 5174 for students):
+
+```powershell
+node scripts/release-spare-readback.mjs http://localhost:5173 | Set-Content -Encoding utf8NoBOM <teacher-before.json>
+# Run the journey and save a screenshot or short video.
+node scripts/release-spare-readback.mjs http://localhost:5173 | Set-Content -Encoding utf8NoBOM <teacher-after.json>
+```
+
+Both readbacks must succeed. Record `method` as `localhost-spare-browser` and
+set `observedAt` after the last readback. Name and reference all three retained
+artifacts for each journey with a common prefix, for example `teacher-before`,
+`teacher-after`, and `teacher-capture`. Use the check names and scenario to state
+the role and what passed. The verifier checks the origin, source revision and
+tree, build identity, and timestamps on both sides of the journey. A preview
+from another revision, a dirty build, or a rebuild during the journey is rejected.
+
+When the affected behavior requires a deployed origin, record
+`method` as `deployed-origin-browser`, explain the deployed-origin dependency
+and identify the channel in the scenario, and retain the exact Hosting artifact
+and the referenced `<journey>-capture` evidence. Run the same readback command
+before and after each deployed-origin journey using the disposable spare
+channel's HTTPS origin. The current candidate's `dist/` must be present.
+If the release also includes localhost journeys, retain their localhost
+readbacks under separate journey IDs. A separately built spare preview
+qualifies the candidate's behavior. The production artifact has its own HTTP
+readback and publication identity.
+
 For built-site verification, use a clean candidate and an explicit observed
 base. Build with `npm run build:production` (build-only). Start the repository
 Vite preview in one terminal and read back its files from another:
@@ -375,13 +418,57 @@ Verify the actual Worker and external service destinations separately before
 opening that browser journey. A QA-only build supplies behavior evidence for
 the candidate source.
 
-After the selected checks, create/publish the existing bundle with the artifact:
+#### Review the result before requesting approval
+
+For every deployment candidate, collect the verification evidence and compare
+the actual result with the user's requested outcome and acceptance criteria.
+Codex can make this judgment directly or use another agent to review the
+evidence. Review the presentation where it matters, along with the expected
+behavior and any unintended effects visible in the checks. For service-only
+changes, judge the service outcomes using that service's own evidence.
+
+If there is a deviation, incorrect result, unintended issue, or insufficient
+evidence, record the finding and return the candidate to implementation
+recovery before requesting release approval. Fix the issue, rerun the affected
+checks on the corrected candidate, collect fresh evidence, and repeat the
+review. Production rollback applies only after publication.
+
+For guarded Hosting releases with an application verification bundle, retain
+the review as `release-review.json` under the artifact ID `release-review`.
+Add `bundle://artifact/release-review` to the verification record's evidence
+references. A passing review has no open findings and cites the evidence used
+for each judgment. Include every retained browser capture in those citations.
+For example:
+
+```json
+{
+  "decision": "pass",
+  "reviewer": "codex",
+  "reviewedAt": "2026-11-19T04:00:00.000Z",
+  "criteria": [
+    {
+      "expectation": "Describe a specific outcome the user requested",
+      "judgment": "Explain how the observed result meets that expectation",
+      "evidenceRefs": ["bundle://artifact/journey-capture"]
+    }
+  ],
+  "findings": []
+}
+```
+
+Use the actual review time after verification and `another-agent` when another
+agent made the judgment. The gate checks the review record and evidence
+references. The reviewer judges whether the evidence meets the request.
+
+After the review passes, create and publish the bundle:
 
 ```powershell
 node scripts/release-verification-bundle.mjs --create --base <observed-base> `
   --record <external-record.json> --environment <verification-environment-file> `
   --environment-identity <isolated-environment-description> --hosting-artifact `
-  --evidence=checks:<redacted-results.json> --output <external-dir>/verification-bundle.json
+  --evidence=journey-before:<journey-before.json> --evidence=journey-after:<journey-after.json> `
+  --evidence=journey-capture:<journey-capture.png> --evidence=release-review:<release-review.json> `
+  --output <external-dir>/verification-bundle.json
 node scripts/release-verification-bundle.mjs --publish <external-dir>/verification-bundle.json
 ```
 

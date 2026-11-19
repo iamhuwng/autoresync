@@ -121,20 +121,34 @@ const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvir
 };
 
 // This local check deliberately does not register a trusted provider observation.
+async function readProductionBuild({ cwd, buildOrigin, fetchImpl }) {
+  const expectedManifestBytes = await readFile(path.join(cwd, 'dist', manifestPath.slice(1)));
+  const result = await observeHostingAttempt({
+    fetchImpl, effectiveOrigin: buildOrigin, expectedEnvironment: 'production',
+    readConcurrency: defaultReadConcurrency, expectedManifestBytes,
+  });
+  return { origin: buildOrigin, revision: result.revision,
+    tree: result.tree, manifestSha256: result.fingerprint, manifestFileSha256: hash(expectedManifestBytes),
+    verifiedFiles: result.manifest.files.length };
+}
+
 export async function readLocalProductionBuild({ cwd, localOrigin }) {
   const parsed = new URL(localOrigin);
   if (parsed.protocol !== 'http:' || parsed.hostname !== 'localhost'
     || !parsed.port || parsed.origin !== localOrigin) {
     throw new Error('Local production build readback requires an http://localhost:<port> origin.');
   }
-  const expectedManifestBytes = await readFile(path.join(cwd, 'dist', manifestPath.slice(1)));
-  const result = await observeHostingAttempt({
-    fetchImpl: fetch, effectiveOrigin: localOrigin, expectedEnvironment: 'production',
-    readConcurrency: defaultReadConcurrency, expectedManifestBytes,
-  });
-  return { scope: 'local-production-build', origin: localOrigin, revision: result.revision,
-    tree: result.tree, manifestSha256: result.fingerprint, manifestFileSha256: hash(expectedManifestBytes),
-    verifiedFiles: result.manifest.files.length };
+  return { scope: 'local-production-build', ...await readProductionBuild({ cwd, buildOrigin: localOrigin, fetchImpl: fetch }) };
+}
+
+export const isQualificationChannelOrigin = value => typeof value === 'string'
+  && /^https:\/\/luyentap-pdf-qa-20261021--[a-z0-9-]+\.web\.app$/u.test(value);
+
+export async function readQualificationHostingBuild({ cwd, origin, fetchImpl = fetch }) {
+  if (!isQualificationChannelOrigin(origin)) throw new Error('Use a disposable Hosting channel on the spare site.');
+  const result = await readProductionBuild({ cwd, buildOrigin: origin, fetchImpl });
+  return { origin, observedAt: new Date().toISOString(), revision: result.revision, tree: result.tree,
+    manifestSha256: result.manifestSha256 };
 }
 
 // Only fixed production HTTPS resources are trusted for production observation.
