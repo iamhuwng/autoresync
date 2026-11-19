@@ -76,6 +76,11 @@ export async function readWritingHomeworkProvider() {
   const credentials = await readFile(path.join(authRoot, '.wrangler/config/default.toml'), 'utf8');
   const token = credentials.match(/^oauth_token\s*=\s*"([^"\r\n]+)"/mu)?.[1];
   assert(token, 'Cloudflare operator session unavailable');
+  const workers = await readNotificationWorkers(token);
+  return { ...workers, ...await readWritingHomeworkRules() };
+}
+
+export async function readNotificationWorkers(token, { includeWritingScope = true } = {}) {
   async function get(route, multipart = false) {
     const response = await fetch(`https://api.cloudflare.com/client/v4${route}`, {
       headers: { Authorization: `Bearer ${token}` }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
@@ -101,22 +106,35 @@ export async function readWritingHomeworkProvider() {
     for (const [part, value] of await get(root, true)) {
       const name = typeof value === 'string' ? part : value.name;
       const bytes = typeof value === 'string' ? Buffer.from(value) : Buffer.from(await value.arrayBuffer());
+      assert(!Object.hasOwn(modules, name), 'Duplicate notification module name');
       modules[name] = hash(bytes);
-      if (name === 'notification-command-active.mjs') outsideTargetSha256 = hash(normalizeWritingHomeworkOutsideTarget(bytes.toString('utf8')));
+      if (includeWritingScope && name === 'notification-command-active.mjs') outsideTargetSha256 = hash(normalizeWritingHomeworkOutsideTarget(bytes.toString('utf8')));
     }
     assert.deepEqual((await get(`${root}/deployments`)).deployments[0], deployments[0], 'Worker changed during provider readback');
     return { versionId: deployments[0].versions[0].version_id, settings, modules,
       ...(outsideTargetSha256 ? { outsideTargetSha256 } : {}), schedules: await get(`${root}/schedules`), subdomain: await get(`${root}/subdomain`) };
   }
+  return { command: await worker(commandName), public: await worker(publicName),
+    domains: await get(`${account}/workers/domains`), routes: await get('/zones/1aae6fb9889672cf695927eb575a5bbe/workers/routes') };
+}
+
+export async function readWritingHomeworkRules({ useFirebaseDatabaseToken = false } = {}) {
   const require = createRequire(import.meta.url);
   const auth = require('../node_modules/firebase-tools/lib/auth.js');
   const accountIdentity = auth.getGlobalDefaultAccount();
   assert.equal(accountIdentity?.user.email, 'iamhuwng@gmail.com', 'Unexpected Firebase operator');
   const google = await auth.getAccessToken(accountIdentity.tokens.refresh_token,
     ['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/firebase']);
-  const command = process.env.LUYENTAP_RELEASE_GOOGLE_TOKEN ? null : spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-    'gcloud auth print-access-token --account=iamhuwng@gmail.com --project=temp-a1437 --quiet'], { encoding: 'utf8', windowsHide: true, timeout: 60000 });
-  const databaseToken = process.env.LUYENTAP_RELEASE_GOOGLE_TOKEN || (command.status === 0 && command.stdout.trim());
+  let databaseToken;
+  if (useFirebaseDatabaseToken) {
+    const credentials = await auth.getAccessToken(accountIdentity.tokens.refresh_token,
+      ['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/userinfo.email']);
+    databaseToken = credentials.access_token;
+  } else {
+    const command = process.env.LUYENTAP_RELEASE_GOOGLE_TOKEN ? null : spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      'gcloud auth print-access-token --account=iamhuwng@gmail.com --project=temp-a1437 --quiet'], { encoding: 'utf8', windowsHide: true, timeout: 60000 });
+    databaseToken = process.env.LUYENTAP_RELEASE_GOOGLE_TOKEN || (command.status === 0 && command.stdout.trim());
+  }
   assert(databaseToken, 'Google database operator session unavailable');
   async function googleGet(url, database = false) {
     const response = await fetch(url, { headers: { Authorization: `Bearer ${database ? databaseToken : google.access_token}` },
@@ -127,9 +145,8 @@ export async function readWritingHomeworkProvider() {
   const rules = await googleGet('https://temp-a1437-default-rtdb.firebaseio.com/.settings/rules.json', true);
   const release = await googleGet('https://firebaserules.googleapis.com/v1/projects/temp-a1437/releases/cloud.firestore');
   const firestore = await googleGet(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`);
-  return { command: await worker(commandName), public: await worker(publicName), rtdbRulesSha256: hash(canonical(rules)),
-    firestore: { rulesetName: release.rulesetName, sourceSha256: hash(canonical(firestore.source)) },
-    domains: await get(`${account}/workers/domains`), routes: await get('/zones/1aae6fb9889672cf695927eb575a5bbe/workers/routes') };
+  return { rtdbRulesSha256: hash(canonical(rules)),
+    firestore: { rulesetName: release.rulesetName, sourceSha256: hash(canonical(firestore.source)) } };
 }
 
 export async function observeWritingHomework({ cwd, source, phase }) {
