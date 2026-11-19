@@ -1,7 +1,7 @@
 # Teacher homework submission notifications
 
-Changelog ID `CL-20261119-TEACHER-HOMEWORK-SUBMISSION-NOTIFICATIONS`
-Master entry [Master Changelog](../master_changelog.md)
+Changelog ID: `CL-20261119-TEACHER-HOMEWORK-SUBMISSION-NOTIFICATIONS`
+Master entry: [Master Changelog](../master_changelog.md)
 
 ## Change
 
@@ -42,11 +42,11 @@ Cloudflare readback on November 19 found `luyentap-notification-command` at
 module matched the reviewed base byte for byte. The public adapter remained on
 `5696e963-c5ed-463d-a495-30db3c07bc98`. The Writing authority setting, Durable
 Object binding, rate limit, required secret names and trigger state were observed.
-Firestore rules readback matched the recorded ruleset and source hash.
+Firestore rules matched the recorded ruleset and source hash. Production RTDB rules matched the merge revision's canonical SHA-256 `98436fd7f6528718e9fc4cacd4da8b2226feb27dc8bc52b25e38cd06d6162223`.
 
 The [repository release assessment](../../system/release-safety.md#fixed-notification-homework-qa-correction-assessment)
-returned `UNVERIFIED` for this new Worker candidate. The local Wrangler login
-could not refresh, and the available Firebase CLI identity returned HTTP 401
-for the production RTDB rules read. Publication is pending fresh, candidate-bound
-Worker qualification with those authenticated readbacks. No production version
-was uploaded or promoted.
+returned `UNVERIFIED` for this new Worker candidate. The historical notification
+observer pins a different candidate and live baseline. Publication requires a
+reviewed qualification for this exact Worker candidate and an authenticated
+Wrangler operator session. The local Wrangler login could not refresh. No
+production version was uploaded or promoted.
