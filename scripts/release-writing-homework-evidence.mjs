@@ -80,7 +80,19 @@ export async function readWritingHomeworkProvider() {
   return { ...workers, ...await readWritingHomeworkRules() };
 }
 
-export async function readNotificationWorkers(token, { includeWritingScope = true } = {}) {
+export function hashNotificationVersionModules(version, versionId) {
+  assert.equal(version.id, versionId, 'Cloudflare returned a different Worker version');
+  assert(Array.isArray(version.modules) && version.modules.length > 0, 'Cloudflare omitted Worker version modules');
+  const modules = Object.create(null);
+  for (const { name, content_base64: encoded } of version.modules) {
+    assert(typeof name === 'string' && typeof encoded === 'string', 'Cloudflare returned an incomplete Worker module');
+    assert(!Object.hasOwn(modules, name), 'Duplicate notification module name');
+    modules[name] = hash(Buffer.from(encoded, 'base64'));
+  }
+  return { ...modules };
+}
+
+export async function readNotificationWorkers(token, { versionedModules = false } = {}) {
   async function get(route, multipart = false) {
     const response = await fetch(`https://api.cloudflare.com/client/v4${route}`, {
       headers: { Authorization: `Bearer ${token}` }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
@@ -101,17 +113,25 @@ export async function readNotificationWorkers(token, { includeWritingScope = tru
       assert(['plain_text', 'durable_object_namespace', 'ratelimit'].includes(item.type), 'Unreviewed Worker binding');
       return item;
     }).sort((a, b) => a.name.localeCompare(b.name));
-    const modules = {};
+    const versionId = deployments[0].versions[0].version_id;
+    let modules;
     let outsideTargetSha256;
-    for (const [part, value] of await get(root, true)) {
-      const name = typeof value === 'string' ? part : value.name;
-      const bytes = typeof value === 'string' ? Buffer.from(value) : Buffer.from(await value.arrayBuffer());
-      assert(!Object.hasOwn(modules, name), 'Duplicate notification module name');
-      modules[name] = hash(bytes);
-      if (includeWritingScope && name === 'notification-command-active.mjs') outsideTargetSha256 = hash(normalizeWritingHomeworkOutsideTarget(bytes.toString('utf8')));
+    if (versionedModules) {
+      // The script endpoint can return a newer upload while traffic still serves this version.
+      const version = await get(`${account}/workers/workers/${name}/versions/${versionId}?include=modules`);
+      modules = hashNotificationVersionModules(version, versionId);
+    } else {
+      modules = {};
+      for (const [part, value] of await get(root, true)) {
+        const name = typeof value === 'string' ? part : value.name;
+        const bytes = typeof value === 'string' ? Buffer.from(value) : Buffer.from(await value.arrayBuffer());
+        assert(!Object.hasOwn(modules, name), 'Duplicate notification module name');
+        modules[name] = hash(bytes);
+        if (name === 'notification-command-active.mjs') outsideTargetSha256 = hash(normalizeWritingHomeworkOutsideTarget(bytes.toString('utf8')));
+      }
     }
     assert.deepEqual((await get(`${root}/deployments`)).deployments[0], deployments[0], 'Worker changed during provider readback');
-    return { versionId: deployments[0].versions[0].version_id, settings, modules,
+    return { versionId, settings, modules,
       ...(outsideTargetSha256 ? { outsideTargetSha256 } : {}), schedules: await get(`${root}/schedules`), subdomain: await get(`${root}/subdomain`) };
   }
   return { command: await worker(commandName), public: await worker(publicName),
