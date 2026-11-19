@@ -87,7 +87,7 @@ export async function observeTeacherHomeworkNotification({ cwd, source, phase })
 
   async function readProvider() {
     const [workers, rules] = await Promise.all([
-      readNotificationWorkers(token, { includeWritingScope: false }),
+      readNotificationWorkers(token, { versionedModules: true }),
       readWritingHomeworkRules({ useFirebaseDatabaseToken: true }),
     ]);
     return { workers, rules };

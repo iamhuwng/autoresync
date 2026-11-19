@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { validateWritingHomeworkEvidence, normalizeWritingHomeworkOutsideTarget,
+import { validateWritingHomeworkEvidence, normalizeWritingHomeworkOutsideTarget, hashNotificationVersionModules,
   isWritingHomeworkObserved, observeWritingHomework } from '../release-writing-homework-evidence.mjs';
 import { assess } from '../release-check.mjs';
 import { validateTeacherHomeworkNotificationProvider, isTeacherHomeworkNotificationObserved } from '../release-teacher-homework-notification-evidence.mjs';
@@ -114,4 +114,16 @@ test('the teacher notification profile remains independent of the Writing profil
   assert.notEqual(result.decision, 'PASS');
   assert.match(result.findings[0].message, /source differs/u);
   await assert.rejects(assess({ base, observeTeacherHomeworkNotificationWorker: true, observeWritingHomeworkWorker: true, workerPhase: 'predeploy' }));
+});
+
+test('hashes exact bytes for the requested Cloudflare version only', () => {
+  const bytes = Buffer.from([0, 10, 13, 255]);
+  const module = { name: 'notification-command-active.mjs', content_base64: bytes.toString('base64') };
+  const version = { id: 'active-version', modules: [module] };
+  assert.deepEqual(hashNotificationVersionModules(version, 'active-version'), {
+    [module.name]: createHash('sha256').update(bytes).digest('hex'),
+  });
+  assert.throws(() => hashNotificationVersionModules({ ...version, id: 'latest-upload' }, 'active-version'), /different Worker version/u);
+  assert.throws(() => hashNotificationVersionModules({ ...version, modules: [module, module] }, 'active-version'), /Duplicate/u);
+  assert.throws(() => hashNotificationVersionModules({ ...version, modules: [] }, 'active-version'), /omitted/u);
 });
