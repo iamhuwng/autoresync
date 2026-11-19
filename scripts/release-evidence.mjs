@@ -186,6 +186,16 @@ export async function waitForHostingLive({ expectedManifestFingerprint, beforePr
   observeProvider = observeHostingProvider, observeSource = observeHosting, timeoutMs = 90_000,
   initialDelayMs = 2_000, maxDelayMs = 10_000, backoffFactor = 1.5, sleep = defaultSleep,
   now = Date.now, onPoll } = {}) {
+  if (typeof expectedManifestFingerprint !== 'string' || !expectedManifestFingerprint.trim()) {
+    throw new Error('Hosting readback requires expectedManifestFingerprint.');
+  }
+  if (typeof operationId !== 'string' || !operationId.trim()) {
+    throw new Error('Hosting readback requires operationId.');
+  }
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 0) throw new Error('Hosting readback timeoutMs must be finite and non-negative.');
+  if (!Number.isFinite(initialDelayMs) || initialDelayMs < 0) throw new Error('Hosting readback initialDelayMs must be finite and non-negative.');
+  if (!Number.isFinite(maxDelayMs) || maxDelayMs < initialDelayMs) throw new Error('Hosting readback maxDelayMs must be finite and >= initialDelayMs.');
+  if (!Number.isFinite(backoffFactor) || backoffFactor < 1) throw new Error('Hosting readback backoffFactor must be finite and >= 1.');
   const providerIdentity = observation => `${observation.provider.version}@${observation.provider.releaseTime}`;
   const operationPrefix = `[luyentap:${operationId}] `;
   const deadline = now() + timeoutMs;

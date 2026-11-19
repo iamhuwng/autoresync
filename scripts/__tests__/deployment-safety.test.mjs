@@ -558,6 +558,29 @@ test('waitForHostingLive fails fast when another release becomes current', async
   assert.deepEqual(sleeps, []);
 });
 
+test('waitForHostingLive rejects non-finite or missing polling inputs', async () => {
+  const valid = {
+    expectedManifestFingerprint: 'expected',
+    beforeProviderIdentity: 'old@before',
+    operationId: 'operation-4',
+    observeProvider: () => ({ provider: { version: 'new', releaseTime: 'after', message: '[luyentap:operation-4] release' } }),
+    observeSource: async () => ({ fingerprint: 'expected' }),
+  };
+  for (const invalid of [
+    { expectedManifestFingerprint: '' },
+    { operationId: ' ' },
+    { timeoutMs: NaN },
+    { timeoutMs: Infinity },
+    { timeoutMs: -1 },
+    { initialDelayMs: -1 },
+    { initialDelayMs: 500, maxDelayMs: 100 },
+    { backoffFactor: 0.5 },
+    { backoffFactor: Infinity },
+  ]) {
+    await assert.rejects(() => waitForHostingLive({ ...valid, ...invalid }), /Hosting readback/u);
+  }
+});
+
 test('repository uses AGENTS.md as the escalation authority', async () => {
   await assert.rejects(() => readFile(path.join(repositoryRoot, 'CLAUDE.md')), { code: 'ENOENT' });
   await assert.rejects(() => readFile(path.join(repositoryRoot, 'GEMINI.md')), { code: 'ENOENT' });

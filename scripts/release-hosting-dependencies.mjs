@@ -23,12 +23,12 @@ export function selectHostingDependencyScope(files) {
     if (/^cloudflare\/(?:wrangler\.notifications\.jsonc|notification-command-worker\.js|notification-release\/notification-command-|homework-notification\.ts|homework-result-authority\.ts|course-enrollment-approval-(?:handler|route)\.ts)/u.test(file)) workers.add('luyentap-notification-command');
     if (/^cloudflare\/(?:wrangler\.notification-firestore-bridge\.jsonc|notification-firestore-(?:bridge|auth)\.ts|notification-release\/notification-firestore-)/u.test(file)) workers.add('luyentap-notification-firestore-qa');
     if (/^cloudflare\/(?:wrangler\.thcs-gemma\.jsonc|thcs-gemma-worker\.js|src\/ai-gateway\/)/u.test(file)) workers.add('thcs-gemma');
-    if (/^cloudflare\/(?:wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-source-worker\/|src\/book-rollout-|wrangler\.book-source)/u.test(file)) workers.add('r2-upload-signer');
+    if (/^cloudflare\/(?:wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-rollout-)/u.test(file)) workers.add('r2-upload-signer');
     if (/^cloudflare\//u.test(file) && !/^cloudflare\/r2-lifecycle\.listening-private\.json$/u.test(file)
-      && !/^cloudflare\/(?:__tests__|test)\//u.test(file) && !/^cloudflare\/vitest[^/]*\.mjs$/u.test(file)
-      && !/^cloudflare\/wrangler\.(?:qualification|remote-dev|canary|ticket[^/]*)\.jsonc$/u.test(file)
-      && !/^cloudflare\/scripts\//u.test(file)
-      && !/^cloudflare\/(?:wrangler\.notifications\.jsonc|notification-command-worker\.js|notification-release\/notification-command-|homework-notification\.ts|homework-result-authority\.ts|course-enrollment-approval-(?:handler|route)\.ts|wrangler\.notification-firestore-bridge\.jsonc|notification-firestore-(?:bridge|auth)\.ts|notification-release\/notification-firestore-|wrangler\.thcs-gemma\.jsonc|thcs-gemma-worker\.js|src\/ai-gateway\/|wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-source-worker\/|src\/book-rollout-|wrangler\.book-source)/u.test(file)) {
+      && !/^cloudflare\/(?:__tests__|test|scripts)\//u.test(file) && !/^cloudflare\/vitest[^/]*\.mjs$/u.test(file)
+      && !/^cloudflare\/wrangler\.(?:qualification|remote-dev|canary|ticket[^/]*|book-source[^/]*)\.jsonc$/u.test(file)
+      && !/^cloudflare\/src\/book-source-worker\//u.test(file)
+      && !/^cloudflare\/(?:wrangler\.notifications\.jsonc|notification-command-worker\.js|notification-release\/notification-command-|homework-notification\.ts|homework-result-authority\.ts|course-enrollment-approval-(?:handler|route)\.ts|wrangler\.notification-firestore-bridge\.jsonc|notification-firestore-(?:bridge|auth)\.ts|notification-release\/notification-firestore-|wrangler\.thcs-gemma\.jsonc|thcs-gemma-worker\.js|src\/ai-gateway\/|wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-rollout-)/u.test(file)) {
       workers.add('luyentap-notification-command'); workers.add('luyentap-notification-firestore-qa'); workers.add('r2-upload-signer');
     }
   }

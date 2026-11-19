@@ -20,6 +20,7 @@ export const PRODUCTION_WORKER_NAMES = Object.freeze([
   'luyentap-notification-firestore-qa',
   'r2-backup-worker',
   'r2-upload-signer',
+  'thcs-gemma',
 ]);
 
 const account = `/accounts/${CLOUDFLARE_ACCOUNT_ID}`;

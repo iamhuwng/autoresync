@@ -62,6 +62,23 @@ test('Hosting dependency scope selects only affected backend probes', () => {
     rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
     privateAudio: true, workers: ['r2-upload-signer'], cloudflareCommon: true,
   });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/thcs-gemma-worker.js']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['thcs-gemma'], cloudflareCommon: true,
+  });
+  for (const excluded of [
+    'cloudflare/wrangler.book-source-capacity-probe.jsonc',
+    'cloudflare/wrangler.book-source-b2.jsonc',
+    'cloudflare/wrangler.book-source-reconciliation-preview.jsonc',
+    'cloudflare/wrangler.book-source.jsonc',
+    'cloudflare/src/book-source-worker/capacity-probe-worker.ts',
+    'cloudflare/wrangler.ticket87-preview.jsonc',
+  ]) {
+    assert.deepEqual(selectHostingDependencyScope([excluded]), {
+      rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+      privateAudio: false, workers: [], cloudflareCommon: false,
+    });
+  }
 });
 
 function fixture() {
@@ -80,7 +97,7 @@ function fixture() {
     common: { accountSubdomain: { subdomain: 'iamhuwng' }, domains: [], zones: ['1aae6fb9889672cf695927eb575a5bbe'], routes: [] },
     functions: [], writesEnabled: true, restore: null,
     privateAudioBucket: { bucketName: 'luyentap-listening-audio-private', managedDomain: { enabled: false }, customDomains: { domains: [] }, lifecycle }, workers: {} };
-  for (const name of ['r2-upload-signer', 'r2-backup-worker', 'luyentap-notification-command', 'luyentap-notification-firestore-qa']) {
+  for (const name of PRODUCTION_WORKER_NAMES) {
     const bindings = name === 'luyentap-notification-firestore-qa' ? [] : [
       { name: 'FIREBASE_PROJECT_ID', text: 'temp-a1437', type: 'plain_text' },
       { name: 'FIREBASE_DB_URL', text: 'https://temp-a1437-default-rtdb.firebaseio.com', type: 'plain_text' },
