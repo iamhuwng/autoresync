@@ -106,6 +106,14 @@ production environment and build-input bindings. Source-level verification may
 omit it when proportionate; that route makes no exact-built-site proof claim.
 QA inputs are optional prebuild inputs, not a universal promotion dependency.
 
+Routine frontend behavior verification uses localhost with isolated spare
+services. Reserve spare Hosting for behavior that depends on a deployed origin.
+Prepare checks every manifest-listed file over localhost HTTP and uses the
+resulting manifest digest in the approval card. Promotion publishes the
+retained files, verifies the live provider release and content, and reports
+the released source and manifest digest.
+[Routine Hosting release](../system/release-safety.md#routine-hosting-release)
+
 Hosting dependency assessment can also reconcile the historical combined-input
 manifest identity by exact reconstruction from production bytes, public QA
 configuration and the observed live workflow. It does not edit production or

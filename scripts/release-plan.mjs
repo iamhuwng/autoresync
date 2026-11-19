@@ -154,6 +154,10 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
     blockers,
     nextActions: ['Resolve the shared assessment findings on this exact candidate.',
       'Verify the stable LuyenTap integration check on the exact proposed integration commit and inspect current GitHub protection.',
+      ...(target === 'hosting' ? [
+        'Run change-scoped behavior checks against isolated services. Use spare Hosting only for Hosting-specific proof.',
+        'For built-site proof, build with npm run build:production, verify the served artifact with scripts/release-local-readback.mjs, and retain it with the verification bundle.',
+      ] : []),
       'Confirm any changed service against its own provider; Hosting history does not identify deployed Worker/rules versions.',
       'Obtain the existing explicit release authorization after technical qualification.'] };
 }

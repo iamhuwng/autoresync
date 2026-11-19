@@ -80,6 +80,7 @@ test('native live baseline is selected automatically; normal source selection do
   assert.deepEqual(result.convergence, { hotfixReviewPaths: [], preservedLivePaths: [] });
   assert.equal(git(options.cwd, 'status', '--porcelain'), before);
   assert.match(formatPlan(result), /protected origin\/main unavailable/u);
+  assert.match(formatPlan(result), /release-local-readback\.mjs/u);
 });
 
 test('candidate ahead of protected origin/main is rejected as integration-required', async t => {
