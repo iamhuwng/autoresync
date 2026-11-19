@@ -72,7 +72,7 @@ describe('AuthContext', () => {
     mockReauthenticateWithPopup = vi.fn().mockResolvedValue(undefined);
     
     vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation(mockOnAuthStateChanged);
-    vi.mocked(firebaseAuth.signInWithPopup).mockImplementation(mockSignInWithPopup);
+    vi.mocked(firebaseAuth.signInWithPopup).mockImplementation((...args) => mockSignInWithPopup(...args));
     vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockImplementation(mockSignInWithEmailAndPassword);
     vi.mocked(firebaseAuth.signInWithCustomToken).mockImplementation(mockSignInWithCustomToken);
     vi.mocked(firebaseAuth.sendEmailVerification).mockImplementation(mockSendEmailVerification);
@@ -287,6 +287,11 @@ describe('AuthContext', () => {
     };
     const { auth, googleProvider } = await import('../../services/firebaseCore');
     Object.assign(auth, { currentUser: mockUser });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ studentId: 'google-7' }),
+    }));
     mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
     mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
     mockOnValue.mockImplementation((_ref, callback) => {
@@ -297,13 +302,17 @@ describe('AuthContext', () => {
       .mockRejectedValueOnce(Object.assign(new Error('recent login required'), { code: 'auth/requires-recent-login' }))
       .mockResolvedValueOnce(undefined);
 
-    render(<AuthProvider><TestComponent /></AuthProvider>);
-    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
-    await act(async () => screen.getByTestId('google-complete-btn').click());
+    try {
+      render(<AuthProvider><TestComponent /></AuthProvider>);
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+      await act(async () => screen.getByTestId('google-complete-btn').click());
 
-    expect(mockReauthenticateWithPopup).toHaveBeenCalledWith(mockUser, googleProvider);
-    expect(firebaseAuth.updatePassword).toHaveBeenCalledTimes(2);
-    expect(mockSet.mock.invocationCallOrder.at(-1)).toBeGreaterThan(firebaseAuth.updatePassword.mock.invocationCallOrder.at(-1));
+      expect(mockReauthenticateWithPopup).toHaveBeenCalledWith(mockUser, googleProvider);
+      expect(firebaseAuth.updatePassword).toHaveBeenCalledTimes(2);
+      expect(mockSet.mock.invocationCallOrder.at(-1)).toBeGreaterThan(firebaseAuth.updatePassword.mock.invocationCallOrder.at(-1));
+    } finally {
+      delete (auth as unknown as { currentUser?: unknown }).currentUser;
+    }
   });
 
   it('uses Firebase password-reset email without requiring a Cloud Function', async () => {
