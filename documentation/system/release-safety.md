@@ -27,18 +27,70 @@ It runs no build or tests and creates no approval. See
 CI result, applied GitHub protection, Hosting publication scope and the remaining
 qualification of main.
 
+From the candidate checkout, run `node scripts/release-doctor.mjs` before
+preparing a release locally. It checks the pinned Node version, checkout-owned
+Hosting tools, clean Git state, in-progress Git operations, and whether the
+current `gh` login can make an authenticated request. It opens and closes the
+existing index for update without writing it. This is an advisory permission
+probe. Git lock creation, branch protection, provider access, and production
+authorization are tested separately. In a managed Windows worktree, use the
+host `git` or `gh` with scoped approval for authorized operations if sandbox
+access is denied. Confirm the host result before treating a sandbox denial as
+a host ACL problem.
+
 When the production environment is available only in GitHub, dispatch
 **Release Promotion** on protected `main` with operation `plan`. The job
 uses the existing read-only Google federation and reports the live and
 dependency fingerprints for the compatibility review. The plan creates no
 release card or production approval job.
 
-With a backend delta, the plan and publish jobs require the repository secret
-`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN`. Scope it to the production Cloudflare
-account and its site zone. The observer needs read access to Worker scripts,
-routes, zone inventory, and the private R2 bucket configuration. Use a scoped,
-expiring token with read permissions. Google readback uses each job's configured
-federated service account against `temp-a1437`.
+### Provider checks and credentials
+
+Dispatch **Release Promotion** on protected `main` with operation `health` to
+exercise the production dependency reads under the CI preflight identity even
+when the candidate has no backend delta. Supply a short objective for the
+dispatch. Run it after changes to federation,
+provider tokens, shared routing, or private audio bucket configuration. It
+checks Hosting and Functions inventory, RTDB rules and flags, Firestore rules
+and indexes, Worker deployments and configuration, Cloudflare routes, and
+private audio bucket settings. It compares the shared infrastructure pins.
+The health operation creates no release card or trusted dependency fingerprint
+and reads no production build environment secret. Read-only operations use a
+separate GitHub concurrency group from publication and recovery.
+
+| Surface | Access contract exercised by the checks |
+| --- | --- |
+| Firebase CLI | Use relocated external-account ADC with the expected workload federation audience and service-account impersonation URL. Hosting site inventory checks `firebasehosting.sites.get`. Functions inventory needs `cloudfunctions.functions.list` and `run.services.list`. |
+| Firebase Realtime Database | In CI, use the **action-minted OAuth access token** with `cloud-platform`, `firebase.database`, and `userinfo.email` scopes. Read the deployed rules via `/.settings/rules.json` and read the specific system flags. Successful Hosting inventory or a generic ADC token alone does not establish this data-plane access. |
+| Firestore | Read the active Firebase Rules release and its ruleset with `x-goog-user-project: temp-a1437`. Verify Rules read permissions and quota project access. Composite index inventory is a separate Firestore read and needs `datastore.indexes.list`. |
+| Cloudflare | Set `LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN` for CI. Scope Worker scripts and R2 storage read permissions to the production account, and route and zone read permissions to the production site zone. Exercise the account, Worker, zone, and bucket GETs with this token. Use an expiring token and manage its rotation in Cloudflare. |
+
+The endpoint checks establish effective access. Before changing roles or
+enabling additional refs or event types, use `gcloud iam workload-identity-pools
+providers describe` to inspect the live attribute condition and
+`gcloud iam service-accounts get-iam-policy` to inspect the impersonation
+binding. A repository workflow guard controls execution of the checked-in
+workflow. Provider-side trust and GitHub secret scope must be verified
+independently of that guard. Pre-merge CI exercises the observer with
+credential-free fixtures. Run live health on protected `main`.
+
+Independent provider reads report their failures together. HTTP diagnostics
+log the endpoint path, status, and allowlisted provider error codes or reasons.
+They omit raw response messages, query strings, and credentials. On a Google
+HTTP authorization failure, or on an explicit health check, the observer attempts to
+report granted Google release scopes and remaining lifetime. The token metadata
+check is best-effort and cannot grant provider access. Cloudflare token expiry
+remains a provider-side rotation check.
+
+Standard backend releases need their own readback. The Hosting observer reads
+active Worker version IDs dynamically and reads module bytes from the
+version-addressed Cloudflare API endpoint. It includes those version-bound
+module hashes in the compatibility fingerprint. Changes to shared account
+routing or the private audio lifecycle require the backend release operator to
+arrange a reviewed update of the corresponding shared pin before the next
+coordinated release.
+Check these via `health`; a mismatch reports expected and observed digests.
+Fixed historical service profiles retain their own source and provider pins.
 
 ### Routine Hosting release
 

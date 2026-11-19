@@ -13,9 +13,26 @@ test('promotion workflow is manual, protected-main-only and serialized', () => {
   assert.match(workflow, /objective:/u);
   assert.match(workflow, /github\.repository == 'iamhuwng\/autoresync'/u);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/u);
-  assert.match(workflow, /group: luyentap-hosting-production/u);
+  assert.match(workflow, /group: .*inputs\.operation == 'health'.*inputs\.operation == 'plan'.*'luyentap-hosting-read-only'.*'luyentap-hosting-production'/u);
   assert.match(workflow, /cancel-in-progress: false/u);
   assert.doesNotMatch(workflow, /browser-gate:|release-browser-gate\.mjs|playwright install/u);
+});
+
+test('provider health uses dispatch-only main preflight and explicit scoped credentials', () => {
+  assert.doesNotMatch(workflow, /^  (?:pull_request(?:_target)?|workflow_run|schedule|push):/mu);
+  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
+  assert.match(prepare, /if: .*github\.repository == 'iamhuwng\/autoresync'.*github\.ref == 'refs\/heads\/main'.*inputs\.operation == 'health'/u);
+  assert.match(prepare, /ref: \$\{\{ github\.sha \}\}\s+fetch-depth: 0\s+persist-credentials: false/u);
+  assert.match(prepare, /token_format: access_token\s+access_token_scopes: \|\s+https:\/\/www\.googleapis\.com\/auth\/cloud-platform\s+https:\/\/www\.googleapis\.com\/auth\/firebase\.database\s+https:\/\/www\.googleapis\.com\/auth\/userinfo\.email/u);
+  assert.match(prepare, /GOOGLE_OAUTH_ACCESS_TOKEN: \$\{\{ steps\.google-auth\.outputs\.access_token \}\}/u);
+  assert.match(prepare, /cleanup_credentials: true/u);
+  const health = prepare.slice(prepare.indexOf('Exercise all Hosting dependency reads'), prepare.indexOf('Materialize the isolated production environment'));
+  assert.match(health, /inputs\.operation == 'health'/u);
+  assert.match(health, /release-plan\.mjs --dependency-health/u);
+  assert.match(health, /firebase hosting:sites:list/u);
+  assert.match(health, /LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN/u);
+  assert.doesNotMatch(health, /PRODUCTION_ENV|PRODUCTION_GOOGLE|deploy:hosting|build:production/u);
+  assert.match(prepare, /Materialize the isolated production environment\s+if: \$\{\{ inputs\.operation != 'health' \}\}/u);
 });
 
 test('prepare binds the retained Codex verification bundle before production authorization', () => {
