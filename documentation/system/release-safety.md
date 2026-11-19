@@ -27,6 +27,19 @@ It runs no build or tests and creates no approval. See
 CI result, applied GitHub protection, Hosting publication scope and the remaining
 qualification of main.
 
+When the production environment is available only in GitHub, dispatch
+**Release Promotion** on protected `main` with operation `plan`. The job
+uses the existing read-only Google federation and reports the live and
+dependency fingerprints for the compatibility review. The plan creates no
+release card or production approval job.
+
+With a backend delta, the plan and publish jobs require the repository secret
+`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN`. Scope it to the production Cloudflare
+account and its site zone. The observer needs read access to Worker scripts,
+routes, zone inventory, and the private R2 bucket configuration. Use a scoped,
+expiring token with read permissions. Google readback uses each job's configured
+federated service account against `temp-a1437`.
+
 ### Routine Hosting release
 
 1. Verify the changed behavior at localhost against the isolated spare Firebase

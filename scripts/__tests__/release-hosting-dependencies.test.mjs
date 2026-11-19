@@ -3,10 +3,28 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sharedHomeworkInputs } from '../release-check.mjs';
-import { canonical } from '../release-listening-evidence.mjs';
+import { assertHostingFederation, canonical } from '../release-listening-evidence.mjs';
 import { isHostingDependenciesObserved, observeHostingDependencies, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
+
+test('Hosting readback accepts the configured Google federation and rejects a different identity', () => {
+  const account = 'release-reader@temp-a1437.iam.gserviceaccount.com';
+  const provider = 'projects/123456/locations/global/workloadIdentityPools/github/providers/releases';
+  const config = {
+    type: 'external_account',
+    audience: `//iam.googleapis.com/${provider}`,
+    service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${account}:generateAccessToken`,
+  };
+  assert.doesNotThrow(() => assertHostingFederation(config, account, provider));
+  assert.throws(() => assertHostingFederation(config, undefined, provider), /service account is missing/u);
+  assert.throws(() => assertHostingFederation(config, account, undefined), /provider is missing/u);
+  assert.throws(() => assertHostingFederation({ ...config, type: 'service_account' }, account, provider), /requires Google workload identity federation/u);
+  assert.throws(() => assertHostingFederation(config, account, provider + '-other'), /provider changed/u);
+  assert.throws(() => assertHostingFederation(config, 'other@temp-a1437.iam.gserviceaccount.com', provider), /service account changed/u);
+  assert.throws(() => assertHostingFederation(config, 'release-reader@another-project.iam.gserviceaccount.com', provider), /another project/u);
+});
+
 function fixture() {
   const source = { revision: 'a'.repeat(40), tree: 'b'.repeat(40), baseRevision: 'c'.repeat(40), dirty: false,
     files: ['database.rules.json', 'src/example.ts'], fingerprint: 'd'.repeat(64) };

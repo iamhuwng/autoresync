@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -148,8 +149,7 @@ export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
   return { release, sourceName: file.name, sourceSha256: hash(file.content) };
 }
 
-// Fixed native provider GETs only; no caller transport or evidence injection.
-export async function readListeningProvider(cwd, { firestore = false, privateAudio = false, firestoreIndexes = false } = {}) {
+function readWranglerToken(cwd) {
   // Wrangler refreshes the existing session; copying its cached access token fails after expiry.
   const credentialOutput = command(process.execPath, [fileURLToPath(new URL('./tooling-where.mjs', import.meta.url)),
     '--exec', 'cloudflare-wrangler', 'auth', 'token', '--json'], cwd);
@@ -157,20 +157,65 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
   try { credentials = JSON.parse(credentialOutput); }
   catch { throw new Error('Wrangler returned an invalid authentication response.'); }
   assert(credentials?.type === 'oauth' && typeof credentials.token === 'string' && credentials.token, 'Existing Cloudflare OAuth session unavailable');
-  const token = credentials.token;
-  const gcloud = args => {
-    // This named operator profile uses stored credentials, not VM metadata discovery.
-    const env = { ...process.env, CLOUDSDK_CORE_CHECK_GCE_METADATA: 'false' };
-    try {
-      return process.platform === 'win32'
-        ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud.cmd ${args.map(arg => `'${arg}'`).join(' ')}`], undefined, env)
-        : command('gcloud', args, undefined, env);
-    } catch (error) { throw new Error(`Google CLI ${args.slice(0, 2).join(' ')}: ${error.message}`); }
-  };
+  return credentials.token;
+}
+
+const googleOperator = 'iamhuwng@gmail.com';
+const googleProject = 'temp-a1437';
+const cloudflareReadTokenName = 'LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN';
+
+function gcloud(args) {
+  const env = { ...process.env, CLOUDSDK_CORE_CHECK_GCE_METADATA: 'false' };
+  try {
+    return process.platform === 'win32'
+      ? command('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `& gcloud.cmd ${args.map(arg => `'${arg}'`).join(' ')}`], undefined, env)
+      : command('gcloud', args, undefined, env);
+  } catch (error) { throw new Error(`Google CLI ${args.slice(0, 2).join(' ')}: ${error.message}`); }
+}
+
+export function assertHostingFederation(config, expectedAccount, expectedProvider) {
+  assert(/^[a-z0-9-]+@temp-a1437\.iam\.gserviceaccount\.com$/u.test(expectedAccount || ''), 'Hosting readback service account is missing or targets another project');
+  assert(/^projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]+\/providers\/[a-z0-9-]+$/u.test(expectedProvider || ''), 'Hosting readback workload identity provider is missing or invalid');
+  assert(config?.type === 'external_account', 'Hosting readback requires Google workload identity federation');
+  assert(config.audience === `//iam.googleapis.com/${expectedProvider}`, 'Hosting readback workload identity provider changed');
+  assert(config.service_account_impersonation_url === `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${expectedAccount}:generateAccessToken`, 'Hosting readback service account changed');
+}
+
+async function readGoogleToken(hosting, firebaseCli) {
+  if (hosting && process.env.GITHUB_ACTIONS === 'true') {
+    const authFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    assert(authFile && process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE === authFile, 'Hosting readback Google credential file is unavailable or differs from the CLI credential');
+    const config = JSON.parse(await readFile(authFile, 'utf8'));
+    assertHostingFederation(config, process.env.LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT, process.env.LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER);
+    return gcloud(['auth', 'print-access-token', `--project=${googleProject}`, '--quiet']);
+  }
   const auth = JSON.parse(gcloud(['auth', 'list', '--format=json']));
-  assert.deepEqual(auth.filter(item => item.status === 'ACTIVE').map(item => item.account), ['iamhuwng@gmail.com'], 'Listening Google account changed');
-  assert.equal(gcloud(['config', 'get-value', 'project']), 'temp-a1437', 'Listening Google project changed');
-  const googleToken = gcloud(['auth', 'print-access-token', '--account=iamhuwng@gmail.com', '--project=temp-a1437']);
+  const active = auth.filter(item => item.status === 'ACTIVE').map(item => item.account);
+  if (hosting && active.length === 0) {
+    const firebaseAuth = createRequire(firebaseCli)('../auth.js');
+    const account = firebaseAuth.getGlobalDefaultAccount();
+    assert(account?.user?.email === googleOperator && account.tokens?.refresh_token, 'Hosting readback requires the configured Google operator in gcloud or Firebase CLI');
+    const token = await firebaseAuth.getAccessToken(account.tokens.refresh_token, ['https://www.googleapis.com/auth/cloud-platform']);
+    assert(token?.access_token, 'Hosting readback Firebase CLI authentication is unavailable');
+    return token.access_token;
+  }
+  assert.deepEqual(active, [googleOperator], 'Listening Google account changed');
+  assert.equal(gcloud(['config', 'get-value', 'project']), googleProject, 'Listening Google project changed');
+  return gcloud(['auth', 'print-access-token', `--account=${googleOperator}`, `--project=${googleProject}`]);
+}
+
+// Fixed native provider GETs only; no caller transport or evidence injection.
+export async function readListeningProvider(cwd, { firestore = false, privateAudio = false, firestoreIndexes = false, hosting = false } = {}) {
+  const worktrees = command('git', ['worktree', 'list', '--porcelain'], cwd).split(/\r?\n/).filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
+  const firebaseCli = worktrees.map(root => path.join(root, 'node_modules/firebase-tools/lib/bin/firebase.js')).find(existsSync);
+  assert(firebaseCli, 'Repository-owned Firebase CLI unavailable');
+  const scopedToken = hosting ? process.env[cloudflareReadTokenName]?.trim() : '';
+  if (hosting && process.env.GITHUB_ACTIONS === 'true') {
+    assert(scopedToken, `Hosting readback requires the ${cloudflareReadTokenName} secret`);
+  }
+  const token = scopedToken || readWranglerToken(cwd);
+  const googleToken = await readGoogleToken(hosting, firebaseCli);
+  assert(googleToken, 'Google provider access token unavailable');
   async function get(url, bearer, multipart = false) {
     const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${bearer}`, ...(url.startsWith('https://firebaserules.googleapis.com/') ? { 'x-goog-user-project': 'temp-a1437' } : {}) }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
     assert(response.ok && (!response.url || response.url === url), `Listening provider GET failed: ${new URL(url).host}${new URL(url).pathname} (${response.status})`);
@@ -209,9 +254,6 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
   assert.deepEqual(zones, ['1aae6fb9889672cf695927eb575a5bbe'], 'Listening zone inventory changed');
   const common = { accountSubdomain: await cf(`${account}/workers/subdomain`), domains: await cf(`${account}/workers/domains`), zones,
     routes: await cf('/zones/1aae6fb9889672cf695927eb575a5bbe/workers/routes') };
-  const worktrees = command('git', ['worktree', 'list', '--porcelain'], cwd).split(/\r?\n/).filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
-  const firebaseCli = worktrees.map(root => path.join(root, 'node_modules/firebase-tools/lib/bin/firebase.js')).find(existsSync);
-  assert(firebaseCli, 'Repository-owned Firebase CLI unavailable');
   const functions = JSON.parse(command(process.execPath, [firebaseCli, 'functions:list', '--project', 'temp-a1437', '--json', '--non-interactive'], cwd));
   assert.equal(functions.status, 'success', 'Listening Firebase Functions inventory unavailable');
   let firestoreRules;
