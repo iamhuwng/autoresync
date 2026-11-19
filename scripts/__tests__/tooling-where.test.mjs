@@ -1,102 +1,29 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { entries, executionFor } from '../tooling-where.mjs';
 
-test('a nested source checkout reuses only matching ancestor dependency contracts', () => {
-  const owner = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-tool-owner-'));
+test('the resolver requires the checkout’s own tool and forwards arguments with native Node', () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-native-tools-'));
   try {
-    const source = path.join(owner, 'source');
-    fs.mkdirSync(path.join(source, 'scripts'), { recursive: true });
-    fs.mkdirSync(path.join(owner, 'node_modules', 'vite', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'package.json'), '{"name":"vite"}');
-    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), '');
-    for (const root of [source, owner]) {
-      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { vite: '1' }, scripts: { build: root } }));
-      fs.writeFileSync(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}');
-    }
-    const script = path.join(source, 'scripts', 'tooling-where.mjs');
+    const checkout = path.join(parent, 'checkout');
+    const script = path.join(checkout, 'scripts', 'tooling-where.mjs');
+    fs.mkdirSync(path.dirname(script), { recursive: true });
     fs.copyFileSync(path.resolve(import.meta.dirname, '../tooling-where.mjs'), script);
-    const locate = () => spawnSync(process.execPath, [script, 'vite'], { cwd: source, encoding: 'utf8' });
-    const matching = locate();
-    assert.equal(matching.status, 0, matching.stderr);
-    assert.ok(matching.stdout.includes(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js')));
-    fs.writeFileSync(path.join(source, 'package-lock.json'), '{"lockfileVersion":2}');
-    assert.equal(locate().status, 1);
-    fs.writeFileSync(path.join(source, 'package-lock.json'), '{"lockfileVersion":3}');
-    fs.writeFileSync(path.join(source, 'package.json'), '{"dependencies":{"vite":"2"}}');
-    assert.equal(locate().status, 1);
+    const ancestorTool = path.join(parent, 'node_modules', 'vite', 'bin', 'vite.js');
+    fs.mkdirSync(path.dirname(ancestorTool), { recursive: true });
+    fs.writeFileSync(ancestorTool, 'process.exit(99);');
+    const run = () => spawnSync(process.execPath, [script, '--exec', 'vite', 'two words'], { cwd: checkout, encoding: 'utf8' });
+    assert.match(run().stderr, /Missing tool:/u);
+    const checkoutTool = path.join(checkout, 'node_modules', 'vite', 'bin', 'vite.js');
+    fs.mkdirSync(path.dirname(checkoutTool), { recursive: true });
+    fs.writeFileSync(checkoutTool, 'console.log(JSON.stringify([process.execPath, process.cwd(), process.argv[2]])); process.exitCode = 4;');
+    const result = run();
+    assert.equal(result.status, 4, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), [process.execPath, checkout, 'two words']);
   } finally {
-    fs.rmSync(owner, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true });
   }
-});
-
-test('a fresh sibling worktree reuses a matching registered dependency owner', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'luyentap-sibling-owner-'));
-  let owner;
-  const git = (...args) => { const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8', windowsHide: true }); assert.equal(result.status, 0, result.stderr); };
-  try {
-    fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true });
-    fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ dependencies: { vite: '1' } }));
-    fs.writeFileSync(path.join(repo, 'package-lock.json'), '{"lockfileVersion":3}\n');
-    fs.copyFileSync(path.resolve(import.meta.dirname, '../tooling-where.mjs'), path.join(repo, 'scripts/tooling-where.mjs'));
-    git('init', '-q'); git('config', 'core.autocrlf', 'false'); git('config', 'user.name', 'Tooling Test'); git('config', 'user.email', 'tooling@example.invalid'); git('add', '.'); git('commit', '-qm', 'baseline');
-    owner = path.join(path.dirname(repo), `${path.basename(repo)}-owner`);
-    const add = spawnSync('git', ['worktree', 'add', owner, 'HEAD'], { cwd: repo, encoding: 'utf8', windowsHide: true });
-    assert.equal(add.status, 0, add.stderr);
-    fs.mkdirSync(path.join(owner, 'node_modules', 'vite', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'package.json'), '{"name":"vite"}\n');
-    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), '');
-    const result = spawnSync(process.execPath, [path.join(repo, 'scripts/tooling-where.mjs'), 'vite'], { cwd: repo, encoding: 'utf8', windowsHide: true });
-    assert.equal(result.status, 0, result.stderr);
-    assert.ok(result.stdout.includes(path.basename(owner)));
-    assert.match(result.stdout, /node_modules[\\/]vite[\\/]bin[\\/]vite\.js/u);
-    fs.mkdirSync(path.join(owner, 'node_modules', 'fixture-dependency'), { recursive: true });
-    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'package.json'), '{"name":"fixture-dependency","main":"index.cjs"}\n');
-    fs.writeFileSync(path.join(owner, 'node_modules', 'fixture-dependency', 'index.cjs'), "module.exports = { value: 'owner' };\n");
-    fs.writeFileSync(path.join(repo, 'config.cjs'), "module.exports = require('fixture-dependency');\n");
-    fs.writeFileSync(path.join(owner, 'node_modules', 'vite', 'bin', 'vite.js'), "const config = require(require('node:path').join(process.cwd(), 'config.cjs')); if (config.value !== 'owner') process.exit(2); console.log('overlay-ok');\n");
-    const executed = spawnSync(process.execPath, [path.join(repo, 'scripts/tooling-where.mjs'), '--exec', 'vite', '--config', 'config.cjs'], { cwd: repo, encoding: 'utf8', windowsHide: true });
-    assert.equal(executed.status, 0, executed.stderr);
-    assert.match(executed.stdout, /overlay-ok/u);
-    assert.equal(fs.existsSync(path.join(repo, 'node_modules')), false);
-    spawnSync('git', ['worktree', 'remove', '--force', owner], { cwd: repo, encoding: 'utf8', windowsHide: true });
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-    if (owner) fs.rmSync(owner, { recursive: true, force: true });
-  }
-});
-
-test('Worker resolver selects Windows x64 only on ARM64 and refuses WSL', () => {
-  const canonicalX64Node = path.join(
-    process.env.CODEX_WINDOWS_TOOLS_ROOT || path.join(os.homedir(), '.codex', 'tools', 'windows-arm64'),
-    'node',
-    '22-x64',
-    'node.exe',
-  );
-
-  for (const name of ['cloudflare-vitest', 'cloudflare-wrangler', 'r2-vitest', 'r2-wrangler']) {
-    const entry = entries[name];
-    assert.deepEqual(executionFor(name, entry, { platform: 'win32', arch: 'arm64', isWsl: false }), { command: canonicalX64Node, args: [entry.path] });
-    assert.equal(executionFor(name, entry, { platform: 'linux', arch: 'arm64', isWsl: false }).command, process.execPath);
-    assert.throws(() => executionFor(name, entry, { platform: 'linux', arch: 'x64', isWsl: true }), /Windows-authoritative checkout/u);
-  }
-});
-
-test('resolver forwards cwd, quoted arguments, and exit status without switching native Node', () => {
-  const argumentsList = ['value with spaces', 'quote"roundtrip', '--equals=a=b'];
-  const result = spawnSync(process.execPath, [path.resolve(import.meta.dirname, '../tooling-where.mjs'), '--exec', 'node-native', '-e', 'console.log(JSON.stringify({cwd:process.cwd(),args:process.argv.slice(1),execPath:process.execPath}));process.exitCode=27', '--', ...argumentsList], { cwd: os.tmpdir(), encoding: 'utf8' });
-  assert.equal(result.status, 27, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), { cwd: os.tmpdir(), args: argumentsList, execPath: process.execPath });
-});
-
-test('selected x64 Node propagates to child commands without changing the parent PATH', { skip: process.platform !== 'win32' || !fs.existsSync(entries['node-x64'].path) }, () => {
-  const originalPath = process.env.PATH;
-  const result = spawnSync(process.execPath, [path.resolve(import.meta.dirname, '../tooling-where.mjs'), '--exec', 'node-x64', '-e', 'const {spawnSync}=require("node:child_process");const child=spawnSync("node",["-p","process.arch"],{encoding:"utf8"});console.log(JSON.stringify({arch:process.arch,child:child.stdout.trim(),status:child.status}));'], { encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), { arch: 'x64', child: 'x64', status: 0 });
-  assert.equal(process.env.PATH, originalPath);
 });

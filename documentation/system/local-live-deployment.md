@@ -1,5 +1,7 @@
 # Local development, provider-backed acceptance, and live deployment
 
+> The [native development guide](native-development.md) describes the current Windows x64 development path. The older local setup below is retained as operational history.
+
 This document covers local runtime ownership and the boundary between local,
 provider-backed acceptance, and live deployment. Release assessment and
 promotion commands are canonical in [release-safety.md](release-safety.md);
@@ -38,8 +40,7 @@ this order:
    copying.
 5. `scripts/deploy-live.mjs` — isolated production build/Hosting safeguards.
 6. `scripts/tooling-where.mjs` and
-   [local-tooling-layout.md](local-tooling-layout.md) — executable/runtime
-   ownership, especially Windows ARM64 versus x64 Worker tooling.
+   [local-tooling-layout.md](local-tooling-layout.md) — checkout-owned tools and the native runtime.
 7. Checked-in production configuration such as
    `cloudflare/wrangler.book-source.jsonc` — production Worker configuration
    only. Never use it as the localhost config.
@@ -50,7 +51,10 @@ making a current-state claim.
 
 ## 2. Local topology
 
-The normal local stack is:
+For routine release development and behavior verification against the spare
+provider services, use the
+[QA-configured localhost preview](qualification-foundation-runbook.md#routine-localhost-qualification).
+For emulator-focused work, the `npm run dev:emulators` stack is:
 
 | Surface | Local authority |
 | --- | --- |
@@ -107,7 +111,7 @@ Do not confuse it with the separately reviewed production file:
 %USERPROFILE%\.luyentap\env\.env.production
 ```
 
-For every clone using normal `npm run dev`, supply the reviewed ignored local
+For every clone using `npm run dev:emulators`, supply the reviewed ignored local
 Worker secret file and confirm it exists without printing its values. The
 orchestrator always starts that Worker, including for non-Book browser work:
 
@@ -116,11 +120,9 @@ Test-Path cloudflare\tmp\.dev.vars
 ```
 
 Git does not carry this file, shared environment files, emulator snapshots or
-machine runtimes. Install both root and Cloudflare package dependencies using
-the lockfiles and approved tooling route before startup. On Windows ARM64 the
-existing Java helper also needs WSL Java plus its exact cached RTDB/Firestore
-JARs; Auth uses the installed Firebase CLI. Another checkout's successful run
-does not provision a fresh machine.
+machine runtimes. Install dependencies from the root and Cloudflare lockfiles
+for this checkout. The optional Firebase emulators use the checkout's Firebase
+CLI and native Java 21.
 
 The orchestrator checks the Worker secret file before Firebase validation. The
 local Worker script validates the keys it actually needs. Do not echo,
@@ -129,7 +131,7 @@ paste, commit, or log secret values merely to prove that they exist.
 Start the normal local stack with:
 
 ```powershell
-npm run dev -- 5173
+npm run dev:emulators -- 5173
 ```
 
 This command is the supported local entry point. The selected Vite origin is
@@ -146,7 +148,7 @@ This command:
 5. generates the ignored local Wrangler files under `cloudflare/tmp/`;
 6. starts the local Book Worker on port `8787` and the Homework Worker on port `8788`.
 
-Normal `firebase:local` / `npm run dev` does not start emulators, import data,
+Normal `firebase:local` / `npm run dev:emulators` does not start emulators, import data,
 install rules or seed accounts. Missing services fail the check. On a new,
 disposable local dataset only, explicit `npm run firebase:bootstrap-local`
 performs the old startup setup: starts missing emulators, imports the selected
@@ -176,7 +178,7 @@ development. Direct Vite does not own the local Firebase/Worker bootstrap and
 was a source of false environment failures during PRD0063 acceptance.
 
 The Worker ports are fixed at `8787` and `8788`, so normally run **one orchestrated
-`npm run dev` process at a time**. `npm run worker:local` exists for focused
+`npm run dev:emulators` process at a time**. `npm run worker:local` exists for focused
 Worker diagnosis when Firebase is already available; it is not a replacement
 for the full browser-development orchestrator.
 
@@ -184,7 +186,7 @@ For a student-role browser pass, stop the teacher Vite/Worker owner and restart
 the orchestrated stack on port `5174`:
 
 ```powershell
-npm run dev -- 5174
+npm run dev:emulators -- 5174
 ```
 
 The Firebase emulators are detached and can remain available between those
@@ -213,7 +215,7 @@ npm run firebase:save-local
 ### Read-only startup and explicit bootstrap
 
 `npm run firebase:local` verifies that all expected emulator services/project
-are reachable. It changes no data or rules. `npm run dev` performs this same
+are reachable. It changes no data or rules. `npm run dev:emulators` performs this same
 read-only check and requires an already prepared local runtime.
 
 Only explicit `npm run firebase:bootstrap-local` starts missing emulators,
@@ -404,8 +406,8 @@ Diagnose environment/authority failures before editing product behavior.
 
 | Symptom | First place to look | Do not do |
 | --- | --- | --- |
-| App throws `[Firebase] Use npm run dev for local development...` | A direct/unisolated Vite process was started; stop it and use `npm run dev -- <port>` | Do not diagnose this as missing Firebase data or copy local env vars into a direct Vite command |
-| Vite works but Book Worker requests fail / port `8787` absent | Start through `npm run dev`; inspect local Worker process/config | Do not point localhost at the deployed Worker |
+| App throws `[Firebase] Use npm run dev:emulators to start the isolated local Worker endpoints.` | A direct/unisolated Vite process was started; stop it and use `npm run dev:emulators -- <port>` | Do not diagnose this as missing Firebase data or copy local env vars into a direct Vite command |
+| Vite works but Book Worker requests fail / port `8787` absent | Start through `npm run dev:emulators`; inspect local Worker process/config | Do not point localhost at the deployed Worker |
 | Dev quick login reports network failure | `npm run firebase:check-local`, then restart the orchestrated stack | Do not recreate accounts first |
 | Quick login works but copied application/user data appears absent | Check whether a rich `tmp/local-firebase` snapshot exists while old emulator processes are already running; restart verified local emulators so the snapshot imports | Do not rerun live sync or delete the saved snapshot before checking runtime provenance |
 | trusted upload OAuth/exchange failure | required Firebase/trusted-service entries in `cloudflare/tmp/.dev.vars`, local service identity/project wiring | Do not rotate B2 credentials for a Firebase exchange error |
@@ -417,27 +419,10 @@ Diagnose environment/authority failures before editing product behavior.
 For Worker/runtime failures also read Rule 16 and Rule 17 in
 [infrastructure.md](../rules/infrastructure.md).
 
-## 9. Tool/runtime boundary on Windows ARM64
+## 9. Native tooling
 
-Before installing or replacing any dependency:
-
-```powershell
-npm run tooling:doctor
-npm run tooling:where -- cloudflare-wrangler
-npm run tooling:where -- cloudflare-vitest
-```
-
-On Windows ARM64 the repository routes Cloudflare Wrangler/Vitest through the
-shared Windows x64 Node helper. Use that resolver. Do not run global Wrangler,
-do not copy a new dependency tree into a worktree, and do not treat WSL as the
-dependency authority.
-
-`tooling:doctor` may report cleanup candidates as warnings. A warning is not a
-missing required runtime; do not turn ordinary feature work into dependency or
-disk cleanup unless the task actually needs it.
-
-See [local-tooling-layout.md](local-tooling-layout.md) for the complete
-ownership rules.
+See the [native development guide](native-development.md) for setup. Use
+`npm run tooling:doctor -- --workers` to check the installed frontend and Worker tools.
 
 ## 10. What local acceptance proves
 
@@ -486,19 +471,12 @@ For a checked production build without remote mutation:
 npm run build:production
 ```
 
-For an authorized Hosting release:
-
-```powershell
-npm run deploy:hosting
-```
-
-This guarded route requires the reviewed exact-source verification plan,
-compatibility-review digest and existing remote source ref described in
-[release-safety.md](release-safety.md#hosting-release-foundation). It runs those
-checks and retains the source/artifact/evidence before publication. If a release
-is already published but verification is pending, use
-`npm run release:verify-existing -- <operation-uuid>`; do not deploy again to
-repair verification. Build-only remains non-mutating and is not release proof.
+Request publication through GitHub Actions **Release Promotion** on protected
+`main`. Prepare checks the production artifact over localhost HTTP before the
+owner approves the protected publication job. The workflow invokes the guarded
+executor and verifies the live artifact. For an interrupted publication, resume
+the recorded operation through the same workflow.
+[Routine Hosting release and recovery](release-safety.md#routine-hosting-release)
 
 The deploy script:
 
@@ -531,7 +509,7 @@ changing code:
 - [ ] If copied application data is expected, the running emulator state is
       known to have loaded the intended `tmp/local-firebase` snapshot; an
       already-running empty emulator has not merely been reused.
-- [ ] Browser development is started through `npm run dev -- <role-port>`, not
+- [ ] Browser development is started through `npm run dev:emulators -- <role-port>`, not
       direct Vite.
 - [ ] The local Worker is `http://localhost:8787`.
 - [ ] Worker control requests and direct Backblaze upload origin are not

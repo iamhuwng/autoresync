@@ -4,306 +4,48 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dependencyFields = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
-const packageFilesMatch = (sourceRoot, ownerRoot, relativePackage) => {
-  try {
-    const sourcePackage = JSON.parse(fs.readFileSync(path.join(sourceRoot, relativePackage, 'package.json'), 'utf8'));
-    const ownerPackage = JSON.parse(fs.readFileSync(path.join(ownerRoot, relativePackage, 'package.json'), 'utf8'));
-    return dependencyFields.every((field) => JSON.stringify(sourcePackage[field]) === JSON.stringify(ownerPackage[field]))
-      && fs.readFileSync(path.join(sourceRoot, relativePackage, 'package-lock.json')).equals(fs.readFileSync(path.join(ownerRoot, relativePackage, 'package-lock.json')));
-  } catch {
-    return false;
-  }
+const repoRoot = fileURLToPath(new URL('../', import.meta.url));
+const repoTool = (owner, relativePath) => ({ owner, path: path.join(repoRoot, relativePath), command: process.execPath });
+
+export const entries = {
+  'node-native': { owner: 'machine', path: process.execPath },
+  vite: repoTool('root package', 'node_modules/vite/bin/vite.js'),
+  vitest: repoTool('root package', 'node_modules/vitest/vitest.mjs'),
+  'vite-node': repoTool('root package', 'node_modules/vite-node/vite-node.mjs'),
+  playwright: repoTool('root package', 'node_modules/@playwright/test/cli.js'),
+  firebase: repoTool('root package', 'node_modules/firebase-tools/lib/bin/firebase.js'),
+  'cloudflare-vitest': repoTool('Cloudflare package', 'cloudflare/node_modules/vitest/vitest.mjs'),
+  'cloudflare-wrangler': repoTool('Cloudflare package', 'cloudflare/node_modules/wrangler/bin/wrangler.js'),
+  'r2-wrangler': repoTool('R2 backup package', 'r2-backup-worker/node_modules/wrangler/bin/wrangler.js'),
+  'r2-vitest': repoTool('R2 backup package', 'r2-backup-worker/node_modules/vitest/vitest.mjs'),
+  'functions-tsc': repoTool('Functions package', 'functions/node_modules/typescript/bin/tsc'),
+  'firebase-emulators': { owner: 'user cache', path: path.join(os.homedir(), '.cache', 'firebase', 'emulators') },
+  'codex-runtime': { owner: 'managed user runtime', path: path.join(os.homedir(), '.cache', 'codex-runtimes', 'codex-primary-runtime') },
 };
-const worktreeRoots = () => {
-  try {
-    const result = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot, encoding: 'utf8', windowsHide: true });
-    if (result.status !== 0) return [repoRoot];
-    return [...new Set([repoRoot, ...result.stdout.split(/\r?\n/u).filter(line => line.startsWith('worktree ')).map(line => path.resolve(line.slice(9)))])];
-  } catch {
-    return [repoRoot];
-  }
-};
-const findPackageOwner = (relativePackage, packageName) => worktreeRoots().find(root =>
-  packageFilesMatch(repoRoot, root, relativePackage)
-  && fs.existsSync(path.join(root, relativePackage, 'node_modules', packageName, 'package.json'))
-) || repoRoot;
-const findAncestorPackageOwner = (relativePackage, packageName) => {
-  let current = path.dirname(repoRoot);
-  while (current && current !== path.dirname(current)) {
-    if (packageFilesMatch(repoRoot, current, relativePackage)
-      && fs.existsSync(path.join(current, relativePackage, 'node_modules', packageName, 'package.json'))) return current;
-    current = path.dirname(current);
-  }
-  return null;
-};
-let rootToolOwner = findPackageOwner('', 'vite');
-if (rootToolOwner === repoRoot && !fs.existsSync(path.join(repoRoot, 'node_modules', 'vite', 'package.json'))) {
-  rootToolOwner = findAncestorPackageOwner('', 'vite') || rootToolOwner;
-}
-const cloudflareToolOwner = findPackageOwner('cloudflare', 'wrangler');
-const r2ToolOwner = findPackageOwner('r2-backup-worker', 'wrangler');
-const functionsToolOwner = findPackageOwner('functions', 'typescript');
-const dependencyScopes = new Map([
-  ['vite', { relativePackage: '', ownerRoot: rootToolOwner }],
-  ['vitest', { relativePackage: '', ownerRoot: rootToolOwner }],
-  ['vite-node', { relativePackage: '', ownerRoot: rootToolOwner }],
-  ['playwright', { relativePackage: '', ownerRoot: rootToolOwner }],
-  ['firebase', { relativePackage: '', ownerRoot: rootToolOwner }],
-  ['cloudflare-vitest', { relativePackage: 'cloudflare', ownerRoot: cloudflareToolOwner }],
-  ['cloudflare-wrangler', { relativePackage: 'cloudflare', ownerRoot: cloudflareToolOwner }],
-  ['r2-wrangler', { relativePackage: 'r2-backup-worker', ownerRoot: r2ToolOwner }],
-  ['r2-vitest', { relativePackage: 'r2-backup-worker', ownerRoot: r2ToolOwner }],
-  ['functions-tsc', { relativePackage: 'functions', ownerRoot: functionsToolOwner }],
-]);
-const home = os.homedir();
-const sharedToolsRoot =
-  process.env.CODEX_WINDOWS_TOOLS_ROOT ||
-  path.join(home, '.codex', 'tools', 'windows-arm64');
-const x64Node = path.join(sharedToolsRoot, 'node', '22-x64', 'node.exe');
-const x64NpmCli = path.join(
-  path.dirname(x64Node),
-  'node_modules',
-  'npm',
-  'bin',
-  'npm-cli.js',
-);
-const workerToolNames = new Set([
-  'cloudflare-vitest',
-  'cloudflare-wrangler',
-  'r2-vitest',
-  'r2-wrangler',
-]);
-
-const entries = {
-  'node-native': {
-    owner: 'machine',
-    path: process.execPath,
-    runtime: `${process.platform}/${process.arch}`,
-  },
-  'node-x64': {
-    owner: 'shared-user-tool',
-    path: x64Node,
-    runtime: 'win32/x64',
-  },
-  'npm-x64': {
-    owner: 'shared-user-tool',
-    path: x64NpmCli,
-    runtime: 'win32/x64 via node-x64',
-  },
-  vite: {
-    owner: 'root package',
-    path: path.join(rootToolOwner, 'node_modules', 'vite', 'bin', 'vite.js'),
-    runtime: 'native Node unless a demonstrated compatibility boundary requires x64',
-    note: 'For local development use npm run dev or node scripts/local-dev.mjs <port>; this entry is for direct build tooling.',
-  },
-  vitest: {
-    owner: 'root package',
-    path: path.join(rootToolOwner, 'node_modules', 'vitest', 'vitest.mjs'),
-    runtime: 'native Node unless a demonstrated compatibility boundary requires x64',
-  },
-  'vite-node': {
-    owner: 'root package',
-    path: path.join(rootToolOwner, 'node_modules', 'vite-node', 'vite-node.mjs'),
-    runtime: 'native Node',
-  },
-  playwright: {
-    owner: 'root package',
-    path: path.join(rootToolOwner, 'node_modules', '@playwright', 'test', 'cli.js'),
-    runtime: 'use the repo-locked Playwright package; browser assets remain shared user cache',
-  },
-  firebase: {
-    owner: 'root package',
-    path: path.join(rootToolOwner, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js'),
-    runtime: 'use repo-locked Firebase CLI',
-  },
-  'cloudflare-vitest': {
-    owner: 'cloudflare package',
-    path: path.join(cloudflareToolOwner, 'cloudflare', 'node_modules', 'vitest', 'vitest.mjs'),
-    runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
-  },
-  'cloudflare-wrangler': {
-    owner: 'cloudflare package',
-    path: path.join(cloudflareToolOwner, 'cloudflare', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
-    runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
-  },
-  'r2-wrangler': {
-    owner: 'r2-backup-worker package',
-    path: path.join(r2ToolOwner, 'r2-backup-worker', 'node_modules', 'wrangler', 'bin', 'wrangler.js'),
-    runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
-  },
-  'r2-vitest': {
-    owner: 'r2-backup-worker package',
-    path: path.join(r2ToolOwner, 'r2-backup-worker', 'node_modules', 'vitest', 'vitest.mjs'),
-    runtime: 'node-x64 on Windows ARM64; native Node elsewhere; WSL refused',
-  },
-  'functions-tsc': {
-    owner: 'functions package',
-    path: path.join(functionsToolOwner, 'functions', 'node_modules', 'typescript', 'bin', 'tsc'),
-    runtime: 'package declares Node 18; do not provision another runtime unless this package requires execution',
-  },
-  'firebase-emulators': {
-    owner: 'shared-user-cache',
-    path: path.join(home, '.cache', 'firebase', 'emulators'),
-    runtime: 'shared cache; do not copy into a worktree',
-  },
-  'codex-runtime': {
-    owner: 'managed-user-runtime',
-    path: path.join(home, '.cache', 'codex-runtimes', 'codex-primary-runtime'),
-    runtime: 'managed by Codex; do not copy into the repo',
-  },
-};
-
-function detectWsl() {
-  if (process.platform !== 'linux') return false;
-  if (process.env.WSL_DISTRO_NAME) return true;
-  try {
-    return /microsoft/i.test(fs.readFileSync('/proc/version', 'utf8'));
-  } catch {
-    return false;
-  }
-}
-
-function executionFor(
-  name,
-  entry,
-  runtime = {
-    platform: process.platform,
-    arch: process.arch,
-    isWsl: detectWsl(),
-  },
-) {
-  if (name === 'node-x64') return { command: entry.path, args: [] };
-  if (name === 'npm-x64') return { command: x64Node, args: [entry.path] };
-  if (workerToolNames.has(name)) {
-    if (runtime.isWsl) {
-      throw new Error(
-        `${name} must run from the Windows-authoritative checkout on Windows ARM64; WSL is an execution adapter, not a dependency/runtime source`,
-      );
-    }
-    if (runtime.platform === 'win32' && runtime.arch === 'arm64') {
-      return { command: x64Node, args: [entry.path] };
-    }
-    return { command: process.execPath, args: [entry.path] };
-  }
-  if (entry.path.endsWith('.js') || entry.path.endsWith('.mjs') || name === 'functions-tsc') {
-    return { command: process.execPath, args: [entry.path] };
-  }
-  return { command: entry.path, args: [] };
-}
-
-function commandFor(name, entry) {
-  const q = (value) => `"${value.replaceAll('"', '\\"')}"`;
-  const execution = executionFor(name, entry);
-  return [execution.command, ...execution.args].map(q).join(' ');
-}
-
-function prepareDependencyOverlay(name) {
-  const scope = dependencyScopes.get(name);
-  if (!scope || scope.ownerRoot === repoRoot) return () => {};
-  const target = path.join(repoRoot, scope.relativePackage, 'node_modules');
-  if (fs.existsSync(target)) return () => {};
-  const ownerModules = path.join(scope.ownerRoot, scope.relativePackage, 'node_modules');
-  if (!fs.existsSync(ownerModules)) throw new Error(`Missing validated dependency owner: ${ownerModules}`);
-  let created = false;
-  try {
-    fs.symlinkSync(ownerModules, target, process.platform === 'win32' ? 'junction' : 'dir');
-    created = true;
-  } catch (error) {
-    if (!fs.existsSync(target)) throw error;
-  }
-  return () => {
-    if (created) fs.unlinkSync(target);
-  };
-}
-
-function printEntry(name) {
-  const entry = entries[name];
-  if (!entry) {
-    console.error(`Unknown tool: ${name}`);
-    console.error(`Known tools: ${Object.keys(entries).sort().join(', ')}`);
-    process.exitCode = 2;
-    return;
-  }
-  const exists = fs.existsSync(entry.path);
-  console.log(`${name}`);
-  console.log(`  owner: ${entry.owner}`);
-  console.log(`  path: ${entry.path}`);
-  console.log(`  exists: ${exists ? 'yes' : 'no'}`);
-  console.log(`  runtime: ${entry.runtime}`);
-  if (entry.note) console.log(`  note: ${entry.note}`);
-  try {
-    console.log(`  invoke: ${commandFor(name, entry)}`);
-  } catch (error) {
-    console.log(`  invoke: unavailable (${error.message})`);
-    process.exitCode = 1;
-  }
-  if (!exists) process.exitCode = 1;
-}
-
-export { detectWsl, executionFor, entries };
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  const requested = process.argv.slice(2);
-  if (requested[0] === '--exec') {
-    const [name, ...toolArguments] = requested.slice(1);
-    const entry = entries[name];
+  const [mode, tool, ...args] = process.argv.slice(2);
+  const exec = mode === '--exec';
+  const names = exec ? [tool] : !mode || mode === '--all' ? Object.keys(entries).sort() : process.argv.slice(2);
+  for (const name of names) {
+    const entry = Object.hasOwn(entries, name) ? entries[name] : undefined;
     if (!entry) {
-      console.error(`Unknown tool: ${name || '(missing)'}`);
+      console.error(`Unknown tool: ${name ?? '(missing)'}`);
       process.exitCode = 2;
+      continue;
+    }
+    const exists = fs.existsSync(entry.path);
+    if (!exec) {
+      console.log(`${name}\n  owner: ${entry.owner}\n  path: ${entry.path}\n  exists: ${exists ? 'yes' : 'no'}`);
+      if (!exists) process.exitCode ??= 1;
+    } else if (!exists) {
+      console.error(`Missing tool: ${entry.path}. Run npm ci in its package directory.`);
+      process.exitCode = 1;
     } else {
-      let execution;
-      try {
-        execution = executionFor(name, entry);
-      } catch (error) {
-        console.error(`Cannot execute ${name}: ${error.message}`);
-        process.exitCode = 1;
-        execution = null;
-      }
-      if (!execution) {
-        // The resolver already reported the owning environment boundary.
-      } else if (!fs.existsSync(entry.path)) {
-        console.error(`Missing tool: ${entry.path}`);
-        process.exitCode = 1;
-      } else {
-        let cleanupOverlay;
-        try {
-          cleanupOverlay = prepareDependencyOverlay(name);
-          const environment = { ...process.env };
-          if (execution.command !== process.execPath) {
-            const pathKey = Object.keys(environment).find((key) => key.toUpperCase() === 'PATH') || 'PATH';
-            environment[pathKey] = `${path.dirname(execution.command)}${path.delimiter}${environment[pathKey] || ''}`;
-          }
-          const result = spawnSync(execution.command, [...execution.args, ...toolArguments], {
-            cwd: process.cwd(),
-            env: environment,
-            stdio: 'inherit',
-            shell: false,
-          });
-          if (result.error) console.error(result.error.message);
-          process.exitCode = result.status ?? 1;
-        } catch (error) {
-          console.error(`Cannot expose validated dependencies for ${name}: ${error.message}`);
-          process.exitCode = 1;
-        } finally {
-          try {
-            cleanupOverlay?.();
-          } catch (error) {
-            console.error(`Cannot remove temporary dependency overlay: ${error.message}`);
-            process.exitCode = 1;
-          }
-        }
-      }
-    }
-  } else if (requested.length === 0 || requested.includes('--all')) {
-    for (const name of Object.keys(entries).sort()) {
-      printEntry(name);
-      console.log('');
-    }
-  } else {
-    for (const name of requested) {
-      printEntry(name);
+      const command = entry.command ?? entry.path;
+      const result = spawnSync(command, entry.command ? [entry.path, ...args] : args, { stdio: 'inherit' });
+      if (result.error) console.error(result.error.message);
+      process.exitCode = result.status ?? 1;
     }
   }
 }

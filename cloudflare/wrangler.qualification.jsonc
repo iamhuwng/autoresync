@@ -31,7 +31,7 @@
     "FIREBASE_DB_URL": "https://luyentap-pdf-qa-20261021-default-rtdb.asia-southeast1.firebasedatabase.app",
     "PUBLIC_URL": "https://luyentap-qualification-media.r2.dev",
     "STUDENT_AUTH_ROUTES_ENABLED": "enabled",
-    "STUDENT_AUTH_ALLOWED_ORIGINS": "https://luyentap-pdf-qa-20261021.web.app,https://luyentap-pdf-qa-20261021--qualification.web.app",
+    "STUDENT_AUTH_ALLOWED_ORIGINS": "https://luyentap-pdf-qa-20261021.web.app,https://luyentap-pdf-qa-20261021--qualification.web.app,http://localhost:5173,http://localhost:5174,http://localhost:5175",
     "BOOK_COURSE_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_CLASS_BOOK_PLACEMENT_ROUTES_ENABLED": "disabled",
     "BOOK_RUNTIME_LAUNCH_ROUTES_ENABLED": "disabled",
@@ -65,5 +65,5 @@
     "BOOK_UPDATES_ROUTES_ENABLED": "disabled",
     "BOOK_REPLACEMENT_CLEANUP_ROUTES_ENABLED": "disabled"
   },
-  "secrets": { "required": ["FIREBASE_WEB_API_KEY", "BOOK_HOMEWORK_GOOGLE_SA_KEY"] }
+  "secrets": { "required": ["FIREBASE_WEB_API_KEY", "BOOK_HOMEWORK_GOOGLE_SA_KEY", "UPLOAD_GRANT_SECRET"] }
 }

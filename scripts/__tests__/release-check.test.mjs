@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { assess, classifyPaths, collectSourceState, compatibilityReviewBindingsMatch, main, STATUS } from '../release-check.mjs';
 import { prepareHotfix } from '../hotfix-prepare.mjs';
-import { observeHosting, parseHostingChannelEvidence, writeHostingManifest } from '../release-evidence.mjs';
+import { isObserved, observeHosting, parseHostingChannelEvidence, readLocalProductionBuild, writeHostingManifest } from '../release-evidence.mjs';
 
 const git = (cwd, ...args) => { const r = spawnSync('git', args, { cwd, encoding:'utf8', windowsHide:true }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -16,6 +19,54 @@ const fixture = async () => { const cwd = await mkdtemp(path.join(os.tmpdir(),'r
 test('classifies known service paths conservatively', () => assert.deepEqual(classifyPaths(['src/App.jsx','cloudflare/worker.ts','database.rules.json']), ['firebase-rules','hosting','worker']));
 test('classifies website build configuration as Hosting', () => assert.deepEqual(classifyPaths(['postcss.config.cjs','tailwind.config.js','tsconfig.json','tsconfig.app.json']), ['hosting']));
 test('classifies CI and integration result machinery as release tooling', () => assert.deepEqual(classifyPaths(['.github/workflows/release-safety.yml','scripts/integration-check.mjs']), ['tooling']));
+test('Hosting isolates local tooling only while Worker runtime packages stay identical', async () => {
+  const cwd = await fixture();
+  try {
+    const packageFile = 'cloudflare/package.json';
+    const lockFile = 'cloudflare/package-lock.json';
+    const writePackages = async (tool, runtime) => {
+      const manifest = { dependencies: { runtime: '^1.0.0' }, devDependencies: { tool } };
+      await writeFile(path.join(cwd, packageFile), JSON.stringify(manifest));
+      await writeFile(path.join(cwd, lockFile), JSON.stringify({ lockfileVersion: 3, packages: {
+        '': manifest,
+        'node_modules/runtime': { version: runtime },
+        'node_modules/tool': { version: tool, dev: true },
+      } }));
+    };
+    await writePackages('1.0.0', '1.0.0');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'backend dependency baseline');
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    await writePackages('2.0.0', '1.0.0');
+    await writeFile(path.join(cwd, 'cloudflare/wrangler.qualification.jsonc'), '{}');
+    await writeFile(path.join(cwd, 'public/index.html'), 'hosting candidate');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'local-only package and qualification changes');
+    const initial = await assess({ cwd, base, target: 'hosting' });
+    assert.deepEqual(initial.source.services, ['hosting']);
+    assert(initial.source.files.includes(lockFile));
+    assert((await assess({ cwd, base })).source.services.includes('worker'));
+
+    await writePackages('2.0.0', '1.0.1');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'runtime resolution changes');
+    const changed = await assess({ cwd, base, target: 'hosting' });
+    assert(changed.source.services.includes('worker'));
+    assert(changed.findings.some(finding => /Hosting dependencies:/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
+test('a clean release fingerprint binds Git objects while a dirty fingerprint binds local edits', async () => {
+  const cwd = await fixture();
+  try {
+    const clean = await collectSourceState(cwd, 'HEAD^');
+    assert.equal(clean.dirty, false);
+    assert.equal(clean.fingerprint, digest([clean.baseRevision, clean.revision, clean.tree, '', ''].join('\n')));
+    await writeFile(path.join(cwd, 'public/index.html'), 'different source\n');
+    const dirty = await collectSourceState(cwd, 'HEAD^');
+    assert.equal(dirty.dirty, true);
+    assert.equal(dirty.tree, clean.tree);
+    assert.notEqual(dirty.fingerprint, clean.fingerprint);
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
+
 test('historical migration documentation is not an executable migration requirement', () => {
   assert.deepEqual(classifyPaths(['documentation/migration/backup-tests-collection.js', '.knowns/docs/migration/hooks.md']), []);
   assert(classifyPaths(['scripts/backfill-reading.mjs']).includes('migrations'));
@@ -224,6 +275,46 @@ test('production observation rejects invalid identity and content evidence', asy
 test('production observation explains a pre-manifest HTML response', async () => { await assert.rejects(() => observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from('<!doctype html>')})}), /response is not JSON/u); });
 test('Firebase Hosting provider metadata is accepted only as source-unverified evidence', () => { const provider=parseHostingChannelEvidence({result:{channels:[{name:'projects/temp-a1437/sites/kahut1/channels/live',url:'https://kahut1.web.app',release:{releaseTime:'2026-10-11T00:00:00Z',version:{name:'projects/temp-a1437/sites/kahut1/versions/abc123',status:'FINALIZED',fileCount:'445',versionBytes:'10',config:{rewrites:[]},labels:{'deployment-tool':'cli-firebase'}}}}]}}); assert.equal(provider.version,'projects/temp-a1437/sites/kahut1/versions/abc123'); assert.throws(()=>parseHostingChannelEvidence({result:{channels:[]}}),/finalized kahut1/u); });
 test('acceptance preview manifests cannot become production observations', async () => { await assert.rejects(() => observeHosting({fetchImpl:async url => ({ok:true,url,arrayBuffer:async()=>Buffer.from(JSON.stringify({schemaVersion:1,environment:'acceptance',project:'temp-a1437',site:'kahut1',revision:'a'.repeat(40),tree:'b'.repeat(40),files:[{path:'/index.html',sha256:'c'.repeat(64)}]}))})}), /Invalid production Hosting manifest/u); });
+test('localhost production-build readback checks served bytes without creating provider evidence', async t => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'release-local-readback-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const entry = '<!doctype html><script type="module" src="/app.js"></script>';
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+    revision: 'a'.repeat(40), tree: 'b'.repeat(40),
+    files: [{ path: '/index.html', sha256: digest(entry) }, { path: '/app.js', sha256: digest('export {};') }] };
+  const manifestPath = '/.well-known/luyentap-release.json';
+  let servedManifest = JSON.stringify(manifest, null, 2);
+  let servedHome = entry;
+  let servedScript = 'export {};';
+  await mkdir(path.join(cwd, 'dist', '.well-known'), { recursive: true });
+  await writeFile(path.join(cwd, 'dist', manifestPath), servedManifest);
+  const server = createServer((req, res) => {
+    const body = { [manifestPath]: servedManifest, '/': servedHome, '/index.html': entry, '/app.js': servedScript }[req.url];
+    res.writeHead(body === undefined ? 404 : 200).end(body);
+  });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise((resolve, reject) => server.listen(0, 'localhost', resolve).once('error', reject));
+  const localOrigin = `http://localhost:${server.address().port}`;
+
+  const result = await readLocalProductionBuild({ cwd, localOrigin });
+  assert.deepEqual(result, { scope: 'local-production-build', origin: localOrigin,
+    revision: manifest.revision, tree: manifest.tree, manifestSha256: digest(JSON.stringify(manifest)),
+    manifestFileSha256: digest(servedManifest), verifiedFiles: 2 });
+  const cli = fileURLToPath(new URL('../release-local-readback.mjs', import.meta.url));
+  const { stdout } = await promisify(execFile)(process.execPath, [cli, localOrigin], { cwd });
+  assert.deepEqual(JSON.parse(stdout), result);
+  assert.equal(isObserved(result), false);
+  await assert.rejects(observeHosting({ originOverride: localOrigin }), /restricted to localhost acceptance/u);
+  await assert.rejects(readLocalProductionBuild({ cwd, localOrigin: 'https://kahut1.web.app' }), /requires an http:\/\/localhost/u);
+
+  servedHome = '<!doctype html><title>Unexpected home</title>';
+  await assert.rejects(readLocalProductionBuild({ cwd, localOrigin }), /home page differs/u);
+  servedHome = entry;
+  servedScript = 'export const changed = true;';
+  await assert.rejects(readLocalProductionBuild({ cwd, localOrigin }), /Hosting content drift: \/app\.js/u);
+  servedManifest = JSON.stringify(manifest);
+  await assert.rejects(readLocalProductionBuild({ cwd, localOrigin }), /Served manifest differs/u);
+});
 test('Hosting observation bounds concurrent asset readback', async () => {
   const contentHash = crypto.createHash('sha256').update('asset').digest('hex');
   const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: contentHash }, ...Array.from({ length: 16 }, (_, index) => ({ path: `/asset-${index}.js`, sha256: contentHash }))] };

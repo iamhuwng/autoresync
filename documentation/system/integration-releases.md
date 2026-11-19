@@ -209,12 +209,11 @@ artifact. The generated verification plan is retained and rehydrated in the
 promotion job; discovered compatibility reviews are passed to the existing
 assessor with their exact digest.
 All Action transfers use repository-relative staging directories, so the
-artifact root is stable across runner jobs. Changelog and operation-evidence
-upload failures fail the publication job instead of being silently converted to
-a successful release. The workflow also uploads a bounded
-`changelog-integration-request.json`; it records that the temporary checkout
-patch still requires protected-main integration and never marks that handoff as
-canonical reconciliation.
+artifact root is stable across runner jobs. The Hosting operation record and
+baseline evidence remain required. Changelog uploads and the integration PR
+are optional follow-up steps. When the workflow generates a patch, it retains a
+bounded `changelog-integration-request.json` with the operation and source
+details for protected-main integration.
 
 GitHub protection, environment approval, short-lived ADC federation and
 provider publication/recovery remain external qualification decisions. The
@@ -248,10 +247,21 @@ immutable releases must be enabled separately by an owner/admin; publication
 and readback fail closed when that setting or the retained release state is
 unavailable. This implementation does not change the repository setting.
 
-When a real built-site check is useful, Codex may use the existing disposable
-qualification project and Hosting-channel lifecycle in
-`scripts/release-browser-gate.mjs`. The lifecycle deploys the exact retained
-artifact, reads back every manifest-listed file, applies isolated rules,
+Routine behavior checks use the
+[QA-configured localhost preview](qualification-foundation-runbook.md#routine-localhost-qualification).
+Prepare checks the exact production artifact over localhost HTTP, whether
+it restores an artifact already tested by Codex or builds once after
+source-level verification. The resulting manifest digest binds the tested
+artifact to the card and guarded publication.
+
+When behavior depends on a deployed Hosting origin, use a disposable channel
+with the canonical Hosting config and existing candidate rules on the
+[shared spare project](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project).
+
+The historical `scripts/release-browser-gate.mjs` lifecycle is available only
+on a separate disposable Firebase project because it replaces RTDB rules with
+its fixtures. It deploys the exact retained artifact, reads back every
+manifest-listed file, applies fixture rules,
 creates temporary test accounts, exposes the staging URL and bindings through
 `RELEASE_STAGING_*` variables, runs a caller-selected command, performs native
 Hosting clone readback, deletes the temporary accounts/channels, and fails

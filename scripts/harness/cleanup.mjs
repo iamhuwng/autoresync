@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -297,42 +296,11 @@ export function cleanupHarnessStorage({ apply = false, json = false, roots, now,
   };
 }
 
-function windowsToWslPath(file) {
-  const resolved = path.resolve(file);
-  const drive = resolved.slice(0, 1).toLowerCase();
-  if (!/^[a-z]$/iu.test(drive) || resolved[1] !== ':') throw new Error(`cannot map repository path into WSL: ${resolved}`);
-  return `/mnt/${drive}${resolved.slice(2).replaceAll('\\', '/')}`;
-}
-
-function cleanupWslThroughAdapter({ apply, minAgeHours }) {
-  if (process.platform !== 'win32') return { mode: 'skipped', reason: 'not running on Windows' };
-  const script = windowsToWslPath(path.join(path.dirname(fileURLToPath(import.meta.url)), 'cleanup-wsl.mjs'));
-  const argumentsList = [apply ? '--apply' : '--dry-run', '--json', '--min-age-hours', String(minAgeHours)];
-  if (process.env.CODEX_HARNESS_WSL_ROOT) argumentsList.push('--root', process.env.CODEX_HARNESS_WSL_ROOT);
-  const result = spawnSync('wsl.exe', ['--exec', 'node', script, ...argumentsList], { encoding: 'utf8', shell: false });
-  const output = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
-  const parsed = output.split(/\r?\n/u).reverse().map((line) => {
-    try { return JSON.parse(line); } catch { return null; }
-  }).find(Boolean);
-  if (result.status !== 0 || !parsed) return { mode: 'blocked', status: result.status, message: output || result.error?.message || 'WSL cleanup did not return a report' };
-  return { ...parsed, adapter: 'wsl.exe' };
-}
-
-export function cleanupHarnessStorageWithWsl(options = {}) {
-  const report = cleanupHarnessStorage(options);
-  if (!options.includeWsl) return report;
-  const wsl = cleanupWslThroughAdapter({ apply: options.apply === true, minAgeHours: report.minAgeHours });
-  const errors = [...report.errors];
-  if (wsl.mode === 'blocked') errors.push({ path: 'wsl.exe', message: wsl.message });
-  return { ...report, wsl, errors };
-}
-
 export function parseCleanupArguments(argumentsList) {
   const options = { apply: false, json: false, minAgeHours: DEFAULT_MIN_AGE_HOURS };
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index];
     if (argument === '--apply') options.apply = true;
-    else if (argument === '--wsl') options.includeWsl = true;
     else if (argument === '--json') options.json = true;
     else if (argument === '--runs-only') options.kinds = ['run'];
     else if (argument === '--dry-run') options.apply = false;
@@ -350,16 +318,15 @@ function printReport(report) {
   process.stdout.write(`${report.mode}: ${report.candidates.length} candidate(s), ${report.removed.length} removed, ${report.bytesReclaimed} bytes reclaimed\n`);
   for (const item of report.candidates) process.stdout.write(`${report.removed.includes(item) ? 'removed' : 'candidate'} ${item.kind} ${item.path} (${item.bytes} bytes)\n`);
   for (const error of report.errors) process.stderr.write(`cleanup: ${error.path}: ${error.message}\n`);
-  if (report.wsl) process.stdout.write(`wsl: ${report.wsl.mode}${report.wsl.bytesReclaimed === undefined ? '' : `, ${report.wsl.bytesReclaimed} bytes reclaimed`}\n`);
 }
 
 async function main() {
   const options = parseCleanupArguments(process.argv.slice(2));
   if (options.help) {
-    process.stdout.write('Usage: node scripts/harness/cleanup.mjs [--dry-run|--apply] [--runs-only] [--wsl] [--json] [--min-age-hours N]\n');
+    process.stdout.write('Usage: node scripts/harness/cleanup.mjs [--dry-run|--apply] [--runs-only] [--json] [--min-age-hours N]\n');
     return;
   }
-  const report = cleanupHarnessStorageWithWsl(options);
+  const report = cleanupHarnessStorage(options);
   if (options.json) process.stdout.write(`${JSON.stringify(report)}\n`);
   else printReport(report);
   if (report.errors.length) process.exitCode = 2;

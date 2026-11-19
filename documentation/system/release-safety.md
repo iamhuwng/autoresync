@@ -27,6 +27,49 @@ It runs no build or tests and creates no approval. See
 CI result, applied GitHub protection, Hosting publication scope and the remaining
 qualification of main.
 
+### Routine Hosting release
+
+1. Verify the changed behavior at localhost against the isolated spare Firebase
+   and Worker services. Use spare Hosting only for proof that depends on a deployed
+   origin, such as Hosting rewrites, headers or a provider callback that requires
+   that domain. [Spare-service localhost instructions](qualification-foundation-runbook.md#routine-localhost-qualification)
+2. On the exact clean protected `main` revision, run the release planner and
+   complete the evidence it calls for. If the change needs production-build
+   browser proof, build once, test the isolated preview and retain those bytes.
+   If source-level behavior checks are sufficient, CI builds once. Both paths
+   check the exact production-format files over localhost HTTP before approval.
+   [Verification and artifact handoff](#codex-verification-handoff)
+3. In GitHub Actions, dispatch **Release Promotion** on `main` with operation
+   `publish`, the product objective, and the verification tag and SHA-256 when
+   application evidence is required. Review the prepared card's source, artifact,
+   assessment and evidence. Approve the protected `production` job once when
+   they match the intended release.
+4. Use the workflow's **Live Hosting verified** summary and operation UUID to
+   report the live URL, released revision and artifact manifest SHA-256. The
+   executor independently checks Firebase's release identity and every
+   manifest-listed live file. Run any change-specific, safe live browser check
+   that the release plan calls for. Track Changelog integration separately.
+
+If publication may have succeeded and verification did not finish, use the same
+workflow on `main` with operation `verify-existing` and the recorded
+`operation_id`. Enter a short recovery objective in the required objective
+field. The recovery job uses the protected `production` environment and resumes
+readback for that publication. Use the retained operation evidence to diagnose
+any mismatch before considering another publish.
+
+For an authorized rollback, select the recorded prior version in Firebase
+Hosting's release history for `kahut1`, then independently read back the
+restored manifest and files. Confirm backend compatibility with that version
+before rolling back. Hosting recovery restores Hosting files and configuration
+only. [Firebase Hosting release history](https://firebase.google.com/docs/hosting/deploying#roll_back_a_release)
+
+For changes affecting Workers, Firebase rules or indexes, database state,
+storage or Functions, use each affected service's own qualification, rollout
+order and recovery plan. Establish compatibility with the active backend before
+promoting Hosting. A coordinated release needs explicit handling of partial
+failure and of the backend state that would remain after a Hosting rollback.
+[Service routing and evidence](integration-releases.md#hosting-publication-scope)
+
 ## Hosting release foundation
 
 ### Change-to-operation associations
@@ -195,8 +238,12 @@ requires GitHub immutable releases to be enabled, and promotion readback
 rejects a mutable prerelease or a tag that points at another commit. The
 repository setting is not changed by this workflow.
 
-For real built-site verification, Codex may run the disposable qualification
-lifecycle in `scripts/release-browser-gate.mjs` with
+For deployed-origin behavior on the shared spare project, use the
+[Hosting-only channel procedure](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project)
+with the candidate's actual backend rules.
+
+On a separate disposable Firebase project, Codex may run the historical
+fixture-rules lifecycle in `scripts/release-browser-gate.mjs` with
 `--journey-command-file <json>`. It deploys the exact retained artifact to the
 dedicated non-production project, reads back the full manifest, provisions
 temporary isolated accounts/rules, exposes `RELEASE_STAGING_*` bindings to the
@@ -300,11 +347,33 @@ system does not prescribe a framework or user journey; it validates the resultin
 source-bound bundle.
 
 For built-site verification, use a clean candidate and an explicit observed
-base. Build with `npm run build:production` (build-only), optionally selecting
-`LUYENTAP_QUALIFICATION_ENV_FILE`. Before opening a preview, verify that every
-service the journey can call resolves to the isolated QA service. The existing
-hostname selector isolates Firebase; that alone does not isolate every Worker
-or external provider. Never use production as a fallback for missing QA bindings.
+base. Build with `npm run build:production` (build-only). Start the repository
+Vite preview in one terminal and read back its files from another:
+
+```powershell
+node scripts/tooling-where.mjs --exec vite preview --host localhost --port 5173 --strictPort
+node scripts/release-local-readback.mjs http://localhost:5173
+```
+
+Use port `5174` for student browser journeys. The readback compares the
+served manifest to `dist/` byte for byte and verifies every listed file hash.
+It also verifies the root URL serves the built entry page. The release card
+uses the manifest identity, and promotion checks the raw manifest file hash
+after download. This HTTP test fetches static files without executing
+application code.
+
+The production-format build selects production Firebase on localhost, even if
+the build includes `LUYENTAP_QUALIFICATION_ENV_FILE`. For a localhost browser
+check of these exact bytes, block all non-local traffic before navigating or
+use a controlled browser harness that explicitly isolates each called service.
+Use the spare-service localhost build for routine backend-dependent behavior.
+If the selected proof needs a deployed QA origin, a disposable Hosting channel
+can select QA Firebase from the separate qualification inputs. Supply only the
+eight qualification Firebase keys in `LUYENTAP_QUALIFICATION_ENV_FILE`, and use
+the [shared spare channel procedure](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project).
+Verify the actual Worker and external service destinations separately before
+opening that browser journey. A QA-only build supplies behavior evidence for
+the candidate source.
 
 After the selected checks, create/publish the existing bundle with the artifact:
 

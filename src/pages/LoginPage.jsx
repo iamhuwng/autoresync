@@ -7,6 +7,8 @@ import { Card, CardBody, Button, toast } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
 import { sessionStore } from '../core/platform/storage';
 
+const isSpareLogin = import.meta.env.MODE === 'spare';
+
 const DEV_LOGIN_CREDENTIALS = {
   teacher: { id: 'teacher', email: 'teacher@test.com', password: 'teacher' },
   teacher2: { email: 'teacher2@test.com', password: 'password123' },
@@ -236,7 +238,7 @@ const LoginPage = () => {
     setLoginError(null);
     setFormPending(true);
     const isEmail = value.includes('@');
-    const devCredential = import.meta.env.DEV
+    const devCredential = import.meta.env.DEV && !isSpareLogin
       ? Object.values(DEV_LOGIN_CREDENTIALS).find((credential) => credential.id === value && credential.password === password)
       : null;
     trackAction('login', { method: devCredential ? 'dev_id' : isEmail ? 'email' : 'student_id' });
@@ -526,7 +528,7 @@ const LoginPage = () => {
         </CardBody>
       </Card>
 
-      <button
+      {!isSpareLogin && <button
         type="button"
         aria-label={showDevQuickLogin ? 'Hide dev quick login' : 'Show dev quick login'}
         aria-pressed={showDevQuickLogin}
@@ -537,7 +539,7 @@ const LoginPage = () => {
           <circle cx="12" cy="12" r="3" />
           <path d="M12 2v2.2M12 19.8V22M4.93 4.93l1.56 1.56M17.51 17.51l1.56 1.56M2 12h2.2M19.8 12H22M4.93 19.07l1.56-1.56M17.51 6.49l1.56-1.56" />
         </svg>
-      </button>
+      </button>}
 
       <style>{`
         @keyframes float {

@@ -9,7 +9,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import net from 'node:net';
-import { HARNESS_CONTRACT, remediationFor, wranglerDependencyCacheIdentity } from '../harness/contract.mjs';
+import { HARNESS_CONTRACT, remediationFor } from '../harness/contract.mjs';
 import {
   assertToolDeclared,
   assertDispatcherProtocol,
@@ -30,10 +30,7 @@ import {
   publishDependencyCache,
   publishTimeoutOutputArtifact,
   protectedProjectState,
-  wslFailureCodeFromStderr,
 } from '../harness/run-isolated.mjs';
-import { acquireWslWranglerInstallLock, cachedWranglerEnvironment, ensureWranglerCache, readWranglerDependencyContext, runCachedWrangler, withWranglerCacheLease, wranglerDependencyAliases, wslCacheRoot, wslWranglerLockOwner } from '../harness/run-wsl-wrangler.mjs';
-import { actualSkillAuthorityReport, repositoryAuthorityReport, repositorySkillCollisions, skillSourcesFromPromptInput } from '../harness/skill-authority.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const fixtureRoot = path.join(repositoryRoot, 'scripts', 'harness', '__fixtures__');
@@ -80,7 +77,7 @@ const finalEvidenceLifecycle = () => ({
 
 const copyHarnessFixture = (destination) => {
   fs.mkdirSync(path.join(destination, 'scripts', 'harness'), { recursive: true });
-  for (const name of ['contract.mjs', 'run-isolated.mjs', 'run-wsl-wrangler.mjs']) {
+  for (const name of ['contract.mjs', 'run-isolated.mjs']) {
     fs.copyFileSync(path.join(repositoryRoot, 'scripts', 'harness', name), path.join(destination, 'scripts', 'harness', name));
   }
   fs.cpSync(path.join(fixtureRoot, 'synthetic-project'), path.join(destination, 'fixture-project'), { recursive: true });
@@ -105,6 +102,8 @@ const invokeSyntheticAt = (worktree, cacheRoot, marker, relativeProjectPath, too
 const invokeSynthetic = (worktree, cacheRoot, marker, toolArguments = ['value with spaces', '--equals=a=b', 'quote"roundtrip'], extraEnvironment = {}) => invokeSyntheticAt(worktree, cacheRoot, marker, 'fixture-project', toolArguments, extraEnvironment);
 
 test('contract is executable, generic, and self-describing', () => {
+  assert.equal(HARNESS_CONTRACT.name, 'luyentap-native-audit-harness');
+  assert.doesNotMatch(HARNESS_CONTRACT.name, /arm64|wsl/iu);
   const output = execFileSync(process.execPath, [path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--contract'], { cwd: repositoryRoot, encoding: 'utf8' });
   assert.deepEqual(JSON.parse(output), HARNESS_CONTRACT);
   assert.equal(HARNESS_CONTRACT.grammar.endsWith('<tool> <project> [...args]'), true);
@@ -121,68 +120,6 @@ test('contract is executable, generic, and self-describing', () => {
   assert.equal(HARNESS_CONTRACT.authority.wsl, undefined);
   assert.equal(HARNESS_CONTRACT.authority.sourceAuthority, 'windows-checkout');
   assert.match(remediationFor('BROWSER_RUNTIME_MISSING', 'web', 'playwright').stages.verify[0], /--doctor web playwright/u);
-  assert.equal(wranglerDependencyCacheIdentity({ version: '4.0.0', nodeVersion: 'v22.17.1', nodeAbi: '127', architecture: 'x64', npmVersion: '10.9.2', manifestSha256: 'b'.repeat(64), lockSha256: 'a'.repeat(64) }), '4.0.0-nodev22.17.1-abi127-x64-npm10.9.2-manifestbbbbbbbbbbbb-lockaaaaaaaaaaaa-protocol3');
-  for (const code of ['WSL_WRANGLER_CACHE_INVALID', 'WSL_WRANGLER_CACHE_INCOMPLETE', 'WSL_WRANGLER_INSTALL_FAILED', 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING', 'WSL_WRANGLER_PROTOCOL_INVALID']) {
-    for (const stage of HARNESS_CONTRACT.resolutionOrder) assert.ok(remediationFor(code, 'cloudflare', 'wrangler').stages[stage].length, `${code} ${stage}`);
-  }
-});
-
-test('repository skill collisions remain informational', () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-skill-authority-'));
-  const writeSkill = (file, name) => {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `---\nname: ${name}\ndescription: focused test skill\n---\n`);
-  };
-  try {
-    assert.deepEqual(repositorySkillCollisions(temporary), []);
-    const collision = path.join(temporary, '.agents', 'skills', 'collision', 'SKILL.md');
-    writeSkill(collision, 'run-windows-arm64-tools');
-    assert.deepEqual(repositorySkillCollisions(temporary), [{ name: 'run-windows-arm64-tools', file: fs.realpathSync.native(collision) }]);
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test('authority report and Codex prompt parsing expose checkout boundary and discovered sources', () => {
-  const report = repositoryAuthorityReport(repositoryRoot, 'wrangler');
-  assert.equal(report.authoritativeCheckoutRoot, repositoryRoot);
-  assert.equal(report.selectedExecutionBoundary.runtime, 'windows-x64');
-  assert.equal(report.selectedExecutionBoundary.sourceMode, undefined);
-  assert.equal(report.selectedExecutionBoundary.auditSourceMode, 'live');
-  const genericSource = path.join(os.tmpdir(), 'user-skills', 'run-windows-arm64-tools', 'SKILL.md');
-  const promptInput = [{ content: [{ type: 'input_text', text: `<skills_instructions>\n- run-windows-arm64-tools: generic (file: ${genericSource})\n</skills_instructions>` }] }];
-  assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'run-windows-arm64-tools'), [path.resolve(genericSource)]);
-});
-
-test('generic skill discovery is informational and accepts any discovered revision', () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-generic-skill-report-'));
-  const genericRoot = path.join(temporary, 'codex-skills');
-  const resourceRoot = path.join(temporary, 'agent-skills');
-  const genericSource = path.join(genericRoot, 'run-windows-arm64-tools', 'SKILL.md');
-  const resourceSource = path.join(resourceRoot, 'mantine-vitest-testing', 'SKILL.md');
-  try {
-    fs.mkdirSync(path.dirname(genericSource), { recursive: true });
-    fs.mkdirSync(path.dirname(resourceSource), { recursive: true });
-    fs.writeFileSync(genericSource, '---\nname: run-windows-arm64-tools\nmetadata:\n  revision: "1.0.0"\n---\n');
-    fs.writeFileSync(resourceSource, '---\nname: mantine-vitest-testing\nmetadata:\n  revision: "2.4.0"\n---\n');
-    const promptInput = [{ content: [{ type: 'input_text', text: [
-      `- \`r0\` = \`${genericRoot.replaceAll('\\', '/') }\``,
-      `- \`r10\` = \`${resourceRoot.replaceAll('\\', '/') }\``,
-      '- run-windows-arm64-tools: generic (file: r0/run-windows-arm64-tools/SKILL.md)',
-      '- mantine-vitest-testing: React component testing (file: r10/mantine-vitest-testing/SKILL.md)',
-    ].join('\n') }] }];
-    const codexProbe = `process.stdout.write(${JSON.stringify(JSON.stringify(promptInput))})`;
-    const report = actualSkillAuthorityReport(repositoryRoot, 'vitest', { codexCommand: process.execPath, codexArguments: ['-e', codexProbe] });
-    assert.equal(report.skillDiscovery.available, true);
-    assert.equal(report.skillDiscovery.policy, 'informational');
-    assert.deepEqual(skillSourcesFromPromptInput(promptInput, 'run-windows-arm64-tools'), [path.resolve(genericSource)]);
-    assert.deepEqual(report.skillDiscovery.discovered.map(({ name, source, revision }) => ({ name, source, revision })), [
-      { name: 'run-windows-arm64-tools', source: path.resolve(genericSource), revision: '1.0.0' },
-      { name: 'mantine-vitest-testing', source: path.resolve(resourceSource), revision: '2.4.0' },
-    ]);
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
 });
 
 test('dispatcher and isolated runner fail closed on generation mismatch', async () => {
@@ -362,7 +299,6 @@ test('classifications separate zero collection, startup transport, product failu
   assert.equal(classifyResult({ exitCode: 1, stderr: 'No test files found' }), 'zero_tests_collected');
   assert.equal(classifyResult({ exitCode: 1, stderr: 'Unsupported platform: win32 arm64' }), 'harness_startup_failure');
   assert.equal(classifyResult({ exitCode: 2, stderr: 'HARNESS_WSL_FAILURE WSL_WRANGLER_INSTALL_FAILED' }), 'harness_startup_failure');
-  assert.equal(classifyResult({ exitCode: 1, wslRuntimeMetadata: false }), 'harness_startup_failure');
   assert.equal(classifyResult({ exitCode: 1, stderr: 'AssertionError: expected true' }), 'product_failure');
   assert.equal(classifyResult({ exitCode: 0 }), 'completed');
   assert.equal(classifyResult({ error: new Error('spawn ENOENT'), exitCode: 1 }), 'harness_startup_failure');
@@ -576,324 +512,11 @@ test('live Vite doctor distinguishes local context, missing dependencies, extern
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
-test('WSL Wrangler locks serialize active owners, reclaim proven stale owners, and reject unprovable owners', async () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-lock-'));
-  const activeLock = path.join(temporary, 'active.lock');
-  const staleLock = path.join(temporary, 'stale.lock');
-  const raceLock = path.join(temporary, 'race.lock');
-  const legacyLock = path.join(temporary, 'legacy.lock');
-  const owner = wslWranglerLockOwner(process.pid, '1');
-  const processStartProbe = (processId) => processId === process.pid ? owner.startTime : null;
-  try {
-    fs.mkdirSync(activeLock);
-    fs.writeFileSync(path.join(activeLock, '.harness-wrangler-lock.json'), `${JSON.stringify({ lockProtocolVersion: 1, owner })}\n`);
-    await assert.rejects(acquireWslWranglerInstallLock(activeLock, { owner, timeoutMs: 0, processStartProbe }), { code: 'WSL_WRANGLER_LOCK_TIMEOUT' });
-    assert.ok(fs.existsSync(activeLock), 'active lock remains owned by the live installer');
-
-    fs.mkdirSync(staleLock);
-    fs.writeFileSync(path.join(staleLock, '.harness-wrangler-lock.json'), `${JSON.stringify({ lockProtocolVersion: 1, owner: { processId: 99999999, startTime: '1' } })}\n`);
-    const release = await acquireWslWranglerInstallLock(staleLock, { owner, processStartProbe });
-    assert.ok(fs.existsSync(path.join(staleLock, '.harness-wrangler-lock.json')), 'proven stale lock was replaced by this owner');
-    await release();
-    assert.equal(fs.existsSync(staleLock), false);
-
-    fs.mkdirSync(raceLock);
-    fs.writeFileSync(path.join(raceLock, '.harness-wrangler-lock.json'), `${JSON.stringify({ lockProtocolVersion: 1, owner: { processId: 99999998, startTime: '1' } })}\n`);
-    const firstOwner = { processId: process.pid, startTime: '2' };
-    const secondOwner = { processId: process.pid + 1, startTime: '3' };
-    const thirdOwner = { processId: process.pid + 2, startTime: '4' };
-    const raceProbe = (processId) => processId === firstOwner.processId ? firstOwner.startTime : null;
-    let guardedContender;
-    const firstRelease = await acquireWslWranglerInstallLock(raceLock, {
-      owner: firstOwner,
-      processStartProbe: raceProbe,
-      afterStaleReclaim: async () => {
-        guardedContender = acquireWslWranglerInstallLock(raceLock, { owner: secondOwner, timeoutMs: 0, processStartProbe: raceProbe });
-        await assert.rejects(guardedContender, { code: 'WSL_WRANGLER_LOCK_TIMEOUT' });
-        assert.equal(fs.existsSync(raceLock), false, 'the guard hides main-lock creation until its marker is written');
-      },
-    });
-    assert.ok(fs.existsSync(path.join(raceLock, '.harness-wrangler-lock.json')), 'main lock is published with its marker before another contender can inspect it');
-    await assert.rejects(acquireWslWranglerInstallLock(raceLock, { owner: thirdOwner, timeoutMs: 0, processStartProbe: raceProbe }), { code: 'WSL_WRANGLER_LOCK_TIMEOUT' });
-    const raceMarker = JSON.parse(fs.readFileSync(path.join(raceLock, '.harness-wrangler-lock.json'), 'utf8'));
-    assert.deepEqual(raceMarker.owner, firstOwner, 'neither stale-reclaim contender deleted the newly acquired live lock');
-    await firstRelease();
-
-    fs.mkdirSync(legacyLock);
-    await assert.rejects(acquireWslWranglerInstallLock(legacyLock, { owner, timeoutMs: 0, processStartProbe }), { code: 'WSL_WRANGLER_LOCK_UNPROVABLE' });
-    assert.ok(fs.existsSync(legacyLock), 'legacy lock is not deleted');
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test('WSL cache-root adaptation is absolute Linux-only and capability discovery preserves x64 provenance', () => {
-  assert.equal(wslCacheRoot('/tmp/codex-harness-wrangler'), '/tmp/codex-harness-wrangler');
-  assert.throws(() => wslCacheRoot('relative-cache'), { code: 'WSL_WRANGLER_PROTOCOL_INVALID' });
-  assert.throws(() => wslCacheRoot('C:\\cache'), { code: 'WSL_WRANGLER_PROTOCOL_INVALID' });
-  assert.throws(() => wslCacheRoot('/'), { code: 'WSL_WRANGLER_PROTOCOL_INVALID' });
+test('capability discovery preserves native x64 provenance', () => {
   assert.deepEqual(
     mergeEvidenceDiscovery({ x64Node: { selected: 'C:/node-x64/node.exe' } }, { kind: 'java', candidates: [] }),
     { x64Node: { selected: 'C:/node-x64/node.exe' }, kind: 'java', candidates: [] },
   );
-});
-
-test('WSL Wrangler execution leases protect a cache only for the live command', () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-lease-'));
-  try {
-    let leaseDuringExecution = null;
-    const result = withWranglerCacheLease(temporary, () => {
-      leaseDuringExecution = fs.readdirSync(temporary).filter((name) => name.startsWith('.harness-wrangler-active-'));
-      return 'completed';
-    });
-    assert.equal(result, 'completed');
-    assert.equal(leaseDuringExecution.length, 1);
-    assert.deepEqual(fs.readdirSync(temporary), []);
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test('WSL nested-package cache installs the selected lock and exposes it to a live Wrangler project', async () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-nested-context-'));
-  const worktreeRoot = path.join(temporary, 'worktree');
-  const projectRoot = path.join(worktreeRoot, 'cloudflare');
-  const cacheRoot = `/tmp/harness-wsl-nested-context-${process.pid}-${Date.now()}`;
-  const localCacheRoot = path.join(temporary, 'cache');
-  const hashFile = (file) => crypto.createHash('sha256').update(fs.readFileSync(file).toString('utf8').replace(/\r\n/gu, '\n')).digest('hex');
-  try {
-    fs.mkdirSync(projectRoot, { recursive: true });
-    const manifest = {
-      name: 'synthetic-nested-wrangler-project',
-      private: true,
-      version: '1.0.0',
-      type: 'module',
-      devDependencies: {
-        wrangler: '1.0.0',
-        esbuild: '1.0.0',
-        'synthetic-neutral-dependency': '1.0.0',
-        '@synthetic/scoped-dependency': '1.0.0',
-      },
-      optionalDependencies: {
-        'synthetic-optional-dependency': '1.0.0',
-      },
-    };
-    const lock = {
-      name: manifest.name,
-      version: manifest.version,
-      lockfileVersion: 3,
-      requires: true,
-      packages: {
-        '': { name: manifest.name, version: manifest.version, devDependencies: manifest.devDependencies },
-        'node_modules/wrangler': { version: '1.0.0' },
-        'node_modules/esbuild': { version: '1.0.0' },
-        'node_modules/synthetic-neutral-dependency': { version: '1.0.0' },
-        'node_modules/@synthetic/scoped-dependency': { version: '1.0.0' },
-        'node_modules/synthetic-optional-dependency': { version: '1.0.0', optional: true },
-      },
-    };
-    fs.writeFileSync(path.join(projectRoot, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-    fs.writeFileSync(path.join(projectRoot, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
-    const before = protectedProjectState({ manifestPath: path.join(projectRoot, 'package.json'), lockPath: path.join(projectRoot, 'package-lock.json'), projectRoot });
-    assert.equal(before.nodeModules.kind, 'absent');
-    assert.equal(fs.existsSync(path.join(worktreeRoot, 'node_modules')), false);
-    const manifestSha256 = hashFile(path.join(projectRoot, 'package.json'));
-    const lockSha256 = hashFile(path.join(projectRoot, 'package-lock.json'));
-    const payload = { mode: 'run', arguments: [], version: '1.0.0', manifestSha256, lockSha256, sourceLockSha256: lockSha256, dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion, wslCacheRoot: cacheRoot };
-    let stagedContext;
-    const dependencyCache = await ensureWranglerCache(payload, {
-      nodeVersion: process.version,
-      nodeAbi: process.versions.modules,
-      architecture: process.arch,
-      npmVersion: '10.0.0',
-    }, {
-      projectRoot,
-      cacheRoot: localCacheRoot,
-      acquireInstallLock: async () => async () => {},
-      install: async (staging, _payload, context) => {
-        stagedContext = context;
-        assert.deepEqual(fs.readFileSync(path.join(staging, 'package.json')), fs.readFileSync(context.manifestPath));
-        assert.deepEqual(fs.readFileSync(path.join(staging, 'package-lock.json')), fs.readFileSync(context.lockPath));
-        const installPackage = (name, version, files) => {
-          const packageRoot = path.join(staging, 'node_modules', ...name.split('/'));
-          fs.mkdirSync(packageRoot, { recursive: true });
-          fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ name, version, main: 'index.cjs', ...(name === 'wrangler' ? { type: 'module', bin: { wrangler: 'bin/wrangler.js' } } : {}) }));
-          for (const [relative, contents] of Object.entries(files ?? {})) {
-            fs.mkdirSync(path.dirname(path.join(packageRoot, relative)), { recursive: true });
-            fs.writeFileSync(path.join(packageRoot, relative), contents);
-          }
-        };
-        installPackage('synthetic-neutral-dependency', '1.0.0', { 'index.cjs': 'module.exports = { source: __filename };\n' });
-        installPackage('esbuild', '1.0.0', { 'index.cjs': 'module.exports = { source: __filename };\n' });
-        installPackage('@synthetic/scoped-dependency', '1.0.0', { 'index.cjs': 'module.exports = { source: __filename };\n', 'subpath.cjs': 'module.exports = { source: __filename };\n' });
-        fs.writeFileSync(path.join(staging, 'node_modules', '@synthetic', 'scoped-dependency', 'package.json'), JSON.stringify({ name: '@synthetic/scoped-dependency', version: '1.0.0', exports: { '.': './index.cjs', './subpath': './subpath.cjs' } }));
-        installPackage('wrangler', '1.0.0', { 'bin/wrangler.js': [
-          "import { createRequire } from 'node:module';",
-          "const requireFromLiveProject = createRequire(`${process.cwd()}/package.json`);",
-          "const neutral = requireFromLiveProject('synthetic-neutral-dependency');",
-          "const esbuild = requireFromLiveProject('esbuild');",
-          "process.stdout.write(JSON.stringify({ cwd: process.cwd(), neutral: neutral.source, esbuild: esbuild.source, arguments: process.argv.slice(2) }));",
-          '',
-        ].join('\n'), 'wrangler-dist/cli.js': [
-          "import { readFileSync } from 'node:fs';",
-          "export function experimental_readRawConfig({ config }) { return { rawConfig: JSON.parse(readFileSync(config, 'utf8')) }; }",
-          '',
-        ].join('\n') });
-      },
-    });
-    assert.equal(stagedContext.manifestSha256, manifestSha256);
-    assert.equal(stagedContext.lockSha256, lockSha256);
-    assert.ok(fs.existsSync(path.join(dependencyCache.root, 'node_modules', 'synthetic-neutral-dependency', 'package.json')));
-    assert.equal(fs.existsSync(path.join(dependencyCache.root, 'node_modules', 'synthetic-optional-dependency')), false, 'platform-optional dependency should not be required for cache completeness');
-    assert.equal(cachedWranglerEnvironment(dependencyCache.root, { PATH: 'base-path' }).NODE_PATH, path.join(dependencyCache.root, 'node_modules'));
-    assert.equal(cachedWranglerEnvironment(dependencyCache.root, { PATH: 'base-path' }).PATH, `${path.join(dependencyCache.root, 'node_modules', '.bin')}${path.delimiter}base-path`);
-    const dependencyNames = Object.keys({ ...manifest.dependencies, ...manifest.devDependencies });
-    fs.writeFileSync(path.join(projectRoot, 'wrangler.jsonc'), JSON.stringify({ alias: { unrelated: './replacement.js' } }));
-    assert.deepEqual(
-      wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy', '--alias', 'user-alias:/user-target'], projectRoot),
-      ['--alias', `wrangler:${path.join(dependencyCache.root, 'node_modules', 'wrangler')}`, '--alias', `esbuild:${path.join(dependencyCache.root, 'node_modules', 'esbuild')}`, '--alias', `synthetic-neutral-dependency:${path.join(dependencyCache.root, 'node_modules', 'synthetic-neutral-dependency')}`, '--alias', `@synthetic/scoped-dependency:${path.join(dependencyCache.root, 'node_modules', '@synthetic', 'scoped-dependency')}`],
-    );
-    assert.deepEqual(
-      wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['versions', 'upload', '--config', 'wrangler.jsonc'], projectRoot),
-      ['--alias', `wrangler:${path.join(dependencyCache.root, 'node_modules', 'wrangler')}`, '--alias', `esbuild:${path.join(dependencyCache.root, 'node_modules', 'esbuild')}`, '--alias', `synthetic-neutral-dependency:${path.join(dependencyCache.root, 'node_modules', 'synthetic-neutral-dependency')}`, '--alias', `@synthetic/scoped-dependency:${path.join(dependencyCache.root, 'node_modules', '@synthetic', 'scoped-dependency')}`],
-    );
-    assert.equal(wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy', '--alias', 'synthetic-neutral-dependency:/user-target'], projectRoot).includes('synthetic-neutral-dependency'), false, 'an explicit user alias key is not replaced');
-    fs.writeFileSync(path.join(projectRoot, 'wrangler.jsonc'), JSON.stringify({ alias: { 'synthetic-neutral-dependency': './replacement.js' } }));
-    assert.throws(() => wranglerDependencyAliases(dependencyCache.root, dependencyNames, ['deploy'], projectRoot), { code: 'WSL_WRANGLER_DEPENDENCY_CONTEXT_MISSING' });
-    fs.rmSync(path.join(projectRoot, 'wrangler.jsonc'));
-    const result = runCachedWrangler(dependencyCache.root, ['deploy', '--alias', 'user-alias:/user-target'], { cwd: projectRoot, stdio: 'pipe', baseEnvironment: { PATH: process.env.PATH }, dependencyNames });
-    assert.equal(result.status, 0, result.stderr);
-    const resolved = JSON.parse(result.stdout);
-    assert.equal(resolved.cwd, projectRoot);
-    assert.match(resolved.neutral, new RegExp(`${dependencyCache.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`));
-    assert.match(resolved.esbuild, new RegExp(`${dependencyCache.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`));
-    assert.deepEqual(resolved.arguments.slice(0, 3), ['deploy', '--alias', 'user-alias:/user-target']);
-    const aliasPairs = resolved.arguments.reduce((pairs, argument, index) => {
-      if (argument === '--alias') pairs.push(resolved.arguments[index + 1]);
-      return pairs;
-    }, []);
-    assert.ok(aliasPairs.some((pair) => pair.startsWith(`synthetic-neutral-dependency:${dependencyCache.root}`)));
-    assert.ok(aliasPairs.some((pair) => pair.startsWith(`@synthetic/scoped-dependency:${dependencyCache.root}`)));
-    assert.equal(aliasPairs.some((pair) => pair.startsWith('@synthetic/scoped-dependency/subpath:')), false, 'subpath aliases are not synthesized without a proven Wrangler resolver contract');
-    assert.equal(aliasPairs.some((pair) => pair.startsWith('user-alias:')), true, 'explicit user alias is preserved');
-    const after = protectedProjectState({ manifestPath: path.join(projectRoot, 'package.json'), lockPath: path.join(projectRoot, 'package-lock.json'), projectRoot });
-    assert.deepEqual(after, before);
-    assert.equal(fs.existsSync(path.join(worktreeRoot, 'node_modules')), false);
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-    fs.rmSync(localCacheRoot, { recursive: true, force: true });
-  }
-});
-
-test('WSL protocol-2 Wrangler-only caches cannot satisfy the new dependency context and are not deleted', async () => {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-wsl-old-protocol-'));
-  const projectRoot = path.join(temporary, 'nested');
-  const oldCacheRoot = `/tmp/harness-wsl-old-protocol-${process.pid}-${Date.now()}`;
-  const staleCacheRoot = `/tmp/harness-wsl-stale-protocol-${process.pid}-${Date.now()}`;
-  const oldCachePath = path.join(temporary, 'old-cache');
-  const staleCachePath = path.join(temporary, 'stale-cache');
-  const cleanupRoots = [oldCachePath, staleCachePath];
-  try {
-    fs.mkdirSync(projectRoot, { recursive: true });
-    const manifest = { name: 'harness-wsl-old-protocol-project', private: true, version: '1.0.0', devDependencies: { wrangler: '4.0.0', 'synthetic-neutral-dependency': '1.0.0' } };
-    const lock = { name: manifest.name, version: manifest.version, lockfileVersion: 3, packages: { '': { name: manifest.name, version: manifest.version, devDependencies: manifest.devDependencies }, 'node_modules/wrangler': { version: '4.0.0' }, 'node_modules/synthetic-neutral-dependency': { version: '1.0.0' } } };
-    fs.writeFileSync(path.join(projectRoot, 'package.json'), `${JSON.stringify(manifest)}\n`);
-    fs.writeFileSync(path.join(projectRoot, 'package-lock.json'), `${JSON.stringify(lock)}\n`);
-    const context = readWranglerDependencyContext(projectRoot);
-    const runtime = { nodeVersion: process.version, nodeAbi: process.versions.modules, architecture: process.arch, npmVersion: '10.0.0' };
-    const payload = { mode: 'run', arguments: [], version: '4.0.0', manifestSha256: context.manifestSha256, lockSha256: context.lockSha256, sourceLockSha256: context.lockSha256, dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion };
-    const oldIdentity = wranglerDependencyCacheIdentity({ version: payload.version, nodeVersion: runtime.nodeVersion, nodeAbi: runtime.nodeAbi, architecture: runtime.architecture, npmVersion: runtime.npmVersion, manifestSha256: context.manifestSha256, lockSha256: context.lockSha256, dependencyCacheProtocolVersion: 2 });
-    const oldRoot = path.join(oldCachePath, oldIdentity);
-    fs.mkdirSync(path.join(oldRoot, 'node_modules', 'wrangler', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(oldRoot, 'node_modules', 'wrangler', 'package.json'), JSON.stringify({ name: 'wrangler', version: '4.0.0' }));
-    fs.writeFileSync(path.join(oldRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), '');
-    const oldMarker = { identity: oldIdentity, version: payload.version, nodeVersion: runtime.nodeVersion, nodeAbi: runtime.nodeAbi, architecture: runtime.architecture, npmVersion: runtime.npmVersion, manifestSha256: context.manifestSha256, lockSha256: context.lockSha256, sourceLockSha256: context.lockSha256, dependencyCacheProtocolVersion: 2 };
-    fs.writeFileSync(path.join(oldRoot, '.harness-wrangler.json'), `${JSON.stringify(oldMarker)}\n`);
-    let installCalls = 0;
-    const install = async (staging) => {
-      installCalls += 1;
-      for (const [name, version] of [['wrangler', '4.0.0'], ['synthetic-neutral-dependency', '1.0.0']]) {
-        const packageRoot = path.join(staging, 'node_modules', name);
-        fs.mkdirSync(packageRoot, { recursive: true });
-        fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({ name, version }));
-      }
-      fs.mkdirSync(path.join(staging, 'node_modules', 'wrangler', 'bin'), { recursive: true });
-      fs.writeFileSync(path.join(staging, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), '');
-    };
-    await ensureWranglerCache({ ...payload, wslCacheRoot: oldCacheRoot }, runtime, { projectRoot, cacheRoot: oldCachePath, acquireInstallLock: async () => async () => {}, install });
-    assert.equal(installCalls, 1, 'protocol-2 cache was not reused');
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(oldRoot, '.harness-wrangler.json'), 'utf8')), oldMarker, 'old protocol cache was not modified or deleted');
-
-    const newIdentity = wranglerDependencyCacheIdentity({ version: payload.version, nodeVersion: runtime.nodeVersion, nodeAbi: runtime.nodeAbi, architecture: runtime.architecture, npmVersion: runtime.npmVersion, manifestSha256: context.manifestSha256, lockSha256: context.lockSha256, dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion });
-    const staleRoot = path.join(staleCachePath, newIdentity);
-    fs.mkdirSync(path.join(staleRoot, 'node_modules', 'wrangler', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(staleRoot, 'node_modules', 'wrangler', 'package.json'), JSON.stringify({ name: 'wrangler', version: '4.0.0' }));
-    fs.writeFileSync(path.join(staleRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), '');
-    const staleMarker = { ...oldMarker, identity: newIdentity };
-    fs.writeFileSync(path.join(staleRoot, '.harness-wrangler.json'), `${JSON.stringify(staleMarker)}\n`);
-    await assert.rejects(ensureWranglerCache({ ...payload, wslCacheRoot: staleCacheRoot }, runtime, { projectRoot, cacheRoot: staleCachePath, acquireInstallLock: async () => async () => {}, install }), { code: 'WSL_WRANGLER_CACHE_INVALID' });
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(staleRoot, '.harness-wrangler.json'), 'utf8')), staleMarker, 'invalid protocol cache was deleted');
-    await assert.rejects(ensureWranglerCache({ ...payload, dependencyCacheProtocolVersion: 2, wslCacheRoot: oldCacheRoot }, runtime, { projectRoot, cacheRoot: oldCachePath, acquireInstallLock: async () => async () => {}, install }), { code: 'WSL_WRANGLER_PROTOCOL_INVALID' });
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(oldRoot, '.harness-wrangler.json'), 'utf8')), oldMarker, 'old dispatcher protocol changed the old cache');
-  } finally {
-    fs.rmSync(temporary, { recursive: true, force: true });
-    for (const root of cleanupRoots) fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('WSL cache ensure waits for its asynchronous lock release', async () => {
-  const cacheRoot = `/tmp/harness-wsl-ensure-${process.pid}-${Date.now()}`;
-  const localCacheRoot = path.join(os.tmpdir(), `harness-wsl-ensure-cache-${process.pid}-${Date.now()}`);
-  const projectRoot = path.join(os.tmpdir(), `harness-wsl-ensure-project-${process.pid}-${Date.now()}`);
-  const manifestPath = path.join(projectRoot, 'package.json');
-  const lockPath = path.join(projectRoot, 'package-lock.json');
-  const manifest = { name: 'harness-wsl-ensure-project', private: true, version: '1.0.0', devDependencies: { wrangler: '4.0.0' } };
-  const lock = { name: manifest.name, version: manifest.version, lockfileVersion: 3, packages: { '': { name: manifest.name, version: manifest.version, devDependencies: manifest.devDependencies }, 'node_modules/wrangler': { version: '4.0.0' } } };
-  fs.mkdirSync(projectRoot, { recursive: true });
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
-  fs.writeFileSync(lockPath, `${JSON.stringify(lock)}\n`);
-  const hashFile = (file) => crypto.createHash('sha256').update(fs.readFileSync(file).toString('utf8').replace(/\r\n/gu, '\n')).digest('hex');
-  let releaseStarted;
-  const releaseStartedPromise = new Promise((resolve) => { releaseStarted = resolve; });
-  let allowRelease;
-  const allowReleasePromise = new Promise((resolve) => { allowRelease = resolve; });
-  let releaseFinished = false;
-  try {
-    const ensured = ensureWranglerCache({
-      version: '4.0.0', manifestSha256: hashFile(manifestPath), lockSha256: hashFile(lockPath), sourceLockSha256: hashFile(lockPath), dependencyCacheProtocolVersion: HARNESS_CONTRACT.dependencyCacheProtocolVersion, wslCacheRoot: cacheRoot,
-    }, { nodeVersion: process.version, nodeAbi: process.versions.modules, architecture: process.arch, npmVersion: '10.0.0' }, {
-      projectRoot,
-      cacheRoot: localCacheRoot,
-      acquireInstallLock: async () => async () => {
-        releaseStarted();
-        await allowReleasePromise;
-        releaseFinished = true;
-      },
-      install: async (staging) => {
-        fs.mkdirSync(path.join(staging, 'node_modules', 'wrangler', 'bin'), { recursive: true });
-        fs.writeFileSync(path.join(staging, 'node_modules', 'wrangler', 'package.json'), JSON.stringify({ name: 'wrangler', version: '4.0.0' }));
-        fs.writeFileSync(path.join(staging, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), '');
-      },
-    });
-    await releaseStartedPromise;
-    let settled = false;
-    void ensured.then(() => { settled = true; });
-    await Promise.resolve();
-    assert.equal(settled, false, 'ensure remains pending until release resolves');
-    allowRelease();
-    await ensured;
-    assert.equal(releaseFinished, true);
-  } finally {
-    fs.rmSync(localCacheRoot, { recursive: true, force: true });
-    fs.rmSync(projectRoot, { recursive: true, force: true });
-  }
-});
-
-test('WSL helper failures retain their specific remediation code', () => {
-  const code = wslFailureCodeFromStderr('HARNESS_WSL_FAILURE WSL_WRANGLER_LOCK_UNPROVABLE: legacy lock');
-  assert.equal(code, 'WSL_WRANGLER_LOCK_UNPROVABLE');
-  assert.equal(classifyResult({ exitCode: 2, stderr: 'HARNESS_WSL_FAILURE WSL_WRANGLER_LOCK_UNPROVABLE: legacy lock', wslRuntimeMetadata: false }), 'harness_startup_failure');
-  assert.equal(remediationFor(code, 'cloudflare', 'wrangler').code, code);
 });
 
 test('snapshot harness rejects live watchers while Wrangler audits the live worktree', () => {
@@ -1078,28 +701,43 @@ test('ordinary package scripts use the stateless resolver while audit scripts re
   for (const name of ['check', 'deploy', 'deployed-status', 'version-list', 'version-pin', 'rollback']) {
     assert.match(cloudflareScripts[name], /scripts[\\/]harness[\\/]run-tool\.mjs --audit/u, `cloudflare/package.json#${name}`);
   }
-  assert.equal(rootScripts['deploy:hosting'], 'npm run build && node scripts/harness/run-tool.mjs --audit firebase . deploy --only hosting:kahut1');
+  assert.equal(rootScripts['deploy:hosting'], 'node scripts/deploy-live.mjs');
 });
 
-const x64Node = path.join(os.homedir(), '.codex', 'tools', 'windows-arm64', 'node', '22-x64', 'node.exe');
-test('Windows x64 bootstrap failure names a contract remediation code', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
-  const result = await run(process.execPath, [
-    path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--doctor', '.', 'vitest',
-  ], repositoryRoot, {
-    CODEX_X64_NODE: path.join(os.tmpdir(), 'missing-x64-node.exe'),
-    USERPROFILE: os.tmpdir(), LOCALAPPDATA: os.tmpdir(), ProgramFiles: os.tmpdir(), 'ProgramFiles(x86)': os.tmpdir(), PATH: os.tmpdir(),
+// Register these checks on the platforms whose native behavior they exercise.
+if (process.platform === 'win32' && process.arch === 'x64') {
+  const nativeWranglerAvailable = fs.existsSync(path.join(repositoryRoot, 'cloudflare/node_modules/wrangler/bin/wrangler.js'));
+  test('Windows x64 audits keep native Node and finalize runtime evidence', { skip: !nativeWranglerAvailable, timeout: 30_000 }, async () => {
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'native-x64-audit-'));
+    try {
+      const result = await run(process.execPath, [
+        path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), '--audit', '--doctor', 'cloudflare', 'wrangler',
+      ], repositoryRoot, {
+        CODEX_WINDOWS_TOOLS_ROOT: path.join(cache, 'unused-compatibility-tools'),
+        CODEX_HARNESS_ROOT: cache,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const report = JSON.parse(result.stdout.trim().split(/\r?\n/u).at(-1));
+      const evidence = JSON.parse(fs.readFileSync(report.evidence, 'utf8'));
+      assert.equal(evidence.runtime.executable, process.execPath);
+      assert.equal(evidence.runtime.architecture, 'x64');
+      assert.equal(evidence.discovery.x64Node.reason, 'native-windows-x64-runtime');
+      assert.equal(evidence.lifecycle.status, 'final');
+      assert.equal(evidence.classification, 'completed');
+    } finally {
+      fs.rmSync(cache, { recursive: true, force: true });
+    }
   });
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /HARNESS_FAILURE X64_NODE_PREREQUISITE_MISSING/u);
-  assert.ok(HARNESS_CONTRACT.remediations.X64_NODE_PREREQUISITE_MISSING);
-});
+}
 
-test('ordinary Windows dispatcher rejects calls before creating compatibility state', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
-  const cache = path.join(os.tmpdir(), 'rejected-harness-' + crypto.randomUUID());
-  const result = await run(process.execPath, [
-    path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', 'value with spaces',
-  ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
-  assert.equal(result.status, 2, result.stderr);
-  assert.match(result.stderr, /requires --audit/u);
-  assert.equal(fs.existsSync(cache), false);
-});
+if (process.platform === 'win32') {
+  test('ordinary Windows dispatcher rejects calls before creating audit state', { timeout: 30_000 }, async () => {
+    const cache = path.join(os.tmpdir(), 'rejected-harness-' + crypto.randomUUID());
+    const result = await run(process.execPath, [
+      path.join(repositoryRoot, 'scripts/harness/run-tool.mjs'), 'vite-node', '.', 'value with spaces',
+    ], repositoryRoot, { CODEX_HARNESS_ROOT: cache });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /requires --audit/u);
+    assert.equal(fs.existsSync(cache), false);
+  });
+}

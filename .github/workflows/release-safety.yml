@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Test integration result gate
@@ -35,7 +35,7 @@ jobs:
       - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-homework-worker-evidence.test.mjs scripts/__tests__/release-notification-worker-evidence.test.mjs scripts/__tests__/release-reading-v2-worker-evidence.test.mjs scripts/__tests__/release-listening-evidence.test.mjs scripts/__tests__/release-listening-editor-evidence.test.mjs
       - run: node --test scripts/__tests__/release-writing-homework-evidence.test.mjs
       - run: node --experimental-strip-types --test scripts/__tests__/repair-teacher-writing-homework-access.test.mjs
-      - run: node --test scripts/__tests__/acceptance-firebase.test.mjs scripts/__tests__/tooling-where.test.mjs
+      - run: node --test scripts/__tests__/acceptance-firebase.test.mjs scripts/__tests__/tooling-where.test.mjs scripts/__tests__/spare-dev-config.test.mjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -86,7 +86,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Test shared guardrail implementations
@@ -161,7 +161,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: cloudflare/package-lock.json
       - run: npm --prefix cloudflare ci --no-audit --no-fund
@@ -189,7 +189,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: r2-backup-worker/package-lock.json
       - run: npm --prefix r2-backup-worker ci --no-audit --no-fund
@@ -242,7 +242,7 @@ jobs:
           git archive --format=tar "$RECORDED_REVISION" | tar -x -C tmp/deployed-homework-source
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: tmp/deployed-homework-source/r2-backup-worker/package-lock.json
       - run: npm ci --no-audit --no-fund
@@ -285,7 +285,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - name: Require successful candidate and retention evidence
         env:
           INTEGRATION_NEEDS: ${{ toJSON(needs) }}

@@ -14,7 +14,9 @@ import {
     type ListeningUploadSessionResponse,
 } from '../features/assessment/listening/storage/listeningUploadSessionApi';
 
-export const R2_PUBLIC_URL = 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
+export const R2_PUBLIC_URL = import.meta.env.MODE === 'spare'
+    ? import.meta.env.VITE_R2_PUBLIC_ORIGIN
+    : 'https://pub-9785039d4a7e4f76b2446f9fae6b2ca1.r2.dev';
 
 export interface ListeningAuthoringUploadInput {
     sessionIdempotencyKey: string;

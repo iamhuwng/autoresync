@@ -667,12 +667,10 @@ complete escalation. Continue disjoint ready work.
 
 Planner correction: the retained §2.10 pack already answers the historical R2
 algorithm question and the current B2 provider contract. The remaining
-implementation is the B2 adapter's direct callers and production composition, not
-another open-ended provider search. On Windows ARM64, use the repository resolver's
-existing x64 Node/Workerd route for Cloudflare Vitest and Wrangler; a default ARM64
-native-binding failure is not an external product blocker. The `r2-upload-signer`
-target and any R2 binding are unrelated media infrastructure and cannot receive
-Book PDF bytes.
+implementation is the B2 adapter's direct callers and production composition.
+Use the checkout's native Node and locked Cloudflare tools for Vitest and
+Wrangler. The `r2-upload-signer` target and any R2 binding are unrelated media
+infrastructure and cannot receive Book PDF bytes.
 
 The next required Book Rules release must consolidate its complete qualified
 required delta using the sole Rules writer and current remote preservation base.
@@ -1041,12 +1039,8 @@ trusted Source fact.
    justifies a change.
 6. Representative proof includes edge PDFs and 20–500 page documents, 100–200
    uploads/day, 2–5 simultaneous uploads or deliveries, and zero billed usage.
-7. The Windows checkout is authoritative. Ordinary native repo tools use
-   Windows ARM64 first; the `run-windows-arm64-tools` PRD0062 exception makes
-   Cloudflare Worker/Vitest start with the approved Windows x64 Node adapter
-   because the ARM64 Rolldown binding is unavailable. Use ARM64 for Worker
-   tests only after an explicit preflight proves that binding; WSL remains an
-   adapter only after a concrete startup compatibility failure.
+7. Run tools with native Node and the active checkout's lockfiles. See the
+   [native development guide](../../system/native-development.md).
 
 ## 5. Protected state and preservation
 
@@ -2489,8 +2483,7 @@ their owning CC/L evidence; Q aggregates the applicable results.
   does not establish current acceptance without that live reconciliation.
 - [ ] Every required lane is accepted or has an explicit user-approved
   deferral; no implicit `N/A` exists.
-- [ ] Focused native tests collected expected files/tests with zero accidental
-  skips; WSL use has recorded native compatibility evidence.
+- [ ] Focused native tests collected the expected files and tests with zero accidental skips.
 - [ ] Generated rules match the approved current fragments and canonical
   baseline at the owned boundary; emulator security/adversarial suites pass
   inside a real emulator. A historical whole-file mismatch is not repaired by
@@ -2525,15 +2518,11 @@ their owning CC/L evidence; Q aggregates the applicable results.
 
 ### 10.1 Tool and evidence rules
 
-Read `documentation/system/local-tooling-layout.md` and resolve the existing
-canonical tool/config; use no dependency-installing copied harness. Ordinary
-native repo commands use their configured Windows runtime. Cloudflare
-Worker/Vitest/Wrangler and retained Wrangler audits run from the Windows shell
-with the approved Windows x64 Node adapter and existing package dependencies.
-WSL may inspect the mapped checkout but does not execute those JavaScript commands
-or install Linux dependencies. The specific §2 WSL Java Firebase emulator route
-remains approved; its rules tests use canonical Windows Vitest. Preserve the
-selected source/CWD/config and avoid duplicate dependency trees.
+Follow the [native development guide](../../system/native-development.md).
+Run Cloudflare tools and retained Wrangler audits with the pinned native Node
+version and the active checkout's dependencies. Use native Java 21 for
+Firebase emulator tests. Keep test commands, source, and configuration in the
+selected checkout.
 
 Run direct repo-owned executables or verified current package scripts. Vitest
 uses --passWithNoTests=false; record command/CWD/runtime, collected/passed/failed/
@@ -2542,9 +2531,8 @@ or accidental skip is not product proof. Report startup/tool failures separately
 from runtime behavior, and recover only through the approved bounded route.
 
 Rules generation captures the before hash, exact output diff/hash and assembled
-database.rules.json. Use an approved reachable emulator (the §2 WSL-private route
-is available) with canonical Windows rules-unit-testing or a confirmed compatible
-Firebase emulators:exec route. Run
+database.rules.json. Use the Firebase emulator with the checkout's
+rules-unit-testing package or its `firebase emulators:exec` command. Run
 src/__tests__/security/prd0062-118-production-normal-rules.emulator.test.ts from
 the repo root with one file, expected authenticated assertions and zero skips;
 a standalone run without FIREBASE_DATABASE_EMULATOR_HOST skips and proves nothing.
