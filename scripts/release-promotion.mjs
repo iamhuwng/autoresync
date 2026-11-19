@@ -255,16 +255,20 @@ const tracked = (cwd, file) => {
   catch { return false; }
 };
 
+const isHostingNodeTest = file => /^scripts\/__tests__\/.+\.(?:test|spec)\.mjs$/u.test(file);
+const isHostingVitestTest = file => /^src\/.+\.(?:test|spec)\.[jt]sx?$/u.test(file);
+
 export const candidateTests = (cwd, files) => [...new Set(files.flatMap(file => {
   const candidates = /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(file)
     ? [file]
     : [file.replace(/\.([cm]?[jt]sx?)$/u, '.test.$1'), file.replace(/^scripts\/([^/]+)\.mjs$/u, 'scripts/__tests__/$1.test.mjs')];
-  return candidates.filter(candidate => !candidate.startsWith('e2e/') && /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(candidate) && tracked(cwd, candidate));
+  return candidates.filter(candidate => (isHostingNodeTest(candidate) || isHostingVitestTest(candidate)) && tracked(cwd, candidate));
 }))].sort();
 
 export function createVerificationPlan(files) {
-  const nodeFiles = files.filter(file => file.startsWith('scripts/__tests__/') && file.endsWith('.mjs'));
-  const vitestFiles = files.filter(file => !nodeFiles.includes(file));
+  const nodeFiles = files.filter(isHostingNodeTest);
+  // Release Safety runs the Worker tests in their own packages.
+  const vitestFiles = files.filter(isHostingVitestTest);
   return {
     schemaVersion: 1,
     suites: [

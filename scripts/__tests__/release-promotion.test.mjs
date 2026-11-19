@@ -131,8 +131,13 @@ test('promotion card rejects source, review, path and credential drift', async (
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
-test('automatic verification selection routes frontend tests to Vitest', () => {
-  const plan = createVerificationPlan(['scripts/__tests__/release-promotion.test.mjs', 'src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx']);
+test('Hosting verification selects frontend and Node tests when Worker tests also changed', () => {
+  const plan = createVerificationPlan([
+    'scripts/__tests__/release-promotion.test.mjs',
+    'cloudflare/test/homework-notification.test.ts',
+    'cloudflare/test/notification-release-homework.test.ts',
+    'src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx',
+  ]);
   assert.deepEqual(plan.suites, [
     { runner: 'node', files: ['scripts/__tests__/release-promotion.test.mjs'] },
     { runner: 'vitest', config: 'vitest.config.ts', files: ['src/components/reading-v2/runtime/ReadingV2RuntimeShell.test.tsx'] },
@@ -140,7 +145,14 @@ test('automatic verification selection routes frontend tests to Vitest', () => {
 });
 
 test('automatic test discovery excludes changed non-test files', () => {
-  const files = candidateTests(process.cwd(), ['scripts/release-promotion.mjs', 'scripts/release-browser-gate.mjs', 'src/services/firebaseRuntimeConfig.js', 'src/services/firebaseRuntimeConfig.test.js', 'e2e/release-promotion-browser.spec.ts']);
+  const files = candidateTests(process.cwd(), [
+    'scripts/release-promotion.mjs',
+    'scripts/release-browser-gate.mjs',
+    'cloudflare/test/homework-notification.test.ts',
+    'src/services/firebaseRuntimeConfig.js',
+    'src/services/firebaseRuntimeConfig.test.js',
+    'e2e/release-promotion-browser.spec.ts',
+  ]);
   assert.deepEqual(files, ['scripts/__tests__/release-browser-gate.test.mjs', 'scripts/__tests__/release-promotion.test.mjs', 'src/services/firebaseRuntimeConfig.test.js']);
 });
 
