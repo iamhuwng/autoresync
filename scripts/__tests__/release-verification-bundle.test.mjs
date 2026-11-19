@@ -6,9 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { collectSourceState } from '../release-check.mjs';
-import { createVerificationBundle, bundleBytes, bundleDigest, validateVerificationBundle, readVerificationBundle, publishVerificationBundle, verificationTag, isVerificationTagForSource, restoreVerifiedHostingArtifact, validateHostingArtifactBinding } from '../release-verification-bundle.mjs';
+import { createVerificationBundle, bundleBytes, bundleDigest, requireBrowserEvidence, requireReleaseReview, validateVerificationBundle, readVerificationBundle, publishVerificationBundle, verificationTag, isVerificationTagForSource, restoreVerifiedHostingArtifact, validateHostingArtifactBinding } from '../release-verification-bundle.mjs';
 import { createPromotionCard, cardBytes, promotionEnvironment } from '../release-promotion.mjs';
 import { runReleaseVerification } from '../release-verification.mjs';
+import { createSpareBuildIdentity } from '../spare-preview-identity.mjs';
 
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const git = (cwd, ...args) => {
@@ -51,8 +52,90 @@ test('creates an external source-bound bundle for a realistic application change
   assert.equal(result.bundle.source.baseRevision, f.base);
   assert.equal(result.bundle.verification.sourceFingerprint, f.source.fingerprint);
   assert.equal(result.bundle.verification.evidenceRefs[0], 'bundle://artifact/browser');
+  assert.throws(() => requireReleaseReview(result.bundle), /requires a referenced release-review/u);
   assert.equal(bundleDigest(bundleBytes(result.bundle)), result.sha256);
   assert.deepEqual(JSON.parse(await readFile(f.output, 'utf8')), result.bundle);
+});
+test('browser-impacting release rejects missing visuals and stale or switched localhost previews', async t => {
+  const f = await fixture(t);
+  const create = evidence => createVerificationBundle({ cwd: f.cwd, base: f.base, recordPath: f.recordPath,
+    environmentPath: f.environmentPath, environmentIdentity: 'spare', buildIdentity: 'none', evidence, output: f.output });
+  const sourceOnly = await create([{ id: 'browser', file: f.artifactPath }]);
+  assert.throws(() => requireBrowserEvidence(sourceOnly.bundle, f.source.files), /browser-impacting changes require/u);
+  assert.doesNotThrow(() => requireBrowserEvidence(sourceOnly.bundle, ['src/application.test.mjs']));
+  for (const file of ['firebase.json', 'package.json', 'package-lock.json']) {
+    assert.throws(() => requireBrowserEvidence(sourceOnly.bundle, [file]), /browser-impacting changes require/u);
+  }
+
+  const identity = createSpareBuildIdentity({ revision: f.source.revision, tree: f.source.tree, clean: true }, {});
+  const dir = path.dirname(f.recordPath);
+  const before = { origin: 'http://localhost:5173', observedAt: new Date(Date.now() - 1000).toISOString(), identity };
+  const after = { ...before, observedAt: new Date(Date.now() - 500).toISOString() };
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3f8AAAAASUVORK5CYII=', 'base64');
+  const evidence = ['teacher-before.json', 'teacher-after.json', 'teacher-capture.png'].map(file =>
+    ({ id: path.parse(file).name, file: path.join(dir, file) }));
+  await writeFile(evidence[0].file, JSON.stringify(before));
+  await writeFile(evidence[1].file, JSON.stringify(after));
+  await writeFile(evidence[2].file, png);
+  await writeFile(f.recordPath, JSON.stringify({ ...f.record, method: 'localhost-spare-browser',
+    observedAt: new Date().toISOString(), evidenceRefs: evidence.map(item => 'bundle://artifact/' + item.id) }));
+  const valid = await create(evidence);
+  requireBrowserEvidence(valid.bundle, f.source.files);
+  assert.equal(valid.bundle.artifacts[2].mediaType, 'image/png');
+  const hosted = structuredClone(valid.bundle);
+  hosted.verification.method = 'deployed-origin-browser';
+  const retained = Buffer.from('fixture archive');
+  const digest = hash('manifest');
+  hosted.build = { identity: digest, hostingArtifact: { archiveId: 'hosting-artifact', manifestSha256: digest,
+    environmentFingerprint: hash('environment'), buildInputFingerprint: hash('input') } };
+  hosted.artifacts.push({ id: 'hosting-artifact', mediaType: 'application/gzip', size: retained.length,
+    sha256: hash(retained), contentBase64: retained.toString('base64') });
+  assert.throws(() => validateVerificationBundle(hosted), /requires a spare Hosting channel readback/u);
+  for (const [phase, receipt] of [['before', before], ['after', after]]) {
+    const id = 'channel-' + phase;
+    hosted.verification.evidenceRefs.push('bundle://artifact/' + id);
+    const bytes = Buffer.from(JSON.stringify({ origin: 'https://luyentap-pdf-qa-20261021--qualification-release-fixture.web.app',
+      observedAt: receipt.observedAt, revision: f.source.revision, tree: f.source.tree, manifestSha256: digest }));
+    hosted.artifacts.push({ id, mediaType: 'application/json', size: bytes.length, sha256: hash(bytes),
+      contentBase64: bytes.toString('base64') });
+  }
+  hosted.verification.evidenceRefs.push('bundle://artifact/channel-capture');
+  hosted.artifacts.push({ ...hosted.artifacts[2], id: 'channel-capture' });
+  assert.doesNotThrow(() => validateVerificationBundle(hosted));
+  hosted.build.hostingArtifact.manifestSha256 = hosted.build.identity = hash('new artifact');
+  assert.throws(() => validateVerificationBundle(hosted), /differs from the tested candidate artifact/u);
+  await assert.rejects(create(evidence.slice(0, 2)), /does not resolve/u);
+  await writeFile(evidence[1].file, JSON.stringify({ ...after, identity: { ...identity, buildId: crypto.randomUUID() } }));
+  await assert.rejects(create(evidence), /changed during the browser journey/u);
+  await writeFile(evidence[1].file, JSON.stringify({ ...after, identity: { ...identity, revision: f.base } }));
+  await assert.rejects(create(evidence), /does not match the clean candidate/u);
+  await writeFile(evidence[1].file, JSON.stringify({ ...after, origin: 'https://kahut1.web.app' }));
+  await assert.rejects(create(evidence), /invalid spare browser origin/u);
+  await writeFile(evidence[1].file, JSON.stringify(after));
+  await writeFile(evidence[2].file, 'not an image');
+  await assert.rejects(create(evidence), /requires referenced PNG/u);
+
+  await writeFile(evidence[2].file, png);
+  const reviewFile = path.join(dir, 'release-review.json');
+  evidence.push({ id: 'release-review', file: reviewFile });
+  const record = JSON.parse(await readFile(f.recordPath, 'utf8'));
+  record.evidenceRefs.push('bundle://artifact/release-review');
+  await writeFile(f.recordPath, JSON.stringify(record));
+  const review = { decision: 'pass', reviewer: 'codex', reviewedAt: new Date().toISOString(),
+    criteria: [{ expectation: 'The requested state is visible after the action.',
+      judgment: 'The capture shows the expected state after the action.', evidenceRefs: ['bundle://artifact/teacher-capture'] }],
+    findings: [] };
+  await writeFile(reviewFile, JSON.stringify(review));
+  const reviewed = await create(evidence);
+  assert.doesNotThrow(() => requireReleaseReview(reviewed.bundle));
+  await writeFile(reviewFile, JSON.stringify({ ...review, reviewer: 'another-agent', decision: 'return-for-correction',
+    findings: ['An unintended state appeared.'] }));
+  await assert.rejects(create(evidence), /return the candidate for correction/u);
+  await writeFile(reviewFile, JSON.stringify({ ...review, reviewedAt: before.observedAt }));
+  await assert.rejects(create(evidence), /follow the verification/u);
+  await writeFile(reviewFile, JSON.stringify({ ...review, criteria: [{ ...review.criteria[0],
+    evidenceRefs: ['bundle://artifact/teacher-before'] }] }));
+  await assert.rejects(create(evidence), /evaluate every retained browser capture/u);
 });
 test('rejects missing, stale, mismatched, fabricated and altered evidence', async t => {
   const f = await fixture(t);

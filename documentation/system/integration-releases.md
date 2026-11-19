@@ -302,9 +302,13 @@ The handoff is reproducible: after Codex finishes its selected checks, it writes
 the compact record and evidence files outside the checkout, then runs:
 
 ```powershell
-node scripts/release-verification-bundle.mjs --create --base <reviewed-base> --record <record.json> --environment <environment-file> --environment-identity <identity> --build-identity none --evidence=browser:<evidence-file> --output <verification-bundle.json>
+node scripts/release-verification-bundle.mjs --create --base <reviewed-base> --record <record.json> --environment <environment-file> --environment-identity <identity> --build-identity none --evidence=checks:<evidence-file> --evidence=release-review:<release-review.json> --output <verification-bundle.json>
 node scripts/release-verification-bundle.mjs --publish <verification-bundle.json>
 ```
+
+Include the referenced `release-review` artifact before requesting promotion.
+Browser-impacting releases also retain the relevant visual evidence and preview
+readbacks. [Evidence and review procedure](release-safety.md#codex-verification-handoff)
 
 The command returns the prerelease tag and bundle digest; supply both as the
 guarded workflow's `verification_tag` and `verification_sha256` inputs.

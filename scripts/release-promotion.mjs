@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { runReleaseVerification } from './release-verification.mjs';
 import { classifyPaths, collectSourceState, compatibilityReviewDigest, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { observeHosting } from './release-evidence.mjs';
-import { bundleBytes, bundleDigest, isVerificationTagForSource, validateVerificationBundle, validateHostingArtifactBinding, restoreVerifiedHostingArtifact } from './release-verification-bundle.mjs';
+import { bundleBytes, bundleDigest, isVerificationTagForSource, requireBrowserEvidence, requireReleaseReview, validateVerificationBundle, validateHostingArtifactBinding, restoreVerifiedHostingArtifact } from './release-verification-bundle.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
@@ -318,6 +318,8 @@ export async function preparePromotionInputs({ cwd = repoRoot, productionEnvFile
     const { readVerificationBundle } = await import('./release-verification-bundle.mjs');
     const readback = readVerificationBundle({ tag: bundleTag, sha256: bundleSha256 });
     validateVerificationBundle(readback.bundle, { source });
+    requireBrowserEvidence(readback.bundle, source.files);
+    requireReleaseReview(readback.bundle);
     verificationBundle = { tag: readback.tag, sha256: readback.sha256, bundle: readback.bundle };
     verificationBundleSha256 = readback.sha256;
     verificationEvidence = readback.bundle.verification;

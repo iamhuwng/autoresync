@@ -16,8 +16,13 @@ production Firebase project, or the production Worker name.
 Stable QA website: `https://luyentap-pdf-qa-20261021.web.app`.
 Stable QA Worker: `https://luyentap-qualification-upload-signer.iamhuwng.workers.dev`.
 Firestore uses the QA project's `(default)` Standard-edition database in
-`asia-southeast1`. No production users, credentials or data are copied as part
-of routine qualification setup.
+`asia-southeast1`. When a journey requires live parity, verify that the spare
+Firebase snapshot includes the relevant data, Auth identity and profile UID
+before testing. Refreshes are separate from routine preview startup. Keep data
+writes in spare Firebase and preserve existing media references during a
+refresh. Public media reads use existing shared R2 objects. R2 and B2 objects
+are reused in place, with private reads dependent on scoped access. Shared
+storage mutation permissions are outside this release-check procedure.
 
 The Worker uses `UPLOAD_RATE_LIMITER`, namespace `205514`, at 30 requests per
 60 seconds. Cloudflare accepts this integer ID directly in the binding form;
@@ -40,8 +45,8 @@ project and backend identity. To preview a built spare site, use
 uses `dist-spare/` and leaves the release artifact in `dist/`.
 [Native development commands](native-development.md)
 
-Use temporary QA accounts and verify each Worker and external service used by
-the journey targets the spare environment. For Student ID checks, confirm the
+Use approved spare accounts and verify Firebase and Worker traffic stays in
+spare, with shared media reads only where expected. For Student ID checks, confirm the
 active spare Worker allows the selected localhost origin and that spare Firebase
 Auth domains and API key restrictions permit the journey. The checked-in spare
 Worker configuration includes ports 5173 and 5174. If a run needs a temporary

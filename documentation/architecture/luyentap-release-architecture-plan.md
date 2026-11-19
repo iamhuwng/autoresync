@@ -63,6 +63,17 @@ checks in proportion to the change. The 14 November disposable experiment
 separately proves Hosting publication, exact readback, native clone recovery and
 cleanup; it does not define application verification.
 
+Browser-impacting changes retain screenshots or short videos. Localhost evidence
+brackets each journey with readbacks of the same clean spare build. Behavior
+that requires a deployed origin uses the deployed-origin evidence path with the
+exact retained Hosting artifact. [Operator instructions](../system/release-safety.md#codex-verification-handoff)
+
+Before approval, Codex or a reviewing agent evaluates the evidence against the
+user's expectations. Deviations, incorrect results, unintended effects, or
+missing proof return the candidate to implementation recovery and fresh
+verification. Guarded application promotion requires a passing review in the
+same source-bound evidence bundle.
+
 The qualification lifecycle is reusable for Codex-selected built-site journeys.
 It covers Hosting, Firebase Auth/RTDB/rules, and Workers when non-production
 Worker bindings are supplied. Backblaze/storage, Functions, migrations, and

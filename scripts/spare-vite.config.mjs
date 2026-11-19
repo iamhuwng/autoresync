@@ -1,10 +1,16 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { sparePreviewMiddleware } from './spare-preview-identity.mjs';
 
 export default defineConfig({
   envDir: false,
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'spare-preview-identity',
+    configurePreviewServer(server) {
+      server.middlewares.use(sparePreviewMiddleware(server.config.root));
+    },
+  }],
   resolve: {
     alias: { '@': fileURLToPath(new URL('../src', import.meta.url)) },
   },
