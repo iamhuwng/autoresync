@@ -98,6 +98,9 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/firebase.database
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -343,6 +346,9 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/firebase.database
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
@@ -537,6 +543,9 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/firebase.database
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
