@@ -8,12 +8,17 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
-| 2026-11-19 | [`CL-20261119-NATIVE-X64-DEVELOPMENT`](changelog/native-x64-development-2026-11-19.md) | Development / Release | Changed | Rebuilt local development for native Windows x64, connected the default launcher to spare Firebase and upload services, and updated release recovery and changelog handling. |
 | 2026-11-16 | [`CL-20261116-STUDENT-LOGIN-EXPANSION`](changelog/student-login-expansion-2026-11-16.md) | Authentication / Student Access | Changed | Added student email/password and student-ID/password login, student-only registration with verification, Google-student credential setup, password visibility controls, and removed the retired profile-completion flow; committed and merged locally, awaiting release qualification.  [Release outcomes](changelog/student-login-expansion-2026-11-16.md#recorded-release-outcomes). |
 | 2026-11-12 | [`CL-20261112-RELEASE-CHANGE-TRACEABILITY`](changelog/release-change-traceability-2026-11-12.md) | Development / Release | Changed | Connect reviewed, target-scoped change IDs to operation intent, retained archives, recovery and resumable historical references; local implementation, not a production release. |
 | 2026-07-08 | [`CL-20260708-DOCS-CHANGELOG-ARCHITECTURE-SPLIT`](changelog/docs-changelog-architecture-split-2026-07-08.md) | Documentation | Changed | Split primary repair, audit, ledger, and closure-history docs out of `documentation/architecture/`; added changelog rules and master index. |
 | 2026-07-08 | [`CL-20260708-ARCHITECTURE-FOLDER-REVIEW`](changelog/architecture-folder-review-2026-07-08.md) | Documentation | Audit | Reviewed remaining architecture docs, moved clear non-architecture files, and recorded split backlog for mixed files. |
 | 2026-07-08 | [`CL-20260708-CHANGELOG-SYSTEM-RESEARCH`](changelog/changelog-system-research.md) | Documentation | Research | Researched professional changelog and documentation maintenance patterns and adapted them to this repo. |
+
+## 2026-11-19 — Released
+
+| Date | ID | Area | Type | Summary |
+| --- | --- | --- | --- | --- |
+| 2026-11-19 | [`CL-20261119-NATIVE-X64-DEVELOPMENT`](changelog/native-x64-development-2026-11-19.md) | Development / Release | Changed | Rebuilt local development for native Windows x64 and made spare Firebase and upload services the default. Firebase Hosting published protected main `696a0f36` in version `7837f61bba14f975` on 2026-11-19. The live source, all 438 manifest assets, and the login route were independently verified. [Release outcomes](changelog/native-x64-development-2026-11-19.md#recorded-release-outcomes). |
 
 ## 2026-11-12 — Released
 

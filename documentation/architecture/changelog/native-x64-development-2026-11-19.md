@@ -13,4 +13,14 @@ The Hosting release workflow keeps publication evidence required and handles cha
 
 ## Release state
 
-Production Hosting publication is pending independent verification of the release candidate.
+Firebase Hosting published protected main `696a0f36` in version `7837f61bba14f975` on 2026-11-19. The live source, all 438 manifest assets, and the login route were independently verified.
+
+
+## Recorded release outcomes
+
+<!-- release-operation:ef4170b3-a5d4-43b4-83b4-4e15144a1c5c:outcome-729f57ec5227471d3305a05caa6873ad5b2519991b0867a01669441aef797a2c.json -->
+
+- Recorded: 2026-11-19T00:13:52.295Z; operation: `ef4170b3-a5d4-43b4-83b4-4e15144a1c5c`.
+- Source: `696a0f36d1ac8eac98a4ada8a3c05ed2fc79fa43`; target: `firebase:temp-a1437:hosting:kahut1`; action: deploy.
+- Publication: **published**; verification: **passed**; provider: `projects/temp-a1437/sites/kahut1/versions/7837f61bba14f975@2026-11-19T00:10:55.587Z`.
+- [Verification run](https://github.com/iamhuwng/autoresync/actions/runs/44427117913) · [Retained operation outcome](https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-ef4170b3-a5d4-43b4-83b4-4e15144a1c5c#outcome-729f57ec5227471d3305a05caa6873ad5b2519991b0867a01669441aef797a2c.json)
