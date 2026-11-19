@@ -178,8 +178,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let unsubscribeProfile = null;
     let unsubscribeStudentIdentifier = null;
+    let session = 0;
 
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      const currentSession = ++session;
       try {
         if (unsubscribeProfile) {
           unsubscribeProfile();
@@ -198,7 +200,8 @@ export function AuthProvider({ children }) {
           return;
         }
         if (authUser) {
-          setUser(authUser);
+          setUser(null);
+          setProfile(null);
           setStudentId(null);
 
           // Check for existing profile
@@ -206,12 +209,14 @@ export function AuthProvider({ children }) {
           const studentIdentifierRef = ref(database, `student_identifiers/${authUser.uid}`);
 
           unsubscribeStudentIdentifier = onValue(studentIdentifierRef, (snapshot) => {
+            if (currentSession !== session) return;
             const identifier = snapshot.val();
             setStudentId(typeof identifier?.studentId === 'string' ? identifier.studentId : null);
           });
 
           // Real-time listener for profile changes (including security flags)
           unsubscribeProfile = onValue(userRef, async (snapshot) => {
+            if (currentSession !== session) return;
             const data = snapshot.val();
 
             if (data) {
@@ -247,6 +252,15 @@ export function AuthProvider({ children }) {
               // No profile exists yet - will be created during login/registration flow
               setProfile(null);
             }
+            // A signed-in user with no profile means RTDB confirmed a missing record.
+            setUser(authUser);
+            setLoading(false);
+          }, (profileError) => {
+            if (currentSession !== session) return;
+            setError(profileError);
+            setUser(null);
+            setProfile(null);
+            setStudentId(null);
             setLoading(false);
           });
 
@@ -264,6 +278,7 @@ export function AuthProvider({ children }) {
     });
 
     return () => {
+      session++;
       unsubscribe();
       if (unsubscribeProfile) {
         unsubscribeProfile();

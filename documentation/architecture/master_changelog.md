@@ -8,6 +8,7 @@ Order: newest first. Architecture docs stay focused on current contracts, author
 
 | Date | ID | Area | Type | Summary |
 | --- | --- | --- | --- | --- |
+| 2026-11-19 | [`CL-20261119-GOOGLE-RETURNING-SIGN-IN`](changelog/google-returning-sign-in-2026-11-19.md) | Authentication | Fixed | Wait for the profile read before routing a returning Google user and keep registration passwords out of browser drafts. |
 | 2026-11-19 | [`CL-20261119-TEACHER-HOMEWORK-SUBMISSION-NOTIFICATIONS`](changelog/teacher-homework-submission-notifications-2026-11-19.md) | Homework / Teacher Notifications | Fixed | Added the student name and homework title to new submission notices. Deployed Worker version `c7ddf424-1874-4b0d-bd56-1e56d6542cbb` at 100% after exact-candidate pre/post readback. Browser delivery remains unverified. |
 | 2026-11-19 | [`CL-20261119-RELEASE-EVIDENCE-REVIEW`](changelog/release-evidence-review-2026-11-19.md) | Development / Release | Changed | Require current candidate readbacks, visual evidence for browser checks, and a passing review against the requested outcome before guarded Hosting approval. |
 | 2026-11-19 | [`CL-20261119-LOCALHOST-HOSTING-PROMOTION`](changelog/localhost-hosting-promotion-2026-11-19.md) | Development / Release | Changed | Made localhost the default for spare-service checks and bound the tested Hosting files to promotion. This release-tooling change requires no website deployment. |

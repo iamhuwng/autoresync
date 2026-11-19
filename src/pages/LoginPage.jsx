@@ -118,8 +118,6 @@ const LoginPage = () => {
           setFirstName(draft.firstName || '');
           setFamilyName(draft.familyName || '');
           setStudentId(draft.studentId || '');
-          setPassword(draft.password || '');
-          setConfirmPassword(draft.confirmPassword || '');
         });
       }
       return;
@@ -138,9 +136,9 @@ const LoginPage = () => {
   useEffect(() => {
     if (!googleRegistration || !user?.uid) return;
     void sessionStore.set(`google-registration-draft:${user.uid}`, {
-      firstName, familyName, studentId, password, confirmPassword,
+      firstName, familyName, studentId,
     });
-  }, [googleRegistration, user?.uid, firstName, familyName, studentId, password, confirmPassword]);
+  }, [googleRegistration, user?.uid, firstName, familyName, studentId]);
 
   const getAuthErrorMessage = (error) => {
     const errorCode = error?.code || '';
@@ -212,9 +210,6 @@ const LoginPage = () => {
     try {
       const result = await login();
       if (result?.needsStudentRegistration) {
-        setEmail(result.user?.email || '');
-        setGoogleRegistration(true);
-        setView('register');
         trackAction('openRegistration', { method: 'google' });
       }
     } catch (error) {

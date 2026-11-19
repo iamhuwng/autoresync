@@ -6,8 +6,22 @@ import * as firebaseAuth from 'firebase/auth';
 import * as firebaseDatabase from 'firebase/database';
 
 // Mock Firebase modules
-vi.mock('firebase/auth');
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged: vi.fn(),
+  signInWithPopup: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  signInWithCustomToken: vi.fn(),
+  signOut: vi.fn(),
+  sendEmailVerification: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  updatePassword: vi.fn(),
+  updateProfile: vi.fn(),
+  reauthenticateWithPopup: vi.fn(),
+}));
 vi.mock('firebase/database');
+vi.mock('../../services/auditService', () => ({
+  logSecurityEvent: { login: vi.fn(), logout: vi.fn() },
+}));
 vi.mock('../../services/firebaseCore', () => ({
   auth: {},
   app: {},
@@ -41,7 +55,6 @@ const TestComponent = () => {
 describe('AuthContext', () => {
   let mockOnAuthStateChanged: any;
   let mockOnValue: any;
-  let mockSignInWithPopup: any;
   let mockSignInWithEmailAndPassword: any;
   let mockSignInWithCustomToken: any;
   let mockSendEmailVerification: any;
@@ -63,7 +76,6 @@ describe('AuthContext', () => {
       return vi.fn(); // Return unsubscribe function
     });
     
-    mockSignInWithPopup = vi.fn();
     mockSignInWithEmailAndPassword = vi.fn();
     mockSignInWithCustomToken = vi.fn();
     mockSendEmailVerification = vi.fn().mockResolvedValue(undefined);
@@ -72,7 +84,6 @@ describe('AuthContext', () => {
     mockReauthenticateWithPopup = vi.fn().mockResolvedValue(undefined);
     
     vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation(mockOnAuthStateChanged);
-    vi.mocked(firebaseAuth.signInWithPopup).mockImplementation(mockSignInWithPopup);
     vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockImplementation(mockSignInWithEmailAndPassword);
     vi.mocked(firebaseAuth.signInWithCustomToken).mockImplementation(mockSignInWithCustomToken);
     vi.mocked(firebaseAuth.sendEmailVerification).mockImplementation(mockSendEmailVerification);
@@ -129,6 +140,35 @@ describe('AuthContext', () => {
     });
   });
 
+  it.each(['teacher', 'student'])('waits for the returning Google %s profile before exposing the session', async (role) => {
+    let authChanged: (user: unknown) => void = () => {};
+    mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
+      authChanged = callback;
+      callback(null);
+      return vi.fn();
+    });
+    mockOnValue.mockReturnValue(vi.fn());
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+
+    await act(async () => {
+      authChanged({
+        uid: 'returning-google',
+        email: 'returning@example.test',
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com' }],
+      });
+    });
+    expect(screen.getByTestId('user')).toHaveTextContent('no-user');
+    expect(screen.getByTestId('profile')).toHaveTextContent('no-profile');
+
+    const resolveProfile = mockOnValue.mock.calls[1][1];
+    await act(async () => {
+      resolveProfile({ val: () => ({ role, status: 'active' }) });
+    });
+    expect(screen.getByTestId('user')).toHaveTextContent('returning@example.test');
+    expect(screen.getByTestId('profile')).toHaveTextContent(role);
+  });
+
   it('defers first-time Google profile creation until student registration is completed', async () => {
     const mockUser = {
       uid: 'test-uid-123',
@@ -139,7 +179,7 @@ describe('AuthContext', () => {
     };
     
     // Mock successful login
-    mockSignInWithPopup.mockResolvedValue({ user: mockUser });
+    vi.mocked(firebaseAuth.signInWithPopup).mockResolvedValue({ user: mockUser } as firebaseAuth.UserCredential);
     
     // Mock get to return no existing profile
     mockGet.mockResolvedValue({
@@ -173,7 +213,7 @@ describe('AuthContext', () => {
     });
     
     await waitFor(() => {
-      expect(mockSignInWithPopup).toHaveBeenCalled();
+      expect(firebaseAuth.signInWithPopup).toHaveBeenCalled();
     });
     
     expect(mockSet).not.toHaveBeenCalled();
@@ -258,6 +298,11 @@ describe('AuthContext', () => {
     };
     const { auth, googleProvider } = await import('../../services/firebaseCore');
     Object.assign(auth, { currentUser: mockUser });
+    vi.stubEnv('VITE_R2_UPLOAD_WORKER_URL', 'https://student-auth.example');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ studentId: 'google-7' }),
+    }));
     mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
     mockGet.mockResolvedValueOnce({ exists: () => false, val: () => null });
     mockOnValue.mockImplementation((_ref, callback) => {
@@ -268,13 +313,17 @@ describe('AuthContext', () => {
       .mockRejectedValueOnce(Object.assign(new Error('recent login required'), { code: 'auth/requires-recent-login' }))
       .mockResolvedValueOnce(undefined);
 
-    render(<AuthProvider><TestComponent /></AuthProvider>);
-    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
-    await act(async () => screen.getByTestId('google-complete-btn').click());
+    try {
+      render(<AuthProvider><TestComponent /></AuthProvider>);
+      await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'));
+      await act(async () => screen.getByTestId('google-complete-btn').click());
 
-    expect(mockReauthenticateWithPopup).toHaveBeenCalledWith(mockUser, googleProvider);
-    expect(firebaseAuth.updatePassword).toHaveBeenCalledTimes(2);
-    expect(mockSet.mock.invocationCallOrder.at(-1)).toBeGreaterThan(firebaseAuth.updatePassword.mock.invocationCallOrder.at(-1));
+      expect(mockReauthenticateWithPopup).toHaveBeenCalledWith(mockUser, googleProvider);
+      expect(firebaseAuth.updatePassword).toHaveBeenCalledTimes(2);
+      expect(mockSet.mock.invocationCallOrder.at(-1)).toBeGreaterThan(firebaseAuth.updatePassword.mock.invocationCallOrder.at(-1));
+    } finally {
+      delete (auth as unknown as { currentUser?: unknown }).currentUser;
+    }
   });
 
   it('uses Firebase password-reset email without requiring a Cloud Function', async () => {
