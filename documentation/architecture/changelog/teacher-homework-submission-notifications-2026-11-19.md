@@ -28,7 +28,7 @@ other areas, including Book/PDF dependency resolution and Book Homework progress
 The documented spare browser launcher does not configure a homework notification
 endpoint, so an authenticated browser delivery journey was not verified.
 
-## Production status — Unreleased
+## Production status — Released
 
 Wrangler's dry run on the merge revision produced the two expected modules with
 SHA-256 `fc1ebdfddeb84b849c4393af050bf8bc082de04d1e4220f9a1f728022221146e`
@@ -44,9 +44,19 @@ module matched the reviewed base byte for byte. The public adapter remained on
 Object binding, rate limit, required secret names and trigger state were observed.
 Firestore rules matched the recorded ruleset and source hash. Production RTDB rules matched the merge revision's canonical SHA-256 `98436fd7f6528718e9fc4cacd4da8b2226feb27dc8bc52b25e38cd06d6162223`.
 
-The [repository release assessment](../../system/release-safety.md#fixed-notification-homework-qa-correction-assessment)
-returned `UNVERIFIED` for this new Worker candidate. The historical notification
-observer pins a different candidate and live baseline. Publication requires a
-reviewed qualification for this exact Worker candidate and an authenticated
-Wrangler operator session. The local Wrangler login could not refresh. No
-production version was uploaded or promoted.
+The exact-candidate native preflight passed twice before promotion, including
+Cloudflare version-specific module bytes, Worker settings and bindings, the
+public adapter, RTDB rules and the Firestore ruleset. The inactive version
+`c7ddf424-1874-4b0d-bd56-1e56d6542cbb` was uploaded with tag
+`teacher-homework-97747148`, then promoted to 100% in deployment
+`54238096-cf62-49a0-b961-3828dab838fc`. The post-deployment native readback passed
+with fingerprint `4869e6da3862bc4c4f9486170ea6fe4f4d8ba439a053cd4b1a57cc263ae3a4bf`.
+The rollback target remains `7f4edb63-4727-4d0c-9e46-ade6dd51a602`.
+
+The release used the account-and-Worker-only traffic configuration so promotion
+and rollback did not synchronize non-versioned settings. The public adapter
+returned 401 for an unauthenticated request and 400 for an incomplete event
+without writing data. Browser delivery with a disposable teacher and student
+journey was not verified because the spare launcher has no qualified homework
+notification endpoint. Existing focused Worker and client tests, protected-main
+checks and 25 notification panel/destination tests passed.
