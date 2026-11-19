@@ -12,7 +12,6 @@ import {
   verifyExistingHosting,
   assertCleanWorkingTree,
   assertReleaseAssessment,
-  assertListeningHostingReady,
   selectReleaseSource,
   cleanParentEnv,
   findForbiddenBundleMarker,
@@ -26,7 +25,7 @@ import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-f
 import { replaceSnapshot } from '../local-firebase.mjs';
 import { listReleases } from '../lib/releaseChangelog.mjs';
 import { collectSourceState } from '../release-check.mjs';
-import { writeHostingManifest } from '../release-evidence.mjs';
+import { waitForHostingLive, writeHostingManifest } from '../release-evidence.mjs';
 import { runReleaseVerification } from '../release-verification.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -508,22 +507,62 @@ test('snapshot replacement preserves the previous snapshot on failure', async ()
   }
 });
 
-test('production source override requires qualified Listening observation', () => {
+test('production source override is rejected', () => {
   assert.equal(selectReleaseSource(), repositoryRoot);
-  assert.throws(() => selectReleaseSource({ sourceCwd: os.tmpdir() }), /external source cwd requires qualified Listening observation/u);
-  assert.equal(selectReleaseSource({ sourceCwd: os.tmpdir(), observeListening: true, listeningPhase: 'homework' }), path.resolve(os.tmpdir()));
+  assert.throws(() => selectReleaseSource({ sourceCwd: os.tmpdir() }), /external source cwd/u);
 });
 
-test('Listening Hosting blocks early phases and incomplete homework qualification', async () => {
-  for (const listeningPhase of [undefined, 'prepare', 'upload']) {
-    assert.throws(() => selectReleaseSource({ observeListening: true, listeningPhase }), /requires the homework phase/u);
-    await assert.rejects(() => assertReleaseAssessment({ observeListening: true, listeningPhase }), /requires the homework phase/u);
-  }
-  for (const result of [{}, { hostingReady: true }, { listeningObservation: { phase: 'upload' }, hostingReady: true }, { listeningObservation: { phase: 'homework' }, hostingReady: false }]) {
-    assert.throws(() => assertListeningHostingReady(result, true), /requires verified homework phase and hostingReady=true/u);
-  }
-  assert.doesNotThrow(() => assertListeningHostingReady({ listeningObservation: { phase: 'homework' }, hostingReady: true }, true));
-  assert.doesNotThrow(() => assertListeningHostingReady({}));
+test('waitForHostingLive polls provider finalization with bounded backoff', async () => {
+  const before = { provider: { version: 'old', releaseTime: 'before', message: '' } };
+  const current = { provider: { version: 'new', releaseTime: 'after', message: '[luyentap:operation-1] release' } };
+  let providerCalls = 0;
+  let clock = 0;
+  const sleeps = [];
+  const result = await waitForHostingLive({
+    expectedManifestFingerprint: 'expected', beforeProviderIdentity: 'old@before', operationId: 'operation-1',
+    observeProvider: () => (++providerCalls < 3 ? before : current),
+    observeSource: async () => ({ fingerprint: 'expected', evidenceRef: 'fixture://manifest' }),
+    timeoutMs: 10_000, initialDelayMs: 100, maxDelayMs: 500, backoffFactor: 1.5,
+    now: () => clock, sleep: async delay => { sleeps.push(delay); clock += delay; },
+  });
+  assert.equal(result.verification, 'passed');
+  assert.equal(result.attempts, 1);
+  assert.deepEqual(sleeps, [100, 150]);
+});
+
+test('waitForHostingLive retries stale and transient live manifest readback', async () => {
+  const provider = { provider: { version: 'new', releaseTime: 'after', message: '[luyentap:operation-2] release' } };
+  let sourceCalls = 0;
+  const result = await waitForHostingLive({
+    expectedManifestFingerprint: 'expected', beforeProviderIdentity: 'old@before', operationId: 'operation-2',
+    observeProvider: () => provider,
+    observeSource: async () => {
+      sourceCalls += 1;
+      if (sourceCalls === 3) throw new Error('transient CDN readback');
+      return { fingerprint: sourceCalls < 4 ? 'stale' : 'expected', evidenceRef: 'fixture://manifest' };
+    },
+    timeoutMs: 10_000, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {},
+  });
+  assert.equal(result.verification, 'passed');
+  assert.equal(result.attempts, 4);
+});
+
+test('waitForHostingLive fails fast when another release becomes current', async () => {
+  const sleeps = [];
+  await assert.rejects(() => waitForHostingLive({
+    expectedManifestFingerprint: 'expected', beforeProviderIdentity: 'old@before', operationId: 'operation-3',
+    observeProvider: () => ({ provider: { version: 'other', releaseTime: 'after', message: '[luyentap:other-id] release' } }),
+    observeSource: async () => ({ fingerprint: 'expected' }), timeoutMs: 10_000,
+    sleep: async delay => sleeps.push(delay),
+  }), /not confirmed/u);
+  assert.deepEqual(sleeps, []);
+});
+
+test('repository uses AGENTS.md as the escalation authority', async () => {
+  await assert.rejects(() => readFile(path.join(repositoryRoot, 'CLAUDE.md')), { code: 'ENOENT' });
+  await assert.rejects(() => readFile(path.join(repositoryRoot, 'GEMINI.md')), { code: 'ENOENT' });
+  const agents = await readFile(path.join(repositoryRoot, 'AGENTS.md'), 'utf8');
+  assert.doesNotMatch(agents, /Astra/iu);
 });
 
 async function hostingFixture() {
@@ -562,6 +601,7 @@ async function hostingFixture() {
   };
   const options = { cwd, base, storeDir: path.join(cwd, '.git', 'journal'), assessment, verification,
     verificationPlanSha256: verification.planSha256, sourceRef: 'refs/heads/release', observeProvider, observeSource,
+    poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0 },
     retainArchive: async ({ id, intent }) => {
       state.archive = { id, intent, sha256: 'b'.repeat(64), evidenceRef: `https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-${id}` };
       assert.equal(listReleases(options.storeDir)[0].id, id);
@@ -618,7 +658,7 @@ test('publication with failed readback resumes the same operation without anothe
     assert.equal(original.targets[0].verification, 'unverified');
     state.hashFailure = false;
     const resume = { id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive, reconcile: options.reconcile,
-      saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource };
+      saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource, poll: options.poll };
     const evidence = [];
     await assert.rejects(() => verifyExistingHosting({ ...resume, observeSource: async () => { throw new Error('source observation interrupted'); }, writeEvidence: value => { evidence.push(value); } }), /verification remains pending/u);
     assert.equal(evidence[0].status, 'pending-verification-or-failed');

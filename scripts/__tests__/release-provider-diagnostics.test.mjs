@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { readListeningProvider } from '../release-listening-evidence.mjs';
+import { PRODUCTION_WORKER_NAMES, readProviderState } from '../release-provider-readback.mjs';
 import { describeGoogleToken, readProviderJson } from '../release-provider-diagnostics.mjs';
 
 test('error diagnostics report fixed provider fields without leaking echoed credentials or URLs', async () => {
@@ -74,7 +74,7 @@ test('native federated reader reports independent RTDB, Firestore and Cloudflare
     }
     return Response.json(url.includes('/indexes') ? {} : false);
   });
-  await assert.rejects(readListeningProvider(cwd, { hosting: true, firestore: true, firestoreIndexes: true, privateAudio: true }), error => {
+  await assert.rejects(readProviderState(cwd, { hosting: true, rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: false, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true, privateAudio: true }), error => {
     assert.match(error.message, /rulesSha256: .*HTTP 401.*ACCESS_TOKEN_SCOPE_INSUFFICIENT/u);
     assert.match(error.message, /firestoreRules: .*HTTP 403.*PERMISSION_DENIED/u);
     assert.match(error.message, /r2-upload-signer: active: [^;]*\/deployments: HTTP 403 \(Cloudflare code 10000\); settings: [^;]*\/settings: HTTP 403 \(Cloudflare code 9109\)/u);

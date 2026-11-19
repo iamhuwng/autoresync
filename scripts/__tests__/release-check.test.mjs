@@ -8,7 +8,7 @@ import { execFile, spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { assess, classifyPaths, collectSourceState, compatibilityReviewBindingsMatch, main, STATUS } from '../release-check.mjs';
+import { assess, classifyPaths, collectSourceState, compatibilityReviewBindingsMatch, hostingImpactPaths, main, STATUS } from '../release-check.mjs';
 import { prepareHotfix } from '../hotfix-prepare.mjs';
 import { isObserved, observeHosting, parseHostingChannelEvidence, readLocalProductionBuild, writeHostingManifest } from '../release-evidence.mjs';
 
@@ -98,9 +98,9 @@ test('Hosting target cannot use caller dependency JSON or fixed service profiles
     assert.equal(result.target, 'hosting');
     assert(result.source.services.includes('worker'));
     assert.equal(result.hostingDependencies, null);
-    assert.equal(result.decision, STATUS.UNVERIFIED);
+    assert.equal(result.decision, STATUS.BLOCKED);
     assert(result.findings.some(finding => /Untrusted or stale Hosting dependency/u.test(finding.message)));
-    for (const options of [{ observeHomework: true }, { observeListening: true }, { baselinePath: 'assertion.json' }, { mode: 'acceptance' }]) {
+    for (const options of [{ baselinePath: 'assertion.json' }, { observeProvider: true }, { hostingOrigin: 'http://localhost:5173' }, { mode: 'acceptance' }]) {
       await assert.rejects(assess({ cwd, base, target: 'hosting', ...options }), /native production Hosting observation/u);
     }
   } finally { await rm(cwd, { recursive: true, force: true }); }
@@ -117,6 +117,7 @@ test('a shared scorer change cannot be described or qualified as a Hosting-only 
     git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'change shared scorer');
     const result = await assess({ cwd, base: 'HEAD^' });
     assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Backup Worker active version/u.test(finding.message)));
+    assert(result.requiredActions.some(action => /Verify backup Worker version/u.test(action)));
     assert(result.deploymentOrder.some(action => /Homework\/backup Worker compatibility before Hosting/u.test(action)));
     assert(!result.deploymentOrder.includes('Hosting-only deployment.'));
   } finally { await rm(cwd, { recursive: true, force: true }); }
@@ -156,43 +157,21 @@ test('frontend rollback is rejected without bound backend compatibility evidence
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
-test('fixed Homework Worker observation rejects mixed evidence and missing artifact paths', async () => {
-  await assert.rejects(() => assess({ observeHomework: true, observe: true }), /cannot be combined/u);
-  await assert.rejects(() => assess({ observeHomework: true, mode: 'hotfix' }), /cannot be combined/u);
-  await assert.rejects(() => assess({ observeHomework: true }), /requires --worker-bundle and --worker-config/u);
-  await assert.rejects(() => assess({ workerBundlePath: 'candidate.js' }), /require --observe-homework-worker/u);
+test('hosting impact paths exclude local development and test-only backend files', () => {
+  const source = { dirty: false, baseRevision: 'a'.repeat(40), revision: 'b'.repeat(40), files: [
+    'src/App.jsx', 'scripts/import-live-firebase.mjs', 'scripts/local-book-source-worker.mjs',
+    'cloudflare/__tests__/fixture.ts', 'cloudflare/test/fixture.ts', 'cloudflare/scripts/foo.mjs', 'r2-backup-worker/test/fixture.ts',
+    'cloudflare/vitest.foo.mjs', 'cloudflare/wrangler.remote-dev.jsonc', 'cloudflare/worker.js',
+  ] };
+  assert.deepEqual(hostingImpactPaths(process.cwd(), source), ['src/App.jsx', 'cloudflare/worker.js']);
 });
 
-test('fixed Homework Worker route cannot suppress services for an arbitrary candidate', async () => {
+test('routine frontend Hosting candidates skip dependency observation', async () => {
   const cwd = await fixture();
   try {
-    const result = await assess({ cwd, base: 'HEAD^', observeHomework: true, workerBundlePath: 'public/index.html', workerConfigPath: 'firebase.json' });
-    assert.equal(result.decision, STATUS.UNVERIFIED);
-    assert.equal(result.observed, null);
-    assert.ok(result.source.files.includes('public/index.html'));
-    assert.ok(result.source.changedServices.includes('hosting'));
-    assert.ok(result.findings.some(finding => /Homework Worker readback/u.test(finding.message)));
-  } finally { await rm(cwd, { recursive: true, force: true }); }
-});
-
-test('Listening Worker-only route rejects foreign source and caller evidence without Hosting qualification', async () => {
-  const cwd = await fixture();
-  try {
-    const options = { cwd, base: 'HEAD^', observeListeningEditorRelease: true, listeningPhase: 'predeploy' };
-    const result = await assess(options);
-    assert.equal(result.decision, STATUS.UNVERIFIED);
-    assert.equal(result.editorObservation, null);
-    assert.equal(result.hostingReady, false);
-    assert.equal(result.observed, null);
-    assert(result.source.changedServices.includes('hosting'));
-    assert(result.source.files.includes('public/index.html'));
-    assert(result.findings.some(finding => /Editor release readback/u.test(finding.message)));
-    assert(!result.findings.some(finding => /Hosting|deployed baseline/u.test(finding.message)));
-    for (const extra of [{ baselinePath: 'assertion.json' }, { hostingObservation: {} }, { observeProvider: true },
-      { observeHomework: true }, { mode: 'hotfix' }, { compatibilityReviewPath: 'review.json' }]) {
-      await assert.rejects(assess({ ...options, ...extra }), /native observation/);
-    }
-    await assert.rejects(assess({ ...options, observeListeningEditorRelease: false, observeListening: true }), /native observation/);
+    const result = await assess({ cwd, base: 'HEAD^', target: 'hosting' });
+    assert.equal(result.hostingDependencies, null);
+    assert(!result.findings.some(finding => /Hosting dependencies:/u.test(finding.message)));
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
@@ -214,14 +193,12 @@ test('treats the local Book Worker launcher as Worker-only release tooling', () 
   assert.deepEqual(classifyPaths(['scripts/local-book-source-worker.mjs']), ['worker']);
 });
 
-test('a caller-shaped private audio claim cannot waive the local Book/Backblaze guard', async () => {
+test('a local Book Worker change retains the local Book/Backblaze guard', async () => {
   const cwd = await fixture();
   try {
     await writeFile(path.join(cwd, 'cloudflare', 'wrangler.book-source.jsonc'), '{"vars":{}}');
     git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'local Worker change');
-    const result = await assess({ cwd, base: 'HEAD^', editorObservation: {
-      profile: 'private-audio', local: { localListeningBindingOnly: true }, phase: 'postrules',
-    } });
+    const result = await assess({ cwd, base: 'HEAD^' });
     assert(result.source.services.includes('backblaze'));
     assert(result.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Verify B2 bucket/u.test(finding.message)));
     assert(!result.findings.some(finding => /verifies only the local Listening/u.test(finding.message)));

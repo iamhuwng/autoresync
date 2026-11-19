@@ -5,15 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { observeHosting, observeHostingProvider, isObserved } from './release-evidence.mjs';
-import { assertHomeworkWorkerSource, observeHomeworkWorker, isHomeworkWorkerObserved } from './release-homework-worker-evidence.mjs';
-import { assertNotificationWorkerSource, observeNotificationWorker, isNotificationWorkerObserved } from './release-notification-worker-evidence.mjs';
-import { assertReadingV2WorkerSource, observeReadingV2Worker, isReadingV2WorkerObserved } from './release-reading-v2-worker-evidence.mjs';
-import { observeListeningRelease, isListeningReleaseObserved } from './release-listening-evidence.mjs';
-import { assertListeningEditorSource, observeListeningEditor, isListeningEditorObserved, listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
-import { reviewedListeningPreviewRelease } from './release-listening-preview-pins.mjs';
-import { observeWritingHomework, isWritingHomeworkObserved } from './release-writing-homework-evidence.mjs';
-import { observeTeacherHomeworkNotification, isTeacherHomeworkNotificationObserved } from './release-teacher-homework-notification-evidence.mjs';
-import { observeHostingDependencies, isHostingDependenciesObserved } from './release-hosting-dependencies.mjs';
+import { hasHostingDependencyProbes, observeHostingDependencies, isHostingDependenciesObserved, selectHostingDependencyScope } from './release-hosting-dependencies.mjs';
 import { reviewedChanges } from './lib/changeRecords.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -69,14 +61,21 @@ export const classifyPaths = files => { const services = new Set(); for (const f
 
 const localBackendFiles = new Set([
   'scripts/local-firebase.mjs',
+  'scripts/import-live-firebase.mjs',
+  'scripts/local-book-source-worker.mjs',
   'cloudflare/vitest.config.mjs',
   'cloudflare/vitest.security.config.mjs',
   'cloudflare/wrangler.qualification.jsonc',
 ]);
 
-function hostingImpactPaths(cwd, source) {
-  if (source.dirty) return source.files;
+export function hostingImpactPaths(cwd, source) {
   const tooling = new Set(localBackendFiles);
+  const ignored = file => tooling.has(file)
+    || /^cloudflare\/(?:__tests__|test|scripts)\//u.test(file)
+    || /^r2-backup-worker\/(?:__tests__|test)\//u.test(file)
+    || /^cloudflare\/vitest\.[^/]+\.mjs$/u.test(file)
+    || /^cloudflare\/wrangler\.(?:remote-dev|canary|ticket[^/]+)\.jsonc$/u.test(file);
+  if (source.dirty) return source.files.filter(file => !ignored(file));
   const readAt = (revision, file) => JSON.parse(git(['show', `${revision}:${file}`], cwd));
   for (const project of ['cloudflare', 'r2-backup-worker']) {
     const manifest = `${project}/package.json`;
@@ -102,7 +101,7 @@ function hostingImpactPaths(cwd, source) {
       // Unreadable production dependencies still require native readback.
     }
   }
-  return source.files.filter(file => !tooling.has(file));
+  return source.files.filter(file => !ignored(file));
 }
 
 // Technical binding only; the operator must separately establish authorized review.
@@ -192,198 +191,35 @@ const validateBaseline = (baseline, services, sourceFiles) => {
   return findings;
 };
 
-async function assessHomeworkWorker({ cwd, source, bundlePath, configPath }) {
-  const findings = [{ status: source.dirty ? STATUS.BLOCKED : STATUS.PASS, message: source.dirty ? 'Candidate worktree is dirty.' : 'Candidate worktree is clean.' }];
-  let observation = null;
-  try {
-    assertHomeworkWorkerSource(source);
-    observation = await observeHomeworkWorker({ cwd, bundlePath, configPath });
-    if (!isHomeworkWorkerObserved(observation)) throw new Error('Untrusted Homework Worker observation rejected.');
-    for (const field of ['revision', 'tree', 'baseRevision']) if (observation.source[field] !== source[field]) throw new Error(`Worker observation ${field} does not match selected source.`);
-    if ((await collectSourceState(cwd, source.baseRevision)).fingerprint !== source.fingerprint) throw new Error('Candidate changed during Worker observation.');
-    findings.push({ status: STATUS.PASS, message: 'Fixed Homework Worker artifact and current provider code, bindings, routing and schedule independently verified. Historical deployed Git provenance remains unknown; reviewed artifact equivalence is recorded.' });
-  } catch (error) {
-    observation = null;
-    findings.push({ status: STATUS.UNVERIFIED, message: `Homework Worker readback: ${error.message}` });
-  }
-  return {
-    schemaVersion: 1, generatedAt: new Date().toISOString(), mode: 'release', scope: 'isolated-homework-worker',
-    source: { ...source, services: ['backup-worker'], changedServices: classifyPaths(source.files) },
-    baseline: null, observed: observation, compatibilityReview: null, hotfixes: [],
-    requiredActions: ['Obtain separate authorization and repeat fresh verification immediately before deploying only the pinned prebuilt Worker artifact.'],
-    deploymentOrder: ['r2-backup-worker only; no Hosting, Functions, Firebase rules/data or other Worker release.'],
-    recovery: ['Prior Worker version f37869c0-c597-41cc-893b-7f7652d80e41 is the prepared recovery target; rollback is not rehearsed and does not undo assignment data writes.'],
-    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null,
-    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
-  };
-}
-
-async function assessNotificationWorker({ cwd, source, bundlePath, configPath }) {
-  const findings = [{ status: source.dirty ? STATUS.BLOCKED : STATUS.PASS, message: source.dirty ? 'Candidate worktree is dirty.' : 'Candidate worktree is clean.' }];
-  let observation = null;
-  try {
-    assertNotificationWorkerSource(source);
-    observation = await observeNotificationWorker({ cwd, bundlePath, configPath });
-    if (!isNotificationWorkerObserved(observation)) throw new Error('Untrusted notification observation rejected.');
-    for (const field of ['revision', 'tree', 'baseRevision']) if (observation.source[field] !== source[field]) throw new Error(`Notification observation ${field} does not match selected source.`);
-    if ((await collectSourceState(cwd, source.baseRevision)).fingerprint !== source.fingerprint) throw new Error('Candidate changed during notification observation.');
-    findings.push({ status: STATUS.PASS, message: 'Fixed notification modules, effective configuration, unchanged public Durable Object adapter and RTDB baseline independently verified. Historical deployed Git provenance remains unknown.' });
-  } catch (error) {
-    observation = null;
-    findings.push({ status: STATUS.UNVERIFIED, message: `Notification Homework QA readback: ${error.message}` });
-  }
-  return {
-    schemaVersion: 1, generatedAt: new Date().toISOString(), mode: 'release', scope: 'isolated-notification-homework-qa',
-    source: { ...source, services: ['worker', 'firebase-rules'], changedServices: classifyPaths(source.files) },
-    baseline: null, observed: observation, compatibilityReview: null, hotfixes: [],
-    requiredActions: ['Obtain independent review and separate authorization for the pinned notification Worker and RTDB result-read correction; repeat fresh verification immediately before execution.'],
-    deploymentOrder: ['Only the reviewed luyentap-notification-command modules and database.rules.json result-read correction; Hosting, Firestore, Book and other Workers are excluded.'],
-    recovery: ['Retain command Worker version 541166ae-93db-4d92-8eda-5fb291325b42 and exact prior RTDB rules. Recovery is not rehearsed and does not undo delivered notices or authority receipts.'],
-    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null,
-    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
-  };
-}
-
-async function assessReadingV2Worker({ cwd, source, bundlePath, configPath, phase }) {
-  const findings = [{ status: source.dirty ? STATUS.BLOCKED : STATUS.PASS, message: source.dirty ? 'Candidate worktree is dirty.' : 'Candidate worktree is clean.' }];
-  let observation = null;
-  try {
-    assertReadingV2WorkerSource(source);
-    observation = await observeReadingV2Worker({ cwd, bundlePath, configPath, phase });
-    if (!isReadingV2WorkerObserved(observation)) throw new Error('Untrusted Reading V2 Worker observation rejected.');
-    for (const field of ['revision', 'tree', 'baseRevision']) if (observation.source[field] !== source[field]) throw new Error(`Reading V2 Worker observation ${field} does not match selected source.`);
-    if ((await collectSourceState(cwd, source.baseRevision)).fingerprint !== source.fingerprint) throw new Error('Reading V2 Worker candidate changed during provider observation.');
-    findings.push({ status: STATUS.PASS, message: `Fixed Reading V2 Worker artifact and current provider code, bindings, routing and schedule independently verified for ${phase}. Historical deployed Git provenance remains unknown.` });
-  } catch (error) {
-    observation = null;
-    findings.push({ status: STATUS.UNVERIFIED, message: `Reading V2 Worker readback: ${error.message}` });
-  }
-  const isPostdeploy = phase === 'postdeploy';
-  return {
-    schemaVersion: 1, generatedAt: new Date().toISOString(), mode: 'release', scope: 'isolated-reading-v2-worker',
-    source: { ...source, services: ['backup-worker'], changedServices: classifyPaths(source.files) },
-    baseline: null, observed: observation, compatibilityReview: null, hotfixes: [],
-    requiredActions: [isPostdeploy ? 'Verify and deploy the compatible Hosting candidate after the Worker release.' : 'After deployment, repeat fresh provider verification with --worker-phase postdeploy.'],
-    deploymentOrder: ['r2-backup-worker only; no Hosting, Functions, Firebase rules/data or other Worker release.'],
-    recovery: ['Prior Worker version 6aa7ac0f-7ccb-4c37-a20c-e6788bd6dd25 is the prepared recovery target; rollback is not rehearsed and does not undo assignment data writes.'],
-    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null,
-    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
-  };
-}
-
-export async function assess({ cwd = repoRoot, mode = 'release', target = 'all', base, baselinePath, productionEnvFingerprint, productionEnvFile, observe = false, observeProvider = false, hostingObservation, hostingDependenciesObservation, compatibilityReviewPath, inlineCompatibilityReview, hostingOrigin, observeHomework = false, observeNotification = false, observeReadingV2Worker = false, observeWritingHomeworkWorker = false, observeTeacherHomeworkNotificationWorker = false, workerPhase, workerBundlePath, workerConfigPath, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig } = {}) {
+export async function assess({ cwd = repoRoot, mode = 'release', target = 'all', base, baselinePath, productionEnvFingerprint, productionEnvFile, observe = false, observeProvider = false, hostingObservation, hostingDependenciesObservation, compatibilityReviewPath, inlineCompatibilityReview, hostingOrigin } = {}) {
   if (!['all', 'hosting'].includes(target)) throw new Error('Release target must be all or hosting.');
   if (hostingDependenciesObservation && target !== 'hosting') throw new Error('Hosting dependency observation requires the Hosting target.');
-  if (target === 'hosting' && (observeHomework || observeNotification || observeReadingV2Worker || observeWritingHomeworkWorker || observeTeacherHomeworkNotificationWorker || observeListening || observeListeningEditorRelease || baselinePath || observeProvider || hostingOrigin || mode === 'acceptance')) throw new Error('Hosting dependency qualification requires a native production Hosting observation without fixed profiles or caller baselines.');
-  const fixedWorkerCount = [observeHomework, observeNotification, observeReadingV2Worker, observeWritingHomeworkWorker, observeTeacherHomeworkNotificationWorker].filter(Boolean).length;
-  if (!fixedWorkerCount && (workerBundlePath || workerConfigPath)) throw new Error('Worker artifact paths require --observe-homework-worker, --observe-notification-worker, or --observe-reading-v2-worker.');
-  if (fixedWorkerCount > 1) throw new Error('Choose only one fixed Worker observer.');
-  const hasFixedWorker = fixedWorkerCount === 1;
-  if (observeListening && observeListeningEditorRelease) throw new Error('Choose only one Listening release profile.');
-  const qualifiedListening = observeListening || observeListeningEditorRelease;
-  const editorWorkerOnly = observeListeningEditorRelease && !observe;
-  if (observeListeningEditorRelease && (listeningHomeworkBundle || listeningHomeworkConfig)) throw new Error('Editor release does not deploy the homework Worker.');
-  if (qualifiedListening && (hasFixedWorker || mode !== 'release' || (!observe && !editorWorkerOnly) || observeProvider || hostingObservation || hostingOrigin || baselinePath || (editorWorkerOnly && (compatibilityReviewPath || inlineCompatibilityReview)))) throw new Error('Listening qualification requires release mode and native observation without other observers or caller baseline.');
-  if (!qualifiedListening && [listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig].some(Boolean)) throw new Error('Listening options require --observe-listening-release.');
-  if (hasFixedWorker && (mode !== 'release' || observe || observeProvider || hostingObservation || hostingOrigin || baselinePath || compatibilityReviewPath || inlineCompatibilityReview || productionEnvFingerprint)) throw new Error('Fixed Worker observation cannot be combined with other release modes or evidence.');
-  if (observeWritingHomeworkWorker || observeTeacherHomeworkNotificationWorker) {
-    const teacherNotice = observeTeacherHomeworkNotificationWorker;
-    const profile = teacherNotice ? 'Teacher homework notification' : 'Writing Homework';
-    const observeWorker = teacherNotice ? observeTeacherHomeworkNotification : observeWritingHomework;
-    const isWorkerObserved = teacherNotice ? isTeacherHomeworkNotificationObserved : isWritingHomeworkObserved;
-    if (workerBundlePath || workerConfigPath || !['predeploy', 'postdeploy'].includes(workerPhase)) throw new Error(`${profile} observation requires its fixed artifacts and --worker-phase predeploy or postdeploy.`);
-    const source = await collectSourceState(cwd, base);
-    let observed = null;
-    const findings = [];
-    try {
-      observed = await observeWorker({ cwd, source, phase: workerPhase });
-      if (!isWorkerObserved(observed)) throw new Error(`Untrusted ${profile} observation.`);
-      if ((await collectSourceState(cwd, base)).fingerprint !== source.fingerprint) throw new Error(`${profile} source changed during observation.`);
-      findings.push({ status: STATUS.PASS, message: `${profile} modules, configuration, Firebase rules and public adapter verified twice.` });
-    } catch (error) {
-      observed = null;
-      findings.push({ status: source.dirty ? STATUS.BLOCKED : STATUS.UNVERIFIED, message: `${profile} readback: ${error.message}` });
-    }
-    return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: teacherNotice ? 'isolated-teacher-homework-notification' : 'isolated-writing-homework',
-      source: { ...source, services: ['worker'], changedServices: classifyPaths(source.files) }, baseline: null, observed,
-      hostingReady: false, compatibilityReview: null, hotfixes: [], findings, decision: findings[0].status,
-      requiredActions: ['Independent review and explicit deployment authorization; repeat native observation before execution.'],
-      deploymentOrder: [teacherNotice ? 'Notification command Worker only.' : 'Notification command Worker only, then the separately qualified Hosting correction.'],
-      recovery: [teacherNotice ? 'Restore the pinned command Worker version 7f4edb63-4727-4d0c-9e46-ade6dd51a602. Existing notice copy persists.' : 'Restore the pinned prior command Worker version; rollback does not revoke previously issued protected receipts.'],
-      authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: null, readOnly: true };
+  if (target === 'hosting' && (baselinePath || observeProvider || hostingOrigin || mode === 'acceptance')) {
+    throw new Error('Hosting dependency qualification requires a native production Hosting observation without caller baselines.');
   }
-  if (observeNotification && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed notification observation requires --worker-bundle and --worker-config.');
-  if (observeNotification) return assessNotificationWorker({ cwd, source: await collectSourceState(cwd, base), bundlePath: path.resolve(cwd, workerBundlePath), configPath: path.resolve(cwd, workerConfigPath) });
-  if (observeHomework && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed Homework Worker observation requires --worker-bundle and --worker-config.');
-  if (observeHomework) return assessHomeworkWorker({ cwd, source: await collectSourceState(cwd, base), bundlePath: path.resolve(cwd, workerBundlePath), configPath: path.resolve(cwd, workerConfigPath) });
-  if (observeReadingV2Worker && (!workerBundlePath || !workerConfigPath)) throw new Error('Fixed Reading V2 Worker observation requires --worker-bundle and --worker-config.');
-  if (observeReadingV2Worker && !['predeploy', 'postdeploy'].includes(workerPhase)) throw new Error('Fixed Reading V2 Worker observation requires --worker-phase predeploy or postdeploy.');
-  if (observeReadingV2Worker) return assessReadingV2Worker({ cwd, source: await collectSourceState(cwd, base), bundlePath: path.resolve(cwd, workerBundlePath), configPath: path.resolve(cwd, workerConfigPath), phase: workerPhase });
   if (observe && observeProvider) throw new Error('Choose either manifest or Firebase Hosting provider observation, not both.');
   if (hostingOrigin && mode !== 'acceptance') throw new Error('Hosting origin override is restricted to acceptance mode.');
   if (!['release', 'hotfix', 'acceptance'].includes(mode)) throw new Error(`Unsupported mode ${mode}.`);
   const source = await collectSourceState(cwd, base), findings = [];
   findings.push(source.dirty ? { status: STATUS.BLOCKED, message: 'Candidate worktree is dirty; isolate and review exact changes before release.' } : { status: STATUS.PASS, message: 'Candidate worktree is clean.' });
   const impactPaths = target === 'hosting' ? hostingImpactPaths(cwd, source) : source.files;
+  const dependencyScope = target === 'hosting' ? selectHostingDependencyScope(impactPaths) : null;
   const services = classifyPaths(impactPaths);
   if (impactPaths.length !== source.files.length) findings.push({
     status: STATUS.PASS,
     message: 'Local Firebase and qualification tooling changes fall outside production backend publication. Changed Worker manifests and lockfiles were compared for production dependency changes.',
   });
-  let listeningObservation = null;
-  let editorObservation = null;
-  if (observeListeningEditorRelease) try {
-    if (editorWorkerOnly) assertListeningEditorSource(source, reviewedListeningPreviewRelease);
-    editorObservation = await observeListeningEditor({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig });
-    if (!isListeningEditorObserved(editorObservation)) throw new Error('Untrusted editor observation rejected.');
-    if (productionEnvFingerprint !== editorObservation.local.envSha256) throw new Error('Editor environment fingerprint differs from observed input.');
-    for (const field of ['revision', 'tree', 'baseRevision']) if (editorObservation.source[field] !== source[field]) throw new Error('Editor observation source differs from assessment.');
-    if ((await collectSourceState(cwd, base)).fingerprint !== source.fingerprint) throw new Error('Editor source changed during observation.');
-    findings.push({ status: STATUS.PASS, message: `Fixed ${editorObservation.profile} release independently verified at ${listeningPhase}; scope ${editorObservation.scope}.` });
-  } catch (error) {
-    editorObservation = null;
-    findings.push({ status: STATUS.UNVERIFIED, message: `Editor release readback: ${error.message}` });
-  }
-  if (editorObservation?.profile === 'private-audio' && source.files.includes('scripts/local-book-source-worker.mjs')) services.push('backblaze');
-  services.sort();
-  if (editorWorkerOnly) return {
-    schemaVersion: 1, generatedAt: new Date().toISOString(), mode, scope: 'upload-worker-only',
-    source: { ...source, services: ['worker'], changedServices: services }, baseline: null, observed: null,
-    compatibilityReview: null, listeningObservation: null, editorObservation, hostingReady: false, hotfixes: [],
-    requiredActions: ['Require independent review, fresh native verification and separate Upload Worker authorization.'],
-    deploymentOrder: ['Upload Worker only; Hosting, rules, storage bindings, homework Worker and notifications are excluded.'],
-    recovery: [`Retain Upload Worker version ${reviewedListeningPreviewRelease.upload.versionId}; recovery does not reverse data writes.`],
-    authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null,
-    findings, decision: findings.reduce((status, finding) => rank[finding.status] > rank[status] ? finding.status : status, STATUS.PASS), readOnly: true,
-  };
-  if (observeListening) try {
-    listeningObservation = await observeListeningRelease({ cwd, phase: listeningPhase, uploadBundle: listeningUploadBundle, uploadConfig: listeningUploadConfig, homeworkBundle: listeningHomeworkBundle, homeworkConfig: listeningHomeworkConfig });
-    if (!isListeningReleaseObserved(listeningObservation)) throw new Error('Untrusted Listening observation rejected.');
-    if (productionEnvFingerprint !== listeningObservation.local.envSha256) throw new Error('Listening production environment fingerprint differs from observed input.');
-    for (const field of ['revision', 'tree', 'baseRevision']) if (listeningObservation.source[field] !== source[field]) throw new Error(`Listening observation ${field} differs from assessed source.`);
-    if ((await collectSourceState(cwd, base)).fingerprint !== source.fingerprint) throw new Error('Listening candidate changed during observation.');
-    findings.push({ status: STATUS.PASS, message: `Fixed Listening release independently verified at ${listeningPhase}; Hosting activation requires homework phase.` });
-  } catch (error) {
-    listeningObservation = null;
-    findings.push({ status: STATUS.UNVERIFIED, message: `Listening release readback: ${error.message}` });
-  }
   if (services.includes('migrations')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Review additive migration prerequisites, deployment order and recovery; emulator state is never promoted.' });
-  if (services.includes('backup-worker') && target !== 'hosting' && !listeningObservation && !editorObservation) findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
+  if (services.includes('backup-worker') && target !== 'hosting') findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
   if (services.includes('backblaze')) {
-    const backblazePaths = source.files.filter(file => classifyPaths([file]).includes('backblaze'));
-    const privateLocalBindingOnly = isListeningEditorObserved(editorObservation) && editorObservation.profile === 'private-audio'
-      && editorObservation.local.localListeningBindingOnly === true
-      && backblazePaths.length === 1 && backblazePaths[0] === 'scripts/local-book-source-worker.mjs';
-    findings.push(privateLocalBindingOnly
-      ? { status: STATUS.PASS, message: 'The exact native private-audio profile verifies only the local Listening R2 binding correction; Book/B2 bytes are unchanged.' }
-      : { status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
+    findings.push({ status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
   }
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
-  if (services.includes('worker') && target !== 'hosting' && !listeningObservation && !editorObservation) findings.push(...await workerFindings(cwd, source.files));
+  if (services.includes('worker') && target !== 'hosting') findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
-  if (services.includes('firebase-rules') && target !== 'hosting' && !listeningObservation && !editorObservation) findings.push({ status: STATUS.UNVERIFIED, message: 'Firebase rules, indexes and Functions changes require their own native provider qualification; Hosting observation cannot verify those service scopes.' });
-  if (services.includes('hosting') && services.includes('worker') && target !== 'hosting' && !listeningObservation && !editorObservation) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Worker changed together; verify endpoint and payload compatibility.' });
-  if (services.includes('hosting') && services.includes('firebase-rules') && target !== 'hosting' && !listeningObservation && !editorObservation) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Firebase rules changed together; verify authorization and migration order.' });
+  if (services.includes('firebase-rules') && target !== 'hosting') findings.push({ status: STATUS.UNVERIFIED, message: 'Firebase rules, indexes and Functions changes require their own native provider qualification; Hosting observation cannot verify those service scopes.' });
+  if (services.includes('hosting') && services.includes('worker') && target !== 'hosting') findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Worker changed together; verify endpoint and payload compatibility.' });
+  if (services.includes('hosting') && services.includes('firebase-rules') && target !== 'hosting') findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Firebase rules changed together; verify authorization and migration order.' });
   let baseline = null, baselineFingerprint = null;
   if (baselinePath) try { const raw = await readFile(path.resolve(cwd, baselinePath), 'utf8'); baseline = JSON.parse(raw); baselineFingerprint = sha256(raw); findings.push(...validateBaseline(baseline, services, source.files)); } catch (error) { findings.push({ status: STATUS.UNVERIFIED, message: `Baseline evidence unavailable: ${error.message}` }); }
   else if (!hostingObservation && !observe) findings.push({ status: STATUS.UNVERIFIED, message: 'No deployed baseline evidence supplied; Git branches are not production truth.' });
@@ -401,7 +237,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
   }
   const hasBackendDelta = services.some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service));
   let hostingDependencies = null;
-  if (target === 'hosting' && hasBackendDelta) try {
+  if (target === 'hosting' && hasHostingDependencyProbes(dependencyScope)) try {
     if (!isObserved(observation)) throw new Error('A verified production Hosting observation is required.');
     const dependencies = hostingDependenciesObservation || await observeHostingDependencies({ cwd, source,
       hostingObservation: observation, envFingerprint: productionEnvFingerprint, productionEnvFile });
@@ -412,9 +248,10 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
     hostingDependencies = dependencies;
     findings.push({ status: STATUS.PASS, message: 'Active backend dependencies independently observed for Hosting compatibility review; candidate backend deployment readiness is not granted.' });
   } catch (error) { findings.push({ status: STATUS.UNVERIFIED, message: `Hosting dependencies: ${error.message}` }); }
+  if (hostingDependenciesObservation && !hostingDependencies) findings.push({ status: STATUS.BLOCKED, message: 'Caller-supplied Hosting dependency observation was not independently trusted.' });
   const applicationFrontendChange = source.files.some(file => /^(src\/|vite\.config|index\.html)/u.test(file));
   let compatibilityReview = null;
-  if (applicationFrontendChange || compatibilityReviewPath || inlineCompatibilityReview || (target === 'hosting' && hasBackendDelta)) {
+  if (applicationFrontendChange || compatibilityReviewPath || inlineCompatibilityReview || (target === 'hosting' && hasHostingDependencyProbes(dependencyScope))) {
     if (!compatibilityReviewPath && !inlineCompatibilityReview) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Explicit compatibility review is required for frontend dependence on deployed Worker endpoints, gates, payloads and Firebase permissions.' });
     else try {
       const raw = inlineCompatibilityReview ? JSON.stringify(inlineCompatibilityReview) : await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8');
@@ -484,27 +321,11 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
         : 'Hosting-only deployment.');
     recovery.push('Record the prior Hosting release; Hosting rollback does not reverse database or object changes.');
   }
-  if (editorObservation?.scope === 'upload-worker-only') deploymentOrder.splice(0, deploymentOrder.length, 'Upload Worker only; Hosting, rules, homework Worker and notifications are excluded.');
-  if (['functional-completion', 'private-audio'].includes(editorObservation?.profile)) {
-    const privateAudio = editorObservation.profile === 'private-audio';
-    deploymentOrder.splice(0, deploymentOrder.length, 'Deploy and verify Upload Worker first.', privateAudio
-      ? 'Deploy RTDB rules and verify their exact hash; verify Firestore remains unchanged before Hosting.'
-      : 'Deploy RTDB and Firestore rules and verify both exact rulesets before Hosting.');
-    recovery.push(privateAudio
-      ? 'RTDB tightening requires no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, RTDB, storage and Hosting recovery while preserving Firestore.'
-      : 'Rules tightening blocks older Listening clients during cutover; require no active Listening test. Hosting-only rollback is unsafe: coordinate Upload Worker, both rulesets and Hosting recovery.');
-    if (privateAudio) {
-      deploymentOrder.unshift('Verify the fixed private audio bucket has r2.dev disabled, no custom domains and the exact reviewed lifecycle.',
-        'Verify private audio object-copy and ownership receipts before switching Upload bindings.');
-      deploymentOrder.splice(3, 0, 'After Upload verification, remove only verified shared Listening copies before RTDB rules or Hosting.');
-      recovery.push('Private audio bindings and object ownership require coordinated storage recovery; Hosting rollback does not restore copied or deleted objects.');
-    }
-  }
-  return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, target, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, hostingDependencies, listeningObservation, editorObservation, hostingReady: editorObservation ? listeningEditorHostingReady(editorObservation) : listeningObservation ? listeningPhase === 'homework' : undefined, hotfixes, hotfixComparison, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
+  return { schemaVersion: 1, generatedAt: new Date().toISOString(), mode, target, source: { ...source, services }, baseline: baseline ? { sha256: baselineFingerprint } : null, observed: isObserved(observation) ? observation : null, compatibilityReview, hostingDependencies, hotfixes, hotfixComparison, requiredActions, deploymentOrder, recovery, authorization: 'NOT_AUTHORIZED', execution: 'NOT_EXECUTED', productionEnvFingerprint: productionEnvFingerprint || null, findings, decision, readOnly: true };
 }
 
 export const formatReport = result => [`Release assessment: ${result.decision}`, `Mode: ${result.mode}`, `Revision: ${result.source.revision}`, `Branch: ${result.source.branch || 'detached'}`, `Worktree: ${result.source.dirty ? 'DIRTY' : 'clean'}`, `Services: ${result.source.services.join(', ') || 'none identified'}`, ...result.findings.map(finding => `[${finding.status}] ${finding.message}`)].join('\n');
-const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-listening-editor-release') args.observeListeningEditorRelease = true; else if (value === '--observe-listening-release') args.observeListening = true; else if (value === '--listening-phase') args.listeningPhase = argv[++i]; else if (value === '--listening-upload-bundle') args.listeningUploadBundle = argv[++i]; else if (value === '--listening-upload-config') args.listeningUploadConfig = argv[++i]; else if (value === '--listening-homework-bundle') args.listeningHomeworkBundle = argv[++i]; else if (value === '--listening-homework-config') args.listeningHomeworkConfig = argv[++i]; else if (value === '--observe-homework-worker') args.observeHomework = true; else if (value === '--observe-notification-worker') args.observeNotification = true; else if (value === '--observe-writing-homework-worker') args.observeWritingHomeworkWorker = true; else if (value === '--observe-teacher-homework-notification-worker') args.observeTeacherHomeworkNotificationWorker = true; else if (value === '--observe-reading-v2-worker') args.observeReadingV2Worker = true; else if (value === '--worker-phase') args.workerPhase = argv[++i]; else if (value === '--worker-bundle') args.workerBundlePath = argv[++i]; else if (value === '--worker-config') args.workerConfigPath = argv[++i]; else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--target') args.target = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--production-env-file') args.productionEnvFile = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
+const parseArgs = argv => { const args = { mode: 'release' }; for (let i = 0; i < argv.length; i += 1) { const value = argv[i]; if (value === '--cwd') args.cwd = path.resolve(argv[++i]); else if (value === '--observe-hosting') args.observe = true; else if (value === '--observe-hosting-provider') args.observeProvider = true; else if (value === '--hosting-origin') args.hostingOrigin = argv[++i]; else if (value === '--compatibility-review') args.compatibilityReviewPath = argv[++i]; else if (value === '--target') args.target = argv[++i]; else if (value === '--mode') args.mode = argv[++i]; else if (value === '--base') args.base = argv[++i]; else if (value === '--baseline') args.baselinePath = argv[++i]; else if (value === '--env-fingerprint') args.productionEnvFingerprint = argv[++i]; else if (value === '--production-env-file') args.productionEnvFile = argv[++i]; else if (value === '--receipt') args.receipt = argv[++i]; else if (value === '--json') args.json = true; else throw new Error(`Unknown argument ${value}`); } return args; };
 const receiptPath = async (cwd, value) => { if (!value) return null; const root = path.resolve(cwd, 'tmp', 'release-receipts'); const target = path.resolve(cwd, value); const relative = path.relative(root, target); if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('Receipt must be written under tmp/release-receipts.'); for (let cursor = path.dirname(target); ; cursor = path.dirname(cursor)) { try { if ((await lstat(cursor)).isSymbolicLink()) throw new Error('Receipt directory cannot contain symlinks.'); } catch (error) { if (error.code !== 'ENOENT') throw error; } if (cursor === root) break; if (cursor === path.dirname(cursor)) throw new Error('Receipt path could not be contained under tmp/release-receipts.'); } const repoRelative = path.relative(cwd, target); if (git(['ls-files', '--', repoRelative], cwd).trim()) throw new Error('Receipt path is tracked; choose a generated path.'); try { await access(target); throw new Error('Receipt already exists; choose a new generated path.'); } catch (error) { if (error.message.startsWith('Receipt already exists')) throw error; } return target; };
 export async function main(argv = process.argv.slice(2), cwd = repoRoot) { try { const args = parseArgs(argv); if (!args.inlineCompatibilityReview && process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) args.inlineCompatibilityReview = parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING).review; const result = await assess({ cwd, ...args }), target = await receiptPath(args.cwd || cwd, args.receipt); if (target) { await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(result, null, 2)}\n`, 'utf8'); } console.log(args.json ? JSON.stringify(result, null, 2) : formatReport(result)); return [STATUS.PASS, STATUS.NOT_APPLICABLE].includes(result.decision) ? 0 : 2; } catch (error) { console.error(`[Release assessment failed] ${error.message}`); return 1; } }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

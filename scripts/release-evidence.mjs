@@ -180,6 +180,70 @@ export async function observeHosting({ fetchImpl = fetch, originOverride, expect
   throw lastError;
 }
 
+const defaultSleep = delay => new Promise(resolve => setTimeout(resolve, delay));
+
+export async function waitForHostingLive({ expectedManifestFingerprint, beforeProviderIdentity, operationId,
+  observeProvider = observeHostingProvider, observeSource = observeHosting, timeoutMs = 90_000,
+  initialDelayMs = 2_000, maxDelayMs = 10_000, backoffFactor = 1.5, sleep = defaultSleep,
+  now = Date.now, onPoll } = {}) {
+  const providerIdentity = observation => `${observation.provider.version}@${observation.provider.releaseTime}`;
+  const operationPrefix = `[luyentap:${operationId}] `;
+  const deadline = now() + timeoutMs;
+  const confirmationError = `Release ${operationId} is not confirmed as the current provider release; inspect its recorded operation. No deployment was performed by verification.`;
+  const timeoutError = `Release ${operationId} is not confirmed as the current provider release after ${Math.round(timeoutMs / 1000)}s; inspect its recorded operation. No deployment was performed by verification.`;
+  let delay = initialDelayMs;
+  let provider;
+  let providerAttempts = 0;
+
+  while (true) {
+    let error;
+    providerAttempts += 1;
+    try {
+      provider = await observeProvider();
+      const identity = providerIdentity(provider);
+      if (identity !== beforeProviderIdentity) {
+        if (typeof provider.provider.message !== 'string' || !provider.provider.message.startsWith(operationPrefix)) throw new Error(confirmationError);
+        break;
+      }
+    } catch (caught) {
+      error = caught;
+      if (caught?.message === confirmationError) throw caught;
+    }
+    if (now() >= deadline) throw new Error(timeoutError);
+    onPoll?.({ phase: 'provider', attempts: providerAttempts, provider, error, delay });
+    await sleep(Math.min(delay, Math.max(0, deadline - now())));
+    delay = Math.min(Math.round(delay * backoffFactor), maxDelayMs);
+  }
+
+  delay = initialDelayMs;
+  let attempts = 0;
+  let source;
+  let lastSource;
+  let lastError;
+  while (true) {
+    attempts += 1;
+    try {
+      source = await observeSource();
+      lastSource = source;
+      const after = await observeProvider();
+      if (providerIdentity(after) !== providerIdentity(provider)) {
+        return { provider, source, verification: 'unverified', lastError: 'provider release changed during verification' };
+      }
+      if (source.fingerprint === expectedManifestFingerprint) {
+        return { provider, source, verification: 'passed', attempts };
+      }
+      lastError = `served manifest fingerprint ${source.fingerprint} does not yet match expected ${expectedManifestFingerprint}`;
+    } catch (error) {
+      lastError = error?.message || String(error);
+    }
+    if (now() >= deadline) break;
+    onPoll?.({ phase: 'source', attempts, provider, source: lastSource, error: lastError, delay });
+    await sleep(Math.min(delay, Math.max(0, deadline - now())));
+    delay = Math.min(Math.round(delay * backoffFactor), maxDelayMs);
+  }
+  return { provider, source: lastSource, verification: 'unverified', lastError };
+}
+
 export async function writeHostingManifest({ cwd, envFingerprint, buildInputFingerprint, environment = 'production', hotfixes = [] }) {
   if (!['production', 'acceptance'].includes(environment)) throw new Error('Hosting manifest environment must be production or acceptance.');
   if (buildInputFingerprint !== undefined && !digestPattern.test(buildInputFingerprint)) throw new Error('Hosting manifest build-input identity is invalid.');
