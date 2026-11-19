@@ -73,7 +73,7 @@ const readConcurrent = async (items, limit, read) => {
   }
 };
 
-const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvironment, readConcurrency }) => {
+const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvironment, readConcurrency, expectedManifestBytes }) => {
   const get = async pathname => {
     let response;
     try {
@@ -97,6 +97,9 @@ const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvir
   };
 
   const manifestBytes = await get(manifestPath);
+  if (expectedManifestBytes && !expectedManifestBytes.equals(manifestBytes)) {
+    throw new Error('Served manifest differs from the local dist/ manifest.');
+  }
   let manifest;
   try {
     manifest = JSON.parse(manifestBytes.toString('utf8'));
@@ -111,10 +114,30 @@ const observeHostingAttempt = async ({ fetchImpl, effectiveOrigin, expectedEnvir
   await readConcurrent(manifest.files, readConcurrency, async file => {
     if (hash(await get(file.path)) !== file.sha256) throw transientReadError(`Hosting content drift: ${file.path}`);
   });
+  if (expectedManifestBytes && hash(await get('/')) !== manifest.files.find(file => file.path === '/index.html').sha256) {
+    throw new Error('Local preview home page differs from the artifact index.html.');
+  }
   return Object.freeze({ service: 'hosting', identity: 'temp-a1437/kahut1', revision: manifest.revision, tree: manifest.tree, fingerprint: hash(JSON.stringify(manifest)), evidenceRef: `${effectiveOrigin}${manifestPath}`, observedAt: new Date().toISOString(), compatibility: manifest.compatibility || {}, manifest, sourceKnown: true });
 };
 
-// Only fixed production HTTPS resources are read; supplied JSON never enters this trust boundary.
+// This local check deliberately does not register a trusted provider observation.
+export async function readLocalProductionBuild({ cwd, localOrigin }) {
+  const parsed = new URL(localOrigin);
+  if (parsed.protocol !== 'http:' || parsed.hostname !== 'localhost'
+    || !parsed.port || parsed.origin !== localOrigin) {
+    throw new Error('Local production build readback requires an http://localhost:<port> origin.');
+  }
+  const expectedManifestBytes = await readFile(path.join(cwd, 'dist', manifestPath.slice(1)));
+  const result = await observeHostingAttempt({
+    fetchImpl: fetch, effectiveOrigin: localOrigin, expectedEnvironment: 'production',
+    readConcurrency: defaultReadConcurrency, expectedManifestBytes,
+  });
+  return { scope: 'local-production-build', origin: localOrigin, revision: result.revision,
+    tree: result.tree, manifestSha256: result.fingerprint, manifestFileSha256: hash(expectedManifestBytes),
+    verifiedFiles: result.manifest.files.length };
+}
+
+// Only fixed production HTTPS resources are trusted for production observation.
 export async function observeHosting({ fetchImpl = fetch, originOverride, expectedEnvironment = 'production', readConcurrency = defaultReadConcurrency, maxAttempts = defaultReadAttempts, retryDelayMs = defaultRetryDelayMs } = {}) {
   const effectiveOrigin = originOverride || origin;
   if (!['production', 'acceptance'].includes(expectedEnvironment)) throw new Error('Invalid Hosting evidence environment.');

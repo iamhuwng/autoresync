@@ -24,20 +24,61 @@ The Worker uses `UPLOAD_RATE_LIMITER`, namespace `205514`, at 30 requests per
 an independently provisioned namespace resource is not required. The variable
 name matches the Worker code rather than a descriptive namespace label.
 
-The local QA configuration is `%USERPROFILE%\.luyentap\qualification\.env`.
-Build with `LUYENTAP_ENV_DIR` set to that directory so shared development or
-production env files are not loaded. A QA-only build is not a retained
-production artifact. GitHub environment `qualification` retains the same
-configuration as `LUYENTAP_QUALIFICATION_ENV`, plus its existing OIDC identity;
-`LUYENTAP_QUALIFICATION_WORKER_URL` records the stable endpoint. Reuse these
-settings instead of recreating the foundation for every deployment.
+For provider qualification operations, use the saved configuration at
+`%USERPROFILE%\.luyentap\qualification\.env` or the existing GitHub environment
+`qualification`. That environment owns `LUYENTAP_QUALIFICATION_ENV`, its OIDC
+identity, and `LUYENTAP_QUALIFICATION_WORKER_URL`.
+
+## Routine localhost qualification
+
+Run `npm.cmd run dev` for the spare-service teacher site at
+`http://localhost:5173/login`. For a student journey, use
+`npm.cmd run dev -- --port 5174` and open `http://localhost:5174/login`.
+The launcher fetches the spare project's Firebase configuration and checks its
+project and backend identity. To preview a built spare site, use
+`npm.cmd run build:spare` and then `npm.cmd run preview:spare`. The spare build
+uses `dist-spare/` and leaves the release artifact in `dist/`.
+[Native development commands](native-development.md)
+
+Use temporary QA accounts and verify each Worker and external service used by
+the journey targets the spare environment. For Student ID checks, confirm the
+active spare Worker allows the selected localhost origin and that spare Firebase
+Auth domains and API key restrictions permit the journey. The checked-in spare
+Worker configuration includes ports 5173 and 5174. If a run needs a temporary
+origin, coordinate with the QA Worker operator, record the prior allowlist,
+and verify restoration in cleanup.
+
+Use spare Hosting only for a deployed-origin requirement such as a real
+Hosting rewrite, header or hosted callback. Build the release artifact
+separately using the production build command and follow the
+[routine Hosting release](release-safety.md#routine-hosting-release).
 
 For exact-built-artifact proof, use the production build route with the separate
-qualification Firebase inputs, verify isolation for every service the selected
-journey calls, and retain `dist/` with `--hosting-artifact` in the existing
-verification bundle. Promotion restores those bytes. A QA-only build is useful
-source/behavior evidence but cannot qualify a different production artifact.
+qualification Firebase inputs only when the selected journey needs the QA
+Hosting origin. Verify isolation for every service the selected journey calls,
+and retain `dist/` with `--hosting-artifact` in the existing verification
+bundle. Promotion restores those bytes.
 See [release-safety.md](release-safety.md#codex-verification-handoff).
+
+## Deployed-origin checks on the spare project
+
+Use a uniquely named disposable Hosting channel and record its project, site,
+and channel ID before deployment. Create a temporary Firebase config containing
+only the canonical `kahut1` Hosting entry from `firebase.json`. Replace
+`target` with `site: "luyentap-pdf-qa-20261021"`, point `public` at the selected
+artifact, and omit the `**/.*` ignore entry so the retained manifest is served.
+Keep the canonical headers and rewrites.
+
+Use the repository Firebase CLI's `hosting:channel:deploy` with that config
+and explicit spare project. Independently read back the candidate manifest and
+listed files, then run the selected journey against the existing spare rules
+and trusted test fixtures. Delete that exact channel in cleanup and verify
+its absence with `hosting:channel:list`. Remove any temporary account, data,
+or Worker origin recorded for the run. The historical fixture-rules helper
+`scripts/release-browser-gate.mjs` requires a separate disposable Firebase
+project because it replaces RTDB rules.
+
+## Spare backend operations
 
 Git-triggered Cloudflare builds on this QA Worker are disabled. Publish selected
 QA Worker source through the explicit `wrangler.qualification.jsonc` route;

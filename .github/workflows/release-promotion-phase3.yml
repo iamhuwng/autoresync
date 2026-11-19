@@ -55,6 +55,7 @@ jobs:
       id-token: write
     outputs:
       artifact_sha256: ${{ steps.artifact.outputs.sha256 }}
+      manifest_file_sha256: ${{ steps.artifact.outputs.manifest_file_sha256 }}
       assessment_publishable: ${{ steps.assessment.outputs.publishable }}
       card_sha256: ${{ steps.release-card.outputs.sha256 }}
     steps:
@@ -106,8 +107,6 @@ jobs:
           set -euo pipefail
           gcloud auth print-access-token --quiet >/dev/null
           node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json >/dev/null
-      - name: Prove the preflight identity can read Hosting metadata
-        run: node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json
       - name: Materialize the isolated production environment
         env:
           PRODUCTION_ENV: ${{ secrets.LUYENTAP_RELEASE_ENV }}
@@ -134,13 +133,6 @@ jobs:
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
         run: npm run build:production -- --build-only
-      - name: Record the retained artifact identity
-        id: artifact
-        run: echo "sha256=$(node scripts/release-promotion.mjs --artifact-digest)" >> "$GITHUB_OUTPUT"
-      - name: Validate the exact public artifact before upload
-        run: |
-          set -euo pipefail
-          node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Assess the exact source and live baseline
         id: assessment
         env:
@@ -156,6 +148,25 @@ jobs:
           echo "publishable=$([ "$decision" = PASS ] || [ "$decision" = NOT_APPLICABLE ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Execute the reviewed verification plan
         run: node scripts/release-promotion.mjs --run-verification --output "$RUNNER_TEMP/verification.json"
+      - name: Test the exact production artifact over localhost HTTP
+        id: artifact
+        run: |
+          set -euo pipefail
+          preview_origin=http://localhost:5173
+          node node_modules/vite/bin/vite.js preview --host localhost --port 5173 --strictPort > "$RUNNER_TEMP/hosting-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          if ! curl --silent --fail --retry 15 --retry-delay 1 --retry-connrefused --max-time 2 "$preview_origin/" >/dev/null; then
+            cat "$RUNNER_TEMP/hosting-preview.log" >&2
+            exit 1
+          fi
+          kill -0 "$preview_pid"
+          node scripts/release-local-readback.mjs "$preview_origin" > "$RUNNER_TEMP/hosting-readback.json"
+          node -e 'const { manifestSha256, manifestFileSha256 } = require(process.argv[1]); console.log("sha256=" + manifestSha256); console.log("manifest_file_sha256=" + manifestFileSha256);' "$RUNNER_TEMP/hosting-readback.json" >> "$GITHUB_OUTPUT"
+      - name: Validate the exact public artifact before upload
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Preserve assessment and verification evidence
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
@@ -164,6 +175,7 @@ jobs:
           mkdir -p tmp/release-card tmp/release-plan
           cp "$RUNNER_TEMP/promotion-inputs.json" tmp/release-card/promotion-inputs.json
           cp "$RUNNER_TEMP/verification.json" tmp/release-card/verification.json
+          cp "$RUNNER_TEMP/hosting-readback.json" tmp/release-card/hosting-readback.json
           cp "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json" tmp/release-card/assessment.json
           cp "tmp/release-receipts/ci-verification-plan.json" tmp/release-plan/ci-verification-plan.json
       - name: Build the source-bound release card
@@ -264,6 +276,7 @@ jobs:
         env:
           EXPECTED_CARD_SHA256: ${{ needs.prepare.outputs.card_sha256 }}
           EXPECTED_ARTIFACT_SHA256: ${{ needs.prepare.outputs.artifact_sha256 }}
+          EXPECTED_MANIFEST_FILE_SHA256: ${{ needs.prepare.outputs.manifest_file_sha256 }}
         run: |
           set -euo pipefail
           card="$RUNNER_TEMP/release-card/release-card.json"
@@ -271,6 +284,7 @@ jobs:
           test "$(node scripts/release-promotion.mjs --check-card "$card")" = "$EXPECTED_CARD_SHA256"
           test "$(node scripts/release-promotion.mjs --require-verification "$card")" = "$EXPECTED_CARD_SHA256"
           test "$(node scripts/release-promotion.mjs --artifact-digest)" = "$EXPECTED_ARTIFACT_SHA256"
+          test "$(sha256sum dist/.well-known/luyentap-release.json | cut -d' ' -f1)" = "$EXPECTED_MANIFEST_FILE_SHA256"
       - name: Require the production Firebase federation configuration
         env:
           WORKLOAD_IDENTITY_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
@@ -336,6 +350,9 @@ jobs:
           if test -n "$operation"; then
             echo "Hosting operation: $operation" >> "$GITHUB_STEP_SUMMARY"
             echo "$operation" > "$RUNNER_TEMP/operation-id"
+          fi
+          if test "$status" -eq 0; then
+            CARD="$RUNNER_TEMP/release-card/release-card.json" node --input-type=module -e 'import fs from "node:fs"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Live Hosting verified\n- Site: https://kahut1.web.app\n- Source: \`${card.source.revision}\`\n- Artifact: \`${card.artifact.manifestSha256}\`\n`);'
           fi
           exit "$status"
       - name: Retain durable Hosting operation evidence
