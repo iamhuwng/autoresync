@@ -139,6 +139,7 @@ jobs:
             `- Dependencies fingerprint \`${plan.assessment?.hostingDependencies?.fingerprint || 'unavailable'}\``,
             ...plan.blockers.map(blocker => `- ${blocker.replace(/\s+/g, ' ')}`),
           ];
+          console.log(lines.join('\n'));
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
           if (!plan.live || !plan.integration.protectedMain.matches || !plan.assessment
             || plan.assessment.findings.some(finding => ['BLOCKED', 'UNVERIFIED'].includes(finding.status))) process.exitCode = 1;
