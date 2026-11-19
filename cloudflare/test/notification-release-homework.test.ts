@@ -99,7 +99,8 @@ it('delivers assignment proofs and THCS receipts through the frozen release with
       submittedAt: occurredAt, resultId: 'result', status: 'submitted',
     };
     const result = {
-      resultId: 'result', studentId: 'student', testId: 'test', submittedAt: occurredAt - 500,
+      resultId: 'result', studentId: 'student', studentName: 'Student One', testTitle: 'Class Writing Homework',
+      testId: 'test', submittedAt: occurredAt - 500,
       createdAt: occurredAt - 250, testType: 'THCS-THPT', testSkill: 'Mixed', isGuest: false,
       sessionCode: 'homework_practice_attempt', 'context/type': 'homework',
       'context/source/id': 'homework', 'context/source/type': 'homework',
@@ -136,7 +137,10 @@ it('delivers assignment proofs and THCS receipts through the frozen release with
     const replay = await submit();
     expect(replay.status).toBe(200);
     expect(await replay.json()).toEqual({ status: 'replayed' });
-    expect(values[noticePath]).toMatchObject({ read: true, link: '/teacher/homework/homework' });
+    expect(values[noticePath]).toMatchObject({
+      read: true, link: '/teacher/homework/homework',
+      message: 'Student One submitted "Class Writing Homework".',
+    });
     expect(writes.slice(2)).toEqual(['result_notification_authority/result', noticePath]);
 
     documents['homework_assignments/writing-homework'] = {
