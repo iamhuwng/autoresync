@@ -5,11 +5,12 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Publish a prepared release or resume an existing operation'
+        description: 'Plan a release, publish a prepared release, or resume an existing operation'
         required: true
         default: publish
         type: choice
         options:
+          - plan
           - publish
           - verify-existing
       operation_id:
@@ -47,7 +48,7 @@ env:
 
 jobs:
   prepare:
-    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && inputs.operation == 'publish' }}
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation == 'publish' || inputs.operation == 'plan') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -115,7 +116,35 @@ jobs:
           test -n "$PRODUCTION_ENV"
           umask 077
           printf '%s\n' "$PRODUCTION_ENV" > "$RUNNER_TEMP/.env.production"
+      - name: Observe protected main and its live Hosting dependencies
+        if: ${{ inputs.operation == 'plan' }}
+        env:
+          LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: ${{ secrets.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          set -euo pipefail
+          status=0
+          node scripts/release-plan.mjs --json --env-file "$RUNNER_TEMP/.env.production" > "$RUNNER_TEMP/release-plan.json" || status=$?
+          test "$status" -eq 0 -o "$status" -eq 2
+          node --input-type=module - "$RUNNER_TEMP/release-plan.json" <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const plan = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          const lines = [
+            '## Read-only Hosting plan',
+            `- Protected source \`${plan.source.revision}\``,
+            `- Source fingerprint \`${plan.source.fingerprint || 'unavailable'}\``,
+            `- Live base \`${plan.live?.revision || 'unavailable'}\``,
+            `- Live fingerprint \`${plan.live?.fingerprint || 'unavailable'}\``,
+            `- Dependencies fingerprint \`${plan.assessment?.hostingDependencies?.fingerprint || 'unavailable'}\``,
+            ...plan.blockers.map(blocker => `- ${blocker.replace(/\s+/g, ' ')}`),
+          ];
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          if (!plan.live || !plan.integration.protectedMain.matches || !plan.assessment
+            || plan.assessment.findings.some(finding => ['BLOCKED', 'UNVERIFIED'].includes(finding.status))) process.exitCode = 1;
+          NODE
       - name: Derive release inputs from the exact source and live Hosting
+        if: ${{ inputs.operation == 'publish' }}
         env:
           GH_TOKEN: ${{ github.token }}
           OBJECTIVE: ${{ inputs.objective }}
@@ -127,16 +156,21 @@ jobs:
           node scripts/release-promotion.mjs --export-inputs "$RUNNER_TEMP/promotion-inputs.json"
       - name: Restore the artifact retained with Codex verification
         id: tested-artifact
+        if: ${{ inputs.operation == 'publish' }}
         run: node scripts/release-promotion.mjs --restore-artifact "$RUNNER_TEMP/promotion-inputs.json" >> "$GITHUB_OUTPUT"
       - name: Build once when verification used source-level checks
-        if: ${{ steps.tested-artifact.outputs.restored != 'true' }}
+        if: ${{ inputs.operation == 'publish' && steps.tested-artifact.outputs.restored != 'true' }}
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
         run: npm run build:production -- --build-only
       - name: Assess the exact source and live baseline
         id: assessment
+        if: ${{ inputs.operation == 'publish' }}
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: ${{ secrets.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
         run: |
           set -euo pipefail
           set +e
@@ -147,9 +181,11 @@ jobs:
           decision="$(node --input-type=module -e 'import fs from "node:fs"; process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).decision)' "tmp/release-receipts/ci-${GITHUB_RUN_ID}.json")"
           echo "publishable=$([ "$decision" = PASS ] || [ "$decision" = NOT_APPLICABLE ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Execute the reviewed verification plan
+        if: ${{ inputs.operation == 'publish' }}
         run: node scripts/release-promotion.mjs --run-verification --output "$RUNNER_TEMP/verification.json"
       - name: Test the exact production artifact over localhost HTTP
         id: artifact
+        if: ${{ inputs.operation == 'publish' }}
         run: |
           set -euo pipefail
           preview_origin=http://localhost:5173
@@ -164,10 +200,12 @@ jobs:
           node scripts/release-local-readback.mjs "$preview_origin" > "$RUNNER_TEMP/hosting-readback.json"
           node -e 'const { manifestSha256, manifestFileSha256 } = require(process.argv[1]); console.log("sha256=" + manifestSha256); console.log("manifest_file_sha256=" + manifestFileSha256);' "$RUNNER_TEMP/hosting-readback.json" >> "$GITHUB_OUTPUT"
       - name: Validate the exact public artifact before upload
+        if: ${{ inputs.operation == 'publish' }}
         run: |
           set -euo pipefail
           node --input-type=module -e 'import fs from "node:fs/promises"; import { assertHostingArtifact } from "./scripts/release-archive.mjs"; const manifest=JSON.parse(await fs.readFile("dist/.well-known/luyentap-release.json","utf8")); await assertHostingArtifact(process.cwd(), manifest);'
       - name: Preserve assessment and verification evidence
+        if: ${{ inputs.operation == 'publish' }}
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
         run: |
@@ -180,7 +218,7 @@ jobs:
           cp "tmp/release-receipts/ci-verification-plan.json" tmp/release-plan/ci-verification-plan.json
       - name: Build the source-bound release card
         id: release-card
-        if: ${{ steps.assessment.outputs.publishable == 'true' }}
+        if: ${{ inputs.operation == 'publish' && steps.assessment.outputs.publishable == 'true' }}
         env:
           LUYENTAP_RELEASE_INPUTS_FILE: ${{ runner.temp }}/promotion-inputs.json
           LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ steps.artifact.outputs.sha256 }}
@@ -198,12 +236,14 @@ jobs:
           CARD="$card" node --input-type=module -e 'import fs from "node:fs"; const card=JSON.parse(fs.readFileSync(process.env.CARD,"utf8")); const tag=card.verificationBundle?.tag; if (tag) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- [Source-bound verification evidence](https://github.com/${card.repository}/releases/tag/${tag})\n`);'
           echo "sha256=$(cat "$RUNNER_TEMP/approved-release-card-sha256")" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.operation == 'publish' }}
         with:
           name: luyentap-release-card-${{ github.run_id }}
           path: tmp/release-card
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.operation == 'publish' }}
         with:
           name: luyentap-hosting-artifact-${{ github.run_id }}
           path: dist
@@ -211,13 +251,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.operation == 'publish' }}
         with:
           name: luyentap-verification-plan-${{ github.run_id }}
           path: tmp/release-plan
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4
-        if: ${{ steps.assessment.outputs.publishable == 'true' }}
+        if: ${{ inputs.operation == 'publish' && steps.assessment.outputs.publishable == 'true' }}
         with:
           name: luyentap-approved-release-card-${{ github.run_id }}
           path: ${{ runner.temp }}/approved-release-card
@@ -226,7 +267,7 @@ jobs:
 
   promote:
     needs: [prepare]
-    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.card_sha256 != '' }}
+    if: ${{ inputs.operation == 'publish' && needs.prepare.result == 'success' && needs.prepare.outputs.card_sha256 != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment:
@@ -333,6 +374,9 @@ jobs:
       - name: Publish the retained artifact through the existing guarded route
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: ${{ secrets.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           LUYENTAP_CHANGELOG_DIR: ${{ runner.temp }}/luyentap-changelog
           LUYENTAP_RELEASE_OPERATION_FILE: ${{ runner.temp }}/release-result/operation.json
           GH_TOKEN: ${{ github.token }}

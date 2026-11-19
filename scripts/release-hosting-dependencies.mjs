@@ -157,7 +157,7 @@ async function readLocal(cwd, source, hostingObservation, envFingerprint, produc
 export async function observeHostingDependencies({ cwd, source, hostingObservation, envFingerprint, productionEnvFile } = {}) {
   assert(isObserved(hostingObservation), 'Untrusted Hosting observation rejected');
   const local = await readLocal(cwd, source, hostingObservation, envFingerprint, productionEnvFile);
-  const options = { firestore: true, privateAudio: true, firestoreIndexes: Boolean(local.indexes) };
+  const options = { firestore: true, privateAudio: true, firestoreIndexes: Boolean(local.indexes), hosting: true };
   const provider = await readListeningProvider(cwd, options);
   validateHostingDependencies(local, provider);
   assert.deepEqual(await readListeningProvider(cwd, options), provider, 'Hosting dependencies changed during observation');

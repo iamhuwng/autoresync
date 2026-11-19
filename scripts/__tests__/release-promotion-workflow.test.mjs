@@ -29,10 +29,11 @@ test('prepare binds the retained Codex verification bundle before production aut
   assert.match(prepare, /luyentap-approved-release-card-/u);
   assert.match(prepare, /Require protected main before preparation/u);
   assert.match(prepare, /--restore-artifact "\$RUNNER_TEMP\/promotion-inputs\.json"/u);
-  assert.match(prepare, /if: \$\{\{ steps\.tested-artifact\.outputs\.restored != 'true' \}\}/u);
+  assert.match(prepare, /if: \$\{\{ inputs\.operation == 'publish' && steps\.tested-artifact\.outputs\.restored != 'true' \}\}/u);
   const readbackStep = prepare.slice(prepare.indexOf('Test the exact production artifact over localhost'), prepare.indexOf('Validate the exact public artifact'));
   assert.match(readbackStep, /id: artifact/u);
-  assert.doesNotMatch(readbackStep, /\n\s+if:/u);
+  assert.match(readbackStep, /if: \$\{\{ inputs\.operation == 'publish' \}\}/u);
+  assert.doesNotMatch(readbackStep, /tested-artifact|outputs\.restored/u);
   assert.match(readbackStep, /release-local-readback\.mjs "\$preview_origin"/u);
   assert.match(readbackStep, /manifestSha256/u);
   assert.match(readbackStep, /manifestFileSha256/u);
@@ -44,6 +45,25 @@ test('prepare binds the retained Codex verification bundle before production aut
   assert.match(prepare, /contents: read/u);
   assert.doesNotMatch(prepare, /environment:\s*name: production/u);
   assert.doesNotMatch(prepare, /cat "\$card" >> "\$GITHUB_STEP_SUMMARY"/u);
+});
+
+test('read-only plans use the federated preflight and cannot create a production approval job', () => {
+  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
+  const promote = workflow.slice(workflow.indexOf('  promote:'), workflow.indexOf('  recover:'));
+  const plan = prepare.slice(prepare.indexOf('Observe protected main and its live Hosting dependencies'), prepare.indexOf('Derive release inputs'));
+  assert.match(plan, /inputs\.operation == 'plan'/u);
+  assert.match(plan, /release-plan\.mjs --json --env-file/u);
+  assert.match(plan, /'BLOCKED', 'UNVERIFIED'/u);
+  assert.match(plan, /hostingDependencies\?\.fingerprint/u);
+  assert.match(plan, /LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: .*vars\.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT/u);
+  assert.match(plan, /LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: .*secrets\.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN/u);
+  assert.doesNotMatch(plan, /deploy:hosting|build:production|PRODUCTION_GOOGLE_SERVICE_ACCOUNT/u);
+  const publication = prepare.slice(prepare.indexOf('Derive release inputs'));
+  for (const step of publication.split(/(?=^      - )/mu).filter(value => value.trim())) {
+    assert.match(step, /if: \$\{\{ inputs\.operation == 'publish'/u);
+  }
+  assert.match(promote, /if: \$\{\{ inputs\.operation == 'publish' && needs\.prepare\.result == 'success'/u);
+  assert.match(promote, /LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: .*vars\.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT/u);
 });
 
 test('promote verifies the source-bound card and retains guarded publication/recovery', () => {
