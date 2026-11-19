@@ -129,6 +129,35 @@ describe('AuthContext', () => {
     });
   });
 
+  it.each(['teacher', 'student'])('waits for the returning Google %s profile before exposing the session', async (role) => {
+    let authChanged: (user: unknown) => void = () => {};
+    mockOnAuthStateChanged.mockImplementation((_auth, callback) => {
+      authChanged = callback;
+      callback(null);
+      return vi.fn();
+    });
+    mockOnValue.mockReturnValue(vi.fn());
+    render(<AuthProvider><TestComponent /></AuthProvider>);
+
+    await act(async () => {
+      authChanged({
+        uid: 'returning-google',
+        email: 'returning@example.test',
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com' }],
+      });
+    });
+    expect(screen.getByTestId('user')).toHaveTextContent('no-user');
+    expect(screen.getByTestId('profile')).toHaveTextContent('no-profile');
+
+    const resolveProfile = mockOnValue.mock.calls[1][1];
+    await act(async () => {
+      resolveProfile({ val: () => ({ role, status: 'active' }) });
+    });
+    expect(screen.getByTestId('user')).toHaveTextContent('returning@example.test');
+    expect(screen.getByTestId('profile')).toHaveTextContent(role);
+  });
+
   it('defers first-time Google profile creation until student registration is completed', async () => {
     const mockUser = {
       uid: 'test-uid-123',

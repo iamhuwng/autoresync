@@ -85,11 +85,16 @@ describe('LoginPage', () => {
     expect(mockTrackAction).toHaveBeenCalledWith('login', { method: 'google' });
   });
 
-  it('opens the student registration form for a new Google account with a fixed email', async () => {
-    mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: { email: 'new.google@example.com' } });
+  it('waits for the observed Google session before opening student registration', async () => {
+    const account = { uid: 'new-google', email: 'new.google@example.com', providerData: [{ providerId: 'google.com' }] };
+    mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: account });
     const user = userEvent.setup();
-    renderPage();
+    const { rerender } = renderPage();
     await user.click(screen.getByRole('button', { name: /sign in with google/i }));
+    expect(screen.queryByRole('heading', { name: /create your account/i })).not.toBeInTheDocument();
+
+    mockUseAuth.mockReturnValue({ ...mockUseAuth(), user: account });
+    rerender(<BrowserRouter><LoginPage /></BrowserRouter>);
     expect(screen.getByRole('heading', { name: /create your account/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email address/i)).toHaveValue('new.google@example.com');
     expect(screen.getByLabelText(/email address/i)).toHaveAttribute('readonly');
@@ -117,19 +122,25 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText(/email address/i)).toHaveAttribute('readonly');
     expect(await screen.findByLabelText(/first name/i)).toHaveValue('Saved');
     expect(screen.getByLabelText(/student id \/ username/i)).toHaveValue('saved-7');
+    expect(screen.getByLabelText(/^password$/i)).toHaveValue('');
+    expect(screen.getByLabelText(/confirm password/i)).toHaveValue('');
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('completes a new Google account through the student registration submit path', async () => {
-    mockLogin.mockResolvedValueOnce({ needsStudentRegistration: true, user: { email: 'new.google@example.com' } });
+    mockUseAuth.mockReturnValue({
+      ...mockUseAuth(),
+      user: { uid: 'new-google', email: 'new.google@example.com', providerData: [{ providerId: 'google.com' }] },
+    });
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole('button', { name: /sign in with google/i }));
     await user.type(screen.getByLabelText(/first name/i), 'New');
     await user.type(screen.getByLabelText(/last name/i), 'Google');
     await user.type(screen.getByLabelText(/student id \/ username/i), 'new-google-7');
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.type(screen.getByLabelText(/confirm password/i), 'password123');
+    const draft = JSON.parse(sessionStorage.getItem('google-registration-draft:new-google'));
+    expect(draft).toEqual({ firstName: 'New', familyName: 'Google', studentId: 'new-google-7' });
     await user.click(screen.getByRole('button', { name: /create student account/i }));
     await waitFor(() => expect(mockCompleteGoogleRegistration).toHaveBeenCalledWith({
       studentId: 'new-google-7', password: 'password123', firstName: 'New', familyName: 'Google',
