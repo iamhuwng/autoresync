@@ -6,8 +6,22 @@ import * as firebaseAuth from 'firebase/auth';
 import * as firebaseDatabase from 'firebase/database';
 
 // Mock Firebase modules
-vi.mock('firebase/auth');
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged: vi.fn(),
+  signInWithPopup: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  signInWithCustomToken: vi.fn(),
+  signOut: vi.fn(),
+  sendEmailVerification: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  updatePassword: vi.fn(),
+  updateProfile: vi.fn(),
+  reauthenticateWithPopup: vi.fn(),
+}));
 vi.mock('firebase/database');
+vi.mock('../../services/auditService', () => ({
+  logSecurityEvent: { login: vi.fn(), logout: vi.fn() },
+}));
 vi.mock('../../services/firebaseCore', () => ({
   auth: {},
   app: {},
@@ -41,7 +55,6 @@ const TestComponent = () => {
 describe('AuthContext', () => {
   let mockOnAuthStateChanged: any;
   let mockOnValue: any;
-  let mockSignInWithPopup: any;
   let mockSignInWithEmailAndPassword: any;
   let mockSignInWithCustomToken: any;
   let mockSendEmailVerification: any;
@@ -63,7 +76,6 @@ describe('AuthContext', () => {
       return vi.fn(); // Return unsubscribe function
     });
     
-    mockSignInWithPopup = vi.fn();
     mockSignInWithEmailAndPassword = vi.fn();
     mockSignInWithCustomToken = vi.fn();
     mockSendEmailVerification = vi.fn().mockResolvedValue(undefined);
@@ -72,7 +84,6 @@ describe('AuthContext', () => {
     mockReauthenticateWithPopup = vi.fn().mockResolvedValue(undefined);
     
     vi.mocked(firebaseAuth.onAuthStateChanged).mockImplementation(mockOnAuthStateChanged);
-    vi.mocked(firebaseAuth.signInWithPopup).mockImplementation((...args) => mockSignInWithPopup(...args));
     vi.mocked(firebaseAuth.signInWithEmailAndPassword).mockImplementation(mockSignInWithEmailAndPassword);
     vi.mocked(firebaseAuth.signInWithCustomToken).mockImplementation(mockSignInWithCustomToken);
     vi.mocked(firebaseAuth.sendEmailVerification).mockImplementation(mockSendEmailVerification);
@@ -168,7 +179,7 @@ describe('AuthContext', () => {
     };
     
     // Mock successful login
-    mockSignInWithPopup.mockResolvedValue({ user: mockUser });
+    vi.mocked(firebaseAuth.signInWithPopup).mockResolvedValue({ user: mockUser } as firebaseAuth.UserCredential);
     
     // Mock get to return no existing profile
     mockGet.mockResolvedValue({
@@ -202,7 +213,7 @@ describe('AuthContext', () => {
     });
     
     await waitFor(() => {
-      expect(mockSignInWithPopup).toHaveBeenCalled();
+      expect(firebaseAuth.signInWithPopup).toHaveBeenCalled();
     });
     
     expect(mockSet).not.toHaveBeenCalled();
