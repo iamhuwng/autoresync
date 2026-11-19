@@ -21,6 +21,7 @@ This is the concise, version-controlled source of truth for objectives, boundari
 - **Safety:** preserve exact source/artifact integrity, authorization, production protection, concurrency and freshness control, independent verification and recovery.
 - **Operational efficiency:** remove repeated infrastructure research, duplicated checks, manual coordination and recurring delays.
 - **Maintainability:** preserve useful capabilities while retiring structures whose maintenance cost exceeds demonstrated value.
+- **Guide-first autonomy:** a deployment request should activate a short Codex route guide; mechanical helpers enforce only concrete source, artifact, authorization, freshness, publication and recovery properties.
 
 ## Four phases
 
@@ -146,6 +147,34 @@ Codex chooses the browser, provider, test depth, deployment order, and recovery
 evidence from actual risk. A route fails closed only when its selected evidence
 is missing, stale, altered, or mismatched. Fixed ceremonies without a concrete
 invariant remain optional or are removed.
+
+Route precedence is strict: tooling that changes release, deployment or recovery
+machinery is release infrastructure. If multiple impact shapes match, Codex uses
+the strictest route.
+
+### Agent-facing deployment model
+
+The deployment procedure is a guide for Codex, supported by existing scripts;
+it is not a new release product that asks a human to fill out a universal card.
+When the user says “deploy”, Codex reads the release-safety skill, inspects the
+candidate and live state, classifies the change, checks the capabilities needed
+by that route, selects proportionate verification, and invokes the guarded
+publisher only when the resulting evidence is sufficient. Hashes, paths,
+operation IDs and evidence bindings are derived by the existing helpers.
+
+The route remains adaptive. Documentation and non-release tooling changes stop
+at integration checks; frontend changes add browser or preview evidence only when behavior can
+regress; Worker/rules/index/provider changes use affected native checks; and
+coordinated changes use the persistent qualification foundation with disposable
+run state. The exact tested artifact is retained only when built-site proof is
+needed. A delayed provider readback resumes the same recorded operation rather
+than creating a second publication.
+
+The release session is an internal handoff pattern across the existing promotion
+package, verification bundle and operation journal. It is not a new service,
+database, framework or mandatory user-facing step. Success is measured by fewer
+repeated checks, fewer late capability failures, no duplicate publications and
+shorter time from an authorized “deploy” request to verified live state.
 
 ## Current implementation and evidence
 
