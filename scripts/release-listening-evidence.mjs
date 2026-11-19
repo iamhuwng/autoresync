@@ -163,8 +163,6 @@ function readWranglerToken(cwd) {
 const googleOperator = 'iamhuwng@gmail.com';
 const googleProject = 'temp-a1437';
 const cloudflareReadTokenName = 'LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN';
-const databaseInstance = new URL(database).hostname.split('.')[0];
-const databaseMetadata = 'https://metadata-dot-firebase-prod.appspot.com';
 
 function gcloud(args) {
   const env = { ...process.env, CLOUDSDK_CORE_CHECK_GCE_METADATA: 'false' };
@@ -183,27 +181,15 @@ export function assertHostingFederation(config, expectedAccount, expectedProvide
   assert(config.service_account_impersonation_url === `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${expectedAccount}:generateAccessToken`, 'Hosting readback service account changed');
 }
 
-async function readRealtimeDatabaseRules(get, googleToken) {
-  const labels = await get(`${databaseMetadata}/namespaces/${databaseInstance}/ruleset_labels`, googleToken);
-  const rulesets = await get(`${databaseMetadata}/namespaces/${databaseInstance}/rulesets`, googleToken);
-  const stableId = labels?.stable;
-  const latestId = [...(rulesets?.rulesets || [])]
-    .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')))[0]?.id;
-  const rulesetId = stableId || latestId;
-  assert(typeof rulesetId === 'string' && rulesetId, 'Firebase RTDB ruleset identity is unavailable');
-  const ruleset = await get(`${databaseMetadata}/namespaces/${databaseInstance}/rulesets/${encodeURIComponent(rulesetId)}`, googleToken);
-  const source = typeof ruleset?.source === 'string' ? JSON.parse(ruleset.source) : ruleset?.source;
-  assert(source && typeof source === 'object', 'Firebase RTDB ruleset source is unavailable');
-  return { source, rulesetId };
-}
-
 async function readGoogleToken(hosting, firebaseCli) {
   if (hosting && process.env.GITHUB_ACTIONS === 'true') {
     const authFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     assert(authFile && process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE === authFile, 'Hosting readback Google credential file is unavailable or differs from the CLI credential');
     const config = JSON.parse(await readFile(authFile, 'utf8'));
     assertHostingFederation(config, process.env.LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT, process.env.LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER);
-    return gcloud(['auth', 'print-access-token', `--project=${googleProject}`, '--quiet']);
+    const scopedToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim();
+    assert(scopedToken, 'Hosting readback scoped Google access token is unavailable');
+    return scopedToken;
   }
   const auth = JSON.parse(gcloud(['auth', 'list', '--format=json']));
   const active = auth.filter(item => item.status === 'ACTIVE').map(item => item.account);
@@ -295,10 +281,8 @@ export async function readListeningProvider(cwd, { firestore = false, privateAud
       customDomains: await cf(`${bucket}/domains/custom`),
       lifecycle: await cf(`${bucket}/lifecycle`) };
   }
-  const rtdbRules = await readRealtimeDatabaseRules(get, googleToken);
   return { workers, common, functions: functions.result,
-    rulesSha256: digest(rtdbRules.source),
-    rtdbRulesetId: rtdbRules.rulesetId,
+    rulesSha256: digest(await get(`${database}/.settings/rules.json`, googleToken)),
     writesEnabled: await get(`${database}/system_flags/listening_authoring_writes_enabled.json`, googleToken),
     restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken),
     ...(firestore ? { firestoreRules } : {}),

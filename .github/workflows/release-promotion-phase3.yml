@@ -94,16 +94,26 @@ jobs:
       - uses: ./.github/actions/assert-oidc-cleanup
         with:
           path: ${{ runner.temp }}/gha-creds.json
-      - uses: google-github-actions/auth@v2
+      - id: google-auth
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          token_format: access_token
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/firebase.database
+            https://www.googleapis.com/auth/userinfo.email
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Export scoped Firebase REST token
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_OAUTH_ACCESS_TOKEN"
+          printf 'GOOGLE_OAUTH_ACCESS_TOKEN=%s\n' "$GOOGLE_OAUTH_ACCESS_TOKEN" >> "$GITHUB_ENV"
       - name: Keep federation credentials outside the checkout
         run: node scripts/relocate-oidc-credentials.mjs
       - name: Verify relocated federation with Google and Firebase CLIs
@@ -342,16 +352,26 @@ jobs:
       - uses: ./.github/actions/assert-oidc-cleanup
         with:
           path: ${{ runner.temp }}/gha-creds.json
-      - uses: google-github-actions/auth@v2
+      - id: google-auth
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          token_format: access_token
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/firebase.database
+            https://www.googleapis.com/auth/userinfo.email
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Export scoped Firebase REST token
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_OAUTH_ACCESS_TOKEN"
+          printf 'GOOGLE_OAUTH_ACCESS_TOKEN=%s\n' "$GOOGLE_OAUTH_ACCESS_TOKEN" >> "$GITHUB_ENV"
       - name: Keep federation credentials outside the checkout
         run: node scripts/relocate-oidc-credentials.mjs
       - name: Prove the pinned Firebase CLI identity before mutation
@@ -539,16 +559,26 @@ jobs:
       - uses: ./.github/actions/assert-oidc-cleanup
         with:
           path: ${{ runner.temp }}/gha-creds.json
-      - uses: google-github-actions/auth@v2
+      - id: google-auth
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT }}
+          token_format: access_token
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/firebase.database
+            https://www.googleapis.com/auth/userinfo.email
           create_credentials_file: true
           export_environment_variables: true
           cleanup_credentials: true
+      - name: Export scoped Firebase REST token
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_OAUTH_ACCESS_TOKEN"
+          printf 'GOOGLE_OAUTH_ACCESS_TOKEN=%s\n' "$GOOGLE_OAUTH_ACCESS_TOKEN" >> "$GITHUB_ENV"
       - name: Keep federation credentials outside the checkout
         run: node scripts/relocate-oidc-credentials.mjs
       - name: Resume the same operation without rebuilding or redeploying
