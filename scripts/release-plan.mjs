@@ -179,6 +179,13 @@ export const formatPlan = plan => [
 ].join('\n');
 
 export async function main(argv = process.argv.slice(2)) {
+  if (argv.length === 1 && argv[0] === '--dependency-health') {
+    const { checkHostingDependencyHealth } = await import('./release-hosting-dependencies.mjs');
+    const health = await checkHostingDependencyHealth(repoRoot);
+    console.log(`Hosting dependency health: ${health.status} (read-only, no release authorization)`);
+    for (const diagnostic of health.diagnostics) console.log(`- ${diagnostic}`);
+    return health.status === 'HEALTHY' ? 0 : 2;
+  }
   const options = {};
   let json = false;
   for (let index = 0; index < argv.length; index += 1) {

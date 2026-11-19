@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectProviderReads, describeGoogleToken, hasGoogleAuthFailure, providerErrorDetails, ProviderReadError, readProviderJson } from './release-provider-diagnostics.mjs';
 
 const accountId = 'e41db829dabe9993f03674afdfd56510';
 const account = `/accounts/${accountId}`;
@@ -16,6 +18,19 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 export const canonical = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
 const digest = value => hash(canonical(value));
 const phases = ['predeploy', 'rules', 'upload', 'homework'];
+const exec = promisify(execFile);
+export function hashWorkerVersionModules(version, versionId) {
+  assert.equal(version.id, versionId, 'Cloudflare returned a different Worker version');
+  assert(Array.isArray(version.modules) && version.modules.length > 0, 'Cloudflare omitted Worker version modules');
+  const modules = Object.create(null);
+  for (const module of version.modules) {
+    assert(typeof module.name === 'string' && typeof module.content_base64 === 'string',
+      'Cloudflare returned an incomplete Worker version module');
+    assert(!Object.hasOwn(modules, module.name), 'Duplicate Worker version module name');
+    modules[module.name] = hash(Buffer.from(module.content_base64, 'base64'));
+  }
+  return modules;
+}
 const deepFreeze = value => {
   if (value && typeof value === 'object') { Object.values(value).forEach(deepFreeze); Object.freeze(value); }
   return value;
@@ -207,87 +222,144 @@ async function readGoogleToken(hosting, firebaseCli) {
 }
 
 // Fixed native provider GETs only; no caller transport or evidence injection.
-export async function readListeningProvider(cwd, { firestore = false, privateAudio = false, firestoreIndexes = false, hosting = false } = {}) {
-  const worktrees = command('git', ['worktree', 'list', '--porcelain'], cwd).split(/\r?\n/).filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
-  const firebaseCli = worktrees.map(root => path.join(root, 'node_modules/firebase-tools/lib/bin/firebase.js')).find(existsSync);
-  assert(firebaseCli, 'Repository-owned Firebase CLI unavailable');
-  const scopedToken = hosting ? process.env[cloudflareReadTokenName]?.trim() : '';
-  if (hosting && process.env.GITHUB_ACTIONS === 'true') {
-    assert(scopedToken, `Hosting readback requires the ${cloudflareReadTokenName} secret`);
-  }
-  const token = scopedToken || readWranglerToken(cwd);
-  const googleToken = await readGoogleToken(hosting, firebaseCli);
-  assert(googleToken, 'Google provider access token unavailable');
-  async function get(url, bearer, multipart = false) {
-    const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${bearer}`, ...(url.startsWith('https://firebaserules.googleapis.com/') ? { 'x-goog-user-project': 'temp-a1437' } : {}) }, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(20000) });
-    assert(response.ok && (!response.url || response.url === url), `Listening provider GET failed: ${new URL(url).host}${new URL(url).pathname} (${response.status})`);
-    if (multipart) return response.formData();
-    return response.json();
-  }
+export async function readListeningProvider(cwd, { firestore = false, privateAudio = false, firestoreIndexes = false, hosting = false, onDiagnostic } = {}) {
+  const findFirebaseCli = () => {
+    const worktrees = command('git', ['worktree', 'list', '--porcelain'], cwd).split(/\r?\n/u)
+      .filter(line => line.startsWith('worktree ')).map(line => line.slice(9));
+    return worktrees.map(root => path.join(root, 'node_modules/firebase-tools/lib/bin/firebase.js')).find(existsSync);
+  };
+  const firebaseCli = findFirebaseCli();
+  const googleToken = async () => {
+    try {
+      const token = await readGoogleToken(hosting, firebaseCli);
+      assert(token, 'Google provider access token unavailable');
+      return token;
+    }
+    catch (error) {
+      if (error.code === 'ERR_ASSERTION' && error.generatedMessage === false) throw error;
+      throw new ProviderReadError('Google authentication unavailable; check gcloud or the repository Firebase CLI account');
+    }
+  };
+  const auth = await Promise.allSettled([googleToken(), Promise.resolve().then(() => {
+    const scopedToken = hosting ? process.env[cloudflareReadTokenName]?.trim() : '';
+    if (hosting && process.env.GITHUB_ACTIONS === 'true') {
+      assert(scopedToken, `Hosting readback requires the ${cloudflareReadTokenName} secret`);
+    }
+    return scopedToken || readWranglerToken(cwd);
+  })]);
+  const [google, cloudflare] = auth;
+  const readSettled = result => {
+    if (result.status === 'rejected') throw result.reason;
+    return result.value;
+  };
+  const getGoogle = url => readProviderJson(url, readSettled(google));
   const cf = async (route, multipart = false) => {
-    const data = await get(`https://api.cloudflare.com/client/v4${route}`, token, multipart);
+    const data = await readProviderJson(`https://api.cloudflare.com/client/v4${route}`, readSettled(cloudflare), { multipart });
     if (multipart) return data;
-    assert(data.success, 'Listening Cloudflare GET unsuccessful');
+    if (!data.success) {
+      const details = providerErrorDetails(data);
+      throw new ProviderReadError(`Cloudflare GET unsuccessful${details ? ` (${details})` : ''}`);
+    }
     assert(!data.result_info?.total_pages || data.result_info.total_pages <= 1 || route.endsWith('/deployments'), 'Listening provider pagination requires review');
     return data.result;
   };
-  const workers = {};
-  for (const name of [...Object.keys(reviewedListeningRelease.workers), ...Object.keys(reviewedListeningRelease.unchangedWorkers)]) {
+  const worker = async name => {
     const script = `${account}/workers/scripts/${name}`;
-    const deployment = (await cf(`${script}/deployments`)).deployments[0];
-    assert.equal(deployment?.versions?.length, 1, 'Listening active Worker is unavailable or split');
-    const versionId = deployment.versions[0].version_id;
-    const version = await cf(`${script}/versions/${versionId}`), settings = await cf(`${script}/settings`);
+    const [initial] = await Promise.allSettled([cf(`${script}/deployments`)]);
+    const { active, settings, schedules, subdomain } = await collectProviderReads({
+      active: async () => {
+        const deployment = readSettled(initial).deployments[0];
+        assert.equal(deployment?.versions?.length, 1, 'Listening active Worker is unavailable or split');
+        const versionId = deployment.versions[0].version_id;
+        assert.match(versionId ?? '', /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu, 'Listening Worker version identity is invalid');
+        const [version, versionWithModules] = await Promise.all([
+          cf(`${script}/versions/${versionId}`),
+          cf(`${account}/workers/workers/${name}/versions/${versionId}?include=modules`),
+        ]);
+        return { deployment, versionId, version, versionModules: hashWorkerVersionModules(versionWithModules, versionId) };
+      },
+      settings: () => cf(`${script}/settings`),
+      content: () => cf(script, true),
+      schedules: () => cf(`${script}/schedules`),
+      subdomain: () => cf(`${script}/subdomain`),
+    });
     const sortBindings = values => values.map(value => value.type === 'secret_text' ? { name: value.name, type: value.type } : value).sort((a, b) => a.name.localeCompare(b.name));
     settings.bindings = sortBindings(settings.bindings);
-    const modules = [];
-    for (const [part, value] of await cf(script, true)) {
-      const moduleName = typeof value === 'string' ? part : value.name;
-      assert(/\.(m?js)$/.test(moduleName), 'Listening module type changed');
-      modules.push({ name: moduleName, sha256: hash(typeof value === 'string' ? value : Buffer.from(await value.arrayBuffer())) });
-    }
-    workers[name] = { versionId, deployment, deploymentAfter: (await cf(`${script}/deployments`)).deployments[0],
+    const { deployment, versionId, version, versionModules } = active;
+    const modules = Object.entries(versionModules).map(([name, sha256]) => ({ name, sha256 }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    return { versionId, deployment, deploymentAfter: (await cf(`${script}/deployments`)).deployments[0],
       settings, bindings: sortBindings(version.resources.bindings), runtime: version.resources.script_runtime,
       handlers: version.resources.script.handlers, namedHandlers: version.resources.script.named_handlers ?? [],
-      schedules: (await cf(`${script}/schedules`)).schedules.map(item => item.cron).sort(),
-      subdomain: await cf(`${script}/subdomain`), modules: modules.sort((a, b) => a.name.localeCompare(b.name)) };
+      schedules: schedules.schedules.map(item => item.cron).sort(), subdomain,
+      modules: modules.sort((a, b) => a.name.localeCompare(b.name)) };
+  };
+  // Failed credential acquisition should not obscure independent provider probes or repeat the same error.
+  const names = [...Object.keys(reviewedListeningRelease.workers), ...Object.keys(reviewedListeningRelease.unchangedWorkers)];
+  const zone = '1aae6fb9889672cf695927eb575a5bbe';
+  const bucketName = 'luyentap-listening-audio-private';
+  const bucket = `${account}/r2/buckets/${bucketName}`;
+  const probes = {
+    functions: async () => {
+      assert(firebaseCli, 'Repository-owned Firebase CLI unavailable');
+      let output;
+      try {
+        output = await exec(process.execPath, [firebaseCli, 'functions:list', '--project', 'temp-a1437', '--json', '--non-interactive'],
+          { cwd, windowsHide: true, timeout: 25000 });
+      } catch {
+        throw new ProviderReadError('Firebase CLI Functions inventory failed; check cloudfunctions.functions.list and run.services.list');
+      }
+      const result = JSON.parse(output.stdout);
+      assert.equal(result.status, 'success', 'Listening Firebase Functions inventory unavailable');
+      return result.result;
+    },
+    ...(google.status === 'rejected' ? { 'Google credential': () => readSettled(google) } : {
+      rulesSha256: async () => digest(await getGoogle(`${database}/.settings/rules.json`)),
+      writesEnabled: () => getGoogle(`${database}/system_flags/listening_authoring_writes_enabled.json`),
+      restore: () => getGoogle(`${database}/system_flags/restore_in_progress.json`),
+      ...(firestore ? { firestoreRules: async () => {
+        const releaseUrl = 'https://firebaserules.googleapis.com/v1/projects/temp-a1437/releases/cloud.firestore';
+        const release = await getGoogle(releaseUrl);
+        assert.match(release.rulesetName ?? '', /^projects\/temp-a1437\/rulesets\/[a-zA-Z0-9-]+$/u, 'Listening Firestore ruleset is unavailable');
+        const ruleset = await getGoogle(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`);
+        return validateFirestoreRulesReadback(release, ruleset, await getGoogle(releaseUrl));
+      } } : {}),
+      ...(firestoreIndexes ? { firestoreIndexes: async () => {
+        const result = await getGoogle('https://firestore.googleapis.com/v1/projects/temp-a1437/databases/(default)/collectionGroups/-/indexes');
+        assert(!result.nextPageToken, 'Firestore index pagination requires review');
+        return (result.indexes || []).sort((a, b) => a.name.localeCompare(b.name));
+      } } : {}),
+    }),
+    ...(cloudflare.status === 'rejected' ? { 'Cloudflare credential': () => readSettled(cloudflare) } : {
+      workers: () => collectProviderReads(Object.fromEntries(names.map(name => [name, () => worker(name)]))),
+      common: () => collectProviderReads({
+        accountSubdomain: () => cf(`${account}/workers/subdomain`),
+        domains: () => cf(`${account}/workers/domains`),
+        zones: async () => {
+          const zones = (await cf(`/zones?account.id=${accountId}&per_page=50`)).map(entry => entry.id).sort();
+          assert.deepEqual(zones, [zone], 'Listening zone inventory changed');
+          return zones;
+        },
+        routes: () => cf(`/zones/${zone}/workers/routes`),
+      }),
+      ...(privateAudio ? { privateAudioBucket: async () => ({ bucketName, ...await collectProviderReads({
+        managedDomain: () => cf(`${bucket}/domains/managed`),
+        customDomains: () => cf(`${bucket}/domains/custom`),
+        lifecycle: () => cf(`${bucket}/lifecycle`),
+      }) }) } : {}),
+    }),
+  };
+  try {
+    const provider = await collectProviderReads(probes);
+    if (onDiagnostic && google.status === 'fulfilled') onDiagnostic(await describeGoogleToken(google.value));
+    return provider;
+  } catch (error) {
+    if (google.status === 'fulfilled' && (onDiagnostic || hasGoogleAuthFailure(error))) {
+      const metadata = await describeGoogleToken(google.value);
+      throw new ProviderReadError(`${error.message}; ${metadata}`);
+    }
+    throw error;
   }
-  const zones = (await cf(`/zones?account.id=${accountId}&per_page=50`)).map(zone => zone.id).sort();
-  assert.deepEqual(zones, ['1aae6fb9889672cf695927eb575a5bbe'], 'Listening zone inventory changed');
-  const common = { accountSubdomain: await cf(`${account}/workers/subdomain`), domains: await cf(`${account}/workers/domains`), zones,
-    routes: await cf('/zones/1aae6fb9889672cf695927eb575a5bbe/workers/routes') };
-  const functions = JSON.parse(command(process.execPath, [firebaseCli, 'functions:list', '--project', 'temp-a1437', '--json', '--non-interactive'], cwd));
-  assert.equal(functions.status, 'success', 'Listening Firebase Functions inventory unavailable');
-  let firestoreRules;
-  if (firestore) {
-    const releaseUrl = 'https://firebaserules.googleapis.com/v1/projects/temp-a1437/releases/cloud.firestore';
-    const release = await get(releaseUrl, googleToken);
-    assert.match(release.rulesetName ?? '', /^projects\/temp-a1437\/rulesets\/[a-zA-Z0-9-]+$/, 'Listening Firestore ruleset is unavailable');
-    const ruleset = await get(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`, googleToken);
-    firestoreRules = validateFirestoreRulesReadback(release, ruleset, await get(releaseUrl, googleToken));
-  }
-  let privateAudioBucket;
-  let indexes;
-  if (firestoreIndexes) {
-    const result = await get('https://firestore.googleapis.com/v1/projects/temp-a1437/databases/(default)/collectionGroups/-/indexes', googleToken);
-    assert(!result.nextPageToken, 'Firestore index pagination requires review');
-    indexes = (result.indexes || []).sort((a, b) => a.name.localeCompare(b.name));
-  }
-  if (privateAudio) {
-    const bucketName = 'luyentap-listening-audio-private';
-    const bucket = `${account}/r2/buckets/${bucketName}`;
-    privateAudioBucket = { bucketName,
-      managedDomain: await cf(`${bucket}/domains/managed`),
-      customDomains: await cf(`${bucket}/domains/custom`),
-      lifecycle: await cf(`${bucket}/lifecycle`) };
-  }
-  return { workers, common, functions: functions.result,
-    rulesSha256: digest(await get(`${database}/.settings/rules.json`, googleToken)),
-    writesEnabled: await get(`${database}/system_flags/listening_authoring_writes_enabled.json`, googleToken),
-    restore: await get(`${database}/system_flags/restore_in_progress.json`, googleToken),
-    ...(firestore ? { firestoreRules } : {}),
-    ...(firestoreIndexes ? { firestoreIndexes: indexes } : {}),
-    ...(privateAudio ? { privateAudioBucket } : {}) };
 }
 
 export async function observeListeningRelease(options) {

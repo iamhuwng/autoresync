@@ -2,9 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { assess } from '../release-check.mjs';
-import { canonical, workerInvariants, validateListeningEvidence, assertListeningSource, isListeningReleaseObserved, validateFirestoreRulesReadback } from '../release-listening-evidence.mjs';
+import { canonical, hashWorkerVersionModules, workerInvariants, validateListeningEvidence, assertListeningSource, isListeningReleaseObserved, validateFirestoreRulesReadback } from '../release-listening-evidence.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
+
+test('Worker module evidence is bound to the active version endpoint', () => {
+  const version = { id: 'active-version', modules: [{ name: 'index.js', content_base64: Buffer.from('export default 1;').toString('base64') }] };
+  const modules = hashWorkerVersionModules(version, 'active-version');
+  assert.equal(modules['index.js'], createHash('sha256').update('export default 1;').digest('hex'));
+  assert.throws(() => hashWorkerVersionModules({ ...version, id: 'latest-upload' }, 'active-version'), /different Worker version/u);
+  assert.throws(() => hashWorkerVersionModules({ ...version, modules: [{ ...version.modules[0], name: 'index.js' }, version.modules[0]] }, 'active-version'), /Duplicate/u);
+  assert.throws(() => hashWorkerVersionModules({ ...version, modules: [{ name: 'index.js' }] }, 'active-version'), /incomplete/u);
+});
 
 test('Firestore readback hashes exact source bytes and rejects changed release or source inventory', () => {
   const release = { name: 'projects/temp-a1437/releases/cloud.firestore', rulesetName: 'projects/temp-a1437/rulesets/reviewed-id', updateTime: '2026-10-27T00:00:00Z' };

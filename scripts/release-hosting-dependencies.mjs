@@ -80,7 +80,13 @@ export function validateHostingDependencies(local, provider) {
   assert.equal(provider.rulesSha256, local.rulesSha256, 'Hosting active RTDB rules differ from candidate');
   assert(local.firestoreRulesSha256s.includes(provider.firestoreRules?.sourceSha256), 'Hosting active Firestore rules differ from candidate');
   assert.equal(provider.firestoreRules?.release?.name, 'projects/temp-a1437/releases/cloud.firestore', 'Hosting Firestore project changed');
-  assert.equal(digest(provider.common), pins.commonSha256, 'Hosting dependency routing or account changed');
+  assert.equal(local.lifecycleSha256, pins.privateAudio.lifecycleSha256, 'Hosting private audio lifecycle source changed');
+  validateHostingInfrastructure(provider);
+}
+
+function validateHostingInfrastructure(provider) {
+  const routing = digest(provider.common);
+  assert.equal(routing, pins.commonSha256, `Hosting dependency routing or account changed (expected ${pins.commonSha256}, observed ${routing})`);
   assert.deepEqual(provider.functions, [], 'Hosting dependency Functions inventory changed');
   assert.equal(provider.writesEnabled, true, 'Hosting dependency authoring writes are disabled');
   assert(provider.restore === null || provider.restore === false || provider.restore?.active === false, 'Hosting dependency restore is active or ambiguous');
@@ -88,8 +94,8 @@ export function validateHostingDependencies(local, provider) {
   assert.equal(bucket?.bucketName, pins.privateAudio.bucketName, 'Hosting private audio bucket changed');
   assert.equal(bucket.managedDomain?.enabled, false, 'Hosting private audio bucket is public or unavailable');
   assert.deepEqual(bucket.customDomains?.domains, [], 'Hosting private audio custom domains changed');
-  assert.equal(local.lifecycleSha256, pins.privateAudio.lifecycleSha256, 'Hosting private audio lifecycle source changed');
-  assert.equal(digest(bucket.lifecycle), local.lifecycleSha256, 'Hosting private audio lifecycle changed');
+  const lifecycle = digest(bucket.lifecycle);
+  assert.equal(lifecycle, pins.privateAudio.lifecycleSha256, `Hosting private audio lifecycle changed (expected ${pins.privateAudio.lifecycleSha256}, observed ${lifecycle})`);
   assert.deepEqual(Object.keys(provider.workers).sort(), workerNames, 'Hosting dependency Worker inventory changed');
   for (const [name, worker] of Object.entries(provider.workers)) {
     assert.equal(typeof worker.versionId, 'string', `Hosting ${name} version unavailable`);
@@ -113,6 +119,19 @@ export function validateHostingDependencies(local, provider) {
     for (const [key, value] of Object.entries(vars)) if (/EMULATOR/iu.test(key)) {
       assert(key === 'LOCAL_EMULATOR_AUTH' && value === 'false', `Hosting ${name} emulator is enabled or configured`);
     }
+  }
+}
+
+// Health checks never create a trusted dependency observation or a release fingerprint.
+export async function checkHostingDependencyHealth(cwd) {
+  const diagnostics = [];
+  try {
+    const provider = await readListeningProvider(cwd, { firestore: true, privateAudio: true,
+      firestoreIndexes: true, hosting: true, onDiagnostic: message => diagnostics.push(message) });
+    validateHostingInfrastructure(provider);
+    return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'HEALTHY', diagnostics };
+  } catch (error) {
+    return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'UNVERIFIED', diagnostics: [...diagnostics, error.message] };
   }
 }
 

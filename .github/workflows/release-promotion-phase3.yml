@@ -5,11 +5,12 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'Plan a release, publish a prepared release, or resume an existing operation'
+        description: 'Check dependency health, plan or publish a release, or resume an existing operation'
         required: true
         default: publish
         type: choice
         options:
+          - health
           - plan
           - publish
           - verify-existing
@@ -31,7 +32,7 @@ on:
         type: string
 
 concurrency:
-  group: luyentap-hosting-production
+  group: ${{ (inputs.operation == 'health' || inputs.operation == 'plan') && 'luyentap-hosting-read-only' || 'luyentap-hosting-production' }}
   cancel-in-progress: false
 
 # Optional public inputs used only to prove a historical combined manifest hash.
@@ -48,7 +49,7 @@ env:
 
 jobs:
   prepare:
-    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation == 'publish' || inputs.operation == 'plan') }}
+    if: ${{ github.repository == 'iamhuwng/autoresync' && github.ref == 'refs/heads/main' && (inputs.operation == 'publish' || inputs.operation == 'plan' || inputs.operation == 'health') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -117,11 +118,28 @@ jobs:
       - name: Keep federation credentials outside the checkout
         run: node scripts/relocate-oidc-credentials.mjs
       - name: Verify relocated federation with Google and Firebase CLIs
+        if: ${{ inputs.operation != 'health' }}
         run: |
           set -euo pipefail
           gcloud auth print-access-token --quiet >/dev/null
           node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json >/dev/null
+      - name: Exercise all Hosting dependency reads with preflight federation
+        if: ${{ inputs.operation == 'health' }}
+        env:
+          LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: ${{ secrets.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: ${{ vars.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT }}
+          LUYENTAP_HOSTING_READBACK_GOOGLE_PROVIDER: ${{ vars.LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          set -euo pipefail
+          status=0
+          node scripts/release-plan.mjs --dependency-health || status=$?
+          if ! node scripts/tooling-where.mjs --exec firebase hosting:sites:list --project temp-a1437 --json >/dev/null 2>&1; then
+            echo 'Firebase Hosting sites inventory failed. Check the federated Firebase CLI identity and firebasehosting.sites.get.'
+            status=2
+          fi
+          exit "$status"
       - name: Materialize the isolated production environment
+        if: ${{ inputs.operation != 'health' }}
         env:
           PRODUCTION_ENV: ${{ secrets.LUYENTAP_RELEASE_ENV }}
         run: |
