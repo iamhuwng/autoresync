@@ -6,6 +6,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadSpareDevelopmentEnv, spareFirebaseProject } from './spare-dev-config.mjs';
 import { assertSpareBuildIdentity, createSpareBuildIdentity, spareIdentityFile, spareSourceIdentity } from './spare-preview-identity.mjs';
 
+export const SPARE_AUTO_PORT_MIN = 5173;
+export const SPARE_AUTO_PORT_MAX = 5182;
+export const SPARE_AUTO_PORT_POOL = Object.freeze(
+  Array.from({ length: SPARE_AUTO_PORT_MAX - SPARE_AUTO_PORT_MIN + 1 }, (_, index) => SPARE_AUTO_PORT_MIN + index),
+);
+
 export function parseSpareDevArgs(argv) {
   const [operation, ...args] = argv;
   if (!['dev', 'build', 'preview'].includes(operation)) throw new Error('Choose dev, build, or preview.');
@@ -24,25 +30,46 @@ export function parseSpareDevArgs(argv) {
   throw new Error('Use a numeric port or auto, for example npm run dev -- --port 5174.');
 }
 
-export function allocateFreePort(host = 'localhost') {
+function probeAddressFree(host, port, { ignoreUnsupportedFamily = false } = {}) {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-    const finish = (error, port) => {
-      if (server.listening) server.close(() => error ? reject(error) : resolve(port));
-      else if (error) reject(error);
-      else resolve(port);
-    };
-    server.once('error', error => finish(error));
-    server.listen({ host, port: 0 }, () => {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : null;
-      if (!Number.isInteger(port) || port < 1 || port > 65535) {
-        finish(new Error('Could not allocate a valid localhost port.'));
+    const finish = (error, isFree) => {
+      if (server.listening) {
+        server.close(closeError => {
+          if (error) reject(error);
+          else if (closeError) reject(closeError);
+          else resolve(isFree);
+        });
+      } else if (error) {
+        reject(error);
       } else {
-        finish(null, port);
+        resolve(isFree);
       }
+    };
+    server.once('error', error => {
+      if (error.code === 'EADDRINUSE' || error.code === 'EACCES') finish(null, false);
+      else if (ignoreUnsupportedFamily && (error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT')) finish(null, true);
+      else finish(error);
     });
+    server.listen({ host, port, exclusive: true }, () => finish(null, true));
   });
+}
+
+async function probePortFree(host, port) {
+  if (host === 'localhost') {
+    if (!await probeAddressFree('127.0.0.1', port)) return false;
+    return probeAddressFree('::1', port, { ignoreUnsupportedFamily: true });
+  }
+  return probeAddressFree(host, port);
+}
+
+export async function allocateFreePort(host = 'localhost', { pool = SPARE_AUTO_PORT_POOL, isPortFree } = {}) {
+  if (!Array.isArray(pool) || pool.length === 0 || !pool.every(port => Number.isInteger(port) && port >= 1 && port <= 65535)) {
+    throw new Error('Port pool must be a non-empty array of integers from 1 to 65535.');
+  }
+  const checkPort = isPortFree ?? (port => probePortFree(host, port));
+  for (const port of pool) if (await checkPort(port)) return port;
+  throw new Error(`All whitelisted spare localhost ports (${pool[0]}-${pool[pool.length - 1]}) are occupied. Stop an unused dev/preview server or pass --port <port> explicitly.`);
 }
 
 export async function resolveSparePort(portSpec, allocator = allocateFreePort) {

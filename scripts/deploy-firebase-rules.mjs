@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import net from 'node:net';
 import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,6 +22,27 @@ export const RTDB_SECURITY_TEST_FILES = Object.freeze([
 export const FIRESTORE_SECURITY_TEST_FILES = Object.freeze([
   'src/__tests__/security/homeworkFirestoreRules.test.ts',
 ]);
+export function allocateEmulatorPort(host = 'localhost') {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    const finish = (error, port) => {
+      if (server.listening) server.close(closeError => {
+        if (error) reject(error);
+        else if (closeError) reject(closeError);
+        else resolve(port);
+      });
+      else if (error) reject(error);
+      else resolve(port);
+    };
+    server.once('error', error => finish(error));
+    server.listen({ host, port: 0, exclusive: true }, () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : null;
+      if (!Number.isInteger(port) || port < 1 || port > 65535) finish(new Error('Could not allocate a valid emulator port.'));
+      else finish(null, port);
+    });
+  });
+}
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const plainObject = value => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -200,6 +222,7 @@ export async function deployFirebaseRules({ targets, dryRun = false, allowDirty 
   const local = await parseLocalRulesFiles(cwd, targets);
   const identity = await gitIdentity(cwd, deps, allowDirty, dryRun);
   const readProvider = options => (deps.readState || readProviderState)(cwd, options);
+  const allocatePort = deps.allocatePort ?? (() => allocateEmulatorPort('localhost'));
   const readOptions = { rtdbRules: targets.includes('database'), firestoreRules: targets.includes('firestore:rules'), firestoreIndexes: targets.includes('firestore:indexes') };
   const prior = dryRun && offline ? {} : await readProvider(readOptions);
   const tests = [];
@@ -211,7 +234,8 @@ export async function deployFirebaseRules({ targets, dryRun = false, allowDirty 
     if (!skipTests && targets.includes('database')) {
       const config = path.join(tempDir, 'rtdb-firebase.json');
       const reportPath = path.join(tempDir, 'rtdb-report.json');
-      await writeFile(config, JSON.stringify({ emulators: { database: { host: 'localhost', port: 19000 }, ui: { enabled: false } } }), 'utf8');
+      const rtdbPort = await allocatePort();
+      await writeFile(config, JSON.stringify({ emulators: { database: { host: 'localhost', port: rtdbPort }, ui: { enabled: false } } }), 'utf8');
       const command = `node scripts/tooling-where.mjs --exec vitest run --config vitest.security-emulator.config.ts --passWithNoTests=false --reporter=json --outputFile="${reportPath.replaceAll('\\', '/')}"`;
       await run(deps, process.execPath, [TOOLING, '--exec', 'firebase', 'emulators:exec', '--only', 'database', '--project', 'demo-private-thcs-homework-current-rules', '--config', config, command], { cwd, env: { ...process.env, THCS_RULES_FILE: path.join(cwd, 'database.rules.json') } });
       const report = parseJson(await readFile(reportPath, 'utf8'), 'RTDB security Vitest report');
@@ -223,7 +247,8 @@ export async function deployFirebaseRules({ targets, dryRun = false, allowDirty 
       const rulesCopy = path.join(tempDir, 'firestore.rules');
       const reportPath = path.join(tempDir, 'firestore-report.json');
       await writeFile(rulesCopy, local.firestoreRules, 'utf8');
-      await writeFile(config, JSON.stringify({ firestore: { rules: 'firestore.rules' }, emulators: { firestore: { host: 'localhost', port: 18080 }, ui: { enabled: false } } }), 'utf8');
+      const firestorePort = await allocatePort();
+      await writeFile(config, JSON.stringify({ firestore: { rules: 'firestore.rules' }, emulators: { firestore: { host: 'localhost', port: firestorePort }, ui: { enabled: false } } }), 'utf8');
       const command = `node scripts/tooling-where.mjs --exec vitest run src/__tests__/security/homeworkFirestoreRules.test.ts --passWithNoTests=false --reporter=json --outputFile="${reportPath.replaceAll('\\', '/')}"`;
       await run(deps, process.execPath, [TOOLING, '--exec', 'firebase', 'emulators:exec', '--only', 'firestore', '--project', 'demo-prd-0052-homework-rules', '--config', config, command], { cwd, env: { ...process.env, FIRESTORE_RULES_PATH: path.join(cwd, 'firestore.rules') } });
       const report = parseJson(await readFile(reportPath, 'utf8'), 'Firestore security Vitest report');

@@ -17,7 +17,7 @@ const production = (packageDir, configFile, wranglerTool, testArgs, smokeProbe) 
 
 export const WORKER_REGISTRY = Object.freeze({
   'r2-upload-signer': production('cloudflare', 'wrangler.jsonc', 'cloudflare-wrangler',
-    ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', '__tests__/upload-worker-harness.test.js', 'test/upload-worker-security.test.js', 'test/student-auth-worker.test.ts'],
+    ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', '__tests__/upload-worker-harness.test.js', 'test/upload-worker-security.test.js', 'test/student-auth-worker.test.ts', 'test/spare-cors-policy.test.ts'],
     { url: 'https://r2-upload-signer.iamhuwng.workers.dev/', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' }, expectedStatuses: [204] }),
   'r2-backup-worker': production('r2-backup-worker', 'wrangler.toml', 'r2-wrangler',
     ['../scripts/tooling-where.mjs', '--exec', 'r2-vitest', 'run', '--passWithNoTests=false'],
@@ -31,7 +31,7 @@ export const WORKER_REGISTRY = Object.freeze({
   'luyentap-notification-firestore-qa': Object.freeze({ environment: 'production', deployable: false,
     reason: 'luyentap-notification-firestore-qa is an external-DO public-entry proxy whose live module does not match cloudflare/wrangler.notification-firestore-bridge.jsonc or notification-command-public.js; refusing generic deploy to prevent overwriting production.' }),
   'luyentap-qualification-upload-signer': Object.freeze({ environment: 'spare', deployable: true, packageDir: 'cloudflare', configFile: 'wrangler.qualification.jsonc', wranglerTool: 'cloudflare-wrangler',
-    testArgs: ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', '__tests__/upload-worker-harness.test.js', 'test/upload-worker-security.test.js', 'test/student-auth-worker.test.ts'],
+    testArgs: ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', '__tests__/upload-worker-harness.test.js', 'test/upload-worker-security.test.js', 'test/student-auth-worker.test.ts', 'test/spare-cors-policy.test.ts'],
     smokeProbe: { url: 'https://luyentap-qualification-upload-signer.iamhuwng.workers.dev/', method: 'OPTIONS', headers: { Origin: 'http://localhost:5173', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' }, expectedStatuses: [204] } }),
 });
 

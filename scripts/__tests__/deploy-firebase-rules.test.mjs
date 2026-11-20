@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
   FIRESTORE_SECURITY_TEST_FILES,
   RTDB_SECURITY_TEST_FILES,
+  allocateEmulatorPort,
   deployFirebaseRules,
   findPendingFirestoreIndexes,
   parseDeployRulesArgs,
@@ -99,6 +100,11 @@ test('rules dry-run stops before firebase deploy', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('emulator port allocation returns a valid ephemeral port', async () => {
+  const port = await allocateEmulatorPort();
+  assert.equal(Number.isInteger(port) && port >= 1 && port <= 65535, true);
+});
+
 test('readback validates RTDB hash and Firestore release', () => {
   const local = { rtdbRulesSha256: 'r'.repeat(64), firestoreRulesSha256s: ['f'.repeat(64)] };
   assert.equal(validateRulesReadback(['database', 'firestore:rules'], local, { rulesSha256: 'r'.repeat(64), firestoreRules: { sourceSha256: 'f'.repeat(64), release: { name: 'projects/temp-a1437/releases/cloud.firestore' } } }), true);
@@ -111,23 +117,35 @@ test('scoped deploy runs the matching emulator security suite with strict report
     await writeFile(path.join(root, 'firestore.rules'), "rules_version = '2';\n");
     await writeFile(path.join(root, 'firestore.indexes.json'), JSON.stringify({ indexes: [index] }));
     const calls = [];
+    const emulatorConfigs = [];
+    const allocatedPorts = [19123, 18123];
+    let allocatedPortIndex = 0;
     const exec = async (command, args, options) => {
       calls.push({ command, args, options });
       if (args[0] === 'status') return result('');
       if (args[0] === 'rev-parse') return result('a'.repeat(40));
-      if (args.includes('emulators:exec')) await writeMockVitestReport(root, args);
+      if (args.includes('emulators:exec')) {
+        const configPath = args[args.indexOf('--config') + 1];
+        emulatorConfigs.push(JSON.parse(await readFile(configPath, 'utf8')));
+        await writeMockVitestReport(root, args);
+      }
       return result('');
     };
     const dbLocal = await parseLocalRulesFiles(root, ['database']);
-    await deployFirebaseRules({ targets: ['database'], cwd: root, deps: { exec, readState: async () => ({ rulesSha256: dbLocal.rtdbRulesSha256 }) } });
+    const allocatePort = async () => allocatedPorts[allocatedPortIndex++];
+    await deployFirebaseRules({ targets: ['database'], cwd: root, deps: { exec, allocatePort, readState: async () => ({ rulesSha256: dbLocal.rtdbRulesSha256 }) } });
     assert(calls.some(call => call.args.includes('emulators:exec') && call.args.includes('database')));
     assert.equal(calls.find(call => call.args.includes('emulators:exec')).options.env.THCS_RULES_FILE, path.join(root, 'database.rules.json'));
+    assert.equal(emulatorConfigs[0].emulators.database.port, allocatedPorts[0]);
+    assert.notEqual(emulatorConfigs[0].emulators.database.port, 19000);
     calls.length = 0;
     const rulesLocal = await parseLocalRulesFiles(root, ['firestore:rules']);
-    await deployFirebaseRules({ targets: ['firestore:rules'], cwd: root, deps: { exec, readState: async () => ({ firestoreRules: { sourceSha256: rulesLocal.firestoreRulesSha256s[0], release: { name: 'projects/temp-a1437/releases/cloud.firestore' } } }) } });
+    await deployFirebaseRules({ targets: ['firestore:rules'], cwd: root, deps: { exec, allocatePort, readState: async () => ({ firestoreRules: { sourceSha256: rulesLocal.firestoreRulesSha256s[0], release: { name: 'projects/temp-a1437/releases/cloud.firestore' } } }) } });
     const fsCall = calls.find(call => call.args.includes('emulators:exec') && call.args.includes('firestore'));
     assert(fsCall);
     assert.equal(fsCall.options.env.FIRESTORE_RULES_PATH, path.join(root, 'firestore.rules'));
+    assert.equal(emulatorConfigs[1].emulators.firestore.port, allocatedPorts[1]);
+    assert.notEqual(emulatorConfigs[1].emulators.firestore.port, 18080);
     calls.length = 0;
     const indexesLocal = await parseLocalRulesFiles(root, ['firestore:indexes']);
     await deployFirebaseRules({ targets: ['firestore:indexes'], cwd: root, deps: { exec, readState: async () => ({ firestoreIndexes: [observedIndex('READY', 'items')] }) } });

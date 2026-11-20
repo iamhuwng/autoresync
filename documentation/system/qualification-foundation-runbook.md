@@ -24,7 +24,9 @@ Run an independent student session on port 5174:
 npm.cmd run dev -- --port 5174
 ```
 
-For parallel worktrees, use a dynamic localhost port:
+For parallel worktrees, `--port auto` selects the first free port in the whitelisted
+`5173–5182` localhost pool. The pool is compatible with spare
+`luyentap-qualification-upload-signer` CORS and Firebase Auth referrers:
 
 ```powershell
 npm.cmd run dev -- --port auto

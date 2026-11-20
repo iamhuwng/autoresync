@@ -32,9 +32,46 @@ const headerList = (value) =>
 
 const varyOriginHeaders = { Vary: 'Origin' };
 
-export const corsResponseHeaders = (request) => {
+export const parseSpareAllowedLocalhostOrigins = (env) => {
+  const raw = env?.SPARE_ALLOWED_LOCALHOST_PORTS;
+  if (typeof raw !== 'string' || raw === '' || raw.trim() !== raw) {
+    return new Set();
+  }
+
+  const origins = new Set();
+  let expandedPorts = 0;
+  for (const token of raw.split(',')) {
+    const match = /^(?:([1-9]\d{0,4})(?:-([1-9]\d{0,4}))?)$/u.exec(token);
+    if (!match) return new Set();
+    const start = Number(match[1]);
+    const end = Number(match[2] ?? match[1]);
+    if (start < 1024 || end > 65535 || start > end || end - start + 1 > 32) {
+      return new Set();
+    }
+    expandedPorts += end - start + 1;
+    if (expandedPorts > 32) return new Set();
+    for (let port = start; port <= end; port += 1) {
+      origins.add(`http://localhost:${port}`);
+    }
+  }
+  return origins;
+};
+
+export const isApprovedOrigin = (origin, env) => (
+  typeof origin === 'string'
+  && (APPROVED_ORIGINS.has(origin) || parseSpareAllowedLocalhostOrigins(env).has(origin))
+);
+
+export const isApprovedLocalAppOrigin = (origin, env) => (
+  typeof origin === 'string'
+  && (origin === 'http://localhost:5173'
+    || origin === 'http://localhost:5174'
+    || parseSpareAllowedLocalhostOrigins(env).has(origin))
+);
+
+export const corsResponseHeaders = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || !APPROVED_ORIGINS.has(origin)) return {};
+  if (!origin || !isApprovedOrigin(origin, env)) return {};
 
   return {
     ...varyOriginHeaders,
@@ -44,9 +81,9 @@ export const corsResponseHeaders = (request) => {
   };
 };
 
-export const rejectDisallowedActualOrigin = (request) => {
+export const rejectDisallowedActualOrigin = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || APPROVED_ORIGINS.has(origin)) return null;
+  if (!origin || isApprovedOrigin(origin, env)) return null;
 
   return new Response(null, {
     status: 403,
@@ -54,9 +91,9 @@ export const rejectDisallowedActualOrigin = (request) => {
   });
 };
 
-export const handleCorsPreflight = (request) => {
+export const handleCorsPreflight = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || !APPROVED_ORIGINS.has(origin)) {
+  if (!origin || !isApprovedOrigin(origin, env)) {
     return new Response(null, { status: 403, headers: varyOriginHeaders });
   }
 
@@ -79,7 +116,7 @@ export const handleCorsPreflight = (request) => {
 
   return new Response(null, {
     status: 204,
-    headers: corsResponseHeaders(request),
+    headers: corsResponseHeaders(request, env),
   });
 };
 
@@ -87,9 +124,9 @@ const documentVaryHeaders = {
   Vary: 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
 };
 
-export const documentCorsHeaders = (request) => {
+export const documentCorsHeaders = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || !APPROVED_ORIGINS.has(origin)) return new Headers(documentVaryHeaders);
+  if (!origin || !isApprovedOrigin(origin, env)) return new Headers(documentVaryHeaders);
   return new Headers({
     ...documentVaryHeaders,
     'Access-Control-Allow-Origin': origin,
@@ -99,25 +136,25 @@ export const documentCorsHeaders = (request) => {
   });
 };
 
-export const rejectDocumentCorsOrigin = (request) => {
+export const rejectDocumentCorsOrigin = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || APPROVED_ORIGINS.has(origin)) return null;
-  return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+  if (!origin || isApprovedOrigin(origin, env)) return null;
+  return new Response(null, { status: 403, headers: documentCorsHeaders(request, env) });
 };
 
-export const documentCorsPreflight = (request) => {
+export const documentCorsPreflight = (request, env) => {
   const origin = request.headers.get('Origin');
-  if (!origin || !APPROVED_ORIGINS.has(origin)) {
-    return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+  if (!origin || !isApprovedOrigin(origin, env)) {
+    return new Response(null, { status: 403, headers: documentCorsHeaders(request, env) });
   }
   const requestedMethod = request.headers.get('Access-Control-Request-Method')?.toUpperCase();
   if (!requestedMethod || !DOCUMENT_METHODS.has(requestedMethod)) {
-    return new Response(null, { status: 405, headers: documentCorsHeaders(request) });
+    return new Response(null, { status: 405, headers: documentCorsHeaders(request, env) });
   }
   const allowed = new Set(DOCUMENT_HEADERS.map((header) => header.toLowerCase()));
   const requestedHeaders = headerList(request.headers.get('Access-Control-Request-Headers') ?? '');
   if (requestedHeaders.some((header) => !allowed.has(header))) {
-    return new Response(null, { status: 403, headers: documentCorsHeaders(request) });
+    return new Response(null, { status: 403, headers: documentCorsHeaders(request, env) });
   }
-  return new Response(null, { status: 204, headers: documentCorsHeaders(request) });
+  return new Response(null, { status: 204, headers: documentCorsHeaders(request, env) });
 };

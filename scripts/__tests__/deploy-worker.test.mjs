@@ -39,6 +39,25 @@ test('notification Worker config and smoke probe match the live entrypoint', asy
   assert.equal(notification.smokeProbe.url, 'https://luyentap-notification-command.iamhuwng.workers.dev/session-notifications/action');
 });
 
+test('qualification config enables spare localhost ports without changing production configs', async () => {
+  const qualificationSource = await readFile(new URL('../../cloudflare/wrangler.qualification.jsonc', import.meta.url), 'utf8');
+  const qualification = JSON.parse(qualificationSource.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+  assert.equal(qualification.vars.SPARE_ALLOWED_LOCALHOST_PORTS, '5173-5182');
+  for (let port = 5173; port <= 5182; port += 1) {
+    assert.match(qualification.vars.STUDENT_AUTH_ALLOWED_ORIGINS, new RegExp(`http://localhost:${port}`));
+  }
+  const productionFiles = [
+    '../../cloudflare/wrangler.jsonc',
+    '../../cloudflare/wrangler.thcs-gemma.jsonc',
+    '../../cloudflare/wrangler.notifications.jsonc',
+    '../../r2-backup-worker/wrangler.toml',
+  ];
+  for (const file of productionFiles) {
+    const source = await readFile(new URL(file, import.meta.url), 'utf8');
+    assert.equal(source.includes('SPARE_ALLOWED_LOCALHOST_PORTS'), false, file);
+  }
+});
+
 test('worker arguments and uploaded version parsing are guarded', () => {
   assert.deepEqual(parseDeployWorkerArgs(['r2-upload-signer', '--dry-run']).service, 'r2-upload-signer');
   assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--unknown']), /Unknown flag/);

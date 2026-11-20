@@ -1,4 +1,7 @@
 import { MAX_UPLOAD_BYTES } from './grant-authority.js';
+// @ts-ignore JavaScript module has no declaration file.
+import { isApprovedOrigin } from './cors-policy.js';
+
 
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const AUDIO_MIME_TYPES = new Set([
@@ -29,12 +32,6 @@ const BROWSER_AUTHORITY_FIELDS = [
   'assetRequests',
   'bridgeVersion',
 ];
-const LISTENING_UPLOAD_SESSION_ALLOWED_ORIGINS = new Set([
-  'https://kahut1.web.app',
-  'https://hocthem.net',
-  'http://localhost:5173',
-  'http://localhost:5174',
-]);
 const LISTENING_UPLOAD_SESSION_ALLOWED_HEADERS = [
   'Authorization',
   'Content-Type',
@@ -210,13 +207,13 @@ export const parseProbeAssetRequest = (body: unknown) => {
   };
 };
 
-export const buildListeningUploadSessionCorsHeaders = (origin: string | undefined): Record<string, string> => {
+export const buildListeningUploadSessionCorsHeaders = (origin: string | undefined, env?: Record<string, unknown>): Record<string, string> => {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': LISTENING_UPLOAD_SESSION_ALLOWED_HEADERS.join(', '),
     Vary: 'Origin',
   };
-  if (origin && LISTENING_UPLOAD_SESSION_ALLOWED_ORIGINS.has(origin)) {
+  if (origin && isApprovedOrigin(origin, env)) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
   return headers;

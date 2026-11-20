@@ -1,6 +1,6 @@
 # Release safety workflow
 
-This document describes the active three-PR deployment architecture. The executable
+This document describes the active LuyenTap release-safety workflow. The executable
 scripts and workflows are authoritative. The root [AGENTS.md](../../AGENTS.md) is
 the single canonical instruction file for every agent. Dated evidence and historical
 measurements live in [`documentation/release-audits/`](../release-audits/), and do not
@@ -34,6 +34,30 @@ Use the repository-owned Firebase and Cloudflare readback tools with the scoped 
 identities. Keep tokens, service-account files, and generated environment files outside
 the checkout. A provider readback is required before claiming current state, and a
 local or dry-run result cannot substitute for it.
+
+#### Cloudflare read-only token (`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN`)
+
+`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN` must be a tightly scoped **read-only**
+Cloudflare Custom API Token. Never use a Global API Key or write/edit permissions.
+Do not add CI auto-rotation because storing token-edit plus GitHub secrets-write
+credentials expands the blast radius.
+
+The exact minimum scopes required by `scripts/release-provider-readback.mjs` are:
+
+- Account `e41db829dabe9993f03674afdfd56510` only: `Workers Scripts: Read`,
+  `Workers R2 Storage: Read`, and `Account Settings: Read`.
+- Zone `1aae6fb9889672cf695927eb575a5bbe` only: `Zone: Read` and
+  `Workers Routes: Read`.
+
+Use a **90–365 day** TTL. A 90-day TTL with an 80-day reminder cadence is a practical
+choice. To rotate, update the repository secret and dispatch read-only `operation=health`
+on `.github/workflows/release-promotion-phase3.yml` from `main` to confirm provider
+readback:
+
+```powershell
+gh secret set LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN --repo iamhuwng/autoresync
+gh workflow run release-promotion-phase3.yml --repo iamhuwng/autoresync --ref main -f operation=health
+```
 
 ## Routine Hosting release
 
@@ -115,10 +139,13 @@ The recovery operation verifies the live version and manifest without rebuilding
 redeploying. It accepts optional `operation_id` and `expected_manifest_sha256` inputs
 and validates their UUID and SHA-256 formats before readback.
 
-For `target === 'hosting'` on protected `main`, a routine frontend-only release does
-not require a manual review-card JSON file. `target === 'all'`, a changed backend
-surface, or a hotfix path still requires the compatibility review and service-specific
-evidence selected by the release checker.
+For `target === 'hosting'` on protected `main`, the protected-main review uses scoped
+`observeHostingDependencies()` probes and preserves hotfix comparisons without requiring
+a manual review-card JSON file for frontend or Hosting-scoped backend changes.
+For `target !== 'hosting'` (including `target === 'all'` and manual or hotfix full-stack
+checks), the release checker requires an explicit compatibility review whenever
+application frontend files (`src/`, `vite.config*`, or `index.html`) change, alongside
+the service-specific evidence selected for the changed surfaces.
 
 The first manifest-bearing bootstrap is build-only:
 
@@ -227,8 +254,11 @@ node scripts/release-spare-readback.mjs http://localhost:<port>
 ```
 
 Teacher checks conventionally use `http://localhost:5173/login` and student checks
-use `http://localhost:5174/login`. `--port auto` chooses a dynamic ephemeral localhost
-port for concurrent worktrees. `npm.cmd run dev` exposes `/__spare-dev-identity.json`
+use `http://localhost:5174/login`. `--port auto` selects the first free port from the
+whitelisted `5173–5182` localhost pool for concurrent worktrees. The spare
+`luyentap-qualification-upload-signer` CORS policy matches `SPARE_ALLOWED_LOCALHOST_PORTS`,
+while production `r2-upload-signer` remains restricted. `npm.cmd run dev` exposes
+`/__spare-dev-identity.json`
 for live worktree/port/project inspection, while clean `npm.cmd run preview:spare` builds
 expose `/__spare-preview-identity.json` verified by
 `node scripts/release-spare-readback.mjs http://localhost:<port>` across any valid

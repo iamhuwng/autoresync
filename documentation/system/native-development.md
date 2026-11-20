@@ -12,7 +12,9 @@ npm.cmd run dev
 
 Open `http://localhost:5173/login` for the teacher flow. Use
 `npm.cmd run dev -- --port 5174` for a student flow. Parallel worktrees use
-`npm.cmd run dev -- --port auto`, which selects a dynamic localhost port. The spare
+`npm.cmd run dev -- --port auto`, which selects the first free port in the whitelisted
+`5173–5182` localhost pool. The pool is compatible with spare
+`luyentap-qualification-upload-signer` CORS and Firebase Auth referrers. The spare
 Firebase project is `luyentap-pdf-qa-20261021` and the designated spare Worker is
 `luyentap-qualification-upload-signer`.
 

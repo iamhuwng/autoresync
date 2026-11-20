@@ -300,8 +300,9 @@ const responseHeaders = async (
   source: BookSourceVersionStorageIdentity,
   total: number,
   range: ByteRange,
+  env: Record<string, unknown>,
 ): Promise<Headers> => {
-  const headers = documentCorsHeaders(request);
+  const headers = documentCorsHeaders(request, env);
   headers.set('cache-control', 'private, no-store');
   headers.set('content-type', 'application/pdf');
   headers.set('accept-ranges', 'bytes');
@@ -370,32 +371,32 @@ const streamBytes = (
 
 export const createBookDocumentWorker = (options: BookDocumentWorkerOptions) => ({
   async fetch(request: Request, env: Record<string, unknown>): Promise<Response> {
-    if (request.method === 'OPTIONS') return documentCorsPreflight(request);
-    const corsRejection = rejectDocumentCorsOrigin(request);
+    if (request.method === 'OPTIONS') return documentCorsPreflight(request, env);
+    const corsRejection = rejectDocumentCorsOrigin(request, env);
     if (corsRejection) return corsRejection;
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return json({ code: 'method_not_allowed' }, 405, documentCorsHeaders(request));
+      return json({ code: 'method_not_allowed' }, 405, documentCorsHeaders(request, env));
     }
 
     let authorization: BookDocumentWorkerAuthorization;
     try {
       authorization = await options.authorize(request, env);
     } catch {
-      return json({ code: 'authorization_unavailable' }, 503, documentCorsHeaders(request));
+      return json({ code: 'authorization_unavailable' }, 503, documentCorsHeaders(request, env));
     }
     if (authorization.ok === false) {
-      return json({ code: authorization.code }, authorization.status, documentCorsHeaders(request));
+      return json({ code: authorization.code }, authorization.status, documentCorsHeaders(request, env));
     }
     if (!authorization.decision.sourceLocations.some((candidate) =>
       sameAuthorizedSource(candidate, authorization.source))) {
-      return json({ code: 'authorization-source-mismatch' }, 502, documentCorsHeaders(request));
+      return json({ code: 'authorization-source-mismatch' }, 502, documentCorsHeaders(request, env));
     }
     const maximum = authorization.decision.kind === 'teacher-assembly-authorized'
       ? (authorization.decision.sourceKey === 'student-document' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES)
       : authorization.decision.kind === 'book-document-authorized'
         ? (authorization.decision.sourceStrategy === 'component_pdfs' ? STUDENT_DOCUMENT_MAX_PDF_BYTES : BOOK_SOURCE_MAX_PDF_BYTES)
         : STUDENT_DOCUMENT_MAX_PDF_BYTES;
-    if (!safeIdentity(authorization.source) || authorization.source.byteSize > maximum) return json({ code: 'unsafe-source' }, 502, documentCorsHeaders(request));
+    if (!safeIdentity(authorization.source) || authorization.source.byteSize > maximum) return json({ code: 'unsafe-source' }, 502, documentCorsHeaders(request, env));
 
     const identity = authorization.source;
     try {
@@ -405,7 +406,7 @@ export const createBookDocumentWorker = (options: BookDocumentWorkerOptions) => 
         || metadata.identity.providerFileVersionId !== identity.providerFileVersionId
         || metadata.identity.providerObjectKey !== identity.providerObjectKey
         || metadata.identity.byteSize !== identity.byteSize) {
-        return json({ code: 'provider-drift' }, 502, documentCorsHeaders(request));
+        return json({ code: 'provider-drift' }, 502, documentCorsHeaders(request, env));
       }
       const total = metadata.identity.byteSize;
       let range: ByteRange;
@@ -415,26 +416,26 @@ export const createBookDocumentWorker = (options: BookDocumentWorkerOptions) => 
         return new Response(null, {
           status: 416,
           headers: {
-            ...Object.fromEntries(documentCorsHeaders(request)),
+            ...Object.fromEntries(documentCorsHeaders(request, env)),
             'cache-control': 'no-store',
             'content-range': `bytes */${total}`,
           },
         });
       }
-      const headers = await responseHeaders(request, identity, total, range);
+      const headers = await responseHeaders(request, identity, total, range, env);
       if (request.method === 'HEAD') return new Response(null, { status: range.partial ? 206 : 200, headers });
 
       const firstLength = Math.min(STREAM_CHUNK_BYTES, range.end - range.start + 1);
       const first = await readChunk(options.provider, identity, range.start, firstLength, request.signal);
       if (first.offset !== range.start || first.bytes.byteLength !== firstLength) {
-        return json({ code: 'provider-truncated' }, 502, documentCorsHeaders(request));
+        return json({ code: 'provider-truncated' }, 502, documentCorsHeaders(request, env));
       }
       return new Response(
         streamBytes(options.provider, identity, range, first.bytes, request),
         { status: range.partial ? 206 : 200, headers },
       );
     } catch (error) {
-      return json({ code: 'document_provider_unavailable' }, sourceErrorStatus(error), documentCorsHeaders(request));
+      return json({ code: 'document_provider_unavailable' }, sourceErrorStatus(error), documentCorsHeaders(request, env));
     }
   },
 });
