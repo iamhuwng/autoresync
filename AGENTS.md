@@ -1,4 +1,6 @@
+# LuyenTap Agent Instructions
 
+`AGENTS.md` is the single canonical instruction file for all AI coding agents working in this repository (Codex, Gemini, Claude, etc.).
 
 ## Integration Safety Rules (24 rules - ZERO BYPASS)
 
@@ -28,12 +30,12 @@ Resolve straightforward issues locally. While evidence still suggests a viable
 local fix, make at most three focused retries; a retry must test a materially
 new hypothesis, not repeat the same action.
 
-After one to three failed attempts with no optimistic next step, send the Astra
-main task one comprehensive state report containing the exact reproduction and
+After one to three failed attempts with no optimistic next step, send the coordinating
+task or user one comprehensive state report containing the exact reproduction and
 current error, relevant source/data/deployment state, attempt chronology,
 tests/logs, touched files and configuration, deployed version, observed side
 effects, ruled-out causes, remaining uncertainty, and a request for a one-pass
-plan. Pause only the affected work until Astra replies, then work within that
+plan. Pause only the affected work until guidance is received, then work within that
 plan for up to three focused retries before reporting the complete state again.
 Continue independent authorized work while waiting.
 
@@ -62,7 +64,7 @@ Before adding or modifying user-facing create, save, update, publish, assign, en
 Read [`rules/temporary-prd0055-authority-sync-closure-lessons.md`](documentation/rules/temporary-prd0055-authority-sync-closure-lessons.md) for packet/taskbox/findings/traceability reconciliation, exact-path staging, remote-state proof, or formal milestone/packet closure (including its commit or handoff).
 Ordinary implementation, review, or correction does not trigger this bridge unless it includes one of those operations.
 
-Temporary bridge: remove after Codex memory index contains `prd0055-authority-sync-closure-lessons` / `authority-sync`.
+Temporary bridge: remove once repo memory/docs supersede this file.
 
 ## Dev Login Shortcuts (MANDATORY)
 
@@ -144,3 +146,16 @@ this pause is an instruction lookup, not a request for user confirmation.
 - Observability/page-action work: load `.agent/skills/observability-tracking/SKILL.md` so feature registry and tracking stay synchronized.
 - Local development and testing use native Node and the active checkout's own lockfile and dependencies. See [native development](documentation/system/native-development.md) for commands.
 - With the DevSpace plugin, open the canonical checkout using `mode="checkout"` and reuse the returned `workspaceId`. Use `mode="worktree"` only when the user explicitly needs parallel isolation.
+
+---
+
+## Knowns Guidelines
+
+Knowns MCP and Knowns CLI are unavailable in this repo state.
+
+- Edit relevant `.knowns/docs/**/*.md` and `.knowns/tasks/**/*.md` directly when an approved task requires Knowns updates.
+- Do not edit generated `.knowns/.search/**` files.
+- Do not edit `.knowns/versions/**` unless a later explicit tooling/registry task approves version-store maintenance.
+- Preserve historical task/log text. Append current truth or add obsolescence notes instead of rewriting history.
+- Validate with `rg`, scoped UTF-8 checks, and `git diff --check`.
+- For observability/page-action work, still load `.agent/skills/observability-tracking/SKILL.md`.

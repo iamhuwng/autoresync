@@ -57,23 +57,30 @@ node scripts/release-check.mjs --mode release --target hosting --base <review-ba
 Provider metadata remains `UNVERIFIED` when it lacks deployed source/tree.
 Once a production manifest is independently present, use `--observe-hosting`;
 application changes also require a compatibility review bound to the exact
-source, base, and observed fingerprint. When backend paths differ, the Hosting
-target independently observes active dependencies and requires that review's
-`dependenciesFingerprint` to match. Follow `documentation/system/integration-releases.md`
-for supported scope and separate backend qualification; the target grants no
-Worker deployment readiness. A `PASS` from fixtures or a manually
-edited receipt is not production evidence.
+source, base, and observed fingerprint. When backend paths in `live_sha..HEAD`
+differ, the Hosting target scopes dependency observation strictly to the actually
+changed backend services and requires that review's `dependenciesFingerprint` to
+match. Routine frontend Hosting releases skip unrelated RTDB, Firestore,
+Cloudflare Worker, and R2 probes. Follow
+`documentation/system/integration-releases.md` for supported scope and separate
+backend qualification; the target grants no Worker deployment readiness. Post-deploy
+Hosting readback (`deploy-live.mjs` / `release-evidence.mjs`) polls with bounded
+backoff (up to 90s) until Firebase Hosting finalizes the new live version and
+serves the expected manifest and assets; `--verify-existing <operationId>` resumes
+interrupted verification without redeploying. A `PASS` from fixtures or a
+manually edited receipt is not production evidence.
 
 Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and
 separate explicit production authorization may reach `npm run deploy:hosting`.
-The deployment script is the only supported mutating route. It requires the canonical checkout (or a checkout with `tooling:doctor` green) because Firebase CLI and build dependencies are intentionally not installed into managed worktrees.
+The deployment script is the only supported mutating route. It requires a checkout
+with `tooling:doctor` green so Firebase CLI and build dependencies are present.
 
-## Codex application-verification duty
+## Agent application-verification duty
 
-For an application-impacting candidate, Codex owns the verification decision and
+For an application-impacting candidate, the agent owns the verification decision and
 must complete the handoff before treating the release as ready for promotion:
 
-1. Inspect the changed surfaces and choose proportionate proof. Codex may use
+1. Inspect the changed surfaces and choose proportionate proof. The agent may use
    focused tests, a browser, an emulator, provider checks, or a disposable
    qualification journey. No framework, browser, account scheme, or journey is
    prescribed here.
@@ -91,21 +98,21 @@ must complete the handoff before treating the release as ready for promotion:
 
 The release checker remains conservative: `UNVERIFIED`, `REVIEW_REQUIRED`, and
 `BLOCKED` are machine decisions requiring preparation or evidence, not approval.
-This duty gives Codex authority over test selection and execution while leaving
+This duty gives the agent authority over test selection and execution while leaving
 source integrity, provenance, freshness, concurrency, publication, recovery and
 production authorization to the release system and owner boundary.
 
-## Isolated Homework Worker release
+## Scoped Hosting dependencies & Worker/rules releases
 
-For the pinned October 18 Homework Worker artifact, follow
-`documentation/release-audits/2026-10-18-homework-worker-release.md` and use
-`--observe-homework-worker --worker-bundle <path> --worker-config <path>`.
-The fixed provider observer qualifies only that exact clean source/base/tree,
-bundle and deployment configuration. It preserves the full source diff in the
-receipt and cannot select arbitrary services. Require fresh shared-checker
-`PASS`, independent review and separate Worker authorization. Hosting and
-Functions remain outside this artifact release; prepare Worker execution and
-recovery using the packet's reviewed operational plan.
+Hosting dependency checks (`scripts/release-hosting-dependencies.mjs`) are scoped
+strictly to backend services that actually changed in `live_sha..HEAD`:
+- RTDB rules readback runs only when `database.rules.json` changed.
+- Firestore rules or index readback runs only when `firestore.rules` or `firestore.indexes.json` changed.
+- Cloudflare Worker or R2 probes run only when that specific Worker's source/config or `sharedHomeworkInputs` changed.
+
+Worker and Firebase rules releases require service-specific qualification (targeted
+tests, dry-run build, version-addressed Cloudflare `/versions/:id` or Firebase rules
+readback) and separate deployment authorization outside the Hosting-only route.
 
 ## Independent hotfix
 

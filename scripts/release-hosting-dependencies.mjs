@@ -4,20 +4,43 @@ import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { collectSourceState, sharedHomeworkInputs } from './release-check.mjs';
+import { collectSourceState, hostingImpactPaths, sharedHomeworkInputs } from './release-check.mjs';
 import { isObserved } from './release-evidence.mjs';
-import { canonical, readListeningProvider, workerInvariants } from './release-listening-evidence.mjs';
-import { reviewedListeningPreviewRelease as pins } from './release-listening-preview-pins.mjs';
+import { canonical, digest, FIREBASE_DATABASE_URL, FIREBASE_PROJECT_ID, PRIVATE_AUDIO_BUCKET_NAME, PRODUCTION_WORKER_NAMES, readProviderState, workerInvariants, CLOUDFLARE_ZONE_ID } from './release-provider-readback.mjs';
 
 const observations = new WeakSet();
 const hash = value => createHash('sha256').update(value).digest('hex');
-const digest = value => hash(canonical(value));
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
-const workerNames = ['luyentap-notification-command', 'luyentap-notification-firestore-qa', 'r2-backup-worker', 'r2-upload-signer'];
 const unchangedConfig = ['firebase.json', '.firebaserc'];
 const qualificationKeys = ['API_KEY', 'HOSTING_SITE', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'];
 const unsupportedPath = file => /^functions\//u.test(file) || /^vite\.config/u.test(file);
 export const isHostingDependenciesObserved = value => observations.has(value);
+
+export function selectHostingDependencyScope(files) {
+  const workers = new Set();
+  for (const file of files) {
+    if (/^r2-backup-worker\//u.test(file) || sharedHomeworkInputs.includes(file)) workers.add('r2-backup-worker');
+    if (/^cloudflare\/(?:wrangler\.notifications\.jsonc|notification-command-worker\.js|notification-release\/notification-command-|homework-notification\.ts|homework-result-authority\.ts|course-enrollment-approval-(?:handler|route)\.ts)/u.test(file)) workers.add('luyentap-notification-command');
+    if (/^cloudflare\/(?:wrangler\.notification-firestore-bridge\.jsonc|notification-firestore-(?:bridge|auth)\.ts|notification-release\/notification-firestore-)/u.test(file)) workers.add('luyentap-notification-firestore-qa');
+    if (/^cloudflare\/(?:wrangler\.thcs-gemma\.jsonc|thcs-gemma-worker\.js|src\/ai-gateway\/)/u.test(file)) workers.add('thcs-gemma');
+    if (/^cloudflare\/(?:wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-rollout-)/u.test(file)) workers.add('r2-upload-signer');
+    if (/^cloudflare\//u.test(file) && !/^cloudflare\/r2-lifecycle\.listening-private\.json$/u.test(file)
+      && !/^cloudflare\/(?:__tests__|test|scripts)\//u.test(file) && !/^cloudflare\/vitest[^/]*\.mjs$/u.test(file)
+      && !/^cloudflare\/wrangler\.(?:qualification|remote-dev|canary|ticket[^/]*|book-source[^/]*)\.jsonc$/u.test(file)
+      && !/^cloudflare\/src\/book-source-worker\//u.test(file)
+      && !/^cloudflare\/(?:wrangler\.notifications\.jsonc|notification-command-worker\.js|notification-release\/notification-command-|homework-notification\.ts|homework-result-authority\.ts|course-enrollment-approval-(?:handler|route)\.ts|wrangler\.notification-firestore-bridge\.jsonc|notification-firestore-(?:bridge|auth)\.ts|notification-release\/notification-firestore-|wrangler\.thcs-gemma\.jsonc|thcs-gemma-worker\.js|src\/ai-gateway\/|wrangler\.jsonc|worker\.js|src\/upload-worker\/|src\/book-rollout-)/u.test(file)) {
+      workers.add('luyentap-notification-command'); workers.add('luyentap-notification-firestore-qa'); workers.add('r2-upload-signer');
+    }
+  }
+  return { rtdbRules: files.includes('database.rules.json'), rtdbFlags: files.includes('database.rules.json'),
+    firestoreRules: files.includes('firestore.rules'), firestoreIndexes: files.includes('firestore.indexes.json'),
+    functions: files.some(file => /^functions\//u.test(file)),
+    privateAudio: files.includes('cloudflare/r2-lifecycle.listening-private.json') || files.includes('cloudflare/wrangler.jsonc'),
+    workers: [...workers].sort(), cloudflareCommon: workers.size > 0 };
+}
+
+export const hasHostingDependencyProbes = scope => Boolean(scope?.rtdbRules || scope?.rtdbFlags || scope?.firestoreRules
+  || scope?.firestoreIndexes || scope?.functions || scope?.privateAudio || scope?.cloudflareCommon || scope?.workers?.length);
 
 export function reconcileLegacyEnvironment({ productionRaw, envFingerprint, manifestFingerprint, qualification, workflow }) {
   assert.equal(hash(productionRaw), envFingerprint, 'Production environment file differs from the requested identity');
@@ -54,6 +77,7 @@ export function validateHostingIndexes({ base, candidate }, observed) {
 
 // Validation is reusable in tests; only native observation can create trusted evidence.
 export function validateHostingDependencies(local, provider) {
+  const scope = local.scope || selectHostingDependencyScope(local.source.files);
   assert.deepEqual(local.source, local.actualSource, 'Hosting dependency source changed');
   assert.equal(local.source.dirty, false, 'Hosting dependency source is dirty');
   assert.notEqual(local.source.sourceKnown, false, 'Hosting dependency source is unknown');
@@ -76,28 +100,42 @@ export function validateHostingDependencies(local, provider) {
     assert.match(input.candidate ?? '', /^[a-f0-9]{40}$/u, `Hosting dependency input unavailable: ${input.path}`);
     assert.equal(input.candidate, input.base, `Hosting dependency input changed: ${input.path}`);
   }
-  if (local.indexes) validateHostingIndexes(local.indexes, provider.firestoreIndexes);
-  assert.equal(provider.rulesSha256, local.rulesSha256, 'Hosting active RTDB rules differ from candidate');
-  assert(local.firestoreRulesSha256s.includes(provider.firestoreRules?.sourceSha256), 'Hosting active Firestore rules differ from candidate');
-  assert.equal(provider.firestoreRules?.release?.name, 'projects/temp-a1437/releases/cloud.firestore', 'Hosting Firestore project changed');
-  assert.equal(local.lifecycleSha256, pins.privateAudio.lifecycleSha256, 'Hosting private audio lifecycle source changed');
-  validateHostingInfrastructure(provider);
+  if (scope.rtdbRules) assert.equal(provider.rulesSha256, local.rulesSha256, 'Hosting active RTDB rules differ from candidate');
+  if (scope.firestoreRules) {
+    assert(local.firestoreRulesSha256s.includes(provider.firestoreRules?.sourceSha256), 'Hosting active Firestore rules differ from candidate');
+    assert.equal(provider.firestoreRules?.release?.name, `projects/${FIREBASE_PROJECT_ID}/releases/cloud.firestore`, 'Hosting Firestore project changed');
+  }
+  if (scope.firestoreIndexes) validateHostingIndexes(local.indexes, provider.firestoreIndexes);
+  validateHostingInfrastructure(provider, { scope, lifecycleSha256: local.lifecycleSha256 });
 }
 
-function validateHostingInfrastructure(provider) {
-  const routing = digest(provider.common);
-  assert.equal(routing, pins.commonSha256, `Hosting dependency routing or account changed (expected ${pins.commonSha256}, observed ${routing})`);
-  assert.deepEqual(provider.functions, [], 'Hosting dependency Functions inventory changed');
-  assert.equal(provider.writesEnabled, true, 'Hosting dependency authoring writes are disabled');
-  assert(provider.restore === null || provider.restore === false || provider.restore?.active === false, 'Hosting dependency restore is active or ambiguous');
-  const bucket = provider.privateAudioBucket;
-  assert.equal(bucket?.bucketName, pins.privateAudio.bucketName, 'Hosting private audio bucket changed');
-  assert.equal(bucket.managedDomain?.enabled, false, 'Hosting private audio bucket is public or unavailable');
-  assert.deepEqual(bucket.customDomains?.domains, [], 'Hosting private audio custom domains changed');
-  const lifecycle = digest(bucket.lifecycle);
-  assert.equal(lifecycle, pins.privateAudio.lifecycleSha256, `Hosting private audio lifecycle changed (expected ${pins.privateAudio.lifecycleSha256}, observed ${lifecycle})`);
-  assert.deepEqual(Object.keys(provider.workers).sort(), workerNames, 'Hosting dependency Worker inventory changed');
-  for (const [name, worker] of Object.entries(provider.workers)) {
+export function validateHostingInfrastructure(provider, { scope, lifecycleSha256 } = {}) {
+  scope ||= { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true,
+    privateAudio: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true };
+  if (scope.cloudflareCommon) {
+    assert.equal(provider.common?.accountSubdomain?.subdomain, 'iamhuwng', 'Hosting account subdomain changed');
+    assert.deepEqual(provider.common?.domains, [], 'Hosting custom domains changed');
+    assert.deepEqual(provider.common?.routes, [], 'Hosting routes changed');
+    assert.deepEqual(provider.common?.zones, [CLOUDFLARE_ZONE_ID], 'Hosting zone inventory changed');
+  }
+  if (scope.functions) assert.deepEqual(provider.functions, [], 'Hosting dependency Functions inventory changed');
+  if (scope.rtdbFlags) {
+    assert.equal(provider.writesEnabled, true, 'Hosting dependency authoring writes are disabled');
+    assert(provider.restore === null || provider.restore === false || provider.restore?.active === false, 'Hosting dependency restore is active or ambiguous');
+  }
+  if (scope.privateAudio) {
+    const bucket = provider.privateAudioBucket;
+    assert.equal(bucket?.bucketName, PRIVATE_AUDIO_BUCKET_NAME, 'Hosting private audio bucket changed');
+    assert.equal(bucket.managedDomain?.enabled, false, 'Hosting private audio bucket is public or unavailable');
+    assert.deepEqual(bucket.customDomains?.domains, [], 'Hosting private audio custom domains changed');
+    assert.equal(digest(bucket.lifecycle), lifecycleSha256, 'Hosting private audio lifecycle changed');
+  }
+  if (scope.workers?.length) {
+    assert.deepEqual(Object.keys(provider.workers || {}).sort(), [...scope.workers].sort(), 'Hosting dependency Worker inventory changed');
+  }
+  for (const name of scope.workers || []) {
+    const worker = provider.workers?.[name];
+    assert(worker, `Hosting ${name} state unavailable`);
     assert.equal(typeof worker.versionId, 'string', `Hosting ${name} version unavailable`);
     assert(worker.versionId, `Hosting ${name} version unavailable`);
     assert.deepEqual(worker.deployment, worker.deploymentAfter, `Hosting ${name} deployment changed`);
@@ -113,8 +151,8 @@ function validateHostingInfrastructure(provider) {
       assert.equal(vars.FIREBASE_PROJECT_ID, undefined, 'Hosting adapter Firebase project changed');
       assert.equal(vars.FIREBASE_DB_URL, undefined, 'Hosting adapter Firebase database changed');
     } else {
-      assert.equal(vars.FIREBASE_PROJECT_ID, 'temp-a1437', `Hosting ${name} Firebase project changed`);
-      assert.equal(vars.FIREBASE_DB_URL, 'https://temp-a1437-default-rtdb.firebaseio.com', `Hosting ${name} Firebase database changed`);
+      assert.equal(vars.FIREBASE_PROJECT_ID, FIREBASE_PROJECT_ID, `Hosting ${name} Firebase project changed`);
+      assert.equal(vars.FIREBASE_DB_URL, FIREBASE_DATABASE_URL, `Hosting ${name} Firebase database changed`);
     }
     for (const [key, value] of Object.entries(vars)) if (/EMULATOR/iu.test(key)) {
       assert(key === 'LOCAL_EMULATOR_AUTH' && value === 'false', `Hosting ${name} emulator is enabled or configured`);
@@ -126,9 +164,10 @@ function validateHostingInfrastructure(provider) {
 export async function checkHostingDependencyHealth(cwd) {
   const diagnostics = [];
   try {
-    const provider = await readListeningProvider(cwd, { firestore: true, privateAudio: true,
-      firestoreIndexes: true, hosting: true, onDiagnostic: message => diagnostics.push(message) });
-    validateHostingInfrastructure(provider);
+    const provider = await readProviderState(cwd, { hosting: true, rtdbRules: true, rtdbFlags: true,
+      firestoreRules: true, firestoreIndexes: true, functions: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true, privateAudio: true,
+      onDiagnostic: message => diagnostics.push(message) });
+    validateHostingInfrastructure(provider, { scope: { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true, privateAudio: true }, lifecycleSha256: digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8'))) });
     return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'HEALTHY', diagnostics };
   } catch (error) {
     return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'UNVERIFIED', diagnostics: [...diagnostics, error.message] };
@@ -143,8 +182,9 @@ const git = (cwd, args) => {
 
 async function readLocal(cwd, source, hostingObservation, envFingerprint, productionEnvFile) {
   const actualSource = await collectSourceState(cwd, source.baseRevision);
+  const impactPaths = hostingImpactPaths(cwd, actualSource);
+  const scope = selectHostingDependencyScope(impactPaths);
   const input = file => ({ path: file, candidate: git(cwd, ['rev-parse', '--verify', `${actualSource.revision}:${file}`]), base: git(cwd, ['rev-parse', '--verify', `${actualSource.baseRevision}:${file}`]) });
-  const firestore = (await readFile(path.join(cwd, 'firestore.rules'), 'utf8')).replace(/\r\n/gu, '\n');
   let environmentBinding = { kind: 'exact', productionFingerprint: envFingerprint, buildInputFingerprint: envFingerprint };
   if (envFingerprint !== hostingObservation.manifest.envFingerprint) {
     let qualification = Object.fromEntries(qualificationKeys.map(key => [key, process.env[`LUYENTAP_QUALIFICATION_FIREBASE_${key}`]]));
@@ -158,37 +198,43 @@ async function readLocal(cwd, source, hostingObservation, envFingerprint, produc
       envFingerprint, manifestFingerprint: hostingObservation.manifest.envFingerprint, qualification,
       workflow: git(cwd, ['show', `${hostingObservation.revision}:.github/workflows/release-promotion-phase3.yml`]) });
   }
-  const indexesChanged = input('firestore.indexes.json');
+  const firestore = scope.firestoreRules ? (await readFile(path.join(cwd, 'firestore.rules'), 'utf8')).replace(/\r\n/gu, '\n') : null;
   return { source, actualSource, hosting: { revision: hostingObservation.revision, tree: hostingObservation.tree,
     sourceKnown: hostingObservation.sourceKnown, environment: hostingObservation.manifest.environment, fingerprint: hostingObservation.fingerprint,
     baseTree: git(cwd, ['rev-parse', `${actualSource.baseRevision}^{tree}`]), envFingerprint: hostingObservation.manifest.envFingerprint },
   envFingerprint, environmentBinding, sharedInputs: [...sharedHomeworkInputs].map(input),
-  ...(indexesChanged.candidate !== indexesChanged.base ? { indexes: {
+  ...(scope.firestoreIndexes ? { indexes: {
     base: JSON.parse(git(cwd, ['show', `${actualSource.baseRevision}:firestore.indexes.json`])),
     candidate: JSON.parse(await readFile(path.join(cwd, 'firestore.indexes.json'), 'utf8')),
   } } : {}),
   unchangedPaths: [...new Set([...unchangedConfig, ...actualSource.files.filter(unsupportedPath)])].sort().map(input),
-  rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))),
-  firestoreRulesSha256s: [hash(firestore), hash(firestore.replace(/\n/gu, '\r\n'))],
-  lifecycleSha256: digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8'))) };
+  scope, impactPaths,
+  ...(scope.rtdbRules ? { rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))) } : {}),
+  ...(scope.firestoreRules ? { firestoreRulesSha256s: [hash(firestore), hash(firestore.replace(/\n/gu, '\r\n'))] } : {}),
+  ...(scope.privateAudio ? { lifecycleSha256: digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8'))) } : {}) };
 }
 
 export async function observeHostingDependencies({ cwd, source, hostingObservation, envFingerprint, productionEnvFile } = {}) {
   assert(isObserved(hostingObservation), 'Untrusted Hosting observation rejected');
   const local = await readLocal(cwd, source, hostingObservation, envFingerprint, productionEnvFile);
-  const options = { firestore: true, privateAudio: true, firestoreIndexes: Boolean(local.indexes), hosting: true };
-  const provider = await readListeningProvider(cwd, options);
+  const provider = await readProviderState(cwd, { hosting: true, ...local.scope });
   validateHostingDependencies(local, provider);
-  assert.deepEqual(await readListeningProvider(cwd, options), provider, 'Hosting dependencies changed during observation');
+  assert.deepEqual(await readProviderState(cwd, { hosting: true, ...local.scope }), provider, 'Hosting dependencies changed during observation');
   assert.deepEqual(await readLocal(cwd, source, hostingObservation, envFingerprint, productionEnvFile), local, 'Hosting dependency source changed during observation');
   const providerFingerprint = digest(provider);
   const observation = freeze({ schemaVersion: 1, scope: 'hosting-dependencies', source: structuredClone(source),
     envFingerprint, environmentBinding: local.environmentBinding, hostingFingerprint: hostingObservation.fingerprint, providerFingerprint,
     fingerprint: digest({ sourceFingerprint: source.fingerprint, envFingerprint, hostingFingerprint: hostingObservation.fingerprint, providerFingerprint }),
-    services: { rtdb: { sha256: provider.rulesSha256 }, firestore: provider.firestoreRules, ...(provider.firestoreIndexes ? { firestoreIndexes: provider.firestoreIndexes } : {}),
-      workers: Object.fromEntries(Object.entries(provider.workers).map(([name, worker]) => [name, {
+    services: {
+      ...(provider.rulesSha256 ? { rtdb: { sha256: provider.rulesSha256 } } : {}),
+      ...(provider.firestoreRules ? { firestore: provider.firestoreRules } : {}),
+      ...(provider.firestoreIndexes ? { firestoreIndexes: provider.firestoreIndexes } : {}),
+      ...(provider.workers ? { workers: Object.fromEntries(Object.entries(provider.workers).map(([name, worker]) => [name, {
         versionId: worker.versionId, modules: worker.modules, invariantSha256: digest(workerInvariants(worker)), sourceKnown: false,
-      }])), privateAudio: { bucketName: provider.privateAudioBucket.bucketName, lifecycleSha256: local.lifecycleSha256 } },
+      }])) } : {}),
+      ...(provider.privateAudioBucket ? { privateAudio: { bucketName: provider.privateAudioBucket.bucketName, lifecycleSha256: local.lifecycleSha256 } } : {}),
+      ...(provider.common ? { common: provider.common } : {}), ...(provider.functions ? { functions: provider.functions } : {}),
+    }, observedScope: local.scope,
     observedAt: new Date().toISOString(), readOnly: true, authorization: 'NOT_AUTHORIZED', workerDeploymentReady: false,
     limitation: 'Active backend dependencies observed for Hosting compatibility review only; candidate Worker equivalence and deployment readiness are unverified.' });
   observations.add(observation);

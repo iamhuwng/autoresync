@@ -5,10 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { assess, collectSourceState, parseCompatibilityReviewBinding } from './release-check.mjs';
-import { isHostingDependenciesObserved, observeHostingDependencies } from './release-hosting-dependencies.mjs';
-import { listeningEditorHostingReady } from './release-listening-editor-evidence.mjs';
-import { writeHostingManifest, observeHosting, observeHostingProvider } from './release-evidence.mjs';
+import { assess, collectSourceState, hostingImpactPaths, parseCompatibilityReviewBinding } from './release-check.mjs';
+import { hasHostingDependencyProbes, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope } from './release-hosting-dependencies.mjs';
+import { writeHostingManifest, observeHosting, observeHostingProvider, waitForHostingLive } from './release-evidence.mjs';
 import { prepareDeploymentChangelog, reconcileHostingChangelog } from './release-changelog.mjs';
 import { reviewedChanges } from './lib/changeRecords.mjs';
 import { executeRecordedOperation } from './release-operation.mjs';
@@ -99,24 +98,13 @@ const fail = (message) => {
   throw new Error(`[Production deploy blocked] ${message}`);
 };
 
-export const selectReleaseSource = ({ sourceCwd, observeListening = false, observeListeningEditorRelease = false, listeningPhase, cwd = repoRoot } = {}) => {
-  if (sourceCwd && !observeListening && !observeListeningEditorRelease) fail('external source cwd requires qualified Listening observation.');
-  if (observeListening && observeListeningEditorRelease) fail('Choose only one Listening release profile.');
-  if (observeListeningEditorRelease && !['postupload', 'postrules'].includes(listeningPhase)) fail('Editor Hosting deployment requires postupload or postrules phase, as fixed by the reviewed profile.');
-  if (observeListening && listeningPhase !== 'homework') fail('Listening Hosting deployment requires the homework phase.');
-  return path.resolve(sourceCwd || cwd);
+export const selectReleaseSource = ({ sourceCwd, cwd = repoRoot } = {}) => {
+  if (sourceCwd) fail('external source cwd is not supported for production deployment.');
+  return path.resolve(cwd);
 };
 
-export const assertListeningHostingReady = (result, observeListening = false, observeListeningEditorRelease = false) => {
-  if (observeListeningEditorRelease && result.editorObservation?.scope === 'upload-worker-only') fail('Worker-only qualification cannot deploy Hosting.');
-  if (observeListeningEditorRelease && (!listeningEditorHostingReady(result.editorObservation) || result.hostingReady !== true)) fail('Editor Hosting deployment requires its verified profile phase (postupload for editor; postrules for functional completion/private audio) and hostingReady=true.');
-  if (observeListening && (result.listeningObservation?.phase !== 'homework' || result.hostingReady !== true)) {
-    fail(`Listening Hosting deployment requires verified homework phase and hostingReady=true. ${result.findings?.find(finding => finding.status !== 'PASS')?.message ?? 'Native homework observation is missing.'}`);
-  }
-};
-
-export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReview, compatibilityReviewPath, compatibilityReviewSha256, cwd = repoRoot, observeListening = false, observeListeningEditorRelease = false, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig }) => {
-  selectReleaseSource({ observeListening, observeListeningEditorRelease, listeningPhase, cwd });
+export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, baselineSha256, base, fingerprint, productionEnvFingerprint, currentProductionEnvFingerprint, observedFingerprint, compatibilityReview, compatibilityReviewPath, compatibilityReviewSha256, cwd = repoRoot }) => {
+  selectReleaseSource({ cwd });
   if (mode === 'acceptance') fail('acceptance assessments cannot invoke the production deployment route.');
   if (!base) fail('missing LUYENTAP_RELEASE_BASE; deployment source must be explicitly compared with a reviewed revision.');
   if (!fingerprint) fail('missing LUYENTAP_RELEASE_FINGERPRINT; deployment approval must bind to the assessed source tree.');
@@ -135,8 +123,7 @@ export const assertReleaseAssessment = async ({ mode = 'release', baselinePath, 
     try { compatibilityReview = parseCompatibilityReviewBinding(compatibilityReview); }
     catch (error) { fail(error.message); }
   }
-  const result = await assess({ cwd, mode, target: observeListening || observeListeningEditorRelease ? 'all' : 'hosting', base, baselinePath, productionEnvFingerprint, ...(compatibilityReview ? { inlineCompatibilityReview: compatibilityReview.review } : { ...(compatibilityReviewPath ? { compatibilityReviewPath } : {}) }), observe: true, observeListening, observeListeningEditorRelease, listeningPhase, listeningUploadBundle, listeningUploadConfig, listeningHomeworkBundle, listeningHomeworkConfig });
-  assertListeningHostingReady(result, observeListening, observeListeningEditorRelease);
+  const result = await assess({ cwd, mode, target: 'hosting', base, baselinePath, productionEnvFingerprint, ...(compatibilityReview ? { inlineCompatibilityReview: compatibilityReview.review } : { ...(compatibilityReviewPath ? { compatibilityReviewPath } : {}) }), observe: true });
   if (!baselinePath && !result.observed) fail('no independently observed production baseline is available; complete the one-time Hosting evidence bootstrap or supply per-service evidence.');
   if (result.observed?.fingerprint !== observedFingerprint) fail('production Hosting changed since review.');
   if (result.source.fingerprint !== fingerprint) fail('release assessment fingerprint does not match the approved source tree.');
@@ -337,36 +324,27 @@ const recordedIntent = record => ({ id: record.id, description: record.descripti
   targets: record.targets.map(({ publication, verification, providerIdentity, evidenceRefs, ...target }) => target),
   evidenceRefs: record.evidenceRefs });
 
-async function observeRecordedHosting(archive, { observeSource, observeProvider }) {
+async function observeRecordedHosting(archive, { observeSource, observeProvider, poll }) {
   const { id, expectedManifest, before, request } = archive.intent;
-  const provider = await observeProvider();
-  if (providerIdentity(provider) === providerIdentity(before)
-    || !provider.provider.message?.startsWith(`[luyentap:${id}] `)) {
-    throw new Error(`Release ${id} is not confirmed as the current provider release; inspect its recorded operation. No deployment was performed by verification.`);
+  const result = await waitForHostingLive({ expectedManifestFingerprint: digest(JSON.stringify(expectedManifest)),
+    beforeProviderIdentity: providerIdentity(before), operationId: id, observeProvider, observeSource, ...poll });
+  if (result.verification !== 'passed') {
+    console.error(`[Release ${id}] Publication confirmed; verification pending (${result.lastError || 'CDN readback pending'}). Resume with --verify-existing ${id}; do not redeploy.`);
   }
-  let verification = 'unverified';
-  let source;
-  try {
-    source = await observeSource();
-    const after = await observeProvider();
-    if (providerIdentity(after) === providerIdentity(provider)
-      && source.fingerprint === digest(JSON.stringify(expectedManifest))) verification = 'passed';
-  } catch (error) {
-    console.error(`[Release ${id}] Publication confirmed; verification pending: ${error.message}`);
-  }
-  return { outcomes: [{ id: request.targets[0].id, publication: 'published', verification,
-    providerIdentity: providerIdentity(provider), evidenceRefs: [archive.evidenceRef, provider.evidenceRef,
-      ...(source?.evidenceRef ? [source.evidenceRef] : [])] }] };
+  return { outcomes: [{ id: request.targets[0].id, publication: 'published', verification: result.verification,
+    providerIdentity: providerIdentity(result.provider), evidenceRefs: [archive.evidenceRef, result.provider.evidenceRef,
+      ...(result.source?.evidenceRef ? [result.source.evidenceRef] : [])] }] };
 }
 
 export async function verifyExistingHosting({ id, sha256, storeDir, readArchive = readHostingArchive,
   saveOutcome = recordHostingArchiveOutcome, observeSource = observeHosting, observeProvider = observeHostingProvider,
-  cwd = repoRoot, reconcile = reconcileHostingChangelog, writeEvidence = writeOperationEvidence }) {
+  cwd = repoRoot, reconcile = reconcileHostingChangelog, writeEvidence = writeOperationEvidence,
+  poll = { timeoutMs: 30_000, initialDelayMs: 2_000, maxDelayMs: 10_000 } }) {
   const archive = await readArchive({ id, sha256 });
   const request = archive.intent.request;
   // Remote intent is revalidated independently; a locally edited journal cannot choose verification inputs.
   const record = beginRelease(request, storeDir);
-  const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider });
+  const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider, poll });
   if (record.targets[0].publication === 'published'
     && record.targets[0].providerIdentity !== outcome.outcomes[0].providerIdentity) throw new Error('The recorded provider identity differs; verification cannot reassign publication.');
   const result = settleRelease(id, outcome, storeDir);
@@ -393,7 +371,8 @@ const settleChangelog = async (archive, cwd, reconcile) => {
 export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run, storeDir,
   assessment, verification, verificationPlanSha256, sourceRef, revalidate,
   retainArchive = createHostingArchive, saveOutcome = recordHostingArchiveOutcome, reconcile = reconcileHostingChangelog,
-  observeSource = observeHosting, observeProvider = observeHostingProvider }) => {
+  observeSource = observeHosting, observeProvider = observeHostingProvider,
+  poll = { timeoutMs: 90_000, initialDelayMs: 2_000, maxDelayMs: 10_000 } }) => {
   const changes = reviewedChanges(cwd, (await collectSourceState(cwd, base)).revision, assessment?.compatibilityReview, true);
   const changelog = prepareDeploymentChangelog(base, cwd, storeDir, { changeIds: changes.changeIds });
   const expected = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
@@ -403,7 +382,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)
     || assessment.source.fingerprint !== source.fingerprint || assessment.observed.revision !== base) fail('deployment requires the current exact-source assessment.');
   if (assessment.hostingDependencies && !isHostingDependenciesObserved(assessment.hostingDependencies)) fail('deployment rejects caller-supplied Hosting dependency evidence.');
-  if (assessment.target === 'hosting' && assessment.source.services?.some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service))
+  if (assessment.target === 'hosting' && hasHostingDependencyProbes(selectHostingDependencyScope(hostingImpactPaths(cwd, source)))
     && (!isHostingDependenciesObserved(assessment.hostingDependencies)
       || assessment.hostingDependencies.source.fingerprint !== source.fingerprint
       || assessment.compatibilityReview?.dependenciesFingerprint !== assessment.hostingDependencies.fingerprint)) {
@@ -468,7 +447,7 @@ export const deployHosting = async ({ base, env, cwd = repoRoot, runDeploy = run
         '--non-interactive', '--message', operationMessage(record.id, record.targets[0].annotation ?? record.description)], env, cwd);
     },
     observe: async record => {
-      const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider });
+      const outcome = await observeRecordedHosting(archive, { observeSource, observeProvider, poll });
       // Preserve local provider identity even if the append-only remote outcome upload is interrupted.
       settleRelease(record.id, outcome, storeDir);
       await saveOutcome(archive, outcome);
@@ -517,16 +496,7 @@ const main = async () => {
   let cwd = repoRoot;
   let tempEnvDir, releaseAssessment, verification;
   try {
-    const listeningOptions = {
-      observeListening: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING === 'true',
-      observeListeningEditorRelease: process.env.LUYENTAP_RELEASE_OBSERVE_LISTENING_EDITOR === 'true',
-      listeningPhase: process.env.LUYENTAP_LISTENING_PHASE,
-      listeningUploadBundle: process.env.LUYENTAP_LISTENING_UPLOAD_BUNDLE,
-      listeningUploadConfig: process.env.LUYENTAP_LISTENING_UPLOAD_CONFIG,
-      listeningHomeworkBundle: process.env.LUYENTAP_LISTENING_HOMEWORK_BUNDLE,
-      listeningHomeworkConfig: process.env.LUYENTAP_LISTENING_HOMEWORK_CONFIG,
-    };
-    cwd = selectReleaseSource({ sourceCwd: process.env.LUYENTAP_RELEASE_SOURCE_CWD, ...listeningOptions });
+    cwd = selectReleaseSource({ sourceCwd: process.env.LUYENTAP_RELEASE_SOURCE_CWD });
     const sourceScripts = path.join(cwd, 'scripts');
     const loaded = await readProductionEnv(cwd);
     tempEnvDir = loaded.tempEnvDir;
@@ -547,7 +517,6 @@ const main = async () => {
         observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
         compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
         cwd,
-        ...listeningOptions,
       });
       if (!process.env.LUYENTAP_RELEASE_TEST_PLAN_FILE || !/^[a-f0-9]{64}$/u.test(process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256 || '')) {
         fail('reviewed LUYENTAP_RELEASE_TEST_PLAN_FILE and LUYENTAP_RELEASE_TEST_PLAN_SHA256 are required.');
@@ -593,7 +562,6 @@ const main = async () => {
       observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
       compatibilityReview: process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined,
       cwd,
-      ...listeningOptions,
     });
     const operation = await deployHosting({ base: releaseAssessment.observed.revision, env: loaded.env, cwd,
       assessment: releaseAssessment, verification, verificationPlanSha256: process.env.LUYENTAP_RELEASE_TEST_PLAN_SHA256,

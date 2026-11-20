@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sharedHomeworkInputs } from '../release-check.mjs';
-import { assertHostingFederation, canonical } from '../release-listening-evidence.mjs';
-import { isHostingDependenciesObserved, observeHostingDependencies, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
+import { assertHostingFederation, canonical, PRODUCTION_WORKER_NAMES } from '../release-provider-readback.mjs';
+import { isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
 
@@ -25,6 +25,62 @@ test('Hosting readback accepts the configured Google federation and rejects a di
   assert.throws(() => assertHostingFederation(config, 'release-reader@another-project.iam.gserviceaccount.com', provider), /another project/u);
 });
 
+test('Hosting dependency scope selects only affected backend probes', () => {
+  assert.deepEqual(selectHostingDependencyScope(['src/App.tsx']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: [], cloudflareCommon: false,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['database.rules.json', 'firestore.rules', 'firestore.indexes.json', 'functions/src/index.ts']), {
+    rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true,
+    privateAudio: false, workers: [], cloudflareCommon: false,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/src/upload-worker/index.ts', 'cloudflare/test/fixture.ts']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['r2-upload-signer'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope([sharedHomeworkInputs[0]]), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: true,
+    privateAudio: false, workers: ['r2-backup-worker'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['src/services/reading-v2/readingV2AnswerScoring.ts']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['r2-backup-worker'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['r2-backup-worker/src/index.ts']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['r2-backup-worker'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/notification-command-worker.js']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['luyentap-notification-command'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/r2-lifecycle.listening-private.json']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: true, workers: [], cloudflareCommon: false,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/wrangler.jsonc']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: true, workers: ['r2-upload-signer'], cloudflareCommon: true,
+  });
+  assert.deepEqual(selectHostingDependencyScope(['cloudflare/thcs-gemma-worker.js']), {
+    rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+    privateAudio: false, workers: ['thcs-gemma'], cloudflareCommon: true,
+  });
+  for (const excluded of [
+    'cloudflare/wrangler.book-source-capacity-probe.jsonc',
+    'cloudflare/wrangler.book-source-b2.jsonc',
+    'cloudflare/wrangler.book-source-reconciliation-preview.jsonc',
+    'cloudflare/wrangler.book-source.jsonc',
+    'cloudflare/src/book-source-worker/capacity-probe-worker.ts',
+    'cloudflare/wrangler.ticket87-preview.jsonc',
+  ]) {
+    assert.deepEqual(selectHostingDependencyScope([excluded]), {
+      rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
+      privateAudio: false, workers: [], cloudflareCommon: false,
+    });
+  }
+});
+
 function fixture() {
   const source = { revision: 'a'.repeat(40), tree: 'b'.repeat(40), baseRevision: 'c'.repeat(40), dirty: false,
     files: ['database.rules.json', 'src/example.ts'], fingerprint: 'd'.repeat(64) };
@@ -34,13 +90,14 @@ function fixture() {
     hosting: { revision: source.baseRevision, tree: 'f'.repeat(40), baseTree: 'f'.repeat(40), environment: 'production', fingerprint: '0'.repeat(64), envFingerprint: '1'.repeat(64) },
     envFingerprint: '1'.repeat(64), sharedInputs: [...sharedHomeworkInputs].map(input),
     unchangedPaths: ['.firebaserc', 'firebase.json'].map(input),
-    rulesSha256: '2'.repeat(64), firestoreRulesSha256s: ['3'.repeat(64), '4'.repeat(64)], lifecycleSha256: digest(lifecycle) };
+    rulesSha256: '2'.repeat(64), firestoreRulesSha256s: ['3'.repeat(64), '4'.repeat(64)], lifecycleSha256: digest(lifecycle),
+    scope: { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: false, functions: true, privateAudio: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true } };
   const provider = { rulesSha256: local.rulesSha256,
     firestoreRules: { release: { name: 'projects/temp-a1437/releases/cloud.firestore' }, sourceSha256: '3'.repeat(64) },
     common: { accountSubdomain: { subdomain: 'iamhuwng' }, domains: [], zones: ['1aae6fb9889672cf695927eb575a5bbe'], routes: [] },
     functions: [], writesEnabled: true, restore: null,
     privateAudioBucket: { bucketName: 'luyentap-listening-audio-private', managedDomain: { enabled: false }, customDomains: { domains: [] }, lifecycle }, workers: {} };
-  for (const name of ['r2-upload-signer', 'r2-backup-worker', 'luyentap-notification-command', 'luyentap-notification-firestore-qa']) {
+  for (const name of PRODUCTION_WORKER_NAMES) {
     const bindings = name === 'luyentap-notification-firestore-qa' ? [] : [
       { name: 'FIREBASE_PROJECT_ID', text: 'temp-a1437', type: 'plain_text' },
       { name: 'FIREBASE_DB_URL', text: 'https://temp-a1437-default-rtdb.firebaseio.com', type: 'plain_text' },
@@ -109,6 +166,25 @@ test('Hosting dependency validation rejects provider configuration, storage and 
     const { local, provider } = fixture(); mutate(provider);
     assert.throws(() => validateHostingDependencies(local, provider));
   }
+});
+
+test('scoped Hosting validation ignores unrelated provider state and rejects scoped drift', () => {
+  const { local, provider } = fixture();
+  local.scope = { rtdbRules: true, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false, privateAudio: false, workers: [], cloudflareCommon: false };
+  delete local.firestoreRulesSha256s;
+  delete local.lifecycleSha256;
+  const rules = provider.rulesSha256;
+  provider.firestoreRules.sourceSha256 = '0'.repeat(64);
+  provider.functions.push({ name: 'ignored' });
+  assert.doesNotThrow(() => validateHostingDependencies(local, provider));
+  provider.rulesSha256 = '0'.repeat(64);
+  assert.throws(() => validateHostingDependencies(local, provider), /RTDB rules/u);
+  provider.rulesSha256 = rules;
+  local.scope = { rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false, privateAudio: false, workers: ['r2-upload-signer'], cloudflareCommon: true };
+  provider.workers = { 'r2-upload-signer': provider.workers['r2-upload-signer'] };
+  assert.doesNotThrow(() => validateHostingDependencies(local, provider));
+  provider.common.routes.push({ pattern: 'drift.invalid/*' });
+  assert.throws(() => validateHostingDependencies(local, provider), /routes/u);
 });
 
 test('caller-supplied Hosting JSON never reaches native dependency reads or creates trusted evidence', async () => {
