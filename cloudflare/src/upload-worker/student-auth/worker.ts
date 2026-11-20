@@ -3,6 +3,8 @@ import {
   createTrustedFirebaseRtdbServiceAccountAccessTokenProvider,
 } from '../../../../src/services/book-source-delivery/sourceUpload.firebaseRtdbTransaction.ts';
 import { FirebaseRtdbRestClient } from '../listening-authoring/rtdb.ts';
+// @ts-ignore JavaScript module has no declaration file.
+import { parseSpareAllowedLocalhostOrigins } from '../cors-policy.js';
 
 const MAX_BODY_BYTES = 8 * 1024;
 const FIREBASE_CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
@@ -286,12 +288,16 @@ const accountAvailable = (profile: Record<string, unknown> | null): boolean => (
   && profile.forceReauth !== true
 );
 
-const getAllowedOrigins = (env: StudentAuthWorkerEnv): Set<string> => new Set(
-  requiredString(env.STUDENT_AUTH_ALLOWED_ORIGINS, 'allowed_origins_missing', 4096)
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
+const getAllowedOrigins = (env: StudentAuthWorkerEnv): Set<string> => {
+  const origins = new Set(
+    requiredString(env.STUDENT_AUTH_ALLOWED_ORIGINS, 'allowed_origins_missing', 4096)
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  );
+  parseSpareAllowedLocalhostOrigins(env).forEach((origin) => origins.add(origin));
+  return origins;
+};
 
 const jsonResponse = (
   body: Record<string, unknown>,

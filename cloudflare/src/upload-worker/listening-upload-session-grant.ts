@@ -1,14 +1,11 @@
 import { GrantAuthorityError, MAX_UPLOAD_BYTES } from './grant-authority.js';
 import { consumeGrantNonce } from './replay-authority.js';
 import { sanitizeFileName } from './path-authority.js';
+// @ts-ignore JavaScript module has no declaration file.
+import { isApprovedLocalAppOrigin } from './cors-policy.js';
 
 const textEncoder = new TextEncoder();
 const LOCAL_UPLOAD_TRANSPORT_ORIGIN = 'http://localhost:8787';
-const LOCAL_APP_ORIGINS = new Set([
-  'http://localhost:5173',
-  'http://localhost:5174',
-]);
-
 const fail = (reason: string, status = 403): never => {
   throw new GrantAuthorityError(reason, status);
 };
@@ -132,7 +129,7 @@ export const handleListeningUploadSessionGrant = async (input: {
   const contentLength = input.request.headers.get('Content-Length')
     ?? (
       grant.uploadTransportOrigin === LOCAL_UPLOAD_TRANSPORT_ORIGIN
-      && LOCAL_APP_ORIGINS.has(requestOrigin)
+      && isApprovedLocalAppOrigin(requestOrigin, input.env)
         ? input.request.headers.get('X-Upload-Size')
         : null
     );

@@ -86,7 +86,7 @@ When opening, probing, or reporting live browser QA URLs in this repo:
 - Use `http://localhost:<port>`, never `http://127.0.0.1:<port>`.
 - Use port `5173` as the role default for teacher flows.
 - Use port `5174` as the role default for student flows.
-- For concurrent worktrees, `npm run dev -- --port auto` or `npm run preview:spare -- --port auto` may use another free `http://localhost:<port>`.
+- For concurrent worktrees, `npm run dev -- --port auto` or `npm run preview:spare -- --port auto` allocates the first free port from the whitelisted `5173–5182` pool on `http://localhost:<port>`.
 - Keep browser sessions, dev-server commands, logs, and final reported URLs aligned with the active port.
 
 ## Google Cloud CLI First (MANDATORY)

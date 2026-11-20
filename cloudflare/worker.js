@@ -148,13 +148,13 @@ export function createUploadWorker({
       if (bookResponse) return bookResponse;
 
       if (request.method === 'OPTIONS') {
-        return handleCorsPreflight(request);
+        return handleCorsPreflight(request, env);
       }
 
-      const corsRejection = rejectDisallowedActualOrigin(request);
+      const corsRejection = rejectDisallowedActualOrigin(request, env);
       if (corsRejection) return corsRejection;
 
-      const corsHeaders = corsResponseHeaders(request);
+      const corsHeaders = corsResponseHeaders(request, env);
       const json = (body, init = {}) => jsonResponse(body, withHeaders(init, corsHeaders));
       const text = (body, init = {}) => textResponse(body, withHeaders(init, corsHeaders));
       const respond = ({ body, init = {} }) => json(body, init);

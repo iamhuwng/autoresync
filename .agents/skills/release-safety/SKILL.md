@@ -56,6 +56,10 @@ lightweight provider-version and manifest-fingerprint checks before mutation. RT
 rules readback (`/.settings/rules.json`) is decoupled from Hosting `publish`, `plan`,
 and `health`, and is owned by `npm run deploy:rules`.
 
+`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN` uses the minimum read-only Cloudflare Custom
+API Token scopes and manual 90–365 day rotation documented in
+[release safety](../../../documentation/system/release-safety.md#cloudflare-read-only-token-luyentap_release_cloudflare_read_token).
+
 ## Workers
 
 Use the service-specific entry point:
@@ -118,6 +122,10 @@ npm.cmd run preview:spare -- --port auto
 node scripts/release-spare-readback.mjs http://localhost:<port>
 npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
 ```
+
+`--port auto` selects the first free port from the whitelisted `5173–5182` localhost
+pool. The spare `luyentap-qualification-upload-signer` CORS policy supports that pool
+without loosening production `r2-upload-signer`.
 
 Spare sync is dry-run by default, reads selected RTDB and Firestore scopes before any
 spare write, uses bounded timeouts for Firestore HTTP requests, reports

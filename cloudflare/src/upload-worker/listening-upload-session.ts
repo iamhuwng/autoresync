@@ -10,6 +10,8 @@ import {
   parseProbeAssetRequest,
 } from './listening-upload-session-contract.ts';
 import { FirebaseRestListeningUploadSessionRepository } from './listening-upload-session-repository.ts';
+// @ts-ignore JavaScript module has no declaration file.
+import { isApprovedLocalAppOrigin } from './cors-policy.js';
 import { FirebaseRtdbRestClient } from './listening-authoring/rtdb.ts';
 import { createOwnerListeningPreviewUrl } from './listening-delivery.ts';
 import type {
@@ -28,17 +30,12 @@ const SESSION_ELIGIBILITY_MS = 8 * 60 * 60 * 1000;
 const GRANT_TTL_MS = 10 * 60 * 1000;
 const BRIDGE_VERSION = '0056A-v1' as const;
 const LOCAL_UPLOAD_TRANSPORT_ORIGIN = 'http://localhost:8787' as const;
-const LOCAL_APP_ORIGINS = new Set([
-  'http://localhost:5173',
-  'http://localhost:5174',
-]);
-
 const resolveLocalUploadTransportOrigin = (
   request: Request,
   env: Record<string, unknown>,
 ): typeof LOCAL_UPLOAD_TRANSPORT_ORIGIN | undefined =>
   env.LISTENING_UPLOAD_SESSION_DEV_TRANSPORT_ENABLED === 'true'
-  && LOCAL_APP_ORIGINS.has(request.headers.get('Origin') ?? '')
+  && isApprovedLocalAppOrigin(request.headers.get('Origin') ?? '', env)
     ? LOCAL_UPLOAD_TRANSPORT_ORIGIN
     : undefined;
 

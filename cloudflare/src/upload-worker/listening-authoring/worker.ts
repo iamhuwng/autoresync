@@ -16,13 +16,11 @@ import {
   type RepositoryEnv,
 } from './repository.ts';
 import { ListeningAssetCommitError } from '../../../../src/features/assessment/listening/storage/listeningAssetCommit.ts';
+// @ts-ignore JavaScript module has no declaration file.
+import { isApprovedLocalAppOrigin } from '../cors-policy.js';
+
 
 type AuthoringMutationName = 'save-draft' | 'publish' | 'lifecycle';
-
-const LOCAL_APP_ORIGINS = new Set([
-  'http://localhost:5173',
-  'http://localhost:5174',
-]);
 
 class ListeningAuthoringError extends Error {
   constructor(
@@ -130,7 +128,7 @@ const assertWritesAllowed = async (
 ): Promise<void> => {
   const writesEnabled = await readValue(LISTENING_AUTHORING_WRITES_ENABLED_FLAG_PATH);
   const localDevOverride = env.LISTENING_AUTHORING_DEV_WRITES_ENABLED === 'true'
-    && LOCAL_APP_ORIGINS.has(request.headers.get('Origin'));
+    && isApprovedLocalAppOrigin(request.headers.get('Origin'), env);
   if (writesEnabled !== true && !localDevOverride) {
     throw new ListeningAuthoringError(
       'writes_disabled',

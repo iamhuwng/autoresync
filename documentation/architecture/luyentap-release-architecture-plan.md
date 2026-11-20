@@ -1,6 +1,6 @@
 # LuyenTap release architecture plan
 
-This plan is the concise source of truth for the three-PR deployment architecture.
+This plan is the concise source of truth for the active LuyenTap release architecture.
 Executable workflows and scripts define behavior. The root [AGENTS.md](../../AGENTS.md)
 is the single canonical instruction file for every agent. Dated measurements and
 release records remain in [`documentation/release-audits/`](../release-audits/).
@@ -15,7 +15,7 @@ release records remain in [`documentation/release-audits/`](../release-audits/).
   rollback evidence.
 - Keep local and spare qualification isolated from production data and objects.
 
-## Three-PR architecture
+## Active release architecture
 
 ### Hosting publication
 
@@ -32,10 +32,14 @@ The production summary reports the site URL, source SHA, manifest SHA-256, opera
 prior and live versions, and verified files. It includes native Hosting clone rollback
 and `npm run release:verify-existing -- --operation-id <uuid>` recovery commands.
 
-Routine frontend-only `target: hosting` changes on protected `main` use the scoped
-checker without a manual review-card JSON file. `target: all`, changed backend paths,
-and hotfixes retain compatibility review and service-specific gates. The first
-manifest-bearing release uses `npm run build:production -- --build-only`.
+`target: hosting` changes on protected `main` use the protected-main review, scoped
+`observeHostingDependencies()` probes, and hotfix preservation without a manual
+review-card JSON file for frontend or Hosting-scoped backend changes. For checks outside
+`target: hosting` (including `target: all` and manual or hotfix full-stack checks), an
+explicit compatibility review is required when application frontend files (`src/`,
+`vite.config*`, or `index.html`) change, alongside the service-specific evidence for
+changed surfaces. The first manifest-bearing release uses
+`npm run build:production -- --build-only`.
 
 ### Worker publication
 
@@ -73,7 +77,10 @@ Use the spare Firebase project `luyentap-pdf-qa-20261021`, the spare Worker
 `luyentap-qualification-upload-signer`, and the localhost commands in the
 [qualification foundation runbook](../system/qualification-foundation-runbook.md).
 Parallel worktrees use `npm.cmd run dev -- --port auto` and
-`npm.cmd run preview:spare -- --port auto`. `npm.cmd run dev` serves
+`npm.cmd run preview:spare -- --port auto`, which select the first free port from the
+whitelisted `5173–5182` localhost pool. The spare
+`luyentap-qualification-upload-signer` CORS policy supports that pool while production
+`r2-upload-signer` remains restricted. `npm.cmd run dev` serves
 `/__spare-dev-identity.json` for live worktree/port/project inspection, while clean
 `npm.cmd run preview:spare` builds serve `/__spare-preview-identity.json` verified with
 `scripts/release-spare-readback.mjs`.
@@ -83,7 +90,8 @@ explicit RTDB, Firestore, and optional Auth refresh from `temp-a1437` to the spa
 It is dry-run by default, reads and validates all selected scopes before any spare write,
 enforces HTTP request timeouts, reports completed/remaining scopes on partial write
 failure, forbids R2 and B2 object copy, and keeps existing shared media URLs read-only.
-See the [native development guide](../system/native-development.md).
+See the [native development guide](../system/native-development.md). See [release safety](../system/release-safety.md#cloudflare-read-only-token-luyentap_release_cloudflare_read_token)
+for `LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN` scoping and rotation.
 
 ## Boundaries and evidence
 
