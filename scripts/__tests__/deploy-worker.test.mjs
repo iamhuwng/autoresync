@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { CLOUDFLARE_ACCOUNT_ID, PRODUCTION_WORKER_NAMES } from '../release-provider-readback.mjs';
@@ -22,6 +22,21 @@ const whoamiJson = (id = CLOUDFLARE_ACCOUNT_ID) => JSON.stringify({ accounts: [{
 test('worker registry covers production workers and qualification service', () => {
   for (const name of PRODUCTION_WORKER_NAMES) assert(Object.hasOwn(WORKER_REGISTRY, name));
   assert(Object.hasOwn(WORKER_REGISTRY, 'luyentap-qualification-upload-signer'));
+});
+
+test('notification Worker config and smoke probe match the live entrypoint', async () => {
+  const source = await readFile(new URL('../../cloudflare/wrangler.notifications.jsonc', import.meta.url), 'utf8');
+  const config = JSON.parse(source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+  const notification = WORKER_REGISTRY['luyentap-notification-command'];
+  assert.equal(config.main, 'notification-release/notification-command-entry.js');
+  assert.equal(config.vars.HOMEWORK_RESULT_AUTHORITY_ENABLED, 'true');
+  assert.equal(config.vars.RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME, 'projects/temp-a1437/rulesets/fbd67e85-0ea9-4e86-a351-df53fb6ca796');
+  assert.equal(config.vars.RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF, '2026-10-02T02:22:09.862Z');
+  assert.equal(config.keep_vars, false);
+  assert.equal(config.minify, false);
+  assert.equal(config.base_dir, 'notification-release');
+  assert.deepEqual(config.rules[0].globs, ['notification-command-active.mjs']);
+  assert.equal(notification.smokeProbe.url, 'https://luyentap-notification-command.iamhuwng.workers.dev/session-notifications/action');
 });
 
 test('worker arguments and uploaded version parsing are guarded', () => {

@@ -77,15 +77,17 @@ When testing authenticated teacher or student flows against the local Firebase e
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
 - If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
 
-For local browser verification, use `http://localhost:5173/login` for teacher flows and `http://localhost:5174/login` for student flows.
+For local browser verification, use `http://localhost:5173/login` as the teacher-flow
+role default and `http://localhost:5174/login` as the student-flow role default.
 
 ## Live Browser Testing URLs (MANDATORY)
 
 When opening, probing, or reporting live browser QA URLs in this repo:
 - Use `http://localhost:<port>`, never `http://127.0.0.1:<port>`.
-- Use port `5173` for teacher flows.
-- Use port `5174` for student flows.
-- Keep browser sessions, dev-server commands, logs, and final reported URLs aligned with those role ports.
+- Use port `5173` as the role default for teacher flows.
+- Use port `5174` as the role default for student flows.
+- For concurrent worktrees, `npm run dev -- --port auto` or `npm run preview:spare -- --port auto` may use another free `http://localhost:<port>`.
+- Keep browser sessions, dev-server commands, logs, and final reported URLs aligned with the active port.
 
 ## Google Cloud CLI First (MANDATORY)
 

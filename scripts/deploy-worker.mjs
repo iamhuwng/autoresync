@@ -24,7 +24,7 @@ export const WORKER_REGISTRY = Object.freeze({
     { url: 'https://r2-backup-worker.iamhuwng.workers.dev/api/backup/health', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app' }, expectedStatuses: [204] }),
   'luyentap-notification-command': production('cloudflare', 'wrangler.notifications.jsonc', 'cloudflare-wrangler',
     ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.notifications.config.mjs'],
-    { url: 'https://luyentap-notification-command.iamhuwng.workers.dev/events', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app' }, expectedStatuses: [204] }),
+    { url: 'https://luyentap-notification-command.iamhuwng.workers.dev/session-notifications/action', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' }, expectedStatuses: [204] }),
   'thcs-gemma': production('cloudflare', 'wrangler.thcs-gemma.jsonc', 'cloudflare-wrangler',
     ['../scripts/tooling-where.mjs', '--exec', 'cloudflare-vitest', 'run', '--config', 'vitest.config.mjs', 'test/thcs-gemma-worker.test.ts'],
     { url: 'https://thcs-gemma.iamhuwng.workers.dev/ai/health', method: 'OPTIONS', headers: { Origin: 'https://kahut1.web.app', 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' }, expectedStatuses: [204] }),

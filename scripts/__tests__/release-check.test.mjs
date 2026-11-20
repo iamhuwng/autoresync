@@ -72,6 +72,28 @@ test('historical migration documentation is not an executable migration requirem
   assert(classifyPaths(['scripts/backfill-reading.mjs']).includes('migrations'));
   assert(classifyPaths(['migrations/001.sql']).includes('migrations'));
 });
+
+test('Hosting decouples RTDB-only changes while all-target assessments remain unverified', async () => {
+  const cwd = await fixture();
+  try {
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    await writeFile(path.join(cwd, 'database.rules.json'), '{}');
+    await writeFile(path.join(cwd, 'src', 'App.jsx'), 'export default 2;');
+    git(cwd, 'add', '.');
+    git(cwd, 'commit', '-qm', 'RTDB and Hosting candidate');
+    const liveTree = git(cwd, 'rev-parse', `${base}^{tree}`);
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+      revision: base, tree: liveTree, envFingerprint: 'e'.repeat(64), files: [{ path: '/index.html', sha256: digest('x') }] };
+    const hostingObservation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('/index.html') ? 'x' : JSON.stringify(manifest)) }) });
+    const hosting = await assess({ cwd, base, target: 'hosting', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(hosting.decision, STATUS.PASS);
+    assert.equal(hosting.hostingDependencies, null);
+    const all = await assess({ cwd, base, target: 'all', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(all.decision, STATUS.UNVERIFIED);
+    assert.ok(all.findings.some(finding => /Hosting observation cannot verify/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 test('Hosting review binding rejects changed or omitted native dependency state', () => {
   const source = { revision: 'a'.repeat(40), baseRevision: 'b'.repeat(40) };
   const observation = { fingerprint: 'c'.repeat(64) }, dependencies = { fingerprint: 'd'.repeat(64) };

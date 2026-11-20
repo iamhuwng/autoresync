@@ -16,6 +16,7 @@ import {
   findForbiddenBundleMarker,
   hostingReleaseMessage,
   readProductionEnv,
+  resolveBuiltDeploymentAssessment,
   selectReleaseSource,
   verifyExistingHosting,
   writeOperationOutcome,
@@ -23,7 +24,7 @@ import {
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
 import { replaceSnapshot } from '../local-firebase.mjs';
 import { collectSourceState } from '../release-check.mjs';
-import { assertHostingArtifact, hostingRollbackCommand, waitForHostingLive } from '../release-evidence.mjs';
+import { assertHostingArtifact, hostingRollbackCommand, readLiveHostingManifestFingerprint, waitForHostingLive } from '../release-evidence.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
@@ -548,6 +549,21 @@ test('hosting artifact validates exact files and rollback command', async t => {
   await assert.rejects(() => assertHostingArtifact(f.cwd, f.manifest), /missing/u);
 });
 
+test('live Hosting manifest fingerprint readback validates identity and response status', async () => {
+  const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+    revision: 'a'.repeat(40), tree: 'b'.repeat(40), envFingerprint: 'c'.repeat(64), hotfixes: [] };
+  const response = (overrides = {}) => ({ ok: true, url: 'https://kahut1.web.app/.well-known/luyentap-release.json', json: async () => manifest, ...overrides });
+  const result = await readLiveHostingManifestFingerprint({ fetchImpl: async () => response() });
+  assert.equal(result.revision, manifest.revision);
+  assert.equal(result.tree, manifest.tree);
+  assert.equal(result.envFingerprint, manifest.envFingerprint);
+  assert.deepEqual(result.hotfixes, []);
+  assert.equal(result.fingerprint, hash(JSON.stringify(manifest)));
+  await assert.rejects(() => readLiveHostingManifestFingerprint({ fetchImpl: async () => response({ ok: false, status: 503 }) }), /HTTP 503/u);
+  await assert.rejects(() => readLiveHostingManifestFingerprint({ fetchImpl: async () => response({ url: 'https://redirect.example/.well-known/luyentap-release.json' }) }), /redirected|unexpected origin/u);
+  await assert.rejects(() => readLiveHostingManifestFingerprint({ fetchImpl: async () => response({ json: async () => ({ ...manifest, revision: 'invalid' }) }) }), /Invalid production Hosting manifest/u);
+});
+
 test('built artifact binds revision, tree, environment, and digest and rejects unexpected entries', async t => {
   const f = await fixture(); t.after(f.cleanup);
   const artifactSha256 = hash(JSON.stringify(f.manifest));
@@ -591,13 +607,14 @@ test('deployHosting publishes and returns uniform outcome plus rollback and veri
   let sourceReads = 0;
   const result = await deployHosting({
     cwd: f.cwd, base: f.base, env: {}, objective: 'candidate release',
-    assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+    assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
     observeSource: async () => {
       sourceReads += 1;
       return sourceReads < 2
         ? f.observation
         : { ...f.observation, revision: f.source.revision, tree: f.source.tree, fingerprint: hash(JSON.stringify(f.manifest)), manifest: f.manifest, evidenceRef: 'fixture://live' };
     },
+    readLiveManifest: async () => ({ revision: f.observation.revision, tree: f.observation.tree, fingerprint: f.observation.fingerprint, envFingerprint: f.envFingerprint, hotfixes: [] }),
     observeProvider: () => deployed ? provider('new123', `[luyentap:${operationId}] candidate release`) : provider('old123'),
     runDeploy: async args => { deployed = true; operationId = args[args.indexOf('--message') + 1].match(/\[luyentap:([0-9a-f-]+)\]/u)[1]; assert(args.includes('firebase')); },
     poll: { timeoutMs: 10, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
@@ -605,6 +622,7 @@ test('deployHosting publishes and returns uniform outcome plus rollback and veri
   assert.equal(result.id, operationId);
   assert.equal(result.operationId, operationId);
   assert.equal(result.status, 'verified');
+  assert.equal(sourceReads, 2);
   assert.equal(result.siteUrl, 'https://kahut1.web.app');
   assert.equal(result.revision, f.source.revision);
   assert.equal(result.priorVersion, 'projects/temp-a1437/sites/kahut1/versions/old123');
@@ -618,31 +636,34 @@ test('deployHosting rejects duplicate publication, tampered artifacts, caller de
   let deploys = 0;
   const duplicateSource = await collectSourceState(f.cwd, f.source.revision);
   const duplicateAssessment = {
+    schemaVersion: 1, mode: 'release', target: 'hosting',
     decision: 'PASS', source: duplicateSource,
     observed: { ...f.observation, revision: f.source.revision, tree: f.source.tree, manifest: f.manifest },
     productionEnvFingerprint: f.envFingerprint,
   };
   await assert.rejects(() => deployHosting({ cwd: f.cwd, base: f.source.revision, env: {}, assessment: duplicateAssessment, observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; } }), /already published/u);
+  await assert.rejects(() => deployHosting({ cwd: f.cwd, base: f.base, env: {}, assessment: { schemaVersion: 1, mode: 'release', target: 'all', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint }, observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; } }), /exact-source assessment/u);
+  await assert.rejects(() => deployHosting({ cwd: f.cwd, base: f.base, env: {}, assessment: { schemaVersion: 1, mode: 'acceptance', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint }, observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; } }), /exact-source assessment/u);
 
   const tampered = await fixture(); t.after(tampered.cleanup);
   await writeFile(path.join(tampered.cwd, 'dist/index.html'), 'tampered');
   await assert.rejects(() => deployHosting({
     cwd: tampered.cwd, base: tampered.base, env: {},
-    assessment: { decision: 'PASS', source: tampered.source, observed: tampered.observation, productionEnvFingerprint: tampered.envFingerprint },
+    assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: tampered.source, observed: tampered.observation, productionEnvFingerprint: tampered.envFingerprint },
     observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
   }), /hash differs|artifact/u);
 
   const staleHotfixes = await fixture(); t.after(staleHotfixes.cleanup);
   await assert.rejects(() => deployHosting({
     cwd: staleHotfixes.cwd, base: staleHotfixes.base, env: {},
-    assessment: { decision: 'PASS', source: staleHotfixes.source, observed: staleHotfixes.observation, productionEnvFingerprint: staleHotfixes.envFingerprint, hotfixes: [{ revision: 'd'.repeat(40) }] },
+    assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: staleHotfixes.source, observed: staleHotfixes.observation, productionEnvFingerprint: staleHotfixes.envFingerprint, hotfixes: [{ revision: 'd'.repeat(40) }] },
     observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
   }), /hotfix metadata differs/u);
 
   const callerDeps = await fixture(); t.after(callerDeps.cleanup);
   await assert.rejects(() => deployHosting({
     cwd: callerDeps.cwd, base: callerDeps.base, env: {},
-    assessment: { decision: 'PASS', source: callerDeps.source, observed: callerDeps.observation, productionEnvFingerprint: callerDeps.envFingerprint, hostingDependencies: { scope: 'hosting-dependencies' } },
+    assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: callerDeps.source, observed: callerDeps.observation, productionEnvFingerprint: callerDeps.envFingerprint, hostingDependencies: { scope: 'hosting-dependencies' } },
     observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
   }), /caller-supplied Hosting dependency/u);
 
@@ -654,8 +675,9 @@ test('deployHosting rejects duplicate publication, tampered artifacts, caller de
     await assert.rejects(
       () => deployHosting({
         cwd: drift.cwd, base: drift.base, env: {},
-        assessment: { decision: 'PASS', source: drift.source, observed: drift.observation, productionEnvFingerprint: drift.envFingerprint },
-        observeSource: async () => ({ ...drift.observation, fingerprint: 'changed-live' }),
+        assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: drift.source, observed: drift.observation, productionEnvFingerprint: drift.envFingerprint },
+        observeSource: async () => { throw new Error('observeSource must only run after deployment'); },
+        readLiveManifest: async () => ({ revision: drift.observation.revision, tree: drift.observation.tree, fingerprint: 'changed-live', hotfixes: [] }),
         observeProvider: () => provider('old123'),
         runDeploy: () => { deploys += 1; },
       }),
@@ -671,6 +693,102 @@ test('deployHosting rejects duplicate publication, tampered artifacts, caller de
   assert.equal(deploys, 0);
 });
 
+test('deployHosting rejects an unexpected approved provider identity before publication', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  let deploys = 0;
+  const errors = [];
+  const originalError = console.error;
+  console.error = value => errors.push(String(value));
+  try {
+    await assert.rejects(() => deployHosting({
+      cwd: f.cwd, base: f.base, env: {},
+      assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      expectedPriorProviderIdentity: 'unexpected@identity',
+      observeProvider: () => provider('old123'),
+      readLiveManifest: async () => { throw new Error('manifest readback must not run'); },
+      runDeploy: () => { deploys += 1; },
+    }), /production changed while preparing publication/u);
+  } finally { console.error = originalError; }
+  assert.equal(deploys, 0);
+  assert.equal(errors.length, 0);
+});
+
+test('resolveBuiltDeploymentAssessment reuses a clean Hosting receipt and fails closed on live drift', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  const receiptPath = path.join(os.tmpdir(), `luyentap-receipt-${crypto.randomUUID()}.json`);
+  t.after(() => rm(receiptPath, { force: true }));
+  const observedProviderIdentity = 'projects/temp-a1437/sites/kahut1/versions/old123@old123-time';
+  const receipt = {
+    schemaVersion: 1, mode: 'release', target: 'hosting',
+    decision: 'PASS', source: f.source, observed: f.observation, observedProviderIdentity,
+    productionEnvFingerprint: f.envFingerprint, hotfixes: [],
+  };
+  await writeFile(receiptPath, JSON.stringify(receipt));
+  const loaded = { envFingerprint: f.envFingerprint, envFile: 'unused' };
+  const readLiveManifest = async () => ({ revision: f.observation.revision, tree: f.observation.tree,
+    fingerprint: f.observation.fingerprint, envFingerprint: f.envFingerprint, hotfixes: [] });
+  const reused = await resolveBuiltDeploymentAssessment({ cwd: f.cwd, loaded, assessmentFile: receiptPath,
+    observedFingerprint: f.observation.fingerprint, observedProviderIdentity,
+    observeSource: async () => { throw new Error('observeHosting should be skipped for a clean Hosting receipt'); },
+    observeProvider: () => provider('old123'), readLiveManifest });
+  assert.equal(reused.reused, true);
+  assert.equal(reused.assessment.decision, 'PASS');
+
+  for (const override of [{ target: 'all' }, { mode: 'hotfix' }, { schemaVersion: 2 }]) {
+    const unboundPath = path.join(os.tmpdir(), `luyentap-receipt-unbound-${crypto.randomUUID()}.json`);
+    t.after(() => rm(unboundPath, { force: true }));
+    await writeFile(unboundPath, JSON.stringify({ ...receipt, ...override }));
+    let unboundObserve = 0;
+    const fallbackUnbound = await resolveBuiltDeploymentAssessment({
+      cwd: f.cwd, loaded, assessmentFile: unboundPath,
+      observedFingerprint: f.observation.fingerprint, observedProviderIdentity,
+      observeSource: async () => { unboundObserve += 1; return f.observation; },
+      observeProvider: () => provider('old123'), readLiveManifest,
+      assessRelease: async () => ({ schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS',
+        source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint, findings: [] }),
+    });
+    assert.equal(fallbackUnbound.reused, false);
+    assert.equal(unboundObserve, 1);
+  }
+
+  await assert.rejects(() => resolveBuiltDeploymentAssessment({ cwd: f.cwd, loaded, assessmentFile: receiptPath,
+    observedFingerprint: f.observation.fingerprint, observedProviderIdentity,
+    observeSource: async () => { throw new Error('observeHosting should be skipped on drift'); },
+    observeProvider: () => provider('new123'), readLiveManifest }), /production Hosting changed since the approved observation/u);
+  await assert.rejects(() => resolveBuiltDeploymentAssessment({ cwd: f.cwd, loaded, assessmentFile: receiptPath,
+    observedFingerprint: f.observation.fingerprint, observedProviderIdentity,
+    observeSource: async () => { throw new Error('observeHosting should be skipped on drift'); },
+    observeProvider: () => provider('old123'), readLiveManifest: async () => ({ ...await readLiveManifest(), fingerprint: 'd'.repeat(64) }) }), /production Hosting changed since the approved observation/u);
+
+  const migrationRoot = await fixture(); t.after(migrationRoot.cleanup);
+  await mkdir(path.join(migrationRoot.cwd, 'scripts/migrations'), { recursive: true });
+  await writeFile(path.join(migrationRoot.cwd, 'scripts/migrations/step.mjs'), 'export const x = 1;\n');
+  git(migrationRoot.cwd, 'add', '.');
+  git(migrationRoot.cwd, 'commit', '-qm', 'migration step');
+  const migrationSource = await collectSourceState(migrationRoot.cwd, migrationRoot.base);
+  const migrationReceiptPath = path.join(os.tmpdir(), `luyentap-receipt-mig-${crypto.randomUUID()}.json`);
+  t.after(() => rm(migrationReceiptPath, { force: true }));
+  await writeFile(migrationReceiptPath, JSON.stringify({
+    schemaVersion: 1, mode: 'release', target: 'hosting',
+    decision: 'PASS', source: migrationSource, observed: migrationRoot.observation, observedProviderIdentity,
+    productionEnvFingerprint: migrationRoot.envFingerprint, hotfixes: [],
+  }));
+  let fallbackCalls = 0;
+  const fallbackResult = await resolveBuiltDeploymentAssessment({
+    cwd: migrationRoot.cwd, loaded: { envFingerprint: migrationRoot.envFingerprint, envFile: 'unused' },
+    assessmentFile: migrationReceiptPath, observedFingerprint: migrationRoot.observation.fingerprint, observedProviderIdentity,
+    observeSource: async () => { fallbackCalls += 1; return migrationRoot.observation; },
+    observeProvider: () => provider('old123'),
+    readLiveManifest: async () => ({ revision: migrationRoot.observation.revision, tree: migrationRoot.observation.tree,
+      fingerprint: migrationRoot.observation.fingerprint, envFingerprint: migrationRoot.envFingerprint, hotfixes: [] }),
+    assessRelease: async () => ({ schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'REVIEW_REQUIRED', source: migrationSource, observed: migrationRoot.observation,
+      productionEnvFingerprint: migrationRoot.envFingerprint, findings: [] }),
+  });
+  assert.equal(fallbackResult.reused, false);
+  assert.equal(fallbackCalls, 1);
+  assert.equal(fallbackResult.assessment.decision, 'REVIEW_REQUIRED');
+});
+
 test('deployHosting separates CLI spawn failures, deploy failures, and post-deploy readback failures', async t => {
   const f = await fixture(); t.after(f.cleanup);
   const spawnErrors = [];
@@ -680,8 +798,9 @@ test('deployHosting separates CLI spawn failures, deploy failures, and post-depl
     const enoent = Object.assign(new Error('spawn firebase ENOENT'), { code: 'ENOENT' });
     await assert.rejects(() => deployHosting({
       cwd: f.cwd, base: f.base, env: {},
-      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
       observeSource: async () => f.observation,
+      readLiveManifest: async () => ({ revision: f.observation.revision, tree: f.observation.tree, fingerprint: f.observation.fingerprint, hotfixes: [] }),
       observeProvider: () => provider('old123'),
       runDeploy: () => { throw enoent; },
     }), error => {
@@ -697,8 +816,9 @@ test('deployHosting separates CLI spawn failures, deploy failures, and post-depl
     console.error = value => deployErrors.push(String(value));
     await assert.rejects(() => deployHosting({
       cwd: f.cwd, base: f.base, env: {},
-      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
       observeSource: async () => f.observation,
+      readLiveManifest: async () => ({ revision: f.observation.revision, tree: f.observation.tree, fingerprint: f.observation.fingerprint, hotfixes: [] }),
       observeProvider: () => provider('old123'),
       runDeploy: () => { throw new Error('deploy exited with 1'); },
     }), error => {
@@ -714,8 +834,9 @@ test('deployHosting separates CLI spawn failures, deploy failures, and post-depl
     console.error = value => readbackErrors.push(String(value));
     await assert.rejects(() => deployHosting({
       cwd: f.cwd, base: f.base, env: {},
-      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      assessment: { schemaVersion: 1, mode: 'release', target: 'hosting', decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
       observeSource: async () => f.observation,
+      readLiveManifest: async () => ({ revision: f.observation.revision, tree: f.observation.tree, fingerprint: f.observation.fingerprint, hotfixes: [] }),
       observeProvider: () => provider('old123'),
       runDeploy: () => {},
       poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },

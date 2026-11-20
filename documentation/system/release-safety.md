@@ -51,6 +51,17 @@ The manual `workflow_dispatch` entry point is
 `LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN`. The job verifies the exact remote `main`,
 checks the Firebase identity, and observes Hosting and any dependencies without
 mutation. `plan` writes a read-only release plan. `health` checks provider access.
+RTDB rules readback at `/.settings/rules.json` requires operator credentials and is
+owned by `npm run deploy:rules`. System-flag readback is a separate operator-
+credentialed operation, decoupled from the federated Hosting probes used by
+`health`, `plan`, and `publish`.
+RTDB rules use `/.settings/rules.json`, while system flags use
+`/system_flags/listening_authoring_writes_enabled.json` and
+`/system_flags/restore_in_progress.json`. The rules readback is owned by
+`npm run deploy:rules`; `scripts/release-provider-readback.mjs` performs the
+operator-credentialed system-flag reads when `rtdbFlags` is requested.
+The `publish` path performs one full live Hosting manifest observation during
+preflight and carries that receipt into serialized publication.
 
 ### Serialized publish
 
@@ -65,7 +76,8 @@ The job performs these steps in order:
 1. Verify `refs/heads/main`, `GITHUB_SHA`, and the remote protected `main` agree.
 2. Federate to the production Firebase identity and keep credentials outside the
    checkout.
-3. Observe the live Hosting manifest and retain `observation.fingerprint`.
+3. Observe the full live Hosting manifest once during preflight and retain
+   `observation.fingerprint`.
 4. Run the scoped assessment with the live revision as base.
 
    ```powershell
@@ -79,8 +91,11 @@ The job performs these steps in order:
    `node scripts/release-local-readback.mjs http://localhost:5173`, and run
    `assertHostingArtifact` against the same manifest and files.
 7. Publish the checked artifact with
-   `npm run deploy:hosting -- --deploy-built`. The deployment records the prior live
-   version and polls Hosting with bounded exponential backoff for up to 90 seconds.
+   `npm run deploy:hosting -- --deploy-built`. Before mutation, `--deploy-built`
+   verifies lightweight provider release identity and manifest-fingerprint drift
+   checks, reusing the preflight receipt for frontend-only Hosting changes when live
+   state is unchanged. The deployment records the prior live version and polls
+   Hosting with bounded exponential backoff for up to 90 seconds.
 8. Append the released URL, source SHA, manifest SHA-256, operation ID, prior and live
    versions, and verified file count to `$GITHUB_STEP_SUMMARY`.
 
@@ -115,18 +130,27 @@ For an independent live-based correction, prepare a clean checkout with
 `scripts/hotfix-prepare.mjs`, then run the hotfix assessment against the observed live
 revision. Do not substitute a local parent commit for an unverified live source.
 
-## Agent verification handoff
+<a id="agent-verification-handoff"></a>
+## Adaptive verification and self-judgment
 
-The agent selects proportionate proof for the changed surface. Focused tests, emulator
-checks, a browser journey, provider readback, and a spare deployed origin are all
-available when their invariants apply. There is no mandatory browser framework or
-fixed account journey.
+Select tests proportionate to the changed surface. Focused tests, emulator checks, a
+browser journey, provider readback, and a spare deployed origin apply when their
+invariants are relevant. Verify localhost identity with `/__spare-dev-identity.json`
+from `npm run dev`, or use
+`node scripts/release-spare-readback.mjs http://localhost:<port>` for
+`preview:spare`. For a built-site check, use a clean candidate,
+`npm run build:production`, and `node scripts/release-local-readback.mjs
+http://localhost:<port>`.
 
-For a built-site check, use a clean candidate, `npm run build:production`, and
-`node scripts/release-local-readback.mjs http://localhost:<port>`. Retain the source,
-manifest, environment fingerprint, test output, and any browser evidence with the
-review record. Check the same candidate again if source, configuration, or live state
-changes. Dated evidence belongs in `documentation/release-audits/`.
+Capture a screenshot or short video for UI, layout, or transition flows when browser
+automation can drive them. When third-party OAuth such as Google Sign-In blocks a
+headless browser, record an explicit operator-confirmed verification note. Make an
+explicit self-judgment or peer-agent judgment pass comparing actual behavior and
+presentation with user expectations. Fix any mismatch and repeat verification before
+deployment. Retain the source, manifest, environment fingerprint, test output, and
+browser evidence with the review record. Check the same candidate again if source,
+configuration, or live state changes. Dated evidence belongs in
+`documentation/release-audits/`.
 
 A release check can return `PASS`, `NOT_APPLICABLE`, `REVIEW_REQUIRED`, `UNVERIFIED`,
 or `BLOCKED`. The latter three require the missing evidence or preparation to be
@@ -212,10 +236,16 @@ expose `/__spare-preview-identity.json` verified by
 
 Use `npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]` for
 an explicit refresh from `temp-a1437` to the spare project. It is dry-run by default,
-reads and validates all selected scopes (including Auth export) before any spare write,
-synchronizes RTDB and Firestore and optionally Auth under bounded HTTP timeouts, reports
-completed/remaining scopes on partial write failures, hard-forbids R2 or B2 object copy,
-and preserves existing shared media URLs as read-only references.
+reads and validates selected RTDB and Firestore scopes before any spare write,
+synchronizes RTDB and Firestore with bounded HTTP request timeouts for Firestore
+synchronization, and supports an explicitly confirmed Auth sync with `--only auth`.
+A confirmed Auth sync exports Auth through the Firebase CLI before writing, while
+dry-run Auth does not export. The command reports completed/remaining scopes on
+partial write failures, hard-forbids R2 or B2 object copy, and preserves existing
+shared media URLs as read-only references.
+`spare:sync-from-live` uses Firebase CLI `database:get` and `database:set` for RTDB,
+strips `passwordHash` and `salt` before `auth:import`, and performs upsert-only
+Firestore writes that preserve existing spare-only documents.
 
 Related procedures are in the [qualification foundation runbook](qualification-foundation-runbook.md)
 and [native development guide](native-development.md).

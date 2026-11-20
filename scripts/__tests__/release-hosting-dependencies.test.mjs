@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sharedHomeworkInputs } from '../release-check.mjs';
 import { assertHostingFederation, canonical, PRODUCTION_WORKER_NAMES } from '../release-provider-readback.mjs';
-import { isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
+import { hasHostingDependencyProbes, HOSTING_HEALTH_SCOPE, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope, validateHostingDependencies, reconcileLegacyEnvironment, validateHostingIndexes } from '../release-hosting-dependencies.mjs';
 
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
 
@@ -31,9 +31,15 @@ test('Hosting dependency scope selects only affected backend probes', () => {
     privateAudio: false, workers: [], cloudflareCommon: false,
   });
   assert.deepEqual(selectHostingDependencyScope(['database.rules.json', 'firestore.rules', 'firestore.indexes.json', 'functions/src/index.ts']), {
-    rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true,
+    rtdbRules: false, rtdbFlags: false, firestoreRules: true, firestoreIndexes: true, functions: true,
     privateAudio: false, workers: [], cloudflareCommon: false,
   });
+  const rtdbOnly = selectHostingDependencyScope(['database.rules.json']);
+  assert.equal(rtdbOnly.rtdbRules, false);
+  assert.equal(rtdbOnly.rtdbFlags, false);
+  assert.equal(hasHostingDependencyProbes(rtdbOnly), false);
+  assert.equal(HOSTING_HEALTH_SCOPE.rtdbRules, false);
+  assert.equal(HOSTING_HEALTH_SCOPE.rtdbFlags, false);
   assert.deepEqual(selectHostingDependencyScope(['cloudflare/src/upload-worker/index.ts', 'cloudflare/test/fixture.ts']), {
     rtdbRules: false, rtdbFlags: false, firestoreRules: false, firestoreIndexes: false, functions: false,
     privateAudio: false, workers: ['r2-upload-signer'], cloudflareCommon: true,

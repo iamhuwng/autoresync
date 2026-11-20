@@ -51,6 +51,11 @@ npm run build:production -- --build-only
 
 Use `scripts/hotfix-prepare.mjs` for a clean live-based hotfix checkout.
 
+Hosting preflight runs one live manifest observation during `publish`, then uses
+lightweight provider-version and manifest-fingerprint checks before mutation. RTDB
+rules readback (`/.settings/rules.json`) is decoupled from Hosting `publish`, `plan`,
+and `health`, and is owned by `npm run deploy:rules`.
+
 ## Workers
 
 Use the service-specific entry point:
@@ -77,7 +82,8 @@ The deployable services are `r2-upload-signer`, `r2-backup-worker`,
 `luyentap-notification-command`, `thcs-gemma`, and
 `luyentap-qualification-upload-signer`. `luyentap-notification-firestore-qa` is a
 `deployable: false` external-DO public-entry proxy and is blocked from generic
-overwrite.
+overwrite. `luyentap-notification-command` uses `notification-command-entry.js`,
+and its `OPTIONS` probe targets `/session-notifications/action`.
 
 ## Firebase rules and indexes
 
@@ -113,13 +119,30 @@ node scripts/release-spare-readback.mjs http://localhost:<port>
 npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
 ```
 
-Spare sync is dry-run by default, reads all selected scopes before any spare write,
-enforces HTTP timeouts, reports completed/remaining scopes on partial failure, refreshes
-RTDB and Firestore and optionally Auth from `temp-a1437`, forbids R2 or B2 object copy,
-and preserves shared media URLs as read-only references. `npm.cmd run dev` exposes
+Spare sync is dry-run by default, reads selected RTDB and Firestore scopes before any
+spare write, uses bounded timeouts for Firestore HTTP requests, reports
+completed/remaining scopes on partial failure, and refreshes RTDB and Firestore from
+`temp-a1437`. Auth is opt-in with `--only auth` and exports only for a confirmed sync
+using `--confirm-spare-overwrite`. The command forbids R2 or B2 object copy and
+preserves shared media URLs as read-only references. `spare:sync-from-live` uses
+Firebase CLI `database:get` and `database:set` for RTDB, strips `passwordHash` and
+`salt` before `auth:import`, and performs upsert-only Firestore writes that preserve
+existing spare-only documents. `npm.cmd run dev` exposes
 `/__spare-dev-identity.json` for live inspection, while `release-spare-readback.mjs`
 verifies `/__spare-preview-identity.json` on clean `preview:spare` builds across any
 valid localhost port.
+
+## Adaptive verification and self-judgment
+
+Select tests proportionate to the changed surface and choose the appropriate spare
+localhost path. Verify a development server with `/__spare-dev-identity.json` from
+`npm.cmd run dev`, or verify a `preview:spare` build with
+`node scripts/release-spare-readback.mjs http://localhost:<port>`. Capture a screenshot
+or short video for UI, layout, or transition flows when browser automation can drive
+them. When third-party OAuth such as Google Sign-In blocks a headless browser, record
+an explicit operator-confirmed verification note. Make an explicit self-judgment or
+peer-agent judgment pass against user expectations and presentation. If behavior or
+presentation differs, fix it and re-verify before deployment.
 
 ## Stop conditions
 

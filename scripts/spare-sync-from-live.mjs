@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -9,10 +9,26 @@ export const LIVE_FIREBASE_PROJECT = 'temp-a1437';
 export const ALLOWED_SYNC_SCOPES = Object.freeze(['rtdb', 'firestore', 'auth']);
 export const FORBIDDEN_STORAGE_TOKENS = Object.freeze(['storage', 'r2', 'b2', 'media', 'bucket', 'backblaze']);
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+export const FIRESTORE_SYNC_SEMANTICS = 'upsert-only (existing spare-only documents are preserved)';
 
 const firestoreApi = 'https://firestore.googleapis.com/v1';
 const storageCopyError = 'R2/B2 object copy is forbidden; shared media URLs in RTDB/Firestore records remain read-only.';
 const hasForbiddenToken = value => FORBIDDEN_STORAGE_TOKENS.some(token => String(value).toLowerCase().includes(token));
+
+export function sanitizeAuthExportForSpare(payload) {
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.users)) {
+    throw new Error('Firebase Auth export must be an object with a users array.');
+  }
+  const sanitizedUsers = payload.users.map(user => {
+    if (!user || typeof user !== 'object' || Array.isArray(user)) {
+      throw new Error('Firebase Auth export users must be objects.');
+    }
+    const { passwordHash, salt, ...sanitizedUser } = user;
+    return sanitizedUser;
+  });
+  const strippedPasswordHashes = payload.users.reduce((count, user) => count + (user && typeof user === 'object' && Object.hasOwn(user, 'passwordHash') ? 1 : 0), 0);
+  return { payload: { ...payload, users: sanitizedUsers }, totalUsers: sanitizedUsers.length, strippedPasswordHashes };
+}
 
 export function parseSpareSyncArgs(argv) {
   let scopes;
@@ -78,10 +94,8 @@ const sanitizeUrl = value => {
 const requestNoRedirect = async (url, options, fetchImpl, { writeTargetProject, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = {}) => {
   const requested = new URL(url);
   if (writeTargetProject) {
-    const allowedRtdbHost = `${writeTargetProject}-default-rtdb.asia-southeast1.firebasedatabase.app`;
     const allowedFirestorePath = `/v1/projects/${writeTargetProject}/databases/(default)/documents:batchWrite`;
-    const valid = (requested.hostname === allowedRtdbHost && requested.pathname === '/.json')
-      || (requested.hostname === 'firestore.googleapis.com' && requested.pathname === allowedFirestorePath);
+    const valid = requested.hostname === 'firestore.googleapis.com' && requested.pathname === allowedFirestorePath;
     if (!valid || writeTargetProject !== spareFirebaseProject || hasForbiddenToken(requested.hostname)) {
       throw new Error('Refusing a write outside the validated spare Firebase target.');
     }
@@ -103,17 +117,6 @@ const requestNoRedirect = async (url, options, fetchImpl, { writeTargetProject, 
 };
 
 const tokenValue = async getAccessToken => String(await getAccessToken());
-
-async function readRtdb({ fetchImpl, getAccessToken, timeoutMs }) {
-  const token = await tokenValue(getAccessToken);
-  const url = `https://${LIVE_FIREBASE_PROJECT}-default-rtdb.firebaseio.com/.json`;
-  const response = await requestNoRedirect(url, { headers: { Authorization: `Bearer ${token}` } }, fetchImpl, { timeoutMs });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Live RTDB read failed (HTTP ${response.status}): ${text}`);
-  let data;
-  try { data = JSON.parse(text); } catch { throw new Error('Live RTDB response was not valid JSON.'); }
-  return { data, raw: text, bytes: new TextEncoder().encode(text).length, token };
-}
 
 async function firestoreRequest(url, { fetchImpl, token, project, timeoutMs, ...requestOptions }) {
   return responseBody(await requestNoRedirect(url, {
@@ -175,8 +178,20 @@ async function readFirestore({ fetchImpl, getAccessToken, timeoutMs }) {
 
 const execFirebaseDefault = (args, { cwd }) => {
   const tooling = fileURLToPath(new URL('./tooling-where.mjs', import.meta.url));
-  const result = execFileSync(process.execPath, [tooling, '--exec', 'firebase', ...args], { cwd, stdio: 'inherit', windowsHide: true });
-  return result;
+  try {
+    return execFileSync(process.execPath, [tooling, '--exec', 'firebase', ...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+    });
+  } catch (error) {
+    const stdout = String(error.stdout ?? '').trim();
+    const stderr = String(error.stderr ?? '').trim();
+    const detail = stderr || stdout || error.message;
+    throw new Error(`Firebase CLI failed: ${detail}`, { cause: error });
+  }
 };
 
 export async function syncLiveToSpare(options = {}, deps = {}) {
@@ -195,13 +210,25 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
   const cwd = deps.cwd ?? path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 
   let tempDir;
-  let exportFile;
+  let rtdbFile;
+  let sanitizedAuthFile;
   const completedScopes = [];
   let authSynced = false;
+  let authUsersSanitized = 0;
   try {
+    if (scopes.includes('rtdb') || (scopes.includes('auth') && !dryRun)) {
+      tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-spare-sync-'));
+    }
+
     // Complete and validate all live source reads/exports before performing any spare writes.
-    const rtdb = scopes.includes('rtdb') ? await readRtdb({ fetchImpl, getAccessToken, timeoutMs }) : null;
-    const rtdbBytes = rtdb ? rtdb.bytes : 0;
+    let rtdbBytes = 0;
+    if (scopes.includes('rtdb')) {
+      rtdbFile = path.join(tempDir, 'rtdb.json');
+      await execFirebase(['database:get', '/', '--export', '--project', LIVE_FIREBASE_PROJECT, '--output', rtdbFile, '--non-interactive'], { cwd });
+      const raw = await readFile(rtdbFile, 'utf8');
+      try { JSON.parse(raw); } catch { throw new Error('Live RTDB export was not valid JSON.'); }
+      rtdbBytes = Buffer.byteLength(raw, 'utf8');
+    }
 
     let writes = null;
     if (scopes.includes('firestore')) {
@@ -218,9 +245,15 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
     const firestoreDocuments = writes ? writes.length : 0;
 
     if (scopes.includes('auth') && !dryRun) {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), 'luyentap-spare-auth-'));
-      exportFile = path.join(tempDir, 'auth.json');
-      await execFirebase(['auth:export', exportFile, '--format=json', '--project', LIVE_FIREBASE_PROJECT, '--non-interactive'], { cwd });
+      const rawAuthFile = path.join(tempDir, 'auth-export.json');
+      sanitizedAuthFile = path.join(tempDir, 'auth-sanitized.json');
+      await execFirebase(['auth:export', rawAuthFile, '--format=json', '--project', LIVE_FIREBASE_PROJECT, '--non-interactive'], { cwd });
+      const authRaw = await readFile(rawAuthFile, 'utf8');
+      let parsedAuth;
+      try { parsedAuth = JSON.parse(authRaw); } catch { throw new Error('Firebase Auth export was not valid JSON.'); }
+      const sanitized = sanitizeAuthExportForSpare(parsedAuth);
+      await writeFile(sanitizedAuthFile, JSON.stringify(sanitized.payload), { encoding: 'utf8', mode: 0o600 });
+      authUsersSanitized = sanitized.totalUsers;
     }
 
     if (!dryRun) {
@@ -238,13 +271,10 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
         }
       };
 
-      if (rtdb) {
+      if (scopes.includes('rtdb')) {
         await runWriteScope('rtdb', async () => {
-          const targetToken = await tokenValue(getAccessToken);
-          const targetUrl = `https://${targetProject}-default-rtdb.asia-southeast1.firebasedatabase.app/.json`;
-          await responseBody(await requestNoRedirect(targetUrl, {
-            method: 'PUT', headers: { Authorization: `Bearer ${targetToken}`, 'Content-Type': 'application/json' }, body: rtdb.raw,
-          }, fetchImpl, { writeTargetProject: targetProject, timeoutMs }), 'Spare RTDB write');
+          assertSpareSyncTarget(targetProject, sourceProject);
+          await execFirebase(['database:set', '/', rtdbFile, '--force', '--project', targetProject, '--non-interactive'], { cwd });
         });
       }
 
@@ -268,7 +298,7 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
 
       if (scopes.includes('auth')) {
         await runWriteScope('auth', async () => {
-          await execFirebase(['auth:import', exportFile, '--project', targetProject, '--non-interactive'], { cwd });
+          await execFirebase(['auth:import', sanitizedAuthFile, '--project', targetProject, '--non-interactive'], { cwd });
           authSynced = true;
         });
       }
@@ -284,7 +314,9 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
       storageCopyForbidden: true,
       rtdbBytes,
       firestoreDocuments,
+      firestoreSemantics: FIRESTORE_SYNC_SEMANTICS,
       authSynced,
+      authUsersSanitized,
       written: !dryRun,
     };
   } finally {
@@ -292,10 +324,16 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
   }
 }
 
-async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), deps = {}) {
   const options = parseSpareSyncArgs(argv);
-  const result = await syncLiveToSpare(options);
-  console.log(options.json ? JSON.stringify(result) : `${result.status}: ${result.scopes.join(', ')} from ${result.sourceProject} to ${result.targetProject}`);
+  const result = await syncLiveToSpare(options, deps);
+  if (options.json) console.log(JSON.stringify(result));
+  else {
+    let message = `${result.status}: ${result.scopes.join(', ')} from ${result.sourceProject} to ${result.targetProject}`;
+    if (result.scopes.includes('firestore')) message += `; Firestore semantics: ${result.firestoreSemantics}`;
+    if (result.authSynced) message += `; Auth users sanitized: ${result.authUsersSanitized}`;
+    console.log(message);
+  }
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

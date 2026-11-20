@@ -51,7 +51,7 @@ Auth, RTDB, Firestore, and Worker traffic in the spare environment. Existing sha
 media URLs may be read for fixtures. Do not use production endpoints as a fallback.
 
 See the [native development guide](native-development.md) and the [release safety
-workflow](release-safety.md#agent-verification-handoff).
+workflow](release-safety.md#adaptive-verification-and-self-judgment).
 
 ## Deployed-origin checks on the spare project
 
@@ -77,10 +77,16 @@ Use this explicit command when a scenario needs current live data:
 npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
 ```
 
-The default is dry-run. The confirmed operation refreshes RTDB and Firestore and can
-refresh Auth. It does not copy R2 or B2 objects and preserves existing shared media
-URLs as read-only references. Verify project identity, affected records, and Auth
-profiles before the journey.
+The default is dry-run. The confirmed operation refreshes RTDB and Firestore. Auth is
+opt-in with `--only auth` and exports records only for a confirmed sync using
+`--confirm-spare-overwrite`. RTDB synchronization runs through the repository
+Firebase CLI with `database:get` and `database:set`. Auth synchronization strips
+`passwordHash` and `salt` before importing into the spare project, and preserves
+Google, UID, email, and profile parity without exposing live password hashes.
+Firestore synchronization uses upsert-only writes, preserving existing spare-only
+documents. The operation does not copy R2 or B2 objects and preserves existing shared
+media URLs as read-only references. Verify project identity, affected records, and
+Auth profiles before the journey.
 
 `npm.cmd run build:spare` and `npm.cmd run preview:spare -- --port auto` are local
 qualification tools. Production publication follows the [routine Hosting release](release-safety.md#routine-hosting-release).

@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "luyentap-notification-command",
   "account_id": "e41db829dabe9993f03674afdfd56510",
-  "main": "notification-release/notification-command-public.js",
+  "main": "notification-release/notification-command-entry.js",
   "compatibility_date": "2026-09-19",
   "compatibility_flags": [
     "nodejs_compat"
@@ -10,8 +10,19 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": {
+    "enabled": true,
     "head_sampling_rate": 1,
-    "enabled": true
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
   },
   "triggers": {
     "crons": []
@@ -55,23 +66,26 @@
     "NOTIFICATION_RETRY_BATCH": "class-homework",
     "NOTIFICATION_BRIDGE_QA_ACTOR": "glMHCrzMnyS6AqFcb9I0nlOqQ6X2",
     "NOTIFICATION_BRIDGE_QA_EVENT_ID": "homework-89df8956-470b-4a5f-8565-4f22cbbc19ea",
-    "HOMEWORK_RESULT_AUTHORITY_ENABLED": "false",
+    "HOMEWORK_RESULT_AUTHORITY_ENABLED": "true",
     "WRITING_PRODUCT_SOURCE_CUTOFF": "disabled",
     "WRITING_PRODUCT_QA_ACTOR": "disabled",
     "WRITING_PRODUCT_QA_SUBMISSION_ID": "disabled",
     "HOMEWORK_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
     "WRITING_NOTIFICATION_RULES_CUTOFF": "2026-10-02T02:22:09.862Z",
-    "COURSE_ENROLLMENT_APPROVAL_ENABLED": "true"
+    "COURSE_ENROLLMENT_APPROVAL_ENABLED": "true",
+    "RESULT_NOTIFICATION_AUTHORITY_RULESET_NAME": "projects/temp-a1437/rulesets/fbd67e85-0ea9-4e86-a351-df53fb6ca796",
+    "RESULT_NOTIFICATION_AUTHORITY_RULES_CUTOFF": "2026-10-02T02:22:09.862Z"
   },
+  "keep_vars": false,
   "no_bundle": true,
+  "minify": false,
   "find_additional_modules": true,
   "base_dir": "notification-release",
   "rules": [
     {
       "fallthrough": true,
       "globs": [
-        "*.mjs",
-        "*.js"
+        "notification-command-active.mjs"
       ],
       "type": "ESModule"
     }
