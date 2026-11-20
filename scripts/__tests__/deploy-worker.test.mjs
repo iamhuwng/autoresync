@@ -1,0 +1,233 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { CLOUDFLARE_ACCOUNT_ID, PRODUCTION_WORKER_NAMES } from '../release-provider-readback.mjs';
+import {
+  WORKER_REGISTRY,
+  assertCloudflareAccount,
+  buildWorkerRollbackCommand,
+  deployWorker,
+  parseDeployWorkerArgs,
+  parseUploadedVersionId,
+} from '../deploy-worker.mjs';
+
+const uuid = '11111111-1111-4111-8111-111111111111';
+const priorUuid = '22222222-2222-4222-8222-222222222222';
+const otherUuid = '33333333-3333-4333-8333-333333333333';
+const result = (stdout = '') => ({ stdout, stderr: '' });
+const whoamiJson = (id = CLOUDFLARE_ACCOUNT_ID) => JSON.stringify({ accounts: [{ id, name: 'LuyenTap' }] });
+
+test('worker registry covers production workers and qualification service', () => {
+  for (const name of PRODUCTION_WORKER_NAMES) assert(Object.hasOwn(WORKER_REGISTRY, name));
+  assert(Object.hasOwn(WORKER_REGISTRY, 'luyentap-qualification-upload-signer'));
+});
+
+test('worker arguments and uploaded version parsing are guarded', () => {
+  assert.deepEqual(parseDeployWorkerArgs(['r2-upload-signer', '--dry-run']).service, 'r2-upload-signer');
+  assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--unknown']), /Unknown flag/);
+  assert.equal(parseUploadedVersionId(`Worker Version ID: ${uuid}`), uuid);
+  assert.equal(parseUploadedVersionId(JSON.stringify({ id: uuid })), uuid);
+  assert.equal(parseUploadedVersionId(JSON.stringify({ version_id: uuid })), uuid);
+  assert.throws(() => parseUploadedVersionId('no version'), /valid Worker Version ID/);
+});
+
+test('non-deployable worker refuses dry-run with its reason', async () => {
+  await assert.rejects(() => deployWorker({ service: 'luyentap-notification-firestore-qa', dryRun: true, deps: {} }), /external-DO public-entry proxy/);
+});
+
+test('worker dry-run runs checks and never uploads', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-test-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    const calls = [];
+    const deps = { exec: async (command, args) => { calls.push([command, args]); if (args[0] === 'status') return result(''); if (args[0] === 'rev-parse') return result(args[1] === 'HEAD' ? 'a'.repeat(40) : 'b'.repeat(40)); return result(''); }, readState: async () => { throw new Error('offline state must not be read'); } };
+    const outcome = await deployWorker({ service: 'r2-upload-signer', dryRun: true, allowDirty: true, offline: true, skipTests: true, cwd: root, deps });
+    assert.equal(outcome.status, 'DRY_RUN');
+    assert.equal(outcome.priorVersionId, undefined);
+    assert.match(outcome.plannedCommands.upload, /versions upload/);
+    assert.equal(calls.some(([, args]) => args.includes('upload')), false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('rollback command targets the prior version with repo-root config path', () => {
+  const command = buildWorkerRollbackCommand(WORKER_REGISTRY['r2-upload-signer'], priorUuid);
+  assert.match(command, new RegExp(`${priorUuid}@100%`));
+  assert.match(command, /--config cloudflare\/wrangler\.jsonc/);
+});
+
+test('worker happy path pins account, verifies whoami, uploads, activates, and probes the new version', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-live-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    const active = id => ({ workers: { 'r2-upload-signer': { versionId: id, deployment: { versions: [{ version_id: id, percentage: 100 }] }, modules: [{ name: 'index.js', sha256: 'a'.repeat(64) }] } } });
+    const calls = [];
+    const reads = [active(priorUuid), active(priorUuid), active(priorUuid), active(uuid)];
+    const deps = {
+      exec: async (command, args, options) => {
+        calls.push({ args, env: options?.env });
+        if (args[0] === 'status') return result('');
+        if (args[0] === 'rev-parse') return result('a'.repeat(40));
+        if (args.includes('whoami')) return result(whoamiJson());
+        if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+        return result('');
+      },
+      readState: async () => reads.shift() || active(uuid),
+      fetchImpl: async () => ({ status: 204, redirected: false }),
+      sleep: async () => {},
+    };
+    const outcome = await deployWorker({ service: 'r2-upload-signer', cwd: root, deps });
+    assert.equal(outcome.status, 'VERIFIED');
+    assert.equal(outcome.accountId, CLOUDFLARE_ACCOUNT_ID);
+    assert.equal(outcome.deployedVersionId, uuid);
+    assert.equal(outcome.priorVersionId, priorUuid);
+    assert.match(outcome.rollbackCommand, new RegExp(`${priorUuid}@100%`));
+    assert.equal(calls.some(call => call.args.includes('cloudflare-vitest')), true);
+    const wranglerCalls = calls.filter(call => call.args.includes('cloudflare-wrangler'));
+    assert.equal(wranglerCalls.length, 4);
+    assert.equal(wranglerCalls.every(call => call.env?.CLOUDFLARE_ACCOUNT_ID === CLOUDFLARE_ACCOUNT_ID), true);
+    assert.equal(calls.some(call => call.args.includes('versions') && call.args.includes('upload')), true);
+    assert.equal(calls.some(call => call.args.includes('versions') && call.args.includes('deploy')), true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('worker readback and smoke failures carry rollback context', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-failure-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    const prior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 100 }] } } } };
+    const depsBase = {
+      exec: async (command, args) => {
+        if (args[0] === 'status') return result('');
+        if (args[0] === 'rev-parse') return result('a'.repeat(40));
+        if (args.includes('whoami')) return result(whoamiJson());
+        if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+        return result('');
+      },
+      readState: async () => prior,
+      sleep: async () => {},
+      now: (() => { let tick = 0; return () => (tick += 100000); })(),
+    };
+    await assert.rejects(() => deployWorker({ service: 'r2-upload-signer', cwd: root, deps: depsBase }), error => error.phase === 'readback' && error.priorVersionId === priorUuid && error.rollbackCommand.includes(priorUuid));
+    const uploaded = { workers: { 'r2-upload-signer': { versionId: uuid, deployment: { versions: [{ version_id: uuid, percentage: 100 }] }, modules: [{ name: 'x', sha256: 'a'.repeat(64) }] } } };
+    const smokeReads = [prior, prior, uploaded];
+    await assert.rejects(() => deployWorker({ service: 'r2-upload-signer', cwd: root, deps: { ...depsBase, readState: async () => smokeReads.shift() || uploaded, fetchImpl: async () => ({ status: 302, redirected: false }), now: Date.now } }), error => error.phase === 'smoke' && error.uploadedVersionId === uuid && error.rollbackCommand.includes(priorUuid));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('worker guards reject unknown services, dirty trees, live bypass flags, wrong account, concurrent drift, and split traffic', async () => {
+  assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--allow-dirty']), /require --dry-run/);
+  assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--offline']), /require --dry-run/);
+  assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--skip-tests']), /require --dry-run/);
+  assert.equal(assertCloudflareAccount(whoamiJson()), CLOUDFLARE_ACCOUNT_ID);
+  assert.equal(assertCloudflareAccount(`Account ID: ${CLOUDFLARE_ACCOUNT_ID}`), CLOUDFLARE_ACCOUNT_ID);
+  assert.throws(() => assertCloudflareAccount(whoamiJson('0'.repeat(32))), /does not match pinned account/);
+  await assert.rejects(() => deployWorker({ service: 'r2-upload-signer', skipTests: true, deps: {} }), /require --dry-run/);
+  await assert.rejects(() => deployWorker({ service: 'non-existent-worker', dryRun: true, deps: {} }), /Unknown Worker service/);
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-guards-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: { exec: async (cmd, args) => args[0] === 'status' ? result(' M cloudflare/worker.js\n') : result('a'.repeat(40)) },
+    }), /Git tree is dirty/);
+    const splitPrior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 50 }, { version_id: uuid, percentage: 50 }] } } } };
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: { exec: async (cmd, args) => args[0] === 'status' ? result('') : result('a'.repeat(40)), readState: async () => splitPrior },
+    }), /split or unavailable/);
+
+    const prior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 100 }] } } } };
+    const drifted = { workers: { 'r2-upload-signer': { versionId: otherUuid, deployment: { versions: [{ version_id: otherUuid, percentage: 100 }] } } } };
+    const wrongAccountCalls = [];
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          wrongAccountCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson('0'.repeat(32)));
+          return result('');
+        },
+        readState: async () => prior,
+      },
+    }), /does not match pinned account/);
+    assert.equal(wrongAccountCalls.some(args => args.includes('upload')), false);
+
+    let readCount = 0;
+    const driftCalls = [];
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          driftCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+          return result('');
+        },
+        readState: async () => readCount++ === 0 ? prior : drifted,
+      },
+    }), error => error.phase === 'pre-deploy-drift' && error.priorVersionId === priorUuid && error.rollbackCommand === undefined);
+    assert.equal(driftCalls.some(args => args.includes('versions') && args.includes('deploy')), false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('upload failures and ENOENT spawn errors do not claim a live rollback', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-phases-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    const prior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 100 }] } } } };
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) throw new Error('upload failed');
+          return result('');
+        },
+        readState: async () => prior,
+      },
+    }), error => error.phase === 'upload' && error.priorVersionId === priorUuid && error.rollbackCommand === undefined);
+
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+          if (args.includes('deploy') && args.includes('versions')) throw Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' });
+          return result('');
+        },
+        readState: async () => prior,
+      },
+    }), error => error.phase === 'deploy' && error.rollbackCommand === undefined);
+
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+          if (args.includes('deploy') && args.includes('versions')) throw new Error('promote failed mid-flight');
+          return result('');
+        },
+        readState: async () => prior,
+      },
+    }), error => error.phase === 'deploy' && error.rollbackCommand?.includes(priorUuid));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

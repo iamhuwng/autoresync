@@ -1,932 +1,229 @@
 # Release safety workflow
 
-`npm run release:check` is the shared, read-only assessment for normal releases and isolated hotfixes. It reads source and native provider evidence without deploying or changing application data. Every assessment requires an explicit `--base`; a Git branch or `HEAD^` is not production truth.
+This document describes the active three-PR deployment architecture. The executable
+scripts and workflows are authoritative. The root [AGENTS.md](../../AGENTS.md) is
+the single canonical instruction file for every agent. Dated evidence and historical
+measurements live in [`documentation/release-audits/`](../release-audits/), and do not
+replace current provider readback.
 
-## Current operator path
+## Operating rules
 
-This file is the operational runbook. Current release-qualification Phase 3
-status and architecture direction are recorded in the [canonical architecture
-plan](../architecture/luyentap-release-architecture-plan.md) and the dated
-[verification contract decision](../release-audits/2026-11-12-phase3-browser-prerequisite.md); the [integration release guide](integration-releases.md) summarizes the same boundary and links back here for commands. Dated rehearsals and fixed service records below are historical evidence, not alternate deployment instructions.
+- Use a clean checkout and the exact protected `main` revision for production work.
+- Observe the live provider state before selecting a release base. Local tests, builds,
+  dry-runs, and screenshots do not prove deployed state.
+- Keep production, qualification, and local credentials separate. OIDC credentials
+  and temporary environment files stay outside the checkout.
+- Record the prior provider version before every mutating deployment. A rollback is a
+  provider operation and does not undo data migrations or object changes.
+- Scope checks to the changed service. A Hosting observation does not qualify a Worker,
+  Firebase rules, storage, Functions, or data migration change.
 
-Future autonomous agents should load the model-invoked repository Skill at
-`.agents/skills/release-safety/SKILL.md`. It supplies the short operating
-recipe; this document and the executable scripts remain the authority.
+See [integration and normal release selection](integration-releases.md) for source
+selection and change-impact routing.
 
-When hardening one coupled release or staging contract, keep the work on one
-hardening branch and run the complete provider-backed rehearsal before merging.
-Batch failures that belong to that contract and merge only after the rehearsal
-passes. Split work only for an independent change or an urgent post-merge
-correction; a focused unit-test fix is not evidence that the next provider
-assumption has been exercised.
-
-Start routine preparation with `npm run release:plan -- --json`. It observes
-the live source/assets, selects that base automatically and reuses this assessor.
-It runs no build or tests and creates no approval. See
-[integration and source convergence](integration-releases.md) for the required
-CI result, applied GitHub protection, Hosting publication scope and the remaining
-qualification of main.
-
-From the candidate checkout, run `node scripts/release-doctor.mjs` before
-preparing a release locally. It checks the pinned Node version, checkout-owned
-Hosting tools, clean Git state, in-progress Git operations, and whether the
-current `gh` login can make an authenticated request. It opens and closes the
-existing index for update without writing it. This is an advisory permission
-probe. Git lock creation, branch protection, provider access, and production
-authorization are tested separately. In a managed Windows worktree, use the
-host `git` or `gh` with scoped approval for authorized operations if sandbox
-access is denied. Confirm the host result before treating a sandbox denial as
-a host ACL problem.
-
-When the production environment is available only in GitHub, dispatch
-**Release Promotion** on protected `main` with operation `plan`. The job
-uses the existing read-only Google federation and reports the live and
-dependency fingerprints for the compatibility review. The plan creates no
-release card or production approval job.
+The active implementation map is scripts/release-check.mjs for assessment,
+scripts/release-plan.mjs for read-only planning, and
+scripts/release-hosting-dependencies.mjs for changed-backend observations.
+scripts/deploy-live.mjs owns Hosting build, publication, and recovery.
+scripts/release-evidence.mjs and scripts/release-provider-readback.mjs own
+artifact validation, manifest polling, and Firebase or Cloudflare readback.
 
 ### Provider checks and credentials
 
-Dispatch **Release Promotion** on protected `main` with operation `health` to
-exercise the production dependency reads under the CI preflight identity even
-when the candidate has no backend delta. Supply a short objective for the
-dispatch. Run it after changes to federation,
-provider tokens, shared routing, or private audio bucket configuration. It
-checks Hosting and Functions inventory, RTDB rules and flags, Firestore rules
-and indexes, Worker deployments and configuration, Cloudflare routes, and
-private audio bucket settings. It compares the shared infrastructure pins.
-The health operation creates no release card or trusted dependency fingerprint
-and reads no production build environment secret. Read-only operations use a
-separate GitHub concurrency group from publication and recovery.
+Use the repository-owned Firebase and Cloudflare readback tools with the scoped OIDC
+identities. Keep tokens, service-account files, and generated environment files outside
+the checkout. A provider readback is required before claiming current state, and a
+local or dry-run result cannot substitute for it.
 
-| Surface | Access contract exercised by the checks |
+## Routine Hosting release
+
+The manual `workflow_dispatch` entry point is
+`.github/workflows/release-promotion-phase3.yml`. It accepts `publish`, `health`,
+`plan`, and `verify-existing` operations and runs only for protected
+`refs/heads/main`.
+
+### Read-only preflight
+
+`health` and `plan` run the read-only `preflight` job under concurrency group
+`luyentap-hosting-read-only`. It uses read-only OIDC federation configured by
+`LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER` and
+`LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT`, plus
+`LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN`. The job verifies the exact remote `main`,
+checks the Firebase identity, and observes Hosting and any dependencies without
+mutation. `plan` writes a read-only release plan. `health` checks provider access.
+
+### Serialized publish
+
+`publish` runs `operation: publish` under `luyentap-hosting-production` with
+`permissions: { contents: read, id-token: write }` and `environment: production`.
+The workflow currently has no required reviewer during pre-launch. After launch, the
+repository owner can re-attach a human-only required reviewer in GitHub Settings under
+**Environments → production**, without changing this YAML.
+
+The job performs these steps in order:
+
+1. Verify `refs/heads/main`, `GITHUB_SHA`, and the remote protected `main` agree.
+2. Federate to the production Firebase identity and keep credentials outside the
+   checkout.
+3. Observe the live Hosting manifest and retain `observation.fingerprint`.
+4. Run the scoped assessment with the live revision as base.
+
+   ```powershell
+   node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting --env-fingerprint <production-env-sha256>
+   ```
+
+   For this target, backend probes run only for backend files changed in
+   `live_sha..HEAD`.
+5. Build exactly once with `npm run build:production`.
+6. Serve the resulting `dist/` on `http://localhost:5173`, run
+   `node scripts/release-local-readback.mjs http://localhost:5173`, and run
+   `assertHostingArtifact` against the same manifest and files.
+7. Publish the checked artifact with
+   `npm run deploy:hosting -- --deploy-built`. The deployment records the prior live
+   version and polls Hosting with bounded exponential backoff for up to 90 seconds.
+8. Append the released URL, source SHA, manifest SHA-256, operation ID, prior and live
+   versions, and verified file count to `$GITHUB_STEP_SUMMARY`.
+
+The summary includes this exact native rollback command:
+
+```powershell
+firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:live --project temp-a1437
+```
+
+If publication or readback is interrupted, resume the read-only verification with:
+
+```powershell
+npm run release:verify-existing -- --operation-id <uuid>
+```
+
+The recovery operation verifies the live version and manifest without rebuilding or
+redeploying. It accepts optional `operation_id` and `expected_manifest_sha256` inputs
+and validates their UUID and SHA-256 formats before readback.
+
+For `target === 'hosting'` on protected `main`, a routine frontend-only release does
+not require a manual review-card JSON file. `target === 'all'`, a changed backend
+surface, or a hotfix path still requires the compatibility review and service-specific
+evidence selected by the release checker.
+
+The first manifest-bearing bootstrap is build-only:
+
+```powershell
+npm run build:production -- --build-only
+```
+
+For an independent live-based correction, prepare a clean checkout with
+`scripts/hotfix-prepare.mjs`, then run the hotfix assessment against the observed live
+revision. Do not substitute a local parent commit for an unverified live source.
+
+## Agent verification handoff
+
+The agent selects proportionate proof for the changed surface. Focused tests, emulator
+checks, a browser journey, provider readback, and a spare deployed origin are all
+available when their invariants apply. There is no mandatory browser framework or
+fixed account journey.
+
+For a built-site check, use a clean candidate, `npm run build:production`, and
+`node scripts/release-local-readback.mjs http://localhost:<port>`. Retain the source,
+manifest, environment fingerprint, test output, and any browser evidence with the
+review record. Check the same candidate again if source, configuration, or live state
+changes. Dated evidence belongs in `documentation/release-audits/`.
+
+A release check can return `PASS`, `NOT_APPLICABLE`, `REVIEW_REQUIRED`, `UNVERIFIED`,
+or `BLOCKED`. The latter three require the missing evidence or preparation to be
+resolved before publication. Never replace provider readback with a caller-supplied
+JSON assertion.
+
+## Cloudflare Worker releases
+
+Run `npm run deploy:worker -- <service>` (or `npm run deploy:worker -- --list` to list registered services), implemented by `scripts/deploy-worker.mjs`. The deployable services and their configs are:
+
+| Service | Wrangler configuration |
 | --- | --- |
-| Firebase CLI | Use relocated external-account ADC with the expected workload federation audience and service-account impersonation URL. Hosting site inventory checks `firebasehosting.sites.get`. Functions inventory needs `cloudfunctions.functions.list` and `run.services.list`. |
-| Firebase Realtime Database | In CI, use the **action-minted OAuth access token** with `cloud-platform`, `firebase.database`, and `userinfo.email` scopes. Read the deployed rules via `/.settings/rules.json` and read the specific system flags. Successful Hosting inventory or a generic ADC token alone does not establish this data-plane access. |
-| Firestore | Read the active Firebase Rules release and its ruleset with `x-goog-user-project: temp-a1437`. Verify Rules read permissions and quota project access. Composite index inventory is a separate Firestore read and needs `datastore.indexes.list`. |
-| Cloudflare | Set `LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN` for CI. Scope Worker scripts and R2 storage read permissions to the production account, and route and zone read permissions to the production site zone. Exercise the account, Worker, zone, and bucket GETs with this token. Use an expiring token and manage its rotation in Cloudflare. |
+| `r2-upload-signer` | `cloudflare/wrangler.jsonc` |
+| `r2-backup-worker` | `r2-backup-worker/wrangler.toml` |
+| `luyentap-notification-command` | `cloudflare/wrangler.notifications.jsonc` |
+| `thcs-gemma` | `cloudflare/wrangler.thcs-gemma.jsonc` |
+| `luyentap-qualification-upload-signer` | `cloudflare/wrangler.qualification.jsonc` |
 
-The endpoint checks establish effective access. Before changing roles or
-enabling additional refs or event types, use `gcloud iam workload-identity-pools
-providers describe` to inspect the live attribute condition and
-`gcloud iam service-accounts get-iam-policy` to inspect the impersonation
-binding. A repository workflow guard controls execution of the checked-in
-workflow. Provider-side trust and GitHub secret scope must be verified
-independently of that guard. Pre-merge CI exercises the observer with
-credential-free fixtures. Run live health on protected `main`.
+`luyentap-notification-firestore-qa` has `deployable: false`. It is an external-DO
+public-entry proxy and is intentionally blocked from generic overwrite.
 
-Independent provider reads report their failures together. HTTP diagnostics
-log the endpoint path, status, and allowlisted provider error codes or reasons.
-They omit raw response messages, query strings, and credentials. On a Google
-HTTP authorization failure, or on an explicit health check, the observer attempts to
-report granted Google release scopes and remaining lifetime. The token metadata
-check is best-effort and cannot grant provider access. Cloudflare token expiry
-remains a provider-side rotation check.
-
-Standard backend releases need their own readback. The Hosting observer reads
-active Worker version IDs dynamically and reads module bytes from the
-version-addressed Cloudflare API endpoint. It includes those version-bound
-module hashes in the compatibility fingerprint. Changes to shared account
-routing or the private audio lifecycle require the backend release operator to
-arrange a reviewed update of the corresponding shared pin before the next
-coordinated release.
-Check these via `health`; a mismatch reports expected and observed digests.
-Fixed historical service profiles retain their own source and provider pins.
-
-### Routine Hosting release
-
-1. Verify the changed behavior at localhost against the isolated spare Firebase
-   and Worker services. Use spare Hosting only for proof that depends on a deployed
-   origin, such as Hosting rewrites, headers or a provider callback that requires
-   that domain. [Spare-service localhost instructions](qualification-foundation-runbook.md#routine-localhost-qualification)
-2. On the exact clean protected `main` revision, run the release planner and
-   complete the evidence it calls for. If the change needs production-build
-   browser proof, build once, test the isolated preview and retain those bytes.
-   If source-level behavior checks are sufficient, CI builds once. Both paths
-   check the exact production-format files over localhost HTTP before approval.
-   [Verification and artifact handoff](#codex-verification-handoff)
-3. In GitHub Actions, dispatch **Release Promotion** on `main` with operation
-   `publish`, the product objective, and the verification tag and SHA-256 when
-   application evidence is required. Review the prepared card's source, artifact,
-   assessment and evidence. Approve the protected `production` job once when
-   they match the intended release.
-4. Use the workflow's **Live Hosting verified** summary and operation UUID to
-   report the live URL, released revision and artifact manifest SHA-256. The
-   executor independently checks Firebase's release identity and every
-   manifest-listed live file. Run any change-specific, safe live browser check
-   that the release plan calls for. Track Changelog integration separately.
-
-If publication may have succeeded and verification did not finish, use the same
-workflow on `main` with operation `verify-existing` and the recorded
-`operation_id`. Enter a short recovery objective in the required objective
-field. The recovery job uses the protected `production` environment and resumes
-readback for that publication. Use the retained operation evidence to diagnose
-any mismatch before considering another publish.
-
-For an authorized rollback, select the recorded prior version in Firebase
-Hosting's release history for `kahut1`, then independently read back the
-restored manifest and files. Confirm backend compatibility with that version
-before rolling back. Hosting recovery restores Hosting files and configuration
-only. [Firebase Hosting release history](https://firebase.google.com/docs/hosting/deploying#roll_back_a_release)
-
-For changes affecting Workers, Firebase rules or indexes, database state,
-storage or Functions, use each affected service's own qualification, rollout
-order and recovery plan. Establish compatibility with the active backend before
-promoting Hosting. A coordinated release needs explicit handling of partial
-failure and of the backend state that would remain after a Hosting rollback.
-[Service routing and evidence](integration-releases.md#hosting-publication-scope)
-
-## Hosting release foundation
-
-### Change-to-operation associations
-
-The existing exact-source compatibility review selects `changeIds: ["CL-..."]`
-against the candidate's indexed change records. For a release with no meaningful
-change entry, use `changeIds: []` and a concise `changelogNotApplicable` reason.
-These fields describe scope; they establish neither authorized approval nor
-adequate verification. The planner suggests records, and the engineer checks
-the actual source/target applicability. Do not select every ancestor CL record.
-
-The guarded Hosting route retains IDs on its explicit Hosting target; backend
-publication remains excluded. IDs survive archive recovery and are immutable
-retry intent. After retaining an outcome, it reconciles dated CL detail references
-and Master links. A documentation error is reported separately and does not
-undo publication, erase failed verification or request another deployment.
-Resume documentation with `node scripts/release-changelog.mjs --reconcile <id>`;
-this reads authenticated retained evidence, not supplied local receipt JSON.
-It can record partial/unverified outcomes truthfully and performs no deployment,
-commit or push. Preserve task ownership of the documentation checkout.
-
-The guarded Hosting route now executes the reviewed test scope itself and
-retains source, artifact and technical evidence on the existing GitHub
-repository **before** Firebase publication. This is the first implementation
-phase; it does not qualify `main`, change production authorization, or replace
-the existing compatibility and historical-hotfix gates.
-
-**Qualification gate:** the [November 11 GitHub rehearsal](../release-audits/2026-11-11-release-foundation-github-rehearsal.md)
-passed real archive/readback, source/artifact restoration and interrupted receipt
-recovery, with exact cleanup. This is not Hosting publication/rollback proof.
-The foundation was integrated through protected PR #202 at `c2780d5d` under
-explicit merge authorization. Later convergence changes still need their own
-reviewed integration; this does not authorize publication.
-Do not treat local or GitHub-only evidence as complete production qualification.
-No bypass flag is provided.
-
-In addition to the existing base/source/environment/observed-state bindings,
-set these reviewed inputs:
-
-- `LUYENTAP_RELEASE_SOURCE_REF`: an existing fully qualified GitHub branch or
-  tag, such as `refs/heads/codex/my-reviewed-release`, resolving to the exact
-  candidate commit and tree. Publish that source under the task's authorization
-  before deploying; the deployment script never pushes a branch for you.
-- `LUYENTAP_RELEASE_TEST_PLAN_FILE` and
-  `LUYENTAP_RELEASE_TEST_PLAN_SHA256`: exact bytes of the reviewed verification
-  scope. A plan is a list of checks, not a supplied claim that they passed.
-- `LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_SHA256` when a compatibility review is
-  supplied: the review's exact SHA-256, independently bound alongside its path.
-
-A verification plan can live outside the candidate so the candidate stays
-clean. Its test/configuration files must be explicit tracked paths in the
-candidate:
-
-```json
-{
-  "schemaVersion": 1,
-  "suites": [
-    {
-      "runner": "node",
-      "files": ["scripts/__tests__/deployment-safety.test.mjs"]
-    },
-    {
-      "runner": "vitest",
-      "config": "vitest.config.ts",
-      "files": ["src/path/to/the-affected.test.ts"]
-    }
-  ]
-}
-```
-
-Choose the actual affected tests during technical review; the example is not a
-default sufficient scope. A passing result establishes execution of that scope,
-not its adequacy for the intended change. Diff review and affected-workflow
-evidence remain necessary until impact-based selection is qualified. These
-intermediate inputs are not the intended permanent operator interface; a later
-planner must derive their mechanical bindings without inventing review or
-authorization. Unknown runners, globs, untracked paths, zero tests,
-failed/skipped/TODO tests and source/configuration changes fail closed. Tests
-run directly through Node or the existing Vitest resolver. The branded result
-is consumed in the same deployment process; an edited receipt cannot replace
-execution. Only normalized results and output digests are archived, not raw
-test output or production environment values.
-
-The source, built artifact, reviewed inputs and prior provider version/config
-are retained in an operation-specific **draft** GitHub release archive. It
-does not publish a product release or change GitHub's latest release. Existing
-repository credentials are required to read the draft during recovery. The exact source and
-all uploaded archive bytes are independently read back before publication.
-Source is retained as `source.tar.gz`, with bounded compressed and extracted
-sizes. Exact parent-tree reconstruction includes tracked Gitlink commit
-identities. This does not fetch or recover linked repositories' contents; any
-required linked source needs separate recoverability evidence.
-Draft discovery uses GitHub's GraphQL tag lookup followed by REST retrieval
-through the numeric release ID. REST `releases/tags/{tag}` is a published-release
-endpoint and is not used for draft recovery.
-Repository permissions govern this archive; it is durable evidence, not a
-cryptographic approval or protection from a repository administrator deleting
-it. Outcome assets are append-only in this tool, not immutable at the provider.
-GitHub release immutability takes effect on publication and prevents subsequent
-asset changes, so a future sealing step must finish all evidence first or store
-later outcomes separately. No such sealing or permission change is performed
-by this phase. Remote retention/tag protection and CI promotion remain later
-phases.
-
-Publication messages include a stable operation ID. If Firebase accepts the
-release but hash readback fails, the journal records `published/unverified`
-when the provider identifies that operation. Resume that operation without a
-build, production environment file or deployment invocation:
+The Worker lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to
+`--dry-run`. Live deploys require a clean Git tree, run targeted Vitest tests, run
+`wrangler deploy --dry-run` with `CLOUDFLARE_ACCOUNT_ID` pinned, capture and re-verify
+the prior live version with `readProviderState`, verify the authenticated Wrangler
+account with `wrangler whoami --json`, upload with `wrangler versions upload`, re-check
+live state for concurrent drift, and promote with `wrangler versions deploy <id>@100%`.
+Read back the version-addressed `/versions/:id?include=modules` response and hash every
+returned module. Run a safe no-write `OPTIONS` smoke probe after promotion. Roll back
+from the repository root with:
 
 ```powershell
-npm run release:verify-existing -- <operation-uuid>
+node scripts/tooling-where.mjs --exec <wrangler-tool> versions deploy <priorVersion>@100% --config <package>/<config> --message rollback:<priorVersion> --yes
 ```
 
-This command reads the remote archive, current provider identity and **all**
-manifest-listed assets. It never rolls back, rebuilds or deploys. It refuses
-to reassign an already confirmed publication to a different provider version.
-If another release is now live or publication is ambiguous, inspect the
-existing operation; do not blindly repeat deployment. Verification also
-repairs a previously interrupted remote outcome upload.
+Local Worker tests and a Wrangler dry-run are not deployed-state proof.
 
-The historical `release-operation --finish --evidence` entry remains a manual
-recording route; caller JSON is not the native verifier. Generic rules,
-indexes and Functions changes require their own evidence and cannot pass from
-a Hosting observation. Fixed native service qualifications retain their scope.
+## Firebase rules and indexes releases
 
-`npm run build:production` remains build-only and does not create a qualified
-release or a remote archive. The foundation is tested with disposable source,
-artifact and provider fixtures; production/rollback qualification must be
-reported separately.
+Run `npm run deploy:rules`, implemented by `scripts/deploy-firebase-rules.mjs`.
+Choose one target, `--only database`, `--only firestore:rules`,
+`--only firestore:indexes`, or `--all`. Every target supports `--dry-run`; `--skip-tests`,
+`--allow-dirty`, and `--offline` are restricted to `--dry-run`.
 
-### Phase 3 promotion contract
-
-`scripts/release-promotion.mjs` is the small mechanical boundary for a future
-Actions release card. It binds the protected `refs/heads/main` source, observed
-Hosting baseline, the actual event SHA, verification-plan and compatibility-review
-digests, production environment fingerprint, Firebase configuration digest, and
-retained manifest identity (source revision/tree/environment/file count). The
-The card also retains the passing automated verification result and, when
-application paths require it, the validated external verification bundle. The
-bundle's environment is the environment where Codex performed verification;
-the retained production artifact is separately bound to the production
-environment fingerprint. Codex
-chooses the browser, runner, journeys and depth; the release system checks the
-bundle's exact source/base/fingerprint, environment identity, freshness, tag
-target, resolved artifact references and content digests. It does not require
-Playwright, generated accounts, a qualification Firebase project or a fixed
-teacher/student flow. A path classifier permits an explicit `not-required`
-record for non-application changes. Backend, rules, Worker, storage and other
-service changes retain their separate release-safety gates.
-
-When Codex verifies a built site, build the production-format artifact first,
-verify those exact bytes, then add `--hosting-artifact` to bundle creation.
-The existing bundle retains the compressed `dist/` tree, manifest digest,
-production environment fingerprint and build-input fingerprint. Prepare restores
-and validates those bytes instead of rebuilding. The card checks the same
-bindings. Invalid retained content stops the job; it never triggers a fallback
-rebuild. Limits remain 32 MiB per compressed artifact and 64 MiB per bundle.
-
-Source-level verification remains appropriate where Codex judges it sufficient.
-Without a retained Hosting artifact, CI builds once and the bundle establishes
-source-level evidence only. A separately configured QA build, different minifier
-or later rebuild must not be presented as proof of the production bytes.
-
-Each verification run uses a unique source-keyed release tag. The publisher
-requires GitHub immutable releases to be enabled, and promotion readback
-rejects a mutable prerelease or a tag that points at another commit. The
-repository setting is not changed by this workflow.
-
-For deployed-origin behavior on the shared spare project, use the
-[Hosting-only channel procedure](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project)
-with the candidate's actual backend rules.
-
-On a separate disposable Firebase project, Codex may run the historical
-fixture-rules lifecycle in `scripts/release-browser-gate.mjs` with
-`--journey-command-file <json>`. It deploys the exact retained artifact to the
-dedicated non-production project, reads back the full manifest, provisions
-temporary isolated accounts/rules, exposes `RELEASE_STAGING_*` bindings to the
-selected argv command, verifies native Hosting clone recovery, and removes the
-temporary channels/accounts. Worker coverage is included when the qualification
-environment supplies non-production Worker endpoint bindings and the selected
-journey declares that service. Backblaze/storage, Functions, migrations, and
-production data remain outside this lifecycle and retain their service-specific
-gates. The command file is agent-selected; the release system does not require
-Playwright or a fixed teacher/student journey.
-
-The card is presentation and binding data; it is not production authorization.
-Its validator rejects missing event context, PR refs, path traversal, incomplete
-review pairs, source/artifact or environment drift, and credential-bearing text,
-and its exported values are the same `LUYENTAP_RELEASE_*` inputs consumed by the
-guarded executor. Verification evidence expires after 24 hours and a release
-card expires after two hours, so stale approval cannot be reused. CI stages each
-cross-job payload under one repository-relative directory before upload and
-rehydrates that exact layout before retained-artifact publication. The Hosting
-artifact upload opts in to hidden files solely so the public
-`.well-known/luyentap-release.json` manifest survives transfer; exact artifact
-validation rejects unexpected files and credential-bearing `.env` material before
-upload.
-
-Immediately before publication, the protected job performs one final Hosting
-snapshot with `scripts/release-promotion.mjs --verify-baseline`. It compares the
-approved baseline revision, tree and manifest fingerprint and verifies the
-manifest-listed asset hashes. This is a drift/concurrency check, not a second
-application review: application behavior is established by Codex's retained
-preview evidence, and compatibility review is not rerun at the mutation point.
-
-The existing executor also accepts `--deploy-retained` for a separately retained
-`dist/` artifact. It verifies the manifest digest, every manifest-listed file,
-bundle budget and forbidden local markers before calling `deployHosting`; it does
-not rebuild. This is the build-once seam needed by a future authorized CI job.
-The normal mutating route remains `npm run deploy:hosting`; the guarded workflow
-supplies production credentials and calls this retained mode only inside the
-protected production job. GitHub
-environment protection, short-lived ADC federation with the pinned Firebase CLI,
-and a disposable Hosting publication/recovery are still external qualification
-work. The guarded workflow is defined in
-`.github/workflows/release-promotion-phase3.yml`: its preparer derives technical
-bindings and source-bound verification inputs, its protected `production`
-environment is the owner authorization boundary, and its recovery dispatch
-resumes one recorded operation without rebuilding or publishing. The workflow
-does not run a universal browser job. The workflow names the federation identities separately: `LUYENTAP_RELEASE_*`
-variables are read-only preflight inputs, while `LUYENTAP_PRODUCTION_*` variables
-are restricted to protected production/recovery jobs. Static workflow tests assert
-the preflight job has `contents: read` and promotion has `contents: write`; actual
-GitHub environment and service-account permissions still require provider readback.
-Preflight uses the separate `LUYENTAP_RELEASE_ENV` preparation secret; the
-protected production job uses `LUYENTAP_PRODUCTION_ENV`, and the executor rejects
-any environment-fingerprint mismatch before publication. Production values are
-written to `.env.production` alone. Promotion does not require QA variables.
-For a selected preview prebuild, `LUYENTAP_QUALIFICATION_ENV_FILE` optionally
-provides the separate, complete qualification Firebase configuration;
-`envFingerprint` is the production-only digest, while the retained artifact
-records a separate `buildInputFingerprint` for the combined build inputs.
-A candidate planner also checks the authoritative
-`origin/main` revision before doing the live assessment; the final promotion
-job repeats that check immediately before mutation.
-The
-separate local-development reliability plan remains proposed and is not
-absorbed here. Do not describe the contract test or a local retained-artifact
-check as CI, provider, browser or rollback proof.
-
-### Read-only baseline reconciliation
-
-A mismatch between a production-only environment fingerprint and an old combined
-build-input fingerprint does not automatically require a live metadata repair.
-Hosting dependency observation reads the selected production file, obtains the
-eight public qualification Firebase inputs, and checks the materialization block
-in the observed live source. It accepts the old identity only when the exact
-concatenation reproduces the live manifest hash. The dependency receipt carries
-both identities and is freshly reobserved before publication; live bytes and the
-final baseline snapshot are unchanged. Missing inputs or any actual drift stop
-the operation. CLI callers may select `--production-env-file`; the planner forwards
-its `--env-file`, and the executor uses `LUYENTAP_PRODUCTION_ENV_FILE`.
-
-Local observation reads the existing GitHub repository variables automatically;
-Actions receives the same optional public values directly. They are used for this
-proof only and are not required when the live manifest already uses production-only
-identity. No secret edits, provider writes or manually reconstructed hash/path
-inputs are required. The next normally authorized release replaces the old
-manifest as part of publication rather than publishing a metadata-only repair.
-
-When the index declarations differ from live source, observation additionally
-reads the native Firestore index inventory. Every newly declared composite must
-be `READY` with matching scope and ordered fields. It does not delete existing
-indexes or qualify unchanged historical gaps. Field-override changes remain
-separately gated. The compatibility review still covers application behavior and
-any broader service coordination.
-
-### Codex verification handoff
-
-For application-impacting changes, Codex is responsible for choosing and
-executing proportionate application verification. It may select focused tests,
-browser journeys, emulator checks, provider checks, or the disposable
-qualification lifecycle based on the changed surfaces and risk. The release
-system does not prescribe a framework or user journey; it validates the resulting
-source-bound bundle.
-
-Browser-impacting changes require screenshots or short videos of successful
-journeys. Use screenshots for visible states and short videos when sequence,
-motion, or timing matters. The repository's
-verification releases are public. Attach only synthetic or redacted captures and
-keep account identifiers, private data, credentials, and tokens out of them.
-
-For localhost evidence, use the exact clean candidate checkout. Stop the previous
-preview on the selected role port, run `npm.cmd run build:spare`, and start
-`npm.cmd run preview:spare` for the teacher or
-`npm.cmd run preview:spare -- --port 5174` for the student. On each new candidate,
-rebuild and restart even if a previous release is still open in the browser.
-Open the role's `/login` URL in a fresh browser session. Confirm the scenario uses
-spare Firebase and Worker endpoints and the expected refreshed state. Check shared
-media reads where the journey needs them.
-
-Run the identity readback from the candidate checkout immediately before and
-after each recorded journey (use 5174 for students):
+The lifecycle checks for a clean tree, validates local JSON, rules, and index schemas
+(rejecting non-empty `fieldOverrides` until automated readback supports them), captures
+and re-verifies prior live state against concurrent drift, runs scoped emulator security
+tests with strict Vitest JSON report validation (zero skipped tests allowed), and
+publishes with the repository Firebase CLI:
 
 ```powershell
-node scripts/release-spare-readback.mjs http://localhost:5173 | Set-Content -Encoding utf8NoBOM <teacher-before.json>
-# Run the journey and save a screenshot or short video.
-node scripts/release-spare-readback.mjs http://localhost:5173 | Set-Content -Encoding utf8NoBOM <teacher-after.json>
+firebase deploy --only <target> --project temp-a1437 --non-interactive
 ```
 
-Both readbacks must succeed. Record `method` as `localhost-spare-browser` and
-set `observedAt` after the last readback. Name and reference all three retained
-artifacts for each journey with a common prefix, for example `teacher-before`,
-`teacher-after`, and `teacher-capture`. Use the check names and scenario to state
-the role and what passed. The verifier checks the origin, source revision and
-tree, build identity, and timestamps on both sides of the journey. A preview
-from another revision, a dirty build, or a rebuild during the journey is rejected.
+`database` runs `vitest.security-emulator.config.ts` inside `firebase emulators:exec --only database`,
+and `firestore:rules` runs `homeworkFirestoreRules.test.ts` inside `firebase emulators:exec --only firestore`.
+Post-deploy readback is bounded and polled. RTDB rules and Firestore rulesets are
+compared by SHA-256. Firestore composite indexes must be `READY`, with `__name__`
+normalized before comparison. Record the prior ruleset or index state and use the
+provider's native rollback or restore procedure if readback fails.
 
-When the affected behavior requires a deployed origin, record
-`method` as `deployed-origin-browser`, explain the deployed-origin dependency
-and identify the channel in the scenario, and retain the exact Hosting artifact
-and the referenced `<journey>-capture` evidence. Run the same readback command
-before and after each deployed-origin journey using the disposable spare
-channel's HTTPS origin. The current candidate's `dist/` must be present.
-If the release also includes localhost journeys, retain their localhost
-readbacks under separate journey IDs. A separately built spare preview
-qualifies the candidate's behavior. The production artifact has its own HTTP
-readback and publication identity.
+## Parallel-worktree localhost and spare workflow
 
-For built-site verification, use a clean candidate and an explicit observed
-base. Build with `npm run build:production` (build-only). Start the repository
-Vite preview in one terminal and read back its files from another:
+The spare project is `luyentap-pdf-qa-20261021` and the spare upload Worker is
+`luyentap-qualification-upload-signer`. Use the native commands below:
 
 ```powershell
-node scripts/tooling-where.mjs --exec vite preview --host localhost --port 5173 --strictPort
-node scripts/release-local-readback.mjs http://localhost:5173
+npm.cmd run dev
+npm.cmd run dev -- --port 5174
+npm.cmd run dev -- --port auto
+npm.cmd run build:spare
+npm.cmd run preview:spare -- --port auto
+node scripts/release-spare-readback.mjs http://localhost:<port>
 ```
 
-Use port `5174` for student browser journeys. The readback compares the
-served manifest to `dist/` byte for byte and verifies every listed file hash.
-It also verifies the root URL serves the built entry page. The release card
-uses the manifest identity, and promotion checks the raw manifest file hash
-after download. This HTTP test fetches static files without executing
-application code.
-
-The production-format build selects production Firebase on localhost, even if
-the build includes `LUYENTAP_QUALIFICATION_ENV_FILE`. For a localhost browser
-check of these exact bytes, block all non-local traffic before navigating or
-use a controlled browser harness that explicitly isolates each called service.
-Use the spare-service localhost build for routine backend-dependent behavior.
-If the selected proof needs a deployed QA origin, a disposable Hosting channel
-can select QA Firebase from the separate qualification inputs. Supply only the
-eight qualification Firebase keys in `LUYENTAP_QUALIFICATION_ENV_FILE`, and use
-the [shared spare channel procedure](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project).
-Verify the actual Worker and external service destinations separately before
-opening that browser journey. A QA-only build supplies behavior evidence for
-the candidate source.
-
-#### Review the result before requesting approval
-
-For every deployment candidate, collect the verification evidence and compare
-the actual result with the user's requested outcome and acceptance criteria.
-Codex can make this judgment directly or use another agent to review the
-evidence. Review the presentation where it matters, along with the expected
-behavior and any unintended effects visible in the checks. For service-only
-changes, judge the service outcomes using that service's own evidence.
-
-If there is a deviation, incorrect result, unintended issue, or insufficient
-evidence, record the finding and return the candidate to implementation
-recovery before requesting release approval. Fix the issue, rerun the affected
-checks on the corrected candidate, collect fresh evidence, and repeat the
-review. Production rollback applies only after publication.
-
-For guarded Hosting releases with an application verification bundle, retain
-the review as `release-review.json` under the artifact ID `release-review`.
-Add `bundle://artifact/release-review` to the verification record's evidence
-references. A passing review has no open findings and cites the evidence used
-for each judgment. Include every retained browser capture in those citations.
-For example:
-
-```json
-{
-  "decision": "pass",
-  "reviewer": "codex",
-  "reviewedAt": "2026-11-19T04:00:00.000Z",
-  "criteria": [
-    {
-      "expectation": "Describe a specific outcome the user requested",
-      "judgment": "Explain how the observed result meets that expectation",
-      "evidenceRefs": ["bundle://artifact/journey-capture"]
-    }
-  ],
-  "findings": []
-}
-```
-
-Use the actual review time after verification and `another-agent` when another
-agent made the judgment. The gate checks the review record and evidence
-references. The reviewer judges whether the evidence meets the request.
-
-After the review passes, create and publish the bundle:
-
-```powershell
-node scripts/release-verification-bundle.mjs --create --base <observed-base> `
-  --record <external-record.json> --environment <verification-environment-file> `
-  --environment-identity <isolated-environment-description> --hosting-artifact `
-  --evidence=journey-before:<journey-before.json> --evidence=journey-after:<journey-after.json> `
-  --evidence=journey-capture:<journey-capture.png> --evidence=release-review:<release-review.json> `
-  --output <external-dir>/verification-bundle.json
-node scripts/release-verification-bundle.mjs --publish <external-dir>/verification-bundle.json
-```
-
-Retain the compatibility review as an artifact named `compatibility-review`
-when required. Prepare extracts that object from the bundle; no source-committed
-review fallback is used. Dispatch with the returned tag and digest. Source-only
-checks omit `--hosting-artifact`; their build identity describes inputs, not
-tested bytes. An oversized artifact requires a reviewed retention change, not
-silently dropping exact-artifact evidence.
-
-Before treating the candidate as ready, Codex must run the selected checks,
-retain redacted results, and create the immutable bundle for the exact protected
-candidate source. A result from a pre-merge branch cannot authorize a different
-post-merge commit. If a check cannot run, Codex must investigate available tools,
-permissions and environments and report the exact external dependency and
-affected evidence. A generic `UNVERIFIED` report is a preparation state, not a
-completed handoff.
-
-This preserves Codex autonomy over test choice and execution. The release system
-continues to own only the properties that require consistent enforcement:
-source/artifact identity, evidence provenance, freshness, concurrency,
-publication, recovery and the production authorization boundary.
-
-Operation evidence keeps publication, independent live verification and
-documentation reconciliation distinct: a successful Hosting outcome is recorded
-as `published-verified`, while `changelog-pending` or
-`changelog-pending-integration` cannot be overwritten by that publication
-status. The retained patch and integration request are durable handoff evidence;
-they become canonical only after the protected-main integration path completes.
-The executor writes the operation UUID to the protected job's operation evidence
-at intent creation, before provider mutation, so recovery does not depend on
-post-failure log inspection.
-
-Current operational state: the October 18 [Book restoration release](../release-audits/2026-10-18-book-hosting-release.md)
-serves a verified production source manifest. Start with `--observe-hosting` and
-fresh provider evidence. The October 11 rehearsals and missing-manifest statements
-under **Acceptance rehearsal** below are historical, superseded for current
-Hosting by the linked release; they remain evidence of those earlier checks.
-That Hosting release establishes no Worker, rules, storage, or PDF lifecycle
-qualification. Those services retain their separate evidence and authorization.
-
-Assess an explicitly selected revision from a clean checkout:
-
-```powershell
-node scripts/release-check.mjs --mode release --cwd . --base <review-base> --observe-hosting --env-fingerprint <production-env-sha256> --json --receipt tmp/release-receipts/release-assessment.json
-```
-
-For a production correction, create an isolated worktree from the verified deployed source or another explicitly reviewed revision, apply only the fix, then run:
-
-```powershell
-node scripts/hotfix-prepare.mjs --source <verified-source-revision> --destination ..\luyentap-hotfix
-Set-Location ..\luyentap-hotfix
-node <release-safety-tool-checkout>\scripts\release-check.mjs --cwd . --mode hotfix --base <verified-source-revision> --observe-hosting --json --receipt tmp/release-receipts/hotfix-assessment.json
-```
-
-For application-code changes, add `--compatibility-review path\to\review.json`. The review must be fresh and bind the exact candidate revision, reviewed base, observed production fingerprint, reviewer, scope, and `decision: "verified"`. It records technical review only; deployment authorization remains separate.
-
-The checker reports `PASS`, `NOT_APPLICABLE`, `REVIEW_REQUIRED`, `UNVERIFIED`, or `BLOCKED`. `--observe-hosting` reads the fixed production Hosting manifest at `https://kahut1.web.app/.well-known/luyentap-release.json` and verifies the listed content hashes and source identity. Static Hosting-only changes can pass from that evidence; application-code changes require explicit compatibility review because unchanged backend files do not prove runtime compatibility. Historical deployments without that manifest remain `UNVERIFIED`.
-
-Asset readback uses a bounded eight-request pool. If a Hosting rollout changes the manifest and assets during observation, the verifier retries the complete snapshot up to three times; persistent hash or identity failures still fail closed.
-
-For a site that predates the manifest, use a controlled bootstrap: from a clean checkout, run `npm run build:production -- --build-only`, inspect the generated local manifest and compatibility review, obtain separate deployment authorization, and have the authorized operator perform the first Hosting deployment with the existing reviewed Firebase CLI route. The build-only path performs the same clean-source, production-environment, and bundle checks as the deployment route, binds the manifest to the checked-out revision/tree, and never mutates a remote service. `deploy-live.mjs` intentionally cannot perform this first bootstrap because it has no observed production baseline yet. After the manifest is live, use the guarded `deploy:hosting` route for subsequent releases. The checker never treats the local manifest as deployed evidence.
-
-When the manifest is absent, a fresh agent can still collect authoritative
-Hosting release metadata without a write:
-
-```powershell
-node scripts/release-check.mjs --mode release --base <review-base> --observe-hosting-provider --env-fingerprint <production-env-sha256> --json --receipt tmp/release-receipts/provider-baseline.json
-```
-
-This uses the repository Firebase CLI to read the finalized `kahut1` live
-channel, version ID, release time, file count, and effective headers/rewrites.
-Because Firebase does not expose the deployed Git revision or content tree in
-that response, the result remains `UNVERIFIED` for source binding and cannot
-clear the production deployment gate. It is useful baseline evidence, not a
-substitute for the one-time manifest bootstrap.
-
-A JSON file passed with `--baseline` is recorded as caller-supplied assertion and cannot establish deployment readiness by itself. Receipts are generated only below `tmp/release-receipts/`. Re-run it after any source, configuration, environment, or baseline change.
-
-The checker identifies Hosting, Firebase rules/indexes, Worker, backup Worker, Backblaze, migrations, and tooling impact from a small maintained path map. It reports required actions, deployment ordering, and recovery limitations in the receipt. It deliberately reports cross-service changes for review instead of claiming runtime compatibility. It also flags the current Worker rollout expiry, local allowed origin, staging environment, and preview Backblaze prefix when those configuration files are in scope.
-
-The path map distinguishes local development launchers from production storage
-configuration. `scripts/local-book-source-worker.mjs` is a local Worker launcher;
-changes there route through Worker/local-development verification and do not, by
-filename alone, require production Backblaze ownership evidence. Real Book Worker
-code, Wrangler Book configuration, B2 bindings, prefixes, or an explicit
-private-audio qualification still retain the Backblaze gate. Codex must use the
-changed content and selected route to decide which service evidence is needed;
-the classifier must not turn a local helper name into a production mutation scope.
-
-A `BLOCKED` or `UNVERIFIED` result gates deployment preparation. Deployment still uses the existing reviewed `npm run build:production` and `npm run deploy:hosting` routes only after separate authorization and fresh verification. No command in this workflow imports emulator data, changes live Firebase, mutates Backblaze, changes Worker bindings, or pushes branches.
-
-The bootstrap boundary was regression-tested on 2026-10-11: a disposable
-untracked source file in the isolated checkout caused
-`npm run build:production -- --build-only` to fail before Vite ran, and the
-test removed only that exact file afterward. A clean build-only run remains
-non-mutating. This keeps the bootstrap useful for a pre-manifest site without
-allowing a locally assembled dirty artifact to be mistaken for the reviewed
-revision/tree.
-
-`deploy-live.mjs` writes the same source/tree/file-hash manifest into each production build before Hosting deployment. The mutating Hosting route requires `LUYENTAP_RELEASE_BASE`, `LUYENTAP_RELEASE_FINGERPRINT`, `LUYENTAP_RELEASE_OBSERVED_FINGERPRINT`, and `LUYENTAP_RELEASE_ENV_FINGERPRINT`, plus the foundation inputs above. A caller-supplied baseline file is optional and cannot substitute for independent observation; if supplied, its exact `LUYENTAP_RELEASE_BASELINE_SHA256` is required. Hotfix assessments carry a computed reconciliation obligation into the next manifest; later assessments compare the complete hotfix delta against the candidate. These values bind technical preflight, not human authorization. A separate authorized operator decision is still required, and evidence files must contain no credentials.
-
-## Fixed Homework Worker artifact assessment
-
-The October 18 isolated Homework Worker has a native shared-checker path:
-`--observe-homework-worker --worker-bundle <path> --worker-config <path>`.
-Follow [its release packet](../release-audits/2026-10-18-homework-worker-release.md).
-This path independently reads Cloudflare and pins one reviewed clean revision,
-base, tree, prebuilt artifact and deployment configuration. It records the full
-changed-file list and original service classification while assessing only that
-fixed Worker artifact. Historical live Git provenance remains unknown; exact
-reviewed artifact hashes and outside-target code equivalence establish this
-scope. An arbitrary candidate, supplied JSON, changed provider baseline or mixed
-Hosting evidence cannot pass. The receipt is written beneath the selected
-`--cwd` candidate. Other Worker releases retain their existing UNVERIFIED gate.
-Require fresh PASS, independent review and separate Worker authorization; this
-adds no deployment command or authority to the checker.
-
-## Fixed notification Homework QA correction assessment
-
-The October 18 correction has a separate fixed native observer:
-`--observe-notification-worker --worker-bundle <retained-active-module> --worker-config <reviewed-config>`.
-Follow [the correction packet](../release-audits/2026-10-18-homework-qa-correction-release.md).
-Its newer checker runs against the pinned clean product checkout. It verifies
-both notification services, unchanged public adapter and settings, the exact
-candidate modules/configuration, and the full prior RTDB rules twice. Only the
-reviewed canonical-result read expression may differ from the prior rules.
-Caller JSON and pure test validators cannot establish trusted observations.
-
-Fresh shared-checker PASS, independent review, final CI and explicit production
-authorization remain required. The observer deploys nothing. Generic Worker
-releases and unrelated source changes retain their conservative gates. The
-existing Homework backup Worker observer remains independently pinned.
-
-The authorized correction is now deployed and verified as recorded in that
-packet. This fixed observer's prior-provider pins are historical: it should
-reject the changed live baseline after the release. Do not weaken those pins
-to make a later candidate pass. A future notification/rules release requires
-new reviewed source/provider/configuration pins and fresh evidence. Current
-service source tags and exact content hashes are in
-[the service inventory](../release-audits/deployed-services.json).
-
-## Fixed private Listening upload preview correction
-
-The `private-upload-preview` profile in
-`scripts/release-listening-preview-pins.mjs` qualifies only the exact reviewed
-fresh-upload preview correction. Unreviewed source or artifact pins fail closed.
-Run the checker from this tooling checkout against the clean product candidate:
-
-```powershell
-node scripts/release-check.mjs --cwd <candidate> --mode release --base 529854b97343b51cfbdff98618411763d8b1a9a4 --observe-listening-editor-release --listening-phase predeploy --listening-upload-bundle <worker.js> --listening-upload-config <upload-release.wrangler.json> --env-fingerprint <production-env-sha256> --json
-```
-
-Repeat with `--listening-phase postupload` after separately authorized Upload
-Worker execution. This fixed path needs no Hosting build or observation and
-always returns `hostingReady: false`. It retains the full source diff and its
-service classification while qualifying only Upload. Both phases independently
-observe unchanged RTDB and Firestore rules, all other Workers, private bindings,
-bucket privacy and lifecycle. Rules, bindings, Hosting and other services are
-excluded from execution. Existing Listening profiles retain their Hosting
-observation requirement and the original private-audio transition checks.
-Independent review, fresh native PASS and separate Worker authorization remain
-required; this checker deploys nothing.
-
-## Historical acceptance evidence
-
-The sections below preserve prior experiments and their limits. They do not
-override the current operator path or authorize a deployment.
-
-### Fixed Writing Homework authority correction
-
-The November 4 correction has a separate fixed native observer:
-`--observe-writing-homework-worker --worker-phase predeploy|postdeploy`.
-Follow [its release record](../release-audits/2026-11-04-teacher-writing-homework-access.md).
-The observer pins the clean product source, exact two-module artifact and
-deployment configuration, then independently verifies Cloudflare and both
-Firebase rulesets twice. It qualifies only the notification command Worker;
-`hostingReady` remains false. Browser verification was explicitly waived for
-this task; source, permission, artifact and native remote proof remain required.
-The historical notification observer and generic Worker gates are unchanged.
-
-
-On 2026-10-11, the isolated release-safety branch built the actual application
-with explicit `demo-luyentap-local`/localhost configuration, generated a
-446-file manifest, and deployed it to the temporary Hosting channel
-`acceptance-app-20261011`. The preview returned HTTP 200 for both the real
-application and its manifest, and the manifest matched the candidate revision
-and tree. The application rendered its real sign-in screen. The channel was
-deleted after verification; the permanent `live` channel was the only channel
-left in readback.
-
-The preview manifest is marked `environment: acceptance`. Production
-observation requires `environment: production`, so an acceptance deployment
-cannot become a production baseline. Backend writes were not exercised: the
-preview used local/mock Firebase configuration and no disposable backend
-service was available at the public preview origin. The production build also
-requires the reviewed machine-local `.env.production` file and the approved
-compatible native build tooling. The successful rehearsal used ARM64 Node with
-`--minify false`. Native ARM64 minification crashed; x64 Node failed because
-the canonical dependency tree lacks the x64 Rollup binary. A minified build
-has not been verified. The preview used Firebase CLI directly, so it does not
-prove the guarded deployment workflow or backend compatibility.
-
-An additional local acceptance build used `--mode acceptance` with
-`VITE_FIREBASE_ACCEPTANCE_EMULATORS=true`. The shared Firebase bootstrap now
-connects Auth/RTDB emulators for that mode only; production builds cannot opt
-into those endpoints accidentally. The Auth emulator listened on a separate
-port and a disposable `teacher@test.com` account was created through its local
-REST API. The real login flow reached `Redirecting...`, proving the built
-artifact used the emulator and completed Auth sign-in. The initial Auth-only
-attempt could not finish the profile/dashboard transition because RTDB and
-Firestore were unavailable; no shared emulator or production database was
-touched.
-
-The next correction requires the fixed `demo-luyentap-acceptance` identity,
-database URL `http://localhost:19000?ns=demo-luyentap-acceptance`, and all three
-`VITE_FIREBASE_*_EMULATOR_HOST` values: Auth `localhost:19099`, RTDB
-`localhost:19000`, Firestore `localhost:19080`. Missing values or configured
-remote provider endpoints fail before Firebase initialization. Firestore is
-also connected to its emulator and analytics is disabled. Acceptance HTML
-adds a CSP restricting fetch/WebSocket connections to the artifact origin and
-these test ports, preventing hidden application defaults from making remote
-backend calls. This boundary is deliberately limited to Firebase-only
-acceptance; Worker/B2 scenarios require their own separately isolated targets.
-The rebuilt artifact was scanned for `workers.dev`, Gemini/Groq, and Firebase
-API-key patterns; none were present, and its only R2 endpoint was the required
-`http://localhost:19087` test endpoint.
-The same rebuilt artifact was served on `localhost:5180`; the real dev Teacher
-login authenticated against the disposable Auth emulator and remained at
-`Redirecting...` while the unavailable database emulators prevented profile
-loading. Browser console output contained no additional error, so this is
-positive Auth-path evidence plus a database-runtime boundary, not a claim of a
-complete signed-in application session.
-
-The measured local operator path was: acceptance build 39 seconds, focused
-boundary/release/deployment checks 14 seconds, and browser Auth rehearsal under
-10 seconds once the temporary Auth emulator was listening. The only manual
-steps were supplying disposable endpoint variables, creating one emulator
-account, and stopping the two temporary processes; the dependency junction was
-removed automatically after each test batch. No production credentials,
-shared emulator ports, or persistent local data were used.
-
-On the next iteration, the cached RTDB emulator was run directly under a
-disposable Microsoft JDK 11 (the Firebase CLI’s Java 21 gate is incompatible
-with this machine’s Netty loopback behavior), and official Firestore emulator
-v1.19.8 was run on Java 11 because the cached v1.20.4 requires Java 21. The
-real application then read a disposable teacher profile, accepted the profile
-form, wrote the completed profile to RTDB, and reached the teacher Materials
-dashboard. The dashboard reported only the expected missing local material
-index; no remote calls or production data were involved.
-
-The checker also has a test-only `--mode acceptance --hosting-origin
-http://localhost:<port>` route. It accepts only localhost HTTP origins and
-`environment: acceptance` manifests; production and hotfix modes remain fixed
-to `https://kahut1.web.app`. It was exercised against the real static server
-and 445-file manifest, with every file hash read back over HTTP.
-
-Deployment preflight requires `LUYENTAP_RELEASE_OBSERVED_FINGERPRINT` from the
-reviewed observation and repeats source/environment/remote checks after build,
-immediately before invoking Firebase. These are consistency checks, not human
-authorization.
-
-### Remaining operational acceptance
-
-The mission is not complete. Current proof includes the real app build, a
-full disposable Firebase-backed browser path, a real HTTP acceptance manifest
-readback, deterministic checker tests, and a multi-commit hotfix retention test.
-Still required locally is a full guarded deployment-route rehearsal and
-recovery to a prior test artifact. Channel deletion proves cleanup, not
-rollback. Do not substitute acceptance evidence for AC-01 through AC-17
-production proof or bootstrap production as a shortcut.
-
-An alternate-port `demo-luyentap-acceptance` Firebase emulator rehearsal was
-attempted on 2026-10-11. Auth listened successfully; RTDB and Firestore failed
-before listening:
-the installed Java emulator runtimes could not create a loopback selector
-(`failed to create a child event loop`). No shared emulator was restarted and no
-data was written. This is an environment prerequisite for the remaining
-database-backed browser scenario, not evidence of application data behavior.
-
-Latest iteration: explicit acceptance manifest generation and localhost HTTP
-readback were tested with the focused suite (21/21) and the relevant release,
-acceptance-boundary, and deployment suites (46/46). A disposable historical
-source hotfix was prepared from the observed base while the development
-checkout remained untouched; a frontend correction plus a review bound to its
-source, base, and observed fingerprint returned `PASS`, and its receipt now
-contains a computed reconciliation obligation. A no-service synthetic change
-returned `REVIEW_REQUIRED`, as intended. The production route still rejects
-acceptance mode and no provider was mutated.
-
-A cold-start run from the documented command path used the real Firebase CLI
-readback and generated `tmp/release-receipts/cold-start-provider.json`. It
-returned `UNVERIFIED` with the live version above, without requiring a human to
-assemble provider JSON or performing a remote write. The candidate was clean
-and the only missing production input was exact deployed source provenance.
-The same path was exercised through `.agents/skills/release-safety/SKILL.md`;
-its contract and referenced files were discovered automatically, and the
-generated `skill-cold-start.json` reached the same conservative result.
-
-The remaining production boundary is external: the live Hosting site currently
-returns the application HTML at the manifest path rather than a production
-manifest, so exact source provenance cannot be asserted. The read-only Firebase
-Hosting inspection recorded live version
-`projects/temp-a1437/sites/kahut1/versions/10039da56ea1c0ae`, finalized at
-`2026-10-06T07:08:57.107Z`, with 458 files and the deployed rewrite/header
-configuration. The first manifest bootstrap requires a separately authorized
-deployment of the reviewed candidate, followed by remote readback. Worker,
-backup Worker, Firebase rules,
-database migrations, and Backblaze still require their provider-specific
-read-only observations before those surfaces can be approved. Use disposable
-backend resources and test-owned ports; never reuse concurrent localhost
-emulator data for mock writes.
-
-Read-only Wrangler inspection also succeeded for the configured Book Worker.
-It returned finalized deployment/version IDs with 100% allocations, but the
-provider reported `Source: Unknown` and did not expose Git provenance or the
-effective secret/binding values. Worker source/configuration therefore remains
-`UNVERIFIED` for release approval; no Worker or R2 resource was changed.
-
-Firebase read-only inspection returned the deployed Firestore index set and
-field overrides. The RTDB rules-list endpoint returned an API error, so the
-deployed RTDB ruleset remains `UNVERIFIED`; no data or rules were changed.
-
-The provider cold-start route was re-run from a clean `codex/release-safety`
-worktree with no `node_modules` junction. The checker located the existing
-repository-owned Firebase CLI through Git worktree metadata, read the live
-Hosting version, wrote a local receipt, and returned exit code 2 with decision
-`UNVERIFIED` because the provider does not expose Git/tree provenance. This
-removes the former dependency-layout workaround; it does not turn unknown
-provenance into approval.
-
-A fresh-agent rerun at `d3e58512` read the current Skill from a cold start and
-used the direct dependency-free command
-`node scripts/release-check.mjs --mode release --base f5cb75fe --observe-hosting-provider --json`.
-It exited 2 with `UNVERIFIED`, recorded the live Hosting version, and left the
-worktree clean. This is agent-discoverability proof, not production approval.
-
-Operational preview retest (2026-10-11): the existing 445-file acceptance
-artifact was deployed to a uniquely named Firebase Hosting preview channel using
-the repository's real `firebase.json`/`.firebaserc` target mapping. Firebase
-returned HTTP 200 for the application and the acceptance manifest at `https://kahut1--acceptance-check-20261011-99e9f7b238fb-623q8ept.web.app`; the remote
-manifest contained `environment: acceptance`, 445 files, revision
-`b845e00823527d62cde663a805d1498e3ab24b76`, and the expected tree. The channel
-was deleted immediately afterward; a follow-up channel readback showed only the
-permanent `live` channel. The release observer intentionally rejected the
-preview URL because production/hotfix observation is fixed to the live origin
-and acceptance observation is restricted to localhost; this prevents a preview
-from becoming a production baseline. The preview therefore proves real Hosting
-artifact delivery and cleanup, while the local HTTP rehearsal proves observer
-hash validation.
-
-The real application build-only path was also rerun into a unique disposable
-output with fake, nonproduction Firebase values: 9,522 modules transformed,
-445 files emitted, and no provider command invoked. The first two preview
-harness attempts failed before verification due to test-harness mistakes (wrong
-working directory/config target and a PowerShell variable collision); no
-channels remained afterward. The final run completed the remote artifact and
-HTTP checks successfully.
-
-
-
-Backup Worker read-only inspection (2026-10-11): the native ARM64 invocation
-failed before contacting Cloudflare because the installed `workerd` package has
-no `win32 arm64` binary. Repeating through the repository's documented shared
-Windows x64 Node route succeeded. Wrangler returned finalized deployment
-records for `r2-backup-worker`, including 100% allocations and version IDs
-through `2026-10-01`. The provider exposed deployment history but no effective
-secret values, binding readback, or Git/tree provenance. No Worker, R2 bucket,
-credential, or schedule was changed. The backup Worker therefore has useful
-version evidence but remains `UNVERIFIED` for configuration and source binding.
-
-
-RTDB evidence retry (2026-10-11): Firebase CLI help confirmed
-`database:rules:get` requires a ruleset ID and `database:rules:list` is the
-read-only discovery route. Repeating the list call with the explicit
-`temp-a1437-default-rtdb` instance still returned Firebase's
-`Unexpected error encountered with database` response. No ruleset or data was
-changed; deployed RTDB rules remain externally unverified.
-
-The installed CLI confirms the rules-list call is a provider GET to
-`https://metadata-dot-firebase-prod.appspot.com/namespaces/<database>/rulesets`
-followed by ruleset-label readback. There is no alternate local source for
-currently deployed rules; `database:rules:get` needs an ID from that list.
-The repeated provider error is therefore an unavailable remote evidence path,
-not a missing repository command.
-
-Native Hosting recovery rehearsal (2026-10-11): two disposable preview
-channels were deployed with distinct static artifacts (`recovery-A` and
-`recovery-B`). Firebase's supported `hosting:clone kahut1:<source>
-kahut1:<target>` operation copied the earlier A artifact over the B channel.
-Both HTTPS endpoints were read back; source retained A and the target also
-served A after clone. The channels were deleted, and a follow-up listing showed
-only the permanent `live` channel. An earlier harness attempt left one orphaned
-preview; its exact generated name was identified from the readback and deleted
-before completion. This proves native Hosting artifact recovery and cleanup,
-not database, Worker, or Backblaze rollback.
+Teacher checks conventionally use `http://localhost:5173/login` and student checks
+use `http://localhost:5174/login`. `--port auto` chooses a dynamic ephemeral localhost
+port for concurrent worktrees. `npm.cmd run dev` exposes `/__spare-dev-identity.json`
+for live worktree/port/project inspection, while clean `npm.cmd run preview:spare` builds
+expose `/__spare-preview-identity.json` verified by
+`node scripts/release-spare-readback.mjs http://localhost:<port>` across any valid
+`http://localhost:<port>` origin.
+
+Use `npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]` for
+an explicit refresh from `temp-a1437` to the spare project. It is dry-run by default,
+reads and validates all selected scopes (including Auth export) before any spare write,
+synchronizes RTDB and Firestore and optionally Auth under bounded HTTP timeouts, reports
+completed/remaining scopes on partial write failures, hard-forbids R2 or B2 object copy,
+and preserves existing shared media URLs as read-only references.
+
+Related procedures are in the [qualification foundation runbook](qualification-foundation-runbook.md)
+and [native development guide](native-development.md).
+
+## Recovery and escalation
+
+A deployment failure must leave an operation record, prior provider version, exact
+source revision, and the readback result. Verify live state before retrying. Use the
+Hosting clone, Worker version promotion, or Firebase provider recovery appropriate to
+the service. A recovery readback confirms provider state and does not authorize a new
+release.

@@ -1,174 +1,97 @@
 # LuyenTap release architecture plan
 
-Status: Phase 1, Phase 2, Phase 3 release-orchestration capability, and the measured Phase 4 simplification are complete on protected `main` after PR #278. The production authorization boundary remains separate; local-development reliability remains a parallel workstream.
-
-The 17 November spare-site rehearsal additionally exposed an exact-built-artifact
-handoff gap: its separately configured QA build did not prove the bytes CI would
-build later. [The improvement plan](release-procedure-improvements.md) tracks the
-bounded correction and deferred operational work. Earlier orchestration proof
-does not establish this handoff or qualify a production application release.
-
-This is the concise, version-controlled source of truth for objectives, boundaries, progress and direction. Dated release records preserve evidence; they do not replace this plan. Implementation details, tools and sequencing remain adaptable when evidence supports a better route.
+This plan is the concise source of truth for the three-PR deployment architecture.
+Executable workflows and scripts define behavior. The root [AGENTS.md](../../AGENTS.md)
+is the single canonical instruction file for every agent. Dated measurements and
+release records remain in [`documentation/release-audits/`](../release-audits/).
 
 ## Objectives
 
-- **Development reliability:** local startup selects the intended current local database, representative data, compatible authentication, Firebase/Workers configuration and application services. A listening port alone is not readiness.
-- **Efficient testing:** localhost and real-browser verification are direct and repeatable, without stale worktrees, processes, versions or environment mismatches.
-- **Git and integration reliability:** branch, worktree, commit, PR, merge and synchronization state remain understandable across local `main`, remote `main` and production.
-- **Release reliability:** completed work reaches production without repeated source reconstruction, unnecessary rebuilds or rediscovered procedures.
-- **Codex autonomy:** Codex investigates tools, credentials, permissions, approvals and environments before declaring a blocker, and owns technical diagnosis and recovery.
-- **Verification quality:** Codex chooses proportionate tests and tools, including real-browser evidence when warranted. Outcomes and evidence matter more than a prescribed framework.
-- **Safety:** preserve exact source/artifact integrity, authorization, production protection, concurrency and freshness control, independent verification and recovery.
-- **Operational efficiency:** remove repeated infrastructure research, duplicated checks, manual coordination and recurring delays.
-- **Maintainability:** preserve useful capabilities while retiring structures whose maintenance cost exceeds demonstrated value.
+- Keep source, build input, artifact, provider state, authorization, and recovery
+  boundaries explicit.
+- Select checks from the changed service instead of replaying a universal ceremony.
+- Keep Hosting publication serialized and independently readable after mutation.
+- Give Worker and Firebase rules/index releases their own native lifecycle and
+  rollback evidence.
+- Keep local and spare qualification isolated from production data and objects.
 
-## Four phases
+## Three-PR architecture
 
-1. **Phase 1 — Reliable release foundation (complete).** Exact source and artifact identity, durable retention, provider observation, truthful per-service scope, operation identity and interrupted verification recovery.
-2. **Phase 2 — Protected integration and convergence (complete).** Protected `main`, required integration checks, source convergence, normal release evidence and two qualified normal production releases from protected `main`.
-3. **Phase 3 — Guarded CI promotion, publication, verification and recovery (complete).** Select exact protected source, verify relevant scope, build once, retain the artifact/evidence, bind authorization, serialize publication, independently verify and recover without duplicate publication.
-4. **Phase 4 — Operational simplification (complete).** Remove only demonstrated duplicate procedures, unnecessary manual inputs and historical reconciliation after Phase 3 is proven and measured. The retained-verification rehearsal justified removing duplicate verification execution; the remaining candidates remain because they protect distinct trust boundaries or freshness windows.
+### Hosting publication
 
-Local-development reliability is an important parallel/deferred workstream. It must not expand Phase 3 into a repository-wide tooling overhaul.
+`.github/workflows/release-promotion-phase3.yml` is a manual dispatch on protected
+`refs/heads/main`. `health` and `plan` use the read-only `preflight` job and
+`luyentap-hosting-read-only`. `publish` is the only serialized Hosting writer under
+`luyentap-hosting-production`. It federates through OIDC, observes the live manifest,
+runs the scoped Hosting release check, builds once, reads the artifact over localhost,
+publishes with `npm run deploy:hosting -- --deploy-built`, and polls readback for up to
+90 seconds. `verify-existing` performs read-only recovery and never rebuilds or
+redeploys.
 
-## Architectural principles
+The production summary reports the site URL, source SHA, manifest SHA-256, operation,
+prior and live versions, and verified files. It includes native Hosting clone rollback
+and `npm run release:verify-existing -- --operation-id <uuid>` recovery commands.
 
-- Separate Codex application-change verification from release-infrastructure qualification. Codex chooses an appropriate browser/tool/test method for the change; the release system enforces provenance, authorization, freshness, concurrency, publication and recovery.
-- Do not make a fixed browser suite, framework, generated account scheme or dedicated qualification project a universal product-verification requirement. Keep production and qualification isolation, least privilege and fail-closed evidence where an operational experiment requires them.
-- Automate technical metadata, evidence collection, source/artifact binding, cleanup and recovery. The owner supplies objectives and genuine approval, not hashes, fingerprints, paths or procedural coordination.
-- For application-impacting candidates, Codex must select and execute proportionate verification, explain the scope, and create the source-bound evidence bundle before promotion readiness. A machine `UNVERIFIED` result is a preparation state; it is not a reason to stop while actionable application verification remains undone.
-- Use existing platform capabilities and repository tools before adding services, approval stores, frameworks or permanent infrastructure.
-- Apply evidence in proportion to risk: presentation, functional, contract/security and stateful/coordinated changes need different proof. Hosting evidence cannot qualify Workers, rules, storage, Functions or application-data changes.
-- Service routing is content-aware: local development launchers are not production storage changes by filename alone, while real Worker, binding, prefix, rules, and provider configuration changes retain their service-specific gates.
-- Preserve production approval, source/artifact integrity, independent live verification and native recovery. Never bypass protection or turn uncertain evidence into success.
-- Keep production environment identity separate from qualification/build inputs: the live manifest binds the production-only digest, while the retained artifact records the combined build-input digest. Reject a candidate that is not the current protected `origin/main` revision before doing expensive release assessment.
+Routine frontend-only `target: hosting` changes on protected `main` use the scoped
+checker without a manual review-card JSON file. `target: all`, changed backend paths,
+and hotfixes retain compatibility review and service-specific gates. The first
+manifest-bearing release uses `npm run build:production -- --build-only`.
 
-## Phase 3 acceptance matrix
+### Worker publication
 
-| Criterion | Current status | Evidence / remaining proof |
-|---|---|---|
-| Approval invalidation when source, artifact, configuration, baseline, dependency or review changes | Verified | `scripts/release-promotion.mjs`, inline compatibility-review negative tests (missing, altered, stale and mismatched), release-check/archive tests, and the immutable verification handoff |
-| Change-scoped Codex application-verification handoff | Verified | `documentation/release-audits/2026-11-15-phase3-verification-bundle.md` records actual immutable synthetic publication/readback; promotion-card and bundle tests remain required |
-| Serialized promotion and stale production freshness protection | Verified at the release boundary | Workflow concurrency plus one final exact Hosting-manifest snapshot; production mutation remains separately authorized |
-| Authorized disposable publication, exact readback and native Hosting recovery | Verified on the disposable qualification surface | `documentation/release-audits/2026-11-14-phase3-hosting-publication-recovery.md` records unchanged artifact publication, independent readback of all 443 manifest-listed assets, native `hosting:clone` recovery, and exact channel cleanup. Production publication and application/browser qualification remain separate gates |
-| Interrupted verification resumes without redeployment | Automatically tested | Release-operation/deploy-live interrupted-verification tests; retain as separate from publication qualification |
-| Coordinated frontend/backend change with ordering, negative checks, partial failure and recovery limits | Verified at the release-orchestration boundary | `documentation/release-audits/2026-11-14-phase3-coordinated-change-rollback.md` records disposable frontend/Worker/rules assessor fixtures, backend-first ordering, negative compatibility checks, recovery limits and no-duplicate operation tests |
-| Frontend rollback rejection without backend compatibility evidence | Verified at the release-orchestration boundary | The same experiment rejects an incompatible frontend/Worker rollback without a source/base/live-bound compatibility review; provider-specific service publication remains separately gated |
+`npm run deploy:worker -- <service>` calls `scripts/deploy-worker.mjs` (`--list` lists registered services). Deployable services are
+`r2-upload-signer`, `r2-backup-worker`, `luyentap-notification-command`, `thcs-gemma`,
+and the spare `luyentap-qualification-upload-signer`. Their configs are respectively
+`cloudflare/wrangler.jsonc`, `r2-backup-worker/wrangler.toml`,
+`cloudflare/wrangler.notifications.jsonc`, `cloudflare/wrangler.thcs-gemma.jsonc`,
+and `cloudflare/wrangler.qualification.jsonc`.
 
-### Verification contract decision
+`luyentap-notification-firestore-qa` is marked `deployable: false`. It is an
+external-DO public-entry proxy and cannot be generically overwritten. Worker release
+restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`, pins
+`CLOUDFLARE_ACCOUNT_ID`, verifies the authenticated Wrangler account via `whoami`, runs
+clean-tree checks, targeted Vitest, Wrangler dry-run, prior-version capture, version
+upload, pre-promotion drift re-check, 100% promotion, version-addressed module hash
+readback, and a safe `OPTIONS` probe. The exact prior-version rollback is
+`node scripts/tooling-where.mjs --exec <wrangler-tool> versions deploy <priorVersion>@100% --config <package>/<config> --message rollback:<priorVersion> --yes`.
 
-The fixed Playwright teacher/student lane is not a promotion prerequisite.
-Codex chooses browser journeys, emulators, provider checks or focused automated
-checks in proportion to the change. The 14 November disposable experiment
-separately proves Hosting publication, exact readback, native clone recovery and
-cleanup; it does not define application verification.
+### Firebase rules and indexes
 
-Browser-impacting changes retain screenshots or short videos. Localhost evidence
-brackets each journey with readbacks of the same clean spare build. Behavior
-that requires a deployed origin uses the deployed-origin evidence path with the
-exact retained Hosting artifact. [Operator instructions](../system/release-safety.md#codex-verification-handoff)
+`npm run deploy:rules` calls `scripts/deploy-firebase-rules.mjs`. It accepts
+`--only database`, `--only firestore:rules`, `--only firestore:indexes`, or `--all`,
+with `--dry-run` (restricting `--skip-tests`, `--allow-dirty`, and `--offline` to
+`--dry-run`). The script validates local schemas (rejecting non-empty `fieldOverrides`),
+runs both `database` and `firestore:rules` suites inside Firebase emulators (`emulators:exec`)
+with strict zero-skip Vitest JSON report validation, captures and re-verifies live state
+against concurrent drift before deploy, deploys to `temp-a1437`, and polls readback.
+RTDB and Firestore rules use SHA-256 comparison. Composite indexes require `READY` state
+with `__name__` normalization.
 
-Before approval, Codex or a reviewing agent evaluates the evidence against the
-user's expectations. Deviations, incorrect results, unintended effects, or
-missing proof return the candidate to implementation recovery and fresh
-verification. Guarded application promotion requires a passing review in the
-same source-bound evidence bundle.
+## Local and spare qualification
 
-The qualification lifecycle is reusable for Codex-selected built-site journeys.
-It covers Hosting, Firebase Auth/RTDB/rules, and Workers when non-production
-Worker bindings are supplied. Backblaze/storage, Functions, migrations, and
-production data remain outside that lifecycle and retain service-specific gates.
+Use the spare Firebase project `luyentap-pdf-qa-20261021`, the spare Worker
+`luyentap-qualification-upload-signer`, and the localhost commands in the
+[qualification foundation runbook](../system/qualification-foundation-runbook.md).
+Parallel worktrees use `npm.cmd run dev -- --port auto` and
+`npm.cmd run preview:spare -- --port auto`. `npm.cmd run dev` serves
+`/__spare-dev-identity.json` for live worktree/port/project inspection, while clean
+`npm.cmd run preview:spare` builds serve `/__spare-preview-identity.json` verified with
+`scripts/release-spare-readback.mjs`.
 
-For application-impacting paths, Codex writes a verification record outside the
-candidate checkout and uses `scripts/release-verification-bundle.mjs` to bind
-that record and retained evidence artifacts to the exact source revision, base,
-source fingerprint, environment fingerprint, deterministic build-input identity
-and timestamp. Each run receives a unique tag
-(`verification-<source revision>-<run UUID>`), so repeated verification of one
-commit cannot overwrite an earlier artifact. Preparation reads the asset back by
-tag and digest, verifies the published release is immutable, checks the tag
-target, validates every artifact reference and content hash, then carries the
-bundle into the promotion card. The repository setting is an external
-owner/admin prerequisite; this workflow never changes it. A source-committed
-evidence file is not used, which avoids a self-referential source fingerprint.
+`npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]` is the
+explicit RTDB, Firestore, and optional Auth refresh from `temp-a1437` to the spare.
+It is dry-run by default, reads and validates all selected scopes before any spare write,
+enforces HTTP request timeouts, reports completed/remaining scopes on partial write
+failure, forbids R2 and B2 object copy, and keeps existing shared media URLs read-only.
+See the [native development guide](../system/native-development.md).
 
-A path classifier still creates an explicit `not-required` record for changes
-outside application runtime paths. Missing, stale, mismatched, fabricated or
-altered bundles fail closed. Backend, rules, Worker, storage and other service
-changes retain their own release-safety scopes. The promotion workflow no longer
-runs `browser-gate` or depends on a fixed browser suite; it requires the
-source-bound bundle only when the classifier says application evidence is
-required.
+## Boundaries and evidence
 
-The protected workflow concurrency group serializes its own writer. It is not a
-claim that an administrator cannot deploy outside Actions, so the production
-job keeps one final read-only Hosting snapshot immediately before mutation.
-That snapshot compares the approved revision, tree and manifest fingerprint and
-reads every manifest-listed asset. It does not rerun compatibility review or
-historical reconciliation; the disposable preview bundle is the application
-behavior proof, while the snapshot protects against live drift during approval.
+Hosting checks probe only backend services whose files changed in `live_sha..HEAD`.
+A local test, build, screenshot, or dry-run cannot establish deployed state. Each
+mutating service release records its prior state and independently reads back the
+published version. Production authorization remains the repository owner's boundary.
+Dated evidence belongs in `documentation/release-audits/`, not in this active plan.
 
-### Change-impact routing
-
-For built-site proof, bundle creation accepts `--hosting-artifact` and retains
-the exact validated production-format `dist/` archive. Prepare restores it
-instead of rebuilding, and the promotion card checks its source, manifest,
-production environment and build-input bindings. Source-level verification may
-omit it when proportionate; that route makes no exact-built-site proof claim.
-QA inputs are optional prebuild inputs, not a universal promotion dependency.
-
-Routine frontend behavior verification uses localhost with isolated spare
-services. Reserve spare Hosting for behavior that depends on a deployed origin.
-Prepare checks every manifest-listed file over localhost HTTP and uses the
-resulting manifest digest in the approval card. Promotion publishes the
-retained files, verifies the live provider release and content, and reports
-the released source and manifest digest.
-[Routine Hosting release](../system/release-safety.md#routine-hosting-release)
-
-Hosting dependency assessment can also reconcile the historical combined-input
-manifest identity by exact reconstruction from production bytes, public QA
-configuration and the observed live workflow. It does not edit production or
-waive drift. Changed composite-index declarations use native READY evidence for
-the newly required indexes rather than source-file equality; field overrides and
-unrelated historical index gaps retain separate review/qualification boundaries.
-
-Phase 3 is a router, not a fixed deployment ceremony. The planner and
-promotion package select the lightest route that protects the changed surface:
-
-| Change impact | Required route | Evidence boundary |
-|---|---|---|
-| Routine frontend or static Hosting change | Focused automated checks plus proportionate preview/browser evidence | Source/artifact/config binding and change-scoped application evidence when runtime paths change |
-| Backend, rules, configuration, Worker, storage, or provider change | Service-specific emulator, runtime, or provider checks | Native service observation, compatibility, ordering, and recovery limits |
-| Coordinated frontend plus Worker/Firebase change | Spare-environment journeys and compatibility checks | Coordinated source/base/live bindings, backend-first ordering, and rollback evidence |
-| Release-infrastructure-only change | Infrastructure tests and artifact/readback/recovery qualification | Promotion-card, operation, publication, independent readback, and recovery contracts |
-
-Codex chooses the browser, provider, test depth, deployment order, and recovery
-evidence from actual risk. A route fails closed only when its selected evidence
-is missing, stale, altered, or mismatched. Fixed ceremonies without a concrete
-invariant remain optional or are removed.
-
-## Current implementation and evidence
-
-- Protected `main` is authoritative; PR #278 (`7eae54177d8687115158ca985795ae3a55658ef9`) is the current Phase 4 closure merge, following the PR #277 simplification implementation. Query the live commit before making current-state claims.
-- PR #243 merged OIDC/qualification role and SDK cleanup hardening as `dfb27c993d8913681547dc72d2c85966651fe289`.
-- PR #244 merged canonical qualification Hosting routing, fail-fast browser diagnostics, least-privileged qualification fixture rules and cleanup diagnostics as `339969143196275fa30bb6958aaa5594db982bfd`.
-- PR #245 merged the canonical release architecture plan as `24f15c9d714340877a39a813a9568d7e23a641cb`.
-- PR #246 merged the disposable Hosting publication/recovery evidence as `8da3f49cbfefd24e02f89a51a27aebfa786b6b44`.
-- PR #248 merged the change-scoped verification contract as `d173bb22ac3a458c2df10ceaadb8e65fa6fb6d10`; PR #250 merged the operational Codex bundle handoff as `ba6d1f0052ca640580847b8e7ddbbd82164248d4`; PR #251 reconciled the Phase 3 qualification record; PR #252 corrected the canonical verification-bundle filename in the runbook and test fixture.
-- The live Phase 3 workflow is `.github/workflows/release-promotion-phase3.yml`; executable authority is in `scripts/release-promotion.mjs`, `scripts/deploy-live.mjs`, `scripts/release-archive.mjs` and the existing release-safety scripts. `scripts/release-browser-gate.mjs` is retained only for optional disposable operational experiments.
-- Focused local proof for the Phase 3 promotion package: 272 Node script tests passed, including the synthetic application-review rehearsal; the earlier runtime-config and x64 RTDB emulator security proof remains valid for its separate scope.
-- PR #272 (single promotion package) and PR #273 (corrective handoff hardening) remove compatibility-review file/path transport, validate the canonical review object, bound summary output, and centralize operation evidence. PR #277 adds the retained verification validator and removes duplicate verification execution when the source-bound result is present; callers without retained evidence keep the fallback rerun. The Phase 4 closure follow-up also validates the serialized branch against the reviewed plan, canonical timestamps, freshness, safe paths, exact suite shape and source/environment bindings. The production publication at `8885ef7d4a5f8bd94f45c6f185cb7031afbcb77b` remains the verified live state; these changes do not redeploy.
-- The guarded Login Expansion rehearsal exposed one release-procedure defect: qualification variables had been appended to the production environment file before fingerprinting. The correction keeps the files and identities separate and adds an early protected-`origin/main` source check; no application or production state is changed by that correction.
-- Production was not deployed or approved by PR #272/#273/#277 or the Phase 4 closure follow-up. The existing verified publication remains the live baseline, and the production GitHub environment remains the owner-controlled boundary.
-
-## Recommended milestones
-
-1. Completed: PR #250 integrated the source-bound, change-scoped verification contract; Codex chooses application evidence and the release system validates its binding.
-2. Completed by the 14 November qualification experiment: retain the exact-artifact publication, independent live/content verification, native Hosting clone recovery and independently verified cleanup as infrastructure evidence rather than a universal application browser requirement.
-3. Completed by the 14 November isolated coordination and rollback experiment; retain provider-specific service qualification as a separate gate.
-4. Completed: reconcile the evidence matrix and preserve the owner-facing production approval boundary. Production authorization remains separate.
-5. Completed: PR #277 removed duplicate verification execution behind a retained-result trust validator. The measurement packet records why cross-job transfer, baseline snapshots, operation-result retention, and provenance checks remain; no further deletion is justified without new evidence.
-
-## Historical evidence
-
-Useful dated records remain in `documentation/release-audits/`, `documentation/system/release-safety.md`, `documentation/system/integration-releases.md` and the Phase 2 completion records. The prior external architecture document under `.codex/visualizations/` is historical context, not the active source of truth.
+For the operating recipes, see [release safety](../system/release-safety.md) and
+[integration and normal release selection](../system/integration-releases.md).

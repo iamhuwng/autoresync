@@ -33,6 +33,7 @@ jobs:
       - run: node --test scripts/__tests__/deployment-safety.test.mjs scripts/__tests__/release-check.test.mjs scripts/__tests__/release-provider-readback.test.mjs
       - run: node --experimental-strip-types --test scripts/__tests__/repair-teacher-writing-homework-access.test.mjs
       - run: node --test scripts/__tests__/acceptance-firebase.test.mjs scripts/__tests__/tooling-where.test.mjs scripts/__tests__/spare-dev-config.test.mjs
+      - run: node --test scripts/__tests__/deploy-worker.test.mjs scripts/__tests__/deploy-firebase-rules.test.mjs scripts/__tests__/spare-sync-from-live.test.mjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
