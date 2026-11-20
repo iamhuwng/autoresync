@@ -18,8 +18,14 @@ Start with a clean checkout and current live observation:
 ```powershell
 git status --short --branch
 npm run tooling:doctor
-node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting --json
+node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting --env-fingerprint <production-env-sha256> --json
 ```
+
+Running `scripts/release-check.mjs --mode release --target hosting --observe-hosting`
+locally without `--env-fingerprint <sha256>` (and `~/.luyentap/env/.env.production` or
+`--production-env-file` when backend dependency probes run) emits `UNVERIFIED` because no
+production environment fingerprint is bound. Pass `--env-fingerprint <sha256>` locally or
+use the CI `operation=plan` dispatch in `.github/workflows/release-promotion-phase3.yml`.
 
 Routine protected-main publication is the manual `publish` operation in
 `.github/workflows/release-promotion-phase3.yml`. It observes the manifest, runs the
@@ -71,7 +77,10 @@ npm run deploy:worker -- <service>
 ```
 
 The lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`.
-Live deploys require a clean tree, targeted Vitest, `wrangler deploy --dry-run` with
+Live production deploys (`environment: production`) verify that `HEAD` matches protected
+`origin/main` (pass `--allow-non-main` only for intentional hotfixes), while `--dry-run`
+and the spare Worker (`luyentap-qualification-upload-signer`) remain allowed on feature
+branches. Live deploys require a clean tree, targeted Vitest, `wrangler deploy --dry-run` with
 `CLOUDFLARE_ACCOUNT_ID` pinned, `wrangler whoami --json` account verification,
 prior-version capture with `readProviderState`, `wrangler versions upload`,
 pre-promotion live-drift re-check, `wrangler versions deploy <id>@100%`,
@@ -101,7 +110,9 @@ npm run deploy:rules -- --all
 ```
 
 The lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`,
-validates local schemas (rejecting non-empty `fieldOverrides`), runs both `database` and
+requires `HEAD` to match protected `origin/main` on live non-`--dry-run` deploys (pass
+`--allow-non-main` only for intentional hotfixes; `--dry-run` stays allowed on feature
+branches), validates local schemas (rejecting non-empty `fieldOverrides`), runs both `database` and
 `firestore:rules` suites inside `firebase emulators:exec` with zero-skip Vitest report
 validation, captures and re-verifies prior state against concurrent drift, deploys with
 the repository Firebase CLI to `temp-a1437`, and polls readback. Compare RTDB and

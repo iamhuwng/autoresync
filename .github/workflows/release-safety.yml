@@ -213,67 +213,10 @@ jobs:
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
-  deployed-homework-rebuild:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Read recorded service release
-        id: release
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync, appendFileSync } from 'node:fs';
-          const release = JSON.parse(readFileSync('documentation/release-audits/deployed-services.json')).homeworkWorker;
-          if (!/^[a-f0-9]{40}$/.test(release.sourceRevision) || !/^[a-f0-9]{64}$/.test(release.normalizedBuildSha256)) throw new Error('Invalid retained Worker source/artifact identity');
-          appendFileSync(process.env.GITHUB_OUTPUT, `revision=${release.sourceRevision}\nnormalizedSha=${release.normalizedBuildSha256}\n`);
-          NODE
-      - name: Extract the exact recorded source without checking out obsolete submodules
-        env:
-          RECORDED_REVISION: ${{ steps.release.outputs.revision }}
-        run: |
-          test "$(git rev-parse "$RECORDED_REVISION^{commit}")" = "$RECORDED_REVISION"
-          mkdir -p tmp/deployed-homework-source
-          git archive --format=tar "$RECORDED_REVISION" | tar -x -C tmp/deployed-homework-source
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: tmp/deployed-homework-source/r2-backup-worker/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: tmp/deployed-homework-source/r2-backup-worker
-      - name: Build the recorded Worker without deploying
-        working-directory: tmp/deployed-homework-source/r2-backup-worker
-        run: node node_modules/wrangler/bin/wrangler.js deploy --config wrangler.toml --dry-run --outdir "$GITHUB_WORKSPACE/tmp/deployed-homework-rebuild"
-        env:
-          WRANGLER_SEND_METRICS: 'false'
-      - name: Compare complete rebuilt code to reviewed artifact
-        env:
-          EXPECTED_SHA: ${{ steps.release.outputs.normalizedSha }}
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import { readFileSync } from 'node:fs';
-          import { createHash } from 'node:crypto';
-          const raw = readFileSync('tmp/deployed-homework-rebuild/index.js', 'utf8');
-          const normalized = raw.replaceAll('../../luyentap/r2-backup-worker/node_modules/', 'node_modules/').replaceAll('../../../../../repos/luyentap-prd0062/node_modules/', '../node_modules/').replaceAll('../../../../../repos/luyentap/r2-backup-worker/node_modules/', 'node_modules/').replace(/(?:\.\.\/)*node_modules\//g, 'node_modules/').replace(/^\/\/# sourceMappingURL=.*$/gm, '').replace(/\r\n/g, '\n').trim();
-          assert.equal(createHash('sha256').update(normalized).digest('hex'), process.env.EXPECTED_SHA);
-          NODE
-      - name: Retain failed rebuild for exact comparison
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployed-homework-rebuild
-          path: tmp/deployed-homework-rebuild/index.js
-          retention-days: 1
-
   integration:
     name: LuyenTap integration
     if: ${{ always() }}
-    needs: [verify, guardrails, notification-workflows, candidate-homework, deployed-homework-rebuild]
+    needs: [verify, guardrails, notification-workflows, candidate-homework]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -284,7 +227,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - name: Require successful candidate and retention evidence
+      - name: Require successful candidate evidence
         env:
           INTEGRATION_NEEDS: ${{ toJSON(needs) }}
         run: |

@@ -4,7 +4,7 @@ import { access } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CLOUDFLARE_ACCOUNT_ID, PRODUCTION_WORKER_NAMES, readProviderState } from './release-provider-readback.mjs';
+import { CLOUDFLARE_ACCOUNT_ID, PRODUCTION_WORKER_NAMES, assertProtectedMain, readProviderState } from './release-provider-readback.mjs';
 
 const execFileAsync = promisify(execFile);
 const TOOLING = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'tooling-where.mjs');
@@ -51,7 +51,7 @@ function outputOf(result) { return typeof result === 'string' ? result : `${resu
 
 export function parseDeployWorkerArgs(argv) {
   let service;
-  const result = { service: undefined, dryRun: false, allowDirty: false, offline: false, skipTests: false, json: false, list: false };
+  const result = { service: undefined, dryRun: false, allowDirty: false, offline: false, skipTests: false, allowNonMain: false, json: false, list: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--list') result.list = true;
@@ -59,6 +59,7 @@ export function parseDeployWorkerArgs(argv) {
     else if (arg === '--allow-dirty') result.allowDirty = true;
     else if (arg === '--offline') result.offline = true;
     else if (arg === '--skip-tests') result.skipTests = true;
+    else if (arg === '--allow-non-main') result.allowNonMain = true;
     else if (arg === '--json') result.json = true;
     else if (arg.startsWith('-')) throw new Error(`Unknown flag: ${arg}`);
     else if (service) throw new Error(`Unexpected argument: ${arg}`);
@@ -180,12 +181,19 @@ function plannedCommands(entry, shortSha) {
   return { build: `${prefix} deploy --config ${configPath} --dry-run`, upload: `${prefix} versions upload --config ${configPath} --message release:${shortSha}`, deploy: `${prefix} versions deploy <uploadedVersionId>@100% --config ${configPath} --message release:${shortSha} --yes` };
 }
 
-export async function deployWorker({ service, dryRun = false, allowDirty = false, offline = false, skipTests = false, cwd = process.cwd(), deps = {} }) {
+export async function deployWorker({ service, dryRun = false, allowDirty = false, offline = false, skipTests = false, allowNonMain = false, cwd = process.cwd(), deps = {} }) {
   const entry = WORKER_REGISTRY[service];
   assert(entry, `Unknown Worker service: ${service}`);
   assert(entry.deployable !== false, `${service} is not deployable: ${entry.reason}`);
   if ((allowDirty || offline || skipTests) && !dryRun) throw new Error('--allow-dirty, --offline, and --skip-tests require --dry-run');
   const identity = dryRun && allowDirty ? { revision: outputOf(await run(deps, 'git', ['rev-parse', 'HEAD'], { cwd })).trim(), tree: outputOf(await run(deps, 'git', ['rev-parse', 'HEAD^{tree}'], { cwd })).trim() } : await gitIdentity(cwd, deps);
+  if (!dryRun && entry.environment === 'production' && !allowNonMain) {
+    await assertProtectedMain({
+      runGit: args => run(deps, 'git', args, { cwd }).then(outputOf),
+      revision: identity.revision,
+      label: `Production Worker deploy (${service})`,
+    });
+  }
   const configPath = path.join(cwd, entry.packageDir, entry.configFile);
   await access(configPath).catch(() => { throw new Error(`Worker config not found: ${path.relative(cwd, configPath)}`); });
   const shortSha = identity.revision.slice(0, 8);

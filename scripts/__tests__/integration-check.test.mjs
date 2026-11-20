@@ -9,10 +9,9 @@ import { candidateJobs, checkHomeworkInputs, checkIntegration, integrationCheckN
 
 const revision = 'a'.repeat(40);
 const tree = 'b'.repeat(40);
-const successfulNeeds = () => Object.fromEntries([
-  ...Object.keys(candidateJobs).map(id => [id, { result: 'success', outputs: { revision, tree } }]),
-  ['deployed-homework-rebuild', { result: 'success' }],
-]);
+const successfulNeeds = () => Object.fromEntries(
+  Object.keys(candidateJobs).map(id => [id, { result: 'success', outputs: { revision, tree } }]),
+);
 
 test('actual Worker inputs must be tracked and covered by the shared release path map', () => {
   const mapPath = path.resolve('tmp/candidate-homework/index.js.map');
@@ -54,22 +53,22 @@ test('test report CLI uses shared verification for explicit and discovered track
 
 test('the stable workflow job always requires exactly the jobs checked by the gate', () => {
   const workflow = readFileSync(new URL('../../.github/workflows/release-safety.yml', import.meta.url), 'utf8');
+  assert.equal(workflow.includes('deployed-homework-rebuild'), false);
   const gate = workflow.slice(workflow.indexOf('\n  integration:'));
   assert.ok(gate.includes(`name: ${integrationCheckName}`));
   assert.ok(gate.includes('if: ${{ always() }}'));
   const dependencies = gate.match(/needs: \[([^\]]+)\]/u)[1].split(',').map(value => value.trim()).sort();
-  assert.deepEqual(dependencies, [...Object.keys(candidateJobs), 'deployed-homework-rebuild'].sort());
+  assert.deepEqual(dependencies, Object.keys(candidateJobs).sort());
 });
 
-test('accepts matching candidate jobs and distinguishes retained evidence', () => {
+test('accepts matching candidate jobs without legacy retention rebuild', () => {
   const result = checkIntegration(successfulNeeds(), revision, tree);
   assert.deepEqual(result.errors, []);
   assert.match(result.summary, /\*\*PASS\*\*/u);
-  assert.match(result.summary, /does not cover the candidate/u);
 });
 
 test('every required job fails closed for failure, cancellation, skip and absence', () => {
-  for (const id of [...Object.keys(candidateJobs), 'deployed-homework-rebuild']) {
+  for (const id of Object.keys(candidateJobs)) {
     for (const state of ['failure', 'cancelled', 'skipped', undefined]) {
       const needs = successfulNeeds();
       if (state) needs[id].result = state;

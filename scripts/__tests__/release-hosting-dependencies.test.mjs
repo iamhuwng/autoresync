@@ -90,12 +90,12 @@ test('Hosting dependency scope selects only affected backend probes', () => {
 function fixture() {
   const source = { revision: 'a'.repeat(40), tree: 'b'.repeat(40), baseRevision: 'c'.repeat(40), dirty: false,
     files: ['database.rules.json', 'src/example.ts'], fingerprint: 'd'.repeat(64) };
-  const input = path => ({ path, candidate: 'e'.repeat(40), base: 'e'.repeat(40) });
   const lifecycle = JSON.parse(readFileSync(new URL('../../cloudflare/r2-lifecycle.listening-private.json', import.meta.url), 'utf8'));
   const local = { source, actualSource: structuredClone(source),
     hosting: { revision: source.baseRevision, tree: 'f'.repeat(40), baseTree: 'f'.repeat(40), environment: 'production', fingerprint: '0'.repeat(64), envFingerprint: '1'.repeat(64) },
-    envFingerprint: '1'.repeat(64), sharedInputs: [...sharedHomeworkInputs].map(input),
-    unchangedPaths: ['.firebaserc', 'firebase.json'].map(input),
+    envFingerprint: '1'.repeat(64),
+    firebaseConfig: { hosting: [{ target: 'kahut1', public: 'dist' }] },
+    firebaseRc: { projects: { default: 'temp-a1437' }, targets: { 'temp-a1437': { hosting: { kahut1: ['kahut1'] } } } },
     rulesSha256: '2'.repeat(64), firestoreRulesSha256s: ['3'.repeat(64), '4'.repeat(64)], lifecycleSha256: digest(lifecycle),
     scope: { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: false, functions: true, privateAudio: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true } };
   const provider = { rulesSha256: local.rulesSha256,
@@ -139,16 +139,32 @@ test('Hosting dependency validation rejects source, environment, rules and unsup
     ({ local }) => { local.hosting.revision = 'f'.repeat(40); },
     ({ local }) => { local.hosting.baseTree = '0'.repeat(40); },
     ({ local }) => { local.envFingerprint = '0'.repeat(64); },
-    ({ local }) => { local.sharedInputs.pop(); },
-    ({ local }) => { local.sharedInputs[0].candidate = '0'.repeat(40); },
-    ({ local }) => { local.unchangedPaths[0].candidate = '0'.repeat(40); },
-    ({ local }) => { local.source.files.push('functions/src/new.ts'); local.actualSource.files.push('functions/src/new.ts'); },
+    ({ local }) => { local.firebaseRc.projects.default = 'other-project'; },
+    ({ local }) => { local.firebaseRc.targets['temp-a1437'].hosting.kahut1 = ['other-site']; },
+    ({ local }) => { local.firebaseConfig.hosting[0].public = 'build'; },
+    ({ local }) => { local.firebaseConfig.hosting = []; },
     ({ provider }) => { provider.rulesSha256 = '0'.repeat(64); },
     ({ provider }) => { provider.firestoreRules.sourceSha256 = '0'.repeat(64); },
   ]) {
     const values = fixture(); mutate(values);
     assert.throws(() => validateHostingDependencies(values.local, values.provider));
   }
+});
+
+test('Hosting dependency validation permits changed sharedHomeworkInputs, vite.config, and functions files when live Worker/functions stay healthy', () => {
+  const { local, provider } = fixture();
+  const changed = [
+    'src/types/readingV2.types.ts',
+    'src/config/scoring.config.ts',
+    'src/config/readingV2FeatureFlags.ts',
+    'vite.config.js',
+    'functions/src/readingV2SubmitCore.ts',
+  ];
+  local.source.files = [...changed];
+  local.actualSource.files = [...changed];
+  local.scope = selectHostingDependencyScope(changed);
+  provider.workers = { 'r2-backup-worker': provider.workers['r2-backup-worker'] };
+  assert.doesNotThrow(() => validateHostingDependencies(local, provider));
 });
 
 test('Hosting dependency validation rejects provider configuration, storage and service drift', () => {

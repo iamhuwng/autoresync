@@ -12,6 +12,10 @@ export const SPARE_AUTO_PORT_POOL = Object.freeze(
   Array.from({ length: SPARE_AUTO_PORT_MAX - SPARE_AUTO_PORT_MIN + 1 }, (_, index) => SPARE_AUTO_PORT_MIN + index),
 );
 
+const isWhitelistedSparePort = value => /^[1-9]\d{0,4}$/u.test(String(value ?? ''))
+  && Number(value) >= SPARE_AUTO_PORT_MIN
+  && Number(value) <= SPARE_AUTO_PORT_MAX;
+
 export function parseSpareDevArgs(argv) {
   const [operation, ...args] = argv;
   if (!['dev', 'build', 'preview'].includes(operation)) throw new Error('Choose dev, build, or preview.');
@@ -20,14 +24,14 @@ export function parseSpareDevArgs(argv) {
     return { operation, portSpec: null };
   }
   if (args.length === 0) return { operation, portSpec: '5173' };
-  const validSpec = value => value === 'auto' || (/^[1-9]\d{0,4}$/u.test(value) && Number(value) >= 1 && Number(value) <= 65535);
+  const validSpec = value => value === 'auto' || isWhitelistedSparePort(value);
   if (args.length === 1 && validSpec(args[0])) {
     return { operation, portSpec: args[0] };
   }
   if (args.length === 2 && args[0] === '--port' && validSpec(args[1])) {
     return { operation, portSpec: args[1] };
   }
-  throw new Error('Use a numeric port or auto, for example npm run dev -- --port 5174.');
+  throw new Error(`Use a whitelisted spare port (${SPARE_AUTO_PORT_MIN}-${SPARE_AUTO_PORT_MAX}) or auto, for example npm run dev -- --port 5174.`);
 }
 
 function probeAddressFree(host, port, { ignoreUnsupportedFamily = false } = {}) {
@@ -69,19 +73,21 @@ export async function allocateFreePort(host = 'localhost', { pool = SPARE_AUTO_P
   }
   const checkPort = isPortFree ?? (port => probePortFree(host, port));
   for (const port of pool) if (await checkPort(port)) return port;
-  throw new Error(`All whitelisted spare localhost ports (${pool[0]}-${pool[pool.length - 1]}) are occupied. Stop an unused dev/preview server or pass --port <port> explicitly.`);
+  throw new Error(`All whitelisted spare localhost ports (${pool[0]}-${pool[pool.length - 1]}) are occupied. Stop an unused dev/preview server before starting another.`);
 }
 
 export async function resolveSparePort(portSpec, allocator = allocateFreePort) {
   if (portSpec === 'auto') {
     const port = await allocator();
-    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The port allocator returned an invalid port.');
+    if (!Number.isInteger(port) || port < SPARE_AUTO_PORT_MIN || port > SPARE_AUTO_PORT_MAX) {
+      throw new Error(`The port allocator returned a port outside the whitelisted spare range (${SPARE_AUTO_PORT_MIN}-${SPARE_AUTO_PORT_MAX}).`);
+    }
     return port;
   }
-  if (!/^[1-9]\d{0,4}$/u.test(String(portSpec ?? ''))) throw new Error('Port must be a number from 1 to 65535 or auto.');
-  const port = Number(portSpec);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be a number from 1 to 65535 or auto.');
-  return port;
+  if (!isWhitelistedSparePort(portSpec)) {
+    throw new Error(`Port must be a whitelisted spare port (${SPARE_AUTO_PORT_MIN}-${SPARE_AUTO_PORT_MAX}) or auto.`);
+  }
+  return Number(portSpec);
 }
 
 async function main(argv = process.argv.slice(2)) {

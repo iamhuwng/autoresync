@@ -48,9 +48,13 @@ while a clean `npm.cmd run build:spare` plus `npm.cmd run preview:spare` exposes
 node scripts/release-spare-readback.mjs http://localhost:<port>
 ```
 
-Use approved spare accounts and start authenticated checks at `/login`. Keep Firebase
-Auth, RTDB, Firestore, and Worker traffic in the spare environment. Existing shared
-media URLs may be read for fixtures. Do not use production endpoints as a fallback.
+Use approved spare accounts and start authenticated checks at `/login`. On
+`http://localhost:<port>` in `spare` or `development` mode, the bottom-right Dev Quick
+Login toggle (`teacher@test.com` / `student@test.com`) is enabled strictly on
+`localhost` (never on deployed `luyentap-pdf-qa-20261021.web.app` or production
+`kahut1.web.app`). Keep Firebase Auth, RTDB, Firestore, and Worker traffic in the spare
+environment. Existing shared media URLs may be read for fixtures. Do not use production
+endpoints as a fallback.
 
 See the [native development guide](native-development.md) and the [release safety
 workflow](release-safety.md#adaptive-verification-and-self-judgment).
@@ -82,13 +86,13 @@ npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
 The default is dry-run. The confirmed operation refreshes RTDB and Firestore. Auth is
 opt-in with `--only auth` and exports records only for a confirmed sync using
 `--confirm-spare-overwrite`. RTDB synchronization runs through the repository
-Firebase CLI with `database:get` and `database:set`. Auth synchronization strips
-`passwordHash` and `salt` before importing into the spare project, and preserves
-Google, UID, email, and profile parity without exposing live password hashes.
-Firestore synchronization uses upsert-only writes, preserving existing spare-only
-documents. The operation does not copy R2 or B2 objects and preserves existing shared
-media URLs as read-only references. Verify project identity, affected records, and
-Auth profiles before the journey.
+Firebase CLI with `database:get` and `database:set`. `spare:sync-from-live` uses Firebase CLI `database:get` and `database:set` for RTDB,
+strips `passwordHash` and `salt` before `auth:import` (so if Dev Quick Login is used on
+spare after a confirmed Auth sync, re-provision/reset spare-only `teacher@test.com` and
+`student@test.com` credentials on `luyentap-pdf-qa-20261021` rather than weakening
+sanitization), and performs upsert-only Firestore writes that preserve existing
+spare-only documents. Verify project identity, affected records, and Auth profiles before
+the journey.
 
 `npm.cmd run build:spare` and `npm.cmd run preview:spare -- --port auto` are local
 qualification tools. Production publication follows the [routine Hosting release](release-safety.md#routine-hosting-release).

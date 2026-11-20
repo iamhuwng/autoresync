@@ -1,7 +1,10 @@
+import { requiredProductionModes } from './deploy-live.mjs';
+
 export const spareFirebaseProject = 'luyentap-pdf-qa-20261021';
 export const spareHostingOrigin = `https://${spareFirebaseProject}.web.app`;
 export const spareUploadWorker = 'https://luyentap-qualification-upload-signer.iamhuwng.workers.dev';
 export const spareMediaOrigin = 'https://luyentap-qualification-media.r2.dev';
+export const spareFeatureFlags = requiredProductionModes;
 
 const metadataUrl = `${spareHostingOrigin}/__/firebase/init.json`;
 const firebaseKeys = {
@@ -30,6 +33,7 @@ export function spareDevelopmentEnv(browserConfig, inherited = process.env) {
   }
   return {
     ...env,
+    ...requiredProductionModes,
     VITE_SPARE_ENV_VALIDATED: 'true',
     VITE_R2_UPLOAD_WORKER_URL: spareUploadWorker,
     VITE_LISTENING_AUTHORING_WORKER_URL: spareUploadWorker,

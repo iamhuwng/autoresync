@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { digest, FIREBASE_PROJECT_ID, readProviderState } from './release-provider-readback.mjs';
+import { assertProtectedMain, digest, FIREBASE_PROJECT_ID, readProviderState } from './release-provider-readback.mjs';
 import { parseVitestReport } from './release-verification.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -57,7 +57,7 @@ async function run(deps, command, args, options = {}) {
 const outputOf = result => typeof result === 'string' ? result : `${result?.stdout || ''}\n${result?.stderr || ''}`;
 
 export function parseDeployRulesArgs(argv) {
-  const result = { targets: undefined, dryRun: false, allowDirty: false, offline: false, skipTests: false, json: false };
+  const result = { targets: undefined, dryRun: false, allowDirty: false, offline: false, skipTests: false, allowNonMain: false, json: false };
   let only;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -72,6 +72,7 @@ export function parseDeployRulesArgs(argv) {
     else if (arg === '--allow-dirty') result.allowDirty = true;
     else if (arg === '--offline') result.offline = true;
     else if (arg === '--skip-tests') result.skipTests = true;
+    else if (arg === '--allow-non-main') result.allowNonMain = true;
     else if (arg === '--json') result.json = true;
     else throw new Error(`Unknown flag: ${arg}`);
   }
@@ -214,13 +215,20 @@ function assertNoPriorDrift(targets, prior, current) {
   }
 }
 
-export async function deployFirebaseRules({ targets, dryRun = false, allowDirty = false, offline = false, skipTests = false, cwd = process.cwd(), deps = {} }) {
+export async function deployFirebaseRules({ targets, dryRun = false, allowDirty = false, offline = false, skipTests = false, allowNonMain = false, cwd = process.cwd(), deps = {} }) {
   assert(Array.isArray(targets) && targets.length > 0, 'Firebase deploy targets are required');
   targets = [...new Set(targets)];
   for (const target of targets) assert(TARGETS.includes(target), `Unknown Firebase rules target: ${target}`);
   if ((allowDirty || offline || skipTests) && !dryRun) throw new Error('--allow-dirty, --offline, and --skip-tests require --dry-run');
   const local = await parseLocalRulesFiles(cwd, targets);
   const identity = await gitIdentity(cwd, deps, allowDirty, dryRun);
+  if (!dryRun && !allowNonMain) {
+    await assertProtectedMain({
+      runGit: args => run(deps, 'git', args, { cwd }).then(outputOf),
+      revision: identity.revision,
+      label: 'Production Firebase rules deploy',
+    });
+  }
   const readProvider = options => (deps.readState || readProviderState)(cwd, options);
   const allocatePort = deps.allocatePort ?? (() => allocateEmulatorPort('localhost'));
   const readOptions = { rtdbRules: targets.includes('database'), firestoreRules: targets.includes('firestore:rules'), firestoreIndexes: targets.includes('firestore:indexes') };

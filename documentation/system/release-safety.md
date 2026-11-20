@@ -200,7 +200,10 @@ Run `npm run deploy:worker -- <service>` (or `npm run deploy:worker -- --list` t
 public-entry proxy and is intentionally blocked from generic overwrite.
 
 The Worker lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to
-`--dry-run`. Live deploys require a clean Git tree, run targeted Vitest tests, run
+`--dry-run`. Live production Worker deploys (`environment: production`) verify that
+`HEAD` matches protected `origin/main` (unless `--allow-non-main` is passed for an
+intentional hotfix), while `--dry-run` and the spare Worker
+`luyentap-qualification-upload-signer` remain allowed on feature branches. Live deploys require a clean Git tree, run targeted Vitest tests, run
 `wrangler deploy --dry-run` with `CLOUDFLARE_ACCOUNT_ID` pinned, capture and re-verify
 the prior live version with `readProviderState`, verify the authenticated Wrangler
 account with `wrangler whoami --json`, upload with `wrangler versions upload`, re-check
@@ -222,7 +225,9 @@ Choose one target, `--only database`, `--only firestore:rules`,
 `--only firestore:indexes`, or `--all`. Every target supports `--dry-run`; `--skip-tests`,
 `--allow-dirty`, and `--offline` are restricted to `--dry-run`.
 
-The lifecycle checks for a clean tree, validates local JSON, rules, and index schemas
+The lifecycle checks for a clean tree, verifies `HEAD` matches protected `origin/main`
+on live non-`--dry-run` deploys (unless `--allow-non-main` is passed for an intentional
+hotfix; `--dry-run` stays allowed on feature branches), validates local JSON, rules, and index schemas
 (rejecting non-empty `fieldOverrides` until automated readback supports them), captures
 and re-verifies prior live state against concurrent drift, runs scoped emulator security
 tests with strict Vitest JSON report validation (zero skipped tests allowed), and

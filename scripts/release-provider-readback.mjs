@@ -63,9 +63,37 @@ export function validateFirestoreRulesReadback(release, ruleset, releaseAfter) {
   return { release, sourceName: file.name, sourceSha256: hash(file.content) };
 }
 
+export function formatCommandFailure(executable, args = [], result = {}) {
+  const commandArgs = args.slice(0, 6).join(' ');
+  const summary = commandArgs ? `${executable} ${commandArgs}` : executable;
+  const statusDetail = `${result.error?.code ?? `exit ${result.status}`}; signal ${result.signal ?? 'none'}`;
+  const stderr = typeof result.stderr === 'string'
+    ? result.stderr.replace(/\s+/gu, ' ').trim().slice(0, 400)
+    : '';
+  return `Provider command failed: ${summary} (${statusDetail})${stderr ? `: ${stderr}` : ''}`;
+}
+
+export async function assertProtectedMain({ runGit, revision, label = 'Production deploy' }) {
+  let remoteOutput;
+  try {
+    remoteOutput = String(await runGit(['ls-remote', 'origin', 'refs/heads/main']) ?? '').trim();
+  } catch (error) {
+    throw new Error(`Unable to verify protected origin/main before ${label.toLowerCase()} (pass --allow-non-main for an intentional hotfix): ${error.message}`, { cause: error });
+  }
+  const line = remoteOutput.split(/\r?\n/u).find(entry => /\srefs\/heads\/main$/u.test(entry.trim()));
+  const remoteSha = line?.trim().split(/\s+/u)[0] || '';
+  assert(/^[0-9a-f]{40}$/u.test(remoteSha), 'Protected origin/main revision could not be resolved from origin; verify your remote or pass --allow-non-main for an intentional hotfix.');
+  assert.equal(
+    revision,
+    remoteSha,
+    `${label} requires HEAD (${revision}) to match protected origin/main (${remoteSha}); merge to main first or pass --allow-non-main for an intentional hotfix.`,
+  );
+  return remoteSha;
+}
+
 function command(executable, args, cwd, env = process.env) {
   const result = spawnSync(executable, args, { cwd, env, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-  assert(!result.error && result.status === 0, `Provider command failed: ${executable} ${args.slice(0, 2).join(' ')} (${result.error?.code ?? `exit ${result.status}`}; signal ${result.signal ?? 'none'})`);
+  assert(!result.error && result.status === 0, formatCommandFailure(executable, args, result));
   return result.stdout.trim();
 }
 
@@ -86,7 +114,7 @@ export function assertHostingFederation(config, expectedAccount, expectedProvide
   assert(config.service_account_impersonation_url === `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${expectedAccount}:generateAccessToken`, 'Hosting readback service account changed');
 }
 
-export async function readGoogleToken({ hosting = false, firebaseCli } = {}) {
+export async function readGoogleToken({ hosting = false, firebaseCli, runGcloud = gcloud } = {}) {
   if (hosting && process.env.GITHUB_ACTIONS === 'true') {
     const authFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
     assert(authFile && process.env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE === authFile, 'Hosting readback Google credential file is unavailable or differs from the CLI credential');
@@ -96,7 +124,7 @@ export async function readGoogleToken({ hosting = false, firebaseCli } = {}) {
     assert(scopedToken, 'Hosting readback scoped Google access token is unavailable');
     return scopedToken;
   }
-  const auth = JSON.parse(gcloud(['auth', 'list', '--format=json']));
+  const auth = JSON.parse(runGcloud(['auth', 'list', '--format=json']));
   const active = auth.filter(item => item.status === 'ACTIVE').map(item => item.account);
   if (hosting && active.length === 0) {
     const cli = typeof firebaseCli === 'function' ? firebaseCli() : firebaseCli;
@@ -109,8 +137,11 @@ export async function readGoogleToken({ hosting = false, firebaseCli } = {}) {
     return token.access_token;
   }
   assert.deepEqual(active, ['iamhuwng@gmail.com'], 'Google account changed');
-  assert.equal(gcloud(['config', 'get-value', 'project']), FIREBASE_PROJECT_ID, 'Google project changed');
-  return gcloud(['auth', 'print-access-token', '--account=iamhuwng@gmail.com', `--project=${FIREBASE_PROJECT_ID}`]);
+  const configuredProject = runGcloud(['config', 'get-value', 'project']).trim();
+  if (configuredProject && configuredProject !== '(unset)') {
+    assert.equal(configuredProject, FIREBASE_PROJECT_ID, 'Google project changed');
+  }
+  return runGcloud(['auth', 'print-access-token', '--account=iamhuwng@gmail.com', `--project=${FIREBASE_PROJECT_ID}`]);
 }
 
 export async function readCloudflareToken(cwd, { hosting = false } = {}) {

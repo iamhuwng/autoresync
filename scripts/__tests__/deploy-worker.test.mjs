@@ -60,6 +60,7 @@ test('qualification config enables spare localhost ports without changing produc
 
 test('worker arguments and uploaded version parsing are guarded', () => {
   assert.deepEqual(parseDeployWorkerArgs(['r2-upload-signer', '--dry-run']).service, 'r2-upload-signer');
+  assert.equal(parseDeployWorkerArgs(['r2-upload-signer', '--allow-non-main']).allowNonMain, true);
   assert.throws(() => parseDeployWorkerArgs(['r2-upload-signer', '--unknown']), /Unknown flag/);
   assert.equal(parseUploadedVersionId(`Worker Version ID: ${uuid}`), uuid);
   assert.equal(parseUploadedVersionId(JSON.stringify({ id: uuid })), uuid);
@@ -105,6 +106,7 @@ test('worker happy path pins account, verifies whoami, uploads, activates, and p
         calls.push({ args, env: options?.env });
         if (args[0] === 'status') return result('');
         if (args[0] === 'rev-parse') return result('a'.repeat(40));
+        if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
         if (args.includes('whoami')) return result(whoamiJson());
         if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
         return result('');
@@ -138,6 +140,7 @@ test('worker readback and smoke failures carry rollback context', async () => {
       exec: async (command, args) => {
         if (args[0] === 'status') return result('');
         if (args[0] === 'rev-parse') return result('a'.repeat(40));
+        if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
         if (args.includes('whoami')) return result(whoamiJson());
         if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
         return result('');
@@ -173,7 +176,7 @@ test('worker guards reject unknown services, dirty trees, live bypass flags, wro
     const splitPrior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 50 }, { version_id: uuid, percentage: 50 }] } } } };
     await assert.rejects(() => deployWorker({
       service: 'r2-upload-signer', cwd: root,
-      deps: { exec: async (cmd, args) => args[0] === 'status' ? result('') : result('a'.repeat(40)), readState: async () => splitPrior },
+      deps: { exec: async (cmd, args) => args[0] === 'status' ? result('') : args[0] === 'ls-remote' ? result(`${'a'.repeat(40)}\trefs/heads/main\n`) : result('a'.repeat(40)), readState: async () => splitPrior },
     }), /split or unavailable/);
 
     const prior = { workers: { 'r2-upload-signer': { versionId: priorUuid, deployment: { versions: [{ version_id: priorUuid, percentage: 100 }] } } } };
@@ -186,6 +189,7 @@ test('worker guards reject unknown services, dirty trees, live bypass flags, wro
           wrongAccountCalls.push(args);
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('whoami')) return result(whoamiJson('0'.repeat(32)));
           return result('');
         },
@@ -203,6 +207,7 @@ test('worker guards reject unknown services, dirty trees, live bypass flags, wro
           driftCalls.push(args);
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('whoami')) return result(whoamiJson());
           if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
           return result('');
@@ -226,6 +231,7 @@ test('upload failures and ENOENT spawn errors do not claim a live rollback', asy
         exec: async (cmd, args) => {
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('whoami')) return result(whoamiJson());
           if (args.includes('upload')) throw new Error('upload failed');
           return result('');
@@ -240,6 +246,7 @@ test('upload failures and ENOENT spawn errors do not claim a live rollback', asy
         exec: async (cmd, args) => {
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('whoami')) return result(whoamiJson());
           if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
           if (args.includes('deploy') && args.includes('versions')) throw Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' });
@@ -255,6 +262,7 @@ test('upload failures and ENOENT spawn errors do not claim a live rollback', asy
         exec: async (cmd, args) => {
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('whoami')) return result(whoamiJson());
           if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
           if (args.includes('deploy') && args.includes('versions')) throw new Error('promote failed mid-flight');
@@ -263,5 +271,104 @@ test('upload failures and ENOENT spawn errors do not claim a live rollback', asy
         readState: async () => prior,
       },
     }), error => error.phase === 'deploy' && error.rollbackCommand?.includes(priorUuid));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('production Worker deploys enforce origin/main unless --allow-non-main is passed, while dry-run and spare stay feature-branch friendly', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-worker-main-'));
+  try {
+    await mkdir(path.join(root, 'cloudflare'), { recursive: true });
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.jsonc'), '{}\n');
+    await writeFile(path.join(root, 'cloudflare', 'wrangler.qualification.jsonc'), '{}\n');
+    const active = (serviceName, id) => ({
+      workers: { [serviceName]: { versionId: id, deployment: { versions: [{ version_id: id, percentage: 100 }] }, modules: [{ name: 'index.js', sha256: 'a'.repeat(64) }] } },
+    });
+
+    const mismatchCalls = [];
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          mismatchCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'b'.repeat(40)}\trefs/heads/main\n`);
+          return result('');
+        },
+        readState: async () => { throw new Error('provider read must not run on non-main'); },
+      },
+    }), /match protected origin\/main/u);
+    assert.equal(mismatchCalls.some(args => args.includes('cloudflare-vitest')), false);
+
+    await assert.rejects(() => deployWorker({
+      service: 'r2-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result('');
+          return result('');
+        },
+        readState: async () => { throw new Error('provider read must not run'); },
+      },
+    }), /could not be resolved/u);
+
+    const dryCalls = [];
+    const dry = await deployWorker({
+      service: 'r2-upload-signer', dryRun: true, offline: true, skipTests: true, cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          dryCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          return result('');
+        },
+      },
+    });
+    assert.equal(dry.status, 'DRY_RUN');
+    assert.equal(dryCalls.some(args => args[0] === 'ls-remote'), false);
+
+    const overrideReads = [active('r2-upload-signer', priorUuid), active('r2-upload-signer', priorUuid), active('r2-upload-signer', priorUuid), active('r2-upload-signer', uuid)];
+    const overrideCalls = [];
+    const overridden = await deployWorker({
+      service: 'r2-upload-signer', allowNonMain: true, cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          overrideCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+          return result('');
+        },
+        readState: async () => overrideReads.shift() || active('r2-upload-signer', uuid),
+        fetchImpl: async () => ({ status: 204, redirected: false }),
+        sleep: async () => {},
+      },
+    });
+    assert.equal(overridden.status, 'VERIFIED');
+    assert.equal(overrideCalls.some(args => args[0] === 'ls-remote'), false);
+
+    const spareReads = [active('luyentap-qualification-upload-signer', priorUuid), active('luyentap-qualification-upload-signer', priorUuid), active('luyentap-qualification-upload-signer', priorUuid), active('luyentap-qualification-upload-signer', uuid)];
+    const spareCalls = [];
+    const spare = await deployWorker({
+      service: 'luyentap-qualification-upload-signer', cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          spareCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('whoami')) return result(whoamiJson());
+          if (args.includes('upload')) return result(`Worker Version ID: ${uuid}`);
+          return result('');
+        },
+        readState: async () => spareReads.shift() || active('luyentap-qualification-upload-signer', uuid),
+        fetchImpl: async () => ({ status: 204, redirected: false }),
+        sleep: async () => {},
+      },
+    });
+    assert.equal(spare.status, 'VERIFIED');
+    assert.equal(spare.environment, 'spare');
+    assert.equal(spareCalls.some(args => args[0] === 'ls-remote'), false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

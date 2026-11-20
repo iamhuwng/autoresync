@@ -880,6 +880,56 @@ test('verifyExistingHosting polls and validates operation, manifest, revision, a
   assert.deepEqual(sleeps, [50]);
 });
 
+test('verifyExistingHosting verifies an earlier operation when main advances without binding current HEAD tree', async () => {
+  const earlierOp = '11111111-1111-4111-8111-111111111111';
+  const earlierRevision = 'd'.repeat(40);
+  const earlierTree = 'e'.repeat(40);
+  const earlierManifest = 'f'.repeat(64);
+  const byOpOnly = await verifyExistingHosting({
+    operationId: earlierOp,
+    observeProvider: () => provider('live-a', `[luyentap:${earlierOp}] release A`),
+    observeSource: async () => ({
+      revision: earlierRevision,
+      tree: earlierTree,
+      fingerprint: earlierManifest,
+      manifest: { files: [{}] },
+      evidenceRef: 'fixture://source',
+    }),
+    poll: { timeoutMs: 100, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  });
+  assert.equal(byOpOnly.operationId, earlierOp);
+  assert.equal(byOpOnly.revision, earlierRevision);
+
+  const byOpAndRevision = await verifyExistingHosting({
+    operationId: earlierOp,
+    expectedManifestSha256: earlierManifest,
+    expectedRevision: earlierRevision,
+    observeProvider: () => provider('live-a', `[luyentap:${earlierOp}] release A`),
+    observeSource: async () => ({
+      revision: earlierRevision,
+      tree: earlierTree,
+      fingerprint: earlierManifest,
+      manifest: { files: [{}] },
+      evidenceRef: 'fixture://source',
+    }),
+    poll: { timeoutMs: 100, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  });
+  assert.equal(byOpAndRevision.manifestSha256, earlierManifest);
+
+  await assert.rejects(() => verifyExistingHosting({
+    operationId: earlierOp,
+    expectedRevision: '1'.repeat(40),
+    observeProvider: () => provider('live-a', `[luyentap:${earlierOp}] release A`),
+    observeSource: async () => ({
+      revision: earlierRevision,
+      tree: earlierTree,
+      fingerprint: earlierManifest,
+      manifest: { files: [{}] },
+    }),
+    poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  }), /revision differs from expected/u);
+});
+
 test('verifyExistingHosting rejects mismatch, mid-read change, invalid inputs, and timeout without loading env', async () => {
   const operationId = '00000000-0000-4000-8000-000000000000';
   await assert.rejects(() => verifyExistingHosting({}), /requires operationId/u);

@@ -24,6 +24,7 @@ test('promotion workflow is manual, protected-main-only, and serialized', () => 
   assert.match(workflow, /objective:\n\s+description:[\s\S]*required: false/u);
   assert.match(workflow, /operation_id:/u);
   assert.match(workflow, /expected_manifest_sha256:/u);
+  assert.match(workflow, /expected_revision:/u);
   assert.match(workflow, /group: \$\{\{ \(inputs\.operation == 'health' \|\| inputs\.operation == 'plan'\) && 'luyentap-hosting-read-only' \|\| 'luyentap-hosting-production' \}\}/u);
   assert.match(workflow, /cancel-in-progress: false/u);
 });
@@ -92,12 +93,15 @@ test('recover validates optional bindings and verifies live Hosting without rebu
   assert.match(recover, /environment:\n\s+name: production/u);
   assert.match(recover, /\[\[ "\$OPERATION_ID" =~ \^\[0-9a-f\]\{8\}-/u);
   assert.match(recover, /\[\[ "\$EXPECTED_MANIFEST" =~ \^\[0-9a-f\]\{64\}\$ \]\]/u);
+  assert.match(recover, /\[\[ "\$EXPECTED_REVISION" =~ \^\[0-9a-f\]\{40\}\$ \]\]/u);
+  assert.match(recover, /if \[ "\$\{#args\[@\]\}" -eq 0 \]; then\n\s+args\+=\(--expected-revision "\$GITHUB_SHA" --expected-tree "\$\(git rev-parse 'HEAD\^\{tree\}'\)"\)/u);
+  assert.doesNotMatch(recover, /args=\(--expected-revision "\$GITHUB_SHA"/u);
   assert.match(recover, /npm run release:verify-existing --/u);
   assert.doesNotMatch(recover, /build:production|deploy:hosting|firebase deploy|LUYENTAP_PRODUCTION_ENV/u);
   assert.match(recover, /retention-days: 14/u);
 });
 
-test('release-safety CI and package scripts remove retired changelog and ceremonial tests', () => {
+test('release-safety CI and package scripts remove retired changelog, rebuild, and ceremonial tests', () => {
   for (const retired of [
     'release-changelog.mjs --check',
     'release-promotion.test.mjs',
@@ -105,6 +109,7 @@ test('release-safety CI and package scripts remove retired changelog and ceremon
     'release-archive.test.mjs',
     'release-changelog-recorder.test.mjs',
     'change-records.test.mjs',
+    'deployed-homework-rebuild',
   ]) {
     assert.equal(safety.includes(retired), false, `release-safety.yml still references ${retired}`);
   }

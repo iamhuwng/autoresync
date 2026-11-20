@@ -3,8 +3,10 @@ import test from 'node:test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { spareFirebaseProject } from '../spare-dev-config.mjs';
 import {
+  DEFAULT_FIRESTORE_READ_CONCURRENCY,
   FIRESTORE_SYNC_SEMANTICS,
   LIVE_FIREBASE_PROJECT,
+  defaultGoogleAccessToken,
   main,
   sanitizeAuthExportForSpare,
   syncLiveToSpare,
@@ -189,4 +191,80 @@ test('human-readable CLI output includes Firestore semantics', async () => {
     console.log = originalLog;
   }
   assert.match(output[0], /Firestore semantics: upsert-only \(existing spare-only documents are preserved\)/u);
+});
+
+test('readFirestore traverses subcollections with bounded concurrency and defaultGoogleAccessToken avoids shell:true', async () => {
+  assert.equal(DEFAULT_FIRESTORE_READ_CONCURRENCY, 12);
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const batchedNames = [];
+  const docIds = Array.from({ length: 10 }, (_, idx) => `doc-${idx}`);
+  const result = await syncLiveToSpare({ scopes: ['firestore'], dryRun: false, confirmSpareOverwrite: true, firestoreReadConcurrency: 3 }, {
+    getAccessToken: async () => 'token',
+    fetchImpl: async (url, options = {}) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      try {
+        const parsed = new URL(url);
+        if (parsed.pathname.endsWith('/documents:listCollectionIds')) {
+          return new Response(JSON.stringify({ collectionIds: ['courses'] }), { status: 200 });
+        }
+        if (parsed.pathname.endsWith('/documents/courses')) {
+          return new Response(JSON.stringify({
+            documents: docIds.map(id => ({
+              name: `projects/${LIVE_FIREBASE_PROJECT}/databases/(default)/documents/courses/${id}`,
+              createTime: '2026-01-01T00:00:00Z',
+              fields: {},
+            })),
+          }), { status: 200 });
+        }
+        if (parsed.pathname.endsWith(':listCollectionIds')) {
+          const match = /\/courses\/(doc-\d+):listCollectionIds$/u.exec(parsed.pathname);
+          return new Response(JSON.stringify({
+            collectionIds: match && (match[1] === 'doc-0' || match[1] === 'doc-5') ? ['lessons'] : [],
+          }), { status: 200 });
+        }
+        if (parsed.pathname.endsWith('/lessons')) {
+          const docId = parsed.pathname.split('/').slice(-2, -1)[0];
+          return new Response(JSON.stringify({
+            documents: [{
+              name: `projects/${LIVE_FIREBASE_PROJECT}/databases/(default)/documents/courses/${docId}/lessons/l1`,
+              createTime: '2026-01-01T00:00:00Z',
+              fields: {},
+            }],
+          }), { status: 200 });
+        }
+        if (parsed.pathname.endsWith(':batchWrite')) {
+          const writes = JSON.parse(options.body).writes;
+          batchedNames.push(...writes.map(entry => entry.update.name));
+          return new Response(JSON.stringify({ status: writes.map(() => ({})) }), { status: 200 });
+        }
+        throw new Error(`Unexpected URL: ${url}`);
+      } finally {
+        inFlight -= 1;
+      }
+    },
+  });
+  assert.equal(result.firestoreDocuments, 12);
+  assert.ok(maxInFlight > 1 && maxInFlight <= 3, `expected bounded concurrency 2..3, got ${maxInFlight}`);
+  assert.ok(batchedNames.includes(`projects/${spareFirebaseProject}/databases/(default)/documents/courses/doc-0/lessons/l1`));
+  assert.ok(batchedNames.includes(`projects/${spareFirebaseProject}/databases/(default)/documents/courses/doc-5/lessons/l1`));
+
+  const invocations = [];
+  const winToken = defaultGoogleAccessToken((cmd, args, opts) => {
+    invocations.push({ cmd, args, opts });
+    return 'win-token\n';
+  }, 'win32');
+  assert.equal(winToken, 'win-token');
+  assert.equal(invocations[0].cmd, 'powershell.exe');
+  assert.equal(invocations[0].opts.shell, undefined);
+
+  const linuxToken = defaultGoogleAccessToken((cmd, args, opts) => {
+    invocations.push({ cmd, args, opts });
+    return 'linux-token\n';
+  }, 'linux');
+  assert.equal(linuxToken, 'linux-token');
+  assert.equal(invocations[1].cmd, 'gcloud');
+  assert.equal(invocations[1].opts.shell, undefined);
 });
