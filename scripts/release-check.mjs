@@ -217,6 +217,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
   if (services.includes('worker') && target !== 'hosting') findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
   if (services.includes('firebase-rules') && target !== 'hosting') findings.push({ status: STATUS.UNVERIFIED, message: 'Firebase rules, indexes and Functions changes require their own native provider qualification; Hosting observation cannot verify those service scopes.' });
+  if (target === 'hosting' && impactPaths.includes('database.rules.json')) findings.push({ status: STATUS.PASS, message: 'RTDB rules changes (database.rules.json) are qualified and deployed separately via npm run deploy:rules; Hosting preflight does not read /.settings/rules.json.' });
   if (services.includes('hosting') && services.includes('worker') && target !== 'hosting') findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Worker changed together; verify endpoint and payload compatibility.' });
   if (services.includes('hosting') && services.includes('firebase-rules') && target !== 'hosting') findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Frontend and Firebase rules changed together; verify authorization and migration order.' });
   let baseline = null, baselineFingerprint = null;
@@ -268,7 +269,10 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
       }
     } catch (error) { findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Compatibility review unavailable: ${error.message}` }); }
   }
-  const observedHostingBaseline = isObserved(observation) && observation.revision === source.baseRevision && (services.every(service => service === 'hosting' || service === 'tooling') || hostingDependencies);
+  const decoupledRtdbOnly = target === 'hosting' && impactPaths.includes('database.rules.json')
+    && !impactPaths.some(file => /^(?:firestore\.(?:rules|indexes\.json)|functions\/)/u.test(file));
+  const observedHostingBaseline = isObserved(observation) && observation.revision === source.baseRevision
+    && (services.every(service => service === 'hosting' || service === 'tooling' || (decoupledRtdbOnly && service === 'firebase-rules')) || hostingDependencies);
   if (!baselinePath && observedHostingBaseline) findings.push({ status: STATUS.PASS, message: hostingDependencies ? 'Observed Hosting and native dependency evidence bind this Hosting publication scope; backend source remains excluded.' : 'Observed Hosting manifest is the verified baseline for this Hosting-only candidate.' });
   else if (!baselinePath && !observation) findings.push({ status: STATUS.UNVERIFIED, message: 'A baseline file or independent provider observation is required.' });
   if (mode === 'hotfix' && (!isObserved(observation) || observation.revision !== source.baseRevision)) findings.push({ status: STATUS.UNVERIFIED, message: 'Hotfix base is not verified against production source.' });

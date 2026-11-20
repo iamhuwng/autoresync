@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { isDeepStrictEqual } from 'node:util';
-import { assess, collectSourceState, hostingImpactPaths, parseCompatibilityReviewBinding } from './release-check.mjs';
+import { assess, classifyPaths, collectSourceState, hostingImpactPaths, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { hasHostingDependencyProbes, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope } from './release-hosting-dependencies.mjs';
-import { writeHostingManifest, observeHosting, observeHostingProvider, waitForHostingLive, assertHostingArtifact, hostingRollbackCommand } from './release-evidence.mjs';
+import { writeHostingManifest, observeHosting, observeHostingProvider, readLiveHostingManifestFingerprint, isObserved, waitForHostingLive, assertHostingArtifact, hostingRollbackCommand } from './release-evidence.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -321,12 +321,14 @@ export async function verifyExistingHosting({ operationId, expectedManifestSha25
 }
 
 export const deployHosting = async ({ cwd = repoRoot, base, env, assessment, objective,
-  observeSource = observeHosting, observeProvider = observeHostingProvider, runDeploy = run,
+  expectedPriorProviderIdentity, observeSource = observeHosting, observeProvider = observeHostingProvider,
+  readLiveManifest = readLiveHostingManifestFingerprint, runDeploy = run,
   poll = { timeoutMs: 90_000, initialDelayMs: 2_000, maxDelayMs: 10_000 } } = {}) => {
   const source = await collectSourceState(cwd, base);
   if (source.dirty) fail('deployment requires a clean candidate source.');
   const expected = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
   if (!assessment || !['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)
+    || assessment.schemaVersion !== 1 || assessment.mode !== 'release' || assessment.target !== 'hosting'
     || assessment.source?.fingerprint !== source.fingerprint || assessment.observed?.revision !== base) {
     fail('deployment requires the current exact-source assessment.');
   }
@@ -344,17 +346,21 @@ export const deployHosting = async ({ cwd = repoRoot, base, env, assessment, obj
   await assertHostingArtifact(cwd, expected);
   const expectedManifestSha256 = digest(JSON.stringify(expected));
   const before = await observeProvider();
+  if (expectedPriorProviderIdentity && providerIdentity(before) !== expectedPriorProviderIdentity) fail('production changed while preparing publication.');
   const rollbackCommand = hostingRollbackCommand(before.provider.version);
   if (assessment.observed.revision === expected.revision && assessment.observed.tree === expected.tree
     && assessment.observed.manifest?.envFingerprint === expected.envFingerprint) {
     fail('this candidate is already published; use --verify-existing instead of publishing it again.');
   }
-  const live = await observeSource();
+  const liveHead = await readLiveManifest();
   const provider = await observeProvider();
-  if (live.fingerprint !== assessment.observed.fingerprint || live.revision !== assessment.observed.revision
-    || live.tree !== assessment.observed.tree || providerIdentity(provider) !== providerIdentity(before)) fail('production changed while preparing publication.');
+  if (liveHead.fingerprint !== assessment.observed.fingerprint
+    || liveHead.revision !== assessment.observed.revision
+    || liveHead.tree !== assessment.observed.tree
+    || providerIdentity(provider) !== providerIdentity(before)) fail('production changed while preparing publication.');
   if (assessment.hostingDependencies) {
-    const currentDependencies = await observeHostingDependencies({ cwd, source, hostingObservation: live, envFingerprint: assessment.productionEnvFingerprint });
+    const hostingObservation = isObserved(assessment.observed) ? assessment.observed : await observeSource();
+    const currentDependencies = await observeHostingDependencies({ cwd, source, hostingObservation, envFingerprint: assessment.productionEnvFingerprint });
     if (!isHostingDependenciesObserved(currentDependencies) || currentDependencies.fingerprint !== assessment.hostingDependencies.fingerprint) fail('backend dependencies changed while preparing publication.');
   }
   const id = crypto.randomUUID();
@@ -407,6 +413,54 @@ const readAssessmentHotfixes = async (cwd, file) => {
   const parsed = JSON.parse(await readFile(path.resolve(cwd, file), 'utf8'));
   return Array.isArray(parsed.hotfixes) ? parsed.hotfixes : [];
 };
+
+export async function resolveBuiltDeploymentAssessment({ cwd = repoRoot, loaded, assessmentFile,
+  observedFingerprint, observedProviderIdentity, compatibilityBinding,
+  observeSource = observeHosting, observeProvider = observeHostingProvider,
+  readLiveManifest = readLiveHostingManifestFingerprint, assessRelease = assess } = {}) {
+  const fallback = async () => {
+    const observed = await observeSource();
+    if (observedFingerprint && observed.fingerprint !== observedFingerprint) fail('production Hosting changed since the approved observation.');
+    const assessment = await assessRelease({ cwd, mode: 'release', target: 'hosting', base: observed.revision,
+      hostingObservation: observed, productionEnvFingerprint: loaded.envFingerprint, productionEnvFile: loaded.envFile,
+      ...(compatibilityBinding ? { inlineCompatibilityReview: compatibilityBinding.review } : {}) });
+    return { assessment, observed, reused: false };
+  };
+  if (!assessmentFile || !observedFingerprint || !observedProviderIdentity) return fallback();
+  let receipt;
+  try { receipt = JSON.parse(await readFile(path.resolve(cwd, assessmentFile), 'utf8')); } catch { return fallback(); }
+  const reusableShape = ['PASS', 'NOT_APPLICABLE'].includes(receipt?.decision)
+    && receipt.schemaVersion === 1
+    && receipt.mode === 'release'
+    && receipt.target === 'hosting'
+    && receipt.observed?.fingerprint === observedFingerprint
+    && receipt.observedProviderIdentity === observedProviderIdentity
+    && receipt.productionEnvFingerprint === loaded.envFingerprint
+    && typeof receipt.observed?.revision === 'string'
+    && typeof receipt.observed?.tree === 'string';
+  if (!reusableShape) return fallback();
+  const source = await collectSourceState(cwd, receipt.observed.revision);
+  if (source.dirty || source.fingerprint !== receipt.source?.fingerprint) fail('approved release source changed since the approved observation.');
+  const liveProvider = await observeProvider();
+  const liveHead = await readLiveManifest();
+  if (providerIdentity(liveProvider) !== observedProviderIdentity
+    || liveHead.fingerprint !== receipt.observed.fingerprint
+    || liveHead.revision !== receipt.observed.revision
+    || liveHead.tree !== receipt.observed.tree
+    || (liveHead.envFingerprint ?? null) !== (receipt.observed.manifest?.envFingerprint ?? null)
+    || !isDeepStrictEqual(liveHead.hotfixes, receipt.hotfixes || [])) {
+    fail('production Hosting changed since the approved observation.');
+  }
+  const impactPaths = hostingImpactPaths(cwd, source);
+  const services = classifyPaths(impactPaths);
+  const dependencyScope = selectHostingDependencyScope(impactPaths);
+  if (!hasHostingDependencyProbes(dependencyScope)
+    && services.length > 0 && !services.includes('migrations') && !services.includes('backblaze')
+    && liveHead.hotfixes.length === 0 && !compatibilityBinding) {
+    return { assessment: { ...receipt, source: { ...source, services: receipt.source?.services || [] } }, observed: receipt.observed, reused: true };
+  }
+  return fallback();
+}
 
 const verifyArgs = rawArgs => {
   let operationId;
@@ -464,12 +518,23 @@ const main = async () => {
       console.log('[Production] Build and local-value checks passed; no remote mutation was performed.');
       return;
     }
-    const observed = await observeHosting();
-    if (process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT && observed.fingerprint !== process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT) fail('production Hosting changed since the approved observation.');
     const binding = process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING
       ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined;
-    const assessment = await assess({ cwd, mode: 'release', target: 'hosting', base: observed.revision, hostingObservation: observed,
-      productionEnvFingerprint: loaded.envFingerprint, productionEnvFile: loaded.envFile, ...(binding ? { inlineCompatibilityReview: binding.review } : {}) });
+    let observed, assessment;
+    if (deployBuilt && process.env.LUYENTAP_RELEASE_ASSESSMENT_FILE
+      && process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT
+      && process.env.LUYENTAP_RELEASE_OBSERVED_PROVIDER_IDENTITY) {
+      ({ assessment, observed } = await resolveBuiltDeploymentAssessment({ cwd, loaded,
+        assessmentFile: process.env.LUYENTAP_RELEASE_ASSESSMENT_FILE,
+        observedFingerprint: process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT,
+        observedProviderIdentity: process.env.LUYENTAP_RELEASE_OBSERVED_PROVIDER_IDENTITY,
+        compatibilityBinding: binding }));
+    } else {
+      observed = await observeHosting();
+      if (process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT && observed.fingerprint !== process.env.LUYENTAP_RELEASE_OBSERVED_FINGERPRINT) fail('production Hosting changed since the approved observation.');
+      assessment = await assess({ cwd, mode: 'release', target: 'hosting', base: observed.revision, hostingObservation: observed,
+        productionEnvFingerprint: loaded.envFingerprint, productionEnvFile: loaded.envFile, ...(binding ? { inlineCompatibilityReview: binding.review } : {}) });
+    }
     if (!['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) fail(`release assessment is ${assessment.decision}; deployment is gated.`);
     const source = assessment.source;
     if (deployBuilt) {
@@ -483,7 +548,8 @@ const main = async () => {
       await writeHostingManifest({ cwd, envFingerprint: loaded.envFingerprint, buildInputFingerprint: loaded.buildInputFingerprint, hotfixes: assessment.hotfixes });
       await assertHostingArtifact(cwd, JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8')));
     }
-    const result = await deployHosting({ cwd, base: observed.revision, env: loaded.env, assessment, objective: process.env.LUYENTAP_RELEASE_OBJECTIVE });
+    const result = await deployHosting({ cwd, base: observed.revision, env: loaded.env, assessment, objective: process.env.LUYENTAP_RELEASE_OBJECTIVE,
+      expectedPriorProviderIdentity: process.env.LUYENTAP_RELEASE_OBSERVED_PROVIDER_IDENTITY });
     await writeOperationOutcome({ outcome: result, cwd });
     console.log(`[Release] liveVersion=${result.liveVersion} manifestSha256=${result.manifestSha256} rollback=${result.rollbackCommand}`);
   } catch (error) {

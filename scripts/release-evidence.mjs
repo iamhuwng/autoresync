@@ -239,6 +239,31 @@ export async function observeHosting({ fetchImpl = fetch, originOverride, expect
   throw lastError;
 }
 
+export async function readLiveHostingManifestFingerprint({ fetchImpl = fetch } = {}) {
+  const response = await fetchImpl(`${origin}${manifestPath}`, {
+    method: 'GET',
+    redirect: 'error',
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error(`Hosting manifest readback unavailable (HTTP ${response.status}).`);
+  if (response.redirected || !response.url || new URL(response.url).origin !== origin) throw new Error('Hosting manifest readback was redirected or served from an unexpected origin.');
+  let manifest;
+  try { manifest = await response.json(); } catch { throw new Error('Hosting manifest readback is not valid JSON.'); }
+  if (!manifest || manifest.schemaVersion !== 1 || manifest.environment !== 'production'
+    || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1'
+    || !/^[a-f0-9]{40}$/u.test(manifest.revision || '') || !/^[a-f0-9]{40}$/u.test(manifest.tree || '')) {
+    throw new Error('Invalid production Hosting manifest.');
+  }
+  return Object.freeze({
+    revision: manifest.revision,
+    tree: manifest.tree,
+    envFingerprint: manifest.envFingerprint || null,
+    hotfixes: Array.isArray(manifest.hotfixes) ? manifest.hotfixes : [],
+    fingerprint: hash(JSON.stringify(manifest)),
+  });
+}
+
 const defaultSleep = delay => new Promise(resolve => setTimeout(resolve, delay));
 
 export async function waitForHostingLive({ expectedManifestFingerprint, beforeProviderIdentity, operationId,

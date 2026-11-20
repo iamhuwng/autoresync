@@ -32,7 +32,7 @@ export function selectHostingDependencyScope(files) {
       workers.add('luyentap-notification-command'); workers.add('luyentap-notification-firestore-qa'); workers.add('r2-upload-signer');
     }
   }
-  return { rtdbRules: files.includes('database.rules.json'), rtdbFlags: files.includes('database.rules.json'),
+  return { rtdbRules: false, rtdbFlags: false,
     firestoreRules: files.includes('firestore.rules'), firestoreIndexes: files.includes('firestore.indexes.json'),
     functions: files.some(file => /^functions\//u.test(file)),
     privateAudio: files.includes('cloudflare/r2-lifecycle.listening-private.json') || files.includes('cloudflare/wrangler.jsonc'),
@@ -160,17 +160,28 @@ export function validateHostingInfrastructure(provider, { scope, lifecycleSha256
   }
 }
 
+export const HOSTING_HEALTH_SCOPE = Object.freeze({
+  rtdbRules: false,
+  rtdbFlags: false,
+  firestoreRules: true,
+  firestoreIndexes: true,
+  functions: true,
+  privateAudio: true,
+  workers: Object.freeze([...PRODUCTION_WORKER_NAMES]),
+  cloudflareCommon: true,
+});
+
 // Health checks never create a trusted dependency observation or a release fingerprint.
 export async function checkHostingDependencyHealth(cwd) {
   const diagnostics = [];
   try {
-    const provider = await readProviderState(cwd, { hosting: true, rtdbRules: true, rtdbFlags: true,
-      firestoreRules: true, firestoreIndexes: true, functions: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true, privateAudio: true,
+    const provider = await readProviderState(cwd, { ...HOSTING_HEALTH_SCOPE, workers: [...HOSTING_HEALTH_SCOPE.workers], hosting: true,
       onDiagnostic: message => diagnostics.push(message) });
-    validateHostingInfrastructure(provider, { scope: { rtdbRules: true, rtdbFlags: true, firestoreRules: true, firestoreIndexes: true, functions: true, workers: [...PRODUCTION_WORKER_NAMES], cloudflareCommon: true, privateAudio: true }, lifecycleSha256: digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8'))) });
+    validateHostingInfrastructure(provider, { scope: { ...HOSTING_HEALTH_SCOPE, workers: [...HOSTING_HEALTH_SCOPE.workers] }, lifecycleSha256: digest(JSON.parse(await readFile(path.join(cwd, 'cloudflare/r2-lifecycle.listening-private.json'), 'utf8'))) });
+    diagnostics.push('RTDB rules and system flags readback require operator credentials and are verified separately by npm run deploy:rules.');
     return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'HEALTHY', diagnostics };
   } catch (error) {
-    return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'UNVERIFIED', diagnostics: [...diagnostics, error.message] };
+    return { readOnly: true, authorization: 'NOT_AUTHORIZED', status: 'UNVERIFIED', diagnostics: [...diagnostics, 'RTDB rules and system flags readback require operator credentials and are verified separately by npm run deploy:rules.', error.message] };
   }
 }
 

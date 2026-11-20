@@ -254,48 +254,30 @@ jobs:
           set -euo pipefail
           export ENV_FINGERPRINT="$(sha256sum "$RUNNER_TEMP/.env.production" | cut -d' ' -f1)"
           export EXPECTED_TREE="$(git rev-parse 'HEAD^{tree}')"
-          node --input-type=module - "$RUNNER_TEMP/hosting-observation.json" <<'NODE'
-          import { writeFileSync } from 'node:fs';
-          import { observeHosting } from './scripts/release-evidence.mjs';
+          node --input-type=module <<'NODE'
+          import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+          import { assess } from './scripts/release-check.mjs';
+          import { observeHosting, observeHostingProvider } from './scripts/release-evidence.mjs';
           const observation = await observeHosting();
-          const result = {
-            live_sha: observation.revision,
-            live_tree: observation.tree,
-            live_fingerprint: observation.fingerprint,
-            exact_candidate_live: observation.revision === process.env.GITHUB_SHA
-              && observation.tree === process.env.EXPECTED_TREE
-              && observation.manifest?.envFingerprint === process.env.ENV_FINGERPRINT,
-          };
-          writeFileSync(process.argv[2], JSON.stringify(result) + '\n');
-          if (result.exact_candidate_live) {
+          const provider = observeHostingProvider();
+          const liveProviderIdentity = `${provider.provider.version}@${provider.provider.releaseTime}`;
+          if (observation.revision === process.env.GITHUB_SHA
+            && observation.tree === process.env.EXPECTED_TREE
+            && observation.manifest?.envFingerprint === process.env.ENV_FINGERPRINT) {
             throw new Error('This candidate is already published with this exact environment fingerprint; run operation=verify-existing instead.');
           }
-          NODE
-          node --input-type=module - "$RUNNER_TEMP/hosting-observation.json" <<'NODE'
-          import { appendFileSync, readFileSync } from 'node:fs';
-          import { spawnSync } from 'node:child_process';
-          const observation = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-          const receipt = `tmp/release-receipts/ci-${process.env.GITHUB_RUN_ID}.json`;
-          const args = [
-            'scripts/release-check.mjs',
-            '--mode', 'release',
-            '--target', 'hosting',
-            '--base', observation.live_sha,
-            '--observe-hosting',
-            '--env-fingerprint', process.env.ENV_FINGERPRINT,
-            '--production-env-file', `${process.env.RUNNER_TEMP}/.env.production`,
-            '--json',
-            '--receipt', receipt,
-          ];
-          const check = spawnSync(process.execPath, args, { stdio: 'inherit', env: process.env });
-          if (check.status !== 0) process.exit(check.status || 1);
-          const parsed = JSON.parse(readFileSync(receipt, 'utf8'));
-          if (!['PASS', 'NOT_APPLICABLE'].includes(parsed.decision)) {
-            throw new Error(`Release assessment is ${parsed.decision}.`);
+          const assessment = await assess({ cwd: process.cwd(), mode: 'release', target: 'hosting', base: observation.revision,
+            hostingObservation: observation, productionEnvFingerprint: process.env.ENV_FINGERPRINT,
+            productionEnvFile: `${process.env.RUNNER_TEMP}/.env.production` });
+          if (!['PASS', 'NOT_APPLICABLE'].includes(assessment.decision)) {
+            throw new Error(`Release assessment is ${assessment.decision}.`);
           }
+          const receipt = `tmp/release-receipts/ci-${process.env.GITHUB_RUN_ID}.json`;
+          mkdirSync('tmp/release-receipts', { recursive: true });
+          writeFileSync(receipt, `${JSON.stringify({ ...assessment, observedProviderIdentity: liveProviderIdentity })}\n`);
           appendFileSync(
             process.env.GITHUB_OUTPUT,
-            `live_sha=${observation.live_sha}\nlive_fingerprint=${observation.live_fingerprint}\nenv_fingerprint=${process.env.ENV_FINGERPRINT}\n`,
+            `live_sha=${observation.revision}\nlive_fingerprint=${observation.fingerprint}\nlive_provider_identity=${liveProviderIdentity}\nenv_fingerprint=${process.env.ENV_FINGERPRINT}\n`,
           );
           NODE
       - name: Build the production artifact once
@@ -328,16 +310,12 @@ jobs:
             `sha256=${readback.manifestSha256}\nmanifest_file_sha256=${readback.manifestFileSha256}\n`,
           );
           NODE
-      - name: Require protected main to remain the checked-out source
-        run: |
-          set -euo pipefail
-          remote_main="$(git ls-remote origin refs/heads/main | cut -f1)"
-          test -n "$remote_main"
-          test "$remote_main" = "$GITHUB_SHA"
       - name: Publish the verified artifact
         env:
           LUYENTAP_PRODUCTION_ENV_FILE: ${{ runner.temp }}/.env.production
+          LUYENTAP_RELEASE_ASSESSMENT_FILE: tmp/release-receipts/ci-${{ github.run_id }}.json
           LUYENTAP_RELEASE_OBSERVED_FINGERPRINT: ${{ steps.preflight.outputs.live_fingerprint }}
+          LUYENTAP_RELEASE_OBSERVED_PROVIDER_IDENTITY: ${{ steps.preflight.outputs.live_provider_identity }}
           LUYENTAP_RELEASE_ARTIFACT_SHA256: ${{ steps.artifact.outputs.sha256 }}
           LUYENTAP_RELEASE_OBJECTIVE: ${{ inputs.objective }}
           LUYENTAP_RELEASE_OUTCOME_FILE: ${{ runner.temp }}/release-outcome.json

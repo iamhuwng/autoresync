@@ -1,6 +1,6 @@
 # Temporary PRD / Task-List Memory Bridge
 
-Temporary status: remove after Codex memory index contains `prd0055-authority-sync-closure-lessons` / `authority-sync`.
+Temporary status: remove once repo memory/docs supersede this file.
 
 Sources:
 - Memory note awaiting ingestion: `C:\Users\The Lord\.codex\memories\extensions\ad_hoc\notes\2026-06-26T14-32-29-prd0055-authority-sync-closure-lessons.md`
