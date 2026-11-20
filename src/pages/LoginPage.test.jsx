@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import LoginPage from './LoginPage';
+import LoginPage, { canUseDevQuickLogin } from './LoginPage';
 
 const mockNavigate = vi.fn();
 const mockLogin = vi.fn();
@@ -47,6 +47,10 @@ function renderPage() {
 }
 
 describe('LoginPage', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
@@ -365,5 +369,26 @@ describe('LoginPage', () => {
     renderPage();
     await user.click(screen.getByRole('button', { name: /sign in with google/i }));
     await waitFor(() => expect(screen.getByText(/sign-in popup was blocked/i)).toBeInTheDocument());
+  });
+
+  it('allows Dev Quick Login strictly on localhost for spare/development modes and never on deployed or production origins', () => {
+    expect(canUseDevQuickLogin('spare', 'localhost')).toBe(true);
+    expect(canUseDevQuickLogin('development', 'localhost')).toBe(true);
+    expect(canUseDevQuickLogin('test', 'luyentap-pdf-qa-20261021.web.app')).toBe(true);
+    expect(canUseDevQuickLogin('spare', 'luyentap-pdf-qa-20261021.web.app')).toBe(false);
+    expect(canUseDevQuickLogin('spare', '127.0.0.1')).toBe(false);
+    expect(canUseDevQuickLogin('production', 'kahut1.web.app')).toBe(false);
+    expect(canUseDevQuickLogin('production', 'localhost')).toBe(false);
+  });
+
+  it('renders Dev Quick Login in spare mode on localhost and hides it in production mode', () => {
+    vi.stubEnv('MODE', 'spare');
+    const spareRender = renderPage();
+    expect(screen.getByRole('button', { name: /show dev quick login/i })).toBeInTheDocument();
+    spareRender.unmount();
+
+    vi.stubEnv('MODE', 'production');
+    renderPage();
+    expect(screen.queryByRole('button', { name: /show dev quick login/i })).not.toBeInTheDocument();
   });
 });

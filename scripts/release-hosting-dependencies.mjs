@@ -11,9 +11,7 @@ import { canonical, digest, FIREBASE_DATABASE_URL, FIREBASE_PROJECT_ID, PRIVATE_
 const observations = new WeakSet();
 const hash = value => createHash('sha256').update(value).digest('hex');
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
-const unchangedConfig = ['firebase.json', '.firebaserc'];
 const qualificationKeys = ['API_KEY', 'HOSTING_SITE', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID'];
-const unsupportedPath = file => /^functions\//u.test(file) || /^vite\.config/u.test(file);
 export const isHostingDependenciesObserved = value => observations.has(value);
 
 export function selectHostingDependencyScope(files) {
@@ -94,12 +92,14 @@ export function validateHostingDependencies(local, provider) {
     assert.equal(local.environmentBinding.buildInputFingerprint, local.hosting.envFingerprint, 'Reconciled build inputs differ');
     assert.match(local.environmentBinding.qualificationFingerprint, /^[a-f0-9]{64}$/u, 'Reconciled qualification identity unavailable');
   }
-  assert.deepEqual(local.sharedInputs.map(input => input.path).sort(), [...sharedHomeworkInputs].sort(), 'Hosting shared input inventory changed');
-  assert.deepEqual(local.unchangedPaths.map(input => input.path).sort(), [...new Set([...unchangedConfig, ...local.source.files.filter(unsupportedPath)])].sort(), 'Hosting configuration inventory changed');
-  for (const input of [...local.sharedInputs, ...local.unchangedPaths]) {
-    assert.match(input.candidate ?? '', /^[a-f0-9]{40}$/u, `Hosting dependency input unavailable: ${input.path}`);
-    assert.equal(input.candidate, input.base, `Hosting dependency input changed: ${input.path}`);
-  }
+  assert.equal(local.firebaseRc?.projects?.default, FIREBASE_PROJECT_ID, 'Hosting .firebaserc default project changed');
+  assert.deepEqual(local.firebaseRc?.targets?.[FIREBASE_PROJECT_ID]?.hosting?.kahut1, ['kahut1'], 'Hosting .firebaserc kahut1 target mapping changed');
+  const hostingEntries = (Array.isArray(local.firebaseConfig?.hosting)
+    ? local.firebaseConfig.hosting
+    : [local.firebaseConfig?.hosting]).filter(Boolean);
+  const hostingConfigs = hostingEntries.filter(entry => entry?.target === 'kahut1');
+  assert.equal(hostingConfigs.length, 1, 'Hosting firebase.json kahut1 target mapping changed');
+  assert.equal(hostingConfigs[0].public, 'dist', 'Hosting firebase.json kahut1 public directory changed');
   if (scope.rtdbRules) assert.equal(provider.rulesSha256, local.rulesSha256, 'Hosting active RTDB rules differ from candidate');
   if (scope.firestoreRules) {
     assert(local.firestoreRulesSha256s.includes(provider.firestoreRules?.sourceSha256), 'Hosting active Firestore rules differ from candidate');
@@ -195,7 +195,6 @@ async function readLocal(cwd, source, hostingObservation, envFingerprint, produc
   const actualSource = await collectSourceState(cwd, source.baseRevision);
   const impactPaths = hostingImpactPaths(cwd, actualSource);
   const scope = selectHostingDependencyScope(impactPaths);
-  const input = file => ({ path: file, candidate: git(cwd, ['rev-parse', '--verify', `${actualSource.revision}:${file}`]), base: git(cwd, ['rev-parse', '--verify', `${actualSource.baseRevision}:${file}`]) });
   let environmentBinding = { kind: 'exact', productionFingerprint: envFingerprint, buildInputFingerprint: envFingerprint };
   if (envFingerprint !== hostingObservation.manifest.envFingerprint) {
     let qualification = Object.fromEntries(qualificationKeys.map(key => [key, process.env[`LUYENTAP_QUALIFICATION_FIREBASE_${key}`]]));
@@ -213,12 +212,13 @@ async function readLocal(cwd, source, hostingObservation, envFingerprint, produc
   return { source, actualSource, hosting: { revision: hostingObservation.revision, tree: hostingObservation.tree,
     sourceKnown: hostingObservation.sourceKnown, environment: hostingObservation.manifest.environment, fingerprint: hostingObservation.fingerprint,
     baseTree: git(cwd, ['rev-parse', `${actualSource.baseRevision}^{tree}`]), envFingerprint: hostingObservation.manifest.envFingerprint },
-  envFingerprint, environmentBinding, sharedInputs: [...sharedHomeworkInputs].map(input),
+  envFingerprint, environmentBinding,
+  firebaseConfig: JSON.parse(await readFile(path.join(cwd, 'firebase.json'), 'utf8')),
+  firebaseRc: JSON.parse(await readFile(path.join(cwd, '.firebaserc'), 'utf8')),
   ...(scope.firestoreIndexes ? { indexes: {
     base: JSON.parse(git(cwd, ['show', `${actualSource.baseRevision}:firestore.indexes.json`])),
     candidate: JSON.parse(await readFile(path.join(cwd, 'firestore.indexes.json'), 'utf8')),
   } } : {}),
-  unchangedPaths: [...new Set([...unchangedConfig, ...actualSource.files.filter(unsupportedPath)])].sort().map(input),
   scope, impactPaths,
   ...(scope.rtdbRules ? { rulesSha256: digest(JSON.parse(await readFile(path.join(cwd, 'database.rules.json'), 'utf8'))) } : {}),
   ...(scope.firestoreRules ? { firestoreRulesSha256s: [hash(firestore), hash(firestore.replace(/\n/gu, '\r\n'))] } : {}),

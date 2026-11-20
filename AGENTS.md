@@ -68,14 +68,15 @@ Temporary bridge: remove once repo memory/docs supersede this file.
 
 ## Dev Login Shortcuts (MANDATORY)
 
-When testing authenticated teacher or student flows against the local Firebase emulators:
+When testing authenticated teacher or student flows locally (`npm run dev`, `npm run preview:spare`, or `npm run dev:emulators`):
 - Always open the login route at `/login` first. Do not substitute `/`, a role route, or a deep link as the login entry point.
 - Prefer the built-in dev quick-login buttons on `/login` before asking for credentials.
-- First click the subtle settings icon in the bottom-right corner of `/login` to reveal the hidden dev quick-login buttons.
+- First click the subtle settings icon in the bottom-right corner of `/login` to reveal the hidden dev quick-login buttons (`allowDevQuickLogin` enables them strictly on `http://localhost:<port>` in `spare` and `development` modes; they are never exposed on deployed `luyentap-pdf-qa-20261021.web.app` or production `kahut1.web.app`).
 - Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).
 - Treat these buttons as the default path for browser verification unless the task explicitly requires manual credential entry or a different account.
-- If the quick-login buttons fail, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
+- `npm run dev:emulators` auto-seeds `teacher@test.com` / `student@test.com` in local Firebase emulators (`scripts/local-firebase.mjs`). `npm run dev` and `npm run preview:spare` authenticate against the spare project (`luyentap-pdf-qa-20261021`), avoiding Google OAuth headless-browser blocks. Because `spare:sync-from-live --only auth` intentionally strips `passwordHash` and `salt` for all synced live accounts, if quick-login returns `auth/invalid-credential` after an Auth sync or fresh spare setup, re-provision/reset the spare-only `teacher@test.com` / `student@test.com` passwords and `/users/{uid}` profiles on `luyentap-pdf-qa-20261021` (never on `temp-a1437`) or use `npm run dev:emulators`.
+- If the quick-login buttons fail for another reason, check app/runtime configuration first (for example Firebase API key referrer restrictions) before assuming the accounts are broken.
 
 For local browser verification, use `http://localhost:5173/login` as the teacher-flow
 role default and `http://localhost:5174/login` as the student-flow role default.

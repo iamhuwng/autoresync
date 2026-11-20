@@ -94,6 +94,37 @@ test('Hosting decouples RTDB-only changes while all-target assessments remain un
     assert.ok(all.findings.some(finding => /Hosting observation cannot verify/u.test(finding.message)));
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
+
+test('Hosting target decouples migration and non-shared Backblaze paths while target=all keeps strict gates', async () => {
+  const cwd = await fixture();
+  try {
+    const base = git(cwd, 'rev-parse', 'HEAD');
+    const liveTree = git(cwd, 'rev-parse', `${base}^{tree}`);
+    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+      revision: base, tree: liveTree, envFingerprint: 'e'.repeat(64), files: [{ path: '/index.html', sha256: digest('x') }] };
+    const hostingObservation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('/index.html') ? 'x' : JSON.stringify(manifest)) }) });
+
+    await mkdir(path.join(cwd, 'scripts'), { recursive: true });
+    await writeFile(path.join(cwd, 'scripts', 'backfill-reading.mjs'), 'export const backfill = 1;');
+    await writeFile(path.join(cwd, 'src', 'App.jsx'), 'export default 2;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'migration and hosting candidate');
+    const migrationHosting = await assess({ cwd, base, target: 'hosting', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(migrationHosting.decision, STATUS.PASS);
+    const migrationAll = await assess({ cwd, base, target: 'all', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(migrationAll.decision, STATUS.REVIEW_REQUIRED);
+    assert.ok(migrationAll.findings.some(finding => finding.status === STATUS.REVIEW_REQUIRED && /additive migration prerequisites/u.test(finding.message)));
+
+    await mkdir(path.join(cwd, 'src', 'services', 'book-source-delivery'), { recursive: true });
+    await writeFile(path.join(cwd, 'src', 'services', 'book-source-delivery', 'client.ts'), 'export const client = 1;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'backblaze service client and hosting candidate');
+    const backblazeHosting = await assess({ cwd, base, target: 'hosting', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(backblazeHosting.decision, STATUS.PASS);
+    const backblazeAll = await assess({ cwd, base, target: 'all', hostingObservation, productionEnvFingerprint: manifest.envFingerprint });
+    assert.equal(backblazeAll.decision, STATUS.UNVERIFIED);
+    assert.ok(backblazeAll.findings.some(finding => finding.status === STATUS.UNVERIFIED && /Verify B2 bucket\/prefix ownership/u.test(finding.message)));
+  } finally { await rm(cwd, { recursive: true, force: true }); }
+});
 test('Hosting review binding rejects changed or omitted native dependency state', () => {
   const source = { revision: 'a'.repeat(40), baseRevision: 'b'.repeat(40) };
   const observation = { fingerprint: 'c'.repeat(64) }, dependencies = { fingerprint: 'd'.repeat(64) };

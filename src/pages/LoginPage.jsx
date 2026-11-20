@@ -7,7 +7,14 @@ import { Card, CardBody, Button, toast } from '../components/modern';
 import { IconBrandGoogle } from '@tabler/icons-react';
 import { sessionStore } from '../core/platform/storage';
 
-const isSpareLogin = import.meta.env.MODE === 'spare';
+export const canUseDevQuickLogin = (
+  mode = import.meta.env.MODE,
+  hostname = typeof window === 'undefined' ? '' : window.location?.hostname || '',
+) => {
+  if (mode === 'test') return true;
+  if (hostname !== 'localhost') return false;
+  return mode === 'development' || mode === 'spare';
+};
 
 const DEV_LOGIN_CREDENTIALS = {
   teacher: { id: 'teacher', email: 'teacher@test.com', password: 'teacher' },
@@ -102,6 +109,7 @@ const LoginPage = () => {
   const [googleRegistration, setGoogleRegistration] = useState(false);
   const [devLoading, setDevLoading] = useState(null);
   const [showDevQuickLogin, setShowDevQuickLogin] = useState(false);
+  const allowDevQuickLogin = canUseDevQuickLogin();
   const googleLoginInFlight = useRef(false);
   const loadedGoogleDraft = useRef('');
 
@@ -233,7 +241,7 @@ const LoginPage = () => {
     setLoginError(null);
     setFormPending(true);
     const isEmail = value.includes('@');
-    const devCredential = import.meta.env.DEV && !isSpareLogin
+    const devCredential = allowDevQuickLogin
       ? Object.values(DEV_LOGIN_CREDENTIALS).find((credential) => credential.id === value && credential.password === password)
       : null;
     trackAction('login', { method: devCredential ? 'dev_id' : isEmail ? 'email' : 'student_id' });
@@ -496,7 +504,7 @@ const LoginPage = () => {
                 </form>
               )}
 
-              {showDevQuickLogin && (
+              {allowDevQuickLogin && showDevQuickLogin && (
                 <div style={{ marginTop: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
                     <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
@@ -523,7 +531,7 @@ const LoginPage = () => {
         </CardBody>
       </Card>
 
-      {!isSpareLogin && <button
+      {allowDevQuickLogin && <button
         type="button"
         aria-label={showDevQuickLogin ? 'Hide dev quick login' : 'Show dev quick login'}
         aria-pressed={showDevQuickLogin}

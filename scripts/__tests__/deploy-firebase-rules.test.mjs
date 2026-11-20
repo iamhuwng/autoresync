@@ -48,6 +48,7 @@ async function writeMockVitestReport(cwd, args, reportOverrides = {}) {
 test('Firebase argument parsing requires one explicit target selector and restricts bypass flags', () => {
   assert.deepEqual(parseDeployRulesArgs(['--all']).targets, ['database', 'firestore:rules', 'firestore:indexes']);
   assert.deepEqual(parseDeployRulesArgs(['--only', 'database,database']).targets, ['database']);
+  assert.equal(parseDeployRulesArgs(['--only', 'database', '--allow-non-main']).allowNonMain, true);
   assert.throws(() => parseDeployRulesArgs([]), /exactly one/);
   assert.throws(() => parseDeployRulesArgs(['--only', 'database', '--all']), /exactly one/);
   assert.throws(() => parseDeployRulesArgs(['--only', 'unknown']), /Unknown Firebase rules target/);
@@ -124,6 +125,7 @@ test('scoped deploy runs the matching emulator security suite with strict report
       calls.push({ command, args, options });
       if (args[0] === 'status') return result('');
       if (args[0] === 'rev-parse') return result('a'.repeat(40));
+      if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
       if (args.includes('emulators:exec')) {
         const configPath = args[args.indexOf('--config') + 1];
         emulatorConfigs.push(JSON.parse(await readFile(configPath, 'utf8')));
@@ -158,6 +160,7 @@ test('scoped deploy runs the matching emulator security suite with strict report
         exec: async (command, args) => {
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('emulators:exec')) await writeMockVitestReport(root, args, { numPendingTests: 1 });
           return result('');
         },
@@ -199,6 +202,7 @@ test('live guards block --skip-tests, dirty tree, and concurrent live drift whil
           driftCalls.push(args);
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('emulators:exec')) await writeMockVitestReport(root, args);
           return result('');
         },
@@ -218,6 +222,7 @@ test('live guards block --skip-tests, dirty tree, and concurrent live drift whil
         exec: async (cmd, args) => {
           if (args[0] === 'status') return result('');
           if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'a'.repeat(40)}\trefs/heads/main\n`);
           if (args.includes('emulators:exec')) await writeMockVitestReport(root, args);
           if (args.includes('deploy')) throw new Error('firebase deploy failed');
           return result('');
@@ -225,5 +230,75 @@ test('live guards block --skip-tests, dirty tree, and concurrent live drift whil
         readState: async () => ({ firestoreRules: { release: { name: 'projects/temp-a1437/releases/cloud.firestore', rulesetName: priorRuleset }, sourceSha256: 'x'.repeat(64) } }),
       },
     }), error => error.phase === 'deploy' && error.rollbackGuidance.includes(priorRuleset));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('live Firebase rules deploys enforce origin/main unless --allow-non-main is passed, while --dry-run stays feature-branch friendly', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'deploy-rules-main-'));
+  try {
+    await writeFile(path.join(root, 'database.rules.json'), '{"rules":{}}\n');
+    const local = await parseLocalRulesFiles(root, ['database']);
+
+    const mismatchCalls = [];
+    await assert.rejects(() => deployFirebaseRules({
+      targets: ['database'], cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          mismatchCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result(`${'b'.repeat(40)}\trefs/heads/main\n`);
+          return result('');
+        },
+        readState: async () => { throw new Error('provider read must not run on non-main'); },
+      },
+    }), /match protected origin\/main/u);
+    assert.equal(mismatchCalls.some(args => args.includes('emulators:exec')), false);
+
+    await assert.rejects(() => deployFirebaseRules({
+      targets: ['database'], cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args[0] === 'ls-remote') return result('');
+          return result('');
+        },
+        readState: async () => { throw new Error('provider read must not run'); },
+      },
+    }), /could not be resolved/u);
+
+    const dryCalls = [];
+    const dry = await deployFirebaseRules({
+      targets: ['database'], dryRun: true, offline: true, skipTests: true, cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          dryCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          return result('');
+        },
+      },
+    });
+    assert.equal(dry.status, 'DRY_RUN');
+    assert.equal(dryCalls.some(args => args[0] === 'ls-remote'), false);
+
+    const overrideCalls = [];
+    const overridden = await deployFirebaseRules({
+      targets: ['database'], allowNonMain: true, cwd: root,
+      deps: {
+        exec: async (cmd, args) => {
+          overrideCalls.push(args);
+          if (args[0] === 'status') return result('');
+          if (args[0] === 'rev-parse') return result('a'.repeat(40));
+          if (args.includes('emulators:exec')) await writeMockVitestReport(root, args);
+          return result('');
+        },
+        allocatePort: async () => 19124,
+        readState: async () => ({ rulesSha256: local.rtdbRulesSha256 }),
+      },
+    });
+    assert.equal(overridden.status, 'VERIFIED');
+    assert.equal(overrideCalls.some(args => args[0] === 'ls-remote'), false);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

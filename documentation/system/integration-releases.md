@@ -33,8 +33,14 @@ preflight operations or the serialized `publish` operation. `publish` observes t
 live manifest, runs:
 
 ```powershell
-node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting
+node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting --env-fingerprint <production-env-sha256>
 ```
+
+Running `scripts/release-check.mjs --mode release --target hosting --observe-hosting`
+locally without `--env-fingerprint <sha256>` (and `~/.luyentap/env/.env.production` or
+`--production-env-file` when backend dependency probes run) emits `UNVERIFIED` because no
+production environment fingerprint is bound. Pass `--env-fingerprint <sha256>` locally or
+dispatch read-only `operation=plan` on `.github/workflows/release-promotion-phase3.yml`.
 
 The Hosting target probes only backend services whose files changed in `live_sha..HEAD`.
 It builds once, reads the artifact over `http://localhost:5173`, asserts the Hosting
@@ -60,6 +66,9 @@ publishing it.
 Worker publication uses `scripts/deploy-worker.mjs` and the named Wrangler config for
 the selected service. It pins `CLOUDFLARE_ACCOUNT_ID`, verifies the authenticated
 Wrangler account, restricts `--skip-tests`/`--allow-dirty`/`--offline` to `--dry-run`,
+verifies `HEAD` matches protected `origin/main` for live `production` deploys (with
+`--allow-non-main` for intentional hotfixes, while keeping `--dry-run` and spare
+`luyentap-qualification-upload-signer` allowed on feature branches),
 captures and re-verifies prior live state before promotion, uploads a version, promotes
 100% traffic, reads version-addressed module hashes, and runs a safe `OPTIONS` probe.
 `luyentap-notification-firestore-qa` is a non-deployable external-DO public-entry
@@ -69,7 +78,9 @@ Rules and indexes publication uses `scripts/deploy-firebase-rules.mjs`. It valid
 local schemas (rejecting non-empty `fieldOverrides`), runs `database` and `firestore:rules`
 suites inside Firebase emulators (`emulators:exec`) with strict zero-skip Vitest report
 validation, restricts `--skip-tests`/`--allow-dirty`/`--offline` to `--dry-run`,
-captures and re-verifies prior state against concurrent drift, deploys to `temp-a1437`,
+verifies `HEAD` matches protected `origin/main` for live non-`--dry-run` deploys (with
+`--allow-non-main` for intentional hotfixes, while keeping `--dry-run` allowed on feature
+branches), captures and re-verifies prior state against concurrent drift, deploys to `temp-a1437`,
 and polls native readback. Deploy additive rules or indexes before activating clients
 that depend on them. A Worker or rules rollback does not reverse data writes or object
 changes.

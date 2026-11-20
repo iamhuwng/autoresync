@@ -12,7 +12,6 @@ export const candidateJobs = {
   'notification-workflows': 'Candidate notification Worker workflows',
   'candidate-homework': 'Candidate Homework/backup Worker tests and dry-run build',
 };
-const retentionJob = 'deployed-homework-rebuild';
 const gitId = value => typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
 
 export function checkHomeworkInputs(sourceMap, mapPath, cwd = process.cwd()) {
@@ -41,8 +40,6 @@ export function checkIntegration(needs, revision, tree) {
     }
     return `| ${id} | ${job?.result ?? 'missing'} | ${job?.outputs?.revision ?? 'missing'} | ${job?.outputs?.tree ?? 'missing'} | ${scope} |`;
   });
-  const retained = needs?.[retentionJob];
-  if (retained?.result !== 'success') errors.push(`${retentionJob}: ${retained?.result ?? 'missing'}`);
   const summary = [
     `## ${integrationCheckName}`,
     `Candidate checkout: \`${revision}\`; tree: \`${tree}\`. PRs use the tested merge commit; merge queue uses its group commit.`,
@@ -50,8 +47,6 @@ export function checkIntegration(needs, revision, tree) {
     '| Required candidate job | Result | Tested commit | Tested tree | Scope (logs contain test counts) |',
     '| --- | --- | --- | --- | --- |',
     ...rows,
-    '',
-    `Retention evidence: **${retentionJob}: ${retained?.result ?? 'missing'}**. This rebuilds the recorded deployed revision and does not cover the candidate.`,
     '',
     errors.length ? `**FAIL**\n${errors.map(error => `- ${error}`).join('\n')}` : '**PASS**: every required job succeeded with matching candidate source evidence.',
     '',

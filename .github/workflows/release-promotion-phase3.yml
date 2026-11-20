@@ -26,6 +26,10 @@ on:
         description: 'Expected manifest SHA-256 to verify when operation=verify-existing'
         required: false
         type: string
+      expected_revision:
+        description: 'Expected 40-hex Git SHA to verify when operation=verify-existing (defaults to main HEAD only when no explicit binding is supplied)'
+        required: false
+        type: string
 
 concurrency:
   group: ${{ (inputs.operation == 'health' || inputs.operation == 'plan') && 'luyentap-hosting-read-only' || 'luyentap-hosting-production' }}
@@ -389,6 +393,7 @@ jobs:
         env:
           OPERATION_ID: ${{ inputs.operation_id }}
           EXPECTED_MANIFEST: ${{ inputs.expected_manifest_sha256 }}
+          EXPECTED_REVISION: ${{ inputs.expected_revision }}
         run: |
           set -euo pipefail
           if [ -n "$OPERATION_ID" ] && ! [[ "$OPERATION_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
@@ -397,6 +402,10 @@ jobs:
           fi
           if [ -n "$EXPECTED_MANIFEST" ] && ! [[ "$EXPECTED_MANIFEST" =~ ^[0-9a-f]{64}$ ]]; then
             echo "Invalid expected_manifest_sha256 SHA-256: $EXPECTED_MANIFEST" >&2
+            exit 1
+          fi
+          if [ -n "$EXPECTED_REVISION" ] && ! [[ "$EXPECTED_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid expected_revision Git SHA: $EXPECTED_REVISION" >&2
             exit 1
           fi
       - name: Require the production Firebase federation configuration
@@ -436,16 +445,23 @@ jobs:
         env:
           OPERATION_ID: ${{ inputs.operation_id }}
           EXPECTED_MANIFEST: ${{ inputs.expected_manifest_sha256 }}
+          EXPECTED_REVISION: ${{ inputs.expected_revision }}
           LUYENTAP_RELEASE_OUTCOME_FILE: ${{ runner.temp }}/recovery-outcome.json
         run: |
           set -euo pipefail
-          args=(--expected-revision "$GITHUB_SHA" --expected-tree "$(git rev-parse 'HEAD^{tree}')")
+          args=()
           if [ -n "$OPERATION_ID" ]; then args+=(--operation-id "$OPERATION_ID"); fi
           if [ -n "$EXPECTED_MANIFEST" ]; then args+=(--expected-manifest "$EXPECTED_MANIFEST"); fi
+          if [ -n "$EXPECTED_REVISION" ]; then args+=(--expected-revision "$EXPECTED_REVISION"); fi
+          if [ "${#args[@]}" -eq 0 ]; then
+            args+=(--expected-revision "$GITHUB_SHA" --expected-tree "$(git rev-parse 'HEAD^{tree}')")
+          fi
           npm run release:verify-existing -- "${args[@]}"
           test -s "$RUNNER_TEMP/recovery-outcome.json"
       - name: Summarize Hosting recovery outcome
         if: ${{ always() }}
+        env:
+          EXPECTED_REVISION: ${{ inputs.expected_revision }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
@@ -455,7 +471,7 @@ jobs:
           const lines = [
             '## Hosting verify-existing outcome',
             `- Site URL: ${outcome.siteUrl || 'https://kahut1.web.app'}`,
-            `- Source SHA: \`${outcome.revision || process.env.GITHUB_SHA}\``,
+            `- Source SHA: \`${outcome.revision || process.env.EXPECTED_REVISION || 'unavailable'}\``,
             `- Manifest SHA-256: \`${outcome.manifestSha256 || 'unavailable'}\``,
             `- Live version: \`${outcome.providerVersion || 'unavailable'}\``,
             `- Verified files: ${outcome.verifiedFiles ?? 'unavailable'}`,

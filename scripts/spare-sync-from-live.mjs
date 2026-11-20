@@ -9,6 +9,7 @@ export const LIVE_FIREBASE_PROJECT = 'temp-a1437';
 export const ALLOWED_SYNC_SCOPES = Object.freeze(['rtdb', 'firestore', 'auth']);
 export const FORBIDDEN_STORAGE_TOKENS = Object.freeze(['storage', 'r2', 'b2', 'media', 'bucket', 'backblaze']);
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+export const DEFAULT_FIRESTORE_READ_CONCURRENCY = 12;
 export const FIRESTORE_SYNC_SEMANTICS = 'upsert-only (existing spare-only documents are preserved)';
 
 const firestoreApi = 'https://firestore.googleapis.com/v1';
@@ -157,23 +158,83 @@ async function listDocuments(parent, collectionId, context) {
   return documents;
 }
 
-async function readFirestore({ fetchImpl, getAccessToken, timeoutMs }) {
+async function runBoundedQueue(initialTasks, concurrency, handleTask) {
+  const limit = Number.isInteger(concurrency) && concurrency > 0 ? concurrency : DEFAULT_FIRESTORE_READ_CONCURRENCY;
+  const queue = [...initialTasks];
+  let active = 0;
+  let stopped = false;
+
+  await new Promise((resolve, reject) => {
+    const pump = () => {
+      if (stopped) return;
+      if (queue.length === 0 && active === 0) {
+        resolve();
+        return;
+      }
+      while (!stopped && active < limit && queue.length > 0) {
+        const task = queue.shift();
+        active += 1;
+        Promise.resolve()
+          .then(() => handleTask(task, nextTask => {
+            if (!stopped) queue.push(nextTask);
+          }))
+          .then(
+            () => {
+              active -= 1;
+              pump();
+            },
+            error => {
+              stopped = true;
+              reject(error);
+            },
+          );
+      }
+    };
+    pump();
+  });
+}
+
+async function readFirestore({ fetchImpl, getAccessToken, timeoutMs, concurrency = DEFAULT_FIRESTORE_READ_CONCURRENCY }) {
   const token = await tokenValue(getAccessToken);
   const root = `${firestoreApi}/projects/${LIVE_FIREBASE_PROJECT}/databases/(default)/documents`;
   const documents = [];
-  const visitCollection = async (parent, collectionId) => {
-    const found = await listDocuments(parent, collectionId, { fetchImpl, token, timeoutMs });
-    documents.push(...found.filter(document => document.createTime));
-    for (const document of found) {
-      for (const child of await listCollectionIds(document.name, { fetchImpl, token, timeoutMs })) {
-        await visitCollection(document.name, child);
+  const rootCollections = await listCollectionIds(root, { fetchImpl, token, timeoutMs });
+  await runBoundedQueue(
+    rootCollections.map(collectionId => ({ kind: 'documents', parent: root, collectionId })),
+    concurrency,
+    async (task, enqueue) => {
+      if (task.kind === 'documents') {
+        const found = await listDocuments(task.parent, task.collectionId, { fetchImpl, token, timeoutMs });
+        for (const document of found) {
+          if (document.createTime) documents.push(document);
+          if (document.name) enqueue({ kind: 'collections', parent: document.name });
+        }
+        return;
       }
-    }
-  };
-  for (const collectionId of await listCollectionIds(root, { fetchImpl, token, timeoutMs })) {
-    await visitCollection(root, collectionId);
-  }
+      const childIds = await listCollectionIds(task.parent, { fetchImpl, token, timeoutMs });
+      for (const collectionId of childIds) {
+        enqueue({ kind: 'documents', parent: task.parent, collectionId });
+      }
+    },
+  );
+  documents.sort((left, right) => String(left.name ?? '').localeCompare(String(right.name ?? '')));
   return { documents, token };
+}
+
+export function defaultGoogleAccessToken(exec = execFileSync, platform = process.platform) {
+  const env = { ...process.env, CLOUDSDK_CORE_CHECK_GCE_METADATA: 'false' };
+  const output = platform === 'win32'
+    ? exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "& gcloud.cmd 'auth' 'print-access-token'"], {
+      encoding: 'utf8',
+      windowsHide: true,
+      env,
+    })
+    : exec('gcloud', ['auth', 'print-access-token'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      env,
+    });
+  return String(output).trim();
 }
 
 const execFirebaseDefault = (args, { cwd }) => {
@@ -204,8 +265,9 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
   if (!scopes.length || scopes.some(scope => !ALLOWED_SYNC_SCOPES.includes(scope))) throw new Error('Invalid sync scope.');
   const dryRun = options.dryRun === true || options.confirmSpareOverwrite !== true;
   const timeoutMs = options.timeoutMs ?? deps.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const firestoreReadConcurrency = options.firestoreReadConcurrency ?? deps.firestoreReadConcurrency ?? DEFAULT_FIRESTORE_READ_CONCURRENCY;
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const getAccessToken = deps.getAccessToken ?? (() => execFileSync(process.platform === 'win32' ? 'gcloud.cmd' : 'gcloud', ['auth', 'print-access-token'], { encoding: 'utf8', windowsHide: true, shell: process.platform === 'win32' }).trim());
+  const getAccessToken = deps.getAccessToken ?? (() => defaultGoogleAccessToken());
   const execFirebase = deps.execFirebase ?? execFirebaseDefault;
   const cwd = deps.cwd ?? path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 
@@ -232,7 +294,7 @@ export async function syncLiveToSpare(options = {}, deps = {}) {
 
     let writes = null;
     if (scopes.includes('firestore')) {
-      const firestore = await readFirestore({ fetchImpl, getAccessToken, timeoutMs });
+      const firestore = await readFirestore({ fetchImpl, getAccessToken, timeoutMs, concurrency: firestoreReadConcurrency });
       const sourcePrefix = `projects/${sourceProject}/databases/(default)/documents/`;
       const targetPrefix = `projects/${targetProject}/databases/(default)/documents/`;
       writes = firestore.documents.map(document => {

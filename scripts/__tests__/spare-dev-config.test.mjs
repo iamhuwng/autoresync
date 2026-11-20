@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import test from 'node:test';
-import { spareDevelopmentEnv, spareFirebaseProject, spareMediaOrigin, spareUploadWorker } from '../spare-dev-config.mjs';
+import { requiredProductionModes } from '../deploy-live.mjs';
+import { spareDevelopmentEnv, spareFeatureFlags, spareFirebaseProject, spareMediaOrigin, spareUploadWorker } from '../spare-dev-config.mjs';
 import { allocateFreePort, parseSpareDevArgs, resolveSparePort, SPARE_AUTO_PORT_POOL } from '../spare-dev.mjs';
 import { isLocalhostSpareOrigin } from '../release-spare-readback.mjs';
 
@@ -15,12 +16,15 @@ const spareBrowserConfig = {
   messagingSenderId: 'fixture-sender',
 };
 
-test('spare development replaces browser config and discards ambient Vite settings', () => {
+test('spare development replaces browser config, discards ambient Vite settings, and injects production feature flags', () => {
   const env = spareDevelopmentEnv(spareBrowserConfig, {
     PATH: 'native',
     VITE_FIREBASE_PROJECT_ID: 'temp-a1437',
     vite_homework_notification_url: 'https://production.invalid',
     VITE_FIREBASE_AUTH_EMULATOR_HOST: 'localhost:9099',
+    VITE_READING_V2_ROLLOUT_MODE: 'off',
+    VITE_MATERIAL_BOOKS: 'disabled',
+    VITE_BOOK_ACTIVITY_CREATE_PRESENTATION: 'enabled',
   });
   assert.equal(env.PATH, 'native');
   assert.equal(env.VITE_FIREBASE_PROJECT_ID, spareFirebaseProject);
@@ -28,6 +32,17 @@ test('spare development replaces browser config and discards ambient Vite settin
   assert.equal(env.VITE_R2_PUBLIC_ORIGIN, spareMediaOrigin);
   assert.equal(env.vite_homework_notification_url, undefined);
   assert.equal(env.VITE_FIREBASE_AUTH_EMULATOR_HOST, undefined);
+  assert.deepEqual(spareFeatureFlags, requiredProductionModes);
+  for (const [key, value] of Object.entries(requiredProductionModes)) {
+    assert.equal(env[key], value, `${key} should match production mode ${value}`);
+  }
+  assert.equal(env.VITE_READING_V2_ROLLOUT_MODE, 'public');
+  assert.equal(env.VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY, 'opt-in');
+  assert.equal(env.VITE_READING_PASSAGE_LIBRARY, 'enabled');
+  assert.equal(env.VITE_READING_PASSAGE_HOMEWORK, 'enabled');
+  assert.equal(env.VITE_MATERIAL_BOOKS, 'enabled');
+  assert.equal(env.VITE_MATERIAL_BOOK_EDITOR, 'enabled');
+  assert.equal(env.VITE_BOOK_ACTIVITY_CREATE_PRESENTATION, 'disabled');
 });
 
 test('spare development refuses incomplete or mismatched Firebase metadata', () => {
@@ -42,17 +57,31 @@ test('spare development refuses incomplete or mismatched Firebase metadata', () 
   }
 });
 
-test('spare dev accepts explicit, default, and auto ports while rejecting invalid forms', async () => {
+test('spare dev accepts whitelisted and auto ports while rejecting ports outside 5173-5182', async () => {
   assert.deepEqual(parseSpareDevArgs(['dev']), { operation: 'dev', portSpec: '5173' });
   assert.deepEqual(parseSpareDevArgs(['preview', '5174']), { operation: 'preview', portSpec: '5174' });
+  assert.deepEqual(parseSpareDevArgs(['dev', '--port', '5182']), { operation: 'dev', portSpec: '5182' });
   assert.deepEqual(parseSpareDevArgs(['dev', '--port', 'auto']), { operation: 'dev', portSpec: 'auto' });
-  assert.equal(await resolveSparePort('auto', async () => 43210), 43210);
+  assert.equal(await resolveSparePort('auto', async () => 5176), 5176);
   assert.equal(await resolveSparePort('5174'), 5174);
-  for (const argv of [['dev', '--port'], ['dev', '--port', '0'], ['dev', '--port', '05173'], ['dev', '--port', '65536'], ['dev', 'nope'], ['build', '--port', '5173']]) {
+  for (const argv of [
+    ['dev', '--port'],
+    ['dev', '--port', '0'],
+    ['dev', '--port', '05173'],
+    ['dev', '--port', '5172'],
+    ['dev', '--port', '5183'],
+    ['dev', '--port', '3000'],
+    ['dev', '--port', '43210'],
+    ['dev', '--port', '65536'],
+    ['dev', 'nope'],
+    ['build', '--port', '5173'],
+  ]) {
     assert.throws(() => parseSpareDevArgs(argv));
   }
-  await assert.rejects(resolveSparePort('0'), /1 to 65535/u);
-  await assert.rejects(resolveSparePort('05173'), /1 to 65535/u);
+  await assert.rejects(resolveSparePort('auto', async () => 43210), /5173-5182/u);
+  for (const invalid of ['0', '05173', '5172', '5183', '3000', '43210', '65536']) {
+    await assert.rejects(resolveSparePort(invalid), /5173-5182/u);
+  }
 });
 
 test('spare dev allocates a free localhost port from the whitelisted 5173-5182 pool', async () => {

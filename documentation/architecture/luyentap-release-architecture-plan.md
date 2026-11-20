@@ -52,7 +52,10 @@ and `cloudflare/wrangler.qualification.jsonc`.
 
 `luyentap-notification-firestore-qa` is marked `deployable: false`. It is an
 external-DO public-entry proxy and cannot be generically overwritten. Worker release
-restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`, pins
+restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`, verifies
+`HEAD` matches protected `origin/main` on live `production` deploys (with
+`--allow-non-main` for intentional hotfixes, while keeping `--dry-run` and spare
+`luyentap-qualification-upload-signer` allowed on feature branches), pins
 `CLOUDFLARE_ACCOUNT_ID`, verifies the authenticated Wrangler account via `whoami`, runs
 clean-tree checks, targeted Vitest, Wrangler dry-run, prior-version capture, version
 upload, pre-promotion drift re-check, 100% promotion, version-addressed module hash
@@ -64,7 +67,9 @@ readback, and a safe `OPTIONS` probe. The exact prior-version rollback is
 `npm run deploy:rules` calls `scripts/deploy-firebase-rules.mjs`. It accepts
 `--only database`, `--only firestore:rules`, `--only firestore:indexes`, or `--all`,
 with `--dry-run` (restricting `--skip-tests`, `--allow-dirty`, and `--offline` to
-`--dry-run`). The script validates local schemas (rejecting non-empty `fieldOverrides`),
+`--dry-run`). The script verifies `HEAD` matches protected `origin/main` on live non-`--dry-run`
+deploys (with `--allow-non-main` for intentional hotfixes, while keeping `--dry-run`
+allowed on feature branches), validates local schemas (rejecting non-empty `fieldOverrides`),
 runs both `database` and `firestore:rules` suites inside Firebase emulators (`emulators:exec`)
 with strict zero-skip Vitest JSON report validation, captures and re-verifies live state
 against concurrent drift before deploy, deploys to `temp-a1437`, and polls readback.

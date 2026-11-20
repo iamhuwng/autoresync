@@ -4,7 +4,14 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { digest, hashWorkerVersionModules, readProviderState, validateFirestoreRulesReadback } from '../release-provider-readback.mjs';
+import {
+  digest,
+  formatCommandFailure,
+  hashWorkerVersionModules,
+  readGoogleToken,
+  readProviderState,
+  validateFirestoreRulesReadback,
+} from '../release-provider-readback.mjs';
 
 function withEnv(t, overrides) {
   const keys = ['GITHUB_ACTIONS', 'GOOGLE_APPLICATION_CREDENTIALS', 'CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE',
@@ -120,4 +127,42 @@ test('single-Worker scope skips Google, RTDB, Firestore, R2 and other Workers', 
   assert.deepEqual(Object.keys(state.workers), ['r2-backup-worker']);
   assert.equal(state.workers['r2-backup-worker'].versionId, versionId);
   assert.equal(requested.length, 7);
+});
+
+test('readGoogleToken allows unset gcloud default project while passing explicit --project and rejecting project/account mismatches', async () => {
+  for (const projectValue of ['', '(unset)', 'temp-a1437']) {
+    const calls = [];
+    const token = await readGoogleToken({
+      runGcloud: args => {
+        calls.push(args);
+        if (args[0] === 'auth' && args[1] === 'list') return JSON.stringify([{ account: 'iamhuwng@gmail.com', status: 'ACTIVE' }]);
+        if (args[0] === 'config') return projectValue;
+        if (args[0] === 'auth' && args[1] === 'print-access-token') return 'scoped-access-token';
+        throw new Error(`Unexpected gcloud call: ${args.join(' ')}`);
+      },
+    });
+    assert.equal(token, 'scoped-access-token');
+    assert.deepEqual(calls[2], ['auth', 'print-access-token', '--account=iamhuwng@gmail.com', '--project=temp-a1437']);
+  }
+
+  await assert.rejects(() => readGoogleToken({
+    runGcloud: args => args[0] === 'config' ? 'other-project' : JSON.stringify([{ account: 'iamhuwng@gmail.com', status: 'ACTIVE' }]),
+  }), /Google project changed/u);
+
+  await assert.rejects(() => readGoogleToken({
+    runGcloud: () => JSON.stringify([{ account: 'other@example.invalid', status: 'ACTIVE' }]),
+  }), /Google account changed/u);
+});
+
+test('formatCommandFailure includes full command context and bounded stderr without leaking stdout', () => {
+  const message = formatCommandFailure('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "& gcloud.cmd 'auth' 'list'"], {
+    status: 1,
+    signal: null,
+    stdout: 'secret-stdout-token',
+    stderr: 'ERROR:   permission denied\n  check credentials  ',
+  });
+  assert.match(message, /powershell\.exe -NoProfile -NonInteractive -Command & gcloud\.cmd 'auth' 'list'/u);
+  assert.match(message, /exit 1; signal none/u);
+  assert.match(message, /ERROR: permission denied check credentials/u);
+  assert.doesNotMatch(message, /secret-stdout-token/u);
 });

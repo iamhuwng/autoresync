@@ -31,7 +31,7 @@ const notificationEndpointPaths = {
   VITE_HOMEWORK_RESULT_AUTHORITY_URL: '/',
   VITE_COURSE_ENROLLMENT_APPROVAL_URL: '/course-enrollment-approval',
 };
-const requiredProductionModes = {
+export const requiredProductionModes = Object.freeze({
   VITE_READING_V2_ROLLOUT_MODE: 'public',
   VITE_READING_V2_PASSAGE_ASSET_LOBBY_VISIBILITY: 'opt-in',
   VITE_READING_PASSAGE_LIBRARY: 'enabled',
@@ -44,7 +44,7 @@ const requiredProductionModes = {
   VITE_BOOK_ACTIVITY_LAUNCH_DELIVERY_PRESENTATION: 'disabled',
   VITE_BOOK_ACTIVITY_MUTATION_PRESENTATION: 'disabled',
   VITE_BOOK_ACTIVITY_EVALUATION_PRESENTATION: 'disabled',
-};
+});
 const requiredFirebaseKeys = [
   'VITE_FIREBASE_API_KEY',
   'VITE_FIREBASE_AUTH_DOMAIN',

@@ -208,11 +208,13 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
     status: STATUS.PASS,
     message: 'Local Firebase and qualification tooling changes fall outside production backend publication. Changed Worker manifests and lockfiles were compared for production dependency changes.',
   });
-  if (services.includes('migrations')) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Review additive migration prerequisites, deployment order and recovery; emulator state is never promoted.' });
+  if (services.includes('migrations')) findings.push(target === 'hosting'
+    ? { status: STATUS.PASS, message: 'Migration/reconciliation scripts fall outside Hosting publication and are executed separately through their operator workflow.' }
+    : { status: STATUS.REVIEW_REQUIRED, message: 'Review additive migration prerequisites, deployment order and recovery; emulator state is never promoted.' });
   if (services.includes('backup-worker') && target !== 'hosting') findings.push({ status: STATUS.UNVERIFIED, message: 'Backup Worker active version, R2 bindings, schedules and retention need separate provider readback.' });
-  if (services.includes('backblaze')) {
-    findings.push({ status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
-  }
+  if (services.includes('backblaze')) findings.push(target === 'hosting'
+    ? { status: STATUS.PASS, message: 'Backblaze/Book-source storage paths fall outside Hosting publication; verify B2 bucket/prefix ownership through the dedicated storage route when modifying B2 configuration.' }
+    : { status: STATUS.UNVERIFIED, message: 'Verify B2 bucket/prefix ownership and credential capabilities; local and production mutable prefixes must not overlap.' });
   findings.push(services.length ? { status: STATUS.PASS, message: `Affected services: ${services.join(', ')}.` } : { status: STATUS.REVIEW_REQUIRED, message: 'No changed service paths were identified.' });
   if (services.includes('worker') && target !== 'hosting') findings.push(...await workerFindings(cwd, source.files));
   if (services.includes('hosting') || services.includes('firebase-rules')) findings.push(...await firebaseFindings(cwd));
@@ -271,8 +273,11 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
   }
   const decoupledRtdbOnly = target === 'hosting' && impactPaths.includes('database.rules.json')
     && !impactPaths.some(file => /^(?:firestore\.(?:rules|indexes\.json)|functions\/)/u.test(file));
+  const hostingScopedServices = target === 'hosting'
+    ? new Set(['hosting', 'tooling', 'migrations', 'backblaze', ...(decoupledRtdbOnly ? ['firebase-rules'] : [])])
+    : new Set(['hosting', 'tooling']);
   const observedHostingBaseline = isObserved(observation) && observation.revision === source.baseRevision
-    && (services.every(service => service === 'hosting' || service === 'tooling' || (decoupledRtdbOnly && service === 'firebase-rules')) || hostingDependencies);
+    && (services.every(service => hostingScopedServices.has(service)) || hostingDependencies);
   if (!baselinePath && observedHostingBaseline) findings.push({ status: STATUS.PASS, message: hostingDependencies ? 'Observed Hosting and native dependency evidence bind this Hosting publication scope; backend source remains excluded.' : 'Observed Hosting manifest is the verified baseline for this Hosting-only candidate.' });
   else if (!baselinePath && !observation) findings.push({ status: STATUS.UNVERIFIED, message: 'A baseline file or independent provider observation is required.' });
   if (mode === 'hotfix' && (!isObserved(observation) || observation.revision !== source.baseRevision)) findings.push({ status: STATUS.UNVERIFIED, message: 'Hotfix base is not verified against production source.' });
