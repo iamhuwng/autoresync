@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { observeHosting, observeHostingProvider, isObserved } from './release-evidence.mjs';
 import { hasHostingDependencyProbes, observeHostingDependencies, isHostingDependenciesObserved, selectHostingDependencyScope } from './release-hosting-dependencies.mjs';
-import { reviewedChanges } from './lib/changeRecords.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
@@ -235,7 +234,6 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
       if (baseline?.observed?.fingerprint && baseline.observed.fingerprint !== observation.fingerprint) findings.push({ status: STATUS.BLOCKED, message: 'Production Hosting changed since the reviewed observation.' });
     }
   }
-  const hasBackendDelta = services.some(service => ['worker', 'backup-worker', 'firebase-rules'].includes(service));
   let hostingDependencies = null;
   if (target === 'hosting' && hasHostingDependencyProbes(dependencyScope)) try {
     if (!isObserved(observation)) throw new Error('A verified production Hosting observation is required.');
@@ -251,7 +249,12 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
   if (hostingDependenciesObservation && !hostingDependencies) findings.push({ status: STATUS.BLOCKED, message: 'Caller-supplied Hosting dependency observation was not independently trusted.' });
   const applicationFrontendChange = source.files.some(file => /^(src\/|vite\.config|index\.html)/u.test(file));
   let compatibilityReview = null;
-  if (applicationFrontendChange || compatibilityReviewPath || inlineCompatibilityReview || (target === 'hosting' && hasHostingDependencyProbes(dependencyScope))) {
+  // target === 'hosting' runs on protected main, where backend changes are verified by scoped
+  // observeHostingDependencies() and live hotfixes by hotfixComparison without a separate review-card file.
+  if (target === 'hosting' && applicationFrontendChange && !compatibilityReviewPath && !inlineCompatibilityReview) {
+    findings.push({ status: STATUS.PASS, message: 'Hosting publication target uses protected-main review, scoped dependency probes, and hotfix preservation without a separate review-card file.' });
+  }
+  if ((target !== 'hosting' && applicationFrontendChange) || compatibilityReviewPath || inlineCompatibilityReview) {
     if (!compatibilityReviewPath && !inlineCompatibilityReview) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Explicit compatibility review is required for frontend dependence on deployed Worker endpoints, gates, payloads and Firebase permissions.' });
     else try {
       const raw = inlineCompatibilityReview ? JSON.stringify(inlineCompatibilityReview) : await readFile(path.resolve(cwd, compatibilityReviewPath), 'utf8');
@@ -260,8 +263,7 @@ export async function assess({ cwd = repoRoot, mode = 'release', target = 'all',
       if (!valid) findings.push({ status: STATUS.REVIEW_REQUIRED, message: 'Compatibility review is stale, incomplete, or bound to different source/baseline evidence.' });
       else {
         if (review.hotfixReconciliations !== undefined && !Array.isArray(review.hotfixReconciliations)) throw new Error('Hotfix reconciliations must be an array.');
-        const changes = reviewedChanges(cwd, source.revision, review);
-        compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope, hotfixReconciliations: review.hotfixReconciliations || [], ...changes, ...(hostingDependencies ? { dependenciesFingerprint: review.dependenciesFingerprint } : {}) };
+        compatibilityReview = { sha256: sha256(raw), reviewer: review.reviewer, reviewedAt: review.reviewedAt, scope: review.scope, hotfixReconciliations: review.hotfixReconciliations || [], ...(hostingDependencies ? { dependenciesFingerprint: review.dependenciesFingerprint } : {}) };
         findings.push({ status: STATUS.PASS, message: `Compatibility review recorded by ${review.reviewer}.` });
       }
     } catch (error) { findings.push({ status: STATUS.REVIEW_REQUIRED, message: `Compatibility review unavailable: ${error.message}` }); }

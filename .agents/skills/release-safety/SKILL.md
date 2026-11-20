@@ -55,42 +55,42 @@ node scripts/release-check.mjs --mode release --target hosting --base <review-ba
 ```
 
 Provider metadata remains `UNVERIFIED` when it lacks deployed source/tree.
-Once a production manifest is independently present, use `--observe-hosting`;
-application changes also require a compatibility review bound to the exact
-source, base, and observed fingerprint. When backend paths in `live_sha..HEAD`
-differ, the Hosting target scopes dependency observation strictly to the actually
-changed backend services and requires that review's `dependenciesFingerprint` to
-match. Routine frontend Hosting releases skip unrelated RTDB, Firestore,
-Cloudflare Worker, and R2 probes. Follow
+Once a production manifest is independently present, use `--observe-hosting`.
+For `target === 'hosting'` on protected `main`, routine frontend releases do
+not require a separate review-card JSON file; when backend paths in
+`live_sha..HEAD` differ, the Hosting target scopes dependency observation
+strictly to the changed backend services (and requires a compatibility review
+binding when explicitly reconciling changed hotfix paths or assessing multi-service
+`target === 'all'` changes). Routine frontend Hosting releases skip unrelated
+RTDB, Firestore, Cloudflare Worker, and R2 probes. Follow
 `documentation/system/integration-releases.md` for supported scope and separate
 backend qualification; the target grants no Worker deployment readiness. Post-deploy
 Hosting readback (`deploy-live.mjs` / `release-evidence.mjs`) polls with bounded
 backoff (up to 90s) until Firebase Hosting finalizes the new live version and
-serves the expected manifest and assets; `--verify-existing <operationId>` resumes
-interrupted verification without redeploying. A `PASS` from fixtures or a
+serves the expected manifest and assets; `npm run release:verify-existing -- --operation-id <operationId>`
+resumes interrupted verification without redeploying. A `PASS` from fixtures or a
 manually edited receipt is not production evidence.
 
 Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and
-separate explicit production authorization may reach `npm run deploy:hosting`.
-The deployment script is the only supported mutating route. It requires a checkout
-with `tooling:doctor` green so Firebase CLI and build dependencies are present.
+explicit production dispatch through the single-job `Release Promotion` workflow
+(or local `npm run deploy:hosting`) may publish Hosting. The deployment script is
+the only supported mutating route. It requires a checkout with `tooling:doctor`
+green so Firebase CLI and build dependencies are present.
 
 ## Agent application-verification duty
 
-For an application-impacting candidate, the agent owns the verification decision and
-must complete the handoff before treating the release as ready for promotion:
+For an application-impacting candidate, the agent owns proportionate
+verification before merging and dispatching `Release Promotion`:
 
 1. Inspect the changed surfaces and choose proportionate proof. The agent may use
    focused tests, a browser, an emulator, provider checks, or a disposable
    qualification journey. No framework, browser, account scheme, or journey is
    prescribed here.
-2. Run the selected checks against the exact candidate source and record why
-   that scope is sufficient. Cover each changed runtime boundary or state the
-   concrete reason a boundary is outside the candidate's behavior.
-3. Retain the redacted results and create the source-bound verification bundle
-   with the exact source, base, environment, build identity and evidence
-   references. A pre-merge result cannot be reused for a different protected
-   merge commit.
+2. Run the selected checks against the exact candidate source and verify that
+   affected behavior and boundaries work as intended.
+3. For built-site proof, run `npm run build:production` and verify the served
+   output with `scripts/release-local-readback.mjs`; once merged to protected
+   `main`, dispatch the single-job `Release Promotion` workflow (`operation: publish`).
 4. If a required check cannot run, investigate the available tools, access and
    environments first. Report the exact missing external resource and affected
    evidence; do not end with a generic `UNVERIFIED` report when the work is
@@ -150,10 +150,10 @@ release. Never copy an artifact built from a dirty checkout into that step.
 For disposable Hosting rehearsal channels, generate a unique channel ID, record
 it before deployment, and delete exactly that channel in a `finally` cleanup
 step. Verify the final channel listing contains no orphan. For an authorized
-Hosting recovery, record the verified prior version/channel and use Firebase's
-native `hosting:clone <site>:<source> <site>:<target>` operation; verify the
-target URL afterward. This is recovery evidence, not production authorization,
-and it does not roll back database, Worker, or Backblaze changes.
+Hosting rollback, record the verified prior version ID and run Firebase's
+native `firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:live --project temp-a1437`
+operation; verify `https://kahut1.web.app` afterward. This is recovery evidence,
+not production authorization, and it does not roll back database, Worker, or Backblaze changes.
 
 ## Stop conditions
 

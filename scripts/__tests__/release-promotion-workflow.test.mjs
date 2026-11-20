@@ -6,130 +6,102 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workflow = readFileSync(path.join(root, '.github/workflows/release-promotion-phase3.yml'), 'utf8');
+const safety = readFileSync(path.join(root, '.github/workflows/release-safety.yml'), 'utf8');
+const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 
-test('promotion workflow is manual, protected-main-only and serialized', () => {
-  assert.match(workflow, /workflow_dispatch:/u);
-  assert.doesNotMatch(workflow, /repository_dispatch:/u);
-  assert.match(workflow, /objective:/u);
-  assert.match(workflow, /github\.repository == 'iamhuwng\/autoresync'/u);
-  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/u);
-  assert.match(workflow, /group: .*inputs\.operation == 'health'.*inputs\.operation == 'plan'.*'luyentap-hosting-read-only'.*'luyentap-hosting-production'/u);
+function jobSection(name, nextName) {
+  const marker = `\n  ${name}:`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `missing job ${name}`);
+  const end = nextName ? workflow.indexOf(`\n  ${nextName}:`, start + marker.length) : workflow.length;
+  return workflow.slice(start, end === -1 ? workflow.length : end);
+}
+
+test('promotion workflow is manual, protected-main-only, and serialized', () => {
+  assert.match(workflow, /^on:\n  workflow_dispatch:/mu);
+  assert.doesNotMatch(workflow, /^  (?:push|pull_request|pull_request_target|repository_dispatch|schedule|workflow_run):/mu);
+  assert.match(workflow, /operation:\n\s+description:[\s\S]*required: true\n\s+default: publish\n\s+type: choice\n\s+options:\n\s+- publish\n\s+- health\n\s+- plan\n\s+- verify-existing/u);
+  assert.match(workflow, /objective:\n\s+description:[\s\S]*required: false/u);
+  assert.match(workflow, /operation_id:/u);
+  assert.match(workflow, /expected_manifest_sha256:/u);
+  assert.match(workflow, /group: \$\{\{ \(inputs\.operation == 'health' \|\| inputs\.operation == 'plan'\) && 'luyentap-hosting-read-only' \|\| 'luyentap-hosting-production' \}\}/u);
   assert.match(workflow, /cancel-in-progress: false/u);
-  assert.doesNotMatch(workflow, /browser-gate:|release-browser-gate\.mjs|playwright install/u);
 });
 
-test('provider health uses dispatch-only main preflight and explicit scoped credentials', () => {
-  assert.doesNotMatch(workflow, /^  (?:pull_request(?:_target)?|workflow_run|schedule|push):/mu);
-  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
-  assert.match(prepare, /if: .*github\.repository == 'iamhuwng\/autoresync'.*github\.ref == 'refs\/heads\/main'.*inputs\.operation == 'health'/u);
-  assert.match(prepare, /ref: \$\{\{ github\.sha \}\}\s+fetch-depth: 0\s+persist-credentials: false/u);
-  assert.match(prepare, /token_format: access_token\s+access_token_scopes: \|\s+https:\/\/www\.googleapis\.com\/auth\/cloud-platform\s+https:\/\/www\.googleapis\.com\/auth\/firebase\.database\s+https:\/\/www\.googleapis\.com\/auth\/userinfo\.email/u);
-  assert.match(prepare, /GOOGLE_OAUTH_ACCESS_TOKEN: \$\{\{ steps\.google-auth\.outputs\.access_token \}\}/u);
-  assert.match(prepare, /cleanup_credentials: true/u);
-  const health = prepare.slice(prepare.indexOf('Exercise all Hosting dependency reads'), prepare.indexOf('Materialize the isolated production environment'));
-  assert.match(health, /inputs\.operation == 'health'/u);
-  assert.match(health, /release-plan\.mjs --dependency-health/u);
-  assert.match(health, /firebase hosting:sites:list/u);
-  assert.match(health, /LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN/u);
-  assert.doesNotMatch(health, /PRODUCTION_ENV|PRODUCTION_GOOGLE|deploy:hosting|build:production/u);
-  assert.match(prepare, /Materialize the isolated production environment\s+if: \$\{\{ inputs\.operation != 'health' \}\}/u);
-});
-
-test('prepare binds the retained Codex verification bundle before production authorization', () => {
-  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
-  assert.match(prepare, /LUYENTAP_RELEASE_VERIFICATION_BUNDLE_TAG/u);
-  assert.match(prepare, /LUYENTAP_RELEASE_VERIFICATION_BUNDLE_SHA256/u);
-  assert.match(prepare, /GH_TOKEN:/u);
-  assert.match(prepare, /--prepare --objective/u);
-  assert.match(prepare, /--run-verification --output/u);
-  assert.match(prepare, /Build the source-bound release card/u);
-  assert.match(prepare, /luyentap-approved-release-card-/u);
-  assert.match(prepare, /Require protected main before preparation/u);
-  assert.match(prepare, /--restore-artifact "\$RUNNER_TEMP\/promotion-inputs\.json"/u);
-  assert.match(prepare, /if: \$\{\{ inputs\.operation == 'publish' && steps\.tested-artifact\.outputs\.restored != 'true' \}\}/u);
-  const readbackStep = prepare.slice(prepare.indexOf('Test the exact production artifact over localhost'), prepare.indexOf('Validate the exact public artifact'));
-  assert.match(readbackStep, /id: artifact/u);
-  assert.match(readbackStep, /if: \$\{\{ inputs\.operation == 'publish' \}\}/u);
-  assert.doesNotMatch(readbackStep, /tested-artifact|outputs\.restored/u);
-  assert.match(readbackStep, /release-local-readback\.mjs "\$preview_origin"/u);
-  assert.match(readbackStep, /manifestSha256/u);
-  assert.match(readbackStep, /manifestFileSha256/u);
-  assert.match(prepare, /manifest_file_sha256: \$\{\{ steps\.artifact\.outputs\.manifest_file_sha256 \}\}/u);
-  assert.match(prepare, /hosting-readback\.json" tmp\/release-card\/hosting-readback\.json/u);
-  assert.doesNotMatch(prepare, /cat >> "\$RUNNER_TEMP\/\.env\.production"/u);
-  assert.doesNotMatch(prepare, /QUALIFICATION_|\.env\.qualification/u);
-  assert.match(prepare, /card_sha256/u);
-  assert.match(prepare, /contents: read/u);
-  assert.doesNotMatch(prepare, /environment:\s*name: production/u);
-  assert.doesNotMatch(prepare, /cat "\$card" >> "\$GITHUB_STEP_SUMMARY"/u);
-});
-
-test('read-only plans use the federated preflight and cannot create a production approval job', () => {
-  const prepare = workflow.slice(workflow.indexOf('  prepare:'), workflow.indexOf('  promote:'));
-  const promote = workflow.slice(workflow.indexOf('  promote:'), workflow.indexOf('  recover:'));
-  const plan = prepare.slice(prepare.indexOf('Observe protected main and its live Hosting dependencies'), prepare.indexOf('Derive release inputs'));
-  assert.match(plan, /inputs\.operation == 'plan'/u);
-  assert.match(plan, /release-plan\.mjs --json --env-file/u);
-  assert.match(plan, /'BLOCKED', 'UNVERIFIED'/u);
-  assert.match(plan, /hostingDependencies\?\.fingerprint/u);
-  assert.match(plan, /LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: .*vars\.LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT/u);
-  assert.match(plan, /LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN: .*secrets\.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN/u);
-  assert.doesNotMatch(plan, /deploy:hosting|build:production|PRODUCTION_GOOGLE_SERVICE_ACCOUNT/u);
-  const publication = prepare.slice(prepare.indexOf('Derive release inputs'));
-  for (const step of publication.split(/(?=^      - )/mu).filter(value => value.trim())) {
-    assert.match(step, /if: \$\{\{ inputs\.operation == 'publish'/u);
+test('workflow retires split release cards, changelog PRs, and write permissions', () => {
+  for (const forbidden of [
+    'release-promotion.mjs',
+    'release-archive.mjs',
+    'release-verification-bundle.mjs',
+    'release-browser-gate.mjs',
+    'release-changelog.mjs',
+    'codex/changelog-',
+    'gh release',
+    'gh pr create',
+    'contents: write',
+    'pull-requests: write',
+    'verification_tag',
+    'verification_sha256',
+    'approved-release-card',
+    'playwright install',
+    '\n  prepare:',
+    '\n  promote:',
+  ]) {
+    assert.equal(workflow.includes(forbidden), false, `unexpected retired reference: ${forbidden}`);
   }
-  assert.match(promote, /if: \$\{\{ inputs\.operation == 'publish' && needs\.prepare\.result == 'success'/u);
-  assert.match(promote, /LUYENTAP_HOSTING_READBACK_GOOGLE_ACCOUNT: .*vars\.LUYENTAP_PRODUCTION_GOOGLE_SERVICE_ACCOUNT/u);
 });
 
-test('promote verifies the source-bound card and retains guarded publication/recovery', () => {
-  const promote = workflow.slice(workflow.indexOf('  promote:'), workflow.indexOf('  recover:'));
-  assert.match(promote, /needs: \[prepare\]/u);
-  assert.match(promote, /--check-card/u);
-  assert.match(promote, /--require-verification/u);
-  assert.match(promote, /Verify the approved Hosting baseline immediately before mutation/u);
-  assert.match(promote, /--verify-baseline --output/u);
-  assert.doesNotMatch(promote, /release-check\.mjs .*--observe-hosting/u);
-  assert.match(promote, /Require protected main to remain the approved source/u);
-  assert.match(promote, /--deploy-retained/u);
-  assert.match(promote, /EXPECTED_MANIFEST_FILE_SHA256: \$\{\{ needs\.prepare\.outputs\.manifest_file_sha256 \}\}/u);
-  assert.match(promote, /sha256sum dist\/\.well-known\/luyentap-release\.json \| cut -d' ' -f1\)" = "\$EXPECTED_MANIFEST_FILE_SHA256"/u);
-  assert.doesNotMatch(promote, /build:production/u);
-  assert.match(promote, /if test "\$status" -eq 0; then\s+.*Live Hosting verified/u);
-  assert.match(promote, /environment:\s*name: production/u);
-  assert.doesNotMatch(promote, /QUALIFICATION_|\.env\.qualification/u);
-  assert.match(promote, /luyentap-release-result-/u);
-  assert.doesNotMatch(promote, /COMPATIBILITY_REVIEW_FILE|COMPATIBILITY_REVIEW_SHA256|compatibility-review\.json/u);
-  assert.match(promote, /release-result\/operation\.json/u);
-  assert.match(promote, /--export-env/u);
-  assert.match(promote, /tmp\/release-receipts\/pre-publish-baseline\.json/u);
+test('preflight job covers read-only health and plan with read-only federation', () => {
+  const preflight = jobSection('preflight', 'publish');
+  assert.match(preflight, /github\.repository == 'iamhuwng\/autoresync' && github\.ref == 'refs\/heads\/main' && \(inputs\.operation == 'health' \|\| inputs\.operation == 'plan'\)/u);
+  assert.doesNotMatch(preflight, /environment:\s*\n\s+name: production/u);
+  assert.doesNotMatch(preflight, /LUYENTAP_PRODUCTION_|deploy:hosting|build:production/u);
+  assert.match(preflight, /LUYENTAP_RELEASE_GOOGLE_WORKLOAD_IDENTITY_PROVIDER/u);
+  assert.match(preflight, /LUYENTAP_RELEASE_GOOGLE_SERVICE_ACCOUNT/u);
+  assert.match(preflight, /release-plan\.mjs --dependency-health/u);
+  assert.match(preflight, /firebase hosting:sites:list --project temp-a1437 --json/u);
+  assert.match(preflight, /release-plan\.mjs --json --env-file/u);
 });
 
-test('recovery validates an operation UUID and never rebuilds or redeploys', () => {
-  const recovery = workflow.slice(workflow.indexOf('  recover:'));
-  assert.match(recovery, /\[\[ "\$OPERATION_ID" =~ \^\[0-9a-f\]/u);
-  assert.match(recovery, /release:verify-existing/u);
-  assert.match(recovery, /Confirm recovery wrote the operation outcome/u);
-  assert.match(recovery, /path: \|\s*\$\{\{ runner\.temp \}\}\/operation\.json/u);
-  assert.doesNotMatch(recovery, /build:production|deploy:hosting|firebase deploy/u);
+test('publish is a single serialized job with preflight observation, localhost readback, single deploy, and rollback summary', () => {
+  const publish = jobSection('publish', 'recover');
+  assert.match(publish, /github\.repository == 'iamhuwng\/autoresync' && github\.ref == 'refs\/heads\/main' && inputs\.operation == 'publish'/u);
+  assert.match(publish, /permissions:\n\s+contents: read\n\s+id-token: write/u);
+  assert.match(publish, /# Post-launch, the repo owner can add a human-only required reviewer in GitHub Settings -> Environments -> production without modifying this workflow\.\n\s+environment:\n\s+name: production\n\s+url: https:\/\/kahut1\.web\.app/u);
+  assert.match(publish, /live_fingerprint: observation\.fingerprint/u);
+  assert.doesNotMatch(publish, /live_fingerprint: observation\.manifest\?\.envFingerprint/u);
+  assert.match(publish, /release-check\.mjs[\s\S]*--target[\s\S]*hosting/u);
+  assert.equal((publish.match(/npm run build:production/gu) || []).length, 1);
+  assert.match(publish, /vite\.js preview --host localhost --port 5173 --strictPort/u);
+  assert.match(publish, /release-local-readback\.mjs "\$preview_origin"/u);
+  assert.match(publish, /assertHostingArtifact[\s\S]*scripts\/release-evidence\.mjs/u);
+  assert.match(publish, /npm run deploy:hosting -- --deploy-built/u);
+  assert.match(publish, /GITHUB_STEP_SUMMARY/u);
+  assert.match(publish, /firebase hosting:clone temp-a1437:kahut1@/u);
+  assert.match(publish, /retention-days: 14/u);
 });
 
-test('documentation follow-up is optional and retains required recovery evidence separately', () => {
-  const steps = workflow.split(/(?=^      - (?:name|uses):)/mu);
-  const namedStep = (name) => steps.find((step) => step.startsWith(`      - name: ${name}\n`));
-  const operationEvidence = namedStep('Retain durable Hosting operation evidence');
-  assert.match(operationEvidence, /gh release upload .*release-result\/operation\.json/u);
-  assert.match(operationEvidence, /pre-publish-baseline\.json/u);
-  assert.doesNotMatch(operationEvidence, /continue-on-error|changelog/iu);
-  const optional = steps.filter((step) => /^        continue-on-error: true$/mu.test(step));
-  assert.deepEqual(optional.map((step) => step.split('\n')[0].slice('      - name: '.length)), [
-    'Capture optional Changelog follow-up files',
-    'Open the protected-main Changelog integration PR',
-    'Retain Changelog integration PR identity',
-    'Open the protected-main Changelog integration PR after recovery',
-  ]);
-  const integration = namedStep('Open the protected-main Changelog integration PR');
-  assert.match(integration, /^          OPERATION_FILE: .*\/release-result\/operation\.json$/mu);
-  assert.match(integration, /published-verified\|changelog-pending\|changelog-pending-integration/u);
+test('recover validates optional bindings and verifies live Hosting without rebuilding or redeploying', () => {
+  const recover = jobSection('recover');
+  assert.match(recover, /github\.repository == 'iamhuwng\/autoresync' && github\.ref == 'refs\/heads\/main' && inputs\.operation == 'verify-existing'/u);
+  assert.match(recover, /environment:\n\s+name: production/u);
+  assert.match(recover, /\[\[ "\$OPERATION_ID" =~ \^\[0-9a-f\]\{8\}-/u);
+  assert.match(recover, /\[\[ "\$EXPECTED_MANIFEST" =~ \^\[0-9a-f\]\{64\}\$ \]\]/u);
+  assert.match(recover, /npm run release:verify-existing --/u);
+  assert.doesNotMatch(recover, /build:production|deploy:hosting|firebase deploy|LUYENTAP_PRODUCTION_ENV/u);
+  assert.match(recover, /retention-days: 14/u);
+});
+
+test('release-safety CI and package scripts remove retired changelog and ceremonial tests', () => {
+  for (const retired of [
+    'release-changelog.mjs --check',
+    'release-promotion.test.mjs',
+    'release-verification-bundle.test.mjs',
+    'release-archive.test.mjs',
+    'release-changelog-recorder.test.mjs',
+    'change-records.test.mjs',
+  ]) {
+    assert.equal(safety.includes(retired), false, `release-safety.yml still references ${retired}`);
+  }
+  assert.doesNotMatch(pkg.scripts['test:scripts:node'], /release-promotion\.test\.mjs|release-verification-bundle\.test\.mjs/u);
 });
