@@ -5,8 +5,15 @@ import { assertSpareBuildIdentity, spareIdentityFile, spareIdentityHeader, spare
 
 export const spareBrowserOrigins = ['http://localhost:5173', 'http://localhost:5174'];
 
+export function isLocalhostSpareOrigin(origin) {
+  const match = /^(?:http:\/\/localhost):([1-9]\d{0,4})$/u.exec(origin ?? '');
+  if (!match) return false;
+  const port = Number(match[1]);
+  return port >= 1 && port <= 65535;
+}
+
 export async function readSparePreview({ cwd, origin, fetchImpl = fetch }) {
-  if (!spareBrowserOrigins.includes(origin)) throw new Error('Use the teacher or student localhost preview origin.');
+  if (!isLocalhostSpareOrigin(origin)) throw new Error('Use a localhost spare preview origin (http://localhost:<port>).');
   const response = await fetchImpl(origin + spareIdentityPath, {
     redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(5000),
   });

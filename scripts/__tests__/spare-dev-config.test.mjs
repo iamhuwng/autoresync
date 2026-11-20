@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spareDevelopmentEnv, spareFirebaseProject, spareMediaOrigin, spareUploadWorker } from '../spare-dev-config.mjs';
+import { allocateFreePort, parseSpareDevArgs, resolveSparePort } from '../spare-dev.mjs';
+import { isLocalhostSpareOrigin } from '../release-spare-readback.mjs';
 
 const spareBrowserConfig = {
   projectId: spareFirebaseProject,
@@ -36,5 +38,30 @@ test('spare development refuses incomplete or mismatched Firebase metadata', () 
     { appId: '' },
   ]) {
     assert.throws(() => spareDevelopmentEnv({ ...spareBrowserConfig, ...override }), /expected browser configuration/u);
+  }
+});
+
+test('spare dev accepts explicit, default, and auto ports while rejecting invalid forms', async () => {
+  assert.deepEqual(parseSpareDevArgs(['dev']), { operation: 'dev', portSpec: '5173' });
+  assert.deepEqual(parseSpareDevArgs(['preview', '5174']), { operation: 'preview', portSpec: '5174' });
+  assert.deepEqual(parseSpareDevArgs(['dev', '--port', 'auto']), { operation: 'dev', portSpec: 'auto' });
+  assert.equal(await resolveSparePort('auto', async () => 43210), 43210);
+  assert.equal(await resolveSparePort('5174'), 5174);
+  for (const argv of [['dev', '--port'], ['dev', '--port', '0'], ['dev', '--port', '05173'], ['dev', '--port', '65536'], ['dev', 'nope'], ['build', '--port', '5173']]) {
+    assert.throws(() => parseSpareDevArgs(argv));
+  }
+  await assert.rejects(resolveSparePort('0'), /1 to 65535/u);
+  await assert.rejects(resolveSparePort('05173'), /1 to 65535/u);
+});
+
+test('spare dev allocates an ephemeral free localhost port', async () => {
+  const port = await allocateFreePort();
+  assert.ok(Number.isInteger(port) && port >= 1 && port <= 65535);
+});
+
+test('spare readback accepts arbitrary valid localhost origins only', () => {
+  for (const origin of ['http://localhost:1', 'http://localhost:5173', 'http://localhost:65535']) assert.equal(isLocalhostSpareOrigin(origin), true);
+  for (const origin of ['http://127.0.0.1:5173', 'https://localhost:5173', 'http://localhost:5173/', 'http://localhost:5173/path', 'http://localhost:5173?x=1', 'http://localhost:0', 'http://localhost:05173', 'http://localhost:65536']) {
+    assert.equal(isLocalhostSpareOrigin(origin), false);
   }
 });

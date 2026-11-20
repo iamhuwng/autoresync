@@ -1,169 +1,129 @@
 ---
 name: release-safety
-description: Use this skill when preparing, assessing, or hotfixing a LuyenTap release, investigating what is deployed, checking Hosting/Worker/Firebase/Backblaze impact, or deciding whether a production deployment may proceed. Follow the repository release-safety scripts and preserve their conservative evidence gates.
+description: Use this skill when preparing, assessing, deploying, recovering, or verifying a LuyenTap release across Hosting, Cloudflare Workers, Firebase rules, indexes, or the spare project.
 ---
 
 # LuyenTap release safety
 
-Use the executable scripts as the authority. This skill is an agent-facing
-recipe, not a second validation implementation.
+Use the executable workflows and scripts as the authority. The root
+[AGENTS.md](../../../AGENTS.md) is the single canonical instruction file for every
+agent. Read [release-safety.md](../../../documentation/system/release-safety.md),
+[local-live-deployment.md](../../../documentation/system/local-live-deployment.md),
+and the infrastructure rules before making deployed-state claims.
 
-## Start from current state
+## Hosting
 
-Read `documentation/system/release-safety.md`,
-`documentation/system/local-live-deployment.md`, and the infrastructure rules
-when the task involves deployment or deployed-state claims. Then inspect:
+Start with a clean checkout and current live observation:
 
 ```powershell
 git status --short --branch
 npm run tooling:doctor
+node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting --json
 ```
 
-A dirty candidate is a hard stop: select or create an isolated source/worktree
-before assessment. Choose an explicit reviewed `--base`; a branch name,
-`HEAD^`, or a local build is not production truth.
-
-## Establish evidence before assessing
-
-Use the production manifest observer for the manifest-bearing live site:
+Routine protected-main publication is the manual `publish` operation in
+`.github/workflows/release-promotion-phase3.yml`. It observes the manifest, runs the
+scoped check, builds once, reads back `http://localhost:5173`, asserts the artifact,
+and publishes with:
 
 ```powershell
-node scripts/release-check.mjs --mode release --target hosting --base <review-base> `
-  --observe-hosting --env-fingerprint <production-env-sha256> --json
+npm run build:production
+npm run deploy:hosting -- --deploy-built
 ```
 
-The observer verifies the served source identity and listed content hashes.
-For historical releases without a manifest, `--observe-hosting-provider` reads
-provider metadata through the existing repository-owned Firebase CLI. If it
-reports `sourceKnown: false`, exact-source preparation remains `UNVERIFIED`.
-Reuse declared tools without installing dependencies or creating junctions.
-
-The October 18 manifest-bearing release and its qualification limits are recorded
-in `documentation/release-audits/2026-10-18-book-hosting-release.md`. Re-read the
-live manifest; a dated release record does not establish the next deployment's state.
-
-## Normal release
-
-Assess the selected candidate and write a receipt:
+The bounded Hosting readback polls for up to 90 seconds. Roll back with:
 
 ```powershell
-$envFile = Join-Path $HOME '.luyentap\env\.env.production'
-$envFingerprint = (Get-FileHash $envFile -Algorithm SHA256).Hash.ToLower()
-node scripts/release-check.mjs --mode release --target hosting --base <review-base> `
-  --observe-hosting --env-fingerprint $envFingerprint `
-  --json --receipt tmp/release-receipts/release-assessment.json
+firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:live --project temp-a1437
 ```
 
-Provider metadata remains `UNVERIFIED` when it lacks deployed source/tree.
-Once a production manifest is independently present, use `--observe-hosting`.
-For `target === 'hosting'` on protected `main`, routine frontend releases do
-not require a separate review-card JSON file; when backend paths in
-`live_sha..HEAD` differ, the Hosting target scopes dependency observation
-strictly to the changed backend services (and requires a compatibility review
-binding when explicitly reconciling changed hotfix paths or assessing multi-service
-`target === 'all'` changes). Routine frontend Hosting releases skip unrelated
-RTDB, Firestore, Cloudflare Worker, and R2 probes. Follow
-`documentation/system/integration-releases.md` for supported scope and separate
-backend qualification; the target grants no Worker deployment readiness. Post-deploy
-Hosting readback (`deploy-live.mjs` / `release-evidence.mjs`) polls with bounded
-backoff (up to 90s) until Firebase Hosting finalizes the new live version and
-serves the expected manifest and assets; `npm run release:verify-existing -- --operation-id <operationId>`
-resumes interrupted verification without redeploying. A `PASS` from fixtures or a
-manually edited receipt is not production evidence.
-
-Only an assessment with `PASS` or `NOT_APPLICABLE`, fresh revalidation, and
-explicit production dispatch through the single-job `Release Promotion` workflow
-(or local `npm run deploy:hosting`) may publish Hosting. The deployment script is
-the only supported mutating route. It requires a checkout with `tooling:doctor`
-green so Firebase CLI and build dependencies are present.
-
-## Agent application-verification duty
-
-For an application-impacting candidate, the agent owns proportionate
-verification before merging and dispatching `Release Promotion`:
-
-1. Inspect the changed surfaces and choose proportionate proof. The agent may use
-   focused tests, a browser, an emulator, provider checks, or a disposable
-   qualification journey. No framework, browser, account scheme, or journey is
-   prescribed here.
-2. Run the selected checks against the exact candidate source and verify that
-   affected behavior and boundaries work as intended.
-3. For built-site proof, run `npm run build:production` and verify the served
-   output with `scripts/release-local-readback.mjs`; once merged to protected
-   `main`, dispatch the single-job `Release Promotion` workflow (`operation: publish`).
-4. If a required check cannot run, investigate the available tools, access and
-   environments first. Report the exact missing external resource and affected
-   evidence; do not end with a generic `UNVERIFIED` report when the work is
-   still actionable.
-
-The release checker remains conservative: `UNVERIFIED`, `REVIEW_REQUIRED`, and
-`BLOCKED` are machine decisions requiring preparation or evidence, not approval.
-This duty gives the agent authority over test selection and execution while leaving
-source integrity, provenance, freshness, concurrency, publication, recovery and
-production authorization to the release system and owner boundary.
-
-## Scoped Hosting dependencies & Worker/rules releases
-
-Hosting dependency checks (`scripts/release-hosting-dependencies.mjs`) are scoped
-strictly to backend services that actually changed in `live_sha..HEAD`:
-- RTDB rules readback runs only when `database.rules.json` changed.
-- Firestore rules or index readback runs only when `firestore.rules` or `firestore.indexes.json` changed.
-- Cloudflare Worker or R2 probes run only when that specific Worker's source/config or `sharedHomeworkInputs` changed.
-
-Worker and Firebase rules releases require service-specific qualification (targeted
-tests, dry-run build, version-addressed Cloudflare `/versions/:id` or Firebase rules
-readback) and separate deployment authorization outside the Hosting-only route.
-
-## Independent hotfix
-
-Use an observed deployed revision, never the dirty development checkout:
+Resume an interrupted readback without redeploying:
 
 ```powershell
-node scripts/hotfix-prepare.mjs --source <verified-source-revision> --destination ..\luyentap-hotfix
-Set-Location ..\luyentap-hotfix
-node <release-safety-checkout>\scripts\release-check.mjs --mode hotfix `
-  --base <verified-source-revision> --observe-hosting --json `
-  --receipt tmp/release-receipts/hotfix-assessment.json
+npm run release:verify-existing -- --operation-id <uuid>
 ```
 
-If provider evidence has no verified source revision, stop and report the
-external bootstrap requirement; do not substitute `HEAD^`. Apply only the
-correction and required dependencies. Keep compatibility reviews outside the
-candidate worktree so the candidate stays clean. The assessment records a
-computed reconciliation obligation; later releases must preserve the hotfix
-content or stop for review.
-
-## First bootstrap and recovery
-
-For the pre-manifest site, the local bootstrap is deliberately build-only:
+The first manifest-bearing bootstrap is build-only:
 
 ```powershell
 npm run build:production -- --build-only
 ```
 
-It requires a clean checkout, binds the generated manifest to that checkout's
-revision/tree, performs the production-environment and bundle checks, and does
-not deploy. Inspect that artifact and obtain separate authorization before the
-existing reviewed Firebase Hosting command is used for the first manifest-bearing
-release. Never copy an artifact built from a dirty checkout into that step.
+Use `scripts/hotfix-prepare.mjs` for a clean live-based hotfix checkout.
 
-For disposable Hosting rehearsal channels, generate a unique channel ID, record
-it before deployment, and delete exactly that channel in a `finally` cleanup
-step. Verify the final channel listing contains no orphan. For an authorized
-Hosting rollback, record the verified prior version ID and run Firebase's
-native `firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:live --project temp-a1437`
-operation; verify `https://kahut1.web.app` afterward. This is recovery evidence,
-not production authorization, and it does not roll back database, Worker, or Backblaze changes.
+## Workers
+
+Use the service-specific entry point:
+
+```powershell
+npm run deploy:worker -- --list
+npm run deploy:worker -- <service> --dry-run
+npm run deploy:worker -- <service>
+```
+
+The lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`.
+Live deploys require a clean tree, targeted Vitest, `wrangler deploy --dry-run` with
+`CLOUDFLARE_ACCOUNT_ID` pinned, `wrangler whoami --json` account verification,
+prior-version capture with `readProviderState`, `wrangler versions upload`,
+pre-promotion live-drift re-check, `wrangler versions deploy <id>@100%`,
+version-addressed module hash readback, and a safe no-write `OPTIONS` probe. Roll back
+from the repository root with:
+
+```powershell
+node scripts/tooling-where.mjs --exec <wrangler-tool> versions deploy <priorVersion>@100% --config <package>/<config> --message rollback:<priorVersion> --yes
+```
+
+The deployable services are `r2-upload-signer`, `r2-backup-worker`,
+`luyentap-notification-command`, `thcs-gemma`, and
+`luyentap-qualification-upload-signer`. `luyentap-notification-firestore-qa` is a
+`deployable: false` external-DO public-entry proxy and is blocked from generic
+overwrite.
+
+## Firebase rules and indexes
+
+Use the scoped entry point:
+
+```powershell
+npm run deploy:rules -- --dry-run --only database
+npm run deploy:rules -- --only firestore:rules
+npm run deploy:rules -- --only firestore:indexes
+npm run deploy:rules -- --all
+```
+
+The lifecycle restricts `--skip-tests`, `--allow-dirty`, and `--offline` to `--dry-run`,
+validates local schemas (rejecting non-empty `fieldOverrides`), runs both `database` and
+`firestore:rules` suites inside `firebase emulators:exec` with zero-skip Vitest report
+validation, captures and re-verifies prior state against concurrent drift, deploys with
+the repository Firebase CLI to `temp-a1437`, and polls readback. Compare RTDB and
+Firestore rulesets by SHA-256. Require composite indexes to be `READY`, normalizing
+`__name__` before comparison.
+
+## Spare and parallel worktrees
+
+Use the spare project `luyentap-pdf-qa-20261021` and Worker
+`luyentap-qualification-upload-signer`:
+
+```powershell
+npm.cmd run dev
+npm.cmd run dev -- --port 5174
+npm.cmd run dev -- --port auto
+npm.cmd run build:spare
+npm.cmd run preview:spare -- --port auto
+node scripts/release-spare-readback.mjs http://localhost:<port>
+npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
+```
+
+Spare sync is dry-run by default, reads all selected scopes before any spare write,
+enforces HTTP timeouts, reports completed/remaining scopes on partial failure, refreshes
+RTDB and Firestore and optionally Auth from `temp-a1437`, forbids R2 or B2 object copy,
+and preserves shared media URLs as read-only references. `npm.cmd run dev` exposes
+`/__spare-dev-identity.json` for live inspection, while `release-spare-readback.mjs`
+verifies `/__spare-preview-identity.json` on clean `preview:spare` builds across any
+valid localhost port.
 
 ## Stop conditions
 
-Treat `BLOCKED`, `UNVERIFIED`, and `REVIEW_REQUIRED` as decisions requiring
-preparation or evidence, not approval. Report the exact missing evidence,
-affected service, deployment order, recovery information, and authorization
-boundary. Never replace an unavailable provider observation with caller-supplied
-JSON or a manually edited receipt.
-
-For a dependency-free managed worktree, direct `node` assessment commands are the supported cold-start path. Run builds or deployment only after selecting a checkout with the repository-owned dependencies and rechecking its status.
-
-Completion means the receipt, source/base, observed state, compatibility review,
-tests, and worktree state all agree. If any input changes, rerun the checker.
+Treat `BLOCKED`, `UNVERIFIED`, and `REVIEW_REQUIRED` as preparation states. Report
+the missing evidence, affected service, prior provider version, deployment order, and
+recovery command. Local tests and dry-runs do not establish deployed state. Store
+dated evidence in `documentation/release-audits/`.

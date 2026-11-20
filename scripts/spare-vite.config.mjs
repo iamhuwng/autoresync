@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { sparePreviewMiddleware } from './spare-preview-identity.mjs';
+import { spareDevMiddleware, sparePreviewMiddleware } from './spare-preview-identity.mjs';
 
 export default defineConfig({
   envDir: false,
@@ -9,6 +9,11 @@ export default defineConfig({
     name: 'spare-preview-identity',
     configurePreviewServer(server) {
       server.middlewares.use(sparePreviewMiddleware(server.config.root));
+    },
+    configureServer(server) {
+      server.middlewares.use(spareDevMiddleware(server.config.root, {
+        port: process.env.LUYENTAP_SPARE_PORT ? Number(process.env.LUYENTAP_SPARE_PORT) : null,
+      }));
     },
   }],
   resolve: {

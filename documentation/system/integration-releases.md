@@ -1,434 +1,109 @@
 # Integration and normal release selection
 
-The active release-architecture objectives, phase boundaries and Phase 3
-acceptance matrix are maintained in
-[the canonical architecture plan](../architecture/luyentap-release-architecture-plan.md).
-This document is the operational source for integration and release selection;
-dated observations remain evidence records.
-
-This document explains source convergence and normal-release selection. The
-current release operator commands and promotion contract live in
-[release-safety.md](release-safety.md); dated observations below remain
-evidence records and do not duplicate or replace that runbook. “Release
-qualification Phase 3” here refers to the CI promotion architecture, distinct
-from product PRD Phase 3 work.
-
-Phase 2 extends the existing release assessment and Release Safety workflow.
-It does not equate main with production. A passing integration check establishes
-its declared test/build scope; the exact release candidate still needs the
-shared release assessment, relevant browser/provider evidence and authorization.
+The three-PR architecture selects a release route from the changed files and the
+observed live base. The root [AGENTS.md](../../AGENTS.md) is the single canonical
+instruction file for every agent. Dated evidence remains in
+[`documentation/release-audits/`](../release-audits/).
 
 ## Start with a release plan
 
-```powershell
-npm run release:plan
-npm run release:plan -- --cwd <candidate-checkout> --json
-```
+Use a clean checkout and observe the current live Hosting manifest before assessing a
+candidate. Protected `main` requires the **LuyenTap integration** check from
+`.github/workflows/release-safety.yml`, and the Hosting workflow verifies that protected
+`main`, `GITHUB_SHA`, the candidate tree, and remote `main` agree.
+`scripts/release-check.mjs` compares the candidate with `live_sha..HEAD` and returns a
+machine decision. The decision is preparation evidence, not production authorization.
 
-The planner independently reads the live manifest and every listed asset, uses
-that source as its default comparison base, and invokes `release-check.mjs`.
-It reads the existing production environment file only to compute its digest;
-it does not print its values. The existing `LUYENTAP_PRODUCTION_ENV_FILE`
-override and `--env-file` select that file. No new credentials are provisioned.
+Choose the smallest service route that protects the changed contract:
 
-Output contains candidate identity/dirty state, observed live identity, affected
-services, shared assessment findings and hotfix obligations, advisory impact
-clues, suggested changed/collocated tests, and the next preparation steps.
-CSS changes containing external-resource directives are not suggested as pure
-presentation changes; arbitrary application code defaults to possible behavior
-change. These clues do not clear compatibility gates. Test suggestions do not
-establish coverage of imports, callers, negative cases or browser flows.
+| Changed surface | Route |
+| --- | --- |
+| Frontend and static Hosting | Hosting release, production build, localhost readback, and proportionate browser or test evidence |
+| Cloudflare Worker | `npm run deploy:worker -- <service>` (or `--list`) with Worker-specific tests, dry-run, version readback, and rollback state |
+| RTDB rules | `npm run deploy:rules -- --only database` with RTDB `emulators:exec` security tests, zero-skip report validation, and RTDB hash readback |
+| Firestore rules | `npm run deploy:rules -- --only firestore:rules` with Firestore `emulators:exec` `homeworkFirestoreRules.test.ts`, zero-skip report validation, and ruleset hash readback |
+| Firestore indexes | `npm run deploy:rules -- --only firestore:indexes` with `READY` readback and `__name__` normalization |
+| Coordinated frontend and backend | Backend readiness and compatibility evidence before activating the frontend consumer |
 
-`--offline --base <revision>` permits an explicitly unverified local comparison.
-An explicit online base that disagrees with live is blocked by the shared
-assessor. Missing source objects are reported, never silently reconstructed.
-The command neither fetches Git objects nor changes branches, worktrees, candidate files,
-GitHub settings or deployments. Exit 0 means a normal source candidate; exit 2
-means preparation/qualification is required; exit 1 is an invocation failure.
-Every result keeps `deploymentReady: false` and authorization ungranted.
-Authenticated provider tools may refresh their existing local session cache;
-this does not create a login, change permissions or modify application state.
+## Hosting publication scope
 
-### Hosting publication scope
-
-The planner defaults to `--target hosting`; `--target all` retains the broader
-service assessment. The shared checker defaults to `all`, so select
-`release:check -- --target hosting --base <observed-live-revision>` explicitly
-when preparing a Hosting publication. The guarded Hosting command selects this
-scope automatically. Fixed historical service-release profiles remain separate.
-
-A monorepo difference does not mean every service will be deployed. The Hosting
-scope preserves the complete source/service delta while checking its actual
-active dependencies. When backend paths differ, native readback must establish
-candidate rules equal active RTDB/Firestore rules, stable Worker versions,
-bindings/routing, and private-audio access/lifecycle constraints. All 15 compiled
-shared Homework inputs must equal the verified live Hosting source. Changes to
-those inputs, Functions, Firebase configuration or Vite configuration
-cannot use this qualification path. They require their own substantive review
-and service qualification; there is no override flag.
-
-For a changed `firestore.indexes.json`, Hosting-only qualification compares the
-candidate declarations with the live-source declarations. Each added or changed
-composite index must independently exist as `READY` in the production database.
-Existing unrelated indexes may remain; this route creates/deletes no indexes and
-does not claim readiness for an unchanged historical index. Changed field
-overrides or unsupported index options require separate qualification.
-
-Historical live manifests may fingerprint production and qualification inputs
-together. The assessor can reconcile this without rewriting production only when
-the current production file plus the exact eight qualification values reproduces
-the live hash and the observed live source contains that materialization scheme.
-Changed production values, unavailable inputs or another workflow fail closed.
-The receipt records both identities; the next normally authorized publication
-writes a production-only manifest. This is diagnosis of an old identity scheme,
-not a general environment-drift waiver.
-
-The observation describes active backend code; it does not certify candidate
-Worker code or repair the pre-existing scorer mismatch. The compatibility review
-must also bind its `dependenciesFingerprint`, which covers exact candidate,
-production environment, verified Hosting baseline and active provider state.
-Native readback is repeated after archive retention and before publication.
-Changed dependencies stop publication. The retained intent includes the same
-binding. Caller JSON cannot create native observations. A review file records
-technical review, never establishes independent evidence or owner authorization.
-
-Without a backend delta, the existing frontend path remains in use. After a
-qualified normal release from main, unchanged backend files no longer create a
-historical production-to-main delta; this is not a new release branch or a
-permanent production-source reconstruction process.
-
-### Historical corrections
-
-Hotfix comparison uses the verified live Git tree as its current baseline.
-An unchanged live successor needs no repeated historical equivalence review.
-Any changed protected path still needs review, including restoring an older
-hotfix while losing a later correction. Without a trusted matching live tree,
-the historical checks remain conservative. Paths, file modes and deletions are
-compared through Git tree entries.
-
-The planner groups the residual paths once in its readable output; JSON retains
-each obligation and disposition. Reviewing the same path against several old
-releases is mechanical bookkeeping, not several distinct product decisions.
-Existing exact-candidate reconciliation bindings remain required. This change
-neither deletes release history nor manufactures compatibility approvals.
-
-`--integration-ref` defaults to local `refs/heads/main`. Its ancestry and
-divergence are context, not releasability evidence. Remote freshness, required
-CI and protection are explicitly **not observed by this command**. Verify those
-on GitHub before integration; rerun the native deployment preflight before any
-authorized publication. No serialized planner report becomes trusted evidence.
-
-## One required GitHub result
-
-The existing Release Safety workflow reports **LuyenTap integration** on every
-pull request, main/release-branch push and merge-group event, with no path filter.
-It aggregates candidate release/emulator/build checks, shared guards and app
-tests, notification tests, candidate Homework/backup Worker tests/build, and the
-existing retained deployed-Worker rebuild. That last job proves retention and
-rebuildability of its recorded source, not candidate behavior.
-
-Candidate jobs bind their successful result to the checked-out event commit and
-tree. The final job runs with `always()` and rejects missing, failed, cancelled,
-skipped or mismatched-source dependencies. The app and candidate Worker scopes
-reuse the existing strict Vitest report validator: nonzero tests, exact selected
-files, no failures/skips/TODOs. Relevant coverage remains a review responsibility.
-The build uses disposable acceptance configuration and the existing bundle budget.
-PRs test their merge commit; stale base checks must be blocked by protection.
-
-Formal sessions are being abandoned. Their six specific suites are excluded
-from this new required scope; shared clocks and student practice/homework resume
-checks remain. This does not remove feature code or change the older independent
-workflows. New verification must address a retained workflow or a concrete
-convergence risk, rather than expand into general application QA.
-
-The Homework Worker also compiles shared files from `src/` and `functions/`.
-The shared assessor classifies those exact inputs as `backup-worker` impact in
-addition to their existing scopes. CI checks Wrangler's actual source map against
-that same path map; a newly compiled, unclassified repository input fails the
-integration job. Scoring/contract changes therefore cannot be reported as a
-Hosting-only release. No extra approval store or policy engine is introduced.
-
-The main policy applied and read back on November 11 is:
-
-- Require a pull request and **LuyenTap integration** from GitHub Actions
-  (observed app ID `15368`), with the branch up to date before merging.
-- Apply the policy to administrators; disable force pushes and branch deletion.
-- Require resolved conversations. Require zero additional approving reviewers
-  and no code-owner/last-pusher approval, so the solo maintainer can merge a
-  qualified PR. Preserve existing history and allow normal merge commits.
-
-The owner authorized this policy. The real [PR #202](https://github.com/iamhuwng/autoresync/pull/202)
-passed the complete [Release Safety run](https://github.com/iamhuwng/autoresync/actions/runs/42916422768)
-at `2b5218f0`. A subsequent authorized [controlled run](https://github.com/iamhuwng/autoresync/actions/runs/42917059040)
-at `6c0eb381` deliberately skipped `guardrails`: all four running dependencies
-passed, the aggregate failed for the skipped/missing-source dependency and
-GitHub reported this non-draft, mergeable PR as `BLOCKED`. The temporary skip
-is restored in the repair; require the repaired latest head to pass before any
-authorized merge. No merge endpoint was called to test enforcement.
-
-Real-run qualification exposed five empty, unreferenced development Gitlinks
-without `.gitmodules` URLs. Their tracked entries were removed and exact ignore
-rules added; all directories and 15 registered worktrees were preserved. The
-retained historical Worker is extracted from its exact Git archive and still
-must match the original normalized artifact hash. Two imported conversation
-records also needed their existing local byte-preservation rules checked into
-`.gitattributes`; their blob contents were preserved. Checkout credential
-cleanup and whole-source integrity checks remain enabled.
-
-Future protection changes require authorization. A local helper test does not
-establish enforcement. Never use an empty
-required-check list or a path-filtered workflow as a substitute. See GitHub's
-[protected branch documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
-
-## Phase 3 CI promotion boundary
-
-The repository now tests the release-card contract in the existing read-only
-Release Safety workflow. `scripts/release-promotion.mjs` binds the exact main
-source and event SHA, observed baseline, actual passing verification result,
-verification plan, compatibility review, configuration/dependency state,
-environment fingerprint, artifact manifest identity, source-bound application
-verification evidence when required by changed paths, missing proof, impact and
-recovery limits. `scripts/deploy-live.mjs --deploy-retained`
-verifies that bound artifact and publishes it through the
-same `deployHosting` route without a second build.
-
-The guarded workflow is now defined in `.github/workflows/release-promotion-phase3.yml`.
-It is manual and main-only. Its preparer derives the source, live baseline,
-environment/configuration/artifact bindings, affected verification scope,
-owner-facing impact and missing proof. Codex supplies an external source-keyed
-verification bundle when application paths require evidence; preparation reads
-the retained asset back by tag and digest, and the workflow validates the bundle
-without running a fixed browser suite. The protected `production` environment is the
-separate owner authorization boundary; the existing executor remains the only
-publication route, and the recovery dispatch resumes one recorded operation
-without rebuilding or publishing.
-The publish job preserves the operation UUID even when the executor exits after
-provider acceptance, uploads the reconciliation patch and operation evidence to
-the retained Hosting operation when available, and also keeps them in the Action
-artifact. The generated verification plan is retained and rehydrated in the
-promotion job; discovered compatibility reviews are passed to the existing
-assessor with their exact digest.
-All Action transfers use repository-relative staging directories, so the
-artifact root is stable across runner jobs. The Hosting operation record and
-baseline evidence remain required. Changelog uploads and the integration PR
-are optional follow-up steps. When the workflow generates a patch, it retains a
-bounded `changelog-integration-request.json` with the operation and source
-details for protected-main integration.
-
-GitHub protection, environment approval, short-lived ADC federation and
-provider publication/recovery remain external qualification decisions. The
-14 November Hosting experiment is infrastructure evidence for publication,
-readback, native clone recovery and cleanup; it is not an application browser
-requirement. Codex chooses any additional browser or tool verification required
-by the actual change. The separate local-development reliability plan remains
-proposed and separately authorized; it is not part of this release implementation.
-
-For an application-impacting candidate, Codex records the selected proof outside the
-candidate checkout and creates an external verification-run bundle with
-`scripts/release-verification-bundle.mjs`. Each run receives a unique tag,
-`verification-<source revision>-<run UUID>`, so a later attempt cannot
-overwrite an earlier artifact. The bundle binds the exact revision, base, source
-fingerprint, verification-environment fingerprint, deterministic build-input identity,
-timestamp and a compact tool-neutral record. Evidence references are
-`bundle://artifact/<id>` values; each referenced artifact is embedded with its
-size and SHA-256, so preparation can read the retained bytes back and fail
-closed on missing, fabricated, altered, stale or mismatched proof. Because this
-repository is public, Codex must use synthetic or thoroughly redacted evidence.
-
-Codex may use a browser, emulator, provider tool or focused automated check as
-the method requires. A non-application candidate gets an explicit
-`not-required` record from the path classifier and does not need a bundle.
-Preparation validates the bundle against the current source and its recorded
-verification environment. The retained production artifact remains separately
-bound to the production environment fingerprint; Codex verification may use a
-qualification or local environment when that is the appropriate test surface.
-The promotion card carries the validated bundle digest and content. GitHub
-immutable releases must be enabled separately by an owner/admin; publication
-and readback fail closed when that setting or the retained release state is
-unavailable. This implementation does not change the repository setting.
-
-Routine behavior checks use the
-[QA-configured localhost preview](qualification-foundation-runbook.md#routine-localhost-qualification).
-Prepare checks the exact production artifact over localhost HTTP, whether
-it restores an artifact already tested by Codex or builds once after
-source-level verification. The resulting manifest digest binds the tested
-artifact to the card and guarded publication.
-
-When behavior depends on a deployed Hosting origin, use a disposable channel
-with the canonical Hosting config and existing candidate rules on the
-[shared spare project](qualification-foundation-runbook.md#deployed-origin-checks-on-the-spare-project).
-
-The historical `scripts/release-browser-gate.mjs` lifecycle is available only
-on a separate disposable Firebase project because it replaces RTDB rules with
-its fixtures. It deploys the exact retained artifact, reads back every
-manifest-listed file, applies fixture rules,
-creates temporary test accounts, exposes the staging URL and bindings through
-`RELEASE_STAGING_*` variables, runs a caller-selected command, performs native
-Hosting clone readback, deletes the temporary accounts/channels, and fails
-closed when cleanup cannot be verified. Supply a JSON command file such as:
-
-```json
-{
-  "label": "teacher settings and student dashboard journey",
-  "services": ["hosting", "firebase-auth", "firebase-rtdb", "firebase-rules", "workers"],
-  "command": ["node", "scripts/custom-staging-journey.mjs"]
-}
-```
-
-Run it with:
+The Hosting publication workflow is `.github/workflows/release-promotion-phase3.yml`.
+Manual dispatch on protected `refs/heads/main` uses read-only `health` and `plan`
+preflight operations or the serialized `publish` operation. `publish` observes the
+live manifest, runs:
 
 ```powershell
-node scripts/release-browser-gate.mjs --binding <qualification-binding.json> --artifact-dir <retained-dist-directory> --qualification-env-file <qualification-env-file> --journey-command-file <file> --output-dir <evidence-directory>
+node scripts/release-check.mjs --mode release --target hosting --base <live_sha> --observe-hosting
 ```
 
-The command is an argv array, not
-a shell string, so Codex can choose Playwright, another browser tool, an
-emulator check, or a repository-owned script without turning one framework or
-journey into a universal gate. Retain its redacted output and cleanup evidence
-inside the external source-bound verification bundle. This staging lifecycle
-supports application verification; it is separate from production publication
-qualification.
-
-The staging scope includes Hosting, Firebase Auth/RTDB/rules, and Workers when
-the qualification environment supplies non-production Worker endpoint bindings
-and the selected journey declares `"workers"` in its `services` array. It does
-not mirror Backblaze/storage, Functions, migrations, or production data. A
-change confined to an excluded service skips this staging check and follows its
-existing service-specific release evidence. A frontend journey that depends on
-an excluded service cannot claim full staging coverage without separate
-compatibility evidence.
-
-The handoff is reproducible: after Codex finishes its selected checks, it writes
-the compact record and evidence files outside the checkout, then runs:
+The Hosting target probes only backend services whose files changed in `live_sha..HEAD`.
+It builds once, reads the artifact over `http://localhost:5173`, asserts the Hosting
+artifact, and publishes with:
 
 ```powershell
-node scripts/release-verification-bundle.mjs --create --base <reviewed-base> --record <record.json> --environment <environment-file> --environment-identity <identity> --build-identity none --evidence=checks:<evidence-file> --evidence=release-review:<release-review.json> --output <verification-bundle.json>
-node scripts/release-verification-bundle.mjs --publish <verification-bundle.json>
+npm run deploy:hosting -- --deploy-built
 ```
 
-Include the referenced `release-review` artifact before requesting promotion.
-Browser-impacting releases also retain the relevant visual evidence and preview
-readbacks. [Evidence and review procedure](release-safety.md#codex-verification-handoff)
+Post-deploy readback uses bounded backoff for up to 90 seconds. The workflow summary
+records the released URL, source SHA, manifest SHA-256, operation ID, prior version,
+live version, and recovery commands. Use native Hosting clone for rollback and
+`npm run release:verify-existing -- --operation-id <uuid>` for read-only recovery.
 
-The command returns the prerelease tag and bundle digest; supply both as the
-guarded workflow's `verification_tag` and `verification_sha256` inputs.
+Routine frontend-only protected-main releases do not need a manual review-card JSON
+file. `target: all`, changed hotfix paths, and coordinated backend changes retain
+compatibility review and their service-specific release paths. `npm run
+build:production -- --build-only` creates the first manifest-bearing artifact without
+publishing it.
 
-## Converge content without replaying history
+## Worker and rules ordering
 
-The [November 11 convergence follow-up](../release-audits/2026-11-11-source-convergence.md)
-records current native dependency evidence and bounded implementation checks.
-It qualifies the new Hosting dependency observation on clean main `c2780d5d`;
-candidate compatibility approval and adoption of the later tooling remain
-pending. The initial comparison below is dated context, not the current gate.
+Worker publication uses `scripts/deploy-worker.mjs` and the named Wrangler config for
+the selected service. It pins `CLOUDFLARE_ACCOUNT_ID`, verifies the authenticated
+Wrangler account, restricts `--skip-tests`/`--allow-dirty`/`--offline` to `--dry-run`,
+captures and re-verifies prior live state before promotion, uploads a version, promotes
+100% traffic, reads version-addressed module hashes, and runs a safe `OPTIONS` probe.
+`luyentap-notification-firestore-qa` is a non-deployable external-DO public-entry
+proxy and cannot be generically overwritten.
 
-The initial November 11 observation verified 458 assets at live `64e2bd69`, while remote
-and local main were `3c6d5734` with no protection/rulesets. Protection was then
-applied and qualified as recorded above; main's source was not changed. Those are dated
-observations, not future defaults. The histories diverged by 98 main-only and
-12 live-only commits; their trees differed at 317 paths (191 under `src`).
+Rules and indexes publication uses `scripts/deploy-firebase-rules.mjs`. It validates
+local schemas (rejecting non-empty `fieldOverrides`), runs `database` and `firestore:rules`
+suites inside Firebase emulators (`emulators:exec`) with strict zero-skip Vitest report
+validation, restricts `--skip-tests`/`--allow-dirty`/`--offline` to `--dry-run`,
+captures and re-verifies prior state against concurrent drift, deploys to `temp-a1437`,
+and polls native readback. Deploy additive rules or indexes before activating clients
+that depend on them. A Worker or rules rollback does not reverse data writes or object
+changes.
 
-Use current main as the convergence candidate and preserve its existing history.
-Do not perform a mass historical merge or create another permanent selective
-release branch. Review and qualify the actual live-to-candidate delta:
+## Parallel local and spare work
 
-| Scope at that observation | Evidence/disposition | Remaining qualification |
-| --- | --- | --- |
-| Deployed answer-processing corrections | All nine `23ae29a7` modules already match main byte for byte | Preserve and exercise their callers; no replay needed |
-| Runtime layout/table/splitter corrections | Runtime CSS matches; forward integrations are recorded | Newer TSX draft/highlight/resume behavior needs semantic regression proof |
-| Legacy Reading retirement and Listening facade removal (`51fe89ba`) | Implemented; historical record lacks completed browser qualification | Authoring/runtime/retired-route tests and authenticated affected flows |
-| RTDB and Firestore rules | November 11 native provider reads match candidate/main (Firestore after CRLF normalization) | No rules publication indicated; repeat readback for a later authorized release |
-| Upload and notification services | Active modules match their recorded artifacts; relevant source matches main | No service publication indicated by this source delta |
-| Homework/backup Worker | Snapshot normalization is already active; shared scorer/guard differ from the active module | Retained candidate artifact is reviewed below; preserve this separate service obligation |
+Use `luyentap-pdf-qa-20261021` and `luyentap-qualification-upload-signer` for
+non-production journeys. `npm.cmd run dev -- --port auto` and
+`npm.cmd run preview:spare -- --port auto` support concurrent worktrees. `npm.cmd run dev`
+serves `/__spare-dev-identity.json` for live worktree/port/project inspection, while clean
+`npm.cmd run preview:spare` builds serve `/__spare-preview-identity.json` verified with
+`node scripts/release-spare-readback.mjs http://localhost:<port>`.
 
-Focused component/unit tests support qualification; they do not settle the
-browser/provider column. Record a group as finished only with its exact-source
-evidence. Mark work deferred only through an explicit reviewed source change;
-mark incompatible when an observed contract fails; keep unexplained or untested
-work unresolved. Do not manufacture completion from a difference inventory.
-The deployed-service JSON is a historical index, not current provider truth.
+Refresh spare data only when the journey requires it:
 
-A read-only runtime check initially found student localhost:5174 serving the old
-`64e2bd69` production artifact, and teacher localhost:5173 serving Reading
-runtime source different from current main. Backend ownership was unverified.
-This could not count as current-main browser proof. The owner later reserved the
-role/Worker ports. A detached candidate runtime was identified against the served
-source map; teacher quick-login and a local Reading draft save/reload/publication
-were observed. An attempted Start Test entered the abandoned session flow and
-failed before creating a session. That path was stopped and supplies no student
-evidence. No session code was changed. The task-owned runtime was then stopped;
-the same Firebase emulator processes and their data were preserved.
+```powershell
+npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
+```
 
-Any further browser verification must answer a named release question, such as
-whether the candidate's new student draft state survives reload. Test student
-behavior as Student through the student interface; use teacher authoring only
-for its own behavior or necessary fixture preparation. Begin at `/login` with
-dev quick-login on teacher localhost:5173 or student localhost:5174. Confirm
-source/configuration and resource ownership first. A port responding is not source
-proof. Do not reset/import existing local data or revive sessions for qualification.
+The command is dry-run by default, reads all selected scopes before writing, enforces
+HTTP request timeouts, reports completed/remaining scopes on partial failure, syncs RTDB
+and Firestore and optionally Auth from `temp-a1437`, forbids R2 and B2 object copy, and
+preserves shared media URLs read-only. See the
+[qualification foundation runbook](qualification-foundation-runbook.md) and
+[native development guide](native-development.md).
 
-## Observed Homework Worker dependency
+## Evidence and recovery
 
-The November 11 readback identified active Worker version
-`3b966806-0b31-405f-bc33-b7f1ac6a6557` at 100%, module SHA-256
-`fd4d41dac99ac574e8004cf670496747c0f906f4ac0fbcb5e5e9f25e1c3d13cf`.
-The live module includes snapshot normalization, but lacks newer shared scorer
-and paragraph-anchor guard logic. An isolated execution of only its pure scoring
-declarations demonstrated these differences:
+A local test, build, dry-run, or screenshot establishes only its own proof class.
+Current provider claims require direct Firebase or Cloudflare readback. Keep the
+source revision, changed-service scope, prior version, deployment output, readback,
+and rollback command together. Store dated records under
+`documentation/release-audits/`.
 
-| Expected answer / submitted answer | Active Worker score | Candidate score |
-| --- | --- | --- |
-| `1/2` / `12` | 1 | 0 |
-| `1.5` / `15` | 1 | 0 |
-| `1/2` / `1/2` | 1 | 1 |
-| `1,000 km` / `1000 km` | 1 | 1 |
-
-Both main and current Hosting already contain the newer shared scorer/guard
-source. This is a pre-existing cross-service mismatch, not a Phase 2 regression.
-It does not justify publishing a Worker for every unrelated presentation change.
-When changed behavior depends on that service, resolve its actual compatibility
-and publication scope before the dependent Hosting release.
-
-The retained candidate Worker built from the unchanged product source at
-`987599dd` is 455,373 bytes, SHA-256
-`35a2e6264fb9494c162ff2e2cb872059bcf8a0eebd0507e18ca297b9a5ae7a4f`.
-The existing 121 Worker tests passed; the focused scorer/guard suites are included
-in the new required app scope. All 37 compiled repository inputs were compared
-with source; 15 are outside the Worker directory. Bundle comparison, normalizing
-only known historical build-root labels, isolates four differing modules: scorer,
-canonical guard, Firebase auth and homework assignments. The latter two are
-main's local-emulator auth/routing support; deployment review must still account
-for them. Other compiled sections match. Source configuration is unchanged.
-
-This is a reviewable artifact, not deployment approval or full remote runtime
-qualification. A future authorized Worker release must bind its exact source,
-artifact/configuration and current provider state, preserve the old version/module
-above for recovery, and verify publication independently. Do not relax historical
-fixed observers or submit a self-authored approval file to force readiness.
-Sanitized service readbacks, pure-score assertions and artifact comparisons are
-retained with the architecture plan as `phase2-service-observation.json` and
-`phase2-homework-qualification.json`. They are dated evidence, not ongoing live state.
-
-If an observed backend incompatibility requires choosing between a new service
-release and deferring behavior, present that concrete choice to the owner.
-Continue unrelated qualification while the choice or external authorization is
-pending. Emergency live-based fixes retain the existing forward-integration
-and hotfix checks until their successors are deliberately qualified.
-
-## Adoption and the owner's role
-
-Preserve the implementation on its task branch, publish it and integrate through
-a PR only within the authorized scope. Introducing the checks does not certify
-all existing main features for production. Keep current production unchanged
-while main's actual remaining scope is qualified.
-
-The owner reviews the working result and authorizes its release scope. The agent
-handles Git selection, evidence and digests. A pull request is the proposed
-integration change; Actions supplies automatic checks; branch protection stops
-an unqualified merge. None of those supplies production authorization.
-
-Phase 2 adoption remains incomplete until real protection is enforced, main is
-a qualified normal source, and two consecutive authorized normal releases are
-selected from it without reconstruction. Source-selection tests may establish
-capability earlier; they cannot be counted as production publications. Local
-runtime ownership improvements remain a prerequisite for reliable browser
-proof, not a reason to build a second release framework.
+See the [release safety workflow](release-safety.md#routine-hosting-release) for
+operator commands and the [architecture plan](../architecture/luyentap-release-architecture-plan.md)
+for boundaries.

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spareMediaOrigin, spareFirebaseProject, spareUploadWorker } from './spare-dev-config.mjs';
 
 export const spareIdentityPath = '/__spare-preview-identity.json';
+export const spareDevIdentityPath = '/__spare-dev-identity.json';
 export const spareIdentityHeader = 'x-luyentap-spare-preview';
 export const spareIdentityFile = cwd => path.join(cwd, 'dist-spare', spareIdentityPath.slice(1));
 const sha = /^[a-f0-9]{40}$/u;
@@ -13,6 +14,7 @@ const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{1
 export function spareSourceIdentity(cwd) {
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
   return {
+    worktree: path.resolve(cwd),
     revision: git('rev-parse', 'HEAD'),
     tree: git('rev-parse', 'HEAD^{tree}'),
     clean: !git('status', '--porcelain', '--untracked-files=all'),
@@ -33,10 +35,22 @@ export function assertSpareBuildIdentity(identity, source) {
   if (!identity || identity.clean !== true || !sha.test(identity.revision) || !sha.test(identity.tree)
     || identity.revision !== source.revision || identity.tree !== source.tree || source.clean === false
     || !uuid.test(identity.buildId) || !/^[a-f0-9]{64}$/u.test(identity.environmentSha256)
-    || identity.firebaseProject !== spareFirebaseProject || identity.workerOrigin !== spareUploadWorker
-    || identity.publicMediaOrigin !== spareMediaOrigin) {
+    || identity.firebaseProject === 'temp-a1437' || identity.firebaseProject !== spareFirebaseProject || identity.workerOrigin !== spareUploadWorker
+    || identity.publicMediaOrigin !== spareMediaOrigin
+    || (typeof source?.worktree === 'string' && identity.worktree !== source.worktree)) {
     throw new Error('Spare preview does not match the clean candidate and expected endpoints. Rebuild and restart it.');
   }
+}
+
+export function spareDevMiddleware(cwd, { port = null } = {}) {
+  return (req, res, next) => {
+    if (req.url !== spareDevIdentityPath) return next();
+    res.setHeader(spareIdentityHeader, '1');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ mode: 'dev', ...spareSourceIdentity(cwd), port, firebaseProject: spareFirebaseProject,
+      workerOrigin: spareUploadWorker, publicMediaOrigin: spareMediaOrigin }));
+  };
 }
 
 export function sparePreviewMiddleware(cwd) {

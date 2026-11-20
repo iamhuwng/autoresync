@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { readSparePreview } from '../release-spare-readback.mjs';
 import { readQualificationHostingBuild } from '../release-evidence.mjs';
-import { createSpareBuildIdentity, spareIdentityFile, sparePreviewMiddleware, spareSourceIdentity } from '../spare-preview-identity.mjs';
+import { assertSpareBuildIdentity, createSpareBuildIdentity, spareDevIdentityPath, spareDevMiddleware, spareIdentityFile, sparePreviewMiddleware, spareSourceIdentity } from '../spare-preview-identity.mjs';
 
 test('a consecutive spare build requires a new preview process and the current clean revision', async t => {
   const cwd = await mkdtemp(path.join(os.tmpdir(), 'spare-preview-'));
@@ -69,4 +69,41 @@ test('spare channel readback binds the served manifest and files to the local Ho
   assert.equal((await read(raw)).manifestSha256, digest(JSON.stringify(manifest)));
   await assert.rejects(read(JSON.stringify({ ...manifest, revision: 'c'.repeat(40) })), /Served manifest differs/u);
   await assert.rejects(readQualificationHostingBuild({ cwd, origin: 'https://kahut1.web.app' }), /disposable Hosting channel/u);
+});
+
+test('spare build identity binds to its worktree and refuses production Firebase', async t => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'spare-identity-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const git = (...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
+  git('init', '-q');
+  git('config', 'user.name', 'Preview Test');
+  git('config', 'user.email', 'preview@example.invalid');
+  await writeFile(path.join(cwd, 'app.txt'), 'identity');
+  git('add', '.');
+  git('commit', '-qm', 'identity');
+  const source = spareSourceIdentity(cwd);
+  const identity = createSpareBuildIdentity(source, {});
+  assert.throws(() => assertSpareBuildIdentity({ ...identity, worktree: path.resolve(cwd, 'other') }, source), /does not match/u);
+  assert.throws(() => assertSpareBuildIdentity({ ...identity, firebaseProject: 'temp-a1437' }, source), /does not match/u);
+});
+
+test('spare dev middleware serves a no-store identity endpoint', async t => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'spare-dev-identity-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const git = (...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
+  git('init', '-q');
+  git('config', 'user.name', 'Preview Test');
+  git('config', 'user.email', 'preview@example.invalid');
+  await writeFile(path.join(cwd, 'app.txt'), 'identity');
+  git('add', '.');
+  git('commit', '-qm', 'identity');
+  const middleware = spareDevMiddleware(cwd, { port: 43210 });
+  const server = createServer((req, res) => middleware(req, res, () => res.writeHead(404).end()));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await new Promise((resolve, reject) => server.listen(0, 'localhost', resolve).once('error', reject));
+  const response = await fetch(`http://localhost:${server.address().port}${spareDevIdentityPath}`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-luyentap-spare-preview'), '1');
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal((await response.json()).port, 43210);
 });
