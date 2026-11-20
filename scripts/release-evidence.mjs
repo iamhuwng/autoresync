@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import { lstat, readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,65 @@ const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const digestPattern = /^[a-f0-9]{64}$/u;
 const observations = new WeakSet();
 export const isObserved = value => observations.has(value);
+
+const failArtifact = message => { throw new Error(`Hosting artifact: ${message}`); };
+const safePath = name => typeof name === 'string' && name && !name.includes('\\') && !name.includes('\0')
+  && !/[\r\n:]/u.test(name) && !name.startsWith('/')
+  && !name.split('/').some(part => part === '..' || part === '.' || part.replace(/[. ]+$/u, '').toLowerCase() === '.git');
+
+function validateManifest(manifest) {
+  if (!manifest || manifest.schemaVersion !== 1 || manifest.environment !== 'production'
+    || manifest.project !== 'temp-a1437' || manifest.site !== 'kahut1'
+    || !/^[a-f0-9]{40}$/u.test(manifest.revision || '') || !/^[a-f0-9]{40}$/u.test(manifest.tree || '')
+    || (manifest.buildInputFingerprint !== undefined && !digestPattern.test(manifest.buildInputFingerprint))
+    || !Array.isArray(manifest.files) || !manifest.files.length || manifest.files.length > 2000) failArtifact('invalid production manifest');
+  const paths = new Set();
+  for (const file of manifest.files) {
+    if (!file || typeof file.path !== 'string' || !file.path.startsWith('/') || !safePath(file.path.slice(1))
+      || file.path.slice(1) === manifestPath.slice(1) || !digestPattern.test(file.sha256 || '') || paths.has(file.path)) failArtifact('unsafe or duplicate manifest entry');
+    paths.add(file.path);
+  }
+  if (!paths.has('/index.html')) failArtifact('manifest lacks index.html');
+}
+
+export async function assertHostingArtifact(cwd, expectedManifest) {
+  validateManifest(expectedManifest);
+  const root = path.join(cwd, 'dist');
+  let rootStat;
+  try { rootStat = await lstat(root); } catch { failArtifact('artifact root must be a directory'); }
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) failArtifact('artifact root must be a directory');
+  const expected = new Map(expectedManifest.files.map(file => [file.path.slice(1), file.sha256]));
+  expected.set(manifestPath.slice(1), null);
+  let total = 0;
+  const visit = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      const name = path.relative(root, file).replaceAll('\\', '/');
+      if (entry.isSymbolicLink()) failArtifact('artifact contains a symlink');
+      if (entry.isDirectory()) { await visit(file); continue; }
+      if (!entry.isFile() || !expected.has(name)) failArtifact(`unexpected artifact entry ${name}`);
+      const size = (await lstat(file)).size;
+      total += size;
+      if (size > 32 * 1024 * 1024 || total > 256 * 1024 * 1024) failArtifact('artifact exceeds size bound');
+      const bytes = await readFile(file);
+      if (name === manifestPath.slice(1)) {
+        let actual;
+        try { actual = JSON.parse(bytes.toString('utf8')); } catch { failArtifact('artifact manifest is not JSON'); }
+        if (JSON.stringify(actual) !== JSON.stringify(expectedManifest)) failArtifact('artifact manifest differs from intent');
+      } else if (hash(bytes) !== expected.get(name)) failArtifact(`artifact hash differs: ${name}`);
+      expected.delete(name);
+    }
+  };
+  await visit(root);
+  if (expected.size) failArtifact(`artifact entries missing: ${[...expected.keys()].join(', ')}`);
+  return expectedManifest;
+}
+
+export function hostingRollbackCommand(versionName) {
+  const match = /^projects\/temp-a1437\/sites\/kahut1\/versions\/([a-z0-9]+)$/u.exec(versionName || '');
+  if (!match) throw new Error('Invalid Firebase Hosting version name for rollback.');
+  return `firebase hosting:clone temp-a1437:kahut1@${match[1]} temp-a1437:kahut1:live --project temp-a1437`;
+}
 
 export function parseHostingChannelEvidence(payload) {
   const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;

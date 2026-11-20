@@ -8,28 +8,27 @@ import test from 'node:test';
 import * as tar from 'tar';
 import { fileURLToPath } from 'node:url';
 import {
-  deployHosting,
-  verifyExistingHosting,
+  assertBuiltArtifact,
   assertCleanWorkingTree,
-  assertReleaseAssessment,
-  selectReleaseSource,
-  cleanParentEnv,
-  findForbiddenBundleMarker,
-  assertRetainedArtifact,
   assertQualificationFirebaseValues,
-  readProductionEnv,
-  writeOperationEvidence,
+  cleanParentEnv,
+  deployHosting,
+  findForbiddenBundleMarker,
   hostingReleaseMessage,
+  readProductionEnv,
+  selectReleaseSource,
+  verifyExistingHosting,
+  writeOperationOutcome,
 } from '../deploy-live.mjs';
 import { assertLocalEmulators, importFirestoreDocuments } from '../import-live-firebase.mjs';
 import { replaceSnapshot } from '../local-firebase.mjs';
-import { listReleases } from '../lib/releaseChangelog.mjs';
 import { collectSourceState } from '../release-check.mjs';
-import { waitForHostingLive, writeHostingManifest } from '../release-evidence.mjs';
-import { runReleaseVerification } from '../release-verification.mjs';
+import { assertHostingArtifact, hostingRollbackCommand, waitForHostingLive } from '../release-evidence.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const deploymentScript = path.join(repositoryRoot, 'scripts/deploy-live.mjs');
+const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
 
 test('qualification Firebase configuration is all-or-nothing and rejects local values', () => {
   const keys = ['API_KEY', 'AUTH_DOMAIN', 'DATABASE_URL', 'PROJECT_ID', 'STORAGE_BUCKET', 'MESSAGING_SENDER_ID', 'APP_ID', 'HOSTING_SITE'].map(key => `VITE_FIREBASE_QUALIFICATION_${key}`);
@@ -37,12 +36,6 @@ test('qualification Firebase configuration is all-or-nothing and rejects local v
   assert.doesNotThrow(() => assertQualificationFirebaseValues(complete));
   assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[0]]: '' }), /all VITE_FIREBASE_QUALIFICATION/u);
   assert.throws(() => assertQualificationFirebaseValues({ ...complete, [keys[2]]: 'http://localhost:9000' }), /placeholder or local-only/u);
-});
-
-test('deployment forwards inline compatibility reviews to the shared assessor', async () => {
-  const source = await readFile(deploymentScript, 'utf8');
-  assert.match(source, /inlineCompatibilityReview:\s*compatibilityReview\.review/u);
-  assert.doesNotMatch(source, /assess\(\{[^}]*compatibilityReview:\s*compatibilityReview\?\.review/su);
 });
 
 test('local startup rejects missing Worker secrets before Firebase or environment setup', async () => {
@@ -279,68 +272,6 @@ test('production route detects local bundle markers', () => {
   assert.equal(findForbiddenBundleMarker('https://temp-a1437.web.app'), undefined);
 });
 
-test('retained artifact requires the approved manifest and every listed file', async () => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-retained-artifact-'));
-  try {
-    await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
-    const index = Buffer.from('<!doctype html>');
-    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update(index).digest('hex') }] };
-    await writeFile(path.join(cwd, 'dist/index.html'), index);
-    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
-    const artifactSha256 = crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
-    assert.deepEqual(await assertRetainedArtifact({ cwd, artifactSha256 }), manifest);
-    await writeFile(path.join(cwd, 'dist/index.html'), '<!doctype html><p>changed</p>');
-    await assert.rejects(() => assertRetainedArtifact({ cwd, artifactSha256 }), /artifact|hash differs/u);
-  } finally { await rm(cwd, { recursive: true, force: true }); }
-});
-
-test('Hosting artifact upload/download contract preserves the hidden manifest and rejects secrets', async () => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-transfer-'));
-  try {
-    await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
-    const index = Buffer.from('<!doctype html>');
-    const manifest = { schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: 'a'.repeat(40), tree: 'b'.repeat(40), files: [{ path: '/index.html', sha256: crypto.createHash('sha256').update(index).digest('hex') }] };
-    await writeFile(path.join(cwd, 'dist/index.html'), index);
-    await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify(manifest));
-    const artifactSha256 = crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
-    await writeFile(path.join(cwd, 'dist/.env'), 'VITE_SECRET=must-not-upload');
-    await assert.rejects(() => assertRetainedArtifact({ cwd, artifactSha256 }), /unexpected artifact entry/u);
-    await unlink(path.join(cwd, 'dist/.env'));
-
-    const omitted = path.join(cwd, 'omitted.tar');
-    tar.c({ file: omitted, cwd: path.join(cwd, 'dist'), portable: true, sync: true }, ['index.html']);
-    const omittedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-download-'));
-    await mkdir(path.join(omittedRoot, 'dist'), { recursive: true });
-    tar.x({ file: omitted, cwd: path.join(omittedRoot, 'dist'), sync: true });
-    await assert.rejects(() => assertRetainedArtifact({ cwd: omittedRoot, artifactSha256 }), /manifest|missing|ENOENT/u);
-    await rm(omittedRoot, { recursive: true, force: true });
-
-    const retained = path.join(cwd, 'retained.tar');
-    tar.c({ file: retained, cwd: path.join(cwd, 'dist'), portable: true, sync: true }, ['index.html', '.well-known']);
-    const retainedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-download-'));
-    await mkdir(path.join(retainedRoot, 'dist'), { recursive: true });
-    tar.x({ file: retained, cwd: path.join(retainedRoot, 'dist'), sync: true });
-    assert.deepEqual(await assertRetainedArtifact({ cwd: retainedRoot, artifactSha256 }), manifest);
-    await rm(retainedRoot, { recursive: true, force: true });
-  } finally { await rm(cwd, { recursive: true, force: true }); }
-});
-
-test('published verification does not overwrite pending changelog reconciliation', async () => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), 'luyentap-operation-evidence-'));
-  try {
-    const file = path.join(cwd, 'operation.json');
-    process.env.LUYENTAP_RELEASE_OPERATION_FILE = file;
-    for (const status of ['changelog-pending', 'changelog-pending-integration']) {
-      await writeOperationEvidence({ id: '00000000-0000-4000-8000-000000000000', status, error: 'locked', cwd });
-      await writeOperationEvidence({ id: '00000000-0000-4000-8000-000000000000', status: 'published-verified', cwd });
-      assert.match(await readFile(file, 'utf8'), new RegExp(status));
-    }
-  } finally {
-    delete process.env.LUYENTAP_RELEASE_OPERATION_FILE;
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 test('production deploy blocks a dirty working tree', () => {
   assert.throws(
     () => assertCleanWorkingTree({ status: 0, stdout: ' M src/App.jsx\n' }),
@@ -364,35 +295,6 @@ test('build-only bootstrap blocks dirty source before building', async () => {
     await unlink(dirtyPath).catch(() => {});
     await rm(tempDir, { recursive: true, force: true });
   }
-});
-
-test('production deploy requires an explicit release baseline and source fingerprint', async () => {
-  await assert.rejects(
-    () => assertReleaseAssessment({ cwd: repositoryRoot }),
-    /LUYENTAP_RELEASE_BASE/u,
-  );
-});
-
-test('production deploy rejects environment drift after assessment', async () => {
-  await assert.rejects(
-    () => assertReleaseAssessment({
-      baselinePath: 'tmp/baseline.json',
-      baselineSha256: 'baseline',
-      base: 'HEAD^',
-      fingerprint: 'source',
-      productionEnvFingerprint: 'approved-env',
-      currentProductionEnvFingerprint: 'changed-env',
-      cwd: repositoryRoot,
-    }),
-    /production environment changed/u,
-  );
-});
-
-test('production deploy requires a reviewed remote fingerprint before readback', async () => {
-  await assert.rejects(() => assertReleaseAssessment({
-    base: 'HEAD', fingerprint: 'source', productionEnvFingerprint: 'env',
-    currentProductionEnvFingerprint: 'env', cwd: repositoryRoot,
-  }), /LUYENTAP_RELEASE_OBSERVED_FINGERPRINT/u);
 });
 
 test('live sync preflights local Firebase routes with an empty Firestore database', async () => {
@@ -588,184 +490,316 @@ test('repository uses AGENTS.md as the escalation authority', async () => {
   assert.doesNotMatch(agents, /Astra/iu);
 });
 
-async function hostingFixture() {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), 'recorded-hosting-'));
-  const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
-  git('init', '-q'); git('config', 'user.name', 'Changelog Test'); git('config', 'user.email', 'test@example.invalid');
-  await writeFile(path.join(cwd, '.gitignore'), 'dist/\n');
-  await writeFile(path.join(cwd, 'index.html'), 'website');
-  await writeFile(path.join(cwd, 'check.test.mjs'), "import test from 'node:test'; test('candidate works', () => {});\n");
-  await writeFile(path.join(cwd, 'firebase.json'), JSON.stringify({ hosting: { target: 'kahut1', public: 'dist' } }));
-  await writeFile(path.join(cwd, '.firebaserc'), JSON.stringify({ projects: { default: 'temp-a1437' } }));
-  git('add', '.'); git('commit', '-qm', 'Website');
-  const base = git('rev-parse', 'HEAD');
-  await writeFile(path.join(cwd, 'index.html'), 'corrected website');
-  const changeId = 'CL-20261112-CORRECTION';
-  await mkdir(path.join(cwd, 'documentation/architecture/changelog'), { recursive: true });
-  await writeFile(path.join(cwd, 'documentation/architecture/changelog/correction.md'), `# Correction\nChangelog ID: \`${changeId}\`\n`);
-  await writeFile(path.join(cwd, 'documentation/architecture/master_changelog.md'), `| [\`${changeId}\`](changelog/correction.md) | Correction |\n`);
-  git('add', '.'); git('commit', '-qm', 'Correction');
-  const envFingerprint = 'a'.repeat(64);
-  const planPath = path.join(cwd, '.git', 'checks.json');
-  await writeFile(planPath, JSON.stringify({ schemaVersion: 1, suites: [{ runner: 'node', files: ['check.test.mjs'] }] }));
-  const verification = await runReleaseVerification({ cwd, base, planPath, envFingerprint });
-  await mkdir(path.join(cwd, 'dist'), { recursive: true });
-  await writeFile(path.join(cwd, 'dist', 'index.html'), 'built corrected website');
-  const manifest = await writeHostingManifest({ cwd, envFingerprint });
-  const source = await collectSourceState(cwd, base);
-  const assessment = { decision: 'PASS', source, observed: { revision: base, fingerprint: 'previous-manifest' }, findings: [],
-    compatibilityReview: { changeIds: [changeId] } };
-  const state = { deploys: 0, outcomes: [], archive: null, message: '', hashFailure: false, reconciles: 0, reconcileError: false };
-  const observeProvider = () => ({ provider: { version: state.deploys ? 'new' : 'old',
-    releaseTime: state.deploys ? 'later' : 'before', message: state.message, config: { headers: [] } }, evidenceRef: 'fixture://provider' });
-  const observeSource = async () => {
-    if (state.deploys && state.hashFailure) throw new Error('transient asset drift');
-    return { fingerprint: state.deploys ? crypto.createHash('sha256').update(JSON.stringify(manifest)).digest('hex') : 'previous-manifest', evidenceRef: 'fixture://manifest' };
-  };
-  const options = { cwd, base, storeDir: path.join(cwd, '.git', 'journal'), assessment, verification,
-    verificationPlanSha256: verification.planSha256, sourceRef: 'refs/heads/release', observeProvider, observeSource,
-    poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0 },
-    retainArchive: async ({ id, intent }) => {
-      state.archive = { id, intent, sha256: 'b'.repeat(64), evidenceRef: `https://github.com/iamhuwng/autoresync/releases/tag/hosting-operation-${id}` };
-      assert.equal(listReleases(options.storeDir)[0].id, id);
-      assert.equal(intent.before.provider.version, 'old');
-      return state.archive;
-    },
-    saveOutcome: async (archive, outcome) => state.outcomes.push(outcome),
-    reconcile: async () => {
-      state.reconciles += 1;
-      if (state.reconcileError) throw new Error('protected-main integration unavailable');
-    },
-    runDeploy: (args, env, selectedCwd) => {
-      assert.equal(selectedCwd, cwd);
-      assert.equal(args[0], path.join(cwd, 'scripts/tooling-where.mjs'));
-      state.message = args[args.indexOf('--message') + 1];
-      assert.match(state.message, /^\[luyentap:[a-f0-9-]+\] /u);
-      assert.ok(state.message.length <= 255);
-      assert.ok(state.archive);
-      state.deploys++;
-    },
-  };
-  return { options, state, manifest, cleanup: () => rm(cwd, { recursive: true, force: true }) };
-}
-
-test('Hosting preserves intent before publication and verifies the exact built manifest', async () => {
-  const { options, state, manifest, cleanup } = await hostingFixture();
-  try {
-    const result = await deployHosting(options);
-    assert.equal(result.status, 'live');
-    assert.match(result.targets[0].providerIdentity, /new/u);
-    assert.equal(state.deploys, 1);
-    assert.equal(state.outcomes[0].outcomes[0].verification, 'passed');
-    const currentVerification = await runReleaseVerification({ cwd: options.cwd, base: manifest.revision,
-      planPath: path.join(options.cwd, '.git', 'checks.json'), envFingerprint: manifest.envFingerprint });
-    await assert.rejects(() => deployHosting({ ...options, base: manifest.revision, verification: currentVerification,
-      assessment: { ...options.assessment, source: currentVerification.source,
-        observed: { revision: manifest.revision, tree: manifest.tree, manifest } } }), /already published/u);
-    assert.equal(state.deploys, 1);
-    await writeFile(path.join(options.cwd, 'dist/.well-known/luyentap-release.json'), JSON.stringify({ ...manifest, revision: 'f'.repeat(40) }));
-    await assert.rejects(() => deployHosting(options), /build source differs/u);
-    assert.equal(state.deploys, 1);
-  } finally { await cleanup(); }
-});
-
-test('publication with failed readback resumes the same operation without another deployment', async () => {
-  const { options, state, cleanup } = await hostingFixture();
-  try {
-    state.hashFailure = true;
-    await assert.rejects(() => deployHosting(options), /verification unverified/u);
-    assert.equal(state.deploys, 1);
-    assert.equal(state.reconciles, 0);
-    const original = listReleases(options.storeDir)[0];
-    assert.equal(original.targets[0].publication, 'published');
-    assert.equal(original.targets[0].verification, 'unverified');
-    state.hashFailure = false;
-    const resume = { id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive, reconcile: options.reconcile,
-      saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource, poll: options.poll };
-    const evidence = [];
-    await assert.rejects(() => verifyExistingHosting({ ...resume, observeSource: async () => { throw new Error('source observation interrupted'); }, writeEvidence: value => { evidence.push(value); } }), /verification remains pending/u);
-    assert.equal(evidence[0].status, 'pending-verification-or-failed');
-    assert.match(evidence[0].error, /verification remains pending/u);
-    const verified = await verifyExistingHosting(resume);
-    assert.equal(verified.id, original.id);
-    assert.equal(verified.targets[0].verification, 'passed');
-    assert.equal(state.reconciles, 1);
-    assert.deepEqual(verified.targets[0].changeIds, ['CL-20261112-CORRECTION']);
-    assert.deepEqual(await verifyExistingHosting(resume), verified);
-    assert.equal(state.deploys, 1);
-    assert.equal(listReleases(options.storeDir).length, 1);
-    await assert.rejects(() => verifyExistingHosting({ ...resume, observeProvider: () => ({ ...options.observeProvider(),
-      provider: { ...options.observeProvider().provider, version: 'different' } }) }), /cannot reassign publication/u);
-    await assert.rejects(() => verifyExistingHosting({ ...resume, observeProvider: () => ({ ...options.observeProvider(),
-      provider: { ...options.observeProvider().provider, message: 'another operation' } }) }), /not confirmed/u);
-  } finally { await cleanup(); }
-});
-
-test('verification repairs an interrupted remote receipt after local publication was settled', async () => {
-  const { options, state, cleanup } = await hostingFixture();
-  try {
-    await assert.rejects(() => deployHosting({ ...options, saveOutcome: async () => { throw new Error('remote receipt interrupted'); } }), /remote receipt interrupted/u);
-    const original = listReleases(options.storeDir)[0];
-    assert.equal(original.targets[0].verification, 'passed');
-    assert.equal(state.outcomes.length, 0);
-    await verifyExistingHosting({ id: original.id, storeDir: options.storeDir, readArchive: async () => state.archive,
-      saveOutcome: options.saveOutcome, observeProvider: options.observeProvider, observeSource: options.observeSource });
-    assert.equal(state.outcomes.length, 1);
-    assert.equal(state.deploys, 1);
-  } finally { await cleanup(); }
-});
-
-test('verification-only CLI does not load production environment or build', () => {
-  const result = spawnSync(process.execPath, [deploymentScript, '--verify-existing', 'not-an-operation'], {
-    cwd: repositoryRoot, encoding: 'utf8', windowsHide: true,
-    env: { ...process.env, LUYENTAP_PRODUCTION_ENV_FILE: 'missing-production-environment' },
-  });
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /operation id must be a UUID/u);
-  assert.doesNotMatch(result.stderr, /missing-production-environment/u);
-  assert.doesNotMatch(result.stdout, /Building|Deploying/u);
-});
-
-test('changed or missing review digest is rejected before provider assessment', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'release-review-binding-'));
-  try {
-    const review = path.join(directory, 'review.json');
-    await writeFile(review, '{"decision":"verified"}');
-    for (const compatibilityReviewSha256 of [undefined, '0'.repeat(64)]) {
-      await assert.rejects(() => assertReleaseAssessment({ cwd: repositoryRoot, base: 'a'.repeat(40),
-        fingerprint: 'b'.repeat(64), productionEnvFingerprint: 'c'.repeat(64), currentProductionEnvFingerprint: 'c'.repeat(64),
-        observedFingerprint: 'd'.repeat(64), compatibilityReviewPath: review, compatibilityReviewSha256 }), /compatibility review changed or lacks/u);
-    }
-  } finally { await rm(directory, { recursive: true, force: true }); }
-});
-
-test('forged verification, archive failure, artifact tampering and live drift stop before Firebase', async () => {
-  const { options, state, cleanup } = await hostingFixture();
-  try {
-    await assert.rejects(() => deployHosting({ ...options, verification: JSON.parse(JSON.stringify(options.verification)) }), /untrusted or stale/u);
-    await assert.rejects(() => deployHosting({ ...options, retainArchive: async () => { throw new Error('archive unavailable'); } }), /archive unavailable/u);
-    await assert.rejects(() => deployHosting({ ...options, observeSource: async () => ({ fingerprint: 'new baseline' }) }), /production changed/u);
-    await assert.rejects(() => deployHosting({ ...options, revalidate: async () => {
-      await writeFile(path.join(options.cwd, 'dist', 'index.html'), 'tampered after archive');
-    } }), /artifact|hash|manifest/iu);
-    assert.equal(state.deploys, 0);
-  } finally { await cleanup(); }
-});
-
-test('Hosting publication rejects caller-supplied dependency evidence before retention or deployment', async () => {
-  const { options, state, cleanup } = await hostingFixture();
-  try {
-    await assert.rejects(deployHosting({ ...options, assessment: { ...options.assessment,
-      target: 'hosting', hostingDependencies: { scope: 'hosting-dependencies', readOnly: true } } }), /caller-supplied Hosting dependency/u);
-    assert.equal(state.archive, null);
-    assert.equal(state.deploys, 0);
-  } finally { await cleanup(); }
-});
-
-test('Hosting release messages stay within Firebase limits while changelog records remain detailed', () => {
+test('Hosting release messages stay within Firebase limits', () => {
   const description = 'x'.repeat(278);
   const message = hostingReleaseMessage(description);
   assert.equal(message.length, 255);
   assert.equal(message.slice(-3), '...');
   assert.equal(hostingReleaseMessage('short release'), 'short release');
+});
+
+async function fixture() {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'deployment-safety-'));
+  git(cwd, 'init', '-q');
+  git(cwd, 'config', 'user.name', 'Deployment Test');
+  git(cwd, 'config', 'user.email', 'deployment@example.invalid');
+  await writeFile(path.join(cwd, '.gitignore'), 'dist/\n');
+  await writeFile(path.join(cwd, 'index.html'), 'candidate');
+  git(cwd, 'add', '.');
+  git(cwd, 'commit', '-qm', 'base');
+  const base = git(cwd, 'rev-parse', 'HEAD');
+  await writeFile(path.join(cwd, 'index.html'), 'candidate changed');
+  git(cwd, 'add', '.');
+  git(cwd, 'commit', '-qm', 'candidate');
+  const source = await collectSourceState(cwd, base);
+  const envFingerprint = 'e'.repeat(64);
+  const tree = source.tree;
+  const artifactHash = hash('candidate artifact');
+  const manifest = {
+    schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1',
+    revision: source.revision, tree, envFingerprint,
+    files: [{ path: '/index.html', sha256: artifactHash }],
+  };
+  await mkdir(path.join(cwd, 'dist/.well-known'), { recursive: true });
+  await writeFile(path.join(cwd, 'dist/index.html'), 'candidate artifact');
+  await writeFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), `${JSON.stringify(manifest)}\n`);
+  const observation = {
+    service: 'hosting', identity: 'temp-a1437/kahut1', revision: source.baseRevision,
+    tree: git(cwd, 'rev-parse', `${base}^{tree}`), fingerprint: 'o'.repeat(64),
+    manifest: { envFingerprint }, sourceKnown: true, evidenceRef: 'fixture://hosting',
+  };
+  return { cwd, base, source, envFingerprint, manifest, observation, cleanup: () => rm(cwd, { recursive: true, force: true }) };
+}
+
+const provider = (version, message = '') => ({
+  provider: { version: `projects/temp-a1437/sites/kahut1/versions/${version}`, releaseTime: `${version}-time`, message },
+  evidenceRef: 'fixture://provider',
+});
+
+test('hosting artifact validates exact files and rollback command', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  await assertHostingArtifact(f.cwd, f.manifest);
+  assert.equal(hostingRollbackCommand('projects/temp-a1437/sites/kahut1/versions/abc123'), 'firebase hosting:clone temp-a1437:kahut1@abc123 temp-a1437:kahut1:live --project temp-a1437');
+  assert.throws(() => hostingRollbackCommand('projects/other/sites/kahut1/versions/abc'), /Invalid/u);
+  await writeFile(path.join(f.cwd, 'dist/extra.txt'), 'unexpected');
+  await assert.rejects(() => assertHostingArtifact(f.cwd, f.manifest), /unexpected/u);
+  await unlink(path.join(f.cwd, 'dist/extra.txt'));
+  await unlink(path.join(f.cwd, 'dist/index.html'));
+  await assert.rejects(() => assertHostingArtifact(f.cwd, f.manifest), /missing/u);
+});
+
+test('built artifact binds revision, tree, environment, and digest and rejects unexpected entries', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  const artifactSha256 = hash(JSON.stringify(f.manifest));
+  const manifest = await assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: f.source, envFingerprint: f.envFingerprint, expectedHotfixes: [] });
+  assert.equal(manifest.revision, f.source.revision);
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256: '0'.repeat(64), source: f.source, envFingerprint: f.envFingerprint }), /approved artifact digest/u);
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: { ...f.source, revision: '0'.repeat(40) }, envFingerprint: f.envFingerprint }), /assessed source/u);
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: f.source, envFingerprint: '0'.repeat(64) }), /environment fingerprint/u);
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: f.source, envFingerprint: f.envFingerprint, expectedHotfixes: [{ revision: 'd'.repeat(40) }] }), /hotfix metadata differs/u);
+
+  await writeFile(path.join(f.cwd, 'dist/.env'), 'VITE_SECRET=must-not-upload');
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: f.source, envFingerprint: f.envFingerprint }), /unexpected artifact entry/u);
+  await unlink(path.join(f.cwd, 'dist/.env'));
+
+  const omitted = path.join(f.cwd, 'omitted.tar');
+  tar.c({ file: omitted, cwd: path.join(f.cwd, 'dist'), portable: true, sync: true }, ['index.html']);
+  const omittedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-omitted-'));
+  try {
+    await mkdir(path.join(omittedRoot, 'dist'), { recursive: true });
+    tar.x({ file: omitted, cwd: path.join(omittedRoot, 'dist'), sync: true });
+    await assert.rejects(() => assertBuiltArtifact({ cwd: omittedRoot, artifactSha256, source: f.source, envFingerprint: f.envFingerprint }), /manifest|missing|ENOENT/u);
+  } finally { await rm(omittedRoot, { recursive: true, force: true }); }
+
+  const retained = path.join(f.cwd, 'retained.tar');
+  tar.c({ file: retained, cwd: path.join(f.cwd, 'dist'), portable: true, sync: true }, ['index.html', '.well-known']);
+  const retainedRoot = await mkdtemp(path.join(os.tmpdir(), 'luyentap-artifact-retained-'));
+  try {
+    await mkdir(path.join(retainedRoot, 'dist'), { recursive: true });
+    tar.x({ file: retained, cwd: path.join(retainedRoot, 'dist'), sync: true });
+    assert.deepEqual(await assertBuiltArtifact({ cwd: retainedRoot, artifactSha256, source: f.source, envFingerprint: f.envFingerprint }), f.manifest);
+  } finally { await rm(retainedRoot, { recursive: true, force: true }); }
+
+  await writeFile(path.join(f.cwd, 'dist/index.html'), 'tampered');
+  await assert.rejects(() => assertBuiltArtifact({ cwd: f.cwd, artifactSha256, source: f.source, envFingerprint: f.envFingerprint }), /artifact hash|hash differs/u);
+});
+
+test('deployHosting publishes and returns uniform outcome plus rollback and verify commands', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  let deployed = false;
+  let operationId;
+  let sourceReads = 0;
+  const result = await deployHosting({
+    cwd: f.cwd, base: f.base, env: {}, objective: 'candidate release',
+    assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+    observeSource: async () => {
+      sourceReads += 1;
+      return sourceReads < 2
+        ? f.observation
+        : { ...f.observation, revision: f.source.revision, tree: f.source.tree, fingerprint: hash(JSON.stringify(f.manifest)), manifest: f.manifest, evidenceRef: 'fixture://live' };
+    },
+    observeProvider: () => deployed ? provider('new123', `[luyentap:${operationId}] candidate release`) : provider('old123'),
+    runDeploy: async args => { deployed = true; operationId = args[args.indexOf('--message') + 1].match(/\[luyentap:([0-9a-f-]+)\]/u)[1]; assert(args.includes('firebase')); },
+    poll: { timeoutMs: 10, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  });
+  assert.equal(result.id, operationId);
+  assert.equal(result.operationId, operationId);
+  assert.equal(result.status, 'verified');
+  assert.equal(result.siteUrl, 'https://kahut1.web.app');
+  assert.equal(result.revision, f.source.revision);
+  assert.equal(result.priorVersion, 'projects/temp-a1437/sites/kahut1/versions/old123');
+  assert.equal(result.liveVersion, 'projects/temp-a1437/sites/kahut1/versions/new123');
+  assert.match(result.rollbackCommand, /firebase hosting:clone temp-a1437:kahut1@old123 temp-a1437:kahut1:live --project temp-a1437/u);
+  assert.match(result.verifyCommand, /npm run release:verify-existing -- --operation-id/u);
+});
+
+test('deployHosting rejects duplicate publication, tampered artifacts, caller dependency evidence, and pre-deploy drift without rollback spam', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  let deploys = 0;
+  const duplicateSource = await collectSourceState(f.cwd, f.source.revision);
+  const duplicateAssessment = {
+    decision: 'PASS', source: duplicateSource,
+    observed: { ...f.observation, revision: f.source.revision, tree: f.source.tree, manifest: f.manifest },
+    productionEnvFingerprint: f.envFingerprint,
+  };
+  await assert.rejects(() => deployHosting({ cwd: f.cwd, base: f.source.revision, env: {}, assessment: duplicateAssessment, observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; } }), /already published/u);
+
+  const tampered = await fixture(); t.after(tampered.cleanup);
+  await writeFile(path.join(tampered.cwd, 'dist/index.html'), 'tampered');
+  await assert.rejects(() => deployHosting({
+    cwd: tampered.cwd, base: tampered.base, env: {},
+    assessment: { decision: 'PASS', source: tampered.source, observed: tampered.observation, productionEnvFingerprint: tampered.envFingerprint },
+    observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
+  }), /hash differs|artifact/u);
+
+  const staleHotfixes = await fixture(); t.after(staleHotfixes.cleanup);
+  await assert.rejects(() => deployHosting({
+    cwd: staleHotfixes.cwd, base: staleHotfixes.base, env: {},
+    assessment: { decision: 'PASS', source: staleHotfixes.source, observed: staleHotfixes.observation, productionEnvFingerprint: staleHotfixes.envFingerprint, hotfixes: [{ revision: 'd'.repeat(40) }] },
+    observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
+  }), /hotfix metadata differs/u);
+
+  const callerDeps = await fixture(); t.after(callerDeps.cleanup);
+  await assert.rejects(() => deployHosting({
+    cwd: callerDeps.cwd, base: callerDeps.base, env: {},
+    assessment: { decision: 'PASS', source: callerDeps.source, observed: callerDeps.observation, productionEnvFingerprint: callerDeps.envFingerprint, hostingDependencies: { scope: 'hosting-dependencies' } },
+    observeProvider: () => provider('old123'), runDeploy: () => { deploys += 1; },
+  }), /caller-supplied Hosting dependency/u);
+
+  const drift = await fixture(); t.after(drift.cleanup);
+  const errors = [];
+  const originalError = console.error;
+  console.error = value => errors.push(String(value));
+  try {
+    await assert.rejects(
+      () => deployHosting({
+        cwd: drift.cwd, base: drift.base, env: {},
+        assessment: { decision: 'PASS', source: drift.source, observed: drift.observation, productionEnvFingerprint: drift.envFingerprint },
+        observeSource: async () => ({ ...drift.observation, fingerprint: 'changed-live' }),
+        observeProvider: () => provider('old123'),
+        runDeploy: () => { deploys += 1; },
+      }),
+      error => {
+        assert.match(error.message, /production changed/u);
+        assert.equal(error.operationId, undefined);
+        assert.equal(error.rollbackCommand, undefined);
+        return true;
+      },
+    );
+  } finally { console.error = originalError; }
+  assert.equal(errors.length, 0);
+  assert.equal(deploys, 0);
+});
+
+test('deployHosting separates CLI spawn failures, deploy failures, and post-deploy readback failures', async t => {
+  const f = await fixture(); t.after(f.cleanup);
+  const spawnErrors = [];
+  const original = console.error;
+  console.error = value => spawnErrors.push(String(value));
+  try {
+    const enoent = Object.assign(new Error('spawn firebase ENOENT'), { code: 'ENOENT' });
+    await assert.rejects(() => deployHosting({
+      cwd: f.cwd, base: f.base, env: {},
+      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      observeSource: async () => f.observation,
+      observeProvider: () => provider('old123'),
+      runDeploy: () => { throw enoent; },
+    }), error => {
+      assert.equal(error.code, 'ENOENT');
+      assert.equal(error.operationId, undefined);
+      assert.equal(error.rollbackCommand, undefined);
+      assert.equal(error.phase, undefined);
+      return true;
+    });
+    assert.equal(spawnErrors.length, 0);
+
+    const deployErrors = [];
+    console.error = value => deployErrors.push(String(value));
+    await assert.rejects(() => deployHosting({
+      cwd: f.cwd, base: f.base, env: {},
+      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      observeSource: async () => f.observation,
+      observeProvider: () => provider('old123'),
+      runDeploy: () => { throw new Error('deploy exited with 1'); },
+    }), error => {
+      assert.equal(error.phase, 'deploy');
+      assert.match(error.rollbackCommand, /firebase hosting:clone/u);
+      assert.match(error.verifyCommand, /release:verify-existing/u);
+      return true;
+    });
+    assert(deployErrors.some(value => /verify live state before retrying/u.test(value)));
+    assert(deployErrors.some(value => /Rollback command: firebase hosting:clone/u.test(value)));
+
+    const readbackErrors = [];
+    console.error = value => readbackErrors.push(String(value));
+    await assert.rejects(() => deployHosting({
+      cwd: f.cwd, base: f.base, env: {},
+      assessment: { decision: 'PASS', source: f.source, observed: f.observation, productionEnvFingerprint: f.envFingerprint },
+      observeSource: async () => f.observation,
+      observeProvider: () => provider('old123'),
+      runDeploy: () => {},
+      poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+    }), error => {
+      assert.equal(error.phase, 'readback');
+      assert.match(error.message, /verification|timed out/u);
+      assert.match(error.rollbackCommand, /firebase hosting:clone/u);
+      assert.match(error.verifyCommand, /release:verify-existing/u);
+      return true;
+    });
+    assert(readbackErrors.some(value => /live readback did not confirm/u.test(value)));
+    assert(readbackErrors.some(value => /Rollback command: firebase hosting:clone/u.test(value)));
+    assert(readbackErrors.some(value => /Verify command: npm run release:verify-existing/u.test(value)));
+  } finally { console.error = original; }
+});
+
+test('verifyExistingHosting polls and validates operation, manifest, revision, and tree', async () => {
+  const operationId = '00000000-0000-4000-8000-000000000000';
+  let sourceAttempts = 0;
+  const sleeps = [];
+  const result = await verifyExistingHosting({
+    operationId, expectedManifestSha256: 'a'.repeat(64), expectedRevision: 'b'.repeat(40), expectedTree: 'c'.repeat(40),
+    observeProvider: () => provider('live123', `[luyentap:${operationId}] candidate`),
+    observeSource: async () => {
+      sourceAttempts += 1;
+      return {
+        revision: 'b'.repeat(40),
+        tree: 'c'.repeat(40),
+        fingerprint: sourceAttempts < 2 ? '0'.repeat(64) : 'a'.repeat(64),
+        manifest: { files: [{}] },
+        evidenceRef: 'fixture://source',
+      };
+    },
+    poll: { timeoutMs: 1000, initialDelayMs: 50, maxDelayMs: 100, sleep: async ms => { sleeps.push(ms); } },
+  });
+  assert.equal(result.id, operationId);
+  assert.equal(result.operationId, operationId);
+  assert.equal(result.status, 'verified');
+  assert.equal(result.siteUrl, 'https://kahut1.web.app');
+  assert.equal(result.verifiedFiles, 1);
+  assert.deepEqual(sleeps, [50]);
+});
+
+test('verifyExistingHosting rejects mismatch, mid-read change, invalid inputs, and timeout without loading env', async () => {
+  const operationId = '00000000-0000-4000-8000-000000000000';
+  await assert.rejects(() => verifyExistingHosting({}), /requires operationId/u);
+  await assert.rejects(() => verifyExistingHosting({ expectedRevision: 'bad' }), /40-hex/u);
+  await assert.rejects(() => verifyExistingHosting({ operationId: 'bad' }), /UUID/u);
+  let providerRead = 0;
+  await assert.rejects(() => verifyExistingHosting({
+    operationId,
+    observeProvider: () => provider(++providerRead === 1 ? 'v1' : 'v2', `[luyentap:${operationId}] x`),
+    observeSource: async () => ({ fingerprint: 'a'.repeat(64), revision: 'b'.repeat(40), tree: 'c'.repeat(40), manifest: { files: [{}] } }),
+    poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  }), /provider release changed/u);
+  await assert.rejects(() => verifyExistingHosting({
+    expectedManifestSha256: 'a'.repeat(64),
+    observeProvider: () => provider('live123', `[luyentap:${operationId}] x`),
+    observeSource: async () => ({ fingerprint: 'b'.repeat(64), revision: 'c'.repeat(40), tree: 'd'.repeat(40) }),
+    poll: { timeoutMs: 0, initialDelayMs: 0, maxDelayMs: 0, sleep: async () => {} },
+  }), /timed out/u);
+
+  const cliResult = spawnSync(process.execPath, [deploymentScript, '--verify-existing', 'not-an-operation'], {
+    cwd: repositoryRoot, encoding: 'utf8', windowsHide: true,
+    env: { ...process.env, LUYENTAP_PRODUCTION_ENV_FILE: 'missing-production-environment' },
+  });
+  assert.equal(cliResult.status, 1);
+  assert.match(cliResult.stderr, /operationId must be a UUID/u);
+  assert.doesNotMatch(cliResult.stderr, /missing-production-environment/u);
+  assert.doesNotMatch(cliResult.stdout, /Building|Deploying/u);
+});
+
+test('operation outcome writes configured structured JSON', async t => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'outcome-test-')); t.after(() => rm(cwd, { recursive: true, force: true }));
+  const file = path.join(cwd, 'outcome.json');
+  await writeOperationOutcome({ file, outcome: { id: 'op', operationId: 'op', status: 'verified', siteUrl: 'https://kahut1.web.app' }, cwd });
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { id: 'op', operationId: 'op', status: 'verified', siteUrl: 'https://kahut1.web.app' });
+});
+
+test('missing production environment is rejected before build and duplicate --build-only flag is accepted', async () => {
+  const result = spawnSync(process.execPath, [deploymentScript, '--build-only', '--build-only'], {
+    cwd: repositoryRoot, encoding: 'utf8', windowsHide: true,
+    env: { ...process.env, LUYENTAP_PRODUCTION_ENV_FILE: path.join(os.tmpdir(), 'missing-production-env') },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing .*production-env/u);
 });

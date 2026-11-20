@@ -7,7 +7,6 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { assess, collectSourceState, repoRoot, STATUS } from './release-check.mjs';
 import { isObserved, observeHosting } from './release-evidence.mjs';
-import { suggestChanges } from './lib/changeRecords.mjs';
 
 const git = (cwd, args) => {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
@@ -20,7 +19,7 @@ export function describeImpact(files, patch) {
   const changes = patch.split(/\r?\n/u).filter(line => /^[+-](?![+-])/u.test(line)).join('\n');
   const signals = [];
   const add = (category, reason) => signals.push({ category, reason });
-  if (files.some(file => /^(?:\.github\/workflows\/|scripts\/(?:integration-check|release-(?:archive|check|evidence|verification)|deploy-live)\.mjs$)/u.test(file)
+  if (files.some(file => /^(?:\.github\/workflows\/|scripts\/(?:integration-check|release-(?:check|evidence|verification)|deploy-live)\.mjs$)/u.test(file)
       || /(?:^|\/)(?:auth|permissions?|security|.*\.rules(?:\.json)?)(?:[./]|$)/iu.test(file))
     || /\b(?:authorization|permission|signIn|signOut|claims|authToken|privateKey|signedUrl|allow\s+(?:read|write))\b/iu.test(changes)) {
     add('security-sensitive', 'Changed permission/authentication paths or security-related expressions.');
@@ -123,12 +122,6 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
         .map(finding => `[${finding.status}] ${finding.message}`));
     } catch (error) { blockers.push(`Candidate assessment unavailable: ${error.message}`); }
   } else blockers.push('No verified live source is available; supply --base only for an explicitly unverified comparison.');
-  let changelog = { candidates: [], selected: assessment?.compatibilityReview?.changeIds ?? null,
-    notApplicable: assessment?.compatibilityReview?.changelogNotApplicable ?? null,
-    limitation: 'Changed CL records are suggestions. Exact-source review selects applicable changes; IDs establish neither coverage nor service readiness.' };
-  if (selectedBase) try { changelog.candidates = suggestChanges(cwd, selectedBase, revision); }
-  catch (error) { blockers.push(`Changelog: ${error.message}`); }
-  if (assessment && changelog.selected === null) blockers.push('Changelog associations need selection in the existing exact-source compatibility review before publication.');
   const integration = integrationState(cwd, integrationRef, revision, assessment?.source.baseRevision);
   if (assessment) try {
     assert.equal((await collectSourceState(cwd, assessment.source.baseRevision)).fingerprint,
@@ -148,7 +141,7 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
     source: assessment?.source || { revision },
     live: observed ? { revision: observed.revision, tree: observed.tree, fingerprint: observed.fingerprint,
       observedAt: observed.observedAt, evidenceRef: observed.evidenceRef, verifiedAssets: observed.manifest.files.length } : null,
-    integration: { ...integration, protectedMain }, impact, assessment, changelog,
+    integration: { ...integration, protectedMain }, impact, assessment,
     verification: { execution: 'NOT_RUN', suggestedTests,
       limitation: 'Changed and collocated test paths are suggestions only. Review imports, callers, negative cases and affected browser flows before selecting the executable verification plan.' },
     blockers,
@@ -156,7 +149,8 @@ export async function planRelease({ cwd = repoRoot, base, offline = false,
       'Verify the stable LuyenTap integration check on the exact proposed integration commit and inspect current GitHub protection.',
       ...(target === 'hosting' ? [
         'Run change-scoped behavior checks against isolated services. Use spare Hosting only for Hosting-specific proof.',
-        'For built-site proof, build with npm run build:production, verify the served artifact with scripts/release-local-readback.mjs, and retain it with the verification bundle.',
+        'Build with npm run build:production and verify the served artifact with scripts/release-local-readback.mjs.',
+        'Dispatch Release Promotion after the exact candidate evidence is ready.',
       ] : []),
       'Confirm any changed service against its own provider; Hosting history does not identify deployed Worker/rules versions.',
       'Obtain the existing explicit release authorization after technical qualification.'] };
@@ -169,7 +163,6 @@ export const formatPlan = plan => [
   `Impact: ${plan.impact?.signals.map(signal => signal.category).join(', ') || 'unclassified'} (advisory)`,
   `Services: ${plan.assessment?.source.services.join(', ') || 'unverified/none identified'}`,
   `Publication target: ${plan.target}; this does not qualify excluded backend deployments.`,
-  `Changes: ${plan.changelog.selected?.join(', ') || plan.changelog.notApplicable || 'scope review required'}; ${plan.changelog.candidates.length} candidate CL records (advisory).`,
   `Hotfix convergence: ${plan.convergence.hotfixReviewPaths.length} distinct paths need review; ${plan.convergence.preservedLivePaths.length} already preserve verified live content.`,
   ...(plan.convergence.hotfixReviewPaths.length ? [`Hotfix paths: ${plan.convergence.hotfixReviewPaths.join(', ')}`] : []),
   ...plan.blockers.filter(blocker => !/^\[REVIEW_REQUIRED\] Hotfix .* content differs from (?:verified live|historical) content:/u.test(blocker)).map(blocker => `- ${blocker}`),

@@ -169,9 +169,25 @@ test('hosting impact paths exclude local development and test-only backend files
 test('routine frontend Hosting candidates skip dependency observation', async () => {
   const cwd = await fixture();
   try {
-    const result = await assess({ cwd, base: 'HEAD^', target: 'hosting' });
+    const base = git(cwd, 'rev-parse', 'HEAD^');
+    const tree = git(cwd, 'rev-parse', `${base}^{tree}`);
+    const contentHash = digest('x');
+    const observation = await observeHosting({ fetchImpl: async url => ({ ok: true, url,
+      arrayBuffer: async () => Buffer.from(url.endsWith('luyentap-release.json')
+        ? JSON.stringify({ schemaVersion: 1, environment: 'production', project: 'temp-a1437', site: 'kahut1', revision: base, tree, envFingerprint: 'e'.repeat(64), files: [{ path: '/index.html', sha256: contentHash }] }) : 'x') }) });
+    const result = await assess({ cwd, base, target: 'hosting', hostingObservation: observation, productionEnvFingerprint: 'e'.repeat(64) });
+    assert.equal(result.decision, STATUS.PASS);
+    assert.equal(result.compatibilityReview, null);
     assert.equal(result.hostingDependencies, null);
     assert(!result.findings.some(finding => /Hosting dependencies:/u.test(finding.message)));
+
+    await writeFile(path.join(cwd, 'src', 'App.jsx'), 'export default 2;');
+    git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'application frontend change');
+    const frontendResult = await assess({ cwd, base, target: 'hosting', hostingObservation: observation, productionEnvFingerprint: 'e'.repeat(64) });
+    assert.equal(frontendResult.decision, STATUS.PASS);
+    assert.equal(frontendResult.compatibilityReview, null);
+    assert.equal(frontendResult.hostingDependencies, null);
+    assert(frontendResult.findings.some(finding => finding.status === STATUS.PASS && /protected-main review, scoped dependency probes/u.test(finding.message)));
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });
 
