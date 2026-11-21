@@ -31,11 +31,20 @@ interface StudentAuthWorkerEnv extends Record<string, unknown> {
   };
 }
 
+interface FirebaseIdentity {
+  readonly valid: boolean;
+  readonly uid?: string;
+  readonly email?: string;
+  readonly emailVerified?: boolean;
+  readonly hasGoogleIdentity?: boolean;
+  readonly photoURL?: string;
+}
+
 interface FirebaseVerifier {
   verifyAuthorizationHeader: (
     header: string | null,
     env: StudentAuthWorkerEnv,
-  ) => Promise<{ valid: boolean; uid?: string }> | { valid: boolean; uid?: string };
+  ) => Promise<FirebaseIdentity> | FirebaseIdentity;
 }
 
 interface IdentityToolkitResult {
@@ -319,12 +328,14 @@ const jsonResponse = (
   return new Response(JSON.stringify(body), { status, headers });
 };
 
-const readBody = async (request: Request): Promise<Record<string, unknown>> => {
+const readBody = async (request: Request, { allowEmpty = false } = {}): Promise<Record<string, unknown>> => {
+  if (allowEmpty && !request.body) return {};
   if (!(request.headers.get('content-type') ?? '').toLowerCase().includes('application/json')) {
     throw new Error('invalid_content_type');
   }
   const raw = await request.text();
   if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new Error('body_too_large');
+  if (allowEmpty && !raw.trim()) return {};
   const parsed = asRecord(JSON.parse(raw));
   if (!parsed) throw new Error('invalid_request');
   return parsed;
@@ -373,12 +384,13 @@ const createStudentProfile = (input: {
   readonly uid: string;
   readonly email: string;
   readonly displayName: string;
+  readonly photoURL?: string;
   readonly now: number;
 }): Record<string, unknown> => ({
   uid: input.uid,
   email: input.email,
   displayName: input.displayName,
-  photoURL: null,
+  photoURL: input.photoURL ?? null,
   role: 'student',
   createdAt: input.now,
   lastLoginAt: input.now,
@@ -607,59 +619,86 @@ export const createStudentAuthWorkerHandlers = (options: StudentAuthWorkerOption
       env,
     );
     const uid = verified.valid && typeof verified.uid === 'string' ? verified.uid : '';
-    if (!uid) return workerError('unauthorized', 401);
+    if (!/^[A-Za-z0-9_-]{1,128}$/u.test(uid)) return workerError('unauthorized', 401);
+
+    const body = await readBody(request, { allowEmpty: true });
+    const registerGoogle = body.registerGoogle === true;
+    const googleEmail = verified.emailVerified && verified.hasGoogleIdentity
+      ? verified.email?.trim().toLowerCase() ?? ''
+      : '';
+    if (registerGoogle && !googleEmail) return workerError('account_unavailable', 403);
+
     try {
       const database = await resolveDatabase(env, fetchImpl);
-      const profile = asRecord(await database.readValue(`users/${uid}`));
-      if (!accountAvailable(profile)) return workerError('account_unavailable', 403);
-      const currentIdentifier = asRecord(await database.readValue(`student_identifiers/${uid}`));
-      let body: Record<string, unknown> = {};
-      try { body = asRecord(await request.clone().json()) ?? {}; } catch { /* optional setup body */ }
+      const profilePath = `users/${uid}`;
+      const profile = await database.readWithEtag<Record<string, unknown>>(profilePath);
+      const createProfile = profile.data === null && registerGoogle;
+      if (!createProfile && !accountAvailable(asRecord(profile.data))) {
+        return workerError('account_unavailable', 403);
+      }
+
       const suppliedStudentId = Object.prototype.hasOwnProperty.call(body, 'studentId');
       const requestedId = normalizeStudentId(body.studentId);
-      if (suppliedStudentId && !requestedId) return workerError('invalid_student_id', 400);
-      const currentId = normalizeStudentId(currentIdentifier?.studentId);
+      if ((suppliedStudentId || registerGoogle) && !requestedId) return workerError('invalid_student_id', 400);
+      const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
+      const firstName = typeof body.firstName === 'string' ? body.firstName.trim().slice(0, 50) : '';
+      const familyName = typeof body.familyName === 'string' ? body.familyName.trim().slice(0, 50) : '';
+      if (registerGoogle && (!firstName || !familyName || !displayName)) return workerError('invalid_display_name', 400);
+
+      const identifierPath = `student_identifiers/${uid}`;
+      const currentIdentifier = await database.readWithEtag<Record<string, unknown>>(identifierPath);
+      const currentId = normalizeStudentId(currentIdentifier.data?.studentId);
       if (currentId && requestedId && currentId.normalized !== requestedId.normalized) {
         return workerError('student_id_already_assigned', 409);
       }
       for (let attempt = 0; attempt < 12; attempt += 1) {
-        const candidate = currentId ?? requestedId ?? normalizeStudentId((options.generateStudentId ?? generateStudentId)());
+        let candidate = currentId ?? requestedId ?? normalizeStudentId((options.generateStudentId ?? generateStudentId)());
         if (!candidate) continue;
         const reservation = await reserveStudentId(database, uid, candidate, now());
         if (!reservation) {
           if (currentId) return workerError('student_id_conflict', 409);
+          if (requestedId) return workerError('student_id_unavailable', 409);
           continue;
         }
-        const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : undefined;
-        const firstName = typeof body.firstName === 'string' ? body.firstName.trim().slice(0, 50) : undefined;
-        const familyName = typeof body.familyName === 'string' ? body.familyName.trim().slice(0, 50) : undefined;
-        const updates = {
-          [`users/${uid}`]: {
-            ...(profile ?? {}),
-            ...(displayName ? { displayName } : {}),
-            ...(firstName ? { firstName } : {}),
-            ...(familyName ? { familyName } : {}),
-          },
-          [`student_identifiers/${uid}`]: {
+
+        if (!currentId) {
+          const identifier = {
             uid,
             studentId: candidate.display,
             normalizedStudentId: candidate.normalized,
-            createdAt: typeof currentIdentifier?.createdAt === 'number' ? currentIdentifier.createdAt : reservation.createdAt,
-          },
-          [`student_login_ids/${reservation.hash}`]: { uid, createdAt: reservation.createdAt },
+            createdAt: reservation.createdAt,
+          };
+          const assigned = await database.writeIfMatch(identifierPath, identifier, currentIdentifier.etag).catch(() => false);
+          if (!assigned) {
+            const storedIdentifier = asRecord(await database.readValue(identifierPath));
+            const assignedId = normalizeStudentId(storedIdentifier?.studentId);
+            if (!assignedId) return workerError('student_auth_unavailable', 503);
+            if (assignedId.normalized !== candidate.normalized) {
+              await releaseStudentIdReservation(database, reservation.hash, uid);
+              if (requestedId) return workerError('student_id_already_assigned', 409);
+            }
+            candidate = assignedId;
+          }
+        }
+
+        const names = {
+          ...(displayName ? { displayName } : {}),
+          ...(firstName ? { firstName } : {}),
+          ...(familyName ? { familyName } : {}),
         };
-        try {
-          await database.patchAdminMultiLocation(updates);
-        } catch {
-          const [storedIdentifier, storedIndex] = await Promise.all([
-            database.readValue(`student_identifiers/${uid}`).then(asRecord).catch(() => null),
-            database.readValue(`student_login_ids/${reservation.hash}`).then(asRecord).catch(() => null),
-          ]);
-          const committed = normalizeStudentId(storedIdentifier?.studentId)?.normalized === candidate.normalized
-            && storedIndex?.uid === uid;
-          if (!committed) {
-            await releaseStudentIdReservation(database, reservation.hash, uid);
-            throw new Error('student_profile_write_failed');
+        if (createProfile || Object.keys(names).length > 0) {
+          // Publish a new profile only after both student ID records exist.
+          const initialProfile = createProfile
+            ? createStudentProfile({ uid, email: googleEmail, displayName, photoURL: verified.photoURL, now: now() })
+            : profile.data;
+          const saved = await database.writeIfMatch(profilePath, { ...initialProfile, ...names }, profile.etag).catch(() => false);
+          if (!saved) {
+            const latest = asRecord(await database.readValue(profilePath));
+            if (!latest) return workerError('student_auth_unavailable', 503);
+            if (!accountAvailable(latest)) return workerError('account_unavailable', 403);
+            if (Object.entries(names).some(([name, value]) => latest[name] !== value)) {
+              return workerError('student_auth_unavailable', 503);
+            }
           }
         }
         return { body: { studentId: candidate.display, created: !currentId }, status: 200 };

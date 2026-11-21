@@ -11,6 +11,7 @@ const varsPath = path.join(tempDir, '.dev.vars');
 const localViteOrigin = process.env.LOCAL_VITE_ORIGIN || 'http://localhost:5173';
 
 const localEntry = `import { createUploadWorker } from '../worker.js';
+import { identityFromFirebaseClaims } from '../src/upload-worker/firebase-verification.js';
 
 const decode = (segment) => JSON.parse(atob(segment.replace(/-/gu, '+').replace(/_/gu, '/') + '==='.slice((segment.length + 3) % 4)));
 const localFirebaseVerifier = {
@@ -24,7 +25,7 @@ const localFirebaseVerifier = {
       const payload = decode(encodedPayload);
       const now = Math.floor(Date.now() / 1000);
       if (parsedHeader?.alg !== 'none' || payload?.aud !== env.FIREBASE_PROJECT_ID || payload?.iss !== 'https://securetoken.google.com/' + env.FIREBASE_PROJECT_ID || typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(payload.exp) || payload.exp <= now) return { valid: false };
-      return { valid: true, uid: payload.sub };
+      return identityFromFirebaseClaims(payload);
     } catch { return { valid: false }; }
   },
 };
