@@ -9,6 +9,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { assess, classifyPaths, collectSourceState, hostingImpactPaths, parseCompatibilityReviewBinding } from './release-check.mjs';
 import { hasHostingDependencyProbes, isHostingDependenciesObserved, observeHostingDependencies, selectHostingDependencyScope } from './release-hosting-dependencies.mjs';
 import { writeHostingManifest, observeHosting, observeHostingProvider, readLiveHostingManifestFingerprint, isObserved, waitForHostingLive, assertHostingArtifact, hostingRollbackCommand } from './release-evidence.mjs';
+import { assertProtectedMain } from './release-provider-readback.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -68,6 +69,10 @@ export const assertQualificationFirebaseValues = values => {
 const forbiddenBundleMarkers = [
   'demo-luyentap-local',
   'local-dev-key',
+  'teacher@test.com',
+  'teacher2@test.com',
+  'student@test.com',
+  'password123',
   'https://localhost:8787',
   'http://localhost:8787',
   'localhost:9000',
@@ -264,6 +269,20 @@ const providerIdentity = observation => `${observation?.provider?.version}@${obs
 const operationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const revisionPattern = /^[a-f0-9]{40}$/u;
 const digestPattern = /^[a-f0-9]{64}$/u;
+
+export async function assertHostingProtectedMain({ revision, allowNonMain = false, runGit } = {}) {
+  if (allowNonMain) return null;
+  if (typeof runGit !== 'function') throw new Error('Production Hosting guard requires a Git runner.');
+  return assertProtectedMain({
+    runGit,
+    revision,
+    label: 'Production Hosting deploy',
+  });
+}
+
+export const shouldSkipHostingProtectedMain = ({ deployBuilt, githubActions, githubRef } = {}) => (
+  deployBuilt && githubActions === 'true' && githubRef === 'refs/heads/main'
+);
 
 export async function assertBuiltArtifact({ cwd = repoRoot, artifactSha256, source, envFingerprint, buildInputFingerprint, expectedHotfixes } = {}) {
   const manifest = JSON.parse(await readFile(path.join(cwd, 'dist/.well-known/luyentap-release.json'), 'utf8'));
@@ -495,9 +514,9 @@ const main = async () => {
     }
     return;
   }
-  const allowed = new Set(['--build-only', '--deploy-built']);
+  const allowed = new Set(['--build-only', '--deploy-built', '--allow-non-main']);
   const args = new Set(rawArgs);
-  if ([...args].some(value => !allowed.has(value))) fail('only --build-only or --deploy-built is supported by this script.');
+  if ([...args].some(value => !allowed.has(value))) fail('only --build-only, --deploy-built, or --allow-non-main is supported by this script.');
   const buildOnly = args.has('--build-only');
   const deployBuilt = args.has('--deploy-built');
   if (buildOnly && deployBuilt) fail('--build-only and --deploy-built are mutually exclusive.');
@@ -517,6 +536,19 @@ const main = async () => {
       await assertHostingArtifact(cwd, manifest);
       console.log('[Production] Build and local-value checks passed; no remote mutation was performed.');
       return;
+    }
+    const revisionResult = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8', windowsHide: true });
+    if (revisionResult.error || revisionResult.status !== 0) fail('cannot resolve the candidate Git revision before deploying.');
+    if (!shouldSkipHostingProtectedMain({ deployBuilt, githubActions: process.env.GITHUB_ACTIONS, githubRef: process.env.GITHUB_REF })) {
+      await assertHostingProtectedMain({
+        revision: revisionResult.stdout.trim(),
+        allowNonMain: args.has('--allow-non-main'),
+        runGit: gitArgs => {
+          const result = spawnSync('git', gitArgs, { cwd, encoding: 'utf8', windowsHide: true });
+          if (result.error || result.status !== 0) throw result.error || new Error(result.stderr || 'Git command failed.');
+          return result.stdout;
+        },
+      });
     }
     const binding = process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING
       ? parseCompatibilityReviewBinding(process.env.LUYENTAP_RELEASE_COMPATIBILITY_REVIEW_BINDING) : undefined;

@@ -71,6 +71,7 @@ Temporary bridge: remove once repo memory/docs supersede this file.
 When testing authenticated teacher or student flows locally (`npm run dev`, `npm run preview:spare`, or `npm run dev:emulators`):
 - Always open the login route at `/login` first. Do not substitute `/`, a role route, or a deep link as the login entry point.
 - Prefer the built-in dev quick-login buttons on `/login` before asking for credentials.
+- After a confirmed spare RTDB sync, restore spare Dev Quick Login accounts with `npm.cmd run spare:provision-dev-accounts`.
 - First click the subtle settings icon in the bottom-right corner of `/login` to reveal the hidden dev quick-login buttons (`allowDevQuickLogin` enables them strictly on `http://localhost:<port>` in `spare` and `development` modes; they are never exposed on deployed `luyentap-pdf-qa-20261021.web.app` or production `kahut1.web.app`).
 - Use the `Teacher` quick-login button for the teacher dev account (`teacher@test.com`).
 - Use the `Student` quick-login button for the student dev account (`student@test.com`).

@@ -132,12 +132,13 @@ firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:li
 If publication or readback is interrupted, resume the read-only verification with:
 
 ```powershell
-npm run release:verify-existing -- --operation-id <uuid>
+npm run release:verify-existing -- --operation-id <uuid> --expected-revision <40-hex-sha>
 ```
 
 The recovery operation verifies the live version and manifest without rebuilding or
-redeploying. It accepts optional `operation_id` and `expected_manifest_sha256` inputs
-and validates their UUID and SHA-256 formats before readback.
+redeploying. It accepts optional `operation_id`, `expected_manifest_sha256`, and
+`expected_revision` inputs. `expected_revision` binds the readback to a specific
+40-hex Git revision, and all three inputs are validated before provider readback.
 
 For `target === 'hosting'` on protected `main`, the protected-main review uses scoped
 `observeHostingDependencies()` probes and preserves hotfix comparisons without requiring
@@ -152,6 +153,9 @@ The first manifest-bearing bootstrap is build-only:
 ```powershell
 npm run build:production -- --build-only
 ```
+
+Local mutating `npm run deploy:hosting` runs require `HEAD` to match protected
+`origin/main`. Intentional hotfix checkouts must pass `--allow-non-main`.
 
 For an independent live-based correction, prepare a clean checkout with
 `scripts/hotfix-prepare.mjs`, then run the hotfix assessment against the observed live
@@ -241,8 +245,14 @@ firebase deploy --only <target> --project temp-a1437 --non-interactive
 and `firestore:rules` runs `homeworkFirestoreRules.test.ts` inside `firebase emulators:exec --only firestore`.
 Post-deploy readback is bounded and polled. RTDB rules and Firestore rulesets are
 compared by SHA-256. Firestore composite indexes must be `READY`, with `__name__`
-normalized before comparison. Record the prior ruleset or index state and use the
-provider's native rollback or restore procedure if readback fails.
+normalized before comparison. Record the prior ruleset or index state. To restore a
+known-good checked-out rules revision, pass the explicit non-main opt-in because the
+guard otherwise requires protected `origin/main`:
+
+```powershell
+git checkout <known-good-revision>
+node scripts/deploy-firebase-rules.mjs --only <target> --allow-non-main
+```
 
 ## Parallel-worktree localhost and spare workflow
 
@@ -281,6 +291,16 @@ shared media URLs as read-only references.
 `spare:sync-from-live` uses Firebase CLI `database:get` and `database:set` for RTDB,
 strips `passwordHash` and `salt` before `auth:import`, and performs upsert-only
 Firestore writes that preserve existing spare-only documents.
+
+Because a confirmed RTDB sync replaces the spare root, restore the disposable Dev
+Quick Login identities and profiles afterward with:
+
+```powershell
+npm.cmd run spare:provision-dev-accounts
+```
+
+The helper hard-refuses `temp-a1437` and every project other than
+`luyentap-pdf-qa-20261021`.
 
 Related procedures are in the [qualification foundation runbook](qualification-foundation-runbook.md)
 and [native development guide](native-development.md).

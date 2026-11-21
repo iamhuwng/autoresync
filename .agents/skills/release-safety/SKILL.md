@@ -46,7 +46,7 @@ firebase hosting:clone temp-a1437:kahut1@<prior-version-id> temp-a1437:kahut1:li
 Resume an interrupted readback without redeploying:
 
 ```powershell
-npm run release:verify-existing -- --operation-id <uuid>
+npm run release:verify-existing -- --operation-id <uuid> --expected-revision <40-hex-sha>
 ```
 
 The first manifest-bearing bootstrap is build-only:
@@ -54,6 +54,9 @@ The first manifest-bearing bootstrap is build-only:
 ```powershell
 npm run build:production -- --build-only
 ```
+
+Local mutating `npm run deploy:hosting` runs require protected `origin/main`.
+Intentional hotfix checkouts must pass `--allow-non-main`.
 
 Use `scripts/hotfix-prepare.mjs` for a clean live-based hotfix checkout.
 
@@ -119,6 +122,14 @@ the repository Firebase CLI to `temp-a1437`, and polls readback. Compare RTDB an
 Firestore rulesets by SHA-256. Require composite indexes to be `READY`, normalizing
 `__name__` before comparison.
 
+To restore a known-good checked-out rules revision, pass the explicit non-main opt-in
+because the guard otherwise requires protected `origin/main`:
+
+```powershell
+git checkout <known-good-revision>
+node scripts/deploy-firebase-rules.mjs --only <target> --allow-non-main
+```
+
 ## Spare and parallel worktrees
 
 Use the spare project `luyentap-pdf-qa-20261021` and Worker
@@ -132,6 +143,7 @@ npm.cmd run build:spare
 npm.cmd run preview:spare -- --port auto
 node scripts/release-spare-readback.mjs http://localhost:<port>
 npm.cmd run spare:sync-from-live -- [--dry-run | --confirm-spare-overwrite]
+npm.cmd run spare:provision-dev-accounts
 ```
 
 `--port auto` selects the first free port from the whitelisted `5173–5182` localhost
@@ -146,7 +158,10 @@ using `--confirm-spare-overwrite`. The command forbids R2 or B2 object copy and
 preserves shared media URLs as read-only references. `spare:sync-from-live` uses
 Firebase CLI `database:get` and `database:set` for RTDB, strips `passwordHash` and
 `salt` before `auth:import`, and performs upsert-only Firestore writes that preserve
-existing spare-only documents. `npm.cmd run dev` exposes
+existing spare-only documents. After a confirmed RTDB sync, run
+`npm.cmd run spare:provision-dev-accounts` to restore the disposable spare Dev Quick
+Login Auth credentials and `/users/{uid}` profiles. The helper hard-refuses
+`temp-a1437`. `npm.cmd run dev` exposes
 `/__spare-dev-identity.json` for live inspection, while `release-spare-readback.mjs`
 verifies `/__spare-preview-identity.json` on clean `preview:spare` builds across any
 valid localhost port.

@@ -7,6 +7,7 @@ import {
   FIRESTORE_SYNC_SEMANTICS,
   LIVE_FIREBASE_PROJECT,
   defaultGoogleAccessToken,
+  formatSpareSyncError,
   main,
   sanitizeAuthExportForSpare,
   syncLiveToSpare,
@@ -171,6 +172,21 @@ test('spare sync reports partial failure after RTDB succeeds and Firestore fails
     && error.failedScope === 'firestore'
     && JSON.stringify(error.remainingScopes) === JSON.stringify(['firestore']));
   assert.equal(cliCalls.some(args => args[0] === 'database:set'), true);
+});
+
+test('spare sync CLI error formatting preserves partial-failure scopes', () => {
+  const error = Object.assign(new Error('A spare Firestore batch write failed.'), {
+    failedScope: 'firestore',
+    completedScopes: ['rtdb'],
+    remainingScopes: ['firestore', 'auth'],
+  });
+  assert.equal(formatSpareSyncError(error), 'A spare Firestore batch write failed.\nFailed scope: firestore\nCompleted scopes: rtdb\nRemaining scopes: firestore, auth');
+  assert.deepEqual(JSON.parse(formatSpareSyncError(error, true)), {
+    error: 'A spare Firestore batch write failed.',
+    failedScope: 'firestore',
+    completedScopes: ['rtdb'],
+    remainingScopes: ['firestore', 'auth'],
+  });
 });
 
 test('spare sync timeout is reported without exposing the access token', async () => {
