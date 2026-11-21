@@ -148,6 +148,10 @@ export async function readCloudflareToken(cwd, { hosting = false } = {}) {
   const scopedToken = hosting ? process.env.LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN?.trim() : '';
   if (hosting && process.env.GITHUB_ACTIONS === 'true') assert(scopedToken, 'Hosting readback requires the LUYENTAP_RELEASE_CLOUDFLARE_READ_TOKEN secret');
   if (scopedToken) return scopedToken;
+  if (!hosting) {
+    const apiToken = process.env.CLOUDFLARE_API_TOKEN?.trim();
+    if (apiToken) return apiToken;
+  }
   const credentialOutput = command(process.execPath, [fileURLToPath(new URL('./tooling-where.mjs', import.meta.url)), '--exec', 'cloudflare-wrangler', 'auth', 'token', '--json'], cwd);
   let credentials;
   try { credentials = JSON.parse(credentialOutput); } catch { throw new Error('Wrangler returned an invalid authentication response.'); }

@@ -1568,7 +1568,8 @@ function FixtureBookAssemblyWorkspaceSmokePage() {
   const signedInLabel = user
     ? `${profile?.role ?? 'user'} ${user.email ?? user.uid}`
     : 'not signed in';
-  const canPreview = profile?.role === 'super_admin' || user?.email === 'teacher@test.com';
+  const canPreview = profile?.role === 'super_admin'
+    || (import.meta.env.MODE !== 'production' && user?.email === 'teacher@test.com');
   const previewDocuments = useMemo<readonly BookTeacherAssemblyDocumentProjection[]>(() => {
     if (!candidate || !canPreview || !ticket58Fixture) return [];
     const projectedBookId = fixture === 'ticket58-copied' ? 'copied-book' : BOOK_ID;

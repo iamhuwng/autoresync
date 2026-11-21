@@ -16,7 +16,9 @@ import { auth, database, googleProvider, isLocalDevelopment } from '../services/
 
 const studentAuthWorkerUrl = () => String(import.meta.env.VITE_R2_UPLOAD_WORKER_URL || '').trim().replace(/\/$/u, '');
 
-const DEV_VERIFIED_EMAILS = new Set(['teacher@test.com', 'teacher2@test.com', 'student@test.com']);
+const DEV_VERIFIED_EMAILS = import.meta.env.MODE === 'production'
+  ? new Set()
+  : new Set(['teacher@test.com', 'teacher2@test.com', 'student@test.com']);
 const isDevVerifiedAccount = (email) => import.meta.env.DEV && DEV_VERIFIED_EMAILS.has(String(email || '').trim().toLowerCase());
 
 const createAuthError = (code, message) => Object.assign(new Error(message), { code });

@@ -213,7 +213,11 @@ test('live guards block --skip-tests, dirty tree, and concurrent live drift whil
           },
         }),
       },
-    }), error => error.phase === 'pre-deploy-drift' && error.rollbackGuidance.includes(priorRuleset));
+    }), error => {
+      assert.equal(error.phase, 'pre-deploy-drift');
+      assert.match(error.rollbackGuidance, new RegExp(`node scripts/deploy-firebase-rules\\.mjs --only firestore:rules --allow-non-main`));
+      return error.rollbackGuidance.includes(priorRuleset);
+    });
     assert.equal(driftCalls.some(args => args.includes('deploy')), false);
 
     await assert.rejects(() => deployFirebaseRules({

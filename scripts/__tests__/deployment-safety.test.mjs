@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   assertBuiltArtifact,
   assertCleanWorkingTree,
+  assertHostingProtectedMain,
   assertQualificationFirebaseValues,
   cleanParentEnv,
   deployHosting,
@@ -18,6 +19,7 @@ import {
   readProductionEnv,
   resolveBuiltDeploymentAssessment,
   selectReleaseSource,
+  shouldSkipHostingProtectedMain,
   verifyExistingHosting,
   writeOperationOutcome,
 } from '../deploy-live.mjs';
@@ -271,6 +273,10 @@ test('production route detects local bundle markers', () => {
   assert.equal(findForbiddenBundleMarker('https://demo-project.example'), undefined);
   assert.equal(findForbiddenBundleMarker('https://demo-luyentap-local.example'), 'demo-luyentap-local');
   assert.equal(findForbiddenBundleMarker('https://temp-a1437.web.app'), undefined);
+  assert.equal(findForbiddenBundleMarker('teacher@test.com'), 'teacher@test.com');
+  assert.equal(findForbiddenBundleMarker('teacher2@test.com'), 'teacher2@test.com');
+  assert.equal(findForbiddenBundleMarker('student@test.com'), 'student@test.com');
+  assert.equal(findForbiddenBundleMarker('password123'), 'password123');
 });
 
 test('production deploy blocks a dirty working tree', () => {
@@ -629,6 +635,39 @@ test('deployHosting publishes and returns uniform outcome plus rollback and veri
   assert.equal(result.liveVersion, 'projects/temp-a1437/sites/kahut1/versions/new123');
   assert.match(result.rollbackCommand, /firebase hosting:clone temp-a1437:kahut1@old123 temp-a1437:kahut1:live --project temp-a1437/u);
   assert.match(result.verifyCommand, /npm run release:verify-existing -- --operation-id/u);
+});
+
+test('mutating Hosting deploys reject non-main revisions unless --allow-non-main is explicit', async () => {
+  const revision = 'a'.repeat(40);
+  const protectedRevision = 'b'.repeat(40);
+  const runGit = async args => {
+    assert.deepEqual(args, ['ls-remote', 'origin', 'refs/heads/main']);
+    return `${protectedRevision}\trefs/heads/main\n`;
+  };
+
+  await assert.rejects(
+    () => assertHostingProtectedMain({ revision, runGit }),
+    /Production Hosting deploy requires HEAD .* to match protected origin\/main/u,
+  );
+
+  let bypassCalls = 0;
+  const bypassed = await assertHostingProtectedMain({
+    revision,
+    allowNonMain: true,
+    runGit: async () => {
+      bypassCalls += 1;
+      return `${protectedRevision}\trefs/heads/main\n`;
+    },
+  });
+  assert.equal(bypassed, null);
+  assert.equal(bypassCalls, 0);
+});
+
+test('CI deploy-built Hosting publication trusts the workflow main pin while local deploy-built remains guarded', () => {
+  assert.equal(shouldSkipHostingProtectedMain({ deployBuilt: true, githubActions: 'true', githubRef: 'refs/heads/main' }), true);
+  assert.equal(shouldSkipHostingProtectedMain({ deployBuilt: true, githubActions: 'true', githubRef: 'refs/heads/feature' }), false);
+  assert.equal(shouldSkipHostingProtectedMain({ deployBuilt: true, githubActions: undefined, githubRef: 'refs/heads/main' }), false);
+  assert.equal(shouldSkipHostingProtectedMain({ deployBuilt: false, githubActions: 'true', githubRef: 'refs/heads/main' }), false);
 });
 
 test('deployHosting rejects duplicate publication, tampered artifacts, caller dependency evidence, and pre-deploy drift without rollback spam', async t => {

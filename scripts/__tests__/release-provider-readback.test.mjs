@@ -8,6 +8,7 @@ import {
   digest,
   formatCommandFailure,
   hashWorkerVersionModules,
+  readCloudflareToken,
   readGoogleToken,
   readProviderState,
   validateFirestoreRulesReadback,
@@ -127,6 +128,11 @@ test('single-Worker scope skips Google, RTDB, Firestore, R2 and other Workers', 
   assert.deepEqual(Object.keys(state.workers), ['r2-backup-worker']);
   assert.equal(state.workers['r2-backup-worker'].versionId, versionId);
   assert.equal(requested.length, 7);
+});
+
+test('Worker readback accepts CLOUDFLARE_API_TOKEN when Hosting readback is not requested', async t => {
+  withEnv(t, { CLOUDFLARE_API_TOKEN: 'worker-read-token' });
+  assert.equal(await readCloudflareToken(process.cwd(), { hosting: false }), 'worker-read-token');
 });
 
 test('readGoogleToken allows unset gcloud default project while passing explicit --project and rejecting project/account mismatches', async () => {

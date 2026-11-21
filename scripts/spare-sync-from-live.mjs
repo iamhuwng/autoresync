@@ -398,9 +398,24 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   }
 }
 
+export function formatSpareSyncError(error, json = false) {
+  const details = {
+    error: error instanceof Error ? error.message : String(error),
+  };
+  for (const key of ['failedScope', 'completedScopes', 'remainingScopes']) {
+    if (Object.hasOwn(error ?? {}, key)) details[key] = error[key];
+  }
+  if (json) return JSON.stringify(details);
+  const lines = [details.error];
+  if (details.failedScope) lines.push(`Failed scope: ${details.failedScope}`);
+  if (details.completedScopes) lines.push(`Completed scopes: ${details.completedScopes.join(', ') || '(none)'}`);
+  if (details.remainingScopes) lines.push(`Remaining scopes: ${details.remainingScopes.join(', ') || '(none)'}`);
+  return lines.join('\n');
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try { await main(); } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(formatSpareSyncError(error, process.argv.includes('--json')));
     process.exitCode = 1;
   }
 }

@@ -16,7 +16,7 @@ export const canUseDevQuickLogin = (
   return mode === 'development' || mode === 'spare';
 };
 
-const DEV_LOGIN_CREDENTIALS = {
+const DEV_LOGIN_CREDENTIALS = import.meta.env.MODE === 'production' ? {} : {
   teacher: { id: 'teacher', email: 'teacher@test.com', password: 'teacher' },
   teacher2: { email: 'teacher2@test.com', password: 'password123' },
   student: { id: 'student', email: 'student@test.com', password: 'student' },
@@ -241,9 +241,11 @@ const LoginPage = () => {
     setLoginError(null);
     setFormPending(true);
     const isEmail = value.includes('@');
-    const devCredential = allowDevQuickLogin
-      ? Object.values(DEV_LOGIN_CREDENTIALS).find((credential) => credential.id === value && credential.password === password)
-      : null;
+    const devCredential = import.meta.env.MODE === 'production'
+      ? null
+      : allowDevQuickLogin
+        ? Object.values(DEV_LOGIN_CREDENTIALS).find((credential) => credential.id === value && credential.password === password)
+        : null;
     trackAction('login', { method: devCredential ? 'dev_id' : isEmail ? 'email' : 'student_id' });
     try {
       if (devCredential) await loginWithEmail(devCredential.email, password);
@@ -319,7 +321,7 @@ const LoginPage = () => {
     }
   };
 
-  const handleDevLogin = async (role) => {
+  const handleDevLogin = import.meta.env.MODE === 'production' ? async () => {} : async (role) => {
     if (formPending || googleLoginPending || devLoading) return;
     setLoginError(null);
     setDevLoading(role);

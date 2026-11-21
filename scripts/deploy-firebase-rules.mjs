@@ -198,7 +198,7 @@ function rollbackGuidance(targets, prior, revision) {
   const lines = [`Candidate source revision: ${revision}`, 'To recover, check out the last known-good revision and rerun this guarded deploy command.'];
   if (targets.includes('database')) lines.push(`Prior RTDB rules SHA-256: ${prior?.rulesSha256 ?? prior?.rtdbRules?.rulesSha256 ?? 'unavailable'}`);
   if (targets.includes('firestore:rules')) lines.push(`Prior Firestore ruleset name: ${prior?.firestoreRules?.release?.rulesetName ?? prior?.firestoreRules?.rulesetName ?? 'unavailable'}`);
-  lines.push('git checkout <known-good-revision>', `node scripts/deploy-firebase-rules.mjs --only ${targets.join(',')}`);
+  lines.push('git checkout <known-good-revision>', `node scripts/deploy-firebase-rules.mjs --only ${targets.join(',')} --allow-non-main`);
   return lines.join('\n');
 }
 
